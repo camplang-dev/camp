@@ -203,9 +203,13 @@ public sealed partial class BindableNodeBuilder
 		};
 	}
 
-	InterpolatedStringExpression BuildInterpolatedStringExpression(InterpolatedStringExpressionSyntax syntax, string context)
+	Expression BuildInterpolatedStringExpression(InterpolatedStringExpressionSyntax syntax, string context)
 	{
-		InterpolatedStringExpression expression = new() { SourceSyntax = syntax };
+		InterpolatedStringExpression expression = new()
+		{
+			SourceSyntax = syntax,
+			HeapAllocated = syntax.NewKeyword is not null
+		};
 		foreach (InterpolatedStringSegmentSyntax segment in syntax.Segments)
 		{
 			switch (segment)
@@ -226,6 +230,15 @@ public sealed partial class BindableNodeBuilder
 					});
 					break;
 			}
+		}
+		if (syntax.AllocatorExpression is not null)
+		{
+			return new WithinExpression
+			{
+				SourceSyntax = syntax,
+				Context = BuildWithinContextExpression(syntax.AllocatorExpression, $"{context} interpolation allocator"),
+				Expression = expression
+			};
 		}
 		return expression;
 	}

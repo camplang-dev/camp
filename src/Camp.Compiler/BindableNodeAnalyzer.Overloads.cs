@@ -349,12 +349,6 @@ public sealed partial class BindableNodeAnalyzer
 
 		ArgumentExpression selectorArgument = arguments[selectorIndex];
 		SyntaxNode? selectorSyntax = OverloadSelectorSyntax(selectorArgument, syntax);
-		Expression? selectorExpression = UnwrapParenthesizedExpression(selectorArgument.Value);
-		if (IsFormatterSelectorSyntax(selectorExpression)
-			&& TrySelectFormatterOverloadCandidate(invokerName, candidates, selectorArgument, selectorExpression, scope, typeScope, selectorSyntax, out FunctionDefinition? formatterSelected))
-		{
-			return formatterSelected;
-		}
 		if (IsWeakOverloadSelectorArgument(selectorArgument))
 		{
 			Report(GetRange(selectorSyntax), $"Cannot select overload `{invokerName}` because the selector expression has no independent static type. Add an explicit cast.");
@@ -401,71 +395,6 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		return selected;
-	}
-
-	bool TrySelectFormatterOverloadCandidate(
-		string invokerName,
-		List<FunctionDefinition> candidates,
-		ArgumentExpression selectorArgument,
-		Expression? selectorExpression,
-		BodyScope scope,
-		AnalysisScope typeScope,
-		SyntaxNode? selectorSyntax,
-		out FunctionDefinition? selected)
-	{
-		selected = null;
-		List<FunctionDefinition> formatterCandidates = [];
-		foreach (FunctionDefinition candidate in candidates)
-		{
-			EnsureFunctionSignatureAnalyzed(candidate, typeScope);
-			ParameterDefinition? selector = GetOverloadSelector(candidate);
-			if (selector?.ResolvedType is string selectorType && TryGetFormatterShape(selectorType, out _))
-				formatterCandidates.Add(candidate);
-		}
-
-		if (formatterCandidates.Count == 0)
-			return false;
-
-		if (formatterCandidates.Count > 1)
-		{
-			Report(GetRange(selectorSyntax), $"Textual formatter expression cannot select overload `{invokerName}` because multiple formatter-shaped overloads are visible.");
-			selectorArgument.ResolvedType = ErrorType;
-			if (selectorExpression is not null)
-				selectorExpression.ResolvedType = ErrorType;
-			return true;
-		}
-
-		selected = formatterCandidates[0];
-		ParameterDefinition? selectedSelector = GetOverloadSelector(selected);
-		string targetType = selectedSelector?.ResolvedType ?? ErrorType;
-		string actual = BodyAnalyzeArgumentExpression(selectorArgument, scope, typeScope, targetType);
-		selectorArgument.ResolvedType = actual;
-		if (actual != ErrorType)
-			CheckAssignable(targetType, actual, selectorSyntax, "Argument");
-		return true;
-	}
-
-	static bool IsFormatterSelectorSyntax(Expression? expression)
-	{
-		expression = UnwrapParenthesizedExpression(expression);
-		return expression switch
-		{
-			InterpolatedStringExpression => true,
-			BinaryExpression { Operator: BinaryOperator.Add } binary => ContainsTextualCompositionSyntax(binary),
-			_ => false
-		};
-	}
-
-	static bool ContainsTextualCompositionSyntax(Expression? expression)
-	{
-		expression = UnwrapParenthesizedExpression(expression);
-		return expression switch
-		{
-			InterpolatedStringExpression => true,
-			LiteralExpression { Kind: LiteralKind.String } => true,
-			BinaryExpression { Operator: BinaryOperator.Add } binary => ContainsTextualCompositionSyntax(binary.Left) || ContainsTextualCompositionSyntax(binary.Right),
-			_ => false
-		};
 	}
 
 	static bool IsWeakOverloadSelectorArgument(ArgumentExpression argument)

@@ -262,6 +262,7 @@ public static class SyntaxNodeTraversal
 				foreach (SyntaxNode child in syntax.Qualifiers ?? []) yield return child;
 				break;
 			case InterpolatedStringExpressionSyntax syntax:
+				if (syntax.AllocatorExpression is not null) yield return syntax.AllocatorExpression;
 				foreach (SyntaxNode child in syntax.Segments) yield return child;
 				break;
 			case InterpolatedStringExpressionSegmentSyntax syntax:
@@ -795,6 +796,11 @@ public static class SyntaxNodeTraversal
 				foreach (Token token in Tokens(syntax.Literal)) yield return token;
 				break;
 			case InterpolatedStringExpressionSyntax syntax:
+				foreach (Token token in Tokens(syntax.WithinKeyword)) yield return token;
+				foreach (Token token in Tokens(syntax.WithinOpenParenToken)) yield return token;
+				if (syntax.AllocatorExpression is not null) foreach (Token token in Tokens(syntax.AllocatorExpression)) yield return token;
+				foreach (Token token in Tokens(syntax.WithinCloseParenToken)) yield return token;
+				foreach (Token token in Tokens(syntax.NewKeyword)) yield return token;
 				foreach (Token token in Tokens(syntax.Literal)) yield return token;
 				break;
 			case QualifiedNameExpressionSyntax syntax:

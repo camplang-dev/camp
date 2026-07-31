@@ -652,6 +652,11 @@ public class LiteralExpressionSyntax : PrimaryExpressionSyntax
 
 public class InterpolatedStringExpressionSyntax : PrimaryExpressionSyntax
 {
+	public Token? WithinKeyword { get; set; }
+	public Token? WithinOpenParenToken { get; set; }
+	public ExpressionSyntax? AllocatorExpression { get; set; }
+	public Token? WithinCloseParenToken { get; set; }
+	public Token? NewKeyword { get; set; }
 	public Token? Literal { get; set; }
 	public List<InterpolatedStringSegmentSyntax> Segments { get; } = [];
 }

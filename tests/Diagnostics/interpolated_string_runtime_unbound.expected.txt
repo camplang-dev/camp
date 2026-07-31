@@ -1,1 +1,1 @@
-tests/Diagnostics/interpolated_string_runtime_unbound.camp(5,32): error: Interpolation expression of type 'int' does not establish a UTF-8 formatter type.
+tests/Diagnostics/interpolated_string_runtime_unbound.camp(5,32): error: Interpolation expression of type 'int' cannot format as UTF-8 text.

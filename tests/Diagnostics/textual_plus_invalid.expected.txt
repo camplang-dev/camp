@@ -1,3 +1,3 @@
-tests/Diagnostics/textual_plus_invalid.camp(20,25): error: Runtime interpolated string cannot implicitly convert to primitive string target 'string'.
-tests/Diagnostics/textual_plus_invalid.camp(21,2): error: Textual '+=' composition is not supported; assign an explicit composed formatter or materialized string value.
-tests/Diagnostics/textual_plus_invalid.camp(24,19): error: Interpolation expression of type 'Value' cannot format as 'CharFormatter'.
+tests/Diagnostics/textual_plus_invalid.camp(20,25): error: Textual '+' composition is not supported. Use an interpolated string.
+tests/Diagnostics/textual_plus_invalid.camp(21,2): error: Textual '+=' composition is not supported. Use an interpolated string.
+tests/Diagnostics/textual_plus_invalid.camp(24,17): error: Textual '+' composition is not supported. Use an interpolated string.

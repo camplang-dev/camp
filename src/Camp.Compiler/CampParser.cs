@@ -1634,6 +1634,9 @@ public sealed class CampParser
 
 	PrimaryExpressionSyntax? ParsePrimaryExpression()
 	{
+		if (TryParseAllocatedInterpolatedStringExpression() is InterpolatedStringExpressionSyntax allocatedInterpolation)
+			return allocatedInterpolation;
+
 		if (IsClass(TokenClass.InterpolatedString))
 			return ParseInterpolatedStringExpression();
 
@@ -1679,6 +1682,40 @@ public sealed class CampParser
 			return ParseInitializerList();
 
 		return ParseQualifiedNameExpression();
+	}
+
+	InterpolatedStringExpressionSyntax? TryParseAllocatedInterpolatedStringExpression()
+	{
+		int start = index;
+		int diagnosticStart = diagnostics.Count;
+		Token? withinKeyword = null;
+		Token? withinOpenParen = null;
+		ExpressionSyntax? allocator = null;
+		Token? withinCloseParen = null;
+
+		if (Is("within") && PeekValue(1) == "(")
+		{
+			withinKeyword = Take();
+			withinOpenParen = Expect("(");
+			allocator = ParseExpression();
+			withinCloseParen = Expect(")");
+		}
+
+		if (!Is("new") || Peek(1)?.Class != TokenClass.InterpolatedString)
+		{
+			index = start;
+			diagnostics.RemoveRange(diagnosticStart, diagnostics.Count - diagnosticStart);
+			return null;
+		}
+
+		Token newKeyword = Take()!.Value;
+		InterpolatedStringExpressionSyntax syntax = ParseInterpolatedStringExpression();
+		syntax.WithinKeyword = withinKeyword;
+		syntax.WithinOpenParenToken = withinOpenParen;
+		syntax.AllocatorExpression = allocator;
+		syntax.WithinCloseParenToken = withinCloseParen;
+		syntax.NewKeyword = newKeyword;
+		return syntax;
 	}
 
 	InterpolatedStringExpressionSyntax ParseInterpolatedStringExpression()

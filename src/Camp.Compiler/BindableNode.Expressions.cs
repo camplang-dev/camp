@@ -17,6 +17,8 @@ public class InterpolatedStringExpression : Expression
 {
 	public List<InterpolatedStringSegment> Segments { get; } = [];
 	public string? FormatterType { get; set; }
+	public bool HeapAllocated { get; set; }
+	public bool NullTerminated { get; set; }
 }
 
 public abstract class InterpolatedStringSegment : BindableNode

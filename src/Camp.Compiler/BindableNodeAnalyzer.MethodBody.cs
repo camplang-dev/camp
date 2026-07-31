@@ -1209,8 +1209,24 @@ public sealed partial class BindableNodeAnalyzer
 			}
 		}
 
-		bool hasExplicitFormatter = TryGetFormatterShape(targetType, out FormatterShape explicitConstantFormatter);
-		if (constant && !hasExplicitFormatter)
+		if (TryGetFormatterShape(targetType, out _))
+		{
+			Report(GetRange(interpolation.SourceSyntax), $"Interpolated string cannot implicitly convert to formatter target '{targetType}'. Use an explicit formatter value instead.");
+			interpolation.ResolvedType = ErrorType;
+			expressionConstants[interpolation] = false;
+			return ErrorType;
+		}
+
+		string resultType = GetInterpolatedStringResultType(interpolation, targetType);
+		interpolation.NullTerminated = IsPrimitiveStringType(resultType);
+		if (interpolation.HeapAllocated)
+		{
+			RequireExplicitWithin(interpolation.SourceSyntax, scope, "new interpolated string requires an explicit within context; use within(allocator) or within(default).");
+			if (IsFixedCharacterArrayType(resultType))
+				Report(GetRange(interpolation.SourceSyntax), "new interpolated string cannot target fixed-size array storage.");
+		}
+
+		if (constant && CanRewriteConstantInterpolationToLiteral(resultType))
 		{
 			LiteralExpression literal = new()
 			{
@@ -1219,7 +1235,7 @@ public sealed partial class BindableNodeAnalyzer
 				Text = FormatStringLiteral(value.ToString()),
 				Value = value.ToString()
 			};
-			string type = GetStringLiteralType(literal, targetType);
+			string type = GetStringLiteralType(literal, resultType);
 			literal.ResolvedType = type;
 			expressionConstants[interpolation] = true;
 			expressionRewrites[interpolation] = literal;
@@ -1227,22 +1243,10 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		expressionConstants[interpolation] = false;
-		if (targetType is not null && IsStringLiteralTargetType(targetType))
-		{
-			Report(GetRange(interpolation.SourceSyntax), $"Runtime interpolated string cannot implicitly convert to primitive string target '{targetType}'.");
-			return ErrorType;
-		}
-
-		FormatterShape formatter;
-		if (hasExplicitFormatter)
-			formatter = explicitConstantFormatter;
-		else if (!TryInferInterpolatedCharFormatter(interpolation, runtimeHoles, scope, typeScope, out formatter))
-			return ErrorType;
-
 		bool success = true;
 		foreach (InterpolatedStringExpressionSegment hole in runtimeHoles)
 		{
-			if (!TryBindInterpolationHoleFormatter(hole, formatter, scope, typeScope, interpolation.SourceSyntax, out Expression? formatterExpression))
+			if (!TryBindInterpolationHoleFormatter(hole, scope, typeScope, interpolation.SourceSyntax, out Expression? formatterExpression))
 			{
 				success = false;
 				continue;
@@ -1250,11 +1254,38 @@ public sealed partial class BindableNodeAnalyzer
 			hole.Formatter = formatterExpression;
 		}
 
-		interpolation.FormatterType = formatter.Type;
-		interpolation.ResolvedType = success ? formatter.Type : ErrorType;
-		if (runtimeHoles.Count > 0 && IsEscapedCallableTarget(targetType))
-			Report(GetRange(interpolation.SourceSyntax), "Runtime interpolated strings cannot target escaped delegate types.");
+		interpolation.ResolvedType = success ? resultType : ErrorType;
 		return interpolation.ResolvedType;
+	}
+
+	string GetInterpolatedStringResultType(InterpolatedStringExpression interpolation, string? targetType)
+	{
+		if (targetType is null || targetType is TargetType or AutoType)
+			return "string";
+
+		string normalized = StripLifetimeQualifiers(targetType);
+		if (normalized is "string" or "const string")
+			return normalized;
+
+		if (TryGetArrayElementType(normalized) is string elementType
+			&& StripTopLevelValueQualifiers(elementType) == "char")
+			return normalized;
+
+		if (IsFixedCharacterArrayType(normalized))
+			return normalized;
+
+		Report(GetRange(interpolation.SourceSyntax), $"Runtime interpolated string cannot target '{targetType}'. Use string, char[], const char[], or fixed char[N].");
+		return ErrorType;
+	}
+
+	static bool CanRewriteConstantInterpolationToLiteral(string resultType)
+	{
+		if (resultType == ErrorType)
+			return false;
+		if (TryGetArrayElementType(resultType) is string elementType
+			&& !IsConstQualified(elementType))
+			return false;
+		return true;
 	}
 
 	bool TryInferInterpolatedCharFormatter(InterpolatedStringExpression interpolation, List<InterpolatedStringExpressionSegment> runtimeHoles, BodyScope scope, AnalysisScope typeScope, out FormatterShape formatter)
@@ -1290,7 +1321,7 @@ public sealed partial class BindableNodeAnalyzer
 		return false;
 	}
 
-	bool TryBindInterpolationHoleFormatter(InterpolatedStringExpressionSegment hole, FormatterShape formatter, BodyScope scope, AnalysisScope typeScope, SyntaxNode? referenceSyntax, out Expression? formatterExpression)
+	bool TryBindInterpolationHoleFormatter(InterpolatedStringExpressionSegment hole, BodyScope scope, AnalysisScope typeScope, SyntaxNode? referenceSyntax, out Expression? formatterExpression)
 	{
 		formatterExpression = null;
 		Expression? value = hole.Expression;
@@ -1298,13 +1329,14 @@ public sealed partial class BindableNodeAnalyzer
 		if (valueType == ErrorType)
 			return false;
 
-		if (CanAssignToType(formatter.Type, valueType) && TryGetFormatterShape(valueType, out _))
+		if (TryGetFormatterShape(valueType, out FormatterShape direct) && direct.ElementType == "char")
 		{
 			formatterExpression = value;
 			return true;
 		}
 
-		List<FormatterCandidate> candidates = FindFormatterCandidates(value, valueType, formatter, autoInference: false, scope, typeScope, referenceSyntax);
+		List<FormatterCandidate> candidates = FindFormatterCandidates(value, valueType, requiredFormatter: null, autoInference: true, scope, typeScope, referenceSyntax);
+		candidates = [.. candidates.Where(candidate => candidate.Shape.ElementType == "char")];
 		if (candidates.Count == 1)
 		{
 			formatterExpression = candidates[0].Expression;
@@ -1312,9 +1344,9 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		if (candidates.Count > 1)
-			Report(GetRange(value?.SourceSyntax ?? hole.SourceSyntax), $"Interpolation expression of type '{valueType}' has multiple formatters for target '{formatter.Type}'.");
+			Report(GetRange(value?.SourceSyntax ?? hole.SourceSyntax), $"Interpolation expression of type '{valueType}' has multiple eligible UTF-8 formatters.");
 		else
-			Report(GetRange(value?.SourceSyntax ?? hole.SourceSyntax), $"Interpolation expression of type '{valueType}' cannot format as '{formatter.Type}'.");
+			Report(GetRange(value?.SourceSyntax ?? hole.SourceSyntax), $"Interpolation expression of type '{valueType}' cannot format as UTF-8 text.");
 		return false;
 	}
 
@@ -5440,7 +5472,10 @@ public sealed partial class BindableNodeAnalyzer
 		expressionConstants[binary] = IsConstant(binary.Left) && IsConstant(binary.Right);
 
 		if (binary.Operator == BinaryOperator.Add && IsTextualComposition(binary, left, right))
-			return BodyAnalyzeTextualCompositionExpression(binary, left, right, scope, typeScope, targetType);
+		{
+			Report(GetRange(binary.SourceSyntax), "Textual '+' composition is not supported. Use an interpolated string.");
+			return ErrorType;
+		}
 
 		return binary.Operator switch
 		{
@@ -5577,7 +5612,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (assignment.Operator == AssignmentOperator.Add
 			&& (IsTextualCompositionAnchor(assignment.Target, targetType) || IsTextualCompositionAnchor(assignment.Value, valueType)))
 		{
-			Report(GetRange(assignment.SourceSyntax), "Textual '+=' composition is not supported; assign an explicit composed formatter or materialized string value.");
+			Report(GetRange(assignment.SourceSyntax), "Textual '+=' composition is not supported. Use an interpolated string.");
 			return targetType;
 		}
 		if (IsDirectCapturingLambda(assignment.Value, scope) && IsEscapingLambdaAssignmentTarget(assignment.Target) && !IsEscapedDelegateLambdaTarget(targetType))
