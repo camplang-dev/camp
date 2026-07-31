@@ -2,11 +2,11 @@ newtype delegate nuint CharFormatter(const this, char[] buffer = default);
 
 nuint format(in int this, overload char[] buffer) : CharFormatter
 {
-	return 2;
+	return 1;
 }
 
-int main()
+void make(int value)
 {
-	CharFormatter formatter = "Result: " + 1;
-	return (int)formatter(default);
+	string text = $"x{value}";
+	_ = text;
 }

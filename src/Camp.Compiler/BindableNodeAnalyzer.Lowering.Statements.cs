@@ -1176,6 +1176,14 @@ public sealed partial class BindableNodeAnalyzer
 				continue;
 			}
 
+			if (statements[i] is DeclarationStatement fixedInterpolationDeclaration && TryRewriteFixedInterpolatedStringDeclaration(fixedInterpolationDeclaration, out List<Statement>? fixedInterpolationRewritten))
+			{
+				statements.RemoveAt(i);
+				statements.InsertRange(i, fixedInterpolationRewritten);
+				i += fixedInterpolationRewritten.Count - 1;
+				continue;
+			}
+
 			if (statements[i] is DeclarationStatement declaration && (TryRewriteNewDeclaration(declaration, out List<Statement>? rewritten) || TryRewriteInitDeclaration(declaration, out rewritten)))
 			{
 				statements.RemoveAt(i);

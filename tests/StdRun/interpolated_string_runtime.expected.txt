@@ -1,10 +1,17 @@
 exit: 0
 hello Camp
 count=42; ok=true; bang=!
-literal only
 
 direct 42
 next=1, then=2, total=2
-5
-returned
+abc
+abc123
+Def
+456Def
+abcde
+true
+456Def
+The answer is 41
+heap 41
+The date is 42
 Shape is: Camp

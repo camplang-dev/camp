@@ -357,7 +357,7 @@ public sealed partial class BindableNodeAnalyzer
 			CaptureParamsArrayConstructionLength(initialValue, shape, declarations);
 		if (initialValue is LambdaExpression lambda)
 			PrepareLambdaContextLocal(lambda, declarations);
-		if (initialValue is InterpolatedStringExpression)
+		if (ContainsInterpolatedStringInitializer(initialValue))
 		{
 			List<Statement>? previousStatementPrefix = currentStatementPrefix;
 			try
@@ -473,6 +473,19 @@ public sealed partial class BindableNodeAnalyzer
 			});
 		}
 		return declarations.Count > 0;
+	}
+
+	static bool ContainsInterpolatedStringInitializer(Expression? expression)
+	{
+		return expression switch
+		{
+			InterpolatedStringExpression => true,
+			WithinExpression within => ContainsInterpolatedStringInitializer(within.Expression),
+			FinallyCleanupExpression cleanup => ContainsInterpolatedStringInitializer(cleanup.Expression),
+			ParenthesizedExpression parenthesized => ContainsInterpolatedStringInitializer(parenthesized.Expression),
+			CastExpression cast => ContainsInterpolatedStringInitializer(cast.Expression),
+			_ => false
+		};
 	}
 
 	bool TryCreateTargetTypedExpandedReceiverInitialValues(Expression? initialValue, ParamsComponentShape shape, List<Statement> declarations, out List<Expression?>? initialValues)

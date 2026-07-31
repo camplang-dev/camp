@@ -33,18 +33,6 @@ export int main()
 	if ("abc".format(empty) != 3)
 		return 11;
 
-	string copied = ($"a{1}b").copyString() finally delete;
-	if (copied.compareTo("a1b") != 0)
-		return 12;
-
-	fixed char[2] shortInterpolation = default;
-	char[] shortInterpolationSpan = shortInterpolation;
-	CharFormatter formatter = $"abcd{12}";
-	if (formatter(shortInterpolationSpan) != 6)
-		return 13;
-	if (shortInterpolation[0] != 'a' || shortInterpolation[1] != 'b')
-		return 14;
-
 	int seven = 7;
 	CharFormatter defaultCall = seven.format;
 	if (defaultCall() != 1)

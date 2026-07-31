@@ -1,0 +1,64 @@
+// file: interpolated_string_eager.c
+#include "interpolated_string_eager_private.h"
+
+/* Private file declarations. */
+static uintptr_t Int_formatCharArray(int *this, char *buffer, uintptr_t buffer_length);
+static void make(int value);
+
+static uintptr_t Int_formatCharArray(int *this, char *buffer, uintptr_t buffer_length)
+{
+	return 1;
+}
+
+static void make(int value)
+{
+	uintptr_t (* _interpolatedCall0)(const void *arg0, char *arg1, uintptr_t arg2) = (uintptr_t (*)(const void *arg0, char *arg1, uintptr_t arg2))(Int_formatCharArray);
+	const void *_interpolatedContext1 = (const void *)(&value);
+	uintptr_t _interpolatedRequired2 = 0;
+	_interpolatedRequired2 = (_interpolatedRequired2 + 1);
+	uintptr_t _interpolatedPartSize3 = _interpolatedCall0(_interpolatedContext1, NULL, 0);
+	_interpolatedRequired2 = (_interpolatedRequired2 + _interpolatedPartSize3);
+	uintptr_t _interpolatedBufferLength4 = (_interpolatedRequired2 + 1);
+	char *_interpolatedBufferElements5 = (char *)(__builtin_alloca((sizeof(char) * _interpolatedBufferLength4)));
+	uintptr_t _interpolatedOffset6 = 0;
+	uintptr_t _interpolatedCopyStart7 = ((_interpolatedOffset6 < _interpolatedBufferLength4) ? _interpolatedOffset6 : _interpolatedBufferLength4);
+	uintptr_t _interpolatedCopyCount8 = ((1 < (_interpolatedBufferLength4 - _interpolatedCopyStart7)) ? 1 : (_interpolatedBufferLength4 - _interpolatedCopyStart7));
+	if ((_interpolatedCopyCount8 > 0))
+	{
+		__builtin_memcpy((void*)(&_interpolatedBufferElements5[_interpolatedCopyStart7]), (const void*)((char[1]){'x'}), _interpolatedCopyCount8 * sizeof(char));
+	}
+	_interpolatedOffset6 = (_interpolatedOffset6 + 1);
+	uintptr_t _interpolatedStart9 = ((_interpolatedOffset6 < _interpolatedBufferLength4) ? _interpolatedOffset6 : _interpolatedBufferLength4);
+	_interpolatedCall0(_interpolatedContext1, &_interpolatedBufferElements5[_interpolatedStart9], (_interpolatedBufferLength4 - _interpolatedStart9));
+	_interpolatedOffset6 = (_interpolatedOffset6 + _interpolatedPartSize3);
+	_interpolatedBufferElements5[_interpolatedRequired2] = '\0';
+	const char *text = (const char*)(_interpolatedBufferElements5);
+	const char *__discard1;
+	__discard1 = text;
+}
+
+// file: interpolated_string_eager_private.h
+#ifndef INTERPOLATED_STRING_EAGER_PRIVATE_H_
+#define INTERPOLATED_STRING_EAGER_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+
+/* Enums. */
+
+/* Newtypes. */
+typedef uintptr_t (* CharFormatter)(const void *context, char *buffer, uintptr_t buffer_length);
+
+/* Layouts. */
+
+/* Function declarations. */
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: interpolated_string_eager.c

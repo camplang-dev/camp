@@ -784,7 +784,7 @@ public sealed partial class BindableNodeAnalyzer
 	static bool IsValidFixedStorageInitializer(TypeReference? targetType, Expression value)
 	{
 		return IsDirectFixedArrayType(targetType)
-			&& value is ArrayExpression or DefaultExpression or LiteralExpression { Kind: LiteralKind.String } or NameOfExpression;
+			&& value is ArrayExpression or DefaultExpression or LiteralExpression { Kind: LiteralKind.String } or NameOfExpression or InterpolatedStringExpression;
 	}
 
 	static bool IsValidFixedStorageAssignmentValue(string targetType, Expression? value)

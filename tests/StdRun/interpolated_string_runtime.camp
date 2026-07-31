@@ -8,8 +8,6 @@ export int main()
 
 	Console.writeLine($"hello {name}");
 	Console.writeLine($"count={count}; ok={ok}; bang={'!'}");
-	CharFormatter literalOnly = $"literal only";
-	Console.writeLine(literalOnly);
 	Console.writeLine($"");
 
 	CharFormatter direct = count.format;
@@ -18,21 +16,39 @@ export int main()
 	int counter = 0;
 	Console.writeLine($"next={next(&counter)}, then={next(&counter)}, total={counter}");
 
-	CharFormatter sized = $"abc{count}";
-	auto buffer = init char[4];
-	Console.writeLine(sized(buffer));
-	Console.writeLine(makeLiteral());
+	string a = $"abc";
+	string b = $"{a}123";
+	char[] c = $"def";
+	c[0] = 'D';
+	const char[] d = $"456{c}";
+	fixed char[5] e = $"abcdefg{d}";
+	int five = 5;
+	fixed char[5] f = $"Hi{five}";
+	auto g = $"456{c}";
+	int number = 41;
+	string h = within(default) new $"The answer is {number}" finally delete;
+	char[] heapChars = within(default) new $"heap {number}";
+	string i = $"The date is {direct}";
+	Console.writeLine(a);
+	Console.writeLine(b);
+	Console.writeLine(c);
+	Console.writeLine(d);
+	Console.write(e[0]);
+	Console.write(e[1]);
+	Console.write(e[2]);
+	Console.write(e[3]);
+	Console.writeLine(e[4]);
+	Console.writeLine(f[0] == 'H' && f[1] == 'i' && f[2] == '5' && f[3] == '\0' && f[4] == '\0');
+	Console.writeLine(g);
+	Console.writeLine(h);
+	Console.writeLine(heapChars);
+	Console.writeLine(i);
 	Console.writeLine($"{$"Shape is: {name}".getSelf()}");
 
 	return 0;
 }
 
-CharFormatter makeLiteral()
-{
-	return $"returned";
-}
-
-this getSelf(CharFormatter this) => this;
+this getSelf(string this) => this;
 
 int next(int* counter)
 {
