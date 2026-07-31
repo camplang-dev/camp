@@ -33,59 +33,100 @@ const long TIME_MS_PER_HOUR = 60 * TIME_MS_PER_MINUTE;
 const long TIME_MS_PER_DAY = 24 * TIME_MS_PER_HOUR;
 const int TIME_UNIX_EPOCH_YEAR = 1970;
 
+/// Day of the week in ISO order.
 public enum Weekday
 {
+	/// Invalid weekday value.
 	INVALID = 0,
+	/// Monday.
 	MONDAY = 1,
+	/// Tuesday.
 	TUESDAY,
+	/// Wednesday.
 	WEDNESDAY,
+	/// Thursday.
 	THURSDAY,
+	/// Friday.
 	FRIDAY,
+	/// Saturday.
 	SATURDAY,
+	/// Sunday.
 	SUNDAY
 }
 
+/// Signed duration stored as milliseconds.
+/// @remarks
+/// Whole-unit accessors truncate toward zero.
 public newtype TimeSpan: long
 {
-	// Underlying value: signed milliseconds.
-
+	/// Invalid duration sentinel.
 	public static const TimeSpan INVALID = (TimeSpan)(long)-9223372036854775808;
+	/// Zero milliseconds.
 	public static const TimeSpan ZERO = (TimeSpan)(long)0;
+	/// Smallest non-invalid duration value.
 	public static const TimeSpan MIN = (TimeSpan)(long)-9223372036854775807;
+	/// Largest duration value.
 	public static const TimeSpan MAX = (TimeSpan)(long)9223372036854775807;
 
+	/// Creates a duration from milliseconds.
+	/// - value: Millisecond count.
 	public static TimeSpan fromMs(long value) => (TimeSpan)value;
+	/// Creates a duration from seconds.
+	/// - value: Second count.
 	public static TimeSpan fromSeconds(long value) => (TimeSpan)(value * 1000);
+	/// Creates a duration from minutes.
+	/// - value: Minute count.
 	public static TimeSpan fromMinutes(long value) => (TimeSpan)(value * 1000 * 60);
+	/// Creates a duration from hours.
+	/// - value: Hour count.
 	public static TimeSpan fromHours(long value) => (TimeSpan)(value * 1000 * 60 * 60);
+	/// Creates a duration from days.
+	/// - value: Day count.
 	public static TimeSpan fromDays(long value) => (TimeSpan)(value * 1000 * 60 * 60 * 24);
 
+	/// Returns true when this value is not [INVALID].
 	public bool isValid(const this) => this != TimeSpan.INVALID;
 
-	// Whole-unit totals, truncated toward zero.
+	/// Gets the total milliseconds.
 	public long getMs() => (long)this;
+	/// Gets the total whole seconds, truncated toward zero.
 	public long getSeconds() => (long)this / 1000;
+	/// Gets the total whole minutes, truncated toward zero.
 	public long getMinutes() => (long)this / (1000 * 60);
+	/// Gets the total whole hours, truncated toward zero.
 	public long getHours() => (long)this / (1000 * 60 * 60);
+	/// Gets the total whole days, truncated toward zero.
 	public long getDays() => (long)this / (1000 * 60 * 60 * 24);
 	
-	// Whole-unit totals, truncated toward zero.
+	/// Gets the total seconds as a floating-point value.
 	public double getTotalSeconds() => (double)(long)this / 1000;
+	/// Gets the total minutes as a floating-point value.
 	public double getTotalMinutes() => (double)(long)this / (1000 * 60);
+	/// Gets the total hours as a floating-point value.
 	public double getTotalHours() => (double)(long)this / (1000 * 60 * 60);
+	/// Gets the total days as a floating-point value.
 	public double getTotalDays() => (double)(long)this / (1000 * 60 * 60 * 24);
 
-	// Non-throwing. Overflow or invalid input returns TimeSpan.invalid().
+	/// Adds another duration.
+	/// @remarks This operation does not throw.
+	/// - other: Duration to add.
 	public TimeSpan add(const this, TimeSpan other) => (TimeSpan)((long)this + (long)other);
+	/// Subtracts another duration.
+	/// @remarks This operation does not throw.
+	/// - other: Duration to subtract.
 	public TimeSpan subtract(const this, TimeSpan other) => (TimeSpan)((long)this - (long)other);
+	/// Returns the negated duration.
 	public TimeSpan negate(const this) => (TimeSpan)(-(long)this);
+	/// Returns the absolute duration.
 	public TimeSpan abs(const this) => ((long)this < 0) ? this.negate() : this;
 
 }
 
-// Formats directly into caller-provided buffer.
-// Examples: "14:05:30", "44:05:30.551".
-// Returns required characters.
+/// Formats a duration as `H:MM:SS` with optional milliseconds.
+/// @remarks
+/// Formatting writes into the caller-provided buffer when space is available
+/// and returns the required character count.
+/// - buffer: Destination buffer.
 public nuint format(in TimeSpan this, overload char[] buffer) : CharFormatter
 {
 	if (this == TimeSpan.INVALID)
@@ -132,19 +173,27 @@ public nuint format(in TimeSpan this, overload char[] buffer) : CharFormatter
 	return length;
 }
 
+/// Fixed offset from UTC, stored as signed minutes east of UTC.
+/// @remarks
+/// Valid offsets are in the range `-1080..+1080`.
 public newtype UtcOffset: short
 {
-	// Underlying value: signed offset minutes east of UTC.
-	// Valid range: -1080..+1080.
-	
+	/// Invalid UTC offset sentinel.
 	public static const UtcOffset INVALID = (UtcOffset)(short)-32767;
+	/// Zero UTC offset.
 	public static const UtcOffset UTC = (UtcOffset)(short)0;
 	
+	/// Creates an offset from hours and minutes.
+	/// - hours: Signed hour offset.
+	/// - minutes: Absolute minute component.
 	public static UtcOffset fromHours(short hours, ushort minutes = 0) => (UtcOffset)(short)(hours * 60 + (hours < 0 ? 0 - (short)minutes : (short)minutes));
 	
+	/// Returns true when this offset is in the valid range.
 	public bool isValid(const this) => this != UtcOffset.INVALID && (short)this >= -1080 && (short)this <= 1080;
 
+	/// Gets the signed whole-hour component.
 	public short getHours() => (short)((short)this / 60);
+	/// Gets the absolute minute component.
 	public byte getMinutes()
 	{
 		short minutes = (short)((short)this % 60);
@@ -153,13 +202,17 @@ public newtype UtcOffset: short
 		return (byte)minutes;
 	}
 
+	/// Gets the total signed offset minutes.
 	public short getTotalMinutes() => (short)this;
 
 }
 
-// Formats directly into caller-provided buffer. Examples: "Z", "-04:00", "+09:30".
-// Always computes, even when value is considered invalid.  Min "-99:99" Max "99:99"
-// Returns required characters.
+/// Formats a UTC offset as `Z` or `+HH:MM`.
+/// @remarks
+/// Formatting always computes from the stored value, even when [isValid] would
+/// return false. It writes into the caller-provided buffer when space is
+/// available and returns the required character count.
+/// - buffer: Destination buffer.
 public nuint format(in UtcOffset this, overload char[] buffer) : CharFormatter
 {
 	short total = (short)this;
@@ -184,15 +237,16 @@ public nuint format(in UtcOffset this, overload char[] buffer) : CharFormatter
 	return 6;
 }
 
+/// UTC instant stored as milliseconds since the Unix epoch.
 public newtype Instant: long
 {
-	// Underlying value: milliseconds since 1970-01-01T00:00:00Z.
-	// Suggested invalid sentinel: long.min.
-
+	/// Invalid instant sentinel.
 	public static const Instant INVALID = (Instant)(long)-9223372036854775808;
+	/// Unix epoch instant.
 	public static const Instant UNIX_EPOCH = (Instant)(long)0;
 
-	// Current UTC instant.
+	/// Gets the current UTC instant.
+	/// @remarks Returns [INVALID] when the current target cannot provide the time.
 	public static Instant utcNow()
 	{
 		long ms = 0;
@@ -201,15 +255,24 @@ public newtype Instant: long
 		return (Instant)ms;
 	}
 
+	/// Creates an instant from Unix seconds.
+	/// - seconds: Seconds since `1970-01-01T00:00:00Z`.
 	public static Instant fromUnixSeconds(long seconds) => (Instant)(seconds * TIME_MS_PER_SECOND);
+	/// Creates an instant from Unix milliseconds.
+	/// - ms: Milliseconds since `1970-01-01T00:00:00Z`.
 	public static Instant fromUnixMs(long ms) => (Instant)ms;
 
+	/// Returns true when this value is not [INVALID].
 	public bool isValid(const this) => this != Instant.INVALID;
 
+	/// Gets Unix seconds, truncated toward zero.
 	public long getUnixSeconds() => (long)this / TIME_MS_PER_SECOND;
+	/// Gets Unix milliseconds.
 	public long getUnixMs() => (long)this;
 
-	// Non-throwing. Overflow or invalid input returns Instant.INVALID
+	/// Adds a duration.
+	/// @remarks Returns [INVALID] when either operand is invalid.
+	/// - span: Duration to add.
 	public Instant add(const this, TimeSpan span)
 	{
 		if (!this.isValid() || !span.isValid())
@@ -217,6 +280,9 @@ public newtype Instant: long
 		return (Instant)((long)this + (long)span);
 	}
 
+	/// Subtracts a duration.
+	/// @remarks Returns [INVALID] when either operand is invalid.
+	/// - span: Duration to subtract.
 	public Instant subtract(const this, TimeSpan span)
 	{
 		if (!this.isValid() || !span.isValid())
@@ -224,7 +290,9 @@ public newtype Instant: long
 		return (Instant)((long)this - (long)span);
 	}
 
-	// this - earlier. Invalid input or overflow returns TimeSpan.INVALID
+	/// Gets the duration between an earlier instant and this instant.
+	/// @remarks Returns [TimeSpan.INVALID] when either instant is invalid.
+	/// - earlier: Earlier instant.
 	public TimeSpan since(const this, Instant earlier)
 	{
 		if (!this.isValid() || !earlier.isValid())
@@ -232,9 +300,12 @@ public newtype Instant: long
 		return (TimeSpan)((long)this - (long)earlier);
 	}
 
-	// UTC/fixed-offset conversions. Invalid input returns invalid result objects.
+	/// Converts this instant to a UTC date and time.
 	public DateTime getUtcDateTime() => timeDateTimeFromUnixMs((long)this);
 
+	/// Converts this instant to a date and time at a fixed UTC offset.
+	/// @remarks Returns an invalid value when this instant or the offset is invalid.
+	/// - offset: Fixed UTC offset to apply.
 	public OffsetDateTime getOffsetDateTime(UtcOffset offset)
 	{
 		if (!this.isValid() || !offset.isValid())
@@ -245,9 +316,11 @@ public newtype Instant: long
 
 }
 
-// Formats directly into caller-provided buffer. Example: "2026-06-12T18:30:00.124Z".
-// Always computes, even when value is considered "invalid".
-// Returns required characters.
+/// Formats an instant as UTC ISO text with a trailing `Z`.
+/// @remarks
+/// Formatting writes into the caller-provided buffer when space is available
+/// and returns the required character count. Invalid input returns `0`.
+/// - buffer: Destination buffer.
 public nuint format(in Instant this, overload char[] buffer) : CharFormatter
 {
 	DateTime utc = this.getUtcDateTime();
@@ -264,15 +337,24 @@ public nuint format(in Instant this, overload char[] buffer) : CharFormatter
 	return required;
 }
 
+/// Calendar date without a time of day or offset.
+/// @remarks
+/// Valid dates use year `1..9999`, month `1..12`, and a valid day for the
+/// selected month.
 public struct Date
 {
-	ushort year; // valid internal range: 1..9999
-	byte month;  // 1..12
-	byte day;    // 1..31
+	/// Year component.
+	ushort year;
+	/// Month component.
+	byte month;
+	/// Day-of-month component.
+	byte day;
 
+	/// Invalid date sentinel.
 	public static const Date INVALID = { 0, 0, 0 };
 
-	// Current system civil date. Returns an invalid Date if unsupported.
+	/// Gets the current system civil date.
+	/// @remarks Returns an invalid date when the current target cannot provide it.
 	public static Date today()
 	{
 		ushort year = 0;
@@ -287,12 +369,16 @@ public struct Date
 		return { year, month, day };
 	}
 
+	/// Returns true when this date has valid calendar fields.
 	public bool isValid(const this) => timeValidDate((int)this.year, (int)this.month, (int)this.day);
 
+	/// Returns true when this date's year is a leap year.
 	public bool getLeapYear() => timeIsLeapYear((int)this.year);
+	/// Gets the number of days in this date's month.
 	public byte getDaysInMonth() => timeDaysInMonth((int)this.year, (int)this.month);
 
-	// Returns INVALID if this Date is invalid.
+	/// Gets the weekday for this date.
+	/// @remarks Returns [Weekday.INVALID] when this date is invalid.
 	public Weekday getWeekday()
 	{
 		if (!this.isValid())
@@ -304,7 +390,9 @@ public struct Date
 		return (Weekday)(weekday + 1);
 	}
 
-	// Non-throwing. Invalid input or out-of-range result returns an invalid Date.
+	/// Adds calendar days.
+	/// @remarks Returns an invalid date when this date is invalid or the result is out of range.
+	/// - days: Number of days to add.
 	public Date addDays(const this, int days)
 	{
 		if (!this.isValid())
@@ -313,8 +401,9 @@ public struct Date
 		return timeDateFromSerialDay(serial + days);
 	}
 
-	// end - this, in whole calendar days.
-	// Invalid input returns 0.
+	/// Gets whole calendar days from this date until another date.
+	/// @remarks Returns `0` when either date is invalid.
+	/// - end: End date.
 	public int daysUntil(const this, Date end)
 	{
 		if (!this.isValid() || !end.isValid())
@@ -322,10 +411,12 @@ public struct Date
 		return (int)(timeDaysBeforeDate((int)end.year, (int)end.month, (int)end.day) - timeDaysBeforeDate((int)this.year, (int)this.month, (int)this.day));
 	}
 
-	// Formats directly into caller-provided buffer. Example: "2026-06-02".
-	// Year is always 4 digits, maxes out at 9999. Month/Day always two digits, maxes out at 99.
-	// Out-of-range month/day is not checked (put in month 14 and day 78 and that's what you get)
-	// Returns required characters.
+	/// Formats this date as `YYYY-MM-DD`.
+	/// @remarks
+	/// Formatting writes into the caller-provided buffer when space is available
+	/// and returns the required character count. Field ranges are not checked
+	/// during formatting.
+	/// - buffer: Destination buffer.
 	public nuint format(const this, overload char[] buffer) : CharFormatter
 	{
 		fixed char[10] scratch = default;
@@ -340,22 +431,33 @@ public struct Date
 	}
 }
 
+/// Time within a calendar day.
+/// @remarks
+/// The fractional second is stored as `fraction / 256`.
 public struct TimeOfDay
 {
-	byte hour;     // 0..23
-	byte minute;   // 0..59
-	byte second;   // 0..59
-	byte fraction; // 0..255, fractional second as fraction / 256
+	/// Hour component.
+	byte hour;
+	/// Minute component.
+	byte minute;
+	/// Second component.
+	byte second;
+	/// Fractional-second component.
+	byte fraction;
 
+	/// Invalid time-of-day sentinel.
 	public static const TimeOfDay INVALID = { 255, 0, 0, 0 };
+	/// Midnight time-of-day value.
 	public static const TimeOfDay MIDNIGHT = { 0, 0, 0, 0 };
 
+	/// Returns true when this time has valid hour, minute, and second fields.
 	public bool isValid(const this) => this.hour < 24 && this.minute < 60 && this.second < 60;
 
-	// Fractional milliseconds within the current second.
-	// Calculation is floor(fraction * 1000 / 256), producing 0..996.
+	/// Gets fractional milliseconds within the current second.
+	/// @remarks The calculation is `floor(fraction * 1000 / 256)`, producing `0..996`.
 	public ushort getMs() => (ushort)(((ushort)this.fraction * 1000) / 256);
 
+	/// Gets the duration since midnight.
 	public TimeSpan getSinceMidnight()
 	{
 		long ms = (long)this.hour * TIME_MS_PER_HOUR
@@ -365,11 +467,12 @@ public struct TimeOfDay
 		return (TimeSpan)ms;
 	}
 
-	// Formats directly into caller-provided buffer. Examples: "14:05:30", "04:05:30.500".
-	// Values under 10 are padded with zeroes; fractions are only written when non-zero, fixed to 3 decimal places
-	// Out-of-range field values are not checked, written using max 99
-	// (Invalid) example: { .hour = 27, .minute = 160, .second = 5 } -> "27:99:05"
-	// Returns required characters.
+	/// Formats this time as `HH:MM:SS` with optional milliseconds.
+	/// @remarks
+	/// Formatting writes into the caller-provided buffer when space is available
+	/// and returns the required character count. Field ranges are not checked
+	/// during formatting.
+	/// - buffer: Destination buffer.
 	public nuint format(const this, overload char[] buffer) : CharFormatter
 	{
 		ushort ms = this.getMs();
@@ -391,17 +494,28 @@ public struct TimeOfDay
 	}
 }
 
+/// Calendar date and time with no attached UTC offset.
+/// @remarks
+/// A DateTime is not an [Instant] by itself and should not be described as
+/// local time unless a separate offset or time-zone rule gives it that meaning.
 public struct DateTime
 {
-	// Calendar date/time with an unspecified UTC offset.
-	// This is not an Instant by itself and should not be described as local time.
-
+	/// Date component.
 	Date date;
+	/// Time-of-day component.
 	TimeOfDay time;
 
+	/// Invalid date-time sentinel.
 	public static const DateTime INVALID = { { 0, 0, 0 }, { 255, 0, 0, 0 } };
 
-	// Convenience field initializer.
+	/// Creates a date and time from field values.
+	/// - year: Year component.
+	/// - month: Month component.
+	/// - day: Day-of-month component.
+	/// - hour: Hour component.
+	/// - minute: Minute component.
+	/// - second: Second component.
+	/// - fraction: Fractional-second component.
 	public DateTime(
 		ushort year,
 		byte month,
@@ -416,7 +530,8 @@ public struct DateTime
 		this.time = { hour, minute, second, fraction };
 	}
 
-	// Current system civil date/time with no offset attached.
+	/// Gets the current system civil date and time with no attached offset.
+	/// @remarks Returns an invalid date and time when the current target cannot provide it.
 	public static DateTime now()
 	{
 		ushort year = 0;
@@ -431,10 +546,12 @@ public struct DateTime
 		return { { year, month, day }, { hour, minute, second, fraction } };
 	}
 
+	/// Returns true when both the date and time components are valid.
 	public bool isValid(const this) => this.date.isValid() && this.time.isValid();
 
-	// Interprets this DateTime using the fixed UTC offset provided by the PAL
-	// Invalid input or out-of-range conversion returns Instant.invalid().
+	/// Converts this date and time to an instant using a fixed UTC offset.
+	/// @remarks Returns [Instant.INVALID] when the input or conversion result is invalid.
+	/// - offset: Fixed UTC offset used to interpret this value.
 	public Instant toInstant(const this, UtcOffset offset)
 	{
 		if (!this.isValid() || !offset.isValid())
@@ -445,8 +562,11 @@ public struct DateTime
 		return (Instant)ms;
 	}
 
-	// Formats directly into caller-provided buffer. Examples: "2026-06-12T14:05:30", "2026-06-12T14:05:30.500".
-	// Returns 0 if invalid.
+	/// Formats this value as ISO date-time text.
+	/// @remarks
+	/// Formatting writes into the caller-provided buffer when space is available
+	/// and returns the required character count. Invalid input returns `0`.
+	/// - buffer: Destination buffer.
 	public nuint format(const this, overload char[] buffer) : CharFormatter
 	{
 		if (!this.isValid())
@@ -477,17 +597,29 @@ public struct DateTime
 	}
 }
 
+/// Calendar date and time with a fixed UTC offset.
+/// @remarks
+/// This value can be converted to an [Instant] without named time-zone rules.
 public struct OffsetDateTime
 {
-	// Calendar date/time plus a fixed UTC offset.
-	// This can be converted to an Instant without named time-zone rules.
-
+	/// Local date and time component.
 	DateTime local;
+	/// Fixed UTC offset component.
 	UtcOffset offset;
 
+	/// Invalid offset date-time sentinel.
 	public static const OffsetDateTime INVALID = { { { 0, 0, 0 }, { 255, 0, 0, 0 } }, (UtcOffset)(short)-32767 };
 
-	// Convenience field initializer. Does not throw.
+	/// Creates an offset date and time from field values.
+	/// @remarks This constructor does not throw.
+	/// - offset: Fixed UTC offset.
+	/// - year: Year component.
+	/// - month: Month component.
+	/// - day: Day-of-month component.
+	/// - hour: Hour component.
+	/// - minute: Minute component.
+	/// - second: Second component.
+	/// - fraction: Fractional-second component.
 	public OffsetDateTime(
 		UtcOffset offset,
 		ushort year,
@@ -503,7 +635,8 @@ public struct OffsetDateTime
 		this.offset = offset;
 	}
 
-	// Current system civil date/time plus current system UTC offset.
+	/// Gets the current system civil date and time with the current system UTC offset.
+	/// @remarks Returns an invalid value when the current target cannot provide it.
 	public static OffsetDateTime localNow()
 	{
 		DateTime local = DateTime.now();
@@ -513,7 +646,8 @@ public struct OffsetDateTime
 		return { local, (UtcOffset)minutes };
 	}
 
-	// Current system date/time in offset Z (UTC).
+	/// Gets the current UTC date and time.
+	/// @remarks Returns an invalid value when the current target cannot provide it.
 	public static OffsetDateTime utcNow()
 	{
 		Instant instant = Instant.utcNow();
@@ -522,13 +656,18 @@ public struct OffsetDateTime
 		return instant.getOffsetDateTime(UtcOffset.UTC);
 	}
 
+	/// Returns true when the local date-time and offset components are valid.
 	public bool isValid(const this) => this.local.isValid() && this.offset.isValid();
 
-	// Invalid input or out-of-range conversion returns Instant.INVALID
+	/// Converts this value to an instant.
+	/// @remarks Returns [Instant.INVALID] when the input or conversion result is invalid.
 	public Instant toInstant(const this) => this.local.toInstant(this.offset);
 
-	// Formats directly into caller-provided buffer. Example: "2026-06-12T14:05:30.500-04:00".
-	// Returns required characters.
+	/// Formats this value as ISO offset date-time text.
+	/// @remarks
+	/// Formatting writes into the caller-provided buffer when space is available
+	/// and returns the required character count. Invalid input returns `0`.
+	/// - buffer: Destination buffer.
 	public nuint format(const this, overload char[] buffer) : CharFormatter
 	{
 		fixed char[29] scratch = default;
@@ -561,11 +700,10 @@ public struct OffsetDateTime
 	}
 }
 
-// Parsing overload family.
-// Failed parse returns false. Implementations assign `value` to default.
-// Parsing is strict ISO, case-insensitive where a letter is accepted, and
-// ignores leading and trailing whitespace.
-
+/// Parses ISO date text.
+/// @remarks Parsing is strict and ignores leading and trailing whitespace.
+/// - value: Receives the parsed date, or `default` when parsing fails.
+/// @returns `true` when parsing succeeds.
 public bool tryParse(const char[] this, overload out Date value)
 {
 	value = default;
@@ -578,6 +716,10 @@ public bool tryParse(const char[] this, overload out Date value)
 	return true;
 }
 
+/// Parses ISO time-of-day text.
+/// @remarks Parsing is strict and ignores leading and trailing whitespace.
+/// - value: Receives the parsed time, or `default` when parsing fails.
+/// @returns `true` when parsing succeeds.
 public bool tryParse(const char[] this, overload out TimeOfDay value)
 {
 	value = default;
@@ -590,6 +732,10 @@ public bool tryParse(const char[] this, overload out TimeOfDay value)
 	return true;
 }
 
+/// Parses ISO date-time text.
+/// @remarks Parsing is strict and ignores leading and trailing whitespace.
+/// - value: Receives the parsed date and time, or `default` when parsing fails.
+/// @returns `true` when parsing succeeds.
 public bool tryParse(const char[] this, overload out DateTime value)
 {
 	value = default;
@@ -602,6 +748,11 @@ public bool tryParse(const char[] this, overload out DateTime value)
 	return true;
 }
 
+/// Parses ISO offset date-time text.
+/// @remarks Parsing is strict, accepts `Z` case-insensitively, and ignores
+/// leading and trailing whitespace.
+/// - value: Receives the parsed offset date and time, or `default` when parsing fails.
+/// @returns `true` when parsing succeeds.
 public bool tryParse(const char[] this, overload out OffsetDateTime value)
 {
 	value = default;
@@ -614,6 +765,10 @@ public bool tryParse(const char[] this, overload out OffsetDateTime value)
 	return true;
 }
 
+/// Parses ISO instant text.
+/// @remarks Parsing accepts offset date-time text and converts it to an instant.
+/// - value: Receives the parsed instant, or `default` when parsing fails.
+/// @returns `true` when parsing succeeds.
 public bool tryParse(const char[] this, overload out Instant value)
 {
 	value = default;
@@ -627,6 +782,9 @@ public bool tryParse(const char[] this, overload out Instant value)
 	return true;
 }
 
+/// Parses duration text as `H:MM:SS` with optional milliseconds.
+/// - value: Receives the parsed duration, or `default` when parsing fails.
+/// @returns `true` when parsing succeeds.
 public bool tryParse(const char[] this, overload out TimeSpan value)
 {
 	value = default;
@@ -675,6 +833,11 @@ public bool tryParse(const char[] this, overload out TimeSpan value)
 	return true;
 }
 
+/// Parses UTC offset text.
+/// @remarks Parsing accepts `Z` case-insensitively and ignores leading and
+/// trailing whitespace.
+/// - value: Receives the parsed offset, or `default` when parsing fails.
+/// @returns `true` when parsing succeeds.
 public bool tryParse(const char[] this, overload out UtcOffset value)
 {
 	value = default;
