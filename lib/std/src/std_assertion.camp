@@ -1,12 +1,37 @@
 namespace Std;
 
+/// Describes a failed assertion.
+/// @remarks
+/// Assertion is the standard failure type used by Camp tests. The test runner
+/// reads its message, source file, and source line when a test throws it.
+/// @example
+/// ```camp
+/// @test
+/// void addReturnsSum(thrown Assertion*)
+/// {
+/// 	assert(add(2, 3) == 5);
+/// }
+/// ```
 public struct Assertion
 {
+	/// Human-readable failure message.
 	escaped string message;
+	/// Source file where the assertion failure was reported.
 	escaped string sourcefile;
+	/// One-based source line where the assertion failure was reported.
 	uint sourceline;
 }
 
+/// Throws an [Assertion] when a condition is false.
+/// - condition: The condition that must be true.
+/// - message: Failure message. By default, this is the source text of [condition].
+/// - sourcefile: Source file reported for the failure. By default, this is supplied by the caller.
+/// - sourceline: One-based source line reported for the failure. By default, this is supplied by the caller.
+/// - assertion: Thrown assertion channel.
+/// @example
+/// ```camp
+/// assert(count == 3);
+/// ```
 @symbol("camp_assert")
 public void assert(bool condition, escaped string message = sourceof(condition), escaped string sourcefile = caller(sourcefile), uint sourceline = caller(sourceline), thrown Assertion* assertion)
 {
@@ -14,6 +39,16 @@ public void assert(bool condition, escaped string message = sourceof(condition),
 		fail(message, sourcefile, sourceline);
 }
 
+/// Throws an [Assertion] immediately.
+/// - message: Human-readable failure message.
+/// - sourcefile: Source file reported for the failure. By default, this is supplied by the caller.
+/// - sourceline: One-based source line reported for the failure. By default, this is supplied by the caller.
+/// - assertion: Thrown assertion channel.
+/// @example
+/// ```camp
+/// if (value == default)
+/// 	fail("value was not created");
+/// ```
 @symbol("camp_fail")
 public void fail(escaped string message, escaped string sourcefile = caller(sourcefile), uint sourceline = caller(sourceline), thrown Assertion* assertion)
 {
