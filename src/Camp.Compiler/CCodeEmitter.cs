@@ -677,7 +677,7 @@ public static class CCodeEmitter
 
 			WriteSection(writer, "Object declarations", () =>
 			{
-				foreach (VariableDefinition variable in definitions.OfType<VariableDefinition>().Where(static variable => !variable.IsInline && IsExternallyVisible(variable)))
+				foreach (VariableDefinition variable in definitions.OfType<VariableDefinition>().Where(static variable => !variable.IsInline && (IsExternallyVisible(variable) || IsGeneratedVirtualDispatchVariable(variable))))
 					WriteVariableDeclaration(writer, variable, storage: "extern");
 				foreach (FieldDefinition field in GetAllStaticFields(definitions).Where(static field => !field.IsInline && IsExternallyVisible(field)))
 					WriteFieldStorageDeclaration(writer, field, storage: "extern");
@@ -690,7 +690,7 @@ public static class CCodeEmitter
 			emittedNames.Clear();
 			List<Definition> definitions = GetOwnedDefinitions(file).ToList();
 			List<FunctionDefinition> privateFunctions = GetAllFunctions(definitions).Where(static function => !IsExternallyVisible(function) && ShouldEmitCFunction(function)).ToList();
-			List<VariableDefinition> privateVariables = definitions.OfType<VariableDefinition>().Where(static variable => !variable.IsInline && !IsExternallyVisible(variable)).ToList();
+			List<VariableDefinition> privateVariables = definitions.OfType<VariableDefinition>().Where(static variable => !variable.IsInline && !IsExternallyVisible(variable) && !IsGeneratedVirtualDispatchVariable(variable)).ToList();
 			List<FieldDefinition> privateStaticFields = GetAllStaticFields(definitions).Where(static field => !field.IsInline && !IsExternallyVisible(field)).ToList();
 			List<DelegateThunk> delegateThunks = delegateThunksByFile.TryGetValue(file, out List<DelegateThunk>? thunks) ? thunks : [];
 			List<AsyncFrameInfo> asyncFrames = GetAllFunctions(definitions).Select(TryBuildAsyncFrameInfo).Where(static frame => frame is not null).Cast<AsyncFrameInfo>().ToList();
@@ -757,7 +757,7 @@ public static class CCodeEmitter
 			{
 				if (variable.Extern is not null || variable.IsInline)
 					continue;
-				WriteVariableDefinition(body, variable, storage: IsExternallyVisible(variable) ? null : "static");
+				WriteVariableDefinition(body, variable, storage: PrivateVariableStorage(variable));
 				wrote = true;
 			}
 
@@ -1523,6 +1523,19 @@ public static class CCodeEmitter
 		{
 			return function.GeneratedInfo?.Category == GeneratedDeclarationCategory.VirtualDispatch
 				|| function.Provenance?.Category == GeneratedDeclarationCategory.VirtualDispatch;
+		}
+
+		static bool IsGeneratedVirtualDispatchVariable(VariableDefinition variable)
+		{
+			return variable.GeneratedInfo?.Category == GeneratedDeclarationCategory.VirtualDispatch
+				|| variable.Provenance?.Category == GeneratedDeclarationCategory.VirtualDispatch;
+		}
+
+		static string? PrivateVariableStorage(VariableDefinition variable)
+		{
+			return IsExternallyVisible(variable) || IsGeneratedVirtualDispatchVariable(variable)
+				? null
+				: "static";
 		}
 
 		static IEnumerable<FieldDefinition> GetAllStaticFields(IEnumerable<Definition> definitions)

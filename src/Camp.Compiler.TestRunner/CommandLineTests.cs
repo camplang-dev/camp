@@ -3300,6 +3300,59 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Public_virtual_class_vtable_is_visible_across_generated_source_files()
+	{
+		string root = TempPath("virtual-vtable-cross-file");
+		if (Directory.Exists(root))
+			Directory.Delete(root, recursive: true);
+		string source = Path.Combine(root, "src");
+		Directory.CreateDirectory(source);
+		File.WriteAllText(Path.Combine(source, "alloc.camp"), """
+			export extern void* malloc(nuint size);
+			export extern void free(void* ptr);
+			""");
+		File.WriteAllText(Path.Combine(source, "helper.camp"), """
+			public virtual escaped class Base
+			{
+				public virtual ~Base()
+				{
+				}
+			}
+
+			public virtual escaped class Derived: Base
+			{
+				override ~Derived()
+				{
+				}
+			}
+			""");
+		File.WriteAllText(Path.Combine(source, "main.camp"), """
+			export int main()
+			{
+				auto value = new Derived();
+				return value == null ? 1 : 0;
+			}
+			""");
+		File.WriteAllText(Path.Combine(root, "widgets.campbuild"), """
+			--nostdlib
+			--name widgets
+			--artifact exec
+			src/*.camp
+			""");
+
+		string outDir = Path.Combine(root, "bin");
+		ProcessResult result = RunCampc("build", Path.Combine(root, "widgets.campbuild"), "--target", NativeTargetForHost(), "--out-dir", outDir);
+
+		AssertCommandSucceeded(result);
+		string artifactDir = Path.Combine(outDir, ArtifactDirectoryForHost(NativeBuildKind.Exec));
+		string privateHeader = File.ReadAllText(Path.Combine(artifactDir, "build", "widgets_private.h"));
+		Assert.Contains("extern _Derived _Derived__vt;", privateHeader, StringComparison.Ordinal);
+		string helperC = File.ReadAllText(Path.Combine(artifactDir, "build", "helper.c"));
+		Assert.Contains("_Derived _Derived__vt = ", helperC, StringComparison.Ordinal);
+		Assert.DoesNotContain("static _Derived _Derived__vt", helperC, StringComparison.Ordinal);
+	}
+
+	[Fact]
 	public void Inherited_virtual_destructor_thunk_is_visible_across_generated_source_files()
 	{
 		string root = TempPath("virtual-destructor-cross-file");
