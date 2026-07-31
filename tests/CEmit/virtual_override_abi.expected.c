@@ -12,15 +12,11 @@ static int BaseCounter_value(BaseCounter *this);
 int BaseCounter__value(BaseCounter *this);
 static int Counter_value(Counter *this);
 int Counter__value(BaseCounter *ctx);
-static _Allocator _Allocator__vt;
-static _HeapAllocator _HeapAllocator__vt;
-static _BaseCounter _BaseCounter__vt;
-static _Counter _Counter__vt;
 
-static _Allocator _Allocator__vt = { .alloc = NULL, .free = NULL };
-static _HeapAllocator _HeapAllocator__vt = { .Allocator = { .alloc = HeapAllocator__alloc, .free = HeapAllocator__free } };
-static _BaseCounter _BaseCounter__vt = { .value = BaseCounter__value };
-static _Counter _Counter__vt = { .BaseCounter = { .value = Counter__value } };
+_Allocator _Allocator__vt = { .alloc = NULL, .free = NULL };
+_HeapAllocator _HeapAllocator__vt = { .Allocator = { .alloc = HeapAllocator__alloc, .free = HeapAllocator__free } };
+_BaseCounter _BaseCounter__vt = { .value = BaseCounter__value };
+_Counter _Counter__vt = { .BaseCounter = { .value = Counter__value } };
 static void *Allocator_alloc(Allocator *this, uintptr_t size)
 {
 	return this->_vt->alloc(this, size);
@@ -125,6 +121,10 @@ int BaseCounter__value(BaseCounter *this);
 int Counter__value(BaseCounter *ctx);
 
 /* Object declarations. */
+extern _Allocator _Allocator__vt;
+extern _HeapAllocator _HeapAllocator__vt;
+extern _BaseCounter _BaseCounter__vt;
+extern _Counter _Counter__vt;
 
 
 #endif

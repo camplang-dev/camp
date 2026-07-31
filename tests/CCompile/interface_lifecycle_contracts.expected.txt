@@ -20,14 +20,13 @@ static void* ManagedClass_IManaged_create(Allocator *allocator);
 static void ManagedClass_IManaged_destroy(IManaged **ctx, Allocator *allocator);
 static void* ManagedStruct_IManaged_create(Allocator *allocator);
 static void ManagedStruct_IManaged_destroy(IManaged **ctx, Allocator *allocator);
-static _ManagedClass _ManagedClass__vt;
 static const IManaged ManagedClass_IManaged__storage;
 static const IManaged ManagedClass_IManaged__object_storage;
 static const IManaged *ManagedClass_IManaged;
 static const IManaged ManagedStruct_IManaged__storage;
 static const IManaged *ManagedStruct_IManaged;
 
-static _ManagedClass _ManagedClass__vt = { 0 };
+_ManagedClass _ManagedClass__vt = { 0 };
 static const IManaged ManagedClass_IManaged__storage = { .create = (void* (*)(Allocator *arg0))ManagedClass_create, .destroy = (void (*)(IManaged **arg0, Allocator *arg1))ManagedClass_destroy };
 static const IManaged ManagedClass_IManaged__object_storage = { .create = ManagedClass_IManaged_create, .destroy = ManagedClass_IManaged_destroy };
 static const IManaged *ManagedClass_IManaged = &ManagedClass_IManaged__storage;
@@ -202,6 +201,7 @@ struct ManagedClass
 /* Function declarations. */
 
 /* Object declarations. */
+extern _ManagedClass _ManagedClass__vt;
 
 
 #endif

@@ -1,10 +1,8 @@
 // file: lifetime_abstract_signature.c
 #include "lifetime_abstract_signature_private.h"
 
-/* Private file declarations. */
-static _Allocator _Allocator__vt;
 
-static _Allocator _Allocator__vt = { .alloc = NULL, .free = NULL };
+_Allocator _Allocator__vt = { .alloc = NULL, .free = NULL };
 void *Allocator_alloc(Allocator *this, uintptr_t size)
 {
 	return this->_vt->alloc(this, size);
@@ -57,6 +55,7 @@ void *Allocator_alloc(Allocator *this, uintptr_t size);
 void Allocator_free(Allocator *this, void *ptr);
 
 /* Object declarations. */
+extern _Allocator _Allocator__vt;
 
 
 #endif

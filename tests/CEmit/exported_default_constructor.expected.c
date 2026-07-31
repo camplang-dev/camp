@@ -3,9 +3,8 @@
 
 /* Private file declarations. */
 void *malloc(uintptr_t size);
-static _ExportedAbstract _ExportedAbstract__vt;
 
-static _ExportedAbstract _ExportedAbstract__vt = { .use = NULL };
+_ExportedAbstract _ExportedAbstract__vt = { .use = NULL };
 void ExportedConcrete_op_initnew(ExportedConcrete *this)
 {
 }
@@ -81,6 +80,7 @@ void ExportedConcrete_destroy(ExportedConcrete *this);
 void ExportedAbstract_use(ExportedAbstract *this);
 
 /* Object declarations. */
+extern _ExportedAbstract _ExportedAbstract__vt;
 
 
 #endif

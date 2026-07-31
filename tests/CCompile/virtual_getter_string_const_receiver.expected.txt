@@ -4,11 +4,9 @@
 /* Private file declarations. */
 void *malloc(uintptr_t size);
 void free(void *ptr);
-static _Widget _Widget__vt;
-static _Gauge _Gauge__vt;
 
-static _Widget _Widget__vt = { .getName = Widget__getName };
-static _Gauge _Gauge__vt = { .Widget = { .getName = Gauge__getName } };
+_Widget _Widget__vt = { .getName = Widget__getName };
+_Gauge _Gauge__vt = { .Widget = { .getName = Gauge__getName } };
 int main(void)
 {
 	Gauge *gauge = (Gauge *)(malloc(sizeof(Gauge)));
@@ -155,6 +153,8 @@ void Gauge_destroy(Gauge *this);
 const char *Gauge__getName(const Widget *ctx);
 
 /* Object declarations. */
+extern _Widget _Widget__vt;
+extern _Gauge _Gauge__vt;
 
 
 #endif
