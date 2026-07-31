@@ -17,3 +17,4 @@ The date is 42
 Shape is: Camp
 span=chars
 1
+escaped 73

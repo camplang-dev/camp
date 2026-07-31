@@ -823,17 +823,8 @@ public sealed partial class BindableNodeAnalyzer
 			ParenthesizedExpression parenthesized => IsDirectCapturingLambda(parenthesized.Expression, scope),
 			CastExpression cast => IsDirectCapturingLambda(cast.Expression, scope),
 			LambdaExpression lambda => LambdaHasCaptures(lambda, scope.CurrentFunction, scope.ContainingType),
-			InterpolatedStringExpression interpolation => InterpolationHasRuntimeFormatters(interpolation),
 			_ => false
 		};
-	}
-
-	static bool InterpolationHasRuntimeFormatters(InterpolatedStringExpression interpolation)
-	{
-		foreach (InterpolatedStringSegment segment in interpolation.Segments)
-			if (segment is InterpolatedStringExpressionSegment { Formatter: not null })
-				return true;
-		return false;
 	}
 
 	bool EscapesLocalFixedArraySpan(string targetType, Expression? expression)

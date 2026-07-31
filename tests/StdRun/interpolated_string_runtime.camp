@@ -48,6 +48,8 @@ export int main()
 	int spanCounter = 0;
 	Console.writeLine($"span={nextSpan(&spanCounter)}");
 	Console.writeLine(spanCounter);
+	string escapedText = makeEscapedText(73) finally delete;
+	Console.writeLine(escapedText);
 
 	return 0;
 }
@@ -64,4 +66,9 @@ const char[] nextSpan(int* counter)
 {
 	(*counter)++;
 	return "chars";
+}
+
+escaped string makeEscapedText(int value, within allocator)
+{
+	return within(allocator) new $"escaped {value}";
 }
