@@ -99,7 +99,7 @@ public sealed class CommandLineTests
 
 		Assert.Equal(0, result.ExitCode);
 		Assert.Empty(result.StdErr);
-		Assert.Matches(@"^0\.0\.0-dev\+[0-9a-f]{40}\n$", result.StdOut);
+		Assert.Matches(@"^v\d+\.\d+\.\d+(?:-[A-Za-z0-9][A-Za-z0-9.-]*)?\+[0-9a-f]{40}\n$", result.StdOut);
 	}
 
 	[Fact]

@@ -34,12 +34,11 @@ static bool IsVersionRequest(string[] args)
 
 static string GetVersionText()
 {
-	string version = StripLeadingVersionPrefix(CampBuildInfo.Version);
 	if (CampBuildInfo.IsReleaseBuild)
-		return version;
+		return StripLeadingVersionPrefix(CampBuildInfo.Version);
 	return string.IsNullOrWhiteSpace(CampBuildInfo.Commit) || CampBuildInfo.Commit == "unknown"
-		? version
-		: version + "+" + CampBuildInfo.Commit;
+		? CampBuildInfo.Version
+		: CampBuildInfo.Version + "+" + CampBuildInfo.Commit;
 }
 
 static string StripLeadingVersionPrefix(string version)

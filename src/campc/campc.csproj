@@ -5,6 +5,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>disable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <CampVersionExplicit Condition="'$(CampVersion)' != ''">true</CampVersionExplicit>
     <CampVersion Condition="'$(CampVersion)' == ''">0.0.0-dev</CampVersion>
     <CampReleaseBuild Condition="'$(CampReleaseBuild)' == ''">false</CampReleaseBuild>
   </PropertyGroup>
@@ -23,6 +24,15 @@
     </Exec>
     <PropertyGroup>
       <CampBuildCommit Condition="'$(CampBuildCommit)' == ''">unknown</CampBuildCommit>
+    </PropertyGroup>
+  </Target>
+
+  <Target Name="ResolveCampBuildVersion" BeforeTargets="GenerateCampBuildInfo" Condition="'$(CampVersionExplicit)' != 'true'">
+    <Exec Command="git -C &quot;$(MSBuildProjectDirectory)&quot; describe --tags --abbrev=0" ConsoleToMSBuild="true" IgnoreExitCode="true" StandardOutputImportance="Low" StandardErrorImportance="Low">
+      <Output TaskParameter="ConsoleOutput" PropertyName="CampResolvedVersionTag" />
+    </Exec>
+    <PropertyGroup>
+      <CampVersion Condition="'$(CampResolvedVersionTag)' != ''">$(CampResolvedVersionTag)</CampVersion>
     </PropertyGroup>
   </Target>
 
