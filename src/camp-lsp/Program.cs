@@ -996,7 +996,7 @@ public sealed class CampLspWorkspace
 		[
 			"if", "else", "while", "for", "foreach", "return", "try", "catch", "finally",
 			"new", "init", "default", "true", "false", "null", "using", "export",
-			"class", "struct", "interface", "enum", "newtype", "delegate", "fn"
+			"class", "struct", "interface", "enum", "newtype", "delegate", "fn", "prep"
 		];
 	}
 

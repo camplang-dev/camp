@@ -26,10 +26,12 @@ public sealed class SyntaxHighlightingFilesTests
 		Assert.DoesNotContain("(?", micro, StringComparison.Ordinal);
 		Assert.Contains("@(test|testonly|skip", micro, StringComparison.Ordinal);
 		Assert.Contains("assert|fail", micro, StringComparison.Ordinal);
+		Assert.Contains("overload|prep|within", micro, StringComparison.Ordinal);
 		Assert.Contains("@(?:test|testonly|skip)", sublime, StringComparison.Ordinal);
 		Assert.Contains("storage.type.annotation.camp", sublime, StringComparison.Ordinal);
 		Assert.Contains("storage.type.annotation.test.camp", sublime, StringComparison.Ordinal);
 		Assert.Contains("test_support_functions", sublime, StringComparison.Ordinal);
+		Assert.Contains("overload|prep|within", sublime, StringComparison.Ordinal);
 		Assert.Equal(sublime, fresh);
 		Assert.Contains("\"type\": \"bundle\"", freshPackage, StringComparison.Ordinal);
 		Assert.Contains("\"id\": \"camp\"", freshPackage, StringComparison.Ordinal);
@@ -45,9 +47,11 @@ public sealed class SyntaxHighlightingFilesTests
 		Assert.Contains("storage.type.annotation.camp", vscode, StringComparison.Ordinal);
 		Assert.Contains("storage.type.annotation.test.camp", vscode, StringComparison.Ordinal);
 		Assert.Contains("support.function.test.camp", vscode, StringComparison.Ordinal);
+		Assert.Contains("overload|prep|implements", vscode, StringComparison.Ordinal);
 		Assert.DoesNotContain("keyword.declaration.camp\",\n          \"match\": \"\\\\b(?:caller|sourceof)", vscode, StringComparison.Ordinal);
-		AssertVsixContains(vscodeVsix, "extension/syntaxes/camp.tmLanguage.json", "string.quoted.double.interpolated.camp");
+		AssertVsixContains(vscodeVsix, "extension/syntaxes/camp.tmLanguage.json", "overload|prep|implements");
 		Assert.Contains("syntax keyword campTestAttribute test testonly skip", vimSyntax, StringComparison.Ordinal);
+		Assert.Contains("within prep finally", vimSyntax, StringComparison.Ordinal);
 		Assert.Contains("syntax region campInterpolatedString", vimSyntax, StringComparison.Ordinal);
 		Assert.Contains("*.camp", vimDetect, StringComparison.Ordinal);
 		Assert.Contains("*.campbuild", vimDetect, StringComparison.Ordinal);

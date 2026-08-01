@@ -943,7 +943,7 @@ public sealed class LspServerTests
 		JsonNode completion = lsp.Request("textDocument/completion", new
 		{
 			textDocument = new { uri },
-			position = new { line = 13, character = 7 }
+			position = new { line = 13, character = 0 }
 		});
 
 		Assert.Equal(0, diagnostics["params"]?["diagnostics"]?.AsArray().Count);
@@ -953,6 +953,7 @@ public sealed class LspServerTests
 		Assert.Contains(iface["children"]!.AsArray(), symbol => symbol?["name"]?.GetValue<string>() == "getValue");
 		Assert.Contains(thing["children"]!.AsArray(), symbol => symbol?["name"]?.GetValue<string>() == "getValue");
 		Assert.Contains(CompletionItems(completion), item => item?["label"]?.GetValue<string>() == "export");
+		Assert.Contains(CompletionItems(completion), item => item?["label"]?.GetValue<string>() == "prep");
 	}
 
 	[Fact]

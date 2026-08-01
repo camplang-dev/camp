@@ -389,7 +389,7 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 		{
 			"if", "else", "while", "for", "foreach", "return", "try", "catch", "finally",
 			"new", "init", "default", "true", "false", "null", "delete", "using", "namespace", "export", "internal",
-			"class", "struct", "interface", "enum", "newtype", "delegate", "fn"
+			"class", "struct", "interface", "enum", "newtype", "delegate", "fn", "prep"
 		})
 			yield return new CampCompletionItem(keyword, CampSymbolKind.Keyword, null, null);
 	}

@@ -99,6 +99,32 @@ public sealed class LanguageServiceTests
 	}
 
 	[Fact]
+	public void Analysis_accepts_prep_declarations_and_expressions()
+	{
+		string root = CreateTempDirectory("language-service-prep");
+		string source = Path.Combine(root, "main.camp");
+		File.WriteAllText(source, """
+			nuint writeValue(prep char[] buffer = default)
+			{
+				if (buffer.length > 0)
+					buffer[0] = 'x';
+				return 1;
+			}
+
+			export int main()
+			{
+				char[] text = prep writeValue();
+				return text.length == 1 ? 0 : 1;
+			}
+			""");
+		CompilerRequest request = Request(root, source);
+
+		CampAnalysisSnapshot snapshot = CampLanguageService.Analyze(request);
+
+		Assert.True(snapshot.Success, string.Join(Environment.NewLine, snapshot.Diagnostics.Select(static diagnostic => diagnostic.Message)));
+	}
+
+	[Fact]
 	public void Test_discovery_snapshot_exposes_manifest_records_and_runner_diagnostics()
 	{
 		string root = CreateTempDirectory("language-service-test-discovery");

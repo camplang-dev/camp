@@ -2,7 +2,7 @@ if exists('b:current_syntax')
   finish
 endif
 
-syntax keyword campKeyword if else for foreach while do switch case default break continue return export import namespace try catch throw within finally new delete const static public private internal extern virtual override abstract async await yield this base
+syntax keyword campKeyword if else for foreach while do switch case default break continue return export import namespace try catch throw within prep finally new delete const static public private internal extern virtual override abstract async await yield this base
 syntax keyword campType bool byte char double float int uint long ulong nint nuint short ushort string void auto
 syntax keyword campTestAttribute test testonly skip contained
 syntax match campMetadata /@[A-Za-z_][A-Za-z0-9_]*/
