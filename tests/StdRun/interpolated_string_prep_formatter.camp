@@ -1,12 +1,22 @@
 using Std;
 
 int created;
+int numbers;
+int signs;
 
 export int main()
 {
 	string text = $"Value: {makeGreeter()}!";
 	Console.writeLine(text);
 	Console.writeLine(created);
+	Console.writeLine($"Number: {makeNumber().format(nextSign())}");
+	Console.writeLine(numbers);
+	Console.writeLine(signs);
+	fixed char[4] fixedText = $"{makeNumber().format(nextSign())}";
+	Console.write(fixedText[0]);
+	Console.writeLine(fixedText[1]);
+	Console.writeLine(numbers);
+	Console.writeLine(signs);
 	return 0;
 }
 
@@ -23,6 +33,31 @@ struct Greeter
 	string name;
 }
 
+enum Sign
+{
+	NONE = 0,
+	PLUS
+}
+
+Number makeNumber()
+{
+	numbers++;
+	Number value = default;
+	value.value = 7;
+	return value;
+}
+
+Sign nextSign()
+{
+	signs++;
+	return Sign.PLUS;
+}
+
+struct Number
+{
+	int value;
+}
+
 nuint format(in Greeter this, prep char[] buffer = default)
 {
 	if (buffer.length > 0)
@@ -37,4 +72,21 @@ nuint format(in Greeter this, prep char[] buffer = default)
 	char[] tail = { &buffer[4], buffer.length > 4 ? buffer.length - 4 : 0 };
 	this.name.format(tail);
 	return 4 + this.name.Length;
+}
+
+nuint format(in Number this, Sign sign = Sign.NONE, prep char[] buffer = default)
+{
+	nuint offset = 0;
+	if (sign == Sign.PLUS)
+	{
+		if (buffer.length > 0)
+			buffer[0] = '+';
+		offset = 1;
+	}
+
+	char[] tail = default;
+	if (buffer.length > offset)
+		tail = { &buffer[offset], buffer.length - offset };
+	this.value.format(tail);
+	return offset + this.value.format(default);
 }

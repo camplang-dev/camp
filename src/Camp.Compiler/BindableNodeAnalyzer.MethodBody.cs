@@ -1429,6 +1429,7 @@ public sealed partial class BindableNodeAnalyzer
 				DirectFormatterPart direct => direct.FormatterExpression,
 				RuntimeFormatterValuePart runtime => runtime.FormatterValue,
 				DirectTextPart directText => directText.Value,
+				PreparedFormatterPart prepared => prepared.Call,
 				_ => null
 			};
 		}
@@ -1477,6 +1478,12 @@ public sealed partial class BindableNodeAnalyzer
 		if (value is null)
 			return false;
 
+		if (TryBindInterpolationPrepFormatterCall(value, typeScope, referenceSyntax, out PreparedFormatterPart? prepared) && prepared is not null)
+		{
+			part = prepared;
+			return true;
+		}
+
 		if (TryGetFormatterShape(valueType, out FormatterShape direct) && direct.ElementType == "char")
 		{
 			part = new RuntimeFormatterValuePart(value, direct, hole.SourceSyntax);
@@ -1498,10 +1505,70 @@ public sealed partial class BindableNodeAnalyzer
 		return false;
 	}
 
+	bool TryBindInterpolationPrepFormatterCall(Expression value, AnalysisScope typeScope, SyntaxNode? referenceSyntax, out PreparedFormatterPart? part)
+	{
+		part = null;
+		if (value is not CallExpression call || !callTargets.TryGetValue(call, out FunctionDefinition? function))
+			return false;
+
+		EnsureFunctionSignatureAnalyzed(function, typeScope);
+		bool includeExplicitThis = IncludeExplicitThisArgument(call.Target, function);
+		List<ParameterDefinition> callableParameters = GetCallableParametersForCall(function, includeExplicitThis);
+		ParameterDefinition? prepParameter = callableParameters.FirstOrDefault(static parameter => parameter.Modifier == ParameterModifier.Prep);
+		if (prepParameter is null)
+			return false;
+		if (!TryCreatePrepFormatterShape(function, prepParameter, out FormatterShape shape) || shape.ElementType != "char")
+			return false;
+		if (CallSuppliesPrepArgument(call, callableParameters, prepParameter))
+			return false;
+
+		part = new PreparedFormatterPart(call, function, shape, value.SourceSyntax ?? referenceSyntax);
+		return true;
+	}
+
+	bool TryCreatePrepFormatterShape(FunctionDefinition function, ParameterDefinition prepParameter, out FormatterShape shape)
+	{
+		shape = null!;
+		string bufferType = StripLifetimeQualifiers(prepParameter.ResolvedType ?? "");
+		if (!TryParseTypeShape(bufferType, out TypeShape bufferShape)
+			|| bufferShape.Kind != TypeShapeKind.Array
+			|| bufferShape.Element is not TypeShape elementShape)
+		{
+			return false;
+		}
+
+		string elementType = StripTopLevelValueQualifiers(TypeShapeParser.Format(elementShape));
+		if (elementType is not ("char" or "achar" or "wchar"))
+			return false;
+
+		string lengthType = GetArrayLengthType(bufferShape);
+		if (function.ResolvedType != lengthType)
+			return false;
+
+		string candidateType = BuildFunctionValueType(function, isInstance: true, allowCallableAscription: false);
+		shape = new FormatterShape(candidateType, TypeShapeParser.Format(bufferShape), elementType, lengthType);
+		return true;
+	}
+
+	bool CallSuppliesPrepArgument(CallExpression call, List<ParameterDefinition> callableParameters, ParameterDefinition prepParameter)
+	{
+		bool[] supplied = new bool[callableParameters.Count];
+		foreach (ArgumentExpression argument in call.Arguments)
+			if (TryBindCallArgumentToParameter(argument, callableParameters, supplied, call.SourceSyntax, out int parameterIndex)
+				&& parameterIndex >= 0
+				&& parameterIndex < callableParameters.Count
+				&& ReferenceEquals(callableParameters[parameterIndex], prepParameter))
+			{
+				return true;
+			}
+		return false;
+	}
+
 	abstract record InterpolationPart(SyntaxNode? SourceSyntax);
 	sealed record LiteralTextPart(string Text, SyntaxNode? SourceSyntax) : InterpolationPart(SourceSyntax);
 	sealed record RuntimeFormatterValuePart(Expression FormatterValue, FormatterShape Shape, SyntaxNode? SourceSyntax) : InterpolationPart(SourceSyntax);
 	sealed record DirectFormatterPart(Expression Value, Expression FormatterExpression, FunctionDefinition Function, FormatterShape Shape, string FormatterType, SyntaxNode? SourceSyntax) : InterpolationPart(SourceSyntax);
+	sealed record PreparedFormatterPart(CallExpression Call, FunctionDefinition Function, FormatterShape Shape, SyntaxNode? SourceSyntax) : InterpolationPart(SourceSyntax);
 	sealed record DirectTextPart(Expression Value, string ValueType, DirectTextKind Kind, InterpolationPart? SourcePart, Expression? LengthValue, SyntaxNode? SourceSyntax) : InterpolationPart(SourceSyntax);
 	enum DirectTextKind
 	{
@@ -1575,23 +1642,9 @@ public sealed partial class BindableNodeAnalyzer
 		if (!CanCallWithArgumentCount(sourceParameters, 0))
 			return false;
 
-		string bufferType = StripLifetimeQualifiers(prepParameter.ResolvedType ?? "");
-		if (!TryParseTypeShape(bufferType, out TypeShape bufferShape)
-			|| bufferShape.Kind != TypeShapeKind.Array
-			|| bufferShape.Element is not TypeShape elementShape)
-		{
+		if (!TryCreatePrepFormatterShape(function, prepParameter, out shape))
 			return false;
-		}
-
-		string elementType = StripTopLevelValueQualifiers(TypeShapeParser.Format(elementShape));
-		if (elementType is not ("char" or "achar" or "wchar"))
-			return false;
-
-		string lengthType = GetArrayLengthType(bufferShape);
-		if (function.ResolvedType != lengthType)
-			return false;
-
-		shape = new FormatterShape(candidateType, TypeShapeParser.Format(bufferShape), elementType, lengthType);
+		shape = shape with { Type = candidateType };
 		return true;
 	}
 

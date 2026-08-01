@@ -150,6 +150,7 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		const string elementType = "char";
 		const string lengthType = "nuint";
+		parts = MaterializePreparedFormatterCalls(parts);
 		parts = MaterializeDirectFormatterValues(parts);
 		parts = MaterializeDirectTextValues(parts);
 		long constantLength = 0;
@@ -220,6 +221,23 @@ public sealed partial class BindableNodeAnalyzer
 					currentStatementPrefix.Add(Assign(
 						Required(),
 						Add(Required(), CreateVariableReference(runtimeSize.Target, runtime.Shape.LengthType), lengthType),
+						lengthType,
+						part.SourceSyntax));
+					break;
+
+				case PreparedFormatterPart prepared:
+					Expression preparedSizeCall = CreatePreparedFormatterCall(prepared, DefaultBuffer(prepared.Shape));
+					preparedSizeCall = LowerExpression(preparedSizeCall) ?? preparedSizeCall;
+					DeclarationStatement preparedSize = CreateGeneratedLocal(
+						NewGeneratedLocalName("interpolatedPartSize"),
+						prepared.Shape.LengthType,
+						TypeReferenceForResolvedName(prepared.Shape.LengthType),
+						preparedSizeCall);
+					currentStatementPrefix.Add(preparedSize);
+					componentSizes.Add(preparedSize);
+					currentStatementPrefix.Add(Assign(
+						Required(),
+						Add(Required(), CreateVariableReference(preparedSize.Target, prepared.Shape.LengthType), lengthType),
 						lengthType,
 						part.SourceSyntax));
 					break;
@@ -311,6 +329,24 @@ public sealed partial class BindableNodeAnalyzer
 						lengthType,
 						part.SourceSyntax));
 					break;
+
+				case PreparedFormatterPart prepared:
+					DeclarationStatement preparedSize = componentSizes[sizeIndex++];
+					DeclarationStatement preparedStart = AddClampedOffsetLocal(currentStatementPrefix, BufferLengthValue, Offset, prepared.Shape.LengthType, part.SourceSyntax);
+					Expression preparedWriteCall = CreatePreparedFormatterCall(prepared, BufferSlice(BufferElements(), BufferLengthValue(), CreateVariableReference(preparedStart.Target, prepared.Shape.LengthType), prepared.Shape, part.SourceSyntax));
+					preparedWriteCall = LowerExpression(preparedWriteCall) ?? preparedWriteCall;
+					currentStatementPrefix.Add(new ExpressionStatement
+					{
+						SourceSyntax = part.SourceSyntax,
+						ResolvedType = "void",
+						Expression = preparedWriteCall
+					});
+					currentStatementPrefix.Add(Assign(
+						Offset(),
+						Add(Offset(), CreateVariableReference(preparedSize.Target, prepared.Shape.LengthType), lengthType),
+						lengthType,
+						part.SourceSyntax));
+					break;
 			}
 		}
 
@@ -362,6 +398,7 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		const string elementType = "char";
 		const string lengthType = "nuint";
+		parts = MaterializePreparedFormatterCalls(parts);
 		parts = MaterializeDirectFormatterValues(parts);
 		parts = MaterializeDirectTextValues(parts);
 		List<DeclarationStatement> componentSizes = [];
@@ -374,6 +411,7 @@ public sealed partial class BindableNodeAnalyzer
 			{
 				DirectFormatterPart direct => direct.Shape,
 				RuntimeFormatterValuePart runtime => runtime.Shape,
+				PreparedFormatterPart prepared => prepared.Shape,
 				DirectTextPart => new FormatterShape("CharFormatter", "char[]", "char", lengthType),
 				_ => throw new InvalidOperationException("Unknown interpolation part.")
 			};
@@ -381,6 +419,7 @@ public sealed partial class BindableNodeAnalyzer
 			{
 				DirectFormatterPart direct => CreateDirectFormatterCall(direct, DefaultBuffer(formatter), formatter.LengthType),
 				RuntimeFormatterValuePart runtime => CallFormatter(runtime.FormatterValue, DefaultBuffer(formatter), formatter.LengthType),
+				PreparedFormatterPart prepared => CreatePreparedFormatterCall(prepared, DefaultBuffer(prepared.Shape)),
 				DirectTextPart directText => directText.Kind switch
 				{
 					DirectTextKind.Char => NumberLiteral("1", lengthType),
@@ -466,6 +505,24 @@ public sealed partial class BindableNodeAnalyzer
 					currentStatementPrefix.Add(Assign(
 						Offset(),
 						Add(Offset(), CreateVariableReference(runtimeSize.Target, runtime.Shape.LengthType), lengthType),
+						lengthType,
+						part.SourceSyntax));
+					break;
+
+				case PreparedFormatterPart prepared:
+					DeclarationStatement preparedSize = componentSizes[sizeIndex++];
+					DeclarationStatement preparedStart = AddClampedOffsetLocal(currentStatementPrefix, () => CloneParamsExpansionExpression(bufferLength) ?? bufferLength, Offset, prepared.Shape.LengthType, part.SourceSyntax);
+					Expression preparedWriteCall = CreatePreparedFormatterCall(prepared, BufferSlice(CloneParamsExpansionExpression(bufferElements) ?? bufferElements, CloneParamsExpansionExpression(bufferLength) ?? bufferLength, CreateVariableReference(preparedStart.Target, prepared.Shape.LengthType), prepared.Shape, part.SourceSyntax));
+					preparedWriteCall = LowerExpression(preparedWriteCall) ?? preparedWriteCall;
+					currentStatementPrefix.Add(new ExpressionStatement
+					{
+						SourceSyntax = part.SourceSyntax,
+						ResolvedType = "void",
+						Expression = preparedWriteCall
+					});
+					currentStatementPrefix.Add(Assign(
+						Offset(),
+						Add(Offset(), CreateVariableReference(preparedSize.Target, prepared.Shape.LengthType), lengthType),
 						lengthType,
 						part.SourceSyntax));
 					break;
@@ -583,6 +640,24 @@ public sealed partial class BindableNodeAnalyzer
 				result.Add(direct with { Value = MaterializeDirectFormatterValue(direct) });
 			else
 				result.Add(part);
+		}
+		return result;
+	}
+
+	List<InterpolationPart> MaterializePreparedFormatterCalls(List<InterpolationPart> parts)
+	{
+		List<InterpolationPart> result = [];
+		foreach (InterpolationPart part in parts)
+		{
+			if (part is PreparedFormatterPart prepared)
+			{
+				MaterializePreparedCallInputs(prepared.Call);
+				result.Add(prepared);
+			}
+			else
+			{
+				result.Add(part);
+			}
 		}
 		return result;
 	}
@@ -717,6 +792,24 @@ public sealed partial class BindableNodeAnalyzer
 		if (substitutions.Count > 0)
 			callGenericSubstitutions[call] = substitutions;
 		return call;
+	}
+
+	CallExpression CreatePreparedFormatterCall(PreparedFormatterPart part, Expression buffer)
+	{
+		bool includeExplicitThis = IncludeExplicitThisArgument(part.Call.Target, part.Function);
+		List<ParameterDefinition> callableParameters = GetCallableParametersForCall(part.Function, includeExplicitThis);
+		ParameterDefinition? prepParameter = null;
+		foreach (ParameterDefinition parameter in callableParameters)
+		{
+			if (parameter.Modifier == ParameterModifier.Prep)
+			{
+				prepParameter = parameter;
+				break;
+			}
+		}
+		if (prepParameter is null)
+			return part.Call;
+		return CreatePreparedProtocolCall(part.Call, part.Function, callableParameters, prepParameter, buffer);
 	}
 
 	bool TryGetConstantInterpolationText(InterpolatedStringExpressionSegment hole, out string text)
