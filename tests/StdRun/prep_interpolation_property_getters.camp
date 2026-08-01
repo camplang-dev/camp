@@ -1,0 +1,37 @@
+using Std;
+
+export int main()
+{
+	Label label = { .prefix = "Item" };
+	Console.writeLine($"text={label.Text}");
+	Console.writeLine($"item={label.Item[3]}");
+	return 0;
+}
+
+struct Label
+{
+	string prefix;
+
+	nuint getText(this, prep char[] buffer = default)
+	{
+		return writeJoined(this.prefix, 0, buffer);
+	}
+
+	nuint getItem(this, @index int index, prep char[] buffer = default)
+	{
+		return writeJoined(this.prefix, index, buffer);
+	}
+}
+
+nuint writeJoined(string prefix, int index, prep char[] buffer = default)
+{
+	const char[] text = prefix;
+	nuint required = text.length + 2;
+	for (nuint i = 0; i < text.length && i < buffer.length; i++)
+		buffer[i] = text[i];
+	if (text.length < buffer.length)
+		buffer[text.length] = '-';
+	if (text.length + 1 < buffer.length)
+		buffer[text.length + 1] = (char)('0' + index);
+	return required;
+}

@@ -1419,6 +1419,12 @@ public sealed partial class BindableNodeAnalyzer
 						constant = false;
 						continue;
 					}
+					if (TryAnalyzeInterpolationPrepPropertyHole(hole, scope, typeScope, out _))
+					{
+						constant = false;
+						runtimeHoles.Add(hole);
+						break;
+					}
 					string holeType = BodyAnalyzeExpression(hole.Expression, scope, typeScope);
 					if (!TryAppendConstantInterpolationHole(hole.Expression, holeType, value))
 					{
@@ -1491,6 +1497,48 @@ public sealed partial class BindableNodeAnalyzer
 		return interpolation.ResolvedType;
 	}
 
+	bool TryAnalyzeInterpolationPrepPropertyHole(InterpolatedStringExpressionSegment hole, BodyScope scope, AnalysisScope typeScope, out InterpolationPart? part)
+	{
+		part = null;
+		if (hole.Expression is not (MemberExpression or IndexExpression { Target: MemberExpression }))
+			return false;
+
+		PreparedBufferExpression prepared = new()
+		{
+			SourceSyntax = hole.Expression.SourceSyntax ?? hole.SourceSyntax,
+			Expression = hole.Expression
+		};
+		if (!TryCreatePreparedSourceCall(prepared, out CallExpression sourceCall)
+			|| sourceCall.Target is not MemberExpression member
+			|| !TryResolvePreparedPropertyGetter(member, sourceCall.Arguments, scope, typeScope, out FunctionDefinition? propertyGetter)
+			|| propertyGetter is null)
+		{
+			return false;
+		}
+
+		string prepType = BodyAnalyzePreparedBufferExpression(prepared, scope, typeScope, targetType: null);
+		prepared.ResolvedType = prepType;
+		if (prepType == ErrorType
+			|| !preparedBufferCalls.TryGetValue(prepared, out CallExpression? call)
+			|| !callTargets.TryGetValue(call, out FunctionDefinition? function))
+		{
+			return true;
+		}
+
+		EnsureFunctionSignatureAnalyzed(function, typeScope);
+		bool includeExplicitThis = IncludeExplicitThisArgument(call.Target, function);
+		List<ParameterDefinition> callableParameters = GetCallableParametersForCall(function, includeExplicitThis);
+		ParameterDefinition? prepParameter = callableParameters.FirstOrDefault(static parameter => parameter.Modifier == ParameterModifier.Prep);
+		if (prepParameter is null || !TryCreatePrepFormatterShape(function, prepParameter, out FormatterShape shape) || shape.ElementType != "char")
+			return false;
+
+		part = new PreparedFormatterPart(call, function, shape, hole.SourceSyntax);
+		interpolationParts[hole] = part;
+		hole.Formatter = call;
+		hole.Expression.ResolvedType = prepType;
+		return true;
+	}
+
 	string GetInterpolatedStringResultType(InterpolatedStringExpression interpolation, string? targetType)
 	{
 		if (targetType is null || targetType is TargetType or AutoType)
@@ -1524,6 +1572,12 @@ public sealed partial class BindableNodeAnalyzer
 	bool TryBindInterpolationHoleFormatter(InterpolatedStringExpressionSegment hole, BodyScope scope, AnalysisScope typeScope, SyntaxNode? referenceSyntax, out InterpolationPart? part)
 	{
 		part = null;
+		if (interpolationParts.TryGetValue(hole, out InterpolationPart? existing))
+		{
+			part = existing;
+			return true;
+		}
+
 		Expression? value = hole.Expression;
 		string valueType = value?.ResolvedType ?? ErrorType;
 		if (valueType == ErrorType)
