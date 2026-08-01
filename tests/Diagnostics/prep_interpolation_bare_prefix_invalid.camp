@@ -1,0 +1,11 @@
+string capture()
+{
+	return $"{prep writeText()}";
+}
+
+nuint writeText(prep char[] buffer = default)
+{
+	if (buffer.length > 0)
+		buffer[0] = 'x';
+	return 1;
+}

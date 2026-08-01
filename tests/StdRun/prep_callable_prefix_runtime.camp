@@ -1,0 +1,21 @@
+using Std;
+
+newtype fn nuint Writer(prep char[] buffer = default);
+
+export void main()
+{
+	Writer writer = writeText;
+	char[] text = prep writer();
+	Console.writeLine(text);
+
+	char[] heapText = within (default) prep new writer();
+	Console.writeLine(heapText);
+	delete heapText.elements;
+}
+
+nuint writeText(prep char[] buffer = default)
+{
+	if (buffer.length > 0)
+		buffer[0] = 'x';
+	return 1;
+}

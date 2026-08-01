@@ -35,7 +35,7 @@ public sealed partial class BindableNodeAnalyzer
 					return lowered ?? within.Expression;
 
 			case PreparedBufferExpression prepared:
-				return LowerPreparedBufferExpression(prepared);
+				return LowerPreparedBufferExpressionWithMemo(prepared);
 
 			case GroupedExpression grouped:
 				foreach (GroupedExpressionItem item in grouped.Items)

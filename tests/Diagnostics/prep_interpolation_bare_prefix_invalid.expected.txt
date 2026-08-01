@@ -1,0 +1,1 @@
+tests/Diagnostics/prep_interpolation_bare_prefix_invalid.camp(3,12): error: Interpolation holes already use prep methods implicitly when the method provides the hole result; remove the redundant 'prep' prefix.

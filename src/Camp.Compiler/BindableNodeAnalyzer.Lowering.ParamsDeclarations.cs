@@ -68,9 +68,14 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			FunctionDefinition? previousFunction = currentRewriteFunction;
 			TypeDefinition? previousType = currentRewriteContainingType;
+			Dictionary<SyntaxNode, Expression> previousPreparedBufferLoweringRewrites = new(preparedBufferLoweringRewrites);
 			currentRewriteFunction = function;
 			currentRewriteContainingType = FindContainingType(function);
+			preparedBufferLoweringRewrites.Clear();
 			ExpandParamsLocalDeclarations(function.Body.Statements);
+			preparedBufferLoweringRewrites.Clear();
+			foreach (KeyValuePair<SyntaxNode, Expression> rewrite in previousPreparedBufferLoweringRewrites)
+				preparedBufferLoweringRewrites[rewrite.Key] = rewrite.Value;
 			currentRewriteFunction = previousFunction;
 			currentRewriteContainingType = previousType;
 		}
@@ -358,6 +363,19 @@ public sealed partial class BindableNodeAnalyzer
 		if (initialValue is LambdaExpression lambda)
 			PrepareLambdaContextLocal(lambda, declarations);
 		if (ContainsInterpolatedStringInitializer(initialValue))
+		{
+			List<Statement>? previousStatementPrefix = currentStatementPrefix;
+			try
+			{
+				currentStatementPrefix = declarations;
+				initialValue = LowerExpression(initialValue);
+			}
+			finally
+			{
+				currentStatementPrefix = previousStatementPrefix;
+			}
+		}
+		if (ContainsPreparedBufferExpression(initialValue))
 		{
 			List<Statement>? previousStatementPrefix = currentStatementPrefix;
 			try

@@ -1272,6 +1272,10 @@ public sealed partial class BindableNodeAnalyzer
 				when TryCreateCurrentThisParameterComponents(out components):
 				return true;
 
+			case PreparedBufferExpression prepared
+				when currentStatementPrefix is not null:
+				return TryCreateParamsComponentExpressions(LowerPreparedBufferExpressionWithMemo(prepared), out components);
+
 			case IndexExpression index:
 				return TryCreateIndexedParamsComponentExpressions(index, out components);
 
@@ -2547,6 +2551,8 @@ public sealed partial class BindableNodeAnalyzer
 			call.ResolvedType = index.ResolvedType ?? call.ResolvedType;
 			return TryCreateParamsComponentExpressions(call, out components);
 		}
+		if (currentStatementPrefix is not null && ContainsPreparedBufferExpression(index.Target))
+			index.Target = LowerExpression(index.Target) ?? index.Target;
 		if (TryGetFixedArrayShape(index.ResolvedType, out _, out _))
 			return TryCreateFixedArrayParamsComponentExpressions(index, out components);
 		if (index.Arguments.Count == 2

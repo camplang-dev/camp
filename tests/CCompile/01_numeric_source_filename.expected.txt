@@ -1,0 +1,43 @@
+// file: _01_numeric_source_filename.c
+#include "_01_numeric_source_filename_private.h"
+
+
+int main(void)
+{
+	return 0;
+}
+
+// file: _01_numeric_source_filename.h
+#ifndef _01_NUMERIC_SOURCE_FILENAME_H_
+#define _01_NUMERIC_SOURCE_FILENAME_H_
+
+#include "_01_numeric_source_filename_private.h"
+
+int main(void);
+
+#endif
+// file: _01_numeric_source_filename_private.h
+#ifndef _01_NUMERIC_SOURCE_FILENAME_PRIVATE_H_
+#define _01_NUMERIC_SOURCE_FILENAME_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Layouts. */
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: _01_numeric_source_filename.c

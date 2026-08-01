@@ -14,6 +14,7 @@ public sealed partial class BindableNodeAnalyzer
 	readonly Dictionary<CallExpression, List<ParameterDefinition>> callableInvocationParameters = [];
 	readonly Dictionary<CallExpression, Dictionary<string, string>> callGenericSubstitutions = [];
 	readonly Dictionary<PreparedBufferExpression, CallExpression> preparedBufferCalls = [];
+	readonly Dictionary<SyntaxNode, Expression> preparedBufferLoweringRewrites = [];
 	readonly Dictionary<InterpolatedStringExpressionSegment, InterpolationPart> interpolationParts = [];
 	readonly Dictionary<FunctionDefinition, Dictionary<string, LabelStatement>> functionLabels = [];
 	FunctionDefinition? currentAnalysisFunction;
@@ -1195,6 +1196,12 @@ public sealed partial class BindableNodeAnalyzer
 			callGenericSubstitutions[call] = new Dictionary<string, string>(StringComparer.Ordinal);
 		}
 
+		if (function is null
+			&& TryAnalyzePreparedCallableInvocation(expression, call, scope, typeScope, targetType, out string callablePrepType))
+		{
+			return callablePrepType;
+		}
+
 		if (function is null)
 		{
 			Report(GetRange(expression.Expression?.SourceSyntax ?? expression.SourceSyntax), "prep requires a call or property getter target with a prep parameter.");
@@ -1251,6 +1258,46 @@ public sealed partial class BindableNodeAnalyzer
 		if (targetType is not null)
 			CheckAssignable(targetType, prepType, expression, expression.SourceSyntax, "prep result");
 		return prepType;
+	}
+
+	bool TryAnalyzePreparedCallableInvocation(PreparedBufferExpression expression, CallExpression call, BodyScope scope, AnalysisScope typeScope, string? targetType, out string prepType)
+	{
+		prepType = ErrorType;
+		string callableType = BodyAnalyzeExpression(call.Target, scope, typeScope);
+		if (!TryGetCallableShape(callableType, out CallableShape callable))
+			return false;
+
+		List<ParameterDefinition> parameters = TryGetCallableNewtypeParameters(callableType, call.Arguments, out List<ParameterDefinition>? newtypeParameters)
+			? newtypeParameters!
+			: CreateStructuralCallableParameters(GetSourceCallableParameterTypes(callable));
+		List<ParameterDefinition> callableParameters = GetCallableParameters(parameters);
+		ParameterDefinition? prepParameter = callableParameters.FirstOrDefault(static parameter => parameter.Modifier == ParameterModifier.Prep);
+		if (prepParameter is null)
+			return false;
+		if (callableParameters.Any(parameter => parameter.Modifier == ParameterModifier.Prep && !ReferenceEquals(parameter, prepParameter)))
+		{
+			Report(GetRange(expression.Expression?.SourceSyntax ?? expression.SourceSyntax), "prep requires exactly one prep parameter.");
+			return true;
+		}
+
+		List<ParameterDefinition> sourceParameters = [.. callableParameters.Where(static parameter => parameter.Modifier != ParameterModifier.Prep)];
+		Dictionary<string, bool> constOfAnchors = AnalyzeCallArguments(
+			call.Arguments,
+			sourceParameters,
+			scope,
+			typeScope,
+			call.SourceSyntax ?? GetExpressionDiagnosticSyntax(call.Target),
+			missingArgumentSyntax: GetCallTargetNameDiagnosticSyntax(call.Target),
+			callDisplayName: GetCallableInvocationDisplayName(call.Target));
+		callableInvocationParameters[call] = parameters;
+		call.ResolvedType = callable.ReturnType;
+
+		prepType = prepParameter.ResolvedType ?? ErrorType;
+		prepType = SubstituteConstOfResolvedType(prepParameter.Type, prepType, constOfAnchors);
+		preparedBufferCalls[expression] = call;
+		if (targetType is not null)
+			CheckAssignable(targetType, prepType, expression, expression.SourceSyntax, "prep result");
+		return true;
 	}
 
 	bool TryCreatePreparedSourceCall(PreparedBufferExpression expression, out CallExpression call)
@@ -1366,6 +1413,12 @@ public sealed partial class BindableNodeAnalyzer
 					break;
 
 				case InterpolatedStringExpressionSegment hole:
+					if (hole.Expression is PreparedBufferExpression preparedHole)
+					{
+						Report(GetRange(preparedHole.SourceSyntax ?? hole.SourceSyntax), "Interpolation holes already use prep methods implicitly when the method provides the hole result; remove the redundant 'prep' prefix.");
+						constant = false;
+						continue;
+					}
 					string holeType = BodyAnalyzeExpression(hole.Expression, scope, typeScope);
 					if (!TryAppendConstantInterpolationHole(hole.Expression, holeType, value))
 					{
@@ -1478,6 +1531,12 @@ public sealed partial class BindableNodeAnalyzer
 		if (value is null)
 			return false;
 
+		if (TryCreateIntrinsicDirectTextPart(value, valueType, hole.SourceSyntax, out DirectTextPart? directText) && directText is not null)
+		{
+			part = directText;
+			return true;
+		}
+
 		if (TryBindInterpolationPrepFormatterCall(value, typeScope, referenceSyntax, out PreparedFormatterPart? prepared) && prepared is not null)
 		{
 			part = prepared;
@@ -1494,7 +1553,10 @@ public sealed partial class BindableNodeAnalyzer
 		candidates = [.. candidates.Where(candidate => candidate.Shape.ElementType == "char")];
 		if (candidates.Count == 1)
 		{
-			part = new DirectFormatterPart(value, candidates[0].Expression, candidates[0].Function, candidates[0].Shape, candidates[0].ResolvedType, hole.SourceSyntax);
+			if (TryCreatePreparedFormatterPart(value, candidates[0], hole.SourceSyntax, out PreparedFormatterPart? preparedCandidate) && preparedCandidate is not null)
+				part = preparedCandidate;
+			else
+				part = new DirectFormatterPart(value, candidates[0].Expression, candidates[0].Function, candidates[0].Shape, candidates[0].ResolvedType, hole.SourceSyntax);
 			return true;
 		}
 
@@ -1503,6 +1565,52 @@ public sealed partial class BindableNodeAnalyzer
 		else
 			Report(GetRange(value?.SourceSyntax ?? hole.SourceSyntax), $"Interpolation expression of type '{valueType}' cannot format as UTF-8 text.");
 		return false;
+	}
+
+	bool TryCreateIntrinsicDirectTextPart(Expression value, string valueType, SyntaxNode? sourceSyntax, out DirectTextPart? part)
+	{
+		part = null;
+		if (IsPrimitiveStringType(valueType))
+		{
+			part = new DirectTextPart(value, valueType, DirectTextKind.String, null, null, sourceSyntax);
+			return true;
+		}
+		if (TryGetArrayElementType(valueType) is string arrayElement && StripTopLevelValueQualifiers(arrayElement) == "char")
+		{
+			part = new DirectTextPart(value, valueType, DirectTextKind.CharArray, null, null, sourceSyntax);
+			return true;
+		}
+		if (StripTopLevelValueQualifiers(valueType) == "char")
+		{
+			part = new DirectTextPart(value, valueType, DirectTextKind.Char, null, null, sourceSyntax);
+			return true;
+		}
+		return false;
+	}
+
+	bool TryCreatePreparedFormatterPart(Expression value, FormatterCandidate candidate, SyntaxNode? sourceSyntax, out PreparedFormatterPart? part)
+	{
+		part = null;
+		List<ParameterDefinition> callableParameters = GetCallableParametersForCall(candidate.Function, includeExplicitThis: false);
+		ParameterDefinition? prepParameter = callableParameters.FirstOrDefault(static parameter => parameter.Modifier == ParameterModifier.Prep);
+		if (prepParameter is null)
+			return false;
+		if (!TryCreatePrepFormatterShape(candidate.Function, prepParameter, out FormatterShape shape) || shape.ElementType != "char")
+			return false;
+
+		CallExpression call = new()
+		{
+			SourceSyntax = candidate.Expression.SourceSyntax ?? sourceSyntax,
+			Target = candidate.Expression,
+			ResolvedType = candidate.Function.ResolvedType ?? shape.LengthType
+		};
+		callTargets[call] = candidate.Function;
+		Dictionary<string, string> substitutions = [];
+		AddReceiverTypeGenericSubstitutions(value.ResolvedType ?? ErrorType, candidate.Function, substitutions);
+		if (substitutions.Count > 0)
+			callGenericSubstitutions[call] = substitutions;
+		part = new PreparedFormatterPart(call, candidate.Function, shape with { Type = candidate.ResolvedType }, sourceSyntax);
+		return true;
 	}
 
 	bool TryBindInterpolationPrepFormatterCall(Expression value, AnalysisScope typeScope, SyntaxNode? referenceSyntax, out PreparedFormatterPart? part)
@@ -4920,6 +5028,15 @@ public sealed partial class BindableNodeAnalyzer
 
 	string BodyAnalyzeIndexExpression(IndexExpression index, BodyScope scope, AnalysisScope typeScope)
 	{
+		if (index.Arguments.Count == 2 && TryGetArrayElementType(index.ResolvedType) is not null)
+		{
+			string targetType = BodyAnalyzeExpression(index.Target, scope, typeScope);
+			if (targetType == ErrorType)
+				return ErrorType;
+			foreach (ArgumentExpression argument in index.Arguments)
+				BodyAnalyzeArgumentExpression(argument, scope, typeScope, "nuint");
+			return index.ResolvedType ?? ErrorType;
+		}
 		return BodyAnalyzeIndexExpression(index.Target, index.Arguments, scope, typeScope);
 	}
 

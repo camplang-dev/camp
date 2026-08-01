@@ -530,7 +530,11 @@ public static class CCodeEmitter
 		StringBuilder builder = new();
 		foreach (char ch in value)
 			builder.Append(char.IsLetterOrDigit(ch) ? ch : '_');
-		return builder.Length == 0 ? "camp" : builder.ToString();
+		if (builder.Length == 0)
+			return "camp";
+		if (!char.IsLetter(builder[0]) && builder[0] != '_')
+			builder.Insert(0, '_');
+		return builder.ToString();
 	}
 
 	sealed class LineTrackingTextWriter(TextWriter inner, string path) : TextWriter

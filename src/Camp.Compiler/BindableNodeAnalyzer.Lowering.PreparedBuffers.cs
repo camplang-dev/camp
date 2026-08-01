@@ -6,6 +6,52 @@ namespace Camp.Compiler;
 
 public sealed partial class BindableNodeAnalyzer
 {
+	Expression LowerPreparedBufferExpressionWithMemo(PreparedBufferExpression prepared)
+	{
+		if (prepared.SourceSyntax is not null && preparedBufferLoweringRewrites.TryGetValue(prepared.SourceSyntax, out Expression? rewritten))
+			return CloneParamsExpansionExpression(rewritten) ?? rewritten;
+
+		Expression lowered = LowerPreparedBufferExpression(prepared);
+		if (prepared.SourceSyntax is not null)
+			preparedBufferLoweringRewrites[prepared.SourceSyntax] = lowered;
+		return lowered;
+	}
+
+	static bool ContainsPreparedBufferExpression(Expression? expression)
+	{
+		return expression switch
+		{
+			null => false,
+			PreparedBufferExpression => true,
+			ParenthesizedExpression parenthesized => ContainsPreparedBufferExpression(parenthesized.Expression),
+			CastExpression cast => ContainsPreparedBufferExpression(cast.Expression),
+			ConstructionExpression construction => construction.Arguments.Any(argument => ContainsPreparedBufferExpression(argument))
+				|| ContainsPreparedBufferExpression(construction.ElementCount)
+				|| ContainsPreparedBufferExpression(construction.Initializer),
+			WithinExpression within => ContainsPreparedBufferExpression(within.Context) || ContainsPreparedBufferExpression(within.Expression),
+			ArgumentExpression argument => ContainsPreparedBufferExpression(argument.Value),
+			CallExpression call => ContainsPreparedBufferExpression(call.Target) || call.Arguments.Any(argument => ContainsPreparedBufferExpression(argument)),
+			IndexExpression index => ContainsPreparedBufferExpression(index.Target) || index.Arguments.Any(argument => ContainsPreparedBufferExpression(argument)),
+			MemberExpression member => ContainsPreparedBufferExpression(member.Target),
+			MemberReferenceExpression member => ContainsPreparedBufferExpression(member.Target),
+			NamelessIndexerExpression indexer => ContainsPreparedBufferExpression(indexer.Target) || indexer.Arguments.Any(argument => ContainsPreparedBufferExpression(argument)),
+			UnaryExpression unary => ContainsPreparedBufferExpression(unary.Context) || ContainsPreparedBufferExpression(unary.Operand),
+			PostfixUpdateExpression postfix => ContainsPreparedBufferExpression(postfix.Expression),
+			FinallyCleanupExpression cleanup => ContainsPreparedBufferExpression(cleanup.Expression),
+			BinaryExpression binary => ContainsPreparedBufferExpression(binary.Left) || ContainsPreparedBufferExpression(binary.Right),
+			AssignmentExpression assignment => ContainsPreparedBufferExpression(assignment.Target) || ContainsPreparedBufferExpression(assignment.Value),
+			ConditionalExpression conditional => ContainsPreparedBufferExpression(conditional.Condition)
+				|| ContainsPreparedBufferExpression(conditional.WhenTrue)
+				|| ContainsPreparedBufferExpression(conditional.WhenFalse),
+			RangeExpression range => ContainsPreparedBufferExpression(range.Start) || ContainsPreparedBufferExpression(range.End),
+			GroupedExpression grouped => grouped.Items.Any(item => ContainsPreparedBufferExpression(item.Expression)),
+			ArrayExpression array => array.Elements.Any(ContainsPreparedBufferExpression),
+			InitializerExpression initializer => initializer.Items.Any(item => ContainsPreparedBufferExpression(item.Expression)),
+			InterpolatedStringExpression interpolation => interpolation.Segments.Any(segment => segment is InterpolatedStringExpressionSegment hole && ContainsPreparedBufferExpression(hole.Expression)),
+			_ => false
+		};
+	}
+
 	Expression LowerPreparedBufferExpression(PreparedBufferExpression prepared)
 	{
 		if (currentStatementPrefix is null)
@@ -14,14 +60,12 @@ public sealed partial class BindableNodeAnalyzer
 			return prepared.Expression ?? prepared;
 		}
 		if (!preparedBufferCalls.TryGetValue(prepared, out CallExpression? sourceCall)
-			|| !callTargets.TryGetValue(sourceCall, out FunctionDefinition? function))
+			|| !TryGetPreparedCallParameters(sourceCall, out FunctionDefinition? function, out List<ParameterDefinition>? callableParameters))
 		{
 			Report(GetRange(prepared.SourceSyntax), "prep target was not resolved.");
 			return prepared.Expression ?? prepared;
 		}
 
-		bool includeExplicitThis = IncludeExplicitThisArgument(sourceCall.Target, function);
-		List<ParameterDefinition> callableParameters = GetCallableParametersForCall(function, includeExplicitThis);
 		ParameterDefinition? prepParameter = callableParameters.FirstOrDefault(static parameter => parameter.Modifier == ParameterModifier.Prep);
 		if (prepParameter is null)
 		{
@@ -42,7 +86,7 @@ public sealed partial class BindableNodeAnalyzer
 
 		string elementType = TypeShapeParser.Format(prepElement);
 		string lengthType = GetArrayLengthType(prepShape);
-		Expression sizeCall = CreatePreparedProtocolCall(sourceCall, function, callableParameters, prepParameter, DefaultPrepBuffer(prepType, elementType, lengthType, prepared.SourceSyntax));
+		Expression sizeCall = CreatePreparedProtocolCallForTarget(sourceCall, function, callableParameters, prepParameter, DefaultPrepBuffer(prepType, elementType, lengthType, prepared.SourceSyntax));
 		sizeCall = LowerExpression(sizeCall) ?? sizeCall;
 
 		DeclarationStatement required = CreateGeneratedLocal(
@@ -67,7 +111,7 @@ public sealed partial class BindableNodeAnalyzer
 		Expression ResultElements() => CreateVariableReference(resultElements.Target, elementsType, prepared.SourceSyntax);
 		Expression ResultArray() => CreateArrayView(ResultElements(), Required(), prepType, elementsType, lengthType, prepared.SourceSyntax);
 
-		Expression writeCall = CreatePreparedProtocolCall(sourceCall, function, callableParameters, prepParameter, ResultArray());
+		Expression writeCall = CreatePreparedProtocolCallForTarget(sourceCall, function, callableParameters, prepParameter, ResultArray());
 		writeCall = LowerExpression(writeCall) ?? writeCall;
 		currentStatementPrefix.Add(new ExpressionStatement
 		{
@@ -76,7 +120,37 @@ public sealed partial class BindableNodeAnalyzer
 			Expression = writeCall
 		});
 
-		return ResultArray();
+		DeclarationStatement resultArray = CreateGeneratedLocal(
+			NewGeneratedLocalName("prepArray"),
+			prepType,
+			TypeReferenceForResolvedName(prepType, prepared.SourceSyntax),
+			ResultArray());
+		if (TryExpandParamsLocalDeclaration(resultArray, out List<Statement> resultArrayDeclarations) && resultArrayDeclarations.Count > 0)
+			currentStatementPrefix.AddRange(resultArrayDeclarations);
+		else
+			currentStatementPrefix.Add(resultArray);
+		return CreateVariableReference(resultArray.Target, prepType, prepared.SourceSyntax);
+	}
+
+	bool TryGetPreparedCallParameters(CallExpression sourceCall, out FunctionDefinition? function, out List<ParameterDefinition> callableParameters)
+	{
+		if (callTargets.TryGetValue(sourceCall, out function))
+		{
+			bool includeExplicitThis = IncludeExplicitThisArgument(sourceCall.Target, function);
+			callableParameters = GetCallableParametersForCall(function, includeExplicitThis);
+			return true;
+		}
+
+		if (callableInvocationParameters.TryGetValue(sourceCall, out List<ParameterDefinition>? foundParameters))
+		{
+			function = null;
+			callableParameters = GetCallableParameters(foundParameters);
+			return true;
+		}
+
+		function = null;
+		callableParameters = [];
+		return false;
 	}
 
 	void MaterializePreparedCallInputs(CallExpression call)
@@ -91,6 +165,8 @@ public sealed partial class BindableNodeAnalyzer
 				break;
 			default:
 				call.Target = LowerExpression(call.Target) ?? call.Target;
+				if (!callTargets.ContainsKey(call))
+					call.Target = MaterializePreparedValue(call.Target, "prepTarget");
 				break;
 		}
 
@@ -160,6 +236,49 @@ public sealed partial class BindableNodeAnalyzer
 		});
 
 		callTargets[call] = function;
+		if (callGenericSubstitutions.TryGetValue(sourceCall, out Dictionary<string, string>? substitutions))
+			callGenericSubstitutions[call] = new Dictionary<string, string>(substitutions, StringComparer.Ordinal);
+		return call;
+	}
+
+	CallExpression CreatePreparedProtocolCallForTarget(
+		CallExpression sourceCall,
+		FunctionDefinition? function,
+		List<ParameterDefinition> callableParameters,
+		ParameterDefinition prepParameter,
+		Expression prepBuffer)
+	{
+		if (function is not null)
+			return CreatePreparedProtocolCall(sourceCall, function, callableParameters, prepParameter, prepBuffer);
+
+		CallExpression call = CloneCallExpression(sourceCall);
+		call.Arguments.Clear();
+
+		List<ParameterDefinition> sourceParameters = [.. callableParameters.Where(static parameter => parameter.Modifier != ParameterModifier.Prep)];
+		bool[] supplied = new bool[sourceParameters.Count];
+		foreach (ArgumentExpression sourceArgument in sourceCall.Arguments)
+		{
+			ArgumentExpression argument = ClonePreparedArgument(sourceArgument);
+			if (TryBindCallArgumentToParameter(sourceArgument, sourceParameters, supplied, sourceCall.SourceSyntax, out int parameterIndex)
+				&& parameterIndex >= 0
+				&& parameterIndex < sourceParameters.Count
+				&& string.IsNullOrWhiteSpace(argument.Name)
+				&& !string.IsNullOrWhiteSpace(sourceParameters[parameterIndex].Name))
+			{
+				argument.Name = sourceParameters[parameterIndex].Name;
+			}
+			call.Arguments.Add(argument);
+		}
+
+		call.Arguments.Add(new ArgumentExpression
+		{
+			SourceSyntax = prepBuffer.SourceSyntax ?? sourceCall.SourceSyntax,
+			Name = string.IsNullOrWhiteSpace(prepParameter.Name) ? null : prepParameter.Name,
+			Value = prepBuffer,
+			ResolvedType = prepBuffer.ResolvedType
+		});
+
+		callableInvocationParameters[call] = callableParameters;
 		if (callGenericSubstitutions.TryGetValue(sourceCall, out Dictionary<string, string>? substitutions))
 			callGenericSubstitutions[call] = new Dictionary<string, string>(substitutions, StringComparer.Ordinal);
 		return call;

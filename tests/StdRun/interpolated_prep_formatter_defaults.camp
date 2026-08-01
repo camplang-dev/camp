@@ -1,0 +1,36 @@
+using Std;
+
+export void main()
+{
+	Badge badge = default;
+	Console.writeLine($"{badge}");
+	Console.writeLine($"{badge.format(Style.BRACKETS)}");
+}
+
+enum Style
+{
+	PLAIN = 0,
+	BRACKETS
+}
+
+struct Badge
+{
+}
+
+nuint format(in Badge this, Style style = Style.PLAIN, prep char[] buffer = default)
+{
+	if (style == Style.BRACKETS)
+	{
+		if (buffer.length > 0)
+			buffer[0] = '[';
+		if (buffer.length > 1)
+			buffer[1] = 'x';
+		if (buffer.length > 2)
+			buffer[2] = ']';
+		return 3;
+	}
+
+	if (buffer.length > 0)
+		buffer[0] = 'x';
+	return 1;
+}

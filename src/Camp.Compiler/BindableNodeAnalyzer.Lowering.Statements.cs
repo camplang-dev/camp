@@ -77,9 +77,11 @@ public sealed partial class BindableNodeAnalyzer
 		List<CleanupScope> savedCleanupScopes = [.. currentCleanupScopes];
 		List<ThrowHandler> savedThrowHandlers = [.. currentThrowHandlers];
 		List<LoopTransferTarget> savedLoopTransferTargets = [.. currentLoopTransferTargets];
+		Dictionary<SyntaxNode, Expression> savedPreparedBufferLoweringRewrites = new(preparedBufferLoweringRewrites);
 		currentCleanupScopes.Clear();
 		currentThrowHandlers.Clear();
 		currentLoopTransferTargets.Clear();
+		preparedBufferLoweringRewrites.Clear();
 		currentWithinContext = GetFunctionWithinContext(function);
 		currentRewriteFunction = function;
 		currentRewriteContainingType = containingType;
@@ -106,6 +108,9 @@ public sealed partial class BindableNodeAnalyzer
 		currentThrowHandlers.AddRange(savedThrowHandlers);
 		currentLoopTransferTargets.Clear();
 		currentLoopTransferTargets.AddRange(savedLoopTransferTargets);
+		preparedBufferLoweringRewrites.Clear();
+		foreach (KeyValuePair<SyntaxNode, Expression> rewrite in savedPreparedBufferLoweringRewrites)
+			preparedBufferLoweringRewrites[rewrite.Key] = rewrite.Value;
 	}
 
 	BlockStatement? RewriteFunctionBody(BlockStatement? body)
