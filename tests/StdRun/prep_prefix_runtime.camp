@@ -1,0 +1,106 @@
+int argumentCalls;
+int indexCalls;
+
+export int main()
+{
+	char[] text = prep writeWord(nextCount());
+	if (argumentCalls != 1)
+		return 1;
+	if (text.length != 4 || text[0] != 'C' || text[1] != 'a' || text[2] != 'm' || text[3] != 'p')
+		return 2;
+
+	Label label = default;
+	label.value = 7;
+	char[] propertyText = prep label.Text;
+	if (propertyText.length != 2 || propertyText[0] != 'O' || propertyText[1] != 'K')
+		return 3;
+
+	char[] indexedText = prep label.Item[3];
+	if (indexedText.length != 1 || indexedText[0] != '3')
+		return 4;
+	char[] indexedSideEffectText = prep label.Item[nextIndex()];
+	if (indexCalls != 1 || indexedSideEffectText.length != 1 || indexedSideEffectText[0] != '4')
+		return 5;
+
+	byte[] bytes = prep writeBytes();
+	if (bytes.length != 3 || bytes[0] != 1 || bytes[1] != 2 || bytes[2] != 3)
+		return 6;
+
+	int[] numbers = prep writeNumbers();
+	if (numbers.length != 2 || numbers[0] != 10 || numbers[1] != 20)
+		return 7;
+
+	char[] heapText = within (default) prep new writeWord(2);
+	if (heapText.length != 2 || heapText[0] != 'C' || heapText[1] != 'a')
+		return 8;
+	delete heapText.elements;
+
+	return 0;
+}
+
+int nextCount()
+{
+	argumentCalls++;
+	return 4;
+}
+
+int nextIndex()
+{
+	indexCalls++;
+	return 4;
+}
+
+nuint writeWord(int count, prep char[] buffer)
+{
+	nuint required = (nuint)count;
+	if (buffer.length > 0)
+		buffer[0] = 'C';
+	if (buffer.length > 1)
+		buffer[1] = 'a';
+	if (buffer.length > 2)
+		buffer[2] = 'm';
+	if (buffer.length > 3)
+		buffer[3] = 'p';
+	return required;
+}
+
+nuint writeBytes(prep byte[] buffer)
+{
+	if (buffer.length > 0)
+		buffer[0] = 1;
+	if (buffer.length > 1)
+		buffer[1] = 2;
+	if (buffer.length > 2)
+		buffer[2] = 3;
+	return 3;
+}
+
+nuint writeNumbers(prep int[] buffer)
+{
+	if (buffer.length > 0)
+		buffer[0] = 10;
+	if (buffer.length > 1)
+		buffer[1] = 20;
+	return 2;
+}
+
+struct Label
+{
+	int value;
+
+	nuint getText(this, prep char[] buffer)
+	{
+		if (buffer.length > 0)
+			buffer[0] = 'O';
+		if (buffer.length > 1)
+			buffer[1] = 'K';
+		return 2;
+	}
+
+	nuint getItem(this, @index int index, prep char[] buffer)
+	{
+		if (buffer.length > 0)
+			buffer[0] = (char)((int)'0' + index);
+		return 1;
+	}
+}

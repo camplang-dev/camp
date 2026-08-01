@@ -1,0 +1,21 @@
+nuint writeValue(prep char[] buffer)
+{
+	return 0;
+}
+
+int ordinary()
+{
+	return 0;
+}
+
+void main()
+{
+	char[] a = prep ordinary();
+	char[] b = prep writeValue(default);
+	char[] c = prep 123;
+}
+
+char[] badReturn()
+{
+	return prep writeValue();
+}

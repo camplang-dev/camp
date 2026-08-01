@@ -480,6 +480,7 @@ public sealed partial class BindableNodeAnalyzer
 		return expression switch
 		{
 			InterpolatedStringExpression => true,
+			PreparedBufferExpression => true,
 			WithinExpression within => ContainsInterpolatedStringInitializer(within.Expression),
 			FinallyCleanupExpression cleanup => ContainsInterpolatedStringInitializer(cleanup.Expression),
 			ParenthesizedExpression parenthesized => ContainsInterpolatedStringInitializer(parenthesized.Expression),

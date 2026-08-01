@@ -1,0 +1,4 @@
+tests/Diagnostics/prep_prefix_invalid.camp(13,26): error: prep requires a call or property getter target with a prep parameter.
+tests/Diagnostics/prep_prefix_invalid.camp(14,29): error: Call has too many arguments.
+tests/Diagnostics/prep_prefix_invalid.camp(15,18): error: prep may be applied only to a call or property getter expression.
+tests/Diagnostics/prep_prefix_invalid.camp(20,9): error: Return expression cannot return a scoped prep result; use 'prep new' for heap-allocated prepared storage.

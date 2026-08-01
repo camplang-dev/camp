@@ -13,6 +13,7 @@ public sealed partial class BindableNodeAnalyzer
 	readonly Dictionary<ConstructionExpression, FunctionDefinition> constructionTargets = [];
 	readonly Dictionary<CallExpression, List<ParameterDefinition>> callableInvocationParameters = [];
 	readonly Dictionary<CallExpression, Dictionary<string, string>> callGenericSubstitutions = [];
+	readonly Dictionary<PreparedBufferExpression, CallExpression> preparedBufferCalls = [];
 	readonly Dictionary<InterpolatedStringExpressionSegment, InterpolationPart> interpolationParts = [];
 	readonly Dictionary<FunctionDefinition, Dictionary<string, LabelStatement>> functionLabels = [];
 	FunctionDefinition? currentAnalysisFunction;
@@ -378,6 +379,8 @@ public sealed partial class BindableNodeAnalyzer
 					Report(GetRange(returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax), "A method returning 'this' must return 'this' or a chain of 'this'-returning instance calls on 'this'.");
 				if (IsDirectCapturingLambda(returnStatement.Expression, scope) && !IsEscapedDelegateLambdaTarget(scope.CurrentFunctionReturnType))
 					Report(GetRange(returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax), "Capturing scoped lambdas cannot be returned.");
+				if (ContainsScopedPreparedBuffer(returnStatement.Expression))
+					Report(GetRange(returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax), "Return expression cannot return a scoped prep result; use 'prep new' for heap-allocated prepared storage.");
 				if (RequiresAnyGenericCopy(scope.CurrentFunctionReturnType, returnStatement.Expression, scope))
 					ReportAnyGenericCopy(returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax);
 				else if (RequiresCopyableGenericCopySizeOf(scope.CurrentFunctionReturnType, returnStatement.Expression, scope))
@@ -827,6 +830,25 @@ public sealed partial class BindableNodeAnalyzer
 		};
 	}
 
+	bool ContainsScopedPreparedBuffer(Expression? expression)
+	{
+		if (expression is null)
+			return false;
+		if (expressionRewrites.TryGetValue(expression, out Expression? rewritten) && !ReferenceEquals(rewritten, expression))
+			return ContainsScopedPreparedBuffer(rewritten);
+
+		return expression switch
+		{
+			PreparedBufferExpression { HeapAllocated: false } => true,
+			ParenthesizedExpression parenthesized => ContainsScopedPreparedBuffer(parenthesized.Expression),
+			CastExpression cast => ContainsScopedPreparedBuffer(cast.Expression),
+			WithinExpression within => ContainsScopedPreparedBuffer(within.Expression),
+			FinallyCleanupExpression cleanup => ContainsScopedPreparedBuffer(cleanup.Expression),
+			ConditionalExpression conditional => ContainsScopedPreparedBuffer(conditional.WhenTrue) || ContainsScopedPreparedBuffer(conditional.WhenFalse),
+			_ => false
+		};
+	}
+
 	bool EscapesLocalFixedArraySpan(string targetType, Expression? expression)
 	{
 		if (!TryParseTypeShape(targetType, out TypeShape targetShape) || targetShape.Kind != TypeShapeKind.Array)
@@ -1145,9 +1167,154 @@ public sealed partial class BindableNodeAnalyzer
 
 	string BodyAnalyzePreparedBufferExpression(PreparedBufferExpression expression, BodyScope scope, AnalysisScope typeScope, string? targetType)
 	{
-		Report(GetRange(expression.SourceSyntax), "prep expressions are not implemented yet.");
-		BodyAnalyzeExpression(expression.Expression, scope, typeScope, targetType);
-		return ErrorType;
+		if (!TryCreatePreparedSourceCall(expression, out CallExpression? call))
+		{
+			BodyAnalyzeExpression(expression.Expression, scope, typeScope, targetType);
+			return ErrorType;
+		}
+
+		NormalizeGenericCallSyntax(call);
+		foreach (TypeReference argument in call.TypeArguments)
+			AnalyzeType(argument, typeScope);
+
+		FunctionDefinition? function = callTargets.TryGetValue(call, out FunctionDefinition? existingTarget)
+			? existingTarget
+			: call.Target is MemberExpression preparedProperty && TryResolvePreparedPropertyGetter(preparedProperty, call.Arguments, scope, typeScope, out FunctionDefinition? propertyGetter)
+				? propertyGetter
+				: ResolveCallTarget(call.Target, scope, typeScope, call.Arguments);
+		if (function is null
+			&& call.Target is MemberExpression member
+			&& TryAnalyzePropertyIndexer(member, call.Arguments, scope, typeScope, out _)
+			&& expressionRewrites.TryGetValue(member, out Expression? rewritten)
+			&& rewritten is MemberReferenceExpression propertyReference
+			&& propertyReference.Member is FunctionDefinition propertyFunction
+			&& IsPropertyGetterReference(propertyReference))
+		{
+			function = propertyFunction;
+			callTargets[call] = function;
+			callGenericSubstitutions[call] = new Dictionary<string, string>(StringComparer.Ordinal);
+		}
+
+		if (function is null)
+		{
+			Report(GetRange(expression.Expression?.SourceSyntax ?? expression.SourceSyntax), "prep requires a call or property getter target with a prep parameter.");
+			return ErrorType;
+		}
+
+		EnsureFunctionSignatureAnalyzed(function, typeScope);
+		callTargets[call] = function;
+		if (function.IsAsync)
+			Report(GetRange(expression.Expression?.SourceSyntax ?? expression.SourceSyntax), "prep cannot target async functions.");
+
+		bool includeExplicitThisArgument = IncludeExplicitThisArgument(call.Target, function);
+		List<ParameterDefinition> analysisParameters = GetAsyncAwareCallParameters(function, call, includeExplicitThisArgument);
+		ParameterDefinition? prepParameter = analysisParameters.FirstOrDefault(static parameter => parameter.Modifier == ParameterModifier.Prep);
+		if (prepParameter is null)
+		{
+			Report(GetRange(expression.Expression?.SourceSyntax ?? expression.SourceSyntax), "prep requires a call or property getter target with a prep parameter.");
+			return ErrorType;
+		}
+
+		Dictionary<string, string> genericSubstitutions = [];
+		HashSet<string> genericParameterNames = [];
+		foreach (GenericParameter parameter in function.GenericParameters)
+			genericParameterNames.Add(parameter.Name);
+		if (FindContainingType(function) is TypeDefinition containingType)
+			foreach (GenericParameter parameter in containingType.GenericParameters)
+				genericParameterNames.Add(parameter.Name);
+		AddExplicitGenericSubstitutions(function, call.TypeArguments, genericSubstitutions);
+		AddReceiverGenericSubstitutions(call.Target, function, genericSubstitutions);
+
+		List<ParameterDefinition> sourceParameters = [.. analysisParameters.Where(static parameter => parameter.Modifier != ParameterModifier.Prep)];
+		Dictionary<string, bool> constOfAnchors = AnalyzeCallArguments(
+			call.Arguments,
+			sourceParameters,
+			scope,
+			typeScope,
+			call.SourceSyntax ?? GetExpressionDiagnosticSyntax(call.Target),
+			includeExplicitThisArgument,
+			genericSubstitutions,
+			genericParameterNames,
+			function,
+			call.Target,
+			GetCallTargetNameDiagnosticSyntax(call.Target),
+			GetCallDisplayName(function, call.Target));
+		AddReceiverConstOfAnchorFact(call.Target, function, constOfAnchors);
+		if (ReportUnresolvedGenericCall(function, genericSubstitutions, GetCallTargetNameDiagnosticSyntax(call.Target)))
+			return ErrorType;
+		ValidateGenericCallSubstitutionConstraints(function, genericSubstitutions, scope, call.SourceSyntax ?? GetExpressionDiagnosticSyntax(call.Target));
+		callGenericSubstitutions[call] = new Dictionary<string, string>(genericSubstitutions, StringComparer.Ordinal);
+
+		string prepType = SubstituteGenericType(prepParameter.ResolvedType ?? ErrorType, genericSubstitutions);
+		prepType = SubstituteConstOfResolvedType(prepParameter.Type, prepType, constOfAnchors, genericSubstitutions);
+		preparedBufferCalls[expression] = call;
+		if (targetType is not null)
+			CheckAssignable(targetType, prepType, expression, expression.SourceSyntax, "prep result");
+		return prepType;
+	}
+
+	bool TryCreatePreparedSourceCall(PreparedBufferExpression expression, out CallExpression call)
+	{
+		switch (expression.Expression)
+		{
+			case CallExpression sourceCall:
+				call = sourceCall;
+				return true;
+			case MemberExpression member:
+				call = new CallExpression
+				{
+					SourceSyntax = expression.SourceSyntax ?? member.SourceSyntax,
+					Target = member
+				};
+				return true;
+			case IndexExpression { Target: MemberExpression member } index:
+				call = new CallExpression
+				{
+					SourceSyntax = expression.SourceSyntax ?? index.SourceSyntax,
+					Target = member
+				};
+				foreach (ArgumentExpression argument in index.Arguments)
+					call.Arguments.Add(argument);
+				return true;
+			default:
+				Report(GetRange(expression.Expression?.SourceSyntax ?? expression.SourceSyntax), "prep may be applied only to a call or property getter expression.");
+				call = new CallExpression { SourceSyntax = expression.SourceSyntax };
+				return false;
+		}
+	}
+
+	bool TryResolvePreparedPropertyGetter(MemberExpression member, List<ArgumentExpression> arguments, BodyScope scope, AnalysisScope typeScope, out FunctionDefinition? function)
+	{
+		function = null;
+		string targetType = BodyAnalyzeExpression(member.Target, scope, typeScope);
+		TypeDefinition? type = GetTypeDefinition(targetType);
+		List<FunctionDefinition> getters = type is null ? [] : LookupPropertyGetters(type, member.Name, member.SourceSyntax);
+		getters.AddRange(LookupExtensionFunctions(targetType, "get" + member.Name, member.SourceSyntax));
+		if (getters.Count > 1 && IsOverloadFamily(getters))
+		{
+			function = TrySelectOverload("get" + member.Name, getters, arguments, scope, typeScope, member.SourceSyntax);
+			getters = function is null ? [] : [function];
+		}
+
+		foreach (FunctionDefinition getter in getters)
+		{
+			EnsureFunctionSignatureAnalyzed(getter, typeScope);
+			if (!ReceiverCanCallFunction(targetType, getter, isPropertyGetterSyntax: true))
+				continue;
+			if (!getter.Parameters.Any(static parameter => parameter.Modifier == ParameterModifier.Prep))
+				continue;
+
+			List<ParameterDefinition> sourceParameters = [.. getter.Parameters.Where(static parameter => parameter.Modifier != ParameterModifier.Prep)];
+			if (!CanCallWithArgumentCount(sourceParameters, HasRangeArgument(arguments) ? arguments.Count + 1 : arguments.Count))
+				continue;
+
+			member.ResolvedType = getter.ResolvedType ?? ErrorType;
+			expressionRewrites[member] = CreateMemberReference(member, member.Target, member.ResolvedType, getter);
+			function = getter;
+			return true;
+		}
+
+		return false;
 	}
 
 	string BodyAnalyzeSourceOfExpression(SourceOfExpression expression)

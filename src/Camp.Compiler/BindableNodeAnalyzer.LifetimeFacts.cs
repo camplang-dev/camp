@@ -260,6 +260,7 @@ public sealed partial class BindableNodeAnalyzer
 			CastExpression cast => cast.LifetimeBinding
 				?? (IsFunctionPointerResolvedType(resolvedType) ? MakeLifetimeFact("escaped", null, "function pointer cast") : null)
 				?? GetExpressionLifetimeFact(cast.Expression),
+			PreparedBufferExpression prepared => prepared.HeapAllocated ? MakeLifetimeFact("unknown", null, "new") : MakeLifetimeFact("scoped", null, "init"),
 			ConstructionExpression construction => IsLifetimePointerBearingResolvedType(resolvedType, scope) ? GetConstructionLifetimeFact(construction, resolvedType, scope) : null,
 			WithinExpression within => GetWithinExpressionLifetimeFact(within, resolvedType, scope),
 			FinallyCleanupExpression finallyCleanup => GetExpressionLifetimeFact(finallyCleanup.Expression),
