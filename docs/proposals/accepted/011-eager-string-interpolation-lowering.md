@@ -15,7 +15,7 @@ Accepted and implementation-complete.
 ## Summary
 
 This proposal changes runtime string interpolation so it eagerly produces text
-instead of lowering to a lambda-like `CharFormatter` delegate.
+instead of lowering to a lambda-like the legacy formatter type delegate.
 
 After this change, an interpolation expression materializes its result at the
 point where the expression is evaluated. The result is target-typed:
@@ -29,14 +29,14 @@ auto g = $"456{c}";
 string h = new $"The answer is {number}";
 ```
 
-`CharFormatter` remains part of the standard library. It is still used to format
+the legacy formatter type remains part of the standard library. It is still used to format
 interpolation holes, and existing formatter values can still appear inside
 holes. The change is that the interpolation expression itself no longer
-produces a `CharFormatter` value unless an ordinary source expression inside a
+produces a the legacy formatter type value unless an ordinary source expression inside a
 hole produces one.
 
 This proposal does not introduce `prep`, does not change the standard formatting
-API surface, and does not remove `CharFormatter`.
+API surface, and does not remove the legacy formatter type.
 
 Unless this proposal explicitly says otherwise, existing Camp semantics still
 apply. In particular, this proposal does not redefine `within` allocation
@@ -45,7 +45,7 @@ or ordinary call argument binding.
 
 ## Motivation
 
-Runtime interpolation currently uses `CharFormatter` delegate composition. That
+Runtime interpolation currently uses the legacy formatter type delegate composition. That
 keeps formatting allocation-free until a consumer asks for text, but it makes a
 simple interpolation lower into generated formatter functions, contexts, and
 delegate calls. For ordinary source such as:
@@ -73,7 +73,7 @@ char[] scratchText = $"count={count}";
 - Support target-typed interpolation to `string`, `char[]`, `const char[]`, fixed
   `char[N]`, and `new` heap allocation.
 - Keep `auto` interpolation inferred as `string`.
-- Preserve existing `CharFormatter` formatting behavior for interpolation holes.
+- Preserve existing the legacy formatter type formatting behavior for interpolation holes.
 - Preserve ordinary thrown propagation from hole expressions and formatter calls.
 - Preserve existing scoped and escaped lifetime rules.
 - Reduce generated C size compared with formatter-lambda lowering.
@@ -82,7 +82,7 @@ char[] scratchText = $"count={count}";
 ## Non-Goals
 
 - Do not introduce `prep`.
-- Do not remove, deprecate, or redesign `CharFormatter`.
+- Do not remove, deprecate, or redesign the legacy formatter type.
 - Do not add a hidden runtime string builder.
 - Do not add general string-concatenation changes beyond interpolation lowering.
 - Do not add built-in `wstring` or `astring` interpolation.
@@ -181,19 +181,19 @@ formatted text and no implicit terminator.
 
 ### Formatter Values In Holes
 
-`CharFormatter` remains valid and useful inside interpolation holes:
+the legacy formatter type remains valid and useful inside interpolation holes:
 
 ```camp
 string i = $"The date is {Date.today().format}";
 ```
 
-If a hole expression already has `CharFormatter` type, interpolation uses that
+If a hole expression already has the legacy formatter type type, interpolation uses that
 formatter to measure and write the hole text. If a hole expression has another
 type, interpolation uses the existing formatter lookup/ascription behavior to
 find an accessible formatter such as `int.format`.
 
 This proposal does not change how formatter methods are declared. Existing
-formatters still use the current `CharFormatter` callable protocol.
+formatters still use the current the legacy formatter type callable protocol.
 
 ## Evaluation And Formatting
 
@@ -206,13 +206,13 @@ interpolation once:
 - literal segments contribute their literal characters;
 - each runtime hole expression is evaluated once;
 - each hole's formatter is measured and written according to the existing
-  `CharFormatter` protocol;
+  the legacy formatter type protocol;
 - the interpolation result is produced as a concrete `string`, `char[]`,
   `const char[]`, fixed `char[N]`, or heap-allocated result.
 
 A hole may produce zero characters. Every runtime hole must evaluate to a type
 that is capable of producing characters, either because it is already a
-`CharFormatter` or because an accessible formatter can be found for it.
+the legacy formatter type or because an accessible formatter can be found for it.
 
 If a hole expression throws, or if a formatter call throws, the thrown value
 propagates normally according to ordinary Camp throwing rules. Interpolation
@@ -319,7 +319,7 @@ The compiler may emit internal helper functions for operations such as:
 
 - copying literal segments into a destination buffer;
 - advancing a write cursor;
-- invoking an existing `CharFormatter` into an output slice;
+- invoking an existing the legacy formatter type into an output slice;
 - null-terminating a string result.
 
 Any generated helper must be internal, non-exported, emitted at most once per
@@ -333,7 +333,7 @@ Implementation areas:
   - target-type runtime interpolation to `string`, `char[]`, `const char[]`,
     fixed `char[N]`, and `new` result forms;
   - keep `auto` interpolation as `string`;
-  - bind runtime holes through existing `CharFormatter` behavior;
+  - bind runtime holes through existing the legacy formatter type behavior;
   - allow existing formatter values in holes;
 - lowering:
   - replace formatter-delegate interpolation lowering with eager result
@@ -379,7 +379,7 @@ Semantic and runtime coverage:
 
 Lowering and C-emission coverage:
 
-- runtime interpolation no longer lowers to a `CharFormatter` lambda/context;
+- runtime interpolation no longer lowers to a the legacy formatter type lambda/context;
 - generated code uses eager result storage;
 - representative generated C does not duplicate large literal-write logic at
   every site when helper lowering is selected;
@@ -394,9 +394,9 @@ Documentation coverage:
 ## Compatibility
 
 This is a preview-language breaking change for source that relied on runtime
-interpolation itself being a `CharFormatter`.
+interpolation itself being a the legacy formatter type.
 
-Source that explicitly uses `CharFormatter` values remains valid. Existing
+Source that explicitly uses the legacy formatter type values remains valid. Existing
 formatter methods remain valid. The migration is specifically from
 "interpolation expression as formatter delegate" to "interpolation expression as
 eager text result."

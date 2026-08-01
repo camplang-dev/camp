@@ -1,2 +1,2 @@
 tests/Diagnostics/callable_this_ascription_invalid.camp(1,23): error: fn newtype 'BadFn' may not declare a this parameter.
-tests/Diagnostics/callable_this_ascription_invalid.camp(21,23): error: Explicit this qualifiers on declaration 'format' do not match callable ascription target 'CharFormatter'.
+tests/Diagnostics/callable_this_ascription_invalid.camp(21,23): error: Explicit this qualifiers on declaration 'format' do not match callable ascription target 'TextFormatter'.

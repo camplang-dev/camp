@@ -1,6 +1,4 @@
-newtype delegate nuint CharFormatter(const this, char[] buffer = default);
-
-nuint format(in int this, overload char[] buffer) : CharFormatter
+nuint format(in int this, prep char[] buffer = default)
 {
 	return 1;
 }

@@ -68,7 +68,7 @@ public sealed class MsvcCompileTests
 				reader.close();
 
 				Instant now = Instant.utcNow();
-				string text = now.format.copyString() finally delete;
+				char[] text = prep now.format();
 				if (text.Length == 0)
 					return 5;
 

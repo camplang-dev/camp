@@ -1,4 +1,4 @@
-newtype delegate nuint CharFormatter(const this, char[] buffer);
+newtype delegate nuint TextFormatter(const this, char[] buffer);
 newtype delegate void ConstCallback(const this);
 newtype delegate void EscapedCallback(escaped this);
 
@@ -6,7 +6,7 @@ class MutatingDate
 {
 	int year;
 
-	nuint format(char[] buffer) : CharFormatter
+	nuint format(char[] buffer) : TextFormatter
 	{
 		this.year = 2026;
 		return 0;

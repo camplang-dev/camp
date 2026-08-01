@@ -24,13 +24,13 @@ class Date
 
 class Point
 {
-	nuint format(overload char[] buffer) : CharFormatter
+	nuint format(overload char[] buffer) : TextFormatter
 	{
 		return buffer.length;
 	}
 }
 
-newtype delegate nuint CharFormatter(char[] buffer = default);
+newtype delegate nuint TextFormatter(char[] buffer = default);
 
 int main()
 {
@@ -43,7 +43,7 @@ int main()
 	int dateValue = formatter();
 	int extra = formatter.plusOne();
 	Point* point = null;
-	CharFormatter charFormatter = point.format;
+	TextFormatter charFormatter = point.format;
 	nuint formatted = charFormatter();
 
 	return ok ? parsed + dateValue + extra + (int)formatted : 1;

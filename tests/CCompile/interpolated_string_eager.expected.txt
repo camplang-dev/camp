@@ -2,30 +2,29 @@
 #include "interpolated_string_eager_private.h"
 
 /* Private file declarations. */
-static uintptr_t Int_formatCharArray(int *this, char *buffer, uintptr_t buffer_length);
+static uintptr_t Int_format(int *this, char *buffer, uintptr_t buffer_length);
 static void make(int value);
 
-static uintptr_t Int_formatCharArray(int *this, char *buffer, uintptr_t buffer_length)
+static uintptr_t Int_format(int *this, char *buffer, uintptr_t buffer_length)
 {
 	return 1;
 }
 
 static void make(int value)
 {
-	int _interpolatedValue0 = value;
-	uintptr_t _interpolatedRequired1 = 1;
-	uintptr_t _interpolatedPartSize2 = Int_formatCharArray(&_interpolatedValue0, NULL, 0);
-	_interpolatedRequired1 = (_interpolatedRequired1 + _interpolatedPartSize2);
-	uintptr_t _interpolatedBufferLength3 = (_interpolatedRequired1 + 1);
-	char *_interpolatedBufferElements4 = (char *)(__builtin_alloca((sizeof(char) * _interpolatedBufferLength3)));
-	uintptr_t _interpolatedOffset5 = 0;
-	__builtin_memcpy((void*)((_interpolatedBufferElements4 + _interpolatedOffset5)), (const void*)("x"), 1 * sizeof(char));
-	_interpolatedOffset5 = (_interpolatedOffset5 + 1);
-	uintptr_t _interpolatedStart6 = ((_interpolatedOffset5 < _interpolatedBufferLength3) ? _interpolatedOffset5 : _interpolatedBufferLength3);
-	Int_formatCharArray(&_interpolatedValue0, &_interpolatedBufferElements4[_interpolatedStart6], (_interpolatedBufferLength3 - _interpolatedStart6));
-	_interpolatedOffset5 = (_interpolatedOffset5 + _interpolatedPartSize2);
-	_interpolatedBufferElements4[_interpolatedRequired1] = '\0';
-	const char *text = (const char*)(_interpolatedBufferElements4);
+	uintptr_t _interpolatedRequired0 = 1;
+	uintptr_t _interpolatedPartSize1 = Int_format(&value, NULL, 0);
+	_interpolatedRequired0 = (_interpolatedRequired0 + _interpolatedPartSize1);
+	uintptr_t _interpolatedBufferLength2 = (_interpolatedRequired0 + 1);
+	char *_interpolatedBufferElements3 = (char *)(__builtin_alloca((sizeof(char) * _interpolatedBufferLength2)));
+	uintptr_t _interpolatedOffset4 = 0;
+	__builtin_memcpy((void*)((_interpolatedBufferElements3 + _interpolatedOffset4)), (const void*)("x"), 1 * sizeof(char));
+	_interpolatedOffset4 = (_interpolatedOffset4 + 1);
+	uintptr_t _interpolatedStart5 = ((_interpolatedOffset4 < _interpolatedBufferLength2) ? _interpolatedOffset4 : _interpolatedBufferLength2);
+	Int_format(&value, &_interpolatedBufferElements3[_interpolatedStart5], (_interpolatedBufferLength2 - _interpolatedStart5));
+	_interpolatedOffset4 = (_interpolatedOffset4 + _interpolatedPartSize1);
+	_interpolatedBufferElements3[_interpolatedRequired0] = '\0';
+	const char *text = (const char*)(_interpolatedBufferElements3);
 	const char *__discard1;
 	__discard1 = text;
 }
@@ -43,7 +42,6 @@ static void make(int value)
 /* Enums. */
 
 /* Newtypes. */
-typedef uintptr_t (* CharFormatter)(const void *context, char *buffer, uintptr_t buffer_length);
 
 /* Layouts. */
 

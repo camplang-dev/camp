@@ -351,35 +351,24 @@ writeLine("ready");
 Bound method references carry their receiver in the callable context:
 
 ```camp
-auto formatter = date.format;
-string text = formatter.copyString() finally delete;
+delegate void(const char[]) write = Console.write;
+write("ready");
 ```
 
 Callable newtype ascription can give the reference a nominal callable type:
 
 ```camp
-newtype delegate nuint CharFormatter(const this, char[] buffer = default);
+newtype delegate void LineWriter(const char[] text);
 
-struct Date
+void accept(LineWriter writer)
 {
-	nuint format(overload char[] buffer) : CharFormatter
-	{
-		// Format into buffer and return the required or written length.
-	}
+	writer("ready");
 }
-
-auto formatter = date.format; // CharFormatter
 ```
 
 Callable values invoke with the same `target(arguments)` surface as functions.
-An interpolated string can use a `CharFormatter` value in a hole:
-
-```camp
-Console.writeLine($"date: {date.format}");
-```
-
-An interpolation hole can also use a `format` method with a `prep char[]`
-buffer. This keeps formatting options as ordinary arguments:
+An interpolation hole can use a `format` method with a `prep char[]` buffer.
+This keeps formatting options as ordinary arguments:
 
 ```camp
 Console.writeLine($"count: {count.format(IntegerFormat.POSITIVE_SIGN)}");

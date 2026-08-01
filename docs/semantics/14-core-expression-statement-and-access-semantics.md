@@ -393,20 +393,8 @@ equivalent initialized storage.
 
 ### Formatter Protocol
 
-Runtime holes are formatted through the ordinary UTF-8 formatter protocol. The
-standard formatter type is ordinary standard-library source, not a
-compiler-owned symbol:
-
-```camp
-public newtype delegate nuint CharFormatter(
-	const this,
-	char[] buffer = default);
-```
-
-The buffer default belongs on the delegate declaration. A `format` overload
-selector does not declare that default value.
-
-An eligible formatter follows this contract:
+Runtime holes are formatted through caller-prepared `prep char[]` methods. An
+eligible formatter follows this contract:
 
 - The return value is the complete required character count in array elements,
   excluding any null terminator.
@@ -421,16 +409,14 @@ An eligible formatter follows this contract:
 - Size-query and write calls over unchanged captured state must agree on the
   required size and formatted content.
 
-The compiler checks the callable shape, not the full behavioral contract.
-Declaring an eligible formatter target or `format` method asserts that the
-implementation obeys the contract.
+The compiler checks the source shape, not the full behavioral contract.
+Declaring an eligible `format` method asserts that the implementation obeys the
+contract.
 
 ### Formattable Values
 
 A runtime hole is formattable when either:
 
-- the hole expression already resolves to an eligible formatter value whose
-  buffer element type is `char`; or
 - ordinary instance member lookup finds exactly one eligible method named
   `format` for the hole expression; or
 - the hole expression itself is a call to an eligible caller-prepared `format`
@@ -439,19 +425,7 @@ A runtime hole is formattable when either:
 Receiver-style extension functions, inherited methods, virtual methods, and
 interface members participate through ordinary Camp lookup and dispatch rules.
 
-An eligible callable-formatter `format` method:
-
-1. has exactly one non-`this` parameter;
-2. uses that buffer parameter as its `overload` selector;
-3. accepts mutable `char[]` as the buffer type;
-4. returns the exact length-component type of that array;
-5. has no `thrown` slot;
-6. has receiver and lifetime requirements compatible with evaluating the hole
-   expression once and invoking the formatter for size and write passes;
-7. is ascribed to `CharFormatter` when the formatter is intended to participate
-   in the standard UTF-8 formatting surface.
-
-An eligible caller-prepared `format` method:
+An eligible `format` method:
 
 1. has exactly one `prep` parameter after receiver binding;
 2. accepts mutable `char[]` as the `prep` buffer type;
@@ -478,7 +452,7 @@ public struct Status
 
 public nuint format(
 	in Status this,
-	overload char[] buffer) : CharFormatter
+	prep char[] buffer = default)
 {
 	const char[] text = this.enabled ? "enabled" : "disabled";
 	nuint required = text.length;
@@ -568,21 +542,17 @@ type selected by target typing. With no stronger target, it is a `string`. If a
 call has several valid overload candidates for the same interpolation argument,
 ordinary Camp overload ambiguity rules apply and the caller must disambiguate.
 
-Formatter delegate overloads are not selected by passing an interpolated string.
-Pass an explicit formatter value, such as a `.format` method reference, when the
-API expects a formatter:
-
-```camp
-writeFormatter(value.format);
-```
+Callable overloads are not selected by passing an interpolated string. APIs that
+accept formatted text should accept a concrete text type and let the caller use
+interpolation or `prep` formatting at the call site.
 
 ### Textual `+`
 
 Binary `+` does not compose text. If either side of `+` is a textual anchor, the
 compiler reports a diagnostic and the program should use an interpolated string
 instead. Textual anchors include primitive string values, string literals,
-compatible counted character views, interpolated strings, and formatter values.
-Ordinary numeric `+` is unchanged when neither operand is textual.
+compatible counted character views, and interpolated strings. Ordinary numeric
+`+` is unchanged when neither operand is textual.
 
 Textual `+=` is also invalid. It does not append text, mutate a string, or
 materialize a new string.
@@ -595,12 +565,10 @@ Required diagnostic classes include:
 
 - malformed interpolation syntax;
 - unsupported runtime interpolation target;
-- runtime interpolation assigned or passed to a formatter delegate target;
 - no formatter candidate for a runtime hole;
 - multiple formatter candidates for a runtime hole;
 - component `format` methods with the wrong buffer type, return type, callable
-  kind, thrown slot, receiver, lifetime, or callable ascription;
-- direct formatter holes incompatible with UTF-8 `char[]` formatting;
+  kind, thrown slot, receiver, or lifetime;
 - scoped interpolation results that escape their valid lifetime;
 - `new` interpolation without an explicit `within` context;
 - `new` interpolation targeting fixed storage;
@@ -610,9 +578,6 @@ Required diagnostic classes include:
 Interpolation syntax and textual `+` diagnostics are source-expression behavior,
 not API surface declarations. Metadata and API headers record ordinary resolved
 types, default values, selected functions, and formatter method dependencies.
-They must not invent a dependency on the standard library `CharFormatter`; that
-dependency appears only when source code actually uses the standard-library
-type, either directly or through selected `format` methods.
 
 ## Source Capture Default Arguments
 

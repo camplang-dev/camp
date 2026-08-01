@@ -117,9 +117,10 @@ Console.writeLine("total: " + total); // ERROR
 text += suffix;                       // ERROR when textual
 ```
 
-Older Camp drafts and examples may assign interpolation to `CharFormatter` or
-compose text with `+`. Recognize that as stale style. Do not generate new code
-that treats `$"..."` as a formatter value or uses textual `+`.
+Older Camp drafts and examples may use `CharFormatter`, assign interpolation to
+a formatter value, or compose text with `+`. Recognize that as stale style. Do
+not generate new code that treats `$"..."` as a formatter value, writes
+formatter delegate APIs, or uses textual `+`.
 
 Constant interpolation remains ordinary string-like text:
 
@@ -148,13 +149,6 @@ the real buffer itself:
 
 ```camp
 Console.writeLine($"value: {thing.format()}");
-```
-
-Existing `CharFormatter` values can still appear inside interpolation holes:
-
-```camp
-CharFormatter dateText = date.format;
-Console.writeLine($"date: {dateText}");
 ```
 
 Do not use formatter-composition-style code for new interpolation. Use eager

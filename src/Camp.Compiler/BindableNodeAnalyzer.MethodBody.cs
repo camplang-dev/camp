@@ -1435,14 +1435,6 @@ public sealed partial class BindableNodeAnalyzer
 			}
 		}
 
-		if (TryGetFormatterShape(targetType, out _))
-		{
-			Report(GetRange(interpolation.SourceSyntax), $"Interpolated string cannot implicitly convert to formatter target '{targetType}'. Use an explicit formatter value instead.");
-			interpolation.ResolvedType = ErrorType;
-			expressionConstants[interpolation] = false;
-			return ErrorType;
-		}
-
 		string resultType = GetInterpolatedStringResultType(interpolation, targetType);
 		interpolation.NullTerminated = IsPrimitiveStringType(resultType);
 		if (interpolation.HeapAllocated)
@@ -1485,8 +1477,6 @@ public sealed partial class BindableNodeAnalyzer
 			interpolationParts[hole] = part;
 			hole.Formatter = part switch
 			{
-				DirectFormatterPart direct => direct.FormatterExpression,
-				RuntimeFormatterValuePart runtime => runtime.FormatterValue,
 				DirectTextPart directText => directText.Value,
 				PreparedFormatterPart prepared => prepared.Call,
 				_ => null
@@ -1597,20 +1587,13 @@ public sealed partial class BindableNodeAnalyzer
 			return true;
 		}
 
-		if (TryGetFormatterShape(valueType, out FormatterShape direct) && direct.ElementType == "char")
-		{
-			part = new RuntimeFormatterValuePart(value, direct, hole.SourceSyntax);
-			return true;
-		}
-
-		List<FormatterCandidate> candidates = FindFormatterCandidates(value, valueType, requiredFormatter: null, autoInference: true, scope, typeScope, referenceSyntax);
+		List<FormatterCandidate> candidates = FindFormatterCandidates(value, valueType, scope, typeScope, referenceSyntax);
 		candidates = [.. candidates.Where(candidate => candidate.Shape.ElementType == "char")];
 		if (candidates.Count == 1)
 		{
-			if (TryCreatePreparedFormatterPart(value, candidates[0], hole.SourceSyntax, out PreparedFormatterPart? preparedCandidate) && preparedCandidate is not null)
-				part = preparedCandidate;
-			else
-				part = new DirectFormatterPart(value, candidates[0].Expression, candidates[0].Function, candidates[0].Shape, candidates[0].ResolvedType, hole.SourceSyntax);
+			if (!TryCreatePreparedFormatterPart(value, candidates[0], hole.SourceSyntax, out PreparedFormatterPart? preparedCandidate) || preparedCandidate is null)
+				return false;
+			part = preparedCandidate;
 			return true;
 		}
 
@@ -1728,8 +1711,6 @@ public sealed partial class BindableNodeAnalyzer
 
 	abstract record InterpolationPart(SyntaxNode? SourceSyntax);
 	sealed record LiteralTextPart(string Text, SyntaxNode? SourceSyntax) : InterpolationPart(SourceSyntax);
-	sealed record RuntimeFormatterValuePart(Expression FormatterValue, FormatterShape Shape, SyntaxNode? SourceSyntax) : InterpolationPart(SourceSyntax);
-	sealed record DirectFormatterPart(Expression Value, Expression FormatterExpression, FunctionDefinition Function, FormatterShape Shape, string FormatterType, SyntaxNode? SourceSyntax) : InterpolationPart(SourceSyntax);
 	sealed record PreparedFormatterPart(CallExpression Call, FunctionDefinition Function, FormatterShape Shape, SyntaxNode? SourceSyntax) : InterpolationPart(SourceSyntax);
 	sealed record DirectTextPart(Expression Value, string ValueType, DirectTextKind Kind, InterpolationPart? SourcePart, Expression? LengthValue, SyntaxNode? SourceSyntax) : InterpolationPart(SourceSyntax);
 	enum DirectTextKind
@@ -1741,7 +1722,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	sealed record FormatterCandidate(Expression Expression, FormatterShape Shape, FunctionDefinition Function, string ResolvedType);
 
-	List<FormatterCandidate> FindFormatterCandidates(Expression? value, string valueType, FormatterShape? requiredFormatter, bool autoInference, BodyScope scope, AnalysisScope typeScope, SyntaxNode? referenceSyntax)
+	List<FormatterCandidate> FindFormatterCandidates(Expression? value, string valueType, BodyScope scope, AnalysisScope typeScope, SyntaxNode? referenceSyntax)
 	{
 		List<FormatterCandidate> candidates = [];
 		if (value is null || valueType == ErrorType)
@@ -1759,19 +1740,7 @@ public sealed partial class BindableNodeAnalyzer
 			EnsureFunctionSignatureAnalyzed(function, typeScope);
 			if (!TryGetFunctionFormatterCandidateShape(function, out string candidateType, out FormatterShape candidateShape))
 				continue;
-			if (autoInference)
-			{
-				candidates.Add(CreateFormatterCandidate(value, function, candidateType, candidateShape));
-				continue;
-			}
-			if (requiredFormatter is null)
-				continue;
-			if (!FormatterShapesMatch(candidateShape, requiredFormatter))
-				continue;
-			if (typeDefinitions.ContainsKey(BaseTypeName(requiredFormatter.Type))
-				&& function.CallableAscriptionNewtype?.Name != BaseTypeName(requiredFormatter.Type))
-				continue;
-			candidates.Add(CreateFormatterCandidate(value, function, requiredFormatter.Type, requiredFormatter));
+			candidates.Add(CreateFormatterCandidate(value, function, candidateType, candidateShape));
 		}
 
 		return candidates;
@@ -1779,16 +1748,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	bool TryGetFunctionFormatterCandidateShape(FunctionDefinition function, out string candidateType, out FormatterShape shape)
 	{
-		candidateType = "";
-		if (function.CallableAscriptionNewtype is NewtypeDefinition newtypeDefinition)
-		{
-			candidateType = newtypeDefinition.Name;
-			return TryGetFormatterShape(candidateType, out shape);
-		}
-
 		candidateType = BuildFunctionValueType(function, isInstance: true, allowCallableAscription: false);
-		if (TryGetFormatterShape(candidateType, out shape))
-			return true;
 		return TryGetPrepFormatterCandidateShape(function, candidateType, out shape);
 	}
 
@@ -1822,14 +1782,6 @@ public sealed partial class BindableNodeAnalyzer
 		MemberReferenceExpression reference = CreateMemberReference(member, value, resolvedType, function);
 		expressionRewrites[member] = reference;
 		return new FormatterCandidate(member, shape, function, resolvedType);
-	}
-
-	static bool FormatterShapesMatch(FormatterShape actual, FormatterShape expected)
-	{
-		return actual.BufferType == expected.BufferType
-			&& actual.ElementType == expected.ElementType
-			&& actual.LengthType == expected.LengthType
-			&& actual.Type == expected.Type;
 	}
 
 	bool TryAppendConstantInterpolationHole(Expression? expression, string holeType, StringBuilder value)
@@ -5937,7 +5889,6 @@ public sealed partial class BindableNodeAnalyzer
 			LiteralExpression { Kind: LiteralKind.String } => true,
 			_ => IsPrimitiveStringType(type)
 				|| IsCompatibleCharacterArrayType(type)
-				|| TryGetFormatterShape(type, out _)
 		};
 	}
 

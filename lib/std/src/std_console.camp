@@ -41,18 +41,6 @@ public class Console
 	// public static AsyncCharWriter getAsyncWriter();
 	// public static AsyncCharWriter getAsyncError();
 	
-	public static void write(overload CharFormatter value)
-	{
-		auto size = value();
-		auto buf = init char[size];
-		value(buf);
-		if (size > 0)
-		{
-			IoError error = default;
-			camp_io_file_write(camp_io_stdout(), buf.elements, size, out error);
-		}
-	}
-	
 	public static void write(overload char   value)
 	{
 		auto buf = [value];
@@ -72,28 +60,17 @@ public class Console
 		camp_io_file_write(camp_io_stdout(), (const void*)(void*)value, value.Length, out error);
 	}
 	
-	public static void write(overload bool   value) => Console.write(value.format);
-	public static void write(overload byte   value) => Console.write(value.format);
-	public static void write(overload sbyte  value) => Console.write(value.format);
-	public static void write(overload ushort value) => Console.write(value.format);
-	public static void write(overload short  value) => Console.write(value.format);
-	public static void write(overload uint   value) => Console.write(value.format);
-	public static void write(overload int    value) => Console.write(value.format);
-	public static void write(overload ulong  value) => Console.write(value.format);
-	public static void write(overload long   value) => Console.write(value.format);
-	public static void write(overload nuint  value) => Console.write(value.format);
-	public static void write(overload nint   value) => Console.write(value.format);
-	
-	public static void writeLine(overload CharFormatter value)
-	{
-		auto size = value();
-		auto buf = init char[size + 1];
-		char[] text = { buf.elements, size };
-		value(text);
-		buf[size] = '\n';
-		IoError error = default;
-		camp_io_file_write(camp_io_stdout(), buf.elements, size + 1, out error);
-	}
+	public static void write(overload bool   value) => Console.write(prep value.format());
+	public static void write(overload byte   value) => Console.write(prep value.format());
+	public static void write(overload sbyte  value) => Console.write(prep value.format());
+	public static void write(overload ushort value) => Console.write(prep value.format());
+	public static void write(overload short  value) => Console.write(prep value.format());
+	public static void write(overload uint   value) => Console.write(prep value.format());
+	public static void write(overload int    value) => Console.write(prep value.format());
+	public static void write(overload ulong  value) => Console.write(prep value.format());
+	public static void write(overload long   value) => Console.write(prep value.format());
+	public static void write(overload nuint  value) => Console.write(prep value.format());
+	public static void write(overload nint   value) => Console.write(prep value.format());
 	
 	public static void writeLine(overload char   value)
 	{
@@ -114,17 +91,17 @@ public class Console
 		Console.write('\n');
 	}
 	
-	public static void writeLine(overload bool   value) => Console.writeLine(value.format);
-	public static void writeLine(overload byte   value) => Console.writeLine(value.format);
-	public static void writeLine(overload sbyte  value) => Console.writeLine(value.format);
-	public static void writeLine(overload ushort value) => Console.writeLine(value.format);
-	public static void writeLine(overload short  value) => Console.writeLine(value.format);
-	public static void writeLine(overload uint   value) => Console.writeLine(value.format);
-	public static void writeLine(overload int    value) => Console.writeLine(value.format);
-	public static void writeLine(overload ulong  value) => Console.writeLine(value.format);
-	public static void writeLine(overload long   value) => Console.writeLine(value.format);
-	public static void writeLine(overload nuint  value) => Console.writeLine(value.format);
-	public static void writeLine(overload nint   value) => Console.writeLine(value.format);
+	public static void writeLine(overload bool   value) => Console.writeLine(prep value.format());
+	public static void writeLine(overload byte   value) => Console.writeLine(prep value.format());
+	public static void writeLine(overload sbyte  value) => Console.writeLine(prep value.format());
+	public static void writeLine(overload ushort value) => Console.writeLine(prep value.format());
+	public static void writeLine(overload short  value) => Console.writeLine(prep value.format());
+	public static void writeLine(overload uint   value) => Console.writeLine(prep value.format());
+	public static void writeLine(overload int    value) => Console.writeLine(prep value.format());
+	public static void writeLine(overload ulong  value) => Console.writeLine(prep value.format());
+	public static void writeLine(overload long   value) => Console.writeLine(prep value.format());
+	public static void writeLine(overload nuint  value) => Console.writeLine(prep value.format());
+	public static void writeLine(overload nint   value) => Console.writeLine(prep value.format());
 	
 	public static void newLine() => Console.write('\n');
 	

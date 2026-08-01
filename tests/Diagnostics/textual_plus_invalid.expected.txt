@@ -1,3 +1,3 @@
-tests/Diagnostics/textual_plus_invalid.camp(20,25): error: Textual '+' composition is not supported. Use an interpolated string.
-tests/Diagnostics/textual_plus_invalid.camp(21,2): error: Textual '+=' composition is not supported. Use an interpolated string.
-tests/Diagnostics/textual_plus_invalid.camp(24,17): error: Textual '+' composition is not supported. Use an interpolated string.
+tests/Diagnostics/textual_plus_invalid.camp(13,25): error: Textual '+' composition is not supported. Use an interpolated string.
+tests/Diagnostics/textual_plus_invalid.camp(14,2): error: Textual '+=' composition is not supported. Use an interpolated string.
+tests/Diagnostics/textual_plus_invalid.camp(17,17): error: Textual '+' composition is not supported. Use an interpolated string.

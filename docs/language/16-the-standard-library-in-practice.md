@@ -241,10 +241,9 @@ working with.
 
 ## Formatting
 
-Formatting in `Std` is built around `CharFormatter`, a callable value that can
-first report the required buffer size and then write into a caller-provided
-buffer. That protocol is what lets custom types appear inside interpolated
-strings.
+Formatting in `Std` uses `prep` methods. A formatter first reports the required
+buffer size and then writes into caller-prepared storage. That is the same shape
+interpolated strings use for runtime holes.
 
 You often do not need to see that two-step protocol directly:
 
@@ -296,11 +295,10 @@ consistent across domains.
 You can make your own formatting surface by adding a formatter method. A
 formatter returns the required character count. When a buffer is supplied, it
 writes as much of the formatted text as fits. It does not write a null
-terminator; helpers such as `copyString()` add one only when materializing an
-owned string.
+terminator.
 
 ```camp
-public nuint formatHex(in byte this, overload char[] buffer) : CharFormatter
+public nuint formatHex(in byte this, prep char[] buffer = default)
 {
 	const char[] digits = "0123456789ABCDEF";
 	uint value = (uint)this;
@@ -318,13 +316,13 @@ public nuint formatHex(in byte this, overload char[] buffer) : CharFormatter
 
 void printByte(byte value)
 {
-	Console.writeLine($"0x{value.formatHex}");
+	Console.writeLine($"0x{value.formatHex()}");
 }
 ```
 
-The interpolation uses `value.formatHex` directly as a formatter component. That
-keeps the formatting choice local to the expression without changing how plain
-`byte` values format elsewhere.
+The interpolation uses the `formatHex` call as the hole's formatter. That keeps
+the formatting choice local to the expression without changing how plain `byte`
+values format elsewhere.
 
 ## Files
 
@@ -501,7 +499,7 @@ using Std::Time;
 void printDate()
 {
 	Date date = { 2026, 7, 14 };
-	string text = date.format.copyString() finally delete;
+	char[] text = prep date.format();
 	Console.writeLine(text);
 }
 ```
@@ -585,7 +583,7 @@ read directly:
 - `std_console.camp` for `Console`;
 - `std_array.camp` for array helpers;
 - `std_string.camp`, `std_wstring.camp`, and `std_astring.camp` for text;
-- `std_format.camp` for `CharFormatter`;
+- `std_format.camp` for formatting;
 - `std_stream.camp` for readers and writers;
 - `std_file.camp` for files;
 - `std_list.camp`, `std_hashmap.camp`, and `std_hashset.camp` for collections;

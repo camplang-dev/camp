@@ -1,6 +1,6 @@
 using Std;
 
-nuint escapedLength(const char[] this, overload char[] buffer) : CharFormatter
+nuint escapedLength(const char[] this, prep char[] buffer = default)
 {
 	nuint count = min(this.length, buffer.length);
 	for (nuint i = 0; i < count; i++)
@@ -10,12 +10,11 @@ nuint escapedLength(const char[] this, overload char[] buffer) : CharFormatter
 
 export int main()
 {
-	CharFormatter formatter = "abc".escapedLength;
-	if (formatter() != 3)
+	if ("abc".escapedLength() != 3)
 		return 1;
 
-	string copied = "abc".escapedLength.copyString() finally delete;
-	if (copied.Length != 3)
+	char[] copied = prep "abc".escapedLength();
+	if (copied.length != 3)
 		return 2;
 	if (copied[0] != 'a' || copied[1] != 'b' || copied[2] != 'c')
 		return 3;

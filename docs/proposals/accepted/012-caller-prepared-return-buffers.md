@@ -52,7 +52,7 @@ interpolation already materializes target-typed text at the expression site;
 this proposal generalizes the same size/write preparation pattern for ordinary
 functions and methods.
 
-`CharFormatter` is not removed by this proposal. The standard library should be
+the legacy formatter type is not removed by this proposal. The standard library should be
 reviewed after `prep` formatting APIs exist.
 
 Unless this proposal explicitly says otherwise, existing Camp semantics still
@@ -70,7 +70,7 @@ Many native APIs compute into caller-provided buffers:
 - converting between text encodings;
 - querying platform APIs that first report a required size.
 
-Camp already uses the caller-provided-buffer pattern in `CharFormatter`, but the
+Camp already uses the caller-provided-buffer pattern in the legacy formatter type, but the
 current abstraction is character-specific and callable-shaped. It does not
 naturally support non-text buffers or additional formatting/serialization
 options as ordinary method parameters.
@@ -117,7 +117,7 @@ owns the allocation.
 - Do not make `prep` prefix expressions initialize fixed-size storage directly.
   Use an ordinary call with a slice of fixed storage when the caller wants to
   provide fixed storage explicitly.
-- Do not decide the final `CharFormatter` standard-library surface in this
+- Do not decide the final the legacy formatter type standard-library surface in this
   proposal.
 
 ## `prep` Parameters
@@ -536,14 +536,14 @@ public nuint toWCharArray(const char[] this, prep wchar[] buffer);
 public nuint toCharArray(const wchar[] this, prep char[] buffer);
 ```
 
-### `CharFormatter` Review
+### the legacy formatter type Review
 
-`CharFormatter` is not removed by this proposal. After `prep` formatting APIs
+the legacy formatter type is not removed by this proposal. After `prep` formatting APIs
 are implemented, the standard library should be reviewed to decide whether
-`CharFormatter` should remain unchanged, change, be deprecated, or be removed in
+the legacy formatter type should remain unchanged, change, be deprecated, or be removed in
 a later proposal.
 
-`CharFormatter` does not currently provide chunked streaming semantics: standard
+the legacy formatter type does not currently provide chunked streaming semantics: standard
 console and stream formatter overloads still size the formatter, allocate a full
 intermediate buffer, write into it, and then emit that buffer. Moving some APIs
 to `prep` therefore does not remove an existing block-streaming capability. It
@@ -746,7 +746,7 @@ The language feature is additive. Source that uses ordinary functions without
 `prep` remains valid.
 
 There may be preview-library breaking changes later if standard-library APIs
-migrate from `CharFormatter`-shaped formatting to `prep`-shaped formatting.
+migrate from the legacy formatter type-shaped formatting to `prep`-shaped formatting.
 This proposal does not make that migration by itself. Source that uses
-`CharFormatter` directly remains valid unless a later standard-library review
+the legacy formatter type directly remains valid unless a later standard-library review
 changes that surface.

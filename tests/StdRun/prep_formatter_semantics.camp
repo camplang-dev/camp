@@ -34,8 +34,7 @@ export int main()
 		return 11;
 
 	int seven = 7;
-	CharFormatter defaultCall = seven.format;
-	if (defaultCall() != 1)
+	if (seven.format() != 1)
 		return 15;
 
 	long min = -9223372036854775807 - 1;

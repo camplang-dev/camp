@@ -1,1 +1,1 @@
-tests/Diagnostics/interpolated_string_escaped_target_invalid.camp(11,9): error: Interpolated string cannot implicitly convert to formatter target 'escaped CharFormatter'. Use an explicit formatter value instead.
+tests/Diagnostics/interpolated_string_escaped_target_invalid.camp(11,9): error: Runtime interpolated string cannot target 'escaped fn int()'. Use string, char[], const char[], or fixed char[N].

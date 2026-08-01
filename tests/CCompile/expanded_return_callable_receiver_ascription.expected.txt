@@ -4,7 +4,7 @@
 /* Private file declarations. */
 const char *View_asStringEscaped(View *this, uintptr_t *result_length);
 static uintptr_t CharArray_unescapedFormatCharArray(const char *this, uintptr_t this_length, char *buffer, uintptr_t buffer_length);
-static int consume(CharFormatter formatter, const void *formatter_context);
+static int consume(TextFormatter formatter, const void *formatter_context);
 static uintptr_t main_boundReceiver0(const void *_context, char *arg0, uintptr_t arg1);
 
 static uintptr_t CharArray_unescapedFormatCharArray(const char *this, uintptr_t this_length, char *buffer, uintptr_t buffer_length)
@@ -27,7 +27,7 @@ __for_break1: ;
 	return required;
 }
 
-static int consume(CharFormatter formatter, const void *formatter_context)
+static int consume(TextFormatter formatter, const void *formatter_context)
 {
 	char storage[4] = {0};
 	char *buffer = (char *)(storage);
@@ -45,7 +45,7 @@ int main(void)
 	struct { const char *elements; uintptr_t length; } _receiverContext4;
 	_receiverContext4.elements = _elements2;
 	_receiverContext4.length = _length3;
-	return (consume((CharFormatter)main_boundReceiver0, (const void *)(&_receiverContext4)) - 244);
+	return (consume((TextFormatter)main_boundReceiver0, (const void *)(&_receiverContext4)) - 244);
 }
 
 static uintptr_t main_boundReceiver0(const void *_context, char *arg0, uintptr_t arg1)
@@ -76,7 +76,7 @@ typedef struct View View;
 /* Enums. */
 
 /* Newtypes. */
-typedef uintptr_t (* CharFormatter)(const void *context, char *buffer, uintptr_t buffer_length);
+typedef uintptr_t (* TextFormatter)(const void *context, char *buffer, uintptr_t buffer_length);
 
 /* Layouts. */
 struct View

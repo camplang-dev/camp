@@ -1,6 +1,6 @@
 using Std;
 
-public nuint escapedLength(const char[] this, overload char[] buffer) : CharFormatter
+public nuint escapedLength(const char[] this, prep char[] buffer = default)
 {
 	nuint count = min(this.length, buffer.length);
 	for (nuint i = 0; i < count; i++)
@@ -10,16 +10,16 @@ public nuint escapedLength(const char[] this, overload char[] buffer) : CharForm
 
 export int main()
 {
-	string copied = "abc".escapedLength.copyString() finally delete;
+	char[] copied = prep "abc".escapedLength();
 	if (copied.compareTo("abc") != 0)
 		return 1;
 
 	string text = "hello";
-	string copiedText = text.format.copyString() finally delete;
+	char[] copiedText = prep text.format();
 	if (copiedText.compareTo("hello") != 0)
 		return 2;
 
-	string copiedChar = 'x'.format.copyString() finally delete;
+	char[] copiedChar = prep 'x'.format();
 	if (copiedChar.compareTo("x") != 0)
 		return 3;
 

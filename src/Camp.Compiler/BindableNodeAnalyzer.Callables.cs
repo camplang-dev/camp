@@ -13,34 +13,6 @@ public sealed partial class BindableNodeAnalyzer
 		return CallableShapeService.BuildCallableType(kind, returnType, parameters, targetSpec, callSpec);
 	}
 
-	bool TryGetFormatterShape(string? type, out FormatterShape formatter)
-	{
-		formatter = null!;
-		string normalized = StripLifetimeQualifiers(type ?? "").Trim();
-		if (normalized.Length == 0 || !TryGetCallableShape(normalized, out CallableShape callable))
-			return false;
-		if (callable.Kind != "delegate" || callable.Parameters.Count != 1)
-			return false;
-
-		CallableSlot slot = ParseCallableSlot(callable.Parameters[0]);
-		if (!string.IsNullOrWhiteSpace(slot.Modifier))
-			return false;
-		string parameterType = StripLifetimeQualifiers(slot.Type);
-		if (!TryParseTypeShape(parameterType, out TypeShape bufferShape)
-			|| bufferShape.Kind != TypeShapeKind.Array
-			|| bufferShape.Element is not TypeShape elementShape)
-			return false;
-		string elementType = StripTopLevelValueQualifiers(TypeShapeParser.Format(elementShape));
-		if (elementType is not ("char" or "achar" or "wchar"))
-			return false;
-		string lengthType = GetArrayLengthType(bufferShape);
-		if (callable.ReturnType != lengthType)
-			return false;
-
-		formatter = new FormatterShape(normalized, TypeShapeParser.Format(bufferShape), elementType, lengthType);
-		return true;
-	}
-
 	static string GetArrayLengthType(TypeShape arrayShape)
 	{
 		return string.IsNullOrWhiteSpace(arrayShape.TargetSpec) ? "nuint" : "nuint " + arrayShape.TargetSpec;

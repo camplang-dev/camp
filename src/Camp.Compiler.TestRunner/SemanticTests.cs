@@ -14,13 +14,11 @@ public sealed class SemanticTests
 	public void Interpolated_strings_eagerly_resolve_to_text()
 	{
 		SemanticCompilation compilation = SemanticCompiler.CompileLowered("""
-			newtype delegate nuint TextFormatter(const this, char[] buffer = default);
-
 			class Value
 			{
 				int number;
 
-				nuint format(overload char[] buffer) : TextFormatter
+				nuint format(prep char[] buffer = default)
 				{
 					return 1;
 				}
@@ -46,12 +44,12 @@ public sealed class SemanticTests
 	}
 
 	[Fact]
-	public void Interpolated_strings_do_not_convert_to_formatter_targets()
+	public void Interpolated_strings_do_not_convert_to_callable_targets()
 	{
 		SemanticCompilation compilation = SemanticCompiler.CompileLowered("""
 			newtype delegate nuint TextFormatter(const this, char[] buffer = default);
 
-			nuint format(in int this, overload char[] buffer) : TextFormatter
+			nuint format(in int this, prep char[] buffer = default)
 			{
 				return 1;
 			}
@@ -62,7 +60,7 @@ public sealed class SemanticTests
 			}
 			""");
 
-		Assert.Contains(compilation.Diagnostics, static diagnostic => diagnostic.Contains("cannot implicitly convert to formatter target 'TextFormatter'", StringComparison.Ordinal));
+		Assert.Contains(compilation.Diagnostics, static diagnostic => diagnostic.Contains("Runtime interpolated string cannot target 'TextFormatter'", StringComparison.Ordinal));
 	}
 
 	[Fact]

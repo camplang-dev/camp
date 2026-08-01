@@ -1,4 +1,4 @@
-newtype delegate nuint CharFormatter(const this, char[] buffer);
+newtype delegate nuint TextFormatter(const this, char[] buffer);
 newtype delegate void EscapedDelegate(escaped this);
 newtype delegate void NormalDelegate();
 newtype delegate int CounterReader();
@@ -9,7 +9,7 @@ class Date
 {
 	int year;
 
-	nuint format(char[] buffer) : CharFormatter
+	nuint format(char[] buffer) : TextFormatter
 	{
 		int y = this.year;
 		return 0;
@@ -49,7 +49,7 @@ class Counter: ICounterReader
 export int main()
 {
 	const Date d = init Date();
-	CharFormatter f = d.format;
+	TextFormatter f = d.format;
 	auto test = new Test();
 	EscapedDelegate e1 = test.increment;
 	auto e2 = test.increment;
