@@ -233,7 +233,7 @@ Buffer* createBuffer(nuint capacity, within allocator)
 Callers can supply an allocation context explicitly:
 
 ```camp
-Buffer* buffer = createBuffer(4096, within arena);
+Buffer* buffer = within (arena) createBuffer(4096);
 ```
 
 Or they can select a context for a block or expression:
@@ -249,6 +249,81 @@ within (arena)
 `within` is not just a naming convention. It affects `new`, `delete`,
 delegate-context allocation, async-frame allocation where applicable, and
 generated cleanup that must return storage to the correct allocator.
+
+## Caller-Prepared Results
+
+Some APIs produce a result whose size is not known until the function looks at
+its inputs. Text formatting, byte serialization, and platform-style queries
+often use the same pattern: first ask how much storage is needed, then call
+again with a buffer to receive the result.
+
+Camp gives that pattern a direct signature shape with `prep`. A `prep`
+parameter is the result buffer supplied by the caller, and the function returns
+the length needed for the complete result:
+
+```camp
+nuint format(in Status this, prep char[] buffer = default)
+{
+	const char[] text = this.enabled ? "enabled" : "disabled";
+	nuint count = min(text.length, buffer.length);
+
+	for (nuint index = 0; index < count; index++)
+		buffer[index] = text[index];
+
+	return text.length;
+}
+```
+
+The default buffer is useful for the sizing call:
+
+```camp
+nuint required = status.format();
+char[] text = init char[required];
+status.format(text);
+```
+
+Most callers do not need to write those two calls. The `prep` prefix asks the
+compiler to do the sizing, allocate scoped result storage, call again with that
+storage, and produce the resulting array view:
+
+```camp
+char[] text = prep status.format();
+```
+
+The non-`new` form is scoped storage, like an initialized local array. If the
+prepared result needs heap lifetime, use `prep new` with the ordinary
+allocation context:
+
+```camp
+char[] text = within (default) prep new status.format();
+// ...
+delete text.elements;
+```
+
+`prep` can also use property getter syntax when the getter has the same
+caller-prepared shape:
+
+```camp
+struct Control
+{
+	nuint getText(const this, prep char[] buffer = default)
+	{
+		const char[] text = "Ready";
+		nuint count = min(text.length, buffer.length);
+
+		for (nuint index = 0; index < count; index++)
+			buffer[index] = text[index];
+
+		return text.length;
+	}
+}
+
+char[] label = prep control.Text;
+```
+
+The receiver and ordinary arguments are evaluated once. The generated sizing
+and writing calls reuse those values, so `prep next().format()` does not call
+`next()` twice.
 
 ## Methods And Receiver Calls
 

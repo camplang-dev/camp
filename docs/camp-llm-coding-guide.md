@@ -59,6 +59,9 @@ High-impact distinctions:
 - Runtime `$"..."` eagerly produces text. With `auto`, the type is `string`.
   Non-`new` interpolation uses scoped storage; use `within(...) new $"..."`
   when heap lifetime is required.
+- Use `prep` methods for caller-prepared array results such as formatting or
+  serialization; `prep` without `new` is scoped storage, and `prep new` is heap
+  storage under the active `within` context.
 - Textual `+` and textual `+=` are diagnostics. Use interpolation instead.
 - Generic code must state the capabilities it uses. `T: any` is intentionally
   restrictive.
@@ -118,27 +121,19 @@ Older Camp drafts and examples may assign interpolation to `CharFormatter` or
 compose text with `+`. Recognize that as stale style. Do not generate new code
 that treats `$"..."` as a formatter value or uses textual `+`.
 
-An interpolation hole may contain a `CharFormatter` value:
-
-```camp
-CharFormatter dateText = date.format;
-Console.writeLine($"date: {dateText}");
-```
-
 Constant interpolation remains ordinary string-like text:
 
 ```camp
 auto title = $"Camp"; // string
 ```
 
-When defining a type that should appear inside interpolation, add a `format`
-method ascribed to the relevant formatter newtype. For ordinary UTF-8 standard
-library formatting, use this shape:
+When defining a new type that should appear inside interpolation, prefer a
+`format` method with a `prep char[]` result buffer:
 
 ```camp
 newtype MyValue: int;
 
-public nuint format(in MyValue this, overload char[] buffer) : CharFormatter
+public nuint format(in MyValue this, prep char[] buffer = default)
 {
 	int value = (int)this;
 	return value.format(buffer);
@@ -147,7 +142,23 @@ public nuint format(in MyValue this, overload char[] buffer) : CharFormatter
 
 The formatter returns the required character count, excluding any null
 terminator. If a buffer is supplied, it writes up to `buffer.length` characters
-and returns the full required count even when the buffer is too small.
+and returns the full required count even when the buffer is too small. The
+default buffer supports ordinary size-query calls, and interpolation can supply
+the real buffer itself:
+
+```camp
+Console.writeLine($"value: {thing.format()}");
+```
+
+Existing `CharFormatter` values can still appear inside interpolation holes:
+
+```camp
+CharFormatter dateText = date.format;
+Console.writeLine($"date: {dateText}");
+```
+
+Do not use formatter-composition-style code for new interpolation. Use eager
+`$"..."` text or a `prep` formatter method.
 
 ## Files, Namespaces, And Build Prelude
 
@@ -435,6 +446,7 @@ when required by the value flow:
 - `in` keeps a parameter input-only where the declaration requires it.
 - `thrown` declares the error channel.
 - `within` identifies the allocator or allocation context used by the operation.
+- `prep` marks one mutable array parameter as the caller-prepared result buffer.
 - `escaped` means a value can outlive the current scope.
 - `scoped` means the value is limited to the current scope.
 

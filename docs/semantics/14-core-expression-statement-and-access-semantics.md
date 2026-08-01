@@ -173,6 +173,124 @@ these same rules. Lowering must eventually produce the component-level pointer,
 length, and stride operations described in
 [Expanded Forms And ABI Shapes](02-expanded-forms-and-abi-shapes.md).
 
+## Caller-Prepared Array Results
+
+Caller-prepared array results use one `prep` parameter to expose a two-call
+size/write protocol through an ordinary function or method surface.
+
+### Declaration Shape
+
+`prep` is a parameter modifier. A declaration may contain at most one `prep`
+parameter. That parameter must be a mutable array type whose element type is
+copyable. The function return type must exactly match the array length
+component type, including target specs.
+
+The `prep` parameter must not also be `in`, `out`, `thrown`, `overload`, or
+`within`, and it must not be one of the compiler-provided capability parameter
+forms such as `sizeof(T)`, `typenameof(T)`, or `vtableof(T: Interface)`.
+
+`prep` parameters may have default values. Ordinary calls use that default when
+the argument is omitted. A `prep` prefix call does not use the default; the
+prefix removes the `prep` parameter from the source call shape and supplies the
+measure/write buffers itself.
+
+`once` callable signatures must not contain `prep` parameters. A `prep` target
+must be callable at least twice for the same receiver and ordinary arguments.
+
+Generic `prep T[]` parameters follow ordinary generic array rules. If existing
+array storage, copy, or element-stride behavior requires capabilities such as
+`sizeof(T)`, the generic declaration must expose those capabilities through the
+same mechanisms used by ordinary `T[]` APIs.
+
+### Ordinary Calls And Callable Compatibility
+
+A function with a `prep` parameter remains an ordinary callable function. In an
+ordinary call, the `prep` parameter occupies its declared source position and is
+bound by the usual argument, default, named-argument, `catch`, `out`, overload,
+receiver, generic, `within`, and lifetime rules.
+
+`prep` is part of a callable contract. If a callable type, callable newtype,
+interface method, virtual method, or override surface declares `prep`, a
+conforming implementation must preserve `prep` on the corresponding parameter.
+A concrete function may strengthen a non-`prep` surface by declaring the
+corresponding mutable array parameter as `prep`; calls through the non-`prep`
+surface simply do not receive the caller-prepared-result guarantee.
+
+Compatibility direction follows the guarantee: a source callable with
+`prep T[]` may satisfy a target callable with ordinary `T[]`, but an ordinary
+`T[]` callable requires an unsafe conversion before it can satisfy a
+`prep T[]` target.
+
+### `prep` Prefix Binding
+
+The `prep` prefix applies to a compatible call expression or property getter
+expression. The target must resolve to a function with exactly one `prep`
+parameter after ordinary lookup, receiver binding, overload selection, and
+generic substitution.
+
+For a prefix call, analysis binds the source arguments against the target's
+parameter list with the `prep` parameter removed. Required non-`prep`
+parameters must still be supplied or defaultable. The prefix does not add any
+new overload disambiguation rule; if ordinary overload selection cannot choose
+one target, the caller must use an existing explicit selector, name, cast, or
+target type.
+
+The prefix expression's result type is the `prep` parameter's source array
+type. Ordinary assignment or argument conversion may then convert that mutable
+array to a compatible const view.
+
+`prep` on property getter syntax is valid only when the getter remains a valid
+property accessor after the `prep` parameter is removed from the effective
+source call shape. This is not a separate property-access rule; it is ordinary
+getter binding plus the `prep` prefix's generated buffer argument.
+
+### Lowering And Evaluation
+
+Lowering must evaluate the receiver and every explicit non-`prep` argument once
+and reuse those values for both generated calls. Side effects in expressions
+such as `prep next().format(option())` must therefore occur once each.
+
+Conceptually, lowering performs:
+
+1. materialize receiver and explicit non-`prep` arguments when needed;
+2. call the target once with a default/empty `prep` buffer to obtain
+   `required`;
+3. allocate a mutable array of length `required`;
+4. call the target again with the allocated array;
+5. produce the allocated array view as the expression result.
+
+The second return value is not the expression result. The source contract says
+it must agree with the sizing call; if it does not, the callee has violated the
+protocol.
+
+`prep new` uses ordinary heap allocation for the prepared array result and
+follows the current `within` allocation policy. `prep` without `new` uses
+scoped `init`-like array storage. The compiler must reject a scoped `prep`
+result in any position where equivalent scoped initialized array storage could
+not legally escape. If an expression position cannot accept the temporaries
+needed for receiver, argument, sizing, allocation, and write steps, analysis
+must diagnose the `prep` prefix rather than allowing C emission to fail.
+
+Thrown slots are explicit and ordinary. A prefix call to a throwing `prep`
+method must handle or propagate the thrown value exactly as the corresponding
+ordinary call would. The compiler supplies only the `prep` buffer argument.
+
+### Behavioral Contract
+
+The compiler verifies the source shape, not the full runtime behavior. By
+declaring `prep`, the callee promises that for the same receiver and same
+non-`prep` arguments:
+
+- the return value is the minimum array length needed for the complete result;
+- the callee writes the first `min(buffer.length, required)` elements;
+- repeated size/write calls agree on required size and logical contents;
+- the callee never writes outside the provided array;
+- if failure depends only on the receiver and non-`prep` arguments, failure is
+  reported during the sizing call.
+
+For text, the returned length excludes a null terminator unless the terminator
+is part of the logical result.
+
 ## Interpolated Strings
 
 Interpolated strings are source expressions for eagerly producing UTF-8 text
@@ -314,12 +432,14 @@ A runtime hole is formattable when either:
 - the hole expression already resolves to an eligible formatter value whose
   buffer element type is `char`; or
 - ordinary instance member lookup finds exactly one eligible method named
-  `format` for the hole expression.
+  `format` for the hole expression; or
+- the hole expression itself is a call to an eligible caller-prepared `format`
+  method, such as `{value.format(options)}`.
 
 Receiver-style extension functions, inherited methods, virtual methods, and
 interface members participate through ordinary Camp lookup and dispatch rules.
 
-An eligible `format` method:
+An eligible callable-formatter `format` method:
 
 1. has exactly one non-`this` parameter;
 2. uses that buffer parameter as its `overload` selector;
@@ -330,6 +450,23 @@ An eligible `format` method:
    expression once and invoking the formatter for size and write passes;
 7. is ascribed to `CharFormatter` when the formatter is intended to participate
    in the standard UTF-8 formatting surface.
+
+An eligible caller-prepared `format` method:
+
+1. has exactly one `prep` parameter after receiver binding;
+2. accepts mutable `char[]` as the `prep` buffer type;
+3. returns the exact length-component type of that array;
+4. is selected either from the hole value with no required explicit non-`prep`
+   formatting arguments, or from a hole call expression that supplies those
+   ordinary formatting arguments itself;
+5. has receiver and lifetime requirements compatible with evaluating the hole
+   expression once and invoking the formatter for size and write passes.
+
+When interpolation uses a caller-prepared formatter, the hole expression and any
+explicit non-`prep` arguments are evaluated once. The interpolation lowering
+then uses the same value for the size pass and the write pass into the final
+interpolation buffer. The interpolation expression itself still eagerly
+produces concrete UTF-8 text; it does not become a formatter value.
 
 Example:
 

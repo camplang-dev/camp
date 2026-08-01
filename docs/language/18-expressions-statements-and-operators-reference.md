@@ -23,7 +23,7 @@ Every expression has a static type after binding.
 | `default` | Requires a target type |
 | `null` | Requires a pointer-like or callable-compatible target |
 | String literal | Targeted as `string`, `wstring`, `astring`, character pointer, counted text, or fixed character storage |
-| Interpolated string | Constant text when all holes are constant text; otherwise a formatter value |
+| Interpolated string | Constant text when all holes are constant text; otherwise eager UTF-8 text targeted as `string`, `char[]`, `const char[]`, or fixed `char[N]` storage |
 | Array literal `[a, b]` | Requires or infers an array element type |
 | Initializer list `{ ... }` | Requires a target aggregate, fixed array, optional, or other initializer-compatible type |
 | Lambda | Requires or infers a callable target |
@@ -376,6 +376,13 @@ An interpolated string can use a `CharFormatter` value in a hole:
 
 ```camp
 Console.writeLine($"date: {date.format}");
+```
+
+An interpolation hole can also use a `format` method with a `prep char[]`
+buffer. This keeps formatting options as ordinary arguments:
+
+```camp
+Console.writeLine($"count: {count.format(IntegerFormat.POSITIVE_SIGN)}");
 ```
 
 ## Lambdas

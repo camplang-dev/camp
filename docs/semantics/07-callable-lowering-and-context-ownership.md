@@ -22,7 +22,7 @@ The compiler's normalized callable shape records:
 - target type specifier when present;
 - call specifier when present;
 - return type;
-- ordered parameter slots, including `in`, `out`, `thrown`, and `within`
+- ordered parameter slots, including `in`, `out`, `thrown`, `within`, and `prep`
   modifiers;
 - explicit callable `this` contract when present.
 
@@ -42,6 +42,13 @@ when the comparison is about metadata or diagnostics.
 slot to satisfy a target callable slot when the only difference is a legal
 `constof` relation in the correct input/output position. See
 [Constof And Signature Compatibility](04-constof-and-signature-compatibility.md).
+
+`prep` is a callable contract modifier, not an ABI-only spelling detail. A
+callable that promises `prep T[]` may be used where ordinary `T[]` is expected,
+because the caller is allowed to ignore the stronger guarantee. An ordinary
+`T[]` callable must not satisfy a `prep T[]` target without an unsafe
+conversion, because callers through the target may rely on the two-call
+caller-prepared-result protocol.
 
 ## Direct Functions
 

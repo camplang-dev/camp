@@ -404,6 +404,13 @@ Parameter order is source API. Overload selectors are parameter facts, not a
 separate overload table, and metadata consumers must not assume the selector is
 the first callable parameter.
 
+`prep` parameters are source API. Metadata records them as ordinary parameter
+objects with `modifier: "prep"`, using source-level array spelling in source
+views. If the metadata view expands array ABI components, each emitted
+component that belongs to the source `prep` parameter must remain marked with
+`modifier: "prep"` so consumers can reconstruct the caller-prepared contract.
+API headers must print the `prep` modifier and any ordinary default value.
+
 For async functions, metadata keeps the source async shape and omits generated
 completion helpers. For functions with expanded forms, metadata keeps the
 source-level parameter and result spelling unless the view explicitly documents
@@ -435,6 +442,10 @@ from ordinary user parameters:
   lowers to `const Interface*`;
 - `within` parameters remain allocation-context parameters, not ordinary data
   values.
+
+`prep` is not a compiler-provided capability parameter. It is an ordinary
+source parameter modifier on a mutable array parameter, and metadata should keep
+it with the parameter list rather than the capability-parameter set.
 
 Metadata should preserve enough source information for downstream Camp code and
 LLM agents to reconstruct valid calls without relying on generated C names.
