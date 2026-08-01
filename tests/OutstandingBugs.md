@@ -2,18 +2,26 @@
 
 Next bug number: BUG-067.
 
-## BUG-063: `prep` expression used as an interpolation hole reaches C emission unlowered
+## BUG-063: Bare `prep` prefix in an interpolation hole reaches C emission unlowered
 
 ### Summary
 
-A `prep` prefix expression can produce a `char[]` value, and `char[]` values are
-valid interpolation hole values. However, when a `prep` expression is written
-directly inside an interpolation hole, C emission receives the internal
-`PreparedBufferExpression` node instead of a lowered value expression.
+Interpolation holes are already a caller-prepared formatting context. A bare
+hole whose expression is a call to a method with a `prep char[]` result buffer
+should not need an explicit `prep` prefix. For example, `$"{writeText()}"`
+should be enough when `writeText` provides the hole's text through its `prep`
+parameter.
 
-This is a lowering coverage bug. A `prep` expression should behave like any
-other source expression after analysis has established its result type and
-lifetime.
+When the user writes a bare hole as `$"{prep writeText()}"`, the compiler
+currently allows analysis to continue and C emission receives the internal
+`PreparedBufferExpression` node. This should instead be diagnosed as a
+redundant `prep` prefix in a bare interpolation hole, with a friendly message
+that suggests removing `prep`.
+
+Parenthesized or nested `prep` expressions are different. In those cases the
+`prep` expression first produces a real array value, and the surrounding
+expression then uses that value. For example, `$"{(prep copyText())[2..3]}"` is
+a legitimate way to prepare text and interpolate a slice of it.
 
 ### General Repro
 
@@ -41,7 +49,7 @@ bin/campc run repro.camp
 
 ### Current Behavior
 
-Reproduced on macOS/clang. Compilation fails before native compilation:
+Reproduced on macOS. Compilation fails before native compilation:
 
 ```text
 C emission does not yet support expression node PreparedBufferExpression.
@@ -49,13 +57,17 @@ C emission does not yet support expression node PreparedBufferExpression.
 
 ### Expected Behavior
 
-The compiler should lower the `prep` expression before it is consumed by
-interpolation lowering, or interpolation lowering should materialize the
-prepared result explicitly. The program should print:
+The compiler should diagnose a bare `prep` prefix in an interpolation hole
+before lowering reaches C emission. The diagnostic should point at the `prep`
+keyword and explain that interpolation holes already use `prep` methods
+implicitly when the method provides the hole result. The user should write:
 
-```text
-x
+```camp
+Console.writeLine($"{writeText()}");
 ```
+
+Explicit `prep` remains valid when it is parenthesized or nested inside a larger
+hole expression and the larger expression consumes the prepared value.
 
 ## BUG-064: `prep` prefix does not recognize callable values with `prep` parameters
 
