@@ -1,0 +1,34 @@
+export int main()
+{
+	fixed char[5] storage = default;
+	char[] buffer = storage;
+
+	nuint required = writeName(buffer);
+	if (required != 5)
+		return 1;
+	if (storage[0] != 'C' || storage[1] != 'a' || storage[2] != 'm' || storage[3] != 'p' || storage[4] != '!')
+		return 2;
+
+	if (writeName() != 5)
+		return 3;
+
+	fn nuint(char[]) ordinary = writeName;
+	if (ordinary(buffer) != 5)
+		return 4;
+
+	return 0;
+}
+
+nuint writeName(prep char[] buffer = default)
+{
+	if (buffer.length >= 5)
+	{
+		buffer[0] = 'C';
+		buffer[1] = 'a';
+		buffer[2] = 'm';
+		buffer[3] = 'p';
+		buffer[4] = '!';
+	}
+
+	return 5;
+}

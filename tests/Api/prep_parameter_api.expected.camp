@@ -1,0 +1,14 @@
+namespace PrepApi;
+
+export newtype fn nuint Formatter(prep char[] buffer = default);
+export extern nuint formatValue(prep char[] buffer = default);
+
+export interface Writer
+{
+	nuint write(prep char[] buffer = default);
+}
+
+export extern class Thing
+{
+	export extern nuint write(prep char[] buffer = default);
+}
