@@ -88,7 +88,7 @@ contexts:
         2: punctuation.definition.list.child-target.documentation.camp
         3: variable.parameter.documentation.camp
         4: punctuation.separator.key-value.documentation.camp
-    - match: '@(?:summary|remarks|returns|example|see|deprecated)\b'
+    - match: '@(?:summary|remarks|returns|example|see|deprecated|overload|category)\b'
       scope: storage.type.annotation.documentation.known.camp
     - match: '@{{identifier}}\b'
       scope: storage.type.annotation.documentation.camp

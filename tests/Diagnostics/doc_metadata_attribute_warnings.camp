@@ -1,0 +1,23 @@
+/// @category Top-level category is allowed.
+export int good;
+
+export struct Box
+{
+	/// @category Member category is ignored.
+	int value;
+}
+
+/// @overload Writes a value.
+void write(overload int value)
+{
+}
+
+/// @overload Writes another value.
+void write(overload bool value)
+{
+}
+
+void broken()
+{
+	missing();
+}

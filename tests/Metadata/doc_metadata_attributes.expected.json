@@ -1,0 +1,108 @@
+{
+  "format": "camp.metadata",
+  "version": 1,
+  "module": {
+    "name": "DocsMeta",
+    "namespace": "DocsMeta"
+  },
+  "view": {
+    "visibility": "all",
+    "level": "source",
+    "generated": false
+  },
+  "declarations": [
+    {
+      "id": "struct:DocsMeta::Bag",
+      "kind": "struct",
+      "name": "Bag",
+      "visibility": "export",
+      "metadata": [
+        {
+          "name": "category",
+          "content": "Collections"
+        }
+      ]
+    },
+    {
+      "id": "function:DocsMeta::writeInt",
+      "kind": "function",
+      "name": "write",
+      "symbol": "writeInt",
+      "visibility": "export",
+      "invokerName": "write",
+      "callableName": "writeInt",
+      "returnType": "void",
+      "parameters": [
+        {
+          "id": "function:DocsMeta::writeInt/parameter:value",
+          "name": "value",
+          "overload": true,
+          "type": "int"
+        }
+      ],
+      "metadata": [
+        {
+          "name": "overload",
+          "content": "Writes a value."
+        }
+      ]
+    },
+    {
+      "id": "function:DocsMeta::writeBool",
+      "kind": "function",
+      "name": "write",
+      "symbol": "writeBool",
+      "visibility": "export",
+      "invokerName": "write",
+      "callableName": "writeBool",
+      "returnType": "void",
+      "parameters": [
+        {
+          "id": "function:DocsMeta::writeBool/parameter:value",
+          "name": "value",
+          "overload": true,
+          "type": "bool"
+        }
+      ]
+    },
+    {
+      "id": "function:DocsMeta::loadAsync",
+      "kind": "function",
+      "name": "loadAsync",
+      "visibility": "export",
+      "async": true,
+      "returnType": "void",
+      "parameters": [
+        {
+          "id": "function:DocsMeta::loadAsync/parameter:path",
+          "name": "path",
+          "type": "const char*"
+        },
+        {
+          "id": "function:DocsMeta::loadAsync/parameter:path_length",
+          "name": "path_length",
+          "type": "nuint"
+        },
+        {
+          "id": "function:DocsMeta::loadAsync/parameter:done",
+          "name": "done",
+          "type": "escaped once void(int, thrown int)"
+        }
+      ]
+    },
+    {
+      "id": "function:DocsMeta::loadWithCallback",
+      "kind": "function",
+      "name": "loadWithCallback",
+      "visibility": "export",
+      "returnType": "void",
+      "parameters": [
+        {
+          "id": "function:DocsMeta::loadWithCallback/parameter:done",
+          "name": "done",
+          "type": "escaped once void(int)"
+        }
+      ]
+    }
+  ]
+}

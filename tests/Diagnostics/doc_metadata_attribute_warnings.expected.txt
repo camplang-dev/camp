@@ -1,0 +1,4 @@
+tests/Diagnostics/doc_metadata_attribute_warnings.camp(7,6): warning: @category is used only on top-level declarations.
+tests/Diagnostics/doc_metadata_attribute_warnings.camp(11,6): warning: Only one declaration in an overload group should use @overload.
+tests/Diagnostics/doc_metadata_attribute_warnings.camp(16,6): warning: Only one declaration in an overload group should use @overload.
+tests/Diagnostics/doc_metadata_attribute_warnings.camp(22,2): error: Symbol 'missing' could not be found.

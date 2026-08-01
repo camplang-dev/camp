@@ -19,6 +19,7 @@
         {
           "id": "class:AsyncResumptionStage1::Dispatcher/function:resumeAsync",
           "name": "resumeAsync",
+          "async": true,
           "returnType": "void",
           "parameters": [
             {

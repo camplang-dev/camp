@@ -105,6 +105,8 @@ Recognized documentation attributes are:
 | `@example` | Example text, usually a fenced Camp block |
 | `@see` | Related symbol or topic |
 | `@deprecated` | Deprecation message |
+| `@overload` | Summary for an overload family in generated docs |
+| `@category` | Category name for grouping a top-level declaration in generated docs |
 
 Inside a doc comment, write them as doc commands:
 
@@ -378,6 +380,8 @@ symbol links, or deprecation messages.
 | `@example("text")` | Declarations and declaration children | Documentation example text, commonly a fenced code block in doc comments |
 | `@see("text")` | Declarations and declaration children | Related-symbol or related-topic documentation metadata |
 | `@deprecated("message")` | Declarations and declaration children | Marks a source API as deprecated for tooling; does not remove it from lookup or ABI output |
+| `@overload("text")` | One function or method in an overload family | Summary for the whole overload group in generated documentation |
+| `@category("name")` | Top-level declarations | Category label for documentation generators |
 | `@test` | Top-level functions with no visibility modifier | Marks a function as a discovered test; the built-in runner invokes only `void name(thrown Assertion*)` tests |
 | `@testonly` | Private or `internal` top-level declarations | Includes a helper only in test and coverage builds; top-level types make their whole body test-only |
 | `@skip("reason")` | Declarations also marked `@test` | Discovers the test but reports it as skipped without invoking it |

@@ -1,0 +1,17 @@
+// @emit-metadata all
+
+namespace DocsMeta;
+
+/// @category Collections
+export struct Bag
+{
+}
+
+/// @overload Writes a value.
+export extern void write(overload int value);
+
+export extern void write(overload bool value);
+
+export extern void loadAsync(const char[] path, escaped once void(int value, thrown int error) done);
+
+export extern void loadWithCallback(escaped once void(int value) done);

@@ -30,6 +30,7 @@
           "name": "resumeAsync",
           "visibility": "export",
           "extern": true,
+          "async": true,
           "returnType": "void",
           "parameters": [
             {

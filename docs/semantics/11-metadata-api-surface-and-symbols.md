@@ -199,6 +199,7 @@ The doc-comment translator should:
 - resolve child-target comments to child metadata records;
 - report unresolved child targets;
 - represent known documentation attributes structurally;
+- recognize `@overload` and `@category` as documentation metadata attributes;
 - reject unknown or malformed doc-comment attributes with source ranges.
 
 Documentation metadata is source API. It should not attach to generated
@@ -412,9 +413,27 @@ component that belongs to the source `prep` parameter must remain marked with
 API headers must print the `prep` modifier and any ordinary default value.
 
 For async functions, metadata keeps the source async shape and omits generated
-completion helpers. For functions with expanded forms, metadata keeps the
-source-level parameter and result spelling unless the view explicitly documents
-lowered ABI.
+completion helpers. The metadata `async` flag means the declaration is callable
+with `await`, not merely that the source declaration contains the `async`
+modifier. A non-`async` function should also be marked async in metadata when
+its metadata-visible name ends in `Async` and its source-visible final parameter
+is an awaitable `once void(...)` completion callback with at most one ordinary
+success slot, at most one `thrown` slot, and no `out` slot. Functions with the
+same callback shape but without the `Async` suffix remain ordinary callback APIs
+in metadata.
+
+For functions with expanded forms, metadata keeps the source-level parameter and
+result spelling unless the view explicitly documents lowered ABI.
+
+`@overload` supplies documentation text for an overload group. The serializer
+emits it as an ordinary metadata attribute on the declaration where it appears.
+The analyzer should report a warning on each `@overload` usage when more than
+one declaration in the same overload group supplies it.
+
+`@category` supplies a documentation category string for a top-level
+declaration. The serializer emits it as an ordinary metadata attribute. The
+analyzer should report a warning when `@category` is attached to a member,
+field, parameter, enum value, or any other nested declaration.
 
 Parameter default values are source API. Metadata keeps `defaultValue` as source
 text. For source-capture defaults, metadata also emits a structured

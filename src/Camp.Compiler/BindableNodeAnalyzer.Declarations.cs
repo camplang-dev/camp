@@ -9,10 +9,10 @@ public sealed partial class BindableNodeAnalyzer
 	void AnalyzeModule(Module module)
 	{
 		RunAnalyzerPass(AnalyzerPass.DeclarationAnalysis, module);
-		if (diagnostics.Count == 0)
+		if (!diagnostics.Any(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error))
 		{
 			RunAnalyzerPass(AnalyzerPass.MethodBodyAnalysis, module);
-			if (diagnostics.Count == 0)
+			if (!diagnostics.Any(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error))
 				ValidateProductionDeclarationDependencies(module);
 		}
 		RunAnalyzerPass(AnalyzerPass.NodeRewriteApplication, module);
@@ -43,6 +43,7 @@ public sealed partial class BindableNodeAnalyzer
 			AnalyzeDefinition(definition, new AnalysisScope());
 
 		ValidateTestAttributePlacements(module);
+		ValidateDocAttributePlacements(module);
 		ValidateTopLevelOverloadFamilies(module);
 		AnalyzeGlobalInitializers(module);
 		AnalyzeInlineConstantsAndEnumValues(module);

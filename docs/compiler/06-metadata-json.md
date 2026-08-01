@@ -315,9 +315,11 @@ error. The dedicated `camp.test-manifest` JSON is the canonical discovery
 artifact for `campc test`, `campc cover`, LSP CodeLens, and debugger test
 selection.
 
-Async metadata is source-level. It reports `async` and source attributes such as
-`@awaitwith` and `@noawait`; it does not expose generated async frames,
-resumption helpers, or completion thunks.
+Async metadata describes awaitability. It reports `async: true` for declarations
+written with `async`, and also for declarations whose visible name ends in
+`Async` and whose callable shape matches Camp's completion-callback form for an
+awaitable operation. It does not expose generated async frames, resumption
+helpers, or completion thunks.
 
 An interface implementation marker may appear as:
 
@@ -456,6 +458,15 @@ emission so `%s` can be used as the symbol-link placeholder convention.
 Doc comments themselves are described in the language reference. The important
 metadata rule is that they lower to ordinary metadata attributes before JSON is
 written.
+
+Two documentation attributes have special meaning for documentation generators:
+
+- `@overload` contains the summary for an overload group. If more than one
+  declaration in the same overload group uses it, the compiler reports a warning
+  at each usage.
+- `@category` contains a documentation category name for a top-level
+  declaration. The compiler preserves the string in metadata. If it appears on a
+  nested declaration, the compiler reports a warning.
 
 ## Aliases
 

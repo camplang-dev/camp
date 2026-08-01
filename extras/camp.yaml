@@ -8,7 +8,7 @@ rules:
       start: "/\\*\\*"
       end: "\\*/"
       rules:
-        - special: "@(summary|remarks|returns|example|see|deprecated)\\b"
+        - special: "@(summary|remarks|returns|example|see|deprecated|overload|category)\\b"
         - special: "`[^`]*`"
         - special: "\\[[^\\]\\n`]+\\]"
   - comment:

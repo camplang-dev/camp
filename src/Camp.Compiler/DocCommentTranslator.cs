@@ -15,7 +15,9 @@ public static class DocCommentTranslator
 		"returns",
 		"example",
 		"see",
-		"deprecated"
+		"deprecated",
+		"overload",
+		"category"
 	};
 
 	static readonly HashSet<string> KnownAttributeNames = new(StringComparer.Ordinal)
@@ -26,6 +28,8 @@ public static class DocCommentTranslator
 		"example",
 		"see",
 		"deprecated",
+		"overload",
+		"category",
 		"test",
 		"skip",
 		"range",

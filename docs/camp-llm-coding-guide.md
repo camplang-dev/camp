@@ -921,6 +921,14 @@ Stable agent habits:
 | Hiding failure in sentinel values | Use `thrown`, or an intentional `tryX` API shape |
 | Adding absolute paths or local setup to committed docs | Keep local-only details out of committed docs |
 
+## Documentation Metadata
+
+Use `///` doc comments for public API documentation. Plain text becomes
+`@summary`; use `@remarks`, `@returns`, `@example`, `@see`, and `@deprecated`
+when that structure is useful. Use `@overload` on at most one declaration in an
+overload family to describe the group, and use `@category` only on top-level
+declarations when generated docs need a grouping label.
+
 ## Final Self-Check Before Emitting Code
 
 Before returning generated Camp code, verify:

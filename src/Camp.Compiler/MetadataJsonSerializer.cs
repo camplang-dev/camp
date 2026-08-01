@@ -405,7 +405,7 @@ public static class MetadataJsonSerializer
 			WriteAvailability(json, function);
 			if (function.IteratorKind != IteratorKind.None)
 				json.WriteString("iterator", function.IteratorKind.ToString().ToLowerInvariant());
-			if (function.IsAsync)
+			if (IsMetadataAsync(function))
 				json.WriteBoolean("async", true);
 			if (ShouldWriteFunctionModifier(function))
 				json.WriteString("modifier", function.Modifier.ToString().ToLowerInvariant());
@@ -724,6 +724,127 @@ public static class MetadataJsonSerializer
 		{
 			return parameter.Type is PointerTypeReference { ElementType: PrimitiveTypeReference { Type: PrimitiveType.Untyped } }
 				|| parameter.ResolvedType == "void*";
+		}
+
+		bool IsMetadataAsync(FunctionDefinition function)
+		{
+			return function.IsAsync || IsAwaitableAsyncShape(function);
+		}
+
+		bool IsAwaitableAsyncShape(FunctionDefinition function)
+		{
+			if (!GetMetadataName(function).EndsWith("Async", StringComparison.Ordinal))
+				return false;
+			if (FilterApiParameters(function.Parameters) is not [.., ParameterDefinition last]
+				|| !TryGetAwaitableCallbackShape(last, out CallableShape callback)
+				|| callback.Kind != "once"
+				|| callback.ReturnType != "void")
+				return false;
+
+			int successSlots = 0;
+			int thrownSlots = 0;
+			foreach (string parameter in callback.Parameters)
+			{
+				CallableSlot slot = CallableShapeService.ParseCallableSlot(parameter);
+				if (slot.Modifier == "out")
+					return false;
+				if (slot.Modifier == "thrown")
+					thrownSlots++;
+				else
+					successSlots++;
+			}
+			return successSlots <= 1 && thrownSlots <= 1;
+		}
+
+		static bool TryGetAwaitableCallbackShape(ParameterDefinition parameter, out CallableShape callback)
+		{
+			if (parameter.Type is not null && TryParseAwaitableCallbackShape(FormatType(parameter.Type, parameter.Type.ResolvedType), out callback))
+				return true;
+			string? type = parameter.ResolvedType ?? parameter.Type?.ResolvedType;
+			if (TryParseAwaitableCallbackShape(type, out callback))
+				return true;
+			if (TryGetCallableTypeReference(parameter.Type, out CallableTypeReference? callable) && callable is not null)
+			{
+				string returnType = FormatType(callable.ReturnType, callable.ReturnType?.ResolvedType);
+				List<string> parameters = [.. callable.Parameters.Select(FormatCallableParameterSlot)];
+				callback = new CallableShape(GetCallableTypeName(callable.Kind), callable.TargetSpec, callable.CallSpec, returnType, parameters);
+				return true;
+			}
+			callback = default;
+			return false;
+		}
+
+		static bool TryParseAwaitableCallbackShape(string? type, out CallableShape callback)
+		{
+			if (!string.IsNullOrWhiteSpace(type))
+			{
+				if (CallableShapeService.TryParseCallableShape(type, out callback))
+					return true;
+				string structuralType = StripTopLevelLifetimeQualifiers(type);
+				if (structuralType != type && CallableShapeService.TryParseCallableShape(structuralType, out callback))
+					return true;
+			}
+			callback = default;
+			return false;
+		}
+
+		static string FormatCallableParameterSlot(ParameterDefinition parameter)
+		{
+			string type = FormatType(parameter.Type, parameter.ResolvedType);
+			return parameter.Modifier == ParameterModifier.None
+				? type
+				: parameter.Modifier.ToString().ToLowerInvariant() + " " + type;
+		}
+
+		static bool TryGetCallableTypeReference(TypeReference? type, out CallableTypeReference? callable)
+		{
+			switch (type)
+			{
+				case CallableTypeReference result:
+					callable = result;
+					return true;
+				case AttributedTypeReference attributed:
+					return TryGetCallableTypeReference(attributed.Type, out callable);
+				case EscapedTypeReference escaped:
+					return TryGetCallableTypeReference(escaped.Type, out callable);
+				case ScopedTypeReference scoped:
+					return TryGetCallableTypeReference(scoped.Type, out callable);
+				case UnscopedTypeReference unscoped:
+					return TryGetCallableTypeReference(unscoped.Type, out callable);
+				case ConstTypeReference constant:
+					return TryGetCallableTypeReference(constant.Type, out callable);
+				case ConstOfTypeReference constOf:
+					return TryGetCallableTypeReference(constOf.Type, out callable);
+				case VolatileTypeReference vol:
+					return TryGetCallableTypeReference(vol.Type, out callable);
+				default:
+					callable = null;
+					return false;
+			}
+		}
+
+		static string StripTopLevelLifetimeQualifiers(string type)
+		{
+			string result = type.Trim();
+			while (true)
+			{
+				if (result.StartsWith("escaped ", StringComparison.Ordinal))
+				{
+					result = result["escaped ".Length..].TrimStart();
+					continue;
+				}
+				if (result.StartsWith("scoped ", StringComparison.Ordinal))
+				{
+					result = result["scoped ".Length..].TrimStart();
+					continue;
+				}
+				if (result.StartsWith("unscoped ", StringComparison.Ordinal))
+				{
+					result = result["unscoped ".Length..].TrimStart();
+					continue;
+				}
+				return result;
+			}
 		}
 
 		void MarkEmitted(Definition definition)
