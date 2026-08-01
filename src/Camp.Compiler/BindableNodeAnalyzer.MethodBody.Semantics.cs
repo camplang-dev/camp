@@ -1041,7 +1041,7 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			CallableSlot sourceSlot = ParseCallableSlot(source.Parameters[i]);
 			CallableSlot targetSlot = ParseCallableSlot(target.Parameters[i]);
-			if (sourceSlot.Modifier != targetSlot.Modifier)
+			if (!CallableSlotModifiersAbiCompatible(sourceSlot.Modifier, targetSlot.Modifier))
 				continue;
 			if (CallableSlotNeedsFence(sourceSlot.Type, targetSlot.Type))
 				return true;
@@ -1083,7 +1083,7 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			CallableSlot sourceSlot = ParseCallableSlot(source.Parameters[i]);
 			CallableSlot targetSlot = ParseCallableSlot(target.Parameters[i]);
-			if (sourceSlot.Modifier != targetSlot.Modifier)
+			if (!CallableSlotModifiersAbiCompatible(sourceSlot.Modifier, targetSlot.Modifier))
 				return false;
 			if (sourceSlot.Modifier == "thrown")
 			{
@@ -1092,12 +1092,18 @@ public sealed partial class BindableNodeAnalyzer
 				continue;
 			}
 
-			bool outputPosition = sourceSlot.Modifier == "out";
+			bool outputPosition = sourceSlot.Modifier is "out" or "prep";
 			if (!CallableSlotAbiCompatible(sourceSlot.Type, targetSlot.Type, outputPosition, ref lifetimeOnlyDifference))
 				return false;
 		}
 
 		return true;
+	}
+
+	static bool CallableSlotModifiersAbiCompatible(string source, string target)
+	{
+		return source == target
+			|| source == "prep" && target.Length == 0;
 	}
 
 	bool CallableSpecsAbiSlotCompatible(string? sourceSpec, string? targetSpec)
@@ -3788,6 +3794,7 @@ public sealed partial class BindableNodeAnalyzer
 				ParameterModifier.Thrown => "thrown " + parameterType,
 				ParameterModifier.Within => "within " + parameterType,
 				ParameterModifier.Upon => "upon " + parameterType,
+				ParameterModifier.Prep => "prep " + parameterType,
 				_ => parameterType
 			});
 		}

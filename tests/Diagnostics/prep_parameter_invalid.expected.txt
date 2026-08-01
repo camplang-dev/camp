@@ -1,0 +1,6 @@
+tests/Diagnostics/prep_parameter_invalid.camp(1,1): error: A prep function must return 'nuint' to match prep buffer type 'char[]', not 'int'.
+tests/Diagnostics/prep_parameter_invalid.camp(6,34): error: A prep parameter must be mutable; const array buffers are not valid prep buffers.
+tests/Diagnostics/prep_parameter_invalid.camp(11,28): error: A prep parameter must be a mutable array type.
+tests/Diagnostics/prep_parameter_invalid.camp(16,50): error: A function may declare at most one prep parameter.
+tests/Diagnostics/prep_parameter_invalid.camp(21,40): error: A prep parameter cannot also be an overload selector.
+tests/Diagnostics/prep_parameter_invalid.camp(26,29): error: once callable signatures cannot declare prep parameters.

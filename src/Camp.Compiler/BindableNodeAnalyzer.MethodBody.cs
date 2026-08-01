@@ -2554,8 +2554,14 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		CallableSlot sourceSlot = ParseCallableSlot(source);
 		CallableSlot targetSlot = ParseCallableSlot(target);
-		return sourceSlot.Modifier == targetSlot.Modifier
-			&& CallableSlotTypesCompatible(sourceSlot.Type, targetSlot.Type, outputPosition: sourceSlot.Modifier == "out");
+		return CallableLambdaSlotModifiersCompatible(sourceSlot.Modifier, targetSlot.Modifier)
+			&& CallableSlotTypesCompatible(sourceSlot.Type, targetSlot.Type, outputPosition: sourceSlot.Modifier is "out" or "prep");
+	}
+
+	static bool CallableLambdaSlotModifiersCompatible(string source, string target)
+	{
+		return source == target
+			|| source == "prep" && target.Length == 0;
 	}
 
 	static string LambdaSourceReturnType(string returnType, LambdaExpression lambda)
@@ -2610,13 +2616,14 @@ public sealed partial class BindableNodeAnalyzer
 			ParameterModifier.Thrown => "thrown " + type,
 			ParameterModifier.Within => "within " + type,
 			ParameterModifier.Upon => "upon " + type,
+			ParameterModifier.Prep => "prep " + type,
 			_ => type
 		};
 	}
 
 	static string StripCallableParameterSlotModifier(string slot)
 	{
-		foreach (string prefix in new[] { "in ", "out ", "thrown ", "within " })
+		foreach (string prefix in new[] { "in ", "out ", "thrown ", "within ", "prep " })
 		{
 			if (slot.StartsWith(prefix, StringComparison.Ordinal))
 				return slot[prefix.Length..].Trim();
@@ -3124,6 +3131,11 @@ public sealed partial class BindableNodeAnalyzer
 			else if (typeName.StartsWith("upon ", StringComparison.Ordinal))
 			{
 				modifier = ParameterModifier.Upon;
+				typeName = typeName[5..].TrimStart();
+			}
+			else if (typeName.StartsWith("prep ", StringComparison.Ordinal))
+			{
+				modifier = ParameterModifier.Prep;
 				typeName = typeName[5..].TrimStart();
 			}
 			parameters.Add(new ParameterDefinition

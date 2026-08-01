@@ -1,0 +1,1 @@
+tests/Diagnostics/prep_callable_conversion_invalid.camp(14,35): error: Declaration initializer cannot convert 'fn nuint(char[])' to 'fn nuint(prep char[])'.

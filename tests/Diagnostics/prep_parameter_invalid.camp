@@ -1,0 +1,28 @@
+int badReturn(prep char[] buffer)
+{
+	return 0;
+}
+
+nuint badConst(prep const char[] buffer)
+{
+	return 0;
+}
+
+nuint badNotArray(prep int value)
+{
+	return 0;
+}
+
+nuint badMultiple(prep char[] first, prep char[] second)
+{
+	return 0;
+}
+
+nuint badOverload(overload prep char[] buffer)
+{
+	return 0;
+}
+
+void badOnce(once void(prep char[]) callback)
+{
+}

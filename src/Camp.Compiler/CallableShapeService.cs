@@ -145,7 +145,7 @@ internal static class CallableShapeService
 		{
 			CallableSlot sourceSlot = ParseCallableSlot(source.Parameters[i]);
 			CallableSlot targetSlot = ParseCallableSlot(target.Parameters[i]);
-			if (sourceSlot.Modifier != targetSlot.Modifier)
+			if (!CallableSlotModifiersCompatible(sourceSlot.Modifier, targetSlot.Modifier))
 				return false;
 			if (sourceSlot.Modifier == "thrown")
 			{
@@ -154,12 +154,18 @@ internal static class CallableShapeService
 				continue;
 			}
 
-			bool outputPosition = sourceSlot.Modifier == "out";
+			bool outputPosition = sourceSlot.Modifier is "out" or "prep";
 			if (!SlotTypesCompatible(sourceSlot.Type, targetSlot.Type, outputPosition, eraseConstOfQualifiers))
 				return false;
 		}
 
 		return true;
+	}
+
+	static bool CallableSlotModifiersCompatible(string source, string target)
+	{
+		return source == target
+			|| source == "prep" && target.Length == 0;
 	}
 
 	public static bool SlotTypesCompatible(string source, string target, bool outputPosition, Func<string, string> eraseConstOfQualifiers)
@@ -178,7 +184,7 @@ internal static class CallableShapeService
 
 	public static CallableSlot ParseCallableSlot(string text)
 	{
-		foreach (string modifier in new[] { "out", "in", "thrown", "within" })
+		foreach (string modifier in new[] { "out", "in", "thrown", "within", "prep" })
 		{
 			string prefix = modifier + " ";
 			if (text.StartsWith(prefix, StringComparison.Ordinal))

@@ -203,6 +203,7 @@ public sealed partial class BindableNodeAnalyzer
 					AnalyzeParameterDefinition(parameter, scope);
 					ValidateNoDirectFixedArrayType(parameter.Type, parameter.Type?.SourceSyntax ?? parameter.SourceSyntax, "a callable parameter type");
 				}
+				ValidatePrepParameterList(callable.Parameters, callable.ReturnType, callable.SourceSyntax, "callable signature", callable.Kind == CallableKind.Once);
 				type.ResolvedType = FormatTypeReference(type);
 				break;
 

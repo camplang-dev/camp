@@ -227,6 +227,7 @@ public sealed class AbiSurface
 			ParameterModifier.Thrown => "thrown " + type,
 			ParameterModifier.Within => "within " + type,
 			ParameterModifier.Upon => "upon " + type,
+			ParameterModifier.Prep => "prep " + type,
 			_ => type
 		};
 	}

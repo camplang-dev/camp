@@ -1,0 +1,15 @@
+nuint prepared(prep char[] buffer)
+{
+	return 0;
+}
+
+nuint ordinary(char[] buffer)
+{
+	return 0;
+}
+
+void main()
+{
+	fn nuint(char[]) allowed = prepared;
+	fn nuint(prep char[]) rejected = ordinary;
+}

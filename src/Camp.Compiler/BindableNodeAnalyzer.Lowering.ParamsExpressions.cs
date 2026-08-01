@@ -231,6 +231,11 @@ public sealed partial class BindableNodeAnalyzer
 			modifier = ParameterModifier.Upon;
 			typeName = typeName[5..].TrimStart();
 		}
+		else if (typeName.StartsWith("prep ", System.StringComparison.Ordinal))
+		{
+			modifier = ParameterModifier.Prep;
+			typeName = typeName[5..].TrimStart();
+		}
 
 		return new ParameterDefinition
 		{
@@ -2020,6 +2025,7 @@ public sealed partial class BindableNodeAnalyzer
 				"thrown" => ParameterModifier.Thrown,
 				"within" => ParameterModifier.Within,
 				"upon" => ParameterModifier.Upon,
+				"prep" => ParameterModifier.Prep,
 				_ => ParameterModifier.None
 			},
 			Type = TypeReferenceForResolvedName(slot.Type),

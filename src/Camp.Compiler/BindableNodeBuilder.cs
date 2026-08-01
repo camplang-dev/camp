@@ -1861,22 +1861,27 @@ public sealed partial class BindableNodeBuilder
 				break;
 
 			case "in":
+				ReportDuplicateParameterModifier(parameter, syntax);
 				parameter.Modifier = ParameterModifier.In;
 				break;
 
 			case "out":
+				ReportDuplicateParameterModifier(parameter, syntax);
 				parameter.Modifier = ParameterModifier.Out;
 				break;
 
 			case "thrown":
+				ReportDuplicateParameterModifier(parameter, syntax);
 				parameter.Modifier = ParameterModifier.Thrown;
 				break;
 
 			case "upon":
+				ReportDuplicateParameterModifier(parameter, syntax);
 				parameter.Modifier = ParameterModifier.Upon;
 				break;
 
 			case "prep":
+				ReportDuplicateParameterModifier(parameter, syntax);
 				parameter.Modifier = ParameterModifier.Prep;
 				break;
 
@@ -1888,6 +1893,12 @@ public sealed partial class BindableNodeBuilder
 				Report(syntax, "Unknown parameter declarator.");
 				break;
 		}
+	}
+
+	void ReportDuplicateParameterModifier(ParameterDefinition parameter, ParameterDeclaratorSyntax syntax)
+	{
+		if (parameter.Modifier != ParameterModifier.None)
+			Report(syntax, "Parameter may have only one passing modifier.");
 	}
 
 	void AddAnchors(List<string> anchors, IdentListSyntax? syntax)

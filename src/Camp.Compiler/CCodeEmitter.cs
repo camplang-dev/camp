@@ -1280,6 +1280,7 @@ public static class CCodeEmitter
 				ParameterModifier.Thrown => "thrown " + type,
 				ParameterModifier.Within => "within " + type,
 				ParameterModifier.Upon => "upon " + type,
+				ParameterModifier.Prep => "prep " + type,
 				_ => type
 			};
 		}
@@ -1889,6 +1890,8 @@ public static class CCodeEmitter
 			if (parameterType.StartsWith("within ", StringComparison.Ordinal))
 				return FormatResolvedType(parameterType[7..].TrimStart(), declarator).Declaration;
 			if (parameterType.StartsWith("upon ", StringComparison.Ordinal))
+				return FormatResolvedType(parameterType[5..].TrimStart(), declarator).Declaration;
+			if (parameterType.StartsWith("prep ", StringComparison.Ordinal))
 				return FormatResolvedType(parameterType[5..].TrimStart(), declarator).Declaration;
 			if (TryNormalizeCallableInterfaceParameterType(parameterType, out string normalizedParameterType))
 				return FormatResolvedType(normalizedParameterType, declarator).Declaration;
@@ -4727,6 +4730,7 @@ public static class CCodeEmitter
 					ParameterModifier.Thrown => "thrown " + type,
 					ParameterModifier.Within => "within " + type,
 					ParameterModifier.Upon => "upon " + type,
+					ParameterModifier.Prep => "prep " + type,
 					_ => type
 				};
 			}
@@ -5369,6 +5373,11 @@ public static class CCodeEmitter
 			else if (typeName.StartsWith("upon ", StringComparison.Ordinal))
 			{
 				modifier = ParameterModifier.Upon;
+				typeName = typeName[5..].TrimStart();
+			}
+			else if (typeName.StartsWith("prep ", StringComparison.Ordinal))
+			{
+				modifier = ParameterModifier.Prep;
 				typeName = typeName[5..].TrimStart();
 			}
 
@@ -7444,6 +7453,7 @@ public static class CCodeEmitter
 					ParameterModifier.Thrown => "thrown " + parameterType,
 					ParameterModifier.Within => "within " + parameterType,
 					ParameterModifier.Upon => "upon " + parameterType,
+					ParameterModifier.Prep => "prep " + parameterType,
 					_ => parameterType
 				});
 			}
@@ -7502,6 +7512,7 @@ public static class CCodeEmitter
 					ParameterModifier.Thrown => "thrown " + parameterType,
 					ParameterModifier.Within => "within " + parameterType,
 					ParameterModifier.Upon => "upon " + parameterType,
+					ParameterModifier.Prep => "prep " + parameterType,
 					_ => parameterType
 				}, name));
 			}

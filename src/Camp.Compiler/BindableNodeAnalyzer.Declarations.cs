@@ -1027,6 +1027,7 @@ public sealed partial class BindableNodeAnalyzer
 		ValidateAsyncFunctionParameters(definition);
 		ValidateAwaitWithParameters(definition);
 		ValidateIteratorGeneratorParameters(definition);
+		ValidatePrepParameters(definition);
 		ValidateIndexAwareParameters(definition);
 		ValidateCallableAscription(definition, containingType);
 		BindFunctionReceiverLifetime(definition, containingType);
@@ -1498,6 +1499,62 @@ public sealed partial class BindableNodeAnalyzer
 			if (parameter.Modifier is ParameterModifier.In or ParameterModifier.Out or ParameterModifier.Thrown)
 				Report(GetNameRange(parameter), "Generator parameter lists may not contain in, out, or thrown parameters.");
 		}
+	}
+
+	void ValidatePrepParameters(FunctionDefinition definition)
+	{
+		ValidatePrepParameterList(definition.Parameters, definition.ReturnType, definition.SourceSyntax, "function");
+	}
+
+	void ValidatePrepParameterList(List<ParameterDefinition> parameters, TypeReference? returnType, SyntaxNode? syntax, string context, bool onceCallable = false)
+	{
+		ParameterDefinition? prep = null;
+		foreach (ParameterDefinition parameter in parameters)
+		{
+			if (parameter.Modifier != ParameterModifier.Prep)
+				continue;
+
+			if (prep is not null)
+			{
+				Report(GetNameRange(parameter) ?? GetRange(parameter.SourceSyntax ?? syntax), $"A {context} may declare at most one prep parameter.");
+				continue;
+			}
+			prep = parameter;
+		}
+
+		if (prep is null)
+			return;
+
+		if (onceCallable)
+		{
+			Report(GetNameRange(prep) ?? GetRange(prep.SourceSyntax ?? syntax), "once callable signatures cannot declare prep parameters.");
+			return;
+		}
+
+		if (prep.IsOverloadSelector)
+			Report(GetNameRange(prep) ?? GetRange(prep.SourceSyntax ?? syntax), "A prep parameter cannot also be an overload selector.");
+
+		if (prep is ThisParameterDefinition or WithinParameterDefinition or SizeOfParameterDefinition or NameOfParameterDefinition or VTableOfParameterDefinition)
+			Report(GetNameRange(prep) ?? GetRange(prep.SourceSyntax ?? syntax), "A prep parameter must be an ordinary mutable array parameter.");
+
+		string prepType = prep.ResolvedType ?? prep.Type?.ResolvedType ?? ErrorType;
+		if (!TryParseTypeShape(prepType, out TypeShape prepShape) || prepShape.Kind != TypeShapeKind.Array || prepShape.Element is not TypeShape prepElement)
+		{
+			Report(GetNameRange(prep) ?? GetRange(prep.Type?.SourceSyntax ?? prep.SourceSyntax ?? syntax), "A prep parameter must be a mutable array type.");
+			return;
+		}
+
+		string elementType = TypeShapeParser.Format(prepElement);
+		if (IsConstQualified(elementType))
+			Report(GetNameRange(prep) ?? GetRange(prep.Type?.SourceSyntax ?? prep.SourceSyntax ?? syntax), "A prep parameter must be mutable; const array buffers are not valid prep buffers.");
+
+		if (!IsCopyableResolvedType(StripTopLevelValueQualifiers(elementType), null, []))
+			Report(GetNameRange(prep) ?? GetRange(prep.Type?.SourceSyntax ?? prep.SourceSyntax ?? syntax), $"Prep array element type '{elementType}' must be copyable.");
+
+		string returnResolvedType = returnType?.ResolvedType ?? ErrorType;
+		string expectedReturnType = GetArrayLengthType(prepShape);
+		if (returnResolvedType != ErrorType && returnResolvedType != expectedReturnType)
+			Report(GetRange(returnType?.SourceSyntax ?? syntax ?? prep.SourceSyntax), $"A prep {context} must return '{expectedReturnType}' to match prep buffer type '{prepType}', not '{returnResolvedType}'.");
 	}
 
 	void ValidateAsyncFunctionParameters(FunctionDefinition definition)

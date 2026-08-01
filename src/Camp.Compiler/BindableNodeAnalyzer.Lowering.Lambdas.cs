@@ -724,6 +724,11 @@ public sealed partial class BindableNodeAnalyzer
 				modifier = ParameterModifier.Upon;
 				resolvedType = resolvedType["upon ".Length..].Trim();
 			}
+			else if (resolvedType.StartsWith("prep ", StringComparison.Ordinal))
+			{
+				modifier = ParameterModifier.Prep;
+				resolvedType = resolvedType["prep ".Length..].Trim();
+			}
 		}
 		return new ParameterDefinition
 		{

@@ -788,6 +788,7 @@ public sealed partial class BindableNodeAnalyzer
 				ParameterModifier.Thrown => "thrown " + (parameter.ResolvedType ?? ErrorType),
 				ParameterModifier.Within => "within " + (parameter.ResolvedType ?? ErrorType),
 				ParameterModifier.Upon => "upon " + (parameter.ResolvedType ?? ErrorType),
+				ParameterModifier.Prep => "prep " + (parameter.ResolvedType ?? ErrorType),
 				_ => parameter.ResolvedType ?? ErrorType
 			});
 		}
@@ -1256,7 +1257,7 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			CallableSlot candidateSlot = ParseMethodSignatureSlot(candidate.ParameterTypes[i]);
 			CallableSlot targetSlot = ParseMethodSignatureSlot(target.ParameterTypes[i]);
-			if (candidateSlot.Modifier != targetSlot.Modifier)
+			if (!MethodSignatureSlotModifiersCompatible(candidateSlot.Modifier, targetSlot.Modifier))
 				return false;
 			if (candidateSlot.Modifier == "Thrown")
 			{
@@ -1264,11 +1265,17 @@ public sealed partial class BindableNodeAnalyzer
 					return false;
 				continue;
 			}
-			bool outputPosition = candidateSlot.Modifier == "Out";
+			bool outputPosition = candidateSlot.Modifier is "Out" or "Prep";
 			if (!CallableSlotTypesCompatible(candidateSlot.Type, targetSlot.Type, outputPosition))
 				return false;
 		}
 		return true;
+	}
+
+	static bool MethodSignatureSlotModifiersCompatible(string candidate, string target)
+	{
+		return candidate == target
+			|| candidate == "Prep" && target.Length == 0;
 	}
 
 	static CallableSlot ParseMethodSignatureSlot(string text)
