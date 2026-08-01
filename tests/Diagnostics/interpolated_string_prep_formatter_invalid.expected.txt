@@ -1,0 +1,1 @@
+tests/Diagnostics/interpolated_string_prep_formatter_invalid.camp(4,25): error: Interpolation expression of type 'Binary' cannot format as UTF-8 text.

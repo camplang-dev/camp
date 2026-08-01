@@ -1,0 +1,40 @@
+using Std;
+
+int created;
+
+export int main()
+{
+	string text = $"Value: {makeGreeter()}!";
+	Console.writeLine(text);
+	Console.writeLine(created);
+	return 0;
+}
+
+Greeter makeGreeter()
+{
+	created++;
+	Greeter value = default;
+	value.name = "Camp";
+	return value;
+}
+
+struct Greeter
+{
+	string name;
+}
+
+nuint format(in Greeter this, prep char[] buffer = default)
+{
+	if (buffer.length > 0)
+		buffer[0] = 'H';
+	if (buffer.length > 1)
+		buffer[1] = 'i';
+	if (buffer.length > 2)
+		buffer[2] = ',';
+	if (buffer.length > 3)
+		buffer[3] = ' ';
+
+	char[] tail = { &buffer[4], buffer.length > 4 ? buffer.length - 4 : 0 };
+	this.name.format(tail);
+	return 4 + this.name.Length;
+}

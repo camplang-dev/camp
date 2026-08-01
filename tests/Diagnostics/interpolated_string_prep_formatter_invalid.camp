@@ -1,0 +1,15 @@
+export void main()
+{
+	Binary value = default;
+	string text = $"value={value}";
+	_ = text;
+}
+
+struct Binary
+{
+}
+
+nuint format(in Binary this, prep byte[] buffer = default)
+{
+	return 0;
+}
