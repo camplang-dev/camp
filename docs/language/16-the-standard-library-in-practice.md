@@ -108,16 +108,17 @@ stream model other APIs can use.
 The standard library defines the common allocator surface:
 
 ```camp
-abstract class Allocator
+interface Allocator
 {
-	abstract void* alloc(nuint size);
-	abstract void* realloc(void* ptr, nuint newSize);
-	abstract void free(void* ptr);
+	void* alloc(nuint size);
+	void* realloc(void* ptr, nuint newSize);
+	void free(void* ptr);
 }
 ```
 
-`HeapAllocator` is the basic heap-backed implementation, and the library also
-exports native allocation functions such as `malloc`, `realloc`, and `free`.
+`HeapAllocator` is the default heap-backed allocator value, and the library
+also exports native allocation functions such as `malloc`, `realloc`, and
+`free`.
 
 Most code does not call those functions directly. It uses `new`, `delete`, and
 `within`:

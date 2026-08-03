@@ -2,8 +2,7 @@ using Std;
 
 export int main()
 {
-	auto allocator = new HeapAllocator() finally delete;
-	within (allocator)
+	within (HeapAllocator)
 	{
 		auto array = new byte[64];
 		array[0] = 1;

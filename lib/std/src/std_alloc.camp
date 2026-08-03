@@ -1,9 +1,16 @@
 namespace Std;
 
+/// Allocates a native heap block.
 public extern void* malloc(nuint size);
+
+/// Resizes a native heap block.
 public extern void* realloc(void* ptr, nuint new_size);
+
+/// Releases a native heap block.
 public extern void free(void* ptr);
 
+/// Common allocation interface used by `within`, collection storage, and
+/// other standard-library APIs that need caller-selected allocation.
 public interface Allocator
 {
 	void* alloc(nuint size);
@@ -11,20 +18,31 @@ public interface Allocator
 	void free(void* ptr);
 }
 
-public class HeapAllocator: Allocator
+/// Allocates from the process heap.
+public void* heapAllocatorAlloc(Allocator* allocator, nuint size)
 {
-	public void* alloc(nuint size): Allocator
-	{
-		return malloc(size);
-	}
-	
-	public void* realloc(void* ptr, nuint newSize): Allocator
-	{
-		return realloc(ptr, newSize);
-	}
-	
-	public void free(void* ptr): Allocator
-	{
-		free(ptr);
-	}
+	return malloc(size);
 }
+
+/// Resizes a process-heap allocation.
+public void* heapAllocatorRealloc(Allocator* allocator, void* ptr, nuint newSize)
+{
+	return realloc(ptr, newSize);
+}
+
+/// Releases a process-heap allocation.
+public void heapAllocatorFree(Allocator* allocator, void* ptr)
+{
+	free(ptr);
+}
+
+/// Static vtable storage for the default process-heap allocator.
+public Allocator HeapAllocatorStorage =
+{
+	.alloc = heapAllocatorAlloc,
+	.realloc = heapAllocatorRealloc,
+	.free = heapAllocatorFree
+};
+
+/// Default allocator backed by `malloc`, `realloc`, and `free`.
+public Allocator* const HeapAllocator = &HeapAllocatorStorage;

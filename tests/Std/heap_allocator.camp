@@ -2,8 +2,6 @@ using Std;
 
 void main()
 {
-	HeapAllocator* allocator = new HeapAllocator();
-	void* memory = allocator.alloc(16);
-	allocator.free(memory);
-	delete allocator;
+	void* memory = HeapAllocator.alloc(16);
+	HeapAllocator.free(memory);
 }
