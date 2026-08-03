@@ -6,7 +6,7 @@ export int main(string[] args)
 	pt.x = 5;
 	pt.y = 2;
 
-	Console.writeLine(prep pt.format());
+	Console.writeLine(pt.toString());
 
 	return 0;
 }
@@ -16,7 +16,7 @@ class Point
 	int x;
 	int y;
 
-	nuint format(prep char[] buffer = default)
+	nuint toString(prep char[] buffer = default)
 	{
 		if (buffer.length < 4)
 			return 4;

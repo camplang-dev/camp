@@ -1045,9 +1045,8 @@ public sealed class BindableNodeCodeSerializer
 				break;
 
 			case PreparedBufferExpression prepared:
-				writer.Write("prep ");
 				if (prepared.HeapAllocated)
-					writer.Write("new ");
+					writer.Write("(new) ");
 				WriteExpression(prepared.Expression, GetPrecedence(prepared));
 				break;
 

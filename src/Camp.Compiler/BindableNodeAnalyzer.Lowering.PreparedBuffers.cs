@@ -17,7 +17,43 @@ public sealed partial class BindableNodeAnalyzer
 		return lowered;
 	}
 
-	static bool ContainsPreparedBufferExpression(Expression? expression)
+	bool TryGetImplicitPreparedCallForLowering(CallExpression call, out PreparedBufferExpression prepared)
+	{
+		if (implicitPreparedCalls.TryGetValue(call, out prepared!))
+			return true;
+		if (call.PreparedMode != PreparedCallMode.Transformed || call.PreparedResultType is null)
+			return false;
+		prepared = new PreparedBufferExpression
+		{
+			SourceSyntax = call.SourceSyntax,
+			Expression = call,
+			ResolvedType = call.PreparedResultType,
+			ConvertedResultType = call.PreparedConvertedResultType
+		};
+		implicitPreparedCalls[call] = prepared;
+		preparedBufferCalls[prepared] = call;
+		return true;
+	}
+
+	bool TryRegisterPreparedLengthMember(MemberExpression member, out PreparedBufferExpression prepared)
+	{
+		prepared = null!;
+		if (member.Name != "length" || member.Target is null)
+			return false;
+		Expression target = expressionRewrites.TryGetValue(member.Target, out Expression? rewrittenTarget)
+			? rewrittenTarget
+			: member.Target;
+		if (target is PreparedBufferExpression preparedTarget)
+			prepared = preparedTarget;
+		else if (target is CallExpression call && TryGetImplicitPreparedCallForLowering(call, out PreparedBufferExpression implicitPrepared))
+			prepared = implicitPrepared;
+		else
+			return false;
+		preparedLengthMembers[member] = prepared;
+		return true;
+	}
+
+	bool ContainsPreparedBufferExpression(Expression? expression)
 	{
 		return expression switch
 		{
@@ -30,7 +66,7 @@ public sealed partial class BindableNodeAnalyzer
 				|| ContainsPreparedBufferExpression(construction.Initializer),
 			WithinExpression within => ContainsPreparedBufferExpression(within.Context) || ContainsPreparedBufferExpression(within.Expression),
 			ArgumentExpression argument => ContainsPreparedBufferExpression(argument.Value),
-			CallExpression call => ContainsPreparedBufferExpression(call.Target) || call.Arguments.Any(argument => ContainsPreparedBufferExpression(argument)),
+			CallExpression call => implicitPreparedCalls.ContainsKey(call) || ContainsPreparedBufferExpression(call.Target) || call.Arguments.Any(argument => ContainsPreparedBufferExpression(argument)),
 			IndexExpression index => ContainsPreparedBufferExpression(index.Target) || index.Arguments.Any(argument => ContainsPreparedBufferExpression(argument)),
 			MemberExpression member => ContainsPreparedBufferExpression(member.Target),
 			MemberReferenceExpression member => ContainsPreparedBufferExpression(member.Target),
@@ -56,20 +92,20 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (currentStatementPrefix is null)
 		{
-			Report(GetRange(prepared.SourceSyntax), "prep cannot be used in this expression context because the compiler cannot introduce temporary storage here.");
+			Report(GetRange(prepared.SourceSyntax), "A prepared result cannot be used in this expression context because the compiler cannot introduce temporary storage here.");
 			return prepared.Expression ?? prepared;
 		}
 		if (!preparedBufferCalls.TryGetValue(prepared, out CallExpression? sourceCall)
 			|| !TryGetPreparedCallParameters(sourceCall, out FunctionDefinition? function, out List<ParameterDefinition>? callableParameters))
 		{
-			Report(GetRange(prepared.SourceSyntax), "prep target was not resolved.");
+			Report(GetRange(prepared.SourceSyntax), "Prepared call target was not resolved.");
 			return prepared.Expression ?? prepared;
 		}
 
 		ParameterDefinition? prepParameter = callableParameters.FirstOrDefault(static parameter => parameter.Modifier == ParameterModifier.Prep);
 		if (prepParameter is null)
 		{
-			Report(GetRange(prepared.SourceSyntax), "prep requires a call or property getter target with a prep parameter.");
+			Report(GetRange(prepared.SourceSyntax), "Prepared transformation requires a call target with a prep parameter.");
 			return sourceCall;
 		}
 
@@ -78,7 +114,7 @@ public sealed partial class BindableNodeAnalyzer
 			|| prepShape.Kind != TypeShapeKind.Array
 			|| prepShape.Element is not TypeShape prepElement)
 		{
-			Report(GetRange(prepared.SourceSyntax), $"prep result type '{prepType}' is not a mutable array.");
+			Report(GetRange(prepared.SourceSyntax), $"Prepared result type '{prepType}' is not a mutable array.");
 			return sourceCall;
 		}
 
@@ -98,9 +134,15 @@ public sealed partial class BindableNodeAnalyzer
 		Expression Required() => CreateVariableReference(required.Target, lengthType, prepared.SourceSyntax);
 
 		TypeReference elementTypeReference = TypeReferenceForResolvedName(elementType, prepared.SourceSyntax);
+		string? convertedResultType = prepared.ConvertedResultType;
+		bool nullTerminate = convertedResultType is not null
+			&& GetPrimitiveStringElementType(convertedResultType) == StripTopLevelValueQualifiers(elementType);
+		Expression allocationLength = nullTerminate
+			? Add(Required(), NumberLiteral("1", lengthType), lengthType)
+			: Required();
 		Expression allocation = prepared.HeapAllocated
-			? CreateAllocCall(elementTypeReference, CurrentAllocator(), prepared.SourceSyntax, Required())
-			: CreateStackAllocCall(elementTypeReference, prepared.SourceSyntax, Required());
+			? CreateAllocCall(elementTypeReference, CurrentAllocator(), prepared.SourceSyntax, allocationLength)
+			: CreateStackAllocCall(elementTypeReference, prepared.SourceSyntax, allocationLength);
 		string elementsType = elementType + "*";
 		DeclarationStatement resultElements = CreateGeneratedLocal(
 			NewGeneratedLocalName("prepResult"),
@@ -120,6 +162,23 @@ public sealed partial class BindableNodeAnalyzer
 			Expression = writeCall
 		});
 
+		if (nullTerminate)
+		{
+			currentStatementPrefix.Add(Assign(
+				BufferIndex(ResultElements(), Required(), elementType, prepared.SourceSyntax),
+				CharacterLiteral('\0', elementType, prepared.SourceSyntax),
+				elementType,
+				prepared.SourceSyntax));
+			return new CastExpression
+			{
+				SourceSyntax = prepared.SourceSyntax,
+				Kind = CastKind.Type,
+				Type = TypeReferenceForResolvedName(convertedResultType!),
+				Expression = ResultElements(),
+				ResolvedType = convertedResultType
+			};
+		}
+
 		DeclarationStatement resultArray = CreateGeneratedLocal(
 			NewGeneratedLocalName("prepArray"),
 			prepType,
@@ -130,6 +189,45 @@ public sealed partial class BindableNodeAnalyzer
 		else
 			currentStatementPrefix.Add(resultArray);
 		return CreateVariableReference(resultArray.Target, prepType, prepared.SourceSyntax);
+	}
+
+	Expression LowerPreparedBufferLength(PreparedBufferExpression prepared)
+	{
+		if (currentStatementPrefix is null)
+		{
+			Report(GetRange(prepared.SourceSyntax), "Prepared length cannot be evaluated in this expression context because the compiler cannot introduce temporary storage here.");
+			return NumberLiteral("0", "nuint");
+		}
+		if (!preparedBufferCalls.TryGetValue(prepared, out CallExpression? sourceCall)
+			|| !TryGetPreparedCallParameters(sourceCall, out FunctionDefinition? function, out List<ParameterDefinition>? callableParameters))
+		{
+			Report(GetRange(prepared.SourceSyntax), "Prepared length target was not resolved.");
+			return NumberLiteral("0", "nuint");
+		}
+
+		ParameterDefinition? prepParameter = callableParameters.FirstOrDefault(static parameter => parameter.Modifier == ParameterModifier.Prep);
+		if (prepParameter is null)
+		{
+			Report(GetRange(prepared.SourceSyntax), "Prepared length requires a call with a prep parameter.");
+			return NumberLiteral("0", "nuint");
+		}
+
+		string prepType = prepared.ResolvedType ?? prepParameter.ResolvedType ?? ErrorType;
+		if (!TryParseTypeShape(prepType, out TypeShape prepShape)
+			|| prepShape.Kind != TypeShapeKind.Array
+			|| prepShape.Element is not TypeShape prepElement)
+			return NumberLiteral("0", "nuint");
+
+		MaterializePreparedCallInputs(sourceCall);
+		string elementType = TypeShapeParser.Format(prepElement);
+		string lengthType = GetArrayLengthType(prepShape);
+		Expression sizeCall = CreatePreparedProtocolCallForTarget(
+			sourceCall,
+			function,
+			callableParameters,
+			prepParameter,
+			DefaultPrepBuffer(prepType, elementType, lengthType, prepared.SourceSyntax));
+		return LowerExpression(sizeCall) ?? sizeCall;
 	}
 
 	bool TryGetPreparedCallParameters(CallExpression sourceCall, out FunctionDefinition? function, out List<ParameterDefinition> callableParameters)
@@ -155,6 +253,10 @@ public sealed partial class BindableNodeAnalyzer
 
 	void MaterializePreparedCallInputs(CallExpression call)
 	{
+		if (call.Target is not null
+			&& expressionRewrites.TryGetValue(call.Target, out Expression? rewrittenTarget)
+			&& !ReferenceEquals(rewrittenTarget, call.Target))
+			call.Target = rewrittenTarget;
 		switch (call.Target)
 		{
 			case MemberExpression member:
@@ -209,20 +311,23 @@ public sealed partial class BindableNodeAnalyzer
 		Expression prepBuffer)
 	{
 		CallExpression call = CloneCallExpression(sourceCall);
+		call.PreparedMode = PreparedCallMode.Full;
+		call.PreparedResultType = null;
+		call.PreparedConvertedResultType = null;
 		call.Arguments.Clear();
 
-		List<ParameterDefinition> sourceParameters = [.. callableParameters.Where(static parameter => parameter.Modifier != ParameterModifier.Prep)];
-		bool[] supplied = new bool[sourceParameters.Count];
+		bool[] supplied = new bool[callableParameters.Count];
 		foreach (ArgumentExpression sourceArgument in sourceCall.Arguments)
 		{
 			ArgumentExpression argument = ClonePreparedArgument(sourceArgument);
-			if (TryBindCallArgumentToParameter(sourceArgument, sourceParameters, supplied, sourceCall.SourceSyntax, out int parameterIndex)
+			if (TryBindCallArgumentToParameter(sourceArgument, callableParameters, supplied, sourceCall.SourceSyntax, out int parameterIndex)
 				&& parameterIndex >= 0
-				&& parameterIndex < sourceParameters.Count
-				&& string.IsNullOrWhiteSpace(argument.Name)
-				&& !string.IsNullOrWhiteSpace(sourceParameters[parameterIndex].Name))
+				&& parameterIndex < callableParameters.Count)
 			{
-				argument.Name = sourceParameters[parameterIndex].Name;
+				if (ReferenceEquals(callableParameters[parameterIndex], prepParameter))
+					continue;
+				if (string.IsNullOrWhiteSpace(argument.Name) && !string.IsNullOrWhiteSpace(callableParameters[parameterIndex].Name))
+					argument.Name = callableParameters[parameterIndex].Name;
 			}
 			call.Arguments.Add(argument);
 		}
@@ -252,20 +357,23 @@ public sealed partial class BindableNodeAnalyzer
 			return CreatePreparedProtocolCall(sourceCall, function, callableParameters, prepParameter, prepBuffer);
 
 		CallExpression call = CloneCallExpression(sourceCall);
+		call.PreparedMode = PreparedCallMode.Full;
+		call.PreparedResultType = null;
+		call.PreparedConvertedResultType = null;
 		call.Arguments.Clear();
 
-		List<ParameterDefinition> sourceParameters = [.. callableParameters.Where(static parameter => parameter.Modifier != ParameterModifier.Prep)];
-		bool[] supplied = new bool[sourceParameters.Count];
+		bool[] supplied = new bool[callableParameters.Count];
 		foreach (ArgumentExpression sourceArgument in sourceCall.Arguments)
 		{
 			ArgumentExpression argument = ClonePreparedArgument(sourceArgument);
-			if (TryBindCallArgumentToParameter(sourceArgument, sourceParameters, supplied, sourceCall.SourceSyntax, out int parameterIndex)
+			if (TryBindCallArgumentToParameter(sourceArgument, callableParameters, supplied, sourceCall.SourceSyntax, out int parameterIndex)
 				&& parameterIndex >= 0
-				&& parameterIndex < sourceParameters.Count
-				&& string.IsNullOrWhiteSpace(argument.Name)
-				&& !string.IsNullOrWhiteSpace(sourceParameters[parameterIndex].Name))
+				&& parameterIndex < callableParameters.Count)
 			{
-				argument.Name = sourceParameters[parameterIndex].Name;
+				if (ReferenceEquals(callableParameters[parameterIndex], prepParameter))
+					continue;
+				if (string.IsNullOrWhiteSpace(argument.Name) && !string.IsNullOrWhiteSpace(callableParameters[parameterIndex].Name))
+					argument.Name = callableParameters[parameterIndex].Name;
 			}
 			call.Arguments.Add(argument);
 		}

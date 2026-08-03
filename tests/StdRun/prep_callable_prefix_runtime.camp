@@ -5,12 +5,18 @@ newtype fn nuint Writer(prep char[] buffer = default);
 export void main()
 {
 	Writer writer = writeText;
-	char[] text = prep writer();
+	char[] text = writer();
 	Console.writeLine(text);
 
-	char[] heapText = within (default) prep new writer();
+	char[] heapText = within (default) (new) writer();
 	Console.writeLine(heapText);
 	delete heapText.elements;
+
+	WriterImpl* implementation = new WriterImpl();
+	IWriter* interfaceWriter = implementation;
+	Console.writeLine(interfaceWriter.write());
+	Console.writeLine(implementation.writeGeneric());
+	Console.writeLine(implementation.writeVirtual());
 }
 
 nuint writeText(prep char[] buffer = default)
@@ -18,4 +24,31 @@ nuint writeText(prep char[] buffer = default)
 	if (buffer.length > 0)
 		buffer[0] = 'x';
 	return 1;
+}
+
+interface IWriter
+{
+	nuint write(prep char[] buffer = default);
+}
+
+virtual class WriterImpl: IWriter
+{
+	nuint write(prep char[] buffer = default): IWriter
+	{
+		if (buffer.length > 0)
+			buffer[0] = 'i';
+		return 1;
+	}
+
+	virtual nuint writeVirtual(prep char[] buffer = default)
+	{
+		if (buffer.length > 0)
+			buffer[0] = 'v';
+		return 1;
+	}
+}
+
+nuint writeGeneric<T: implements IWriter>(T* this, prep char[] buffer = default, vtableof(T: IWriter))
+{
+	return this.write(buffer);
 }

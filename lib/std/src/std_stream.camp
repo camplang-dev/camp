@@ -209,27 +209,27 @@ public void writeLine(CharWriter this, overload ulong  value) => this.tryWriteLi
 public void writeLine(CharWriter this, overload nint   value) => this.tryWriteLine(value, catch _);
 public void writeLine(CharWriter this, overload nuint  value) => this.tryWriteLine(value, catch _);
 
-public void tryWrite(CharWriter this, overload sbyte  value, thrown IoError error) => this.tryWrite(prep value.format(), catch error);
-public void tryWrite(CharWriter this, overload byte   value, thrown IoError error) => this.tryWrite(prep value.format(), catch error);
-public void tryWrite(CharWriter this, overload short  value, thrown IoError error) => this.tryWrite(prep value.format(), catch error);
-public void tryWrite(CharWriter this, overload ushort value, thrown IoError error) => this.tryWrite(prep value.format(), catch error);
-public void tryWrite(CharWriter this, overload int    value, thrown IoError error) => this.tryWrite(prep value.format(), catch error);
-public void tryWrite(CharWriter this, overload uint   value, thrown IoError error) => this.tryWrite(prep value.format(), catch error);
-public void tryWrite(CharWriter this, overload long   value, thrown IoError error) => this.tryWrite(prep value.format(), catch error);
-public void tryWrite(CharWriter this, overload ulong  value, thrown IoError error) => this.tryWrite(prep value.format(), catch error);
-public void tryWrite(CharWriter this, overload nint   value, thrown IoError error) => this.tryWrite(prep value.format(), catch error);
-public void tryWrite(CharWriter this, overload nuint  value, thrown IoError error) => this.tryWrite(prep value.format(), catch error);
+public void tryWrite(CharWriter this, overload sbyte  value, thrown IoError error) => this.tryWrite(value.toString(), catch error);
+public void tryWrite(CharWriter this, overload byte   value, thrown IoError error) => this.tryWrite(value.toString(), catch error);
+public void tryWrite(CharWriter this, overload short  value, thrown IoError error) => this.tryWrite(value.toString(), catch error);
+public void tryWrite(CharWriter this, overload ushort value, thrown IoError error) => this.tryWrite(value.toString(), catch error);
+public void tryWrite(CharWriter this, overload int    value, thrown IoError error) => this.tryWrite(value.toString(), catch error);
+public void tryWrite(CharWriter this, overload uint   value, thrown IoError error) => this.tryWrite(value.toString(), catch error);
+public void tryWrite(CharWriter this, overload long   value, thrown IoError error) => this.tryWrite(value.toString(), catch error);
+public void tryWrite(CharWriter this, overload ulong  value, thrown IoError error) => this.tryWrite(value.toString(), catch error);
+public void tryWrite(CharWriter this, overload nint   value, thrown IoError error) => this.tryWrite(value.toString(), catch error);
+public void tryWrite(CharWriter this, overload nuint  value, thrown IoError error) => this.tryWrite(value.toString(), catch error);
 
-public void tryWriteLine(CharWriter this, overload sbyte  value, thrown IoError error) => this.tryWriteLine(prep value.format(), catch error);
-public void tryWriteLine(CharWriter this, overload byte   value, thrown IoError error) => this.tryWriteLine(prep value.format(), catch error);
-public void tryWriteLine(CharWriter this, overload short  value, thrown IoError error) => this.tryWriteLine(prep value.format(), catch error);
-public void tryWriteLine(CharWriter this, overload ushort value, thrown IoError error) => this.tryWriteLine(prep value.format(), catch error);
-public void tryWriteLine(CharWriter this, overload int    value, thrown IoError error) => this.tryWriteLine(prep value.format(), catch error);
-public void tryWriteLine(CharWriter this, overload uint   value, thrown IoError error) => this.tryWriteLine(prep value.format(), catch error);
-public void tryWriteLine(CharWriter this, overload long   value, thrown IoError error) => this.tryWriteLine(prep value.format(), catch error);
-public void tryWriteLine(CharWriter this, overload ulong  value, thrown IoError error) => this.tryWriteLine(prep value.format(), catch error);
-public void tryWriteLine(CharWriter this, overload nint   value, thrown IoError error) => this.tryWriteLine(prep value.format(), catch error);
-public void tryWriteLine(CharWriter this, overload nuint  value, thrown IoError error) => this.tryWriteLine(prep value.format(), catch error);
+public void tryWriteLine(CharWriter this, overload sbyte  value, thrown IoError error) => this.tryWriteLine(value.toString(), catch error);
+public void tryWriteLine(CharWriter this, overload byte   value, thrown IoError error) => this.tryWriteLine(value.toString(), catch error);
+public void tryWriteLine(CharWriter this, overload short  value, thrown IoError error) => this.tryWriteLine(value.toString(), catch error);
+public void tryWriteLine(CharWriter this, overload ushort value, thrown IoError error) => this.tryWriteLine(value.toString(), catch error);
+public void tryWriteLine(CharWriter this, overload int    value, thrown IoError error) => this.tryWriteLine(value.toString(), catch error);
+public void tryWriteLine(CharWriter this, overload uint   value, thrown IoError error) => this.tryWriteLine(value.toString(), catch error);
+public void tryWriteLine(CharWriter this, overload long   value, thrown IoError error) => this.tryWriteLine(value.toString(), catch error);
+public void tryWriteLine(CharWriter this, overload ulong  value, thrown IoError error) => this.tryWriteLine(value.toString(), catch error);
+public void tryWriteLine(CharWriter this, overload nint   value, thrown IoError error) => this.tryWriteLine(value.toString(), catch error);
+public void tryWriteLine(CharWriter this, overload nuint  value, thrown IoError error) => this.tryWriteLine(value.toString(), catch error);
 
 public void write(CharWriter this, overload float value)
 {

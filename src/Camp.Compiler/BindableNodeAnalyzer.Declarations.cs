@@ -1510,8 +1510,10 @@ public sealed partial class BindableNodeAnalyzer
 	void ValidatePrepParameterList(List<ParameterDefinition> parameters, TypeReference? returnType, SyntaxNode? syntax, string context, bool onceCallable = false)
 	{
 		ParameterDefinition? prep = null;
-		foreach (ParameterDefinition parameter in parameters)
+		int prepIndex = -1;
+		for (int parameterIndex = 0; parameterIndex < parameters.Count; parameterIndex++)
 		{
+			ParameterDefinition parameter = parameters[parameterIndex];
 			if (parameter.Modifier != ParameterModifier.Prep)
 				continue;
 
@@ -1521,6 +1523,7 @@ public sealed partial class BindableNodeAnalyzer
 				continue;
 			}
 			prep = parameter;
+			prepIndex = parameterIndex;
 		}
 
 		if (prep is null)
@@ -1534,6 +1537,19 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (prep.IsOverloadSelector)
 			Report(GetNameRange(prep) ?? GetRange(prep.SourceSyntax ?? syntax), "A prep parameter cannot also be an overload selector.");
+
+		for (int parameterIndex = prepIndex + 1; parameterIndex < parameters.Count; parameterIndex++)
+		{
+			ParameterDefinition following = parameters[parameterIndex];
+			if (following.IsOverloadSelector)
+			{
+				Report(GetNameRange(following) ?? GetRange(following.SourceSyntax ?? syntax), "An overload selector must appear before a prep parameter.");
+				continue;
+			}
+			if (CanOmitCallParameter(following, allowPrep: false))
+				continue;
+			Report(GetNameRange(following) ?? GetRange(following.SourceSyntax ?? syntax), $"Required parameter '{following.Name}' cannot follow a prep parameter; parameters after prep must have a default value or be supplied by the compiler.");
+		}
 
 		if (prep is ThisParameterDefinition or WithinParameterDefinition or SizeOfParameterDefinition or NameOfParameterDefinition or VTableOfParameterDefinition)
 			Report(GetNameRange(prep) ?? GetRange(prep.SourceSyntax ?? syntax), "A prep parameter must be an ordinary mutable array parameter.");

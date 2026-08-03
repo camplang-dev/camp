@@ -1206,6 +1206,8 @@ public sealed partial class BindableNodeAnalyzer
 	bool TryCreateParamsComponentExpressions(Expression? expression, out List<Expression> components)
 	{
 		components = [];
+		if (expression is MemberExpression preparedLengthMember && TryRegisterPreparedLengthMember(preparedLengthMember, out _))
+			return false;
 		if (expression is not null
 			&& expressionRewrites.TryGetValue(expression, out Expression? rewritten)
 			&& !ReferenceEquals(rewritten, expression))
@@ -1268,6 +1270,11 @@ public sealed partial class BindableNodeAnalyzer
 					components.Add(CreateVariableReference(component.Node, component.Type));
 				return components.Count > 0;
 
+			case VariableReferenceExpression { Variable: ParameterDefinition parameter }
+				when TryGetParamsComponentShape(parameter.Type, parameter.ResolvedType, parameter.Name, out ParamsComponentShape parameterShape)
+					&& TryCreateCurrentThisParameterComponents(parameterShape, out components):
+				return true;
+
 			case VariableReferenceExpression { Variable: ParameterDefinition { Name: "this" } }
 				when TryCreateCurrentThisParameterComponents(out components):
 				return true;
@@ -1275,6 +1282,13 @@ public sealed partial class BindableNodeAnalyzer
 			case PreparedBufferExpression prepared
 				when currentStatementPrefix is not null:
 				return TryCreateParamsComponentExpressions(LowerPreparedBufferExpressionWithMemo(prepared), out components);
+
+			case CallExpression call
+				when currentStatementPrefix is not null && TryGetImplicitPreparedCallForLowering(call, out PreparedBufferExpression prepared):
+				return TryCreateParamsComponentExpressions(LowerPreparedBufferExpressionWithMemo(prepared), out components);
+
+			case MemberExpression member when preparedLengthMembers.ContainsKey(member):
+				return false;
 
 			case IndexExpression index:
 				return TryCreateIndexedParamsComponentExpressions(index, out components);
@@ -3024,7 +3038,10 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			SourceSyntax = call.SourceSyntax,
 			Target = CloneParamsExpansionExpression(call.Target),
-			ResolvedType = call.ResolvedType
+			ResolvedType = call.ResolvedType,
+			PreparedMode = call.PreparedMode,
+			PreparedResultType = call.PreparedResultType,
+			PreparedConvertedResultType = call.PreparedConvertedResultType
 		};
 		clone.TypeArguments.AddRange(call.TypeArguments);
 		foreach (ArgumentExpression argument in call.Arguments)

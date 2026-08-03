@@ -58,19 +58,19 @@
       "visibility": "export",
       "functions": [
         {
-          "id": "interface:PrepMetadata::Writer/function:write",
-          "name": "write",
+          "id": "interface:PrepMetadata::Writer/function:getText",
+          "name": "getText",
           "returnType": "nuint",
           "parameters": [
             {
-              "id": "interface:PrepMetadata::Writer/function:write/parameter:buffer",
+              "id": "interface:PrepMetadata::Writer/function:getText/parameter:buffer",
               "name": "buffer",
               "modifier": "prep",
               "type": "char*",
               "defaultValue": "default"
             },
             {
-              "id": "interface:PrepMetadata::Writer/function:write/parameter:buffer_length",
+              "id": "interface:PrepMetadata::Writer/function:getText/parameter:buffer_length",
               "name": "buffer_length",
               "modifier": "prep",
               "type": "nuint"
@@ -87,21 +87,21 @@
       "extern": true,
       "functions": [
         {
-          "id": "class:PrepMetadata::Thing/function:write",
-          "name": "write",
+          "id": "class:PrepMetadata::Thing/function:getText",
+          "name": "getText",
           "visibility": "export",
           "extern": true,
           "returnType": "nuint",
           "parameters": [
             {
-              "id": "class:PrepMetadata::Thing/function:write/parameter:buffer",
+              "id": "class:PrepMetadata::Thing/function:getText/parameter:buffer",
               "name": "buffer",
               "modifier": "prep",
               "type": "char*",
               "defaultValue": "default"
             },
             {
-              "id": "class:PrepMetadata::Thing/function:write/parameter:buffer_length",
+              "id": "class:PrepMetadata::Thing/function:getText/parameter:buffer_length",
               "name": "buffer_length",
               "modifier": "prep",
               "type": "nuint"

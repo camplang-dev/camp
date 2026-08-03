@@ -23,6 +23,26 @@ nuint badOverload(overload prep char[] buffer)
 	return 0;
 }
 
-void badOnce(once void(prep char[]) callback)
+void badOnce(once void(prep char[] buffer) callback)
 {
+}
+
+nuint badFollowing(prep char[] buffer, int required)
+{
+	return 0;
+}
+
+nuint badFollowingOut(prep char[] buffer, out int required)
+{
+	return 0;
+}
+
+nuint badSelectorDefault(overload int kind = 0, prep char[] buffer = default)
+{
+	return 0;
+}
+
+nuint badSelectorAfter(prep char[] buffer, overload int kind)
+{
+	return 0;
 }

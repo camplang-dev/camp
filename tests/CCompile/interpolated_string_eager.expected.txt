@@ -2,10 +2,10 @@
 #include "interpolated_string_eager_private.h"
 
 /* Private file declarations. */
-static uintptr_t Int_format(int *this, char *buffer, uintptr_t buffer_length);
+static uintptr_t Int_toString(int *this, char *buffer, uintptr_t buffer_length);
 static void make(int value);
 
-static uintptr_t Int_format(int *this, char *buffer, uintptr_t buffer_length)
+static uintptr_t Int_toString(int *this, char *buffer, uintptr_t buffer_length)
 {
 	return 1;
 }
@@ -13,7 +13,7 @@ static uintptr_t Int_format(int *this, char *buffer, uintptr_t buffer_length)
 static void make(int value)
 {
 	uintptr_t _interpolatedRequired0 = 1;
-	uintptr_t _interpolatedPartSize1 = Int_format(&value, NULL, 0);
+	uintptr_t _interpolatedPartSize1 = Int_toString(&value, NULL, 0);
 	_interpolatedRequired0 = (_interpolatedRequired0 + _interpolatedPartSize1);
 	uintptr_t _interpolatedBufferLength2 = (_interpolatedRequired0 + 1);
 	char *_interpolatedBufferElements3 = (char *)(__builtin_alloca((sizeof(char) * _interpolatedBufferLength2)));
@@ -21,7 +21,7 @@ static void make(int value)
 	__builtin_memcpy((void*)((_interpolatedBufferElements3 + _interpolatedOffset4)), (const void*)("x"), 1 * sizeof(char));
 	_interpolatedOffset4 = (_interpolatedOffset4 + 1);
 	uintptr_t _interpolatedStart5 = ((_interpolatedOffset4 < _interpolatedBufferLength2) ? _interpolatedOffset4 : _interpolatedBufferLength2);
-	Int_format(&value, &_interpolatedBufferElements3[_interpolatedStart5], (_interpolatedBufferLength2 - _interpolatedStart5));
+	Int_toString(&value, &_interpolatedBufferElements3[_interpolatedStart5], (_interpolatedBufferLength2 - _interpolatedStart5));
 	_interpolatedOffset4 = (_interpolatedOffset4 + _interpolatedPartSize1);
 	_interpolatedBufferElements3[_interpolatedRequired0] = '\0';
 	const char *text = (const char*)(_interpolatedBufferElements3);

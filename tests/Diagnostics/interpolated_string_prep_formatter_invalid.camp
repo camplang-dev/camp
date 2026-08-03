@@ -9,7 +9,7 @@ struct Binary
 {
 }
 
-nuint format(in Binary this, prep byte[] buffer = default)
+nuint toString(in Binary this, prep byte[] buffer = default)
 {
 	return 0;
 }

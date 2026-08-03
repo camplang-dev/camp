@@ -5,9 +5,9 @@ struct MyValue
 	int amount;
 }
 
-public nuint format(in MyValue this, prep char[] buffer = default)
+public nuint toString(in MyValue this, prep char[] buffer = default)
 {
-	return this.amount.format(buffer);
+	return this.amount.toString(buffer);
 }
 
 export int main()

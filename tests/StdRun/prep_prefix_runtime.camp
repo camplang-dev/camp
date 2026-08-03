@@ -3,7 +3,7 @@ int indexCalls;
 
 export int main()
 {
-	char[] text = prep writeWord(nextCount());
+	char[] text = writeWord(nextCount());
 	if (argumentCalls != 1)
 		return 1;
 	if (text.length != 4 || text[0] != 'C' || text[1] != 'a' || text[2] != 'm' || text[3] != 'p')
@@ -11,26 +11,26 @@ export int main()
 
 	Label label = default;
 	label.value = 7;
-	char[] propertyText = prep label.Text;
+	char[] propertyText = label.getText();
 	if (propertyText.length != 2 || propertyText[0] != 'O' || propertyText[1] != 'K')
 		return 3;
 
-	char[] indexedText = prep label.Item[3];
+	char[] indexedText = label.getItem(3);
 	if (indexedText.length != 1 || indexedText[0] != '3')
 		return 4;
-	char[] indexedSideEffectText = prep label.Item[nextIndex()];
+	char[] indexedSideEffectText = label.getItem(nextIndex());
 	if (indexCalls != 1 || indexedSideEffectText.length != 1 || indexedSideEffectText[0] != '4')
 		return 5;
 
-	byte[] bytes = prep writeBytes();
+	byte[] bytes = writeBytes();
 	if (bytes.length != 3 || bytes[0] != 1 || bytes[1] != 2 || bytes[2] != 3)
 		return 6;
 
-	int[] numbers = prep writeNumbers();
+	int[] numbers = writeNumbers();
 	if (numbers.length != 2 || numbers[0] != 10 || numbers[1] != 20)
 		return 7;
 
-	char[] heapText = within (default) prep new writeWord(2);
+	char[] heapText = within (default) (new) writeWord(2);
 	if (heapText.length != 2 || heapText[0] != 'C' || heapText[1] != 'a')
 		return 8;
 	delete heapText.elements;

@@ -2,7 +2,7 @@ using Std;
 
 export void main()
 {
-	Console.writeLine($"{(prep writeText())[1..3]}");
+	Console.writeLine($"{writeText()[1..3]}");
 }
 
 nuint writeText(prep char[] buffer = default)

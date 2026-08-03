@@ -426,7 +426,8 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			if (parameters[i] is not NameOfParameterDefinition nameOf)
 				continue;
-			if (i < call.Arguments.Count && call.Arguments[i].Modifier == ArgumentModifier.None && call.Arguments[i].Value is not WithinExpression { Expression: null })
+			int argumentIndex = FindArgumentIndexForCallableParameter(call.Arguments, parameters, i);
+			if (argumentIndex < call.Arguments.Count && call.Arguments[argumentIndex].Modifier == ArgumentModifier.None && call.Arguments[argumentIndex].Value is not WithinExpression { Expression: null })
 				continue;
 
 			string requestedTypeName = NameOfTypeName(nameOf.Type);
@@ -434,7 +435,7 @@ public sealed partial class BindableNodeAnalyzer
 			Expression value = typeName == requestedTypeName && ContainsAnyGenericParameter(typeName, function)
 				? LowerNameOfExpression(new NameOfExpression { SourceSyntax = call.SourceSyntax ?? call.Target?.SourceSyntax, Text = typeName })
 				: NameOfStringLiteral(BuildNameOfTypeValue(typeName), call.SourceSyntax ?? call.Target?.SourceSyntax);
-			call.Arguments.Insert(i, new ArgumentExpression
+			call.Arguments.Insert(Math.Min(argumentIndex, call.Arguments.Count), new ArgumentExpression
 			{
 				SourceSyntax = call.SourceSyntax ?? call.Target?.SourceSyntax,
 				Value = value,

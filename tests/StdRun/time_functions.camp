@@ -11,7 +11,7 @@ export int main()
 	if (leap.Weekday != THURSDAY)
 		return 2;
 	Date nextDay = leap.addDays(1);
-	char[] nextDayIso = prep nextDay.format();
+	char[] nextDayIso = nextDay.toString();
 	if (nextDayIso.compareTo("2024-03-01") != 0)
 		return 3;
 	if (leap.daysUntil(nextDay) != 1)
@@ -19,12 +19,12 @@ export int main()
 	Date invalidDate = { 2023, 2, 29 };
 	if (invalidDate.isValid())
 		return 5;
-	char[] dateIso = prep leap.format();
+	char[] dateIso = leap.toString();
 	if (dateIso.compareTo("2024-02-29") != 0)
 		return 6;
 	fixed char[4] shortDateBuffer = default;
 	char[] shortDateSpan = shortDateBuffer;
-	if (leap.format(shortDateSpan) != 10)
+	if (leap.toString(shortDateSpan) != 10)
 		return 45;
 	if (shortDateBuffer[0] != '2' || shortDateBuffer[1] != '0' || shortDateBuffer[2] != '2' || shortDateBuffer[3] != '4')
 		return 46;
@@ -37,48 +37,48 @@ export int main()
 	TimeSpan sinceMidnight = noon.SinceMidnight;
 	if (sinceMidnight.Ms != 50730500)
 		return 8;
-	char[] timeIso = prep noon.format();
+	char[] timeIso = noon.toString();
 	if (timeIso.compareTo("14:05:30.500") != 0)
 		return 9;
 
 	UtcOffset offset = UtcOffset.fromHours((short)-4);
 	if (!offset.isValid() || offset.Hours != -4 || offset.Minutes != 0)
 		return 10;
-	char[] offsetIso = prep offset.format();
+	char[] offsetIso = offset.toString();
 	if (offsetIso.compareTo("-04:00") != 0)
 		return 11;
 	fixed char[3] shortOffsetBuffer = default;
 	char[] shortOffsetSpan = shortOffsetBuffer;
-	if (offset.format(shortOffsetSpan) != 6)
+	if (offset.toString(shortOffsetSpan) != 6)
 		return 47;
 	if (shortOffsetBuffer[0] != '-' || shortOffsetBuffer[1] != '0' || shortOffsetBuffer[2] != '4')
 		return 48;
 	UtcOffset halfHour = UtcOffset.fromHours((short)9, (ushort)30);
-	char[] halfHourIso = prep halfHour.format();
+	char[] halfHourIso = halfHour.toString();
 	if (halfHourIso.compareTo("+09:30") != 0)
 		return 12;
 	UtcOffset utc = UtcOffset.UTC;
 	if (UtcOffset.INVALID.isValid())
 		return 40;
-	char[] utcIso = prep utc.format();
+	char[] utcIso = utc.toString();
 	if (utcIso.compareTo("Z") != 0)
 		return 13;
 
 	DateTime dt = { { 2026, 6, 12 }, { 14, 5, 30, 0 } };
 	if (!dt.isValid())
 		return 14;
-	char[] dtIso = prep dt.format();
+	char[] dtIso = dt.toString();
 	if (dtIso.compareTo("2026-06-12T14:05:30") != 0)
 		return 15;
 	OffsetDateTime odt = { dt, offset };
-	char[] odtIso = prep odt.format();
+	char[] odtIso = odt.toString();
 	if (odtIso.compareTo("2026-06-12T14:05:30-04:00") != 0)
 		return 16;
 	Instant instant = odt.toInstant();
 	if (!instant.isValid())
 		return 17;
 	OffsetDateTime roundTrip = instant.getOffsetDateTime(offset);
-	char[] roundTripIso = prep roundTrip.format();
+	char[] roundTripIso = roundTrip.toString();
 	if (!roundTrip.isValid() || roundTripIso.compareTo("2026-06-12T14:05:30-04:00") != 0)
 		return 18;
 
@@ -87,7 +87,7 @@ export int main()
 		return 41;
 	if (Instant.fromUnixMs(0).UnixMs != 0)
 		return 44;
-	char[] epochIso = prep epoch.format();
+	char[] epochIso = epoch.toString();
 	if (epochIso.compareTo("1970-01-01T00:00:00Z") != 0)
 		return 19;
 	Instant twoSeconds = Instant.fromUnixSeconds(2);
@@ -105,18 +105,18 @@ export int main()
 	TimeSpan spanPart = spanHours.add(spanMinutes);
 	spanPart = spanPart.add(spanSeconds);
 	TimeSpan span = spanPart.add(spanMs);
-	char[] spanIso = prep span.format();
+	char[] spanIso = span.toString();
 	if (spanIso.compareTo("44:05:30.551") != 0)
 		return 22;
 	TimeSpan negSpan = TimeSpan.fromSeconds((long)-30);
-	char[] negSpanIso = prep negSpan.format();
+	char[] negSpanIso = negSpan.toString();
 	if (negSpanIso.compareTo("-0:00:30") != 0)
 		return 23;
 
 	Date parsedDate = default;
 	if (!" 2024-02-29 ".tryParse(out parsedDate))
 		return 24;
-	char[] parsedDateIso = prep parsedDate.format();
+	char[] parsedDateIso = parsedDate.toString();
 	if (parsedDateIso.compareTo("2024-02-29") != 0)
 		return 24;
 	TimeOfDay parsedTime = default;
@@ -125,13 +125,13 @@ export int main()
 	DateTime parsedDateTime = default;
 	if (!"2026-06-12T14:05:30".tryParse(out parsedDateTime))
 		return 26;
-	char[] parsedDateTimeIso = prep parsedDateTime.format();
+	char[] parsedDateTimeIso = parsedDateTime.toString();
 	if (parsedDateTimeIso.compareTo("2026-06-12T14:05:30") != 0)
 		return 26;
 	OffsetDateTime parsedOffsetDateTime = default;
 	if (!"2026-06-12T14:05:30-04:00".tryParse(out parsedOffsetDateTime))
 		return 27;
-	char[] parsedOffsetDateTimeIso = prep parsedOffsetDateTime.format();
+	char[] parsedOffsetDateTimeIso = parsedOffsetDateTime.toString();
 	if (parsedOffsetDateTimeIso.compareTo("2026-06-12T14:05:30-04:00") != 0)
 		return 27;
 	Instant parsedInstant = default;
@@ -156,7 +156,7 @@ export int main()
 	TimeOfDay failedTime = { 1, 1, 1, 1 };
 	if ("25:00:00".tryParse(out failedTime))
 		return 32;
-	char[] failedTimeIso = prep failedTime.format();
+	char[] failedTimeIso = failedTime.toString();
 	if (failedTimeIso.compareTo("00:00:00") != 0)
 		return 32;
 

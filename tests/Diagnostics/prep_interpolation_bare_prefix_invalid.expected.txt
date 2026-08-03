@@ -1,1 +1,2 @@
-tests/Diagnostics/prep_interpolation_bare_prefix_invalid.camp(3,12): error: Interpolation holes already use prep methods implicitly when the method provides the hole result; remove the redundant 'prep' prefix.
+tests/Diagnostics/prep_interpolation_bare_prefix_invalid.camp(19,9): error: Interpolation expression of type 'Value' cannot format as UTF-8 text.
+tests/Diagnostics/prep_interpolation_bare_prefix_invalid.camp(22,9): error: Interpolation expression of type 'Ordinary' cannot format as UTF-8 text.

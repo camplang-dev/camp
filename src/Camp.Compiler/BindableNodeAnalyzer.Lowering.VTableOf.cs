@@ -308,13 +308,14 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			if (parameters[i] is not VTableOfParameterDefinition vtableOf)
 				continue;
-			if (i < call.Arguments.Count && call.Arguments[i].Modifier == ArgumentModifier.None && call.Arguments[i].Value is not WithinExpression { Expression: null })
+			int argumentIndex = FindArgumentIndexForCallableParameter(call.Arguments, parameters, i);
+			if (argumentIndex < call.Arguments.Count && call.Arguments[argumentIndex].Modifier == ArgumentModifier.None && call.Arguments[argumentIndex].Value is not WithinExpression { Expression: null })
 				continue;
 
 			string genericName = VTableOfTypeName(vtableOf.Type);
 			if (!substitutions.TryGetValue(genericName, out string? concreteType))
 				concreteType = vtableOf.Type?.ResolvedType ?? genericName;
-			call.Arguments.Insert(i, new ArgumentExpression
+			call.Arguments.Insert(System.Math.Min(argumentIndex, call.Arguments.Count), new ArgumentExpression
 			{
 				SourceSyntax = call.SourceSyntax ?? call.Target?.SourceSyntax,
 				Value = CreateConcreteVTableExpression(concreteType, vtableOf, call.SourceSyntax ?? call.Target?.SourceSyntax),

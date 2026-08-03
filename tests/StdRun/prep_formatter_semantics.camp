@@ -3,42 +3,45 @@ using Std;
 export int main()
 {
 	char[] empty = default;
-	if ('x'.format(empty) != 1)
+	if ('x'.toString(empty) != 1)
 		return 1;
-	if (true.format(empty) != 4)
+	if (true.toString(empty) != 4)
 		return 2;
-	if (false.format(empty) != 5)
+	if (false.toString(empty) != 5)
 		return 3;
-	if (12345.format(empty) != 5)
+	if (12345.toString(empty) != 5)
 		return 4;
-	if ((-12).format(empty) != 3)
+	if ((-12).toString(empty) != 3)
 		return 5;
 
 	fixed char[2] shortNumber = default;
 	char[] shortNumberSpan = shortNumber;
-	if (12345.format(shortNumberSpan) != 5)
+	if (12345.toString(shortNumberSpan) != 5)
 		return 6;
 	if (shortNumber[0] != '1' || shortNumber[1] != '2')
 		return 7;
 
 	fixed char[3] shortText = default;
 	char[] shortTextSpan = shortText;
-	if ("abcdef".format(shortTextSpan) != 6)
+	if ("abcdef".toString(shortTextSpan) != 6)
 		return 8;
 	if (shortText[0] != 'a' || shortText[1] != 'b' || shortText[2] != 'c')
 		return 9;
 
-	if (123.format(empty) != 3)
+	if (123.toString(empty) != 3)
 		return 10;
-	if ("abc".format(empty) != 3)
+	if ("abc".toString(empty) != 3)
 		return 11;
 
 	int seven = 7;
-	if (seven.format() != 1)
+	if (seven.toString(buffer: default) != 1)
 		return 15;
+	string sevenText = seven.toString();
+	if (sevenText.compareTo("7") != 0)
+		return 17;
 
 	long min = -9223372036854775807 - 1;
-	if (min.format(empty) != 20)
+	if (min.toString(empty) != 20)
 		return 16;
 
 	return 0;

@@ -10,10 +10,10 @@ nuint escapedLength(const char[] this, prep char[] buffer = default)
 
 export int main()
 {
-	if ("abc".escapedLength() != 3)
+	if ("abc".escapedLength(buffer: default) != 3)
 		return 1;
 
-	char[] copied = prep "abc".escapedLength();
+	char[] copied = "abc".escapedLength();
 	if (copied.length != 3)
 		return 2;
 	if (copied[0] != 'a' || copied[1] != 'b' || copied[2] != 'c')

@@ -1,4 +1,4 @@
-nuint writeValue(prep char[] buffer)
+nuint writeValue(prep char[] buffer = default)
 {
 	return 0;
 }
@@ -8,14 +8,51 @@ int ordinary()
 	return 0;
 }
 
+struct Label
+{
+	nuint getText(this, prep char[] buffer = default) => 0;
+	nuint setText(this, int value, prep char[] buffer = default) => 0;
+	nuint getItem(this, @index int index, prep char[] buffer = default) => 0;
+	nuint get(this, @index int index, prep char[] buffer = default) => 0;
+	nuint set(this, @index int index, int value, prep char[] buffer = default) => 0;
+}
+
+nuint getExtensionText(Label this, prep char[] buffer = default) => 0;
+nuint setExtensionText(Label this, int value, prep char[] buffer = default) => 0;
+
+interface ILabel
+{
+	nuint getInterfaceText(prep char[] buffer = default);
+}
+
+virtual class VirtualLabel
+{
+	virtual nuint getVirtualText(prep char[] buffer = default) => 0;
+}
+
 void main()
 {
-	char[] a = prep ordinary();
-	char[] b = prep writeValue(default);
-	char[] c = prep 123;
+	auto a = (new) ordinary();
+	auto b = (new) writeValue(default);
+	auto c = (new) writeValue().length;
+	auto d = (new) writeValue()[0];
+
+	Label label = default;
+	auto e = label.Text;
+	label.Text = 1;
+	auto f = label.Item[0];
+	auto g = label.[0];
+	auto h = label.ExtensionText;
+	label.[0] = 1;
+	label.ExtensionText = 1;
+
+	ILabel* interfaceLabel = null;
+	auto i = interfaceLabel.InterfaceText;
+	VirtualLabel* virtualLabel = null;
+	auto j = virtualLabel.VirtualText;
 }
 
 char[] badReturn()
 {
-	return prep writeValue();
+	return writeValue();
 }

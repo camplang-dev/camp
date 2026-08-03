@@ -18,7 +18,7 @@ public sealed class SemanticTests
 			{
 				int number;
 
-				nuint format(prep char[] buffer = default)
+				nuint toString(prep char[] buffer = default)
 				{
 					return 1;
 				}
@@ -49,7 +49,7 @@ public sealed class SemanticTests
 		SemanticCompilation compilation = SemanticCompiler.CompileLowered("""
 			newtype delegate nuint TextFormatter(const this, char[] buffer = default);
 
-			nuint format(in int this, prep char[] buffer = default)
+			nuint toString(in int this, prep char[] buffer = default)
 			{
 				return 1;
 			}

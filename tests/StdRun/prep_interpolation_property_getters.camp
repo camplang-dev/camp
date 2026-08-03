@@ -3,8 +3,8 @@ using Std;
 export int main()
 {
 	Label label = { .prefix = "Item" };
-	Console.writeLine($"text={label.Text}");
-	Console.writeLine($"item={label.Item[3]}");
+	Console.writeLine($"text={label.getText()}");
+	Console.writeLine($"item={label.getItem(3)}");
 	return 0;
 }
 

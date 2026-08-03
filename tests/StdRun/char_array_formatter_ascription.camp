@@ -10,16 +10,16 @@ public nuint escapedLength(const char[] this, prep char[] buffer = default)
 
 export int main()
 {
-	char[] copied = prep "abc".escapedLength();
+	char[] copied = "abc".escapedLength();
 	if (copied.compareTo("abc") != 0)
 		return 1;
 
 	string text = "hello";
-	char[] copiedText = prep text.format();
+	char[] copiedText = text.toString();
 	if (copiedText.compareTo("hello") != 0)
 		return 2;
 
-	char[] copiedChar = prep 'x'.format();
+	char[] copiedChar = 'x'.toString();
 	if (copiedChar.compareTo("x") != 0)
 		return 3;
 

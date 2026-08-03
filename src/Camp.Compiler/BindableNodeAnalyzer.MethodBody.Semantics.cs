@@ -62,6 +62,13 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (expected == ErrorType || actual == ErrorType || expected == TargetType || actual == TargetType)
 			return;
+		if (value is PreparedBufferExpression { ConvertedResultType: string converted } && converted == expected)
+			return;
+		if (value is not null
+			&& expressionRewrites.TryGetValue(value, out Expression? rewritten)
+			&& rewritten is PreparedBufferExpression { ConvertedResultType: string rewrittenConverted }
+			&& rewrittenConverted == expected)
+			return;
 
 		if (TryCheckInterfacePointerConversion(expected, actual, value, syntax, context))
 			return;
@@ -2733,11 +2740,18 @@ public sealed partial class BindableNodeAnalyzer
 				return true;
 		}
 		bool getterReceiverMismatch = false;
+		FunctionDefinition? prepGetter = null;
 		foreach (FunctionDefinition getter in getters)
 		{
+			EnsureFunctionSignatureAnalyzed(getter, typeScope);
 			if (!ReceiverCanCallFunction(targetType, getter, isPropertyGetterSyntax: true))
 			{
 				getterReceiverMismatch = true;
+				continue;
+			}
+			if (getter.Parameters.Exists(static parameter => parameter.Modifier == ParameterModifier.Prep))
+			{
+				prepGetter ??= getter;
 				continue;
 			}
 
@@ -2753,6 +2767,14 @@ public sealed partial class BindableNodeAnalyzer
 				propertyType = member.ResolvedType;
 				return true;
 			}
+		}
+
+		if (prepGetter is not null)
+		{
+			Report(GetRange(member.SourceSyntax), $"Property syntax is unavailable for prep method '{GetCallableName(prepGetter)}'; call '{GetCallableName(prepGetter)}()' explicitly.");
+			foreach (ArgumentExpression argument in arguments)
+				BodyAnalyzeArgumentExpression(argument, scope, typeScope);
+			return true;
 		}
 
 		if (getterReceiverMismatch)
@@ -2797,11 +2819,18 @@ public sealed partial class BindableNodeAnalyzer
 				return true;
 		}
 		bool setterReceiverMismatch = false;
+		FunctionDefinition? prepSetter = null;
 		foreach (FunctionDefinition setter in setters)
 		{
+			EnsureFunctionSignatureAnalyzed(setter, typeScope);
 			if (!ReceiverCanCallFunction(targetType, setter, isPropertyGetterSyntax: false))
 			{
 				setterReceiverMismatch = true;
+				continue;
+			}
+			if (setter.Parameters.Exists(static parameter => parameter.Modifier == ParameterModifier.Prep))
+			{
+				prepSetter ??= setter;
 				continue;
 			}
 
@@ -2840,6 +2869,16 @@ public sealed partial class BindableNodeAnalyzer
 			return true;
 		}
 
+		if (prepSetter is not null)
+		{
+			Report(GetRange(member.SourceSyntax), $"Property syntax is unavailable for prep method '{GetCallableName(prepSetter)}'; call '{GetCallableName(prepSetter)}()' explicitly.");
+			if (value is not null)
+				BodyAnalyzeExpression(value, scope, typeScope);
+			foreach (ArgumentExpression argument in arguments)
+				BodyAnalyzeArgumentExpression(argument, scope, typeScope);
+			return true;
+		}
+
 		if (setterReceiverMismatch)
 		{
 			Report(GetRange(member.SourceSyntax), PropertyReceiverIncompatibilityMessage(member.Name, targetType, "setter"));
@@ -2861,6 +2900,34 @@ public sealed partial class BindableNodeAnalyzer
 		foreach (ArgumentExpression argument in arguments)
 			BodyAnalyzeArgumentExpression(argument, scope, typeScope);
 		return true;
+	}
+
+	bool TryAnalyzePrepNamelessPropertySetter(NamelessIndexerExpression indexer, Expression? value, BodyScope scope, AnalysisScope typeScope, out string propertyType)
+	{
+		propertyType = ErrorType;
+		string targetType = BodyAnalyzeExpression(indexer.Target, scope, typeScope);
+		if (targetType == ErrorType)
+			return true;
+
+		TypeDefinition? type = GetTypeDefinition(targetType);
+		List<FunctionDefinition> setters = type is null ? [] : LookupPropertySetters(type, "", indexer.SourceSyntax);
+		setters.AddRange(LookupExtensionFunctions(targetType, "set", indexer.SourceSyntax));
+		foreach (FunctionDefinition setter in setters)
+		{
+			EnsureFunctionSignatureAnalyzed(setter, typeScope);
+			if (!setter.Parameters.Exists(static parameter => parameter.Modifier == ParameterModifier.Prep)
+				|| !ReceiverCanCallFunction(targetType, setter, isPropertyGetterSyntax: false))
+				continue;
+
+			Report(GetRange(indexer.SourceSyntax), $"Property syntax is unavailable for prep method '{GetCallableName(setter)}'; call '{GetCallableName(setter)}()' explicitly.");
+			foreach (ArgumentExpression argument in indexer.Arguments)
+				BodyAnalyzeArgumentExpression(argument, scope, typeScope);
+			if (value is not null)
+				BodyAnalyzeExpression(value, scope, typeScope);
+			return true;
+		}
+
+		return false;
 	}
 
 	bool ReceiverCanCallFunction(string targetType, FunctionDefinition function, bool isPropertyGetterSyntax)

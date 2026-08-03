@@ -1,5 +1,11 @@
+int calls;
+
 export int main()
 {
+	prep contextual = { .value = 7 };
+	if (contextual.value != 7)
+		return 7;
+
 	fixed char[5] storage = default;
 	char[] buffer = storage;
 
@@ -9,18 +15,61 @@ export int main()
 	if (storage[0] != 'C' || storage[1] != 'a' || storage[2] != 'm' || storage[3] != 'p' || storage[4] != '!')
 		return 2;
 
-	if (writeName() != 5)
+	char[] prepared = writeName();
+	if (prepared.length != 5 || prepared[0] != 'C' || prepared[4] != '!' || calls != 3)
 		return 3;
+
+	calls = 0;
+	if (writeName().length != 5 || calls != 1)
+		return 4;
+
+	calls = 0;
+	if (writeName(default) != 5 || calls != 1)
+		return 5;
 
 	fn nuint(char[]) ordinary = writeName;
 	if (ordinary(buffer) != 5)
-		return 4;
+		return 6;
+
+	char[] integerStyle = render(1);
+	char[] integerSuffix = render(1, suffix: true);
+	char[] booleanStyle = render(true);
+	if (integerStyle.length != 1 || integerStyle[0] != 'I'
+		|| integerSuffix.length != 2 || integerSuffix[1] != '!'
+		|| booleanStyle.length != 1 || booleanStyle[0] != 'B')
+		return 8;
+	if (render(1, default) != 1)
+		return 9;
 
 	return 0;
 }
 
+nuint render(overload int style, prep char[] buffer = default, bool suffix = false)
+{
+	if (buffer.length > 0)
+		buffer[0] = 'I';
+	if (suffix && buffer.length > 1)
+		buffer[1] = '!';
+	return suffix ? 2 : 1;
+}
+
+nuint render(overload bool style, prep char[] buffer = default, bool suffix = false)
+{
+	if (buffer.length > 0)
+		buffer[0] = 'B';
+	if (suffix && buffer.length > 1)
+		buffer[1] = '!';
+	return suffix ? 2 : 1;
+}
+
+struct prep
+{
+	int value;
+}
+
 nuint writeName(prep char[] buffer = default)
 {
+	calls++;
 	if (buffer.length >= 5)
 	{
 		buffer[0] = 'C';

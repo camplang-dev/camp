@@ -99,11 +99,11 @@ public sealed class LanguageServiceTests
 	}
 
 	[Fact]
-	public void Analysis_accepts_prep_declarations_and_expressions()
+	public void Analysis_accepts_prep_declarations_and_default_transformed_calls()
 	{
 		string root = CreateTempDirectory("language-service-prep");
 		string source = Path.Combine(root, "main.camp");
-		File.WriteAllText(source, """
+		string text = """
 			nuint writeValue(prep char[] buffer = default)
 			{
 				if (buffer.length > 0)
@@ -111,17 +111,39 @@ public sealed class LanguageServiceTests
 				return 1;
 			}
 
+			struct Label
+			{
+				nuint getText(this, prep char[] buffer = default) => 0;
+			}
+
 			export int main()
 			{
-				char[] text = prep writeValue();
+				char[] text = writeValue();
+				Label label = default;
+				_ = label;
 				return text.length == 1 ? 0 : 1;
 			}
-			""");
+			""";
+		File.WriteAllText(source, text);
 		CompilerRequest request = Request(root, source);
 
 		CampAnalysisSnapshot snapshot = CampLanguageService.Analyze(request);
 
 		Assert.True(snapshot.Success, string.Join(Environment.NewLine, snapshot.Diagnostics.Select(static diagnostic => diagnostic.Message)));
+		CampSymbolQueryService symbols = new(snapshot);
+		CampHover? callHover = symbols.GetHover(source, PositionOf(text, "writeValue();"));
+		CampHover? resultHover = symbols.GetHover(source, PositionOf(text, "text.length"));
+		CampSignatureHelp? signatureHelp = symbols.GetSignatureHelp(source, PositionAfterLast(text, "writeValue("));
+		string completionText = text.Replace("_ = label;", "label.", StringComparison.Ordinal);
+		IReadOnlyList<CampCompletionItem> completions = symbols.GetCompletions(source, PositionAfter(completionText, "label."), completionText);
+		Assert.NotNull(callHover);
+		Assert.Contains("nuint writeValue(prep char[] buffer = default)", callHover!.Markdown, StringComparison.Ordinal);
+		Assert.NotNull(resultHover);
+		Assert.Contains("Type: `char[]`", resultHover!.Markdown, StringComparison.Ordinal);
+		Assert.NotNull(signatureHelp);
+		Assert.Contains("nuint writeValue(prep char[] buffer = default)", Assert.Single(signatureHelp!.Signatures).Label, StringComparison.Ordinal);
+		Assert.Contains(completions, static item => item.Label == "getText");
+		Assert.DoesNotContain(completions, static item => item.Label == "Text");
 	}
 
 	[Fact]

@@ -951,10 +951,10 @@ public sealed class LspServerTests
 		JsonNode iface = Assert.Single(result, symbol => symbol?["name"]?.GetValue<string>() == "IThing")!;
 		JsonNode thing = Assert.Single(result, symbol => symbol?["name"]?.GetValue<string>() == "Thing")!;
 		Assert.Contains(iface["children"]!.AsArray(), symbol => symbol?["name"]?.GetValue<string>() == "getValue");
-		Assert.Contains(thing["children"]!.AsArray(), symbol => symbol?["name"]?.GetValue<string>() == "getValue");
-		Assert.Contains(CompletionItems(completion), item => item?["label"]?.GetValue<string>() == "export");
-		Assert.Contains(CompletionItems(completion), item => item?["label"]?.GetValue<string>() == "prep");
-	}
+			Assert.Contains(thing["children"]!.AsArray(), symbol => symbol?["name"]?.GetValue<string>() == "getValue");
+			Assert.Contains(CompletionItems(completion), item => item?["label"]?.GetValue<string>() == "export");
+			Assert.DoesNotContain(CompletionItems(completion), item => item?["label"]?.GetValue<string>() == "prep");
+		}
 
 	[Fact]
 	public void Lsp_server_returns_workspace_symbols()

@@ -1,11 +1,23 @@
-string capture()
+struct Value
 {
-	return $"{prep writeText()}";
 }
 
-nuint writeText(prep char[] buffer = default)
+struct Ordinary
 {
-	if (buffer.length > 0)
-		buffer[0] = 'x';
-	return 1;
+}
+
+nuint format(in Value this, prep char[] buffer = default)
+{
+	return 0;
+}
+
+string toString(in Ordinary this) => "ordinary";
+
+void main()
+{
+	Value value = default;
+	_ = $"{value}";
+	Ordinary ordinary = default;
+	_ = $"{ordinary.toString()}";
+	_ = $"{ordinary}";
 }

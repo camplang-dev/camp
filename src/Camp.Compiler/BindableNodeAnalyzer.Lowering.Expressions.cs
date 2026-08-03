@@ -83,6 +83,8 @@ public sealed partial class BindableNodeAnalyzer
 				return LowerArgument(argument);
 
 			case CallExpression call:
+				if (TryGetImplicitPreparedCallForLowering(call, out PreparedBufferExpression implicitPrepared))
+					return LowerPreparedBufferExpressionWithMemo(implicitPrepared);
 				if (call.Target is CurrentAllocatorExpression currentAllocatorTarget && call.TypeArguments.Count == 1 && call.Arguments.Count == 1)
 				{
 					call.Arguments[0] = LowerArgument(call.Arguments[0]);
@@ -136,6 +138,9 @@ public sealed partial class BindableNodeAnalyzer
 				break;
 
 			case MemberExpression member:
+				if (preparedLengthMembers.TryGetValue(member, out PreparedBufferExpression? preparedLength)
+					|| TryRegisterPreparedLengthMember(member, out preparedLength))
+					return LowerPreparedBufferLength(preparedLength);
 				if (TryRewriteMaterializedGenericIndexedMemberAccess(member, out Expression indexedMember))
 					return LowerExpression(indexedMember);
 				if (TryCreateParamsMemberComponentExpression(member, out Expression earlyMemberComponent))
@@ -258,6 +263,10 @@ public sealed partial class BindableNodeAnalyzer
 
 	Expression? LowerScalarExpression(Expression? expression)
 	{
+		if (expression is MemberExpression preparedLength
+			&& (preparedLengthMembers.TryGetValue(preparedLength, out PreparedBufferExpression? prepared)
+				|| TryRegisterPreparedLengthMember(preparedLength, out prepared)))
+			return LowerPreparedBufferLength(prepared);
 		Expression? lowered = LowerExpression(expression);
 		if (lowered is not null
 			&& TryCreateParamsComponentExpressions(lowered, out List<Expression> components)

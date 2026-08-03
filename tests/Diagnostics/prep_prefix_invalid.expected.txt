@@ -1,4 +1,14 @@
-tests/Diagnostics/prep_prefix_invalid.camp(13,26): error: prep requires a call or property getter target with a prep parameter.
-tests/Diagnostics/prep_prefix_invalid.camp(14,29): error: Call has too many arguments.
-tests/Diagnostics/prep_prefix_invalid.camp(15,18): error: prep may be applied only to a call or property getter expression.
-tests/Diagnostics/prep_prefix_invalid.camp(20,9): error: Return expression cannot return a scoped prep result; use 'prep new' for heap-allocated prepared storage.
+tests/Diagnostics/prep_prefix_invalid.camp(35,25): error: (new) requires a direct transformed call with an omitted prep parameter.
+tests/Diagnostics/prep_prefix_invalid.camp(36,27): error: (new) requires a direct transformed call with an omitted prep parameter.
+tests/Diagnostics/prep_prefix_invalid.camp(37,30): error: (new) requires a direct transformed call with an omitted prep parameter.
+tests/Diagnostics/prep_prefix_invalid.camp(38,29): error: (new) may be applied only to a direct transformed prepared call.
+tests/Diagnostics/prep_prefix_invalid.camp(41,17): error: Property syntax is unavailable for prep method 'getText'; call 'getText()' explicitly.
+tests/Diagnostics/prep_prefix_invalid.camp(42,8): error: Property syntax is unavailable for prep method 'setText'; call 'setText()' explicitly.
+tests/Diagnostics/prep_prefix_invalid.camp(43,17): error: Property syntax is unavailable for prep method 'getItem'; call 'getItem()' explicitly.
+tests/Diagnostics/prep_prefix_invalid.camp(44,17): error: Property syntax is unavailable for prep method 'get'; call 'get()' explicitly.
+tests/Diagnostics/prep_prefix_invalid.camp(45,17): error: Property syntax is unavailable for prep method 'getExtensionText'; call 'getExtensionText()' explicitly.
+tests/Diagnostics/prep_prefix_invalid.camp(46,8): error: Property syntax is unavailable for prep method 'set'; call 'set()' explicitly.
+tests/Diagnostics/prep_prefix_invalid.camp(47,8): error: Property syntax is unavailable for prep method 'setExtensionText'; call 'setExtensionText()' explicitly.
+tests/Diagnostics/prep_prefix_invalid.camp(50,26): error: Property syntax is unavailable for prep method 'getInterfaceText'; call 'getInterfaceText()' explicitly.
+tests/Diagnostics/prep_prefix_invalid.camp(52,24): error: Property syntax is unavailable for prep method 'getVirtualText'; call 'getVirtualText()' explicitly.
+tests/Diagnostics/prep_prefix_invalid.camp(57,19): error: Return expression cannot return a scoped prepared result; use '(new)' for heap-allocated prepared storage.

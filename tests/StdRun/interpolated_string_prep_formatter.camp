@@ -9,10 +9,10 @@ export int main()
 	string text = $"Value: {makeGreeter()}!";
 	Console.writeLine(text);
 	Console.writeLine(created);
-	Console.writeLine($"Number: {makeNumber().format(nextSign())}");
+	Console.writeLine($"Number: {makeNumber().toString(nextSign())}");
 	Console.writeLine(numbers);
 	Console.writeLine(signs);
-	fixed char[4] fixedText = $"{makeNumber().format(nextSign())}";
+	fixed char[4] fixedText = $"{makeNumber().toString(nextSign())}";
 	Console.write(fixedText[0]);
 	Console.writeLine(fixedText[1]);
 	Console.writeLine(numbers);
@@ -58,7 +58,7 @@ struct Number
 	int value;
 }
 
-nuint format(in Greeter this, prep char[] buffer = default)
+nuint toString(in Greeter this, prep char[] buffer = default)
 {
 	if (buffer.length > 0)
 		buffer[0] = 'H';
@@ -70,11 +70,11 @@ nuint format(in Greeter this, prep char[] buffer = default)
 		buffer[3] = ' ';
 
 	char[] tail = { &buffer[4], buffer.length > 4 ? buffer.length - 4 : 0 };
-	this.name.format(tail);
+	this.name.toString(tail);
 	return 4 + this.name.Length;
 }
 
-nuint format(in Number this, Sign sign = Sign.NONE, prep char[] buffer = default)
+nuint toString(in Number this, Sign sign = Sign.NONE, prep char[] buffer = default)
 {
 	nuint offset = 0;
 	if (sign == Sign.PLUS)
@@ -87,6 +87,6 @@ nuint format(in Number this, Sign sign = Sign.NONE, prep char[] buffer = default
 	char[] tail = default;
 	if (buffer.length > offset)
 		tail = { &buffer[offset], buffer.length - offset };
-	this.value.format(tail);
-	return offset + this.value.format(default);
+	this.value.toString(tail);
+	return offset + this.value.toString(default);
 }

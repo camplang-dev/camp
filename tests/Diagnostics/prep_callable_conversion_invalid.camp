@@ -11,5 +11,5 @@ nuint ordinary(char[] buffer)
 void main()
 {
 	fn nuint(char[]) allowed = prepared;
-	fn nuint(prep char[]) rejected = ordinary;
+	fn nuint(prep char[] buffer) rejected = ordinary;
 }

@@ -1591,6 +1591,8 @@ public static class MetadataJsonSerializer
 			indexer = false;
 			indexParams = [];
 			valueParam = null;
+			if (function.Parameters.Any(static parameter => parameter.Modifier == ParameterModifier.Prep))
+				return false;
 
 			if (!isTypeScoped && !function.Parameters.OfType<ThisParameterDefinition>().Any())
 				return false;

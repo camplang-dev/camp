@@ -756,6 +756,7 @@ public static class SyntaxNodeTraversal
 				break;
 			case UnaryPrefixSyntax syntax:
 				foreach (Token token in Tokens(syntax.OperatorOrKeyword)) yield return token;
+				foreach (Token token in Tokens(syntax.NewKeyword)) yield return token;
 				foreach (Token token in Tokens(syntax.OpenParenToken)) yield return token;
 				if (syntax.Expression is not null) foreach (Token token in Tokens(syntax.Expression)) yield return token;
 				foreach (Token token in Tokens(syntax.CloseParenToken)) yield return token;

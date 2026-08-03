@@ -68,8 +68,8 @@ public sealed class MsvcCompileTests
 				reader.close();
 
 				Instant now = Instant.utcNow();
-				char[] text = prep now.format();
-				if (text.Length == 0)
+				char[] text = now.toString();
+				if (text.length == 0)
 					return 5;
 
 				sleep(1);

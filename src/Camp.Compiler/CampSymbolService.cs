@@ -389,7 +389,7 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 		{
 			"if", "else", "while", "for", "foreach", "return", "try", "catch", "finally",
 			"new", "init", "default", "true", "false", "null", "delete", "using", "namespace", "export", "internal",
-			"class", "struct", "interface", "enum", "newtype", "delegate", "fn", "prep"
+			"class", "struct", "interface", "enum", "newtype", "delegate", "fn"
 		})
 			yield return new CampCompletionItem(keyword, CampSymbolKind.Keyword, null, null);
 	}
@@ -679,6 +679,8 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 	static bool TryCreatePropertyCompletion(FunctionDefinition function, out CampCompletionItem? item)
 	{
 		item = null;
+		if (function.Parameters.Any(static parameter => parameter.Modifier == ParameterModifier.Prep))
+			return false;
 		string functionName = BindableNodeAnalyzer.GetCallableName(function);
 		if (!TryGetPropertyAccessorName(functionName, out string? propertyName))
 			return false;
@@ -974,6 +976,20 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 		SourceFile? file = snapshot.Compilation.Files.FirstOrDefault(file => string.Equals(Path.GetFullPath(file.Path), fullPath, StringComparison.OrdinalIgnoreCase));
 		if (file is null || !TryGetWordAt(file.Text, position, out string? word) || string.IsNullOrWhiteSpace(word))
 			return null;
+		if (ResolveSourceDeclaredParamsShape(file.Text, word!, position) is string sourceParamsType)
+		{
+			SymbolEntry? local = entries
+				.Where(entry => string.Equals(entry.Path, fullPath, StringComparison.OrdinalIgnoreCase)
+					&& entry.IsDeclaration
+					&& entry.Name == word
+					&& entry.Kind is CampSymbolKind.Variable or CampSymbolKind.Parameter
+					&& IsBefore(entry.Range.Start, position))
+				.OrderByDescending(entry => entry.Range.Start.Line)
+				.ThenByDescending(entry => entry.Range.Start.Character)
+				.FirstOrDefault();
+			if (local is not null)
+				return local with { Type = sourceParamsType };
+		}
 		List<SymbolEntry> candidates = entries
 			.Where(entry => entry.Definition is null && entry.Name == word && entry.Kind is CampSymbolKind.Type or CampSymbolKind.Alias or CampSymbolKind.Field or CampSymbolKind.EnumValue)
 			.DistinctBy(static entry => (entry.Name, entry.Kind, entry.Path, entry.Range.Start.Line, entry.Range.Start.Character, entry.Range.End.Line, entry.Range.End.Character))
@@ -1245,6 +1261,21 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 		CampTextRange textRange = CampLanguageService.ToTextRange(tokenRange);
 		if (!definitions.TryGetValue(target, out SymbolEntry? definition))
 		{
+			if (node is VariableReferenceExpression
+				&& TryCreateLoweredSourceDefinitionEntry(file, target, out definition))
+			{
+				definitions[target] = definition!;
+				if (!RangeTextContainsSymbolName(file.Text, textRange, definition!.Name))
+					return false;
+				entry = definition with
+				{
+					Path = Path.GetFullPath(file.Path),
+					Range = textRange,
+					IsDeclaration = false,
+					Definition = definition
+				};
+				return true;
+			}
 			if (node is not MemberReferenceExpression member)
 				return false;
 			if (!RangeTextContainsSymbolName(file.Text, textRange, member.Name))
@@ -1271,6 +1302,34 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 			IsDeclaration = false,
 			Definition = definition
 		};
+		return true;
+	}
+
+	static bool TryCreateLoweredSourceDefinitionEntry(SourceFile file, BindableNode target, out SymbolEntry? entry)
+	{
+		entry = null;
+		string? name = target switch
+		{
+			DeclarationTarget declaration when declaration.Names.Count == 1 => declaration.Names[0],
+			ParameterDefinition parameter => parameter.Name,
+			Definition definition => definition.Name,
+			_ => null
+		};
+		if (string.IsNullOrWhiteSpace(name)
+			|| !TryGetNodeRange(target, out TokenRange range)
+			|| !ReferenceEquals(file.Tokens, range.Sequence))
+			return false;
+		entry = new SymbolEntry(
+			Path.GetFullPath(file.Path),
+			CampLanguageService.ToTextRange(range),
+			name!,
+			GetKind(target),
+			GetNodeType(target),
+			GetSignature(target),
+			GetDocumentation(target),
+			null,
+			true,
+			null);
 		return true;
 	}
 
@@ -1939,7 +1998,27 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 			return label;
 		label = RemoveSignatureKeyword(label!, "extern");
 		HashSet<string> hiddenParameters = GetHiddenSignatureHelpParameterNames(function);
-		return hiddenParameters.Count == 0 ? label : RemoveParametersFromSignatureLabel(label, hiddenParameters);
+		if (hiddenParameters.Count > 0)
+			label = RemoveParametersFromSignatureLabel(label, hiddenParameters);
+		return RestorePreparedArrayParameters(label, function);
+	}
+
+	static string RestorePreparedArrayParameters(string label, FunctionDefinition function)
+	{
+		foreach (ParameterDefinition parameter in function.Parameters)
+		{
+			if (parameter.Modifier != ParameterModifier.Prep || string.IsNullOrWhiteSpace(parameter.Name))
+				continue;
+			string loweredType = parameter.Type is null
+				? parameter.ResolvedType ?? ""
+				: BindableNodeCodeSerializer.SerializeType(parameter.Type);
+			if (!loweredType.EndsWith("*", StringComparison.Ordinal))
+				continue;
+			string sourcePrefix = "prep " + loweredType + " " + parameter.Name;
+			string arrayPrefix = "prep " + loweredType[..^1].TrimEnd() + "[] " + parameter.Name;
+			label = label.Replace(sourcePrefix, arrayPrefix, StringComparison.Ordinal);
+		}
+		return label;
 	}
 
 	static string? GetSignatureHelpLabel(FunctionDefinition function)

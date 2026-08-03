@@ -163,6 +163,7 @@ public class PreparedBufferExpression : Expression
 {
 	public Expression? Expression { get; set; }
 	public bool HeapAllocated { get; set; }
+	public string? ConvertedResultType { get; set; }
 }
 
 public class SizeOfExpression : Expression
@@ -226,11 +227,21 @@ public class ArgumentExpression : Expression
 	public string? MaterializedInitializerAddressResultType { get; set; }
 }
 
+public enum PreparedCallMode
+{
+	None,
+	Full,
+	Transformed
+}
+
 public class CallExpression : Expression
 {
 	public Expression? Target { get; set; }
 	public List<TypeReference> TypeArguments { get; } = [];
 	public List<ArgumentExpression> Arguments { get; } = [];
+	public PreparedCallMode PreparedMode { get; set; }
+	public string? PreparedResultType { get; set; }
+	public string? PreparedConvertedResultType { get; set; }
 }
 
 public class IndexExpression : Expression

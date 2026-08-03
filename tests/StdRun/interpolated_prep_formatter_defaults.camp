@@ -4,7 +4,7 @@ export void main()
 {
 	Badge badge = default;
 	Console.writeLine($"{badge}");
-	Console.writeLine($"{badge.format(Style.BRACKETS)}");
+	Console.writeLine($"{badge.toString(Style.BRACKETS)}");
 }
 
 enum Style
@@ -17,7 +17,7 @@ struct Badge
 {
 }
 
-nuint format(in Badge this, Style style = Style.PLAIN, prep char[] buffer = default)
+nuint toString(in Badge this, Style style = Style.PLAIN, prep char[] buffer = default)
 {
 	if (style == Style.BRACKETS)
 	{

@@ -901,7 +901,7 @@ public sealed class CampParser
 			"do", "double", "else", "enum", "escaped", "export", "extern", "false", "finally",
 			"fixed", "float", "fn", "for", "foreach", "if", "implements", "in", "init", "int",
 			"interface", "internal", "iter", "long", "namespace", "new", "newtype", "nint", "null", "nuint", "once", "out",
-			"override", "params", "prep", "public", "return", "sbyte", "scoped", "sealed", "short", "sizeof",
+			"override", "params", "public", "return", "sbyte", "scoped", "sealed", "short", "sizeof",
 			"static", "string", "struct", "switch", "this", "thrown", "true", "try", "uchar", "uint",
 			"ulong", "unscoped", "unsafe", "upon", "ushort", "untyped", "using", "virtual", "void", "volatile",
 			"vtableof", "wchar", "while", "within", "wstring", "yield", "typenameof");
@@ -1027,12 +1027,25 @@ public sealed class CampParser
 	ParameterDeclaratorSyntax? ParseParameterDeclarator()
 	{
 		List<AttributeSyntax>? attributes = ParseAttributes();
-		Token? keyword = IsAny(ParameterDeclaratorKeywords) ? Take() : null;
+		Token? keyword = IsAny(ParameterDeclaratorKeywords) && (!Is("prep") || CanParsePrepParameterModifier()) ? Take() : null;
 
 		if (attributes is null && keyword is null)
 			return null;
 
 		return new ParameterDeclaratorSyntax { Attributes = attributes, Keyword = keyword };
+	}
+
+	bool CanParsePrepParameterModifier()
+	{
+		int start = index;
+		int diagnosticStart = diagnostics.Count;
+		TakeIf("prep");
+		TypeSyntax? type = ParseType(requireIdentifierAfterTerminalTargetSpec: true);
+		bool result = type is not null && IsIdentifier();
+		index = start;
+		if (diagnostics.Count > diagnosticStart)
+			diagnostics.RemoveRange(diagnosticStart, diagnostics.Count - diagnosticStart);
+		return result;
 	}
 
 	AssignmentSyntax ParseAssignment(bool consumeSemicolon)
@@ -1532,6 +1545,19 @@ public sealed class CampParser
 
 	UnaryPrefixSyntax? TryParseUnaryPrefix()
 	{
+		if (Is("(") && PeekValue(1) == "new" && PeekValue(2) == ")")
+		{
+			Token? openParen = Take();
+			Token? newKeyword = Take();
+			Token? closeParen = Take();
+			return new UnaryPrefixSyntax
+			{
+				NewKeyword = newKeyword,
+				OpenParenToken = openParen,
+				CloseParenToken = closeParen
+			};
+		}
+
 		if (Is("within"))
 		{
 				UnaryPrefixSyntax syntax = new()
@@ -1545,13 +1571,6 @@ public sealed class CampParser
 
 			syntax.CloseParenToken = Expect(")");
 			return syntax;
-		}
-
-		if (Is("prep"))
-		{
-			TokenRange? prep = Take()?.Range;
-			Token? newKeyword = TakeIf("new");
-			return new UnaryPrefixSyntax { OperatorOrKeyword = prep, NewKeyword = newKeyword };
 		}
 
 		if (IsAny("await", "postpone", "throw"))
