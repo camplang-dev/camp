@@ -66,29 +66,9 @@ static void copyTwice(int value, char *buffer, uintptr_t buffer_length)
 	_r17;
 	_io13 = (_io13 + _ips10);
 	_ibe12[_ir6] = '\0';
-	uintptr_t _ir18 = 0;
-	uintptr_t _r19 = Int_toString(&value, NULL, 0);
-	uintptr_t _ips20 = _r19;
-	_ir18 = (_ir18 + _ips20);
-	uintptr_t _r21 = Int_toString(&value, NULL, 0);
-	uintptr_t _ips22 = _r21;
-	_ir18 = (_ir18 + _ips22);
-	uintptr_t _ibl23 = (_ir18 + 1);
-	char *_ibe24 = (char *)(__builtin_alloca((sizeof(char) * _ibl23)));
-	uintptr_t _io25 = 0;
-	uintptr_t _is26 = ((_io25 < _ibl23) ? _io25 : _ibl23);
-	uintptr_t _r27 = Int_toString(&value, &_ibe24[_is26], (_ibl23 - _is26));
-	_r27;
-	_io25 = (_io25 + _ips20);
-	uintptr_t _is28 = ((_io25 < _ibl23) ? _io25 : _ibl23);
-	uintptr_t _r29 = Int_toString(&value, &_ibe24[_is28], (_ibl23 - _is28));
-	_r29;
-	_io25 = (_io25 + _ips22);
-	_ibe24[_ir18] = '\0';
-	uintptr_t _r30 = String_getLength((const char*)(_ibe24));
 	if ((buffer_length > 0))
 	{
-		CharArray_copyTo(((const char*)(_ibe12) + 0), _r30, buffer, buffer_length);
+		CharArray_copyTo((const char*)(_ibe12), _ir6, buffer, buffer_length);
 	}
 }
 

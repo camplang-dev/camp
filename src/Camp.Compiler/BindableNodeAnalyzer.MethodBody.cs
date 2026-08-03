@@ -24,6 +24,7 @@ public sealed partial class BindableNodeAnalyzer
 	readonly Dictionary<MemberExpression, PreparedBufferExpression> preparedLengthMembers = [];
 	readonly Dictionary<SyntaxNode, Expression> preparedBufferLoweringRewrites = [];
 	readonly Dictionary<InterpolatedStringExpressionSegment, InterpolationPart> interpolationParts = [];
+	readonly Dictionary<Expression, Expression> knownStringLengths = [];
 	readonly Dictionary<FunctionDefinition, Dictionary<string, LabelStatement>> functionLabels = [];
 	FunctionDefinition? currentAnalysisFunction;
 

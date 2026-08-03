@@ -130,6 +130,8 @@ public sealed partial class BindableNodeAnalyzer
 					call.ResolvedType = index.ResolvedType ?? call.ResolvedType;
 					return LowerExpression(call);
 				}
+				if (TryLowerFullPrimitiveStringSlice(index, out Expression? fullStringSlice))
+					return fullStringSlice;
 				if (TryCreateParamsComponentExpressions(index, out List<Expression> indexedComponents) && indexedComponents.Count == 1)
 					return LowerExpression(indexedComponents[0]);
 				index.Target = LowerExpression(index.Target);

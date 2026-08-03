@@ -267,7 +267,7 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (IsPrimitiveStringType(resultType))
 		{
-			return new CastExpression
+			CastExpression result = new()
 			{
 				SourceSyntax = interpolation.SourceSyntax,
 				Kind = CastKind.Type,
@@ -275,6 +275,8 @@ public sealed partial class BindableNodeAnalyzer
 				Expression = BufferElements(),
 				ResolvedType = resultType
 			};
+			knownStringLengths[result] = Required();
+			return result;
 		}
 
 		if (resultType == "char[]")

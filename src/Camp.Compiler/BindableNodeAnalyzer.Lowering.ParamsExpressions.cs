@@ -2574,7 +2574,11 @@ public sealed partial class BindableNodeAnalyzer
 			&& GetPrimitiveStringElementType(index.Target?.ResolvedType) == StripTopLevelValueQualifiers(resultElementType))
 		{
 			Expression? start = ReplaceParamsLengthComponentExpressions(index.Arguments[0].Value);
-			Expression? count = ReplaceParamsLengthComponentExpressions(index.Arguments[1].Value);
+			Expression? count = IsZeroLiteral(start)
+				&& IsLengthExpression(index.Arguments[1].Value)
+				&& TryGetKnownStringLength(index.Target, out Expression? knownLength)
+					? CloneParamsExpansionExpression(knownLength) ?? knownLength
+					: ReplaceParamsLengthComponentExpressions(index.Arguments[1].Value);
 			if (index.Target is null || start is null || count is null)
 				return false;
 			components.Add(new BinaryExpression
@@ -2703,6 +2707,61 @@ public sealed partial class BindableNodeAnalyzer
 				ResolvedType = conditional.ResolvedType
 			},
 			_ => expression
+		};
+	}
+
+	bool TryGetKnownStringLength(Expression? expression, out Expression? length)
+	{
+		length = null;
+		if (expression is null)
+			return false;
+		if (knownStringLengths.TryGetValue(expression, out length))
+			return true;
+		if (expressionRewrites.TryGetValue(expression, out Expression? rewritten) && !ReferenceEquals(rewritten, expression))
+			return TryGetKnownStringLength(rewritten, out length);
+		return false;
+	}
+
+	bool TryLowerFullPrimitiveStringSlice(IndexExpression index, out Expression? lowered)
+	{
+		lowered = null;
+		if (currentStatementPrefix is null
+			|| index.Target is null
+			|| index.Arguments.Count != 2
+			|| TryGetArrayElementType(index.ResolvedType) is not string resultElementType
+			|| GetPrimitiveStringElementType(index.Target.ResolvedType) != StripTopLevelValueQualifiers(resultElementType)
+			|| !IsZeroLiteral(index.Arguments[0].Value)
+			|| !IsLengthExpression(index.Arguments[1].Value))
+			return false;
+
+		Expression target = LowerExpression(index.Target) ?? index.Target;
+		if (!TryGetKnownStringLength(target, out Expression? length) || length is null)
+			return false;
+
+		lowered = CreateArrayView(
+			target,
+			CloneParamsExpansionExpression(length) ?? length,
+			index.ResolvedType ?? $"const {StripTopLevelValueQualifiers(resultElementType)}[]",
+			AddPointer(resultElementType),
+			length.ResolvedType ?? "nuint",
+			index.SourceSyntax);
+		return true;
+	}
+
+	static bool IsZeroLiteral(Expression? expression)
+	{
+		return expression is LiteralExpression { Kind: LiteralKind.Number, Text: "0" }
+			|| expression is LiteralExpression { Kind: LiteralKind.Number, Value: "0" };
+	}
+
+	static bool IsLengthExpression(Expression? expression)
+	{
+		return expression switch
+		{
+			CallExpression { Target: MemberReferenceExpression { Name: "getLength" } } => true,
+			MemberExpression { Name: "length" } => true,
+			MemberReferenceExpression { Name: "length" } => true,
+			_ => false
 		};
 	}
 
