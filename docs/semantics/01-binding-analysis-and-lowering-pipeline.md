@@ -287,6 +287,14 @@ Body analysis resolves expression and statement semantics:
 - async awaitability, resumer validation, and `@noawait` body validation;
 - interface and virtual dispatch call sites.
 
+For a prep-bearing invocation, body analysis owns the selected source callable
+and substitutions, complete declared argument-to-slot mapping, explicitly
+supplied slots, full or transformed mode, intrinsic result type, property
+ineligibility, lifetime facts, and `(new)` legality. Overload selection and
+argument mapping use the declared scalar/prep signature before omission of the
+prep slot is considered. These facts are part of the analyzed call model, not
+lowering guesses.
+
 Body analysis should record facts needed by lowering. Lowering should not repeat
 source overload resolution or decide whether a conversion is legal.
 
@@ -334,6 +342,13 @@ Lowering rewrites the accepted semantic tree into simpler Camp-like operations:
   required;
 - `this`, `classtype`, and `constof` are lowered or erased where the ABI demands
   ordinary types.
+
+A recorded transformed prep call lowers through its size/allocate/write
+protocol, or through an analysis-approved measure-only optimization when its
+elements are unobservable. A recorded full call stays one ordinary scalar call.
+Lowering reuses captured receivers, arguments, capabilities, dispatch, error
+handling, and allocation context; it must not rediscover prep omission from
+argument count, target type, or `.length` use.
 
 Lowering must preserve analysis decisions. It may create helper declarations,
 rewrite expressions, and materialize temporaries, but it should not accept a

@@ -171,6 +171,23 @@ chosen by analysis/lowering:
 The emitter should not rediscover expansion rules independently. Use the same
 expanded-form services as the analyzer/lowerer.
 
+### Prepared Result Emission
+
+A prep declaration emits its ordinary scalar return and expanded mutable-array
+parameter components; there is no synthetic array-returning ABI function. A
+lowered transformed call emits a sizing call, checked allocation arithmetic,
+storage allocation, and a writing call. Both calls use the same captured
+receiver, explicit arguments, capability values, target/call specs, error path,
+and dynamic dispatch target. A full call emits only its single ordinary call.
+
+Array length and required-size arithmetic use the selected target's length
+component type, not the compiler host width. Element-size multiplication and
+any existing string-conversion terminator addition must be checked before
+allocation or writing. A zero required length remains valid. Explicit short
+buffers remain ordinary full calls and rely on the prep contract to clamp
+writes. An analysis-approved immediate `.length` case may emit only the sizing
+call because the elements are unobservable.
+
 ## Enums And Inline Constants In C
 
 Exported Camp enums should be emitted as target-sized integer typedefs plus

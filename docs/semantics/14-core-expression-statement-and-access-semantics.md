@@ -178,118 +178,259 @@ length, and stride operations described in
 Caller-prepared array results use one `prep` parameter to expose a two-call
 size/write protocol through an ordinary function or method surface.
 
-### Declaration Shape
+### Contextual Grammar And Declaration Shape
 
-`prep` is a parameter modifier. A declaration may contain at most one `prep`
-parameter. That parameter must be a mutable array type whose element type is
-copyable. The function return type must exactly match the array length
-component type, including target specs.
+`prep` is a contextual parameter modifier, not a globally reserved word. It is
+recognized as a modifier only when tentative parameter parsing can consume a
+complete following type and parameter name. Thus `prep char[] buffer` uses the
+modifier, while `prep value` may use `prep` as the type name and `value` as the
+parameter name. Capitalization is not part of this decision. Outside that
+parameter context, `prep` is an ordinary identifier or type name.
 
-The `prep` parameter must not also be `in`, `out`, `thrown`, `overload`, or
-`within`, and it must not be one of the compiler-provided capability parameter
-forms such as `sizeof(T)`, `typenameof(T)`, or `vtableof(T: Interface)`.
+There is no `prep expression` or `prep new expression` source form. Prepared
+transformation is selected by call argument binding, and allocated prepared
+storage uses `(new)` as described below. Legacy prefix-shaped text receives
+ordinary parser or binder diagnostics; it has no compatibility grammar or
+special migration diagnostic.
 
-`prep` parameters may have default values. Ordinary calls use that default when
-the argument is omitted. A `prep` prefix call does not use the default; the
-prefix removes the `prep` parameter from the source call shape and supplies the
-measure/write buffers itself.
+A declaration may contain at most one `prep` parameter. That parameter:
 
-`once` callable signatures must not contain `prep` parameters. A `prep` target
-must be callable at least twice for the same receiver and ordinary arguments.
+- is an ordinary mutable array parameter;
+- has a copyable element type;
+- has an array length component type exactly equal to the callable return type,
+  including target specs;
+- cannot also be `in`, `out`, `thrown`, `overload`, `within`, or a compiler
+  capability parameter such as `sizeof(T)`, `typenameof(T)`, or
+  `vtableof(T: Interface)`.
 
-Generic `prep T[]` parameters follow ordinary generic array rules. If existing
-array storage, copy, or element-stride behavior requires capabilities such as
-`sizeof(T)`, the generic declaration must expose those capabilities through the
-same mechanisms used by ordinary `T[]` APIs.
+`once` callable signatures cannot contain a prep parameter because a transformed
+use may require repeated invocation. Constructors and other callable kinds
+already unable to express this declaration shape remain ineligible. Async and
+iterator declarations retain their existing restrictions on prep and scoped
+results.
 
-### Ordinary Calls And Callable Compatibility
+A prep parameter may have an ordinary default value. That default remains part
+of the declared signature and API, but omission of the prep slot selects a
+transformed call; it does not insert the declared default as an ordinary full
+call argument.
 
-A function with a `prep` parameter remains an ordinary callable function. In an
-ordinary call, the `prep` parameter occupies its declared source position and is
-bound by the usual argument, default, named-argument, `catch`, `out`, overload,
-receiver, generic, `within`, and lifetime rules.
+Every parameter after prep must be satisfiable without a required ordinary
+caller argument. A following slot is permitted when it has an ordinary default
+or is supplied by an established compiler rule, including `within`,
+`sizeof(T)`, `typenameof(T)`, `vtableof(T: Interface)`, and propagated hidden
+slots such as `thrown`. A required ordinary or required `out` parameter cannot
+follow prep. Declaration validation uses the same defaultable/compiler-supplied
+slot classification as ordinary call binding.
 
-`prep` is part of a callable contract. If a callable type, callable newtype,
-interface method, virtual method, or override surface declares `prep`, a
-conforming implementation must preserve `prep` on the corresponding parameter.
-A concrete function may strengthen a non-`prep` surface by declaring the
-corresponding mutable array parameter as `prep`; calls through the non-`prep`
-surface simply do not receive the caller-prepared-result guarantee.
+The prep and overload modifiers are mutually exclusive, and an overload
+selector cannot have a default. Consequently, an overload selector in a
+prep-bearing family must precede prep. This lets selection finish against the
+declared family before call-mode determination.
 
-Compatibility direction follows the guarantee: a source callable with
-`prep T[]` may satisfy a target callable with ordinary `T[]`, but an ordinary
-`T[]` callable requires an unsafe conversion before it can satisfy a
-`prep T[]` target.
-
-### `prep` Prefix Binding
-
-The `prep` prefix applies to a compatible call expression or property getter
-expression. The target must resolve to a function with exactly one `prep`
-parameter after ordinary lookup, receiver binding, overload selection, and
-generic substitution.
-
-For a prefix call, analysis binds the source arguments against the target's
-parameter list with the `prep` parameter removed. Required non-`prep`
-parameters must still be supplied or defaultable. The prefix does not add any
-new overload disambiguation rule; if ordinary overload selection cannot choose
-one target, the caller must use an existing explicit selector, name, cast, or
-target type.
-
-The prefix expression's result type is the `prep` parameter's source array
-type. Ordinary assignment or argument conversion may then convert that mutable
-array to a compatible const view.
-
-`prep` on property getter syntax is valid only when the getter remains a valid
-property accessor after the `prep` parameter is removed from the effective
-source call shape. This is not a separate property-access rule; it is ordinary
-getter binding plus the `prep` prefix's generated buffer argument.
-
-### Lowering And Evaluation
-
-Lowering must evaluate the receiver and every explicit non-`prep` argument once
-and reuse those values for both generated calls. Side effects in expressions
-such as `prep next().format(option())` must therefore occur once each.
-
-Conceptually, lowering performs:
-
-1. materialize receiver and explicit non-`prep` arguments when needed;
-2. call the target once with a default/empty `prep` buffer to obtain
-   `required`;
-3. allocate a mutable array of length `required`;
-4. call the target again with the allocated array;
-5. produce the allocated array view as the expression result.
-
-The second return value is not the expression result. The source contract says
-it must agree with the sizing call; if it does not, the callee has violated the
-protocol.
-
-`prep new` uses ordinary heap allocation for the prepared array result and
-follows the current `within` allocation policy. `prep` without `new` uses
-scoped `init`-like array storage. The compiler must reject a scoped `prep`
-result in any position where equivalent scoped initialized array storage could
-not legally escape. If an expression position cannot accept the temporaries
-needed for receiver, argument, sizing, allocation, and write steps, analysis
-must diagnose the `prep` prefix rather than allowing C emission to fail.
-
-Thrown slots are explicit and ordinary. A prefix call to a throwing `prep`
-method must handle or propagate the thrown value exactly as the corresponding
-ordinary call would. The compiler supplies only the `prep` buffer argument.
+Generic `prep T[]` parameters follow ordinary generic array rules. Operations
+that need stride, copying, type names, or interface dispatch require the same
+`sizeof(T)`, copyability, `typenameof(T)`, and `vtableof` capabilities as the
+corresponding ordinary array operations.
 
 ### Behavioral Contract
 
-The compiler verifies the source shape, not the full runtime behavior. By
-declaring `prep`, the callee promises that for the same receiver and same
-non-`prep` arguments:
+The compiler verifies the source shape, not the full runtime behavior. For the
+same receiver and non-prep arguments, declaring prep promises:
 
-- the return value is the minimum array length needed for the complete result;
-- the callee writes the first `min(buffer.length, required)` elements;
-- repeated size/write calls agree on required size and logical contents;
-- the callee never writes outside the provided array;
-- if failure depends only on the receiver and non-`prep` arguments, failure is
-  reported during the sizing call.
+- the scalar return is the minimum array length required for the complete
+  logical result;
+- a supplied buffer receives the first `min(buffer.length, required)` logical
+  elements;
+- required size and logical contents are stable across protocol calls;
+- no write occurs outside the supplied array;
+- failure depending only on the receiver and non-prep arguments occurs during
+  sizing;
+- terminators, sentinels, and padding are excluded unless they are themselves
+  part of the logical result.
 
-For text, the returned length excludes a null terminator unless the terminator
-is part of the logical result.
+The contract permits the compiler or caller to issue the calls required by a
+use. It does not promise the implementation an exact source-observable call
+count or ordering. In particular, optimizations may omit allocation or a write
+call when prepared elements are not observable.
+
+### Full-Signature-First Call Binding
+
+Calls bind against the selected untransformed declaration: the scalar return,
+the prep parameter in its declared position, and every other declared slot.
+Body analysis performs these steps:
+
+1. Perform ordinary lookup and receiver binding.
+2. For an overload family, bind the independent selector at its declared
+   position and select the concrete entry. Prepared result type and result
+   targets do not add candidate ranking or disambiguation.
+3. Bind every written positional, named, `out`, `catch`, `within`, and
+   capability argument to a slot in that selected declaration.
+4. Record the selected callable, receiver, generic and `constof` substitutions,
+   complete argument-to-slot mapping, and which declared slots were supplied.
+5. If a written argument supplied the prep slot, select full mode.
+6. Otherwise, ensure every other omitted slot is defaultable or
+   compiler-supplied and select transformed mode.
+7. Record the intrinsic result type, allocation mode, error handling, dispatch,
+   lifetime facts, and any result-target conversion for lowering.
+
+Lowering consumes these facts; it must not infer the call mode from argument
+count, result use, or a following `.length`.
+
+A written `default` is an argument. For
+`render(prep char[] buffer, Style style = default)`, `render(default)` binds
+`default` to `buffer` and is a full scalar call. The transformed form that
+supplies the later option is `render(style: Style.COMPACT)`. The explicit
+one-call sizing form is `render(buffer: default)`. This rule is identical for a
+prep parameter with or without a declared default.
+
+### Full And Transformed Modes
+
+A full call explicitly supplies the prep slot, positionally or by name. It is
+one ordinary invocation, performs no implicit allocation or sizing pass, and
+has the declaration's scalar return type. All ordinary receiver, conversion,
+dispatch, `thrown`, `catch`, `out`, `within`, generic, default, and lifetime
+rules apply.
+
+A transformed call omits the prep slot. Its intrinsic result type is the
+substituted mutable array type of that slot. `auto` preserves that array type.
+Only after mode and intrinsic type are known may assignment, argument, return,
+cast, conditional-arm, initializer, or other target typing apply an existing
+conversion. Existing array-to-string-family conversion and terminator rules are
+unchanged.
+
+Invocation-time transformation applies through every prep-bearing source
+surface: free, static, instance, and extension functions; generic functions and
+constraint members; interface and virtual methods; `fn`, `delegate`, callable
+newtypes, and other compatible callable values; and declarations imported from
+Camp API headers. A method reference remains declaration-shaped when read:
+
+```camp
+auto formatter = value.toString;
+```
+
+The reference retains the scalar return and prep parameter. Its invocation is
+transformed only if that invocation omits the prep slot. A call through a
+non-prep callable or interface view remains ordinary even if the concrete
+implementation declares the stronger prep guarantee.
+
+### Transformed Lowering And Evaluation
+
+For a transformed call, lowering conceptually:
+
+1. evaluates and captures the receiver when necessary;
+2. evaluates and captures every caller-written non-prep argument once, in
+   source order;
+3. obtains ordinary defaults, hidden slots, substitutions, generic capability
+   values, `within` context, dispatch target, and error handling from analysis;
+4. calls the selected surface with a default prep buffer to obtain `required`;
+5. checks required-length, terminator, and element-size arithmetic before
+   allocation;
+6. allocates mutable storage of the required size;
+7. calls the same selected surface with that storage;
+8. produces the prepared array and applies the recorded target conversion.
+
+Receiver, selector, explicit argument, capability, allocator, and dispatch
+expressions are not re-evaluated for the write call. Interface and virtual calls
+use the same statically selected prep surface and dynamic dispatch mechanism for
+both protocol calls. The second scalar return is ignored as an expression
+result; the behavioral contract requires it to agree with sizing.
+
+Thrown handling is not invented or discarded. An explicit or propagated
+thrown slot and its `catch` behavior are reused consistently for both calls.
+Likewise, lowering does not invent storage for required `out` arguments or an
+allocator where ordinary call rules would require one. Runtime arithmetic
+overflow or allocation failure occurs before writing through the target's
+ordinary failure mechanism.
+
+### Measure-Only `.length`
+
+In `value.toString().length`, the call first binds as a transformed expression
+whose intrinsic type is the mutable prep array; `.length` is ordinary array
+component access. If the prepared elements are not observable, lowering may
+replace size/allocate/write with a full call using a default prep buffer and use
+its scalar result as the length. Immediate `.length` is the primary recognized
+case, but allocation elision is best effort and is not a separate binding mode
+or a language guarantee for every equivalent data-flow shape.
+
+When exactly one ordinary sizing call is required, write the full call
+explicitly:
+
+```camp
+nuint required = value.toString(buffer: default);
+```
+
+### Allocated Prepared Results
+
+`(new)` is a cast-like allocation modifier whose operand must be a direct
+transformed prep call:
+
+```camp
+auto owned = (new) value.toString();
+auto arenaOwned = within(arena) (new) value.toString();
+```
+
+It changes only prepared-result storage from scoped `init`-like allocation to
+ordinary `new` allocation. Lookup, arguments, dispatch, intrinsic type, and
+target conversion are otherwise unchanged. Allocator selection follows the
+active `within` policy.
+
+`(new)` has unary/cast-like precedence and consumes its postfix operand. The
+operand must still be the direct transformed result. Therefore appended member,
+component, index, range, or method operations make forms such as these invalid:
+
+```camp
+(new) value.toString().length;
+(new) value.toString().toUppercase();
+(new) value.toString()[2..5];
+```
+
+The direct result may be captured for later cleanup, or cleanup may attach
+directly with `finally delete`:
+
+```camp
+within(arena) (new) value.toString() finally delete;
+```
+
+The syntax is the parenthesized `new` token followed by its operand; ordinary
+trivia is permitted between tokens. Parser and bindable nodes retain the
+parenthesized modifier's range independently from the call range so malformed
+syntax and direct-owner diagnostics can recover at `(new)`.
+
+A transformed call without `(new)` has the lifetime of equivalent scoped
+initialized array storage. A `(new)` result has ordinary allocated lifetime and
+cleanup obligations. Existing return, escape, capture, conditional, loop,
+async-frame, iterator-frame, and deletion rules apply; no new lifetime category
+is introduced.
+
+### Prep Methods And Property Syntax
+
+A prep-bearing getter or setter is not a valid property accessor. The same
+restriction applies to named properties, indexed properties, nameless indexers,
+extension accessors, interface accessors, and virtual accessors. Such a function
+does not produce property metadata or property completion.
+
+Property lookup still recognizes a prep-bearing accessor candidate before
+rejecting it so the diagnostic can name the accessor and require explicit
+method-call syntax rather than reporting a missing member. Calling `getText()`
+explicitly transforms normally. The ordinary const-receiver convention for
+getter-named methods remains available to the explicit call. Ordinary non-prep
+properties are unchanged.
+
+### Callable, API, Metadata, And Tooling Views
+
+Prep remains part of callable compatibility. A source callable with `prep T[]`
+may satisfy an ordinary mutable `T[]` target because that target ignores the
+stronger guarantee. The reverse direction requires an explicit unsafe
+conversion. Interface implementations, virtual overrides, and callable
+ascriptions preserve the corresponding prep slot as required by their existing
+shape rules.
+
+API headers and metadata retain the declared scalar result, source parameter
+order, prep modifier, and any declared prep default. They do not expose a
+synthetic transformed overload or generated sizing/write helper. Definitions,
+method-reference hover, signature help, and navigation show the declaration;
+call-expression type information shows the transformed array or full scalar as
+appropriate. Property completion and property metadata exclude prep accessors.
 
 ## Interpolated Strings
 
@@ -345,7 +486,7 @@ inline string PREFIX = "Camp";
 inline string TITLE = $"{PREFIX} compiler";
 ```
 
-User `format` methods are not executed during constant evaluation. Numeric,
+User `toString` methods are not executed during constant evaluation. Numeric,
 enum, newtype, aggregate, and other non-text constants therefore prevent
 constant-text folding unless they are already represented as string-like or
 character constants.
@@ -361,8 +502,8 @@ When an interpolation contains runtime holes, the result target is determined by
 ordinary target typing:
 
 - no target, `auto`, or a generic target-type placeholder resolves to `string`;
-- `string` and `const string` targets are valid and produce null-terminated
-  primitive string storage;
+- `string` targets are valid and produce null-terminated primitive string
+  storage;
 - `char[]` and `const char[]` targets are valid and produce counted character
   views whose length is the required character count;
 - fixed `char[N]` targets are valid for declaration initialization and write
@@ -409,38 +550,54 @@ eligible formatter follows this contract:
 - Size-query and write calls over unchanged captured state must agree on the
   required size and formatted content.
 
-The compiler checks the source shape, not the full behavioral contract.
-Declaring an eligible `format` method asserts that the implementation obeys the
-contract.
+The compiler checks the source shape, not the full behavioral contract. An
+eligible prepared formatter asserts that its implementation obeys the contract.
 
 ### Formattable Values
 
 A runtime hole is formattable when either:
 
-- ordinary instance member lookup finds exactly one eligible method named
-  `format` for the hole expression; or
-- the hole expression itself is a call to an eligible caller-prepared `format`
-  method, such as `{value.format(options)}`.
+- for a bare non-text hole, ordinary instance member lookup finds exactly one
+  eligible prepared method named `toString`; or
+- the hole expression itself is a call to any eligible caller-prepared method,
+  such as `{value.toString(options)}` or `{value.toHexString()}`; or
+- the hole expression is an ordinary non-prep expression that already produces
+  a supported direct text or character value.
 
 Receiver-style extension functions, inherited methods, virtual methods, and
 interface members participate through ordinary Camp lookup and dispatch rules.
 
-An eligible `format` method:
+An eligible prepared formatter:
 
 1. has exactly one `prep` parameter after receiver binding;
 2. accepts mutable `char[]` as the `prep` buffer type;
 3. returns the exact length-component type of that array;
-4. is selected either from the hole value with no required explicit non-`prep`
-   formatting arguments, or from a hole call expression that supplies those
-   ordinary formatting arguments itself;
+4. is selected either by the `toString` bare-hole convention with no required
+   explicit non-prep formatting arguments, or from a hole call expression that
+   supplies those ordinary formatting arguments itself;
 5. has receiver and lifetime requirements compatible with evaluating the hole
-   expression once and invoking the formatter for size and write passes.
+   expression once and invoking the formatter for size and write passes;
+6. has no unsupported thrown path.
+
+The name `toString` is a lookup convention, not a reserved method or a general
+signature restriction. Methods of that name bind normally outside bare-hole
+discovery. An ordinary non-prep `toString()` that returns direct text can be
+written explicitly in a hole, but is not discovered implicitly for a bare
+non-text value.
 
 When interpolation uses a caller-prepared formatter, the hole expression and any
 explicit non-`prep` arguments are evaluated once. The interpolation lowering
 then uses the same value for the size pass and the write pass into the final
 interpolation buffer. The interpolation expression itself still eagerly
 produces concrete UTF-8 text; it does not become a formatter value.
+
+A bare hole and an explicit parameterless `toString()` hole are equivalent when
+they select the same prepared formatter. Analysis must preserve that formatter
+identity through interpolation lowering instead of first lowering the explicit
+call as a general transformed expression. Both forms write directly into the
+final interpolation destination without an intermediate prepared allocation or
+copy. Explicit formatting arguments are captured once in source order and
+reused for sizing and writing.
 
 Example:
 
@@ -450,7 +607,7 @@ public struct Status
 	bool enabled;
 }
 
-public nuint format(
+public nuint toString(
 	in Status this,
 	prep char[] buffer = default)
 {
@@ -498,8 +655,8 @@ lowering conceptually proceeds as follows:
 2. Compute the required character count by adding literal segment lengths,
    constant-hole lengths, and formatter size-query results.
 3. Create destination storage:
-   - `string` and `const string`: allocate `required + 1` characters and reserve
-     one null terminator;
+   - `string`: allocate `required + 1` characters and reserve one null
+     terminator;
    - `char[]` and `const char[]`: allocate `required` characters and keep the
      counted length;
    - fixed `char[N]`: use the existing fixed storage and treat `N` as the
@@ -544,7 +701,7 @@ ordinary Camp overload ambiguity rules apply and the caller must disambiguate.
 
 Callable overloads are not selected by passing an interpolated string. APIs that
 accept formatted text should accept a concrete text type and let the caller use
-interpolation or `prep` formatting at the call site.
+interpolation or a prepared method call at the call site.
 
 ### Textual `+`
 
@@ -567,8 +724,8 @@ Required diagnostic classes include:
 - unsupported runtime interpolation target;
 - no formatter candidate for a runtime hole;
 - multiple formatter candidates for a runtime hole;
-- component `format` methods with the wrong buffer type, return type, callable
-  kind, thrown slot, receiver, or lifetime;
+- component `toString` or explicit prepared formatter methods with the wrong
+  buffer type, return type, callable kind, thrown slot, receiver, or lifetime;
 - scoped interpolation results that escape their valid lifetime;
 - `new` interpolation without an explicit `within` context;
 - `new` interpolation targeting fixed storage;
@@ -749,6 +906,11 @@ For example, the concrete callable `setElementString` records property name
 `ElementString`, while the source function name remains `setElement` and the
 selector parameter remains marked as `overload`.
 
+Prep-bearing accessor-shaped functions are excluded from these property facts
+and remain ordinary function declarations. Prep declarations retain their
+scalar result, source parameter order, modifier, and default in metadata and API
+headers; transformed call expressions do not create metadata declarations.
+
 ## Diagnostics
 
 Important diagnostic categories include:
@@ -765,6 +927,11 @@ Important diagnostic categories include:
   surrounding form;
 - attempt to read an intentional discard target;
 - aggregate initializer passed directly to a mutable pointer parameter;
+- invalid prep declaration shape or following required parameter;
+- invalid explicit prep argument or unsatisfied transformed-call slot;
+- prep-bearing property candidate requiring explicit method syntax;
+- invalid `(new)` prepared operand, ownership chain, allocation context, or
+  lifetime;
 - source `goto` crosses cleanup in a way the compiler diagnoses.
 
 Diagnostics should point at the source syntax that introduced the special
@@ -783,6 +950,14 @@ Changes here should cover:
 - receiver length lookup through fixed arrays, `.length`, `.Length`, and
   `getLength()`;
 - generic array access that requires `sizeof(T)`;
+- contextual `prep`, declaration restrictions, and full-signature-first
+  full/transformed call binding across direct, callable, generic, interface,
+  virtual, and imported API surfaces;
+- prepared scoped/allocated lowering, immediate `.length`, explicit buffers,
+  target conversions, lifetimes, capabilities, dispatch, and error paths;
+- prep property rejection and property metadata exclusion;
+- bare and explicit `toString`, alternate prepared formatters, direct text,
+  UTF-8 result targets, and direct-to-destination interpolation lowering;
 - omitted trailing `out` declaration and deconstruction binding;
 - intentional discard lowering and invalid discard reads;
 - source `goto` interaction with `try`/`finally` cleanup.
@@ -798,7 +973,13 @@ Primary implementation points include:
 - `BindableNodeAnalyzer.Lowering.Slices.cs` for `@index`, `@range`,
   from-end, and range argument lowering;
 - `BindableNodeAnalyzer.MethodBody.cs` for omitted trailing `out` result
-  binding, discard recognition, delete/transfer analysis, and diagnostics;
+  binding, prep call modes, `(new)`, discard recognition, delete/transfer
+  analysis, and diagnostics;
+- `BindableNodeAnalyzer.Declarations.cs` for prep declaration validation;
+- `BindableNodeAnalyzer.Lowering.PreparedBuffers.cs` for prepared sizing,
+  allocation, writing, conversions, and `.length` elision;
+- `BindableNodeAnalyzer.Lowering.InterpolatedStrings.cs` for prepared formatter
+  preservation and direct-to-destination interpolation;
 - `BindableNodeAnalyzer.Lowering.Operators.cs` for discard target lowering;
 - `BindableNodeAnalyzer.Lowering.Exceptions.cs` for cleanup transfer rewriting;
 - `MetadataJsonSerializer.cs` for property metadata fields.

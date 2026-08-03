@@ -177,6 +177,14 @@ continuation inline. Therefore the compiler must:
 Frame fields are generated ABI details. They must avoid C reserved identifiers
 and source collisions, but they should remain readable in dumps and emitted C.
 
+A scoped transformed prep result follows the same frame-crossing prohibition as
+scoped initialized array storage. Analysis must reject a result, receiver, or
+captured argument that would need to survive suspension without a valid frame
+lifetime. An allocated `(new)` prepared result may be retained only when its
+allocator and cleanup obligations are themselves frame-safe. Async declarations
+remain subject to the existing prep declaration restrictions; invocation-time
+transformation does not create an async-specific prep protocol.
+
 ## Frame Allocation
 
 Async-frame allocation uses ordinary allocation mechanisms. The selected

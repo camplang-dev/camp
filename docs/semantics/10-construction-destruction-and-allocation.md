@@ -218,6 +218,20 @@ The `new` sequence is conceptually:
 The compiler should not pretend an extern class can be allocated with ordinary
 Camp layout unless an extern constructor or create method provides that surface.
 
+### `(new)` Prepared Allocation
+
+Parenthesized `(new)` is the allocation modifier for a direct transformed prep
+call. It is not ordinary type construction. It retains the call's prepared
+array result and changes its backing storage from scoped `init`-like storage to
+the ordinary allocation path selected by `within`.
+
+Its unary/cast-like operand must remain the direct transformed result. A member,
+component, method, index, or range appended to the call makes the `(new)` form
+invalid because it would discard the owning array reference. The result may
+instead be captured and then accessed, or used directly with `finally delete`.
+Allocator selection, checked element-size/terminator arithmetic, deletion, and
+cleanup use the same rules as other allocated arrays.
+
 ## `delete`
 
 `delete` destroys and frees a value according to its type and allocation

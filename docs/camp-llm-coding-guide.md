@@ -59,9 +59,9 @@ High-impact distinctions:
 - Runtime `$"..."` eagerly produces text. With `auto`, the type is `string`.
   Non-`new` interpolation uses scoped storage; use `within(...) new $"..."`
   when heap lifetime is required.
-- Use `prep` methods for caller-prepared array results such as formatting or
-  serialization; `prep` without `new` is scoped storage, and `prep new` is heap
-  storage under the active `within` context.
+- Use `prep` parameters for caller-prepared array results. Omitting the prep
+  argument produces scoped prepared storage; `(new)` directly before that call
+  uses allocated storage under the active `within` context.
 - Textual `+` and textual `+=` are diagnostics. Use interpolation instead.
 - Generic code must state the capabilities it uses. `T: any` is intentionally
   restrictive.
@@ -129,30 +129,44 @@ auto title = $"Camp"; // string
 ```
 
 When defining a new type that should appear inside interpolation, prefer a
-`format` method with a `prep char[]` result buffer:
+`toString` method with a `prep char[]` result buffer:
 
 ```camp
 newtype MyValue: int;
 
-public nuint format(in MyValue this, prep char[] buffer = default)
+public nuint toString(in MyValue this, prep char[] buffer = default)
 {
 	int value = (int)this;
-	return value.format(buffer);
+	return value.toString(buffer);
 }
 ```
 
 The formatter returns the required character count, excluding any null
 terminator. If a buffer is supplied, it writes up to `buffer.length` characters
-and returns the full required count even when the buffer is too small. The
-default buffer supports ordinary size-query calls, and interpolation can supply
-the real buffer itself:
+and returns the full required count even when the buffer is too small. Omitting
+the buffer produces a scoped `char[]`; explicitly supplying it keeps the scalar
+call:
 
 ```camp
-Console.writeLine($"value: {thing.format()}");
+char[] text = thing.toString();
+nuint required = thing.toString(buffer: default);
+Console.writeLine($"value: {thing.toString()}");
 ```
 
-Do not use formatter-composition-style code for new interpolation. Use eager
-`$"..."` text or a `prep` formatter method.
+Bare UTF-8 interpolation holes discover eligible prepared `toString` methods.
+An explicit call to another prepared formatter, such as `toHexString()`, also
+works in a hole. Do not use formatter-composition-style code for new
+interpolation; use eager `$"..."` text or a prepared formatter method.
+
+Prep-bearing getter methods are called explicitly and are not properties. When
+allocated lifetime is needed, `(new)` must own the direct prepared result and
+that result must be cleaned up:
+
+```camp
+char[] owned = within(default) (new) thing.toString();
+// ...
+delete owned.elements;
+```
 
 ## Files, Namespaces, And Build Prelude
 

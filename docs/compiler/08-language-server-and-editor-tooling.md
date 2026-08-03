@@ -104,6 +104,12 @@ Hover should prefer source-level Camp spelling over lowered ABI spelling. For
 example, a property hover should name the property surface, not the getter's
 lowered implementation details.
 
+For prep-bearing callables, declaration hover and method references show the
+declared scalar return and `prep` array parameter. Hover over an invocation may
+show the mutable prepared array when the prep slot is omitted, or the scalar
+return when it is explicitly supplied. The language server does not invent a
+synthetic array-returning overload.
+
 ## Go To Definition And References
 
 Definition and reference results are source-backed. They rely on syntax ranges
@@ -128,6 +134,11 @@ Semantic completion covers scope names, members, properties, components of
 expanded forms such as array `.length` and `.elements`, enum values, methods,
 variables, parameters, fields, aliases, and useful keywords.
 
+Prep-bearing methods remain method-completion candidates but are excluded from
+property completion. `prep` is suggested or highlighted as a modifier only in
+parameter-declaration context; elsewhere it is an ordinary identifier or type
+name. Editor grammars and semantic tokens should follow the same distinction.
+
 For shadow classes, completion should show source fields, methods, implemented
 interfaces, and hook methods that are visible in source. It should not show
 generated shadow data structs, generated interface slots, stored shadow-instance
@@ -147,6 +158,12 @@ caller sees.
 Signature help should not expose hidden async completion parameters, generated
 context parameters, or expanded ABI components unless the user is explicitly
 editing an ABI-visible component name.
+
+Signature help for prep callables retains the declared scalar/prep parameter
+list and can indicate that omitting the prep parameter produces the prepared
+array. Diagnostics for prep-shaped property access and invalid `(new)` prepared
+allocation come from the compiler with their source ranges and are surfaced
+unchanged by the language server.
 
 ## Document And Workspace Symbols
 

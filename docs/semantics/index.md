@@ -64,6 +64,7 @@ code. Ordinary Camp users should start with the language guide.
 - Interface Pointer Casts
 - Callable Conversions
 - Expanded And Generic Types
+- Prepared Result Conversion Boundary
 - Target Conversion Policy
 - Warnings
 - Test Matrix
@@ -97,6 +98,7 @@ code. Ordinary Camp users should start with the language guide.
 - Declaration Defaults
 - Expression Facts
 - Call-Site Relation Solving
+- Prepared Result Lifetimes
 - Assignment And Storage
 - Fields
 - Return, Yield, And Delete
@@ -119,6 +121,7 @@ code. Ordinary Camp users should start with the language guide.
 - `T: copyable`
 - Size, VTable, And Type Name Capabilities
 - Generic Arrays And Iterators
+- Generic Prepared Arrays
 - Interface-Constrained Generics
 - Generic Construction And Destruction
 - Materialized Generic Results
@@ -134,6 +137,8 @@ code. Ordinary Camp users should start with the language guide.
 - Callable Shape
 - Shape Expansion
 - Direct Functions
+- Default Arguments And Source Capture
+- Prep-Bearing Callable Invocation
 - Delegates
 - `once`
 - Callable Newtypes
@@ -188,6 +193,7 @@ code. Ordinary Camp users should start with the language guide.
 - `vtableof`
 - Interface Conversions
 - Virtual Class Dispatch
+- Prepared Dispatch
 - Metadata And API
 - Diagnostics
 - Test Surface
@@ -206,6 +212,7 @@ code. Ordinary Camp users should start with the language guide.
 - Initializer Lists
 - Trailing Construction Initializers
 - `new`
+- `(new)` Prepared Allocation
 - `delete`
 - Allocator Selection
 - Allocator Lifetime
@@ -253,6 +260,7 @@ code. Ordinary Camp users should start with the language guide.
 - Primitive C Spelling
 - C Emission Preconditions
 - Expanded Forms In C
+- Prepared Result Emission
 - Enums And Inline Constants In C
 - C Reserved Identifiers
 - Symbol Emission
@@ -275,6 +283,7 @@ code. Ordinary Camp users should start with the language guide.
 - Range Helpers
 - Warnings
 - Error Message Style
+- Prepared Call Diagnostics
 - Multi-Diagnostic Situations
 - Driver And Emitter Diagnostics
 - Golden Diagnostic Tests
@@ -292,6 +301,8 @@ code. Ordinary Camp users should start with the language guide.
 - Index-Aware Parameters
 - Range-Aware Parameters
 - Accessors, Ranges, And Generic Arrays
+- Caller-Prepared Array Results
+- Interpolated Strings
 - Omitted Trailing `out` Result Binding
 - Intentional Discard
 - Labels, `goto`, And Cleanup

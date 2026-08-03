@@ -234,6 +234,25 @@ produce a stable interface pointer through stored class state, but the class
 receiver lifetime still determines whether the produced interface pointer may
 escape.
 
+## Prepared Result Lifetimes
+
+A transformed prep call without `(new)` produces storage equivalent to a scoped
+initialized array. Its value fact must prevent escape through returns, fields,
+captured delegates, async frames, iterator frames, conditional joins, loop-carried
+state, or other storage that would reject the equivalent scoped array.
+
+`(new)` on a direct transformed prep call uses ordinary allocated lifetime and
+ownership. Its fact comes from the selected `within` allocator and existing
+allocation contract, and cleanup uses the matching ordinary delete path. The
+direct-result rule prevents a member, index, slice, or method chain from losing
+the owning reference before it can be captured or attached to `finally delete`.
+No special prep lifetime cast or lifetime category exists.
+
+Receiver and explicit argument facts are solved once and retained across the
+sizing and writing calls. A generated temporary or protocol call must not
+weaken those facts or replace the source prepared expression as the diagnostic
+provenance.
+
 ## Assignment And Storage
 
 Assignment checks whether a value fact can be stored in the target slot fact.

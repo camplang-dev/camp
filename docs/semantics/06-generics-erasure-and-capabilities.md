@@ -287,6 +287,20 @@ when the generated state needs element stride. When an iterator lowers into a
 state type, these capability parameters become state fields so the `next`
 method can run after the factory call has returned.
 
+### Generic Prepared Arrays
+
+A generic prep array is still an ordinary mutable generic array in the declared
+callable shape. Its element type must satisfy the prep copyability rule, and its
+scalar result must exactly match the substituted array length component type.
+Sizing, allocation, element addressing, and copying request the same
+capabilities as equivalent ordinary `T[]` operations.
+
+When a transformed generic prep call produces two protocol invocations,
+lowering evaluates or acquires each `sizeof(T)`, `typenameof(T)`,
+`vtableof(T: Interface)`, and related capability once and reuses that value for
+both. Compiler-supplied capability parameters may follow prep because the
+ordinary binder can satisfy them without a caller-written argument.
+
 ## Interface-Constrained Generics
 
 An interface-constrained generic parameter may call interface members only when

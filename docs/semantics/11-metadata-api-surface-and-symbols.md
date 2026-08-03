@@ -345,6 +345,11 @@ This information belongs to the accessor function metadata. Do not synthesize
 source field declarations for properties, and do not omit the underlying
 function declaration data needed to type-check or document the API.
 
+Prep-bearing accessor-shaped functions remain ordinary function metadata but
+must not receive property or indexer classification. Language-service property
+completion likewise excludes them. The source candidate remains discoverable
+for a focused explicit-method diagnostic and for ordinary method completion.
+
 ## Stubs
 
 Stubs represent referenced declarations that are not emitted in full. Consumers
@@ -411,6 +416,16 @@ views. If the metadata view expands array ABI components, each emitted
 component that belongs to the source `prep` parameter must remain marked with
 `modifier: "prep"` so consumers can reconstruct the caller-prepared contract.
 API headers must print the `prep` modifier and any ordinary default value.
+Neither API headers nor metadata emit a synthetic array-returning overload for
+an omitted prep slot; transformation is an invocation fact. Call-site tooling
+may report the transformed array expression type, while declaration hover,
+signature help, definitions, method references, and navigation retain the
+scalar/prep source signature.
+
+The standard UTF-8 formatter convention is named `toString`. Standard-library
+API and metadata views expose the renamed source declarations and no exact
+public `format` alias. This is a source-name change only; prep parameter and ABI
+expansion remain unchanged.
 
 For async functions, metadata keeps the source async shape and omits generated
 completion helpers. The metadata `async` flag means the declaration is callable

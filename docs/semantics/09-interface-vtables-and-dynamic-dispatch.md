@@ -303,6 +303,19 @@ Do not conflate virtual class vtables with interface implementation vtables.
 Interface vtables describe a nominal interface contract. Virtual class vtables
 describe class hierarchy dispatch. A class can participate in both.
 
+### Prepared Dispatch
+
+When the statically selected interface or virtual source method declares prep
+and the invocation omits that slot, both sizing and writing dispatch through
+that same selected slot. Lowering captures the receiver, vtable carrier, and
+required generic `vtableof` capability once; it must not bind one protocol call
+concretely and the other dynamically.
+
+Prep is a source callable contract and participates in conformance and override
+shape. A call through a non-prep interface, virtual, or callable surface does
+not transform merely because a concrete implementation strengthens the
+corresponding mutable-array parameter with prep.
+
 ## Metadata And API
 
 Metadata should expose source interface declarations, implemented interfaces,

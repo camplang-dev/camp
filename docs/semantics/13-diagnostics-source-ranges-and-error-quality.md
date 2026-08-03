@@ -158,6 +158,30 @@ Examples of useful wording patterns:
 Do not make diagnostics depend on test fixture names, host paths, or private
 machine details.
 
+## Prepared Call Diagnostics
+
+Prepared-result diagnostics are divided by owning pass and should retain the
+original source construct:
+
+- declaration validation reports an invalid prep type/return match, duplicate
+  prep slot, incompatible modifier, prep in `once`, required ordinary or `out`
+  parameter after prep, and overload selector after prep at the responsible
+  parameter or declaration;
+- body analysis reports wrong explicit prep arguments, unsatisfied non-prep
+  slots, invalid scoped lifetime, missing allocation context, and invalid
+  `(new)` direct-result/owner-losing chains at the written argument, call, or
+  `(new)` token;
+- property binding recognizes a prep accessor candidate and reports that
+  explicit method-call syntax is required at the property access;
+- interpolation reports missing, ambiguous, wrong-buffer, wrong-return,
+  unsupported-thrown, receiver, and lifetime failures at the hole or selected
+  formatter.
+
+Generated temporaries and generated sizing/writing calls are never the primary
+diagnostic ranges. No diagnostic recommends the removed `prep` expression
+prefix. Contextual uses of `prep` that do not form a complete modifier parameter
+are parsed and diagnosed as ordinary identifiers or types.
+
 ## Multi-Diagnostic Situations
 
 Some source mistakes correctly produce more than one diagnostic. For example,

@@ -324,6 +324,21 @@ rewrite a constructed type merely because a type argument has a value
 conversion. This applies to arrays, optionals, delegates, class instantiations,
 and generic interface uses.
 
+### Prepared Result Conversion Boundary
+
+An invocation that omits a prep buffer first has the substituted mutable prep
+array as its intrinsic expression type. `auto` therefore infers that array type.
+Only afterward does ordinary target conversion apply. Conversions to const
+array views, primitive string families, fixed storage, or another accepted text
+target use the existing conversion classifier; prep does not create a separate
+conversion category.
+
+Any terminator required by an existing array-to-string-family conversion is
+additional storage owned by that conversion. It is not part of the prep
+method's logical required length unless the declaration's own contract says the
+terminator is logical content. Checked terminator addition and storage
+arithmetic occur before allocation.
+
 ## Target Conversion Policy
 
 Targets provide conversion policy by carrier:

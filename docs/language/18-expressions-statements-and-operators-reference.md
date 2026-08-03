@@ -367,12 +367,29 @@ void accept(LineWriter writer)
 ```
 
 Callable values invoke with the same `target(arguments)` surface as functions.
-An interpolation hole can use a `format` method with a `prep char[]` buffer.
+An interpolation hole can use a `toString` method with a `prep char[]` buffer.
 This keeps formatting options as ordinary arguments:
 
 ```camp
-Console.writeLine($"count: {count.format(IntegerFormat.POSITIVE_SIGN)}");
+Console.writeLine($"count: {count.toString(IntegerFormat.POSITIVE_SIGN)}");
 ```
+
+## Prepared Allocation
+
+Calling a prep-bearing function without supplying its prep buffer produces a
+scoped prepared array. Put `(new)` directly before that call when the result
+needs allocated lifetime. Capture the owning result or attach cleanup directly:
+
+```camp
+char[] text = within(default) (new) count.toString();
+// ...
+delete text.elements;
+
+within(default) (new) count.toString() finally delete;
+```
+
+The `(new)` form owns the direct prepared result. Apply member, index, or slice
+operations only after capturing it so the owning reference is not lost.
 
 ## Lambdas
 

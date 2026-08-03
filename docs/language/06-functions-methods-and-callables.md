@@ -262,7 +262,7 @@ parameter is the result buffer supplied by the caller, and the function returns
 the length needed for the complete result:
 
 ```camp
-nuint format(in Status this, prep char[] buffer = default)
+nuint toString(in Status this, prep char[] buffer = default)
 {
 	const char[] text = this.enabled ? "enabled" : "disabled";
 	nuint count = min(text.length, buffer.length);
@@ -274,34 +274,39 @@ nuint format(in Status this, prep char[] buffer = default)
 }
 ```
 
-The default buffer is useful for the sizing call:
+Omit the buffer in an ordinary call when you want the prepared result. The
+compiler asks for the required length, creates scoped storage, and calls the
+method again to fill it:
 
 ```camp
-nuint required = status.format();
-char[] text = init char[required];
-status.format(text);
+char[] text = status.toString();
 ```
 
-Most callers do not need to write those two calls. The `prep` prefix asks the
-compiler to do the sizing, allocate scoped result storage, call again with that
-storage, and produce the resulting array view:
+Use the explicit buffer form when you want to reuse storage. Supplying the prep
+parameter makes this an ordinary call that returns the required length:
 
 ```camp
-char[] text = prep status.format();
+nuint required = status.toString(buffer: default);
+char[] storage = init char[required];
+status.toString(buffer: storage);
 ```
 
-The non-`new` form is scoped storage, like an initialized local array. If the
-prepared result needs heap lifetime, use `prep new` with the ordinary
-allocation context:
+An omitted buffer can allocate input-sized scoped storage, so keep the result
+when it will be used repeatedly. For large or repeated results, measuring once
+and reusing explicit storage can reduce stack use and repeated work.
+
+If the prepared result needs allocated lifetime, put `(new)` directly before
+the call and use the ordinary allocation context. Keep the owning array so it
+can be cleaned up:
 
 ```camp
-char[] text = within (default) prep new status.format();
+char[] text = within (default) (new) status.toString();
 // ...
 delete text.elements;
 ```
 
-`prep` can also use property getter syntax when the getter has the same
-caller-prepared shape:
+Prep-bearing getter methods use explicit method-call syntax. This keeps an
+allocation-producing operation visible instead of making it look like a field:
 
 ```camp
 struct Control
@@ -318,12 +323,15 @@ struct Control
 	}
 }
 
-char[] label = prep control.Text;
+char[] label = control.getText();
 ```
 
 The receiver and ordinary arguments are evaluated once. The generated sizing
-and writing calls reuse those values, so `prep next().format()` does not call
-`next()` twice.
+and writing calls reuse those values, so `next().toString()` does not call
+`next()` twice. The `prep` modifier remains part of callable and interface
+contracts; calls through a prep-bearing surface get the prepared-result
+behavior, while calls through an ordinary mutable-array surface remain ordinary
+calls.
 
 ## Methods And Receiver Calls
 

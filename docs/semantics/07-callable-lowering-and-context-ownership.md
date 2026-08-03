@@ -123,6 +123,29 @@ lowered into lifecycle helpers such as `op_initnew` or `op_delete`,
 `caller(functionname)` and `caller(qualifiedname)` still use the visible names
 `create` and `destroy`, not the generated helper names.
 
+## Prep-Bearing Callable Invocation
+
+Callable references and values preserve the declared scalar return and prep
+parameter. Reading a method reference does not transform it. At invocation,
+written arguments bind to the complete source parameter list first; omission of
+the prep slot then selects the transformed mutable-array result, while an
+explicit positional, named, or `default` prep argument selects one full scalar
+call.
+
+This rule applies to direct `fn` values, bound delegates, callable newtypes,
+interface and virtual references, generic constraint members, and imported API
+surfaces that carry prep. A non-prep view remains ordinary even if its concrete
+target has a stronger prep declaration. Hidden delegate context and expanded
+receiver components are not source parameters and do not shift the declared
+prep slot.
+
+Transformed lowering captures the callable target/context, receiver, and every
+written argument once in source order. Both protocol calls reuse those captures
+and the same substitutions, default/capability values, error path, and dispatch
+surface. The generated context or adapter does not gain a synthetic transformed
+signature, and metadata/API continue to expose only the declaration-shaped
+callable.
+
 ## Delegates
 
 Delegates lower to target plus context. The context type may be null, generated,

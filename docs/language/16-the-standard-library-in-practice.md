@@ -241,9 +241,12 @@ working with.
 
 ## Formatting
 
-Formatting in `Std` uses `prep` methods. A formatter first reports the required
-buffer size and then writes into caller-prepared storage. That is the same shape
-interpolated strings use for runtime holes.
+Formatting in `Std` uses `toString` methods with `prep` buffers. Omitting the
+buffer produces the formatted character array; supplying the buffer calls the
+formatter directly and returns its required length. Interpolated strings use
+the same preparation shape for runtime holes. Character, text, primitive, and
+date/time formatting APIs use this `toString` convention; `Std` does not expose
+an exact public `format` alias for them.
 
 You often do not need to see that two-step protocol directly:
 
@@ -323,6 +326,22 @@ void printByte(byte value)
 The interpolation uses the `formatHex` call as the hole's formatter. That keeps
 the formatting choice local to the expression without changing how plain `byte`
 values format elsewhere.
+
+For direct formatting, call `toString()` normally:
+
+```camp
+char[] text = total.toString();
+```
+
+Use `.length` when only the required character count matters. When formatting
+many values, measure and reuse a buffer instead of repeatedly creating scoped
+arrays:
+
+```camp
+nuint required = total.toString().length;
+char[] storage = init char[required];
+total.toString(buffer: storage);
+```
 
 ## Files
 
@@ -499,7 +518,7 @@ using Std::Time;
 void printDate()
 {
 	Date date = { 2026, 7, 14 };
-	char[] text = prep date.format();
+	char[] text = date.toString();
 	Console.writeLine(text);
 }
 ```

@@ -230,6 +230,20 @@ Callable compatibility may still apply its ordinary variance and `constof`
 rules to compatible parameter slots, but it must not move the overload selector
 or silently match an ordinary declaration against an overload-family entry.
 
+For a prep-bearing overload family, the selector must precede the prep slot.
+The modifiers are mutually exclusive and selectors cannot default, while every
+post-prep slot must be defaultable or compiler-supplied. Call analysis therefore
+selects the concrete entry and completes generic and `constof` substitution
+against the declaration before deciding whether omission of prep transforms
+the invocation.
+
+Prep is part of source callable compatibility. A prep mutable-array slot may
+satisfy the corresponding ordinary mutable-array slot because the target may
+ignore the stronger contract; the reverse requires an unsafe conversion.
+Method references retain this declaration-shaped scalar result and prep slot.
+When an invocation transforms, the same resolved `constof` substitutions and
+anchor relationships are reused for both generated protocol calls.
+
 ## Virtual Overrides Remain Exact
 
 Virtual and abstract override matching is exact with respect to ordinary const
