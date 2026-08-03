@@ -46,8 +46,8 @@ static bool splitFirstIter_next(splitFirstIter *this, const char **current, uint
 		goto __iter_resume1;
 	}
 	{
-		*current = (this->text + ((0 > this->text_length) ? this->text_length : ((0 < 0) ? 0 : 0)));
-		*current_length = ((((1 > this->text_length) ? this->text_length : ((1 < 0) ? 0 : 1)) >= ((0 > this->text_length) ? this->text_length : ((0 < 0) ? 0 : 0))) ? (((1 > this->text_length) ? this->text_length : ((1 < 0) ? 0 : 1)) - ((0 > this->text_length) ? this->text_length : ((0 < 0) ? 0 : 0))) : 0);
+		*current = (this->text + 0);
+		*current_length = ((1 > this->text_length) ? this->text_length : ((1 < 0) ? 0 : 1));
 	}
 	this->__state = 1;
 	return true;

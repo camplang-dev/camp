@@ -82,9 +82,9 @@ static Box *makeBox(void)
 int main(void)
 {
 	char storage[16] = "hello";
-	View view = makeView(((char *)(storage) + ((0 > 16) ? 16 : ((0 < 0) ? 0 : 0))), ((((16 > 16) ? 16 : ((16 < 0) ? 0 : 16)) >= ((0 > 16) ? 16 : ((0 < 0) ? 0 : 0))) ? (((16 > 16) ? 16 : ((16 < 0) ? 0 : 16)) - ((0 > 16) ? 16 : ((0 < 0) ? 0 : 0))) : 0));
-	Scratch scratch = makeScratch(((char *)(storage) + ((0 > 16) ? 16 : ((0 < 0) ? 0 : 0))), ((((16 > 16) ? 16 : ((16 < 0) ? 0 : 16)) >= ((0 > 16) ? 16 : ((0 < 0) ? 0 : 0))) ? (((16 > 16) ? 16 : ((16 < 0) ? 0 : 16)) - ((0 > 16) ? 16 : ((0 < 0) ? 0 : 0))) : 0));
-	View aggregate = makeAggregate(((char *)(storage) + ((0 > 16) ? 16 : ((0 < 0) ? 0 : 0))), ((((16 > 16) ? 16 : ((16 < 0) ? 0 : 16)) >= ((0 > 16) ? 16 : ((0 < 0) ? 0 : 0))) ? (((16 > 16) ? 16 : ((16 < 0) ? 0 : 16)) - ((0 > 16) ? 16 : ((0 < 0) ? 0 : 0))) : 0));
+	View view = makeView(((char *)(storage) + 0), 16);
+	Scratch scratch = makeScratch(((char *)(storage) + 0), 16);
+	View aggregate = makeAggregate(((char *)(storage) + 0), 16);
 	Box *box = makeBox();
 	return (int)(((((view.text_length + scratch.text_length) + aggregate.text_length) + (((box == NULL) ? 0 : 1)))));
 }

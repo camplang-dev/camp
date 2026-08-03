@@ -96,8 +96,8 @@ static bool chunksIter_next(chunksIter *this, uint8_t **current, uintptr_t *curr
 	__builtin_memcpy(this->first, (uint8_t[3]){1, 2, 3}, sizeof(this->first));
 	__builtin_memcpy(this->second, (uint8_t[2]){4, 5}, sizeof(this->second));
 	{
-		*current = ((uint8_t *)(this->first) + ((0 > 3) ? 3 : ((0 < 0) ? 0 : 0)));
-		*current_length = ((((3 > 3) ? 3 : ((3 < 0) ? 0 : 3)) >= ((0 > 3) ? 3 : ((0 < 0) ? 0 : 0))) ? (((3 > 3) ? 3 : ((3 < 0) ? 0 : 3)) - ((0 > 3) ? 3 : ((0 < 0) ? 0 : 0))) : 0);
+		*current = ((uint8_t *)(this->first) + 0);
+		*current_length = 3;
 	}
 	this->__state = 1;
 	return true;
