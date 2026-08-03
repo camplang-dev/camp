@@ -1,7 +1,7 @@
 export extern class GenericBox<T: any>
 {
 	export inline int LIMIT = 8;
-	export static int current = 1;
+	export extern static int current;
 
 	export extern GenericBox();
 
@@ -15,5 +15,5 @@ export extern class GenericBox<T: any>
 export struct GenericPair<T: any>
 {
 	T* value;
-	export static int current = 2;
+	export extern static int current;
 }

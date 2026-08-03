@@ -19,25 +19,25 @@ public interface Allocator
 }
 
 /// Allocates from the process heap.
-public void* heapAllocatorAlloc(Allocator* allocator, nuint size)
+void* heapAllocatorAlloc(Allocator* allocator, nuint size)
 {
 	return malloc(size);
 }
 
 /// Resizes a process-heap allocation.
-public void* heapAllocatorRealloc(Allocator* allocator, void* ptr, nuint newSize)
+void* heapAllocatorRealloc(Allocator* allocator, void* ptr, nuint newSize)
 {
 	return realloc(ptr, newSize);
 }
 
 /// Releases a process-heap allocation.
-public void heapAllocatorFree(Allocator* allocator, void* ptr)
+void heapAllocatorFree(Allocator* allocator, void* ptr)
 {
 	free(ptr);
 }
 
 /// Static vtable storage for the default process-heap allocator.
-public Allocator HeapAllocatorStorage =
+Allocator HeapAllocatorStorage =
 {
 	.alloc = heapAllocatorAlloc,
 	.realloc = heapAllocatorRealloc,

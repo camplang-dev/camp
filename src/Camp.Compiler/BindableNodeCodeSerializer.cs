@@ -624,7 +624,7 @@ public sealed class BindableNodeCodeSerializer
 		WriteTypeOrResolved(definition.Type, definition.ResolvedType);
 		writer.Write(" ");
 		writer.Write(definition.Name);
-		if (definition.InitialValue is not null)
+		if (definition.InitialValue is not null && !ShouldSuppressApiInitializer(definition))
 		{
 			writer.Write(" = ");
 			WriteExpression(definition.InitialValue);
@@ -720,7 +720,14 @@ public sealed class BindableNodeCodeSerializer
 
 	bool ShouldSuppressApiInitializer(VariableDefinition definition)
 	{
-		return IsVisibleInApiSurface(definition) && !IsConstantVariableDefinition(definition);
+		return IsVisibleInApiSurface(definition) && !definition.IsInline;
+	}
+
+	bool ShouldSuppressApiInitializer(FieldDefinition definition)
+	{
+		return IsVisibleInApiSurface(definition)
+			&& definition.Modifier == FieldModifier.Static
+			&& !definition.IsInline;
 	}
 
 	static bool IsConstantVariableDefinition(VariableDefinition definition)
@@ -1432,6 +1439,8 @@ public sealed class BindableNodeCodeSerializer
 	{
 		if (writingInterfaceMembers)
 			return false;
+		if (definition is VariableDefinition { IsInline: true } or FieldDefinition { IsInline: true })
+			return false;
 		if (definition.Extern is not null)
 			return !writingInterfaceMembers;
 		if (!apiHeader || !IsVisibleInApiSurface(definition))
@@ -1440,7 +1449,8 @@ public sealed class BindableNodeCodeSerializer
 		return definition switch
 		{
 			FunctionDefinition function => IsVisibleInApiSurface(function) || IsLifecycleFunction(function) || function.Body is not null || function.Modifier is FunctionModifier.Override or FunctionModifier.Sealed,
-			VariableDefinition variable => !IsConstantVariableDefinition(variable),
+			VariableDefinition variable => !variable.IsInline,
+			FieldDefinition field => field.Modifier == FieldModifier.Static && !field.IsInline,
 			_ => false
 		};
 	}
