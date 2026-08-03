@@ -32,7 +32,7 @@ static int main(void)
 	consume(_elements0, _length1);
 	const int *_elements2;
 	uintptr_t _length3;
-	_elements2 = IntArray_slice(values, values_length, ((0 > values_length) ? values_length : ((0 < 0) ? 0 : 0)), (((((values_length - 1) > values_length) ? values_length : (((values_length - 1) < 0) ? 0 : (values_length - 1))) >= ((0 > values_length) ? values_length : ((0 < 0) ? 0 : 0))) ? ((((values_length - 1) > values_length) ? values_length : (((values_length - 1) < 0) ? 0 : (values_length - 1))) - ((0 > values_length) ? values_length : ((0 < 0) ? 0 : 0))) : 0), &_length3);
+	_elements2 = IntArray_slice(values, values_length, 0, (((values_length - 1) > values_length) ? values_length : (((values_length - 1) < 0) ? 0 : (values_length - 1))), &_length3);
 	consume(_elements2, _length3);
 	const int *_elements4;
 	uintptr_t _length5;

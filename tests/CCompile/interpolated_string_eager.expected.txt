@@ -3,30 +3,93 @@
 
 /* Private file declarations. */
 static uintptr_t Int_toString(int *this, char *buffer, uintptr_t buffer_length);
+static uintptr_t String_getLength(const char *this);
+static void CharArray_copyTo(const char *this, uintptr_t this_length, char *buffer, uintptr_t buffer_length);
 static void make(int value);
+static void copyTwice(int value, char *buffer, uintptr_t buffer_length);
 
 static uintptr_t Int_toString(int *this, char *buffer, uintptr_t buffer_length)
 {
 	return 1;
 }
 
+static uintptr_t String_getLength(const char *this)
+{
+	return 2;
+}
+
+static void CharArray_copyTo(const char *this, uintptr_t this_length, char *buffer, uintptr_t buffer_length)
+{
+	const char *__discard1;
+	__discard1 = this;
+	char *__discard2;
+	__discard2 = buffer;
+}
+
 static void make(int value)
 {
-	uintptr_t _interpolatedRequired0 = 1;
-	uintptr_t _interpolatedPartSize1 = Int_toString(&value, NULL, 0);
-	_interpolatedRequired0 = (_interpolatedRequired0 + _interpolatedPartSize1);
-	uintptr_t _interpolatedBufferLength2 = (_interpolatedRequired0 + 1);
-	char *_interpolatedBufferElements3 = (char *)(__builtin_alloca((sizeof(char) * _interpolatedBufferLength2)));
-	uintptr_t _interpolatedOffset4 = 0;
-	__builtin_memcpy((void*)((_interpolatedBufferElements3 + _interpolatedOffset4)), (const void*)("x"), 1 * sizeof(char));
-	_interpolatedOffset4 = (_interpolatedOffset4 + 1);
-	uintptr_t _interpolatedStart5 = ((_interpolatedOffset4 < _interpolatedBufferLength2) ? _interpolatedOffset4 : _interpolatedBufferLength2);
-	Int_toString(&value, &_interpolatedBufferElements3[_interpolatedStart5], (_interpolatedBufferLength2 - _interpolatedStart5));
-	_interpolatedOffset4 = (_interpolatedOffset4 + _interpolatedPartSize1);
-	_interpolatedBufferElements3[_interpolatedRequired0] = '\0';
-	const char *text = (const char*)(_interpolatedBufferElements3);
-	const char *__discard1;
-	__discard1 = text;
+	uintptr_t _ir0 = 1;
+	uintptr_t _ips1 = Int_toString(&value, NULL, 0);
+	_ir0 = (_ir0 + _ips1);
+	uintptr_t _ibl2 = (_ir0 + 1);
+	char *_ibe3 = (char *)(__builtin_alloca((sizeof(char) * _ibl2)));
+	uintptr_t _io4 = 0;
+	__builtin_memcpy((void*)((_ibe3 + _io4)), (const void*)("x"), 1 * sizeof(char));
+	_io4 = (_io4 + 1);
+	uintptr_t _is5 = ((_io4 < _ibl2) ? _io4 : _ibl2);
+	Int_toString(&value, &_ibe3[_is5], (_ibl2 - _is5));
+	_io4 = (_io4 + _ips1);
+	_ibe3[_ir0] = '\0';
+	const char *text = (const char*)(_ibe3);
+	const char *__discard3;
+	__discard3 = text;
+}
+
+static void copyTwice(int value, char *buffer, uintptr_t buffer_length)
+{
+	uintptr_t _ir6 = 0;
+	uintptr_t _r7 = Int_toString(&value, NULL, 0);
+	uintptr_t _ips8 = _r7;
+	_ir6 = (_ir6 + _ips8);
+	uintptr_t _r9 = Int_toString(&value, NULL, 0);
+	uintptr_t _ips10 = _r9;
+	_ir6 = (_ir6 + _ips10);
+	uintptr_t _ibl11 = (_ir6 + 1);
+	char *_ibe12 = (char *)(__builtin_alloca((sizeof(char) * _ibl11)));
+	uintptr_t _io13 = 0;
+	uintptr_t _is14 = ((_io13 < _ibl11) ? _io13 : _ibl11);
+	uintptr_t _r15 = Int_toString(&value, &_ibe12[_is14], (_ibl11 - _is14));
+	_r15;
+	_io13 = (_io13 + _ips8);
+	uintptr_t _is16 = ((_io13 < _ibl11) ? _io13 : _ibl11);
+	uintptr_t _r17 = Int_toString(&value, &_ibe12[_is16], (_ibl11 - _is16));
+	_r17;
+	_io13 = (_io13 + _ips10);
+	_ibe12[_ir6] = '\0';
+	uintptr_t _ir18 = 0;
+	uintptr_t _r19 = Int_toString(&value, NULL, 0);
+	uintptr_t _ips20 = _r19;
+	_ir18 = (_ir18 + _ips20);
+	uintptr_t _r21 = Int_toString(&value, NULL, 0);
+	uintptr_t _ips22 = _r21;
+	_ir18 = (_ir18 + _ips22);
+	uintptr_t _ibl23 = (_ir18 + 1);
+	char *_ibe24 = (char *)(__builtin_alloca((sizeof(char) * _ibl23)));
+	uintptr_t _io25 = 0;
+	uintptr_t _is26 = ((_io25 < _ibl23) ? _io25 : _ibl23);
+	uintptr_t _r27 = Int_toString(&value, &_ibe24[_is26], (_ibl23 - _is26));
+	_r27;
+	_io25 = (_io25 + _ips20);
+	uintptr_t _is28 = ((_io25 < _ibl23) ? _io25 : _ibl23);
+	uintptr_t _r29 = Int_toString(&value, &_ibe24[_is28], (_ibl23 - _is28));
+	_r29;
+	_io25 = (_io25 + _ips22);
+	_ibe24[_ir18] = '\0';
+	uintptr_t _r30 = String_getLength((const char*)(_ibe24));
+	if ((buffer_length > 0))
+	{
+		CharArray_copyTo(((const char*)(_ibe12) + 0), _r30, buffer, buffer_length);
+	}
 }
 
 // file: interpolated_string_eager_private.h

@@ -5050,9 +5050,7 @@ public sealed partial class BindableNodeAnalyzer
 			return ErrorType;
 		}
 
-		Expression start = ClampBoundary(CreateBoundaryExpression(range.Start, length, defaultToLength: false, range.SourceSyntax), length, range.SourceSyntax);
-		Expression end = ClampBoundary(CreateBoundaryExpression(range.End, length, defaultToLength: true, range.SourceSyntax), length, range.SourceSyntax);
-		Expression count = CreateRangeCountExpression(start, end, range.SourceSyntax);
+		(Expression start, Expression count) = CreateRangeStartAndCount(range, length);
 
 		argument.Value = start;
 		argument.ResolvedType = "nuint";

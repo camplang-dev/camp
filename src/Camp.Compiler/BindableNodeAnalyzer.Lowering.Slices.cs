@@ -81,9 +81,7 @@ public sealed partial class BindableNodeAnalyzer
 					continue;
 				}
 
-				Expression start = ClampBoundary(CreateBoundaryExpression(range.Start, length, defaultToLength: false, range.SourceSyntax), length, range.SourceSyntax);
-				Expression end = ClampBoundary(CreateBoundaryExpression(range.End, length, defaultToLength: true, range.SourceSyntax), length, range.SourceSyntax);
-				Expression count = CreateRangeCountExpression(start, end, range.SourceSyntax);
+				(Expression start, Expression count) = CreateRangeStartAndCount(range, length);
 
 				arguments[i] = new ArgumentExpression
 				{
@@ -257,6 +255,34 @@ public sealed partial class BindableNodeAnalyzer
 		if (boundary is UnaryExpression { Operator: UnaryOperator.FromEnd } fromEnd)
 			return CreateFromEndExpression(fromEnd, length);
 		return boundary;
+	}
+
+	(Expression Start, Expression Count) CreateRangeStartAndCount(RangeExpression range, Expression length)
+	{
+		if (range.Start is null && range.End is null)
+			return (NumberLiteral("0", "nuint"), CloneParamsExpansionExpression(length) ?? length);
+
+		if (range.Start is null)
+		{
+			Expression rangeEnd = ClampBoundary(CreateBoundaryExpression(range.End, length, defaultToLength: true, range.SourceSyntax), length, range.SourceSyntax);
+			return (NumberLiteral("0", "nuint"), rangeEnd);
+		}
+
+		Expression start = ClampBoundary(CreateBoundaryExpression(range.Start, length, defaultToLength: false, range.SourceSyntax), length, range.SourceSyntax);
+		if (range.End is null)
+		{
+			return (start, new BinaryExpression
+			{
+				SourceSyntax = range.SourceSyntax,
+				Left = CloneParamsExpansionExpression(length),
+				Operator = BinaryOperator.Subtract,
+				Right = CloneParamsExpansionExpression(start),
+				ResolvedType = "nuint"
+			});
+		}
+
+		Expression explicitEnd = ClampBoundary(CreateBoundaryExpression(range.End, length, defaultToLength: true, range.SourceSyntax), length, range.SourceSyntax);
+		return (start, CreateRangeCountExpression(start, explicitEnd, range.SourceSyntax));
 	}
 
 	Expression CreateFromEndExpression(UnaryExpression fromEnd, Expression length)

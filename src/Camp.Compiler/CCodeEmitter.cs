@@ -3968,7 +3968,7 @@ public static class CCodeEmitter
 
 		void WriteDeclarationStatement(TextWriter writer, DeclarationStatement declaration, int indent)
 		{
-			string name = declaration.Target.Names.Count == 0 ? "__unnamed" : SanitizeIdentifier(declaration.Target.Names[0]);
+			string name = CName(declaration.Target);
 			if (IsAnyGenericParameterType(declaration.Target.ResolvedType))
 			{
 				string size = FormatGenericSizeExpression(declaration.Target.ResolvedType);
@@ -4130,7 +4130,7 @@ public static class CCodeEmitter
 
 		string FormatDeclarationForClause(DeclarationStatement declaration)
 		{
-			string name = declaration.Target.Names.Count == 0 ? "__unnamed" : SanitizeIdentifier(declaration.Target.Names[0]);
+			string name = CName(declaration.Target);
 			string text = FormatTypeOrResolved(declaration.Target.Type, declaration.Target.ResolvedType, name).Declaration;
 			if (declaration.InitialValue is not null)
 				text += " = " + FormatExpression(declaration.InitialValue);
@@ -8360,7 +8360,40 @@ public static class CCodeEmitter
 
 		static string CName(DeclarationTarget target)
 		{
-			return target.Names.Count == 0 ? "__unnamed" : SanitizeIdentifier(target.Names[0]);
+			return target.Names.Count == 0 ? "__unnamed" : SanitizeIdentifier(AbbreviateGeneratedLocalName(target.Names[0]));
+		}
+
+		static string AbbreviateGeneratedLocalName(string name)
+		{
+			if (!name.StartsWith('#'))
+				return name;
+
+			int digitStart = name.Length;
+			while (digitStart > 1 && char.IsDigit(name[digitStart - 1]))
+				digitStart--;
+			string prefix = name[1..digitStart];
+			string suffix = name[digitStart..];
+			string abbreviated = prefix switch
+			{
+				"interpolatedBufferElements" => "ibe",
+				"interpolatedBufferLength" => "ibl",
+				"interpolatedCopyCount" => "icc",
+				"interpolatedCopyStart" => "ics",
+				"interpolatedOffset" => "io",
+				"interpolatedPartSize" => "ips",
+				"interpolatedRequired" => "ir",
+				"interpolatedStart" => "is",
+				"interpolatedValue" => "iv",
+				"prepArray" => "pa",
+				"prepRequired" => "pr",
+				"prepResult" => "pe",
+				"receiver" => "r",
+				"sliceElements" => "se",
+				"sliceLength" => "sl",
+				"sliceTarget" => "st",
+				_ => prefix
+			};
+			return "#" + abbreviated + suffix;
 		}
 
 		static string GetPrimitiveName(PrimitiveType type)

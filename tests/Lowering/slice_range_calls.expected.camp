@@ -26,15 +26,15 @@ void main()
 	consume(__local0, __local1);
 	scoped const int* __local2;
 	nuint __local3;
-	__local2 = IntArray_slice(values, values_length, 0 > values_length ? values_length : 0 < 0 ? 0 : 0, (5 > values_length ? values_length : 5 < 0 ? 0 : 5) >= (0 > values_length ? values_length : 0 < 0 ? 0 : 0) ? (5 > values_length ? values_length : 5 < 0 ? 0 : 5) - (0 > values_length ? values_length : 0 < 0 ? 0 : 0) : 0, out __local3);
+	__local2 = IntArray_slice(values, values_length, 0, 5 > values_length ? values_length : 5 < 0 ? 0 : 5, out __local3);
 	consume(__local2, __local3);
 	scoped const int* __local4;
 	nuint __local5;
-	__local4 = IntArray_slice(values, values_length, 2 > values_length ? values_length : 2 < 0 ? 0 : 2, (values_length > values_length ? values_length : values_length < 0 ? 0 : values_length) >= (2 > values_length ? values_length : 2 < 0 ? 0 : 2) ? (values_length > values_length ? values_length : values_length < 0 ? 0 : values_length) - (2 > values_length ? values_length : 2 < 0 ? 0 : 2) : 0, out __local5);
+	__local4 = IntArray_slice(values, values_length, 2 > values_length ? values_length : 2 < 0 ? 0 : 2, values_length - (2 > values_length ? values_length : 2 < 0 ? 0 : 2), out __local5);
 	consume(__local4, __local5);
 	scoped const int* __local6;
 	nuint __local7;
-	__local6 = IntArray_slice(values, values_length, 0 > values_length ? values_length : 0 < 0 ? 0 : 0, (values_length > values_length ? values_length : values_length < 0 ? 0 : values_length) >= (0 > values_length ? values_length : 0 < 0 ? 0 : 0) ? (values_length > values_length ? values_length : values_length < 0 ? 0 : values_length) - (0 > values_length ? values_length : 0 < 0 ? 0 : 0) : 0, out __local7);
+	__local6 = IntArray_slice(values, values_length, 0, values_length, out __local7);
 	consume(__local6, __local7);
 	scoped const int* __local8;
 	nuint __local9;

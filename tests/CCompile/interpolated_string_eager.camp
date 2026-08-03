@@ -3,8 +3,25 @@ nuint toString(in int this, prep char[] buffer = default)
 	return 1;
 }
 
+nuint getLength(string this)
+{
+	return 2;
+}
+
+void copyTo(const char[] this, char[] buffer)
+{
+	_ = this;
+	_ = buffer;
+}
+
 void make(int value)
 {
 	string text = $"x{value}";
 	_ = text;
+}
+
+void copyTwice(int value, char[] buffer)
+{
+	if (buffer.length > 0)
+		$"{value}{value}"[..].copyTo(buffer);
 }
