@@ -245,8 +245,7 @@ Formatting in `Std` uses `toString` methods with `prep` buffers. Omitting the
 buffer produces the formatted character array; supplying the buffer calls the
 formatter directly and returns its required length. Interpolated strings use
 the same preparation shape for runtime holes. Character, text, primitive, and
-date/time formatting APIs use this `toString` convention; `Std` does not expose
-an exact public `format` alias for them.
+date/time formatting APIs use this `toString` convention.
 
 You often do not need to see that two-step protocol directly:
 
