@@ -2322,6 +2322,15 @@ public static class CCodeEmitter
 
 		void WriteVariableDefinition(TextWriter writer, VariableDefinition variable, string? storage)
 		{
+			if (variable.InitialValue is InitializerExpression initializer
+				&& !IsGeneratedRawInterfaceVTableStorage(variable)
+				&& TryGetSourceInterfaceValueType(variable.Type, variable.ResolvedType, out InterfaceDefinition? interfaceDefinition)
+				&& interfaceDefinition is not null)
+			{
+				WriteFileScopeInterfaceValueDefinition(writer, variable, storage, initializer, interfaceDefinition);
+				return;
+			}
+
 			string prefix = BuildDeclarationPrefix(variable, storage);
 			writer.Write(prefix + FormatStorageDefinitionType(variable, CName(variable)).Declaration);
 			if (variable.InitialValue is not null)
@@ -2337,11 +2346,30 @@ public static class CCodeEmitter
 
 		void WriteFieldStorageDefinition(TextWriter writer, FieldDefinition field, string? storage)
 		{
+			if (field.InitialValue is InitializerExpression initializer
+				&& !IsGeneratedRawInterfaceVTableStorage(field)
+				&& TryGetSourceInterfaceValueType(field.Type, field.ResolvedType, out InterfaceDefinition? interfaceDefinition)
+				&& interfaceDefinition is not null)
+			{
+				WriteFileScopeInterfaceValueDefinition(writer, field, storage, initializer, interfaceDefinition);
+				return;
+			}
+
 			string prefix = BuildDeclarationPrefix(field, storage);
 			writer.Write(prefix + FormatStorageDefinitionType(field, CName(field)).Declaration);
 			if (field.InitialValue is not null)
 				writer.Write(" = " + FormatFileScopeInitializer(field.ResolvedType, field.InitialValue));
 			writer.WriteLine(";");
+		}
+
+		void WriteFileScopeInterfaceValueDefinition(TextWriter writer, Definition definition, string? storage, InitializerExpression initializer, InterfaceDefinition interfaceDefinition)
+		{
+			string name = CName(definition);
+			string backingName = name + "__storage";
+			string backingInitializer = FormatFileScopeInitializer(interfaceDefinition.Name, initializer);
+			writer.WriteLine("static " + FormatResolvedType(interfaceDefinition.Name, backingName, normalizeInterfacePointer: false).Declaration + " = " + backingInitializer + ";");
+			string prefix = BuildDeclarationPrefix(definition, storage);
+			writer.WriteLine(prefix + FormatStorageDefinitionType(definition, name).Declaration + " = &" + backingName + ";");
 		}
 
 		CType FormatStorageDefinitionType(Definition definition, string declarator)
@@ -2358,17 +2386,29 @@ public static class CCodeEmitter
 
 		bool IsGeneratedRawInterfaceVTableStorage(Definition definition)
 		{
-			if (definition.ResolvedType is not string resolvedType || !TryGetPointerElementType(resolvedType, out string elementType))
+			if (definition.ResolvedType is not string resolvedType)
 				return false;
-			string baseType = StripTopLevelConstForC(elementType);
-			if (!IsInterfaceResolvedName(baseType))
-				return false;
+			string baseType;
+			if (TryGetPointerElementType(resolvedType, out string elementType))
+			{
+				baseType = StripTopLevelConstForC(elementType);
+				if (!IsInterfaceResolvedName(baseType))
+					return false;
+			}
+			else
+			{
+				baseType = StripTopLevelConstForC(StripTypeDecorators(resolvedType.Trim()));
+				if (!IsInterfaceResolvedName(baseType))
+					return false;
+			}
 			return definition.GeneratedInfo?.Category == GeneratedDeclarationCategory.Interface
 				|| definition.Provenance?.Category == GeneratedDeclarationCategory.Interface
 				|| definition.Name.StartsWith("_vtableof_", StringComparison.Ordinal)
 				|| definition.Symbol.StartsWith("_vtableof_", StringComparison.Ordinal)
 				|| definition.Name == "_vt"
 				|| definition.Symbol == "_vt"
+				|| definition.Name.EndsWith("_" + baseType + "__storage", StringComparison.Ordinal)
+				|| definition.Symbol.EndsWith("_" + baseType + "__storage", StringComparison.Ordinal)
 				|| definition.Name.EndsWith("_" + baseType, StringComparison.Ordinal)
 				|| definition.Symbol.EndsWith("_" + baseType, StringComparison.Ordinal);
 		}
@@ -3986,6 +4026,17 @@ public static class CCodeEmitter
 				}
 				return;
 			}
+			if (declaration.InitialValue is InitializerExpression initializer
+				&& TryGetSourceInterfaceValueType(declaration.Target.Type, declaration.Target.ResolvedType, out InterfaceDefinition? interfaceDefinition)
+				&& interfaceDefinition is not null)
+			{
+				string backingName = name + "__storage";
+				WriteIndent(writer, indent);
+				writer.WriteLine(FormatResolvedType(interfaceDefinition.Name, backingName, normalizeInterfacePointer: false).Declaration + " = " + FormatDeclarationInitializer(interfaceDefinition.Name, initializer) + ";");
+				WriteIndent(writer, indent);
+				writer.WriteLine(FormatTypeOrResolved(declaration.Target.Type, declaration.Target.ResolvedType, name).Declaration + " = &" + backingName + ";");
+				return;
+			}
 			string type = FormatTypeOrResolved(declaration.Target.Type, declaration.Target.ResolvedType, name).Declaration;
 			WriteIndent(writer, indent);
 			writer.Write(type);
@@ -5051,17 +5102,38 @@ public static class CCodeEmitter
 			if (call.Arguments.Count == 0 || call.Arguments[0].Value is not Expression context)
 				return false;
 			string contextType = call.Arguments[0].ResolvedType ?? context.ResolvedType ?? "";
-			if (!TryNormalizeInterfacePointerType(contextType, out _))
+			if (!TryNormalizeInterfacePointerType(contextType, out _) && !IsLoweredInterfaceInstancePointerType(contextType))
 				return false;
 			string contextText = FormatExpression(context);
 			string prefix = contextText + "->";
 			if (!target.StartsWith(prefix, StringComparison.Ordinal))
-				return false;
+			{
+				string dereferencePrefix = "(*" + contextText + ").";
+				if (!target.StartsWith(dereferencePrefix, StringComparison.Ordinal))
+					return false;
+				string dereferencedSlotName = target[dereferencePrefix.Length..];
+				if (dereferencedSlotName.Contains("->", StringComparison.Ordinal) || dereferencedSlotName.Contains(".", StringComparison.Ordinal))
+					return false;
+				repairedTarget = "(*" + contextText + ")->" + dereferencedSlotName;
+				return true;
+			}
 			string slotName = target[prefix.Length..];
 			if (slotName.Contains("->", StringComparison.Ordinal) || slotName.Contains(".", StringComparison.Ordinal))
 				return false;
 			repairedTarget = "(*" + contextText + ")->" + slotName;
 			return true;
+		}
+
+		bool IsLoweredInterfaceInstancePointerType(string type)
+		{
+			type = StripTrailingStorageQualifiers(StripLifetimeOnly(type.Trim()));
+			if (!type.EndsWith("**", StringComparison.Ordinal))
+				return false;
+			string baseType = type[..^2].TrimEnd();
+			baseType = StripTopLevelConstForC(baseType);
+			baseType = baseType.StartsWith("volatile ", StringComparison.Ordinal) ? baseType[9..].TrimStart() : baseType;
+			baseType = baseType.EndsWith(" volatile", StringComparison.Ordinal) ? baseType[..^9].TrimEnd() : baseType;
+			return IsInterfaceResolvedName(baseType);
 		}
 
 		void RepairAsyncCallArgumentSlots(FunctionDefinition function, List<string> arguments)
@@ -6524,7 +6596,7 @@ public static class CCodeEmitter
 		bool TryNormalizeInterfacePointerType(string parameterType, out string normalizedParameterType)
 		{
 			normalizedParameterType = parameterType;
-			string type = StripLifetimeOnly(parameterType.Trim());
+			string type = StripTrailingStorageQualifiers(StripLifetimeOnly(parameterType.Trim()));
 			int pointerCount = 0;
 			while (type.EndsWith("*", StringComparison.Ordinal))
 			{
@@ -6543,6 +6615,24 @@ public static class CCodeEmitter
 
 			normalizedParameterType = StripLifetimeOnly(parameterType.Trim()) + "*";
 			return true;
+		}
+
+		static string StripTrailingStorageQualifiers(string type)
+		{
+			while (true)
+			{
+				if (type.EndsWith(" const", StringComparison.Ordinal))
+				{
+					type = type[..^6].TrimEnd();
+					continue;
+				}
+				if (type.EndsWith(" volatile", StringComparison.Ordinal))
+				{
+					type = type[..^9].TrimEnd();
+					continue;
+				}
+				return type;
+			}
 		}
 
 		bool TryFindInterfaceStruct(string interfaceName, string fieldName, out StructDefinition? interfaceStruct)
@@ -7580,6 +7670,7 @@ public static class CCodeEmitter
 				PrimitiveTypeReference primitive => FormatPrimitiveType(primitive.Type, declarator),
 				ClassTypeReference classType when ShouldFormatResolvedType(classType.ResolvedType) => FormatResolvedType(classType.ResolvedType!, declarator),
 				ThisTypeReference thisType when ShouldFormatResolvedType(thisType.ResolvedType) => FormatResolvedType(thisType.ResolvedType!, declarator),
+				TypeDefinitionReference { Definition: InterfaceDefinition definition } => FormatResolvedType(definition.Name + "*", declarator, normalizeInterfacePointer: false),
 				TypeDefinitionReference definition => new CType(CTypeName(definition) + " " + declarator),
 				NamedTypeReference named when ShouldFormatResolvedType(named.ResolvedType) => FormatResolvedType(named.ResolvedType!, declarator),
 				NamedTypeReference named => new CType(CTypeName(named) + " " + declarator),
@@ -7598,6 +7689,9 @@ public static class CCodeEmitter
 
 		CType FormatTypeOrResolved(TypeReference? type, string? resolvedType, string declarator)
 		{
+			if (TryGetSourceInterfaceValueType(type, resolvedType, out InterfaceDefinition? interfaceDefinition)
+				&& interfaceDefinition is not null)
+				return FormatResolvedType(interfaceDefinition.Name + "*", declarator, normalizeInterfacePointer: false);
 			if (type is AutoTypeReference && !string.IsNullOrWhiteSpace(resolvedType))
 				return FormatResolvedType(resolvedType!, declarator);
 			if (type is CallableTypeReference)
@@ -7618,6 +7712,24 @@ public static class CCodeEmitter
 			if (resolvedType is not null)
 				return FormatResolvedType(resolvedType, declarator);
 			return FormatType(null, declarator);
+		}
+
+		bool TryGetSourceInterfaceValueType(TypeReference? type, string? resolvedType, out InterfaceDefinition? interfaceDefinition)
+		{
+			interfaceDefinition = null;
+			TypeReference? stripped = StripTypeDecorators(type);
+			if (stripped is TypeDefinitionReference { Definition: InterfaceDefinition direct })
+			{
+				interfaceDefinition = direct;
+				return true;
+			}
+
+			if (resolvedType is null)
+				return false;
+			string normalized = StripTypeDecorators(resolvedType.Trim());
+			return !normalized.EndsWith("*", StringComparison.Ordinal)
+				&& !normalized.EndsWith("[]", StringComparison.Ordinal)
+				&& IsInterfaceResolvedName(normalized);
 		}
 
 		static bool ContainsFixedArrayTypeReference(TypeReference? type)

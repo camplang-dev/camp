@@ -1,0 +1,41 @@
+extern void* malloc(nuint size);
+extern void free(void* ptr);
+
+interface IAllocator
+{
+	void* alloc(nuint size);
+	void free(void* ptr);
+}
+
+void* heapAlloc(IAllocator* allocator, nuint size)
+{
+	return malloc(size);
+}
+
+void heapFree(IAllocator* allocator, void* ptr)
+{
+	free(ptr);
+}
+
+IAllocator HeapAllocatorStorage =
+{
+	.alloc = heapAlloc,
+	.free = heapFree
+};
+
+IAllocator* const HeapAllocator = &HeapAllocatorStorage;
+
+export int main()
+{
+	void* ptr = HeapAllocator.alloc(16);
+	HeapAllocator.free(ptr);
+	IAllocator localAllocator =
+	{
+		.alloc = heapAlloc,
+		.free = heapFree
+	};
+	IAllocator* selected = &localAllocator;
+	void* localPtr = selected.alloc(8);
+	selected.free(localPtr);
+	return 0;
+}

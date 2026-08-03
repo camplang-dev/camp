@@ -1,0 +1,76 @@
+// file: interface_value_storage.c
+#include "interface_value_storage_private.h"
+
+/* Private file declarations. */
+void *malloc(uintptr_t size);
+void free(void *ptr);
+static void *heapAlloc(IAllocator **allocator, uintptr_t size);
+static void heapFree(IAllocator **allocator, void *ptr);
+static IAllocator *HeapAllocatorStorage;
+static IAllocator ** const HeapAllocator;
+
+static IAllocator HeapAllocatorStorage__storage = { .alloc = heapAlloc, .free = heapFree };
+static IAllocator *HeapAllocatorStorage = &HeapAllocatorStorage__storage;
+static IAllocator ** const HeapAllocator = &HeapAllocatorStorage;
+static void *heapAlloc(IAllocator **allocator, uintptr_t size)
+{
+	return malloc(size);
+}
+
+static void heapFree(IAllocator **allocator, void *ptr)
+{
+	free(ptr);
+}
+
+int main(void)
+{
+	void *ptr = (*HeapAllocator)->alloc(HeapAllocator, 16);
+	(*HeapAllocator)->free(HeapAllocator, ptr);
+	IAllocator localAllocator__storage = (IAllocator){ .alloc = heapAlloc, .free = heapFree };
+	IAllocator *localAllocator = &localAllocator__storage;
+	IAllocator **selected = &localAllocator;
+	void *localPtr = (*selected)->alloc(selected, 8);
+	(*selected)->free(selected, localPtr);
+	return 0;
+}
+
+// file: interface_value_storage.h
+#ifndef INTERFACE_VALUE_STORAGE_H_
+#define INTERFACE_VALUE_STORAGE_H_
+
+#include "interface_value_storage_private.h"
+
+int main(void);
+
+#endif
+// file: interface_value_storage_private.h
+#ifndef INTERFACE_VALUE_STORAGE_PRIVATE_H_
+#define INTERFACE_VALUE_STORAGE_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct IAllocator IAllocator;
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Layouts. */
+struct IAllocator
+{
+	void *(* alloc)(IAllocator **ctx, uintptr_t size);
+	void (* free)(IAllocator **ctx, void *ptr);
+};
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: interface_value_storage.c
