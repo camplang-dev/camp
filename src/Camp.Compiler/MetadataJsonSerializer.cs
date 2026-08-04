@@ -39,6 +39,7 @@ public static class MetadataJsonSerializer
 		readonly Dictionary<string, TypeDefinition> typeDefinitions = new(StringComparer.Ordinal);
 		readonly Dictionary<string, Definition> symbols = new(StringComparer.Ordinal);
 		SourcefilePathMapper? sourcefilePathMapper;
+		string? currentStaticClassName;
 
 		bool IsExportApiView => visibility == MetadataVisibility.Export;
 
@@ -74,6 +75,8 @@ public static class MetadataJsonSerializer
 			{
 				if (definition is TypeDefinition typeDefinition)
 					typeDefinitions[definition.Name] = typeDefinition;
+				if (IsOutOfScopeStaticClassMember(definition))
+					continue;
 				if (!string.IsNullOrWhiteSpace(definition.Name))
 					symbols.TryAdd(definition.Name, definition);
 				if (!string.IsNullOrWhiteSpace(definition.Symbol))
@@ -96,6 +99,15 @@ public static class MetadataJsonSerializer
 					IndexChildren(id, "field", classDefinition.Fields);
 					IndexChildren(id, "function", classDefinition.Functions);
 					break;
+				case StaticClassDefinition staticClassDefinition:
+				{
+					string? previousStaticClassName = currentStaticClassName;
+					currentStaticClassName = staticClassDefinition.Name;
+					IndexChildren(id, "field", staticClassDefinition.Fields);
+					IndexChildren(id, "function", GetStaticClassFunctions(staticClassDefinition));
+					currentStaticClassName = previousStaticClassName;
+					break;
+				}
 				case StructDefinition { SourceInterface: not null } structDefinition:
 					ids[structDefinition.SourceInterface] = id;
 					foreach (GenericParameter parameter in structDefinition.SourceInterface.GenericParameters)
@@ -166,6 +178,8 @@ public static class MetadataJsonSerializer
 			json.WriteStartArray("declarations");
 			foreach (Definition definition in ActiveDefinitions())
 			{
+				if (IsOutOfScopeStaticClassMember(definition))
+					continue;
 				if (!ShouldEmit(definition))
 					continue;
 				WriteDefinition(json, definition, includeKind: true, includeVisibility: true);
@@ -225,6 +239,9 @@ public static class MetadataJsonSerializer
 					return;
 				case TypeDefinition type:
 					WriteTypeDefinition(json, type);
+					break;
+				case StaticClassDefinition staticClassDefinition:
+					WriteStaticClassDefinition(json, staticClassDefinition);
 					break;
 				case VariableDefinition variable:
 					WriteVariable(json, variable, enumValue: null);
@@ -356,6 +373,15 @@ public static class MetadataJsonSerializer
 					WriteFunctionArray(json, "functions", newtypeDefinition.Functions);
 					break;
 			}
+		}
+
+		void WriteStaticClassDefinition(Utf8JsonWriter json, StaticClassDefinition definition)
+		{
+			string? previousStaticClassName = currentStaticClassName;
+			currentStaticClassName = definition.Name;
+			WriteFieldArray(json, "fields", definition.Fields, classFields: true);
+			WriteFunctionArray(json, "functions", GetStaticClassFunctions(definition));
+			currentStaticClassName = previousStaticClassName;
 		}
 
 		void WriteSourceInterfaceDefinition(Utf8JsonWriter json, InterfaceDefinition interfaceDefinition)
@@ -878,6 +904,17 @@ public static class MetadataJsonSerializer
 			WriteFunctionArray(json, propertyName, classDefinition: null, functions);
 		}
 
+		List<FunctionDefinition> GetStaticClassFunctions(StaticClassDefinition definition)
+		{
+			List<FunctionDefinition> functions = [.. definition.Functions];
+			foreach (Definition candidate in ActiveDefinitions())
+			{
+				if (candidate is FunctionDefinition function && function.OutOfScopeOwnerName == definition.Name)
+					functions.Add(function);
+			}
+			return functions;
+		}
+
 		void WriteFunctionArray(Utf8JsonWriter json, string propertyName, ClassDefinition classDefinition)
 		{
 			WriteFunctionArray(json, propertyName, classDefinition, classDefinition.Functions);
@@ -1181,6 +1218,10 @@ public static class MetadataJsonSerializer
 				return false;
 			if (IsApiHeaderDefinition(definition))
 				return false;
+			if (IsOutOfScopeStaticClassMember(definition))
+				return false;
+			if (definition is StaticClassDefinition staticClassDefinition)
+				return ShouldEmitStaticClass(staticClassDefinition);
 
 			return visibility switch
 			{
@@ -1190,6 +1231,16 @@ public static class MetadataJsonSerializer
 				MetadataVisibility.All => true,
 				_ => false
 			};
+		}
+
+		bool ShouldEmitStaticClass(StaticClassDefinition definition)
+		{
+			if (visibility == MetadataVisibility.None)
+				return false;
+			if (visibility == MetadataVisibility.All)
+				return true;
+			return definition.Fields.Any(field => field.Modifier == FieldModifier.Static && ShouldEmitFieldMember(field, classFields: true))
+				|| GetStaticClassFunctions(definition).Any(ShouldEmitFunctionMember);
 		}
 
 		bool ShouldWriteExtern(Definition definition)
@@ -1202,6 +1253,16 @@ public static class MetadataJsonSerializer
 			{
 				ClassDefinition classDefinition => classDefinition.Export is not null,
 				FunctionDefinition function => function.Export is not null,
+				_ => false
+			};
+		}
+
+		bool IsOutOfScopeStaticClassMember(Definition definition)
+		{
+			return definition switch
+			{
+				FunctionDefinition function when function.OutOfScopeOwnerName is not null => ActiveDefinitions().OfType<StaticClassDefinition>().Any(staticClass => staticClass.Name == function.OutOfScopeOwnerName),
+				VariableDefinition variable when variable.OutOfScopeOwnerName is not null => ActiveDefinitions().OfType<StaticClassDefinition>().Any(staticClass => staticClass.Name == variable.OutOfScopeOwnerName),
 				_ => false
 			};
 		}
@@ -1468,6 +1529,7 @@ public static class MetadataJsonSerializer
 			{
 				AliasDefinition => "alias",
 				ClassDefinition => "class",
+				StaticClassDefinition => "staticClass",
 				StructDefinition { SourceInterface: not null } => "interface",
 				StructDefinition => "struct",
 				InterfaceDefinition => "interface",
@@ -1864,17 +1926,21 @@ public static class MetadataJsonSerializer
 			return false;
 		}
 
-		static string GetMetadataName(Definition definition)
+		string GetMetadataName(Definition definition)
 		{
 			string name = string.IsNullOrWhiteSpace(definition.Name) ? definition.Symbol : definition.Name;
+			if (definition.OutOfScopeOwnerName == currentStaticClassName)
+				return name;
 			return string.IsNullOrWhiteSpace(definition.OutOfScopeOwnerName) ? name : definition.OutOfScopeOwnerName + "." + name;
 		}
 
-		static string GetMetadataIdName(Definition definition)
+		string GetMetadataIdName(Definition definition)
 		{
 			if (definition is FunctionDefinition function && FunctionHasOverloadSelector(function))
 			{
 				string name = SymbolNameService.CallableName(function).Value;
+				if (function.OutOfScopeOwnerName == currentStaticClassName)
+					return name;
 				return string.IsNullOrWhiteSpace(function.OutOfScopeOwnerName) ? name : function.OutOfScopeOwnerName + "." + name;
 			}
 			return GetMetadataName(definition);
@@ -1896,6 +1962,8 @@ public static class MetadataJsonSerializer
 				prefix = function.OutOfScopeOwnerName + ".";
 			else if (FindContainingType(function) is TypeDefinition containingType)
 				prefix = containingType.Name + ".";
+			else if (FindContainingStaticClass(function) is StaticClassDefinition staticClassDefinition)
+				prefix = staticClassDefinition.Name + ".";
 
 			string? namespaceName = function.Namespace;
 			if (module.DefinitionSources.TryGetValue(function, out TokenSequence? source)
@@ -1912,6 +1980,16 @@ public static class MetadataJsonSerializer
 			{
 				if (definition is TypeDefinition typeDefinition && TypeContainsFunction(typeDefinition, function))
 					return typeDefinition;
+			}
+			return null;
+		}
+
+		StaticClassDefinition? FindContainingStaticClass(FunctionDefinition function)
+		{
+			foreach (Definition definition in ActiveDefinitions())
+			{
+				if (definition is StaticClassDefinition staticClassDefinition && staticClassDefinition.Functions.Contains(function))
+					return staticClassDefinition;
 			}
 			return null;
 		}

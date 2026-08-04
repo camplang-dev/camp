@@ -1,0 +1,25 @@
+/// Metric helpers.
+/// @category Diagnostics
+static class Metrics
+{
+	public static inline int Default = 7;
+	static int hidden;
+
+	/// Gets the count.
+	public static int getCount()
+	{
+		return Metrics.hidden;
+	}
+
+	/// Resets the count.
+	export static void reset()
+	{
+		Metrics.hidden = Metrics.Default;
+	}
+}
+
+/// Adds to the count.
+export static void Metrics.add(int value)
+{
+	Metrics.hidden = Metrics.hidden + value;
+}

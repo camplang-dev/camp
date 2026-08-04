@@ -33,6 +33,7 @@ public sealed class BindableNodeCodeSerializer
 	int indent;
 	int generatedLocalIndex;
 	bool writingInterfaceMembers;
+	string? currentStaticClassName;
 
 	BindableNodeCodeSerializer(TextWriter writer, BindableNodeCodeSerializerOptions? options)
 	{
@@ -123,6 +124,8 @@ public sealed class BindableNodeCodeSerializer
 		bool wroteDefinition = false;
 		foreach (Definition definition in module.Definitions)
 		{
+			if (apiHeader && IsOutOfScopeStaticClassMember(definition))
+				continue;
 			if (apiHeader && !ShouldWriteApiDefinition(definition))
 				continue;
 			if (wroteDefinition && definition is TypeDefinition or StaticClassDefinition)
@@ -134,7 +137,15 @@ public sealed class BindableNodeCodeSerializer
 
 	bool ShouldWriteApiDefinition(Definition definition)
 	{
+		if (definition is StaticClassDefinition staticClassDefinition)
+			return apiDefinitionsAlreadyFiltered || StaticClassHasVisibleApiMember(staticClassDefinition);
 		return apiDefinitionsAlreadyFiltered || IsVisibleInApiSurface(definition);
+	}
+
+	bool StaticClassHasVisibleApiMember(StaticClassDefinition definition)
+	{
+		return definition.Fields.Any(field => field.Modifier == FieldModifier.Static && IsVisibleInApiSurface(field))
+			|| definition.Functions.Any(IsVisibleInApiSurface);
 	}
 
 	void WriteDefinition(Definition definition)
@@ -217,11 +228,29 @@ public sealed class BindableNodeCodeSerializer
 		writer.Write(definition.Name);
 		WriteLineBlock(() =>
 		{
+			string? previousStaticClassName = currentStaticClassName;
+			currentStaticClassName = definition.Name;
 			if (apiHeader)
-				WriteApiClassMembers(null, definition.Fields, definition.Functions, allowSyntheticConstructor: false);
+				WriteApiClassMembers(null, definition.Fields, StaticClassFunctions(definition), allowSyntheticConstructor: false);
 			else
 				WriteMembers(definition.Fields, definition.Functions);
+			currentStaticClassName = previousStaticClassName;
 		});
+	}
+
+	List<FunctionDefinition> StaticClassFunctions(StaticClassDefinition definition)
+	{
+		List<FunctionDefinition> functions = [.. definition.Functions];
+		foreach (Definition candidate in currentModule?.Definitions ?? [])
+			if (candidate is FunctionDefinition function && function.OutOfScopeOwnerName == definition.Name)
+				functions.Add(function);
+		return functions;
+	}
+
+	bool IsOutOfScopeStaticClassMember(Definition definition)
+	{
+		return definition is FunctionDefinition { OutOfScopeOwnerName: string ownerName }
+			&& currentModule?.Definitions.OfType<StaticClassDefinition>().Any(staticClass => staticClass.Name == ownerName) == true;
 	}
 
 	void WriteStructDefinition(StructDefinition definition)
@@ -719,6 +748,8 @@ public sealed class BindableNodeCodeSerializer
 	void WriteOutOfScopeOwnerPrefix(Definition definition)
 	{
 		if (definition.OutOfScopeOwnerName is null)
+			return;
+		if (definition.OutOfScopeOwnerName == currentStaticClassName)
 			return;
 		if (definition.OutOfScopeOwnerType is not null)
 			WriteType(definition.OutOfScopeOwnerType);

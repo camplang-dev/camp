@@ -22,6 +22,10 @@ public sealed partial class BindableNodeAnalyzer
 				AnalyzeInlineVariable(variable, []);
 				break;
 
+			case StaticClassDefinition staticClassDefinition:
+				AnalyzeInlineFields(staticClassDefinition.Fields);
+				break;
+
 			case ClassDefinition classDefinition:
 				AnalyzeInlineFields(classDefinition.Fields);
 				break;
@@ -414,6 +418,16 @@ public sealed partial class BindableNodeAnalyzer
 				}
 			}
 
+			if (TryFindContainingStaticClass(owner, out StaticClassDefinition? containingStaticClass) && containingStaticClass is not null)
+			{
+				foreach (FieldDefinition field in containingStaticClass.Fields)
+					if (field.Modifier == FieldModifier.Static && (field.Name == named.Name || field.Symbol == named.Name))
+					{
+						node = field;
+						return true;
+					}
+			}
+
 				foreach (Definition definition in ActiveCurrentDefinitions())
 					if (definition is VariableDefinition variable && (variable.Name == named.Name || variable.Symbol == named.Name))
 				{
@@ -424,6 +438,15 @@ public sealed partial class BindableNodeAnalyzer
 		if (named.Qualifiers.Count == 1 && typeDefinitions.TryGetValue(named.Qualifiers[0], out TypeDefinition? type))
 		{
 			foreach (FieldDefinition field in GetTypeFields(type))
+				if (field.Modifier == FieldModifier.Static && (field.Name == named.Name || field.Symbol == named.Name))
+				{
+					node = field;
+					return true;
+				}
+		}
+		if (named.Qualifiers.Count == 1 && staticClassDefinitions.TryGetValue(named.Qualifiers[0], out StaticClassDefinition? staticClassDefinition))
+		{
+			foreach (FieldDefinition field in staticClassDefinition.Fields)
 				if (field.Modifier == FieldModifier.Static && (field.Name == named.Name || field.Symbol == named.Name))
 				{
 					node = field;
@@ -455,6 +478,22 @@ public sealed partial class BindableNodeAnalyzer
 				case EnumDefinition enumDefinition when owner is VariableDefinition value && enumDefinition.Values.Contains(value):
 					type = enumDefinition;
 					return true;
+			}
+		}
+		return false;
+	}
+
+	bool TryFindContainingStaticClass(BindableNode owner, out StaticClassDefinition? type)
+	{
+		type = null;
+		foreach (Definition definition in ActiveCurrentDefinitions())
+		{
+			if (definition is StaticClassDefinition staticClassDefinition
+				&& owner is FieldDefinition field
+				&& staticClassDefinition.Fields.Contains(field))
+			{
+				type = staticClassDefinition;
+				return true;
 			}
 		}
 		return false;

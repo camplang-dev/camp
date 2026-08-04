@@ -1844,7 +1844,7 @@ public static class CompilerDriver
 				foreach (Definition definition in module.Definitions)
 				{
 					if (DeclarationParticipation.Includes(definition, compilation.SharedModule!)
-						&& IsVisibleInApiSurface(definition, apiSurface)
+						&& ShouldIncludeInApiOutput(definition, module.Definitions, apiSurface)
 						&& definitions.Add(definition))
 						output.Definitions.Add(definition);
 				}
@@ -1869,6 +1869,22 @@ public static class CompilerDriver
 		{
 			return definition.Export is not null
 				|| apiSurface == CampApiSurfaceKind.Public && definition.Public is not null;
+		}
+
+		static bool ShouldIncludeInApiOutput(Definition definition, IReadOnlyList<Definition> sourceDefinitions, CampApiSurfaceKind apiSurface)
+		{
+			if (IsVisibleInApiSurface(definition, apiSurface))
+				return true;
+			if (definition is StaticClassDefinition staticClassDefinition)
+				return StaticClassHasVisibleApiMember(staticClassDefinition, sourceDefinitions, apiSurface);
+			return false;
+		}
+
+		static bool StaticClassHasVisibleApiMember(StaticClassDefinition definition, IReadOnlyList<Definition> sourceDefinitions, CampApiSurfaceKind apiSurface)
+		{
+			return definition.Fields.Any(field => field.Modifier == FieldModifier.Static && IsVisibleInApiSurface(field, apiSurface))
+				|| definition.Functions.Any(function => IsVisibleInApiSurface(function, apiSurface))
+				|| sourceDefinitions.OfType<FunctionDefinition>().Any(function => function.OutOfScopeOwnerName == definition.Name && IsVisibleInApiSurface(function, apiSurface));
 		}
 
 		static void AddApiDependencyDefinitions(Compilation compilation, Module output, HashSet<Definition> definitions)

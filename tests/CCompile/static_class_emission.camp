@@ -1,0 +1,26 @@
+static class Metrics
+{
+	static int count;
+
+	static int getCount()
+	{
+		return Metrics.count;
+	}
+
+	static void reset()
+	{
+		Metrics.count = 7;
+	}
+}
+
+static void Metrics.add(int value)
+{
+	Metrics.count = Metrics.count + value;
+}
+
+export int main()
+{
+	Metrics.reset();
+	Metrics.add(5);
+	return Metrics.Count;
+}

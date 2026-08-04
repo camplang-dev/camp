@@ -6,7 +6,7 @@
         <FieldDefinition Modifier="Static" Name="writes" Symbol="Console_writes" Namespace="StaticClassSurface" Internal="" ResolvedType="int">
           <Type Type="Int" ResolvedType="int" />
         </FieldDefinition>
-        <FieldDefinition Modifier="Static" IsInline="True" Name="DEFAULT_WIDTH" Symbol="Console_DEFAULT_WIDTH" Namespace="StaticClassSurface" Public="" ResolvedType="int">
+        <FieldDefinition Modifier="Static" IsInline="True" ConstantValue="Integer { Value = 80 }" Name="DEFAULT_WIDTH" Symbol="Console_DEFAULT_WIDTH" Namespace="StaticClassSurface" Public="" ResolvedType="int">
           <Type Type="Int" ResolvedType="int" />
           <InitialValue Type="LiteralExpression" Kind="Number" Text="80" Value="80" ResolvedType="int" />
         </FieldDefinition>

@@ -1,0 +1,27 @@
+static class Metrics
+{
+	public static inline int Default = 7;
+	static int count;
+
+	public static int getCount()
+	{
+		return Metrics.count;
+	}
+
+	export static void reset()
+	{
+		Metrics.count = Metrics.Default;
+	}
+}
+
+export static void Metrics.add(int value)
+{
+	Metrics.count = Metrics.count + value;
+}
+
+export int main()
+{
+	Metrics.reset();
+	Metrics.add(5);
+	return Metrics.Count;
+}

@@ -440,6 +440,8 @@ public static class CCodeEmitter
 				return true;
 			if (definition is TypeDefinition typeDefinition && (TypeHasVisibleCallable(typeDefinition, includePublic) || TypeHasVisibleStaticField(typeDefinition, includePublic)))
 				return true;
+			if (definition is StaticClassDefinition staticClassDefinition && StaticClassHasVisibleMember(staticClassDefinition, includePublic))
+				return true;
 		}
 
 		return false;
@@ -473,6 +475,12 @@ public static class CCodeEmitter
 			NewtypeDefinition newtypeDefinition => newtypeDefinition.Fields.Any(field => field.Modifier == FieldModifier.Static && IsVisibleInHeaderFile(field, includePublic)),
 			_ => false
 		};
+	}
+
+	static bool StaticClassHasVisibleMember(StaticClassDefinition staticClassDefinition, bool includePublic)
+	{
+		return staticClassDefinition.Functions.Any(function => IsVisibleInHeaderFile(function, includePublic))
+			|| staticClassDefinition.Fields.Any(field => field.Modifier == FieldModifier.Static && IsVisibleInHeaderFile(field, includePublic));
 	}
 
 	static IEnumerable<Definition> GetActiveDefinitions(Compilation compilation)
@@ -1128,6 +1136,13 @@ public static class CCodeEmitter
 				case VariableDefinition variable:
 					reservedCNames.Add(CName(variable));
 					break;
+				case StaticClassDefinition staticClassDefinition:
+					foreach (FunctionDefinition function in staticClassDefinition.Functions)
+						reservedCNames.Add(CName(function));
+					foreach (FieldDefinition field in staticClassDefinition.Fields)
+						if (field.Modifier == FieldModifier.Static)
+							reservedCNames.Add(CName(field));
+					break;
 				case TypeDefinition type:
 					reservedCNames.Add(CName(type));
 					foreach (FunctionDefinition function in type switch
@@ -1482,6 +1497,10 @@ public static class CCodeEmitter
 					case FunctionDefinition function:
 						yield return function;
 						break;
+					case StaticClassDefinition staticClassDefinition:
+						foreach (FunctionDefinition function in staticClassDefinition.Functions)
+							yield return function;
+						break;
 					case ClassDefinition classDefinition:
 						foreach (FunctionDefinition function in classDefinition.Functions)
 							yield return function;
@@ -1547,6 +1566,14 @@ public static class CCodeEmitter
 		{
 			foreach (Definition definition in definitions)
 			{
+				if (definition is StaticClassDefinition staticClassDefinition)
+				{
+					foreach (FieldDefinition field in staticClassDefinition.Fields)
+						if (field.Modifier == FieldModifier.Static)
+							yield return field;
+					continue;
+				}
+
 				if (definition is not TypeDefinition type)
 					continue;
 				foreach (FieldDefinition field in GetTypeFields(type))
@@ -1583,6 +1610,11 @@ public static class CCodeEmitter
 			foreach (TypeDefinition type in definitions.OfType<TypeDefinition>())
 			{
 				foreach (FieldDefinition field in GetTypeFields(type))
+					AddType(field.Type, field.ResolvedType);
+			}
+			foreach (StaticClassDefinition staticClassDefinition in definitions.OfType<StaticClassDefinition>())
+			{
+				foreach (FieldDefinition field in staticClassDefinition.Fields)
 					AddType(field.Type, field.ResolvedType);
 			}
 			return types.Order(StringComparer.Ordinal);

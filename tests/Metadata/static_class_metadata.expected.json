@@ -1,0 +1,62 @@
+{
+  "format": "camp.metadata",
+  "version": 1,
+  "module": {
+    "name": "static_class_metadata"
+  },
+  "view": {
+    "visibility": "export",
+    "level": "api",
+    "generated": false
+  },
+  "declarations": [
+    {
+      "id": "staticClass:Metrics",
+      "kind": "staticClass",
+      "name": "Metrics",
+      "functions": [
+        {
+          "id": "staticClass:Metrics/function:reset",
+          "name": "reset",
+          "symbol": "Metrics_reset",
+          "visibility": "export",
+          "extern": true,
+          "modifier": "static",
+          "returnType": "void"
+        },
+        {
+          "id": "staticClass:Metrics/function:add",
+          "name": "add",
+          "symbol": "Metrics_add",
+          "visibility": "export",
+          "extern": true,
+          "modifier": "static",
+          "returnType": "void",
+          "parameters": [
+            {
+              "id": "staticClass:Metrics/function:add/parameter:value",
+              "name": "value",
+              "type": "int"
+            }
+          ],
+          "metadata": [
+            {
+              "name": "summary",
+              "content": "Adds to the count."
+            }
+          ]
+        }
+      ],
+      "metadata": [
+        {
+          "name": "summary",
+          "content": "Metric helpers."
+        },
+        {
+          "name": "category",
+          "content": "Diagnostics"
+        }
+      ]
+    }
+  ]
+}

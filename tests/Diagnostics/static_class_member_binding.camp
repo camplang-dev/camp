@@ -21,6 +21,8 @@ static class Console
 		else
 			Console.count = 0;
 	}
+
+	export extern static void imported(int value);
 }
 
 static void Console.reset()
@@ -33,5 +35,6 @@ int test()
 	Console.reset();
 	Console.write(3);
 	Console.write(true);
+	Console.imported(2);
 	return Console.Count;
 }

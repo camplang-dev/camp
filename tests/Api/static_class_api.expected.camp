@@ -1,0 +1,9 @@
+@summary("Metric helpers.")
+@category("Diagnostics")
+static class Metrics
+{
+	export extern static void reset();
+
+	@summary("Adds to the count.")
+	export extern static void add(int value);
+}
