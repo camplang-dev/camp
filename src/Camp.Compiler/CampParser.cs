@@ -18,6 +18,7 @@ public sealed class CampParser
 	readonly TokenSequence tokens;
 	readonly List<ParseDiagnostic> diagnostics = [];
 	int index;
+	bool seenNonPreludeCompilationUnitItem;
 
 	public CampParser(TokenSequence tokens)
 	{
@@ -61,14 +62,48 @@ public sealed class CampParser
 		if (importExport is not null)
 			return new CompilationUnitItemSyntax { ImportExportDeclaration = importExport };
 
+		FileMetadataAttributeSyntax? fileMetadataAttribute = TryParseFileMetadataAttribute();
+		if (fileMetadataAttribute is not null)
+		{
+			if (seenNonPreludeCompilationUnitItem)
+				Report(fileMetadataAttribute.Attribute?.AttributeIdentifier, "File metadata attributes must appear before declarations.");
+			return new CompilationUnitItemSyntax { FileMetadataAttribute = fileMetadataAttribute };
+		}
+
 		AliasDeclarationSyntax? aliasDeclaration = ParseAliasDeclaration();
 		if (aliasDeclaration is not null)
+		{
+			seenNonPreludeCompilationUnitItem = true;
 			return new CompilationUnitItemSyntax { AliasDeclaration = aliasDeclaration };
+		}
 
 		DeclarationSyntax? declaration = ParseDeclaration();
 		if (declaration is not null)
+		{
+			seenNonPreludeCompilationUnitItem = true;
 			return new CompilationUnitItemSyntax { Declaration = declaration };
+		}
 
+		return null;
+	}
+
+	FileMetadataAttributeSyntax? TryParseFileMetadataAttribute()
+	{
+		if (!IsClass(TokenClass.AttributeIdentifier))
+			return null;
+
+		int start = index;
+		int diagnosticCount = diagnostics.Count;
+		AttributeSyntax attribute = ParseAttribute();
+		if (TakeIf(";") is Token semicolon)
+			return new FileMetadataAttributeSyntax
+			{
+				Attribute = attribute,
+				SemicolonToken = semicolon
+			};
+
+		index = start;
+		diagnostics.RemoveRange(diagnosticCount, diagnostics.Count - diagnosticCount);
 		return null;
 	}
 

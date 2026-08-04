@@ -10,12 +10,14 @@ public sealed class BindResult(Module Module, IReadOnlyList<BindDiagnostic> Diag
 {
 	public Module Module { get; } = Module;
 	public IReadOnlyList<BindDiagnostic> Diagnostics { get; } = Diagnostics;
+	public IReadOnlyList<AttributeConstructor> FileMetadataAttributes { get; init; } = [];
 	public bool Success => !Diagnostics.Any(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error);
 }
 
 public sealed partial class BindableNodeBuilder
 {
 	readonly List<BindDiagnostic> diagnostics = [];
+	readonly List<AttributeConstructor> fileMetadataAttributes = [];
 
 	BindableNodeBuilder()
 	{
@@ -27,7 +29,10 @@ public sealed partial class BindableNodeBuilder
 
 		BindableNodeBuilder builder = new();
 		Module module = builder.BuildModule(syntax);
-		return new BindResult(module, builder.diagnostics);
+		return new BindResult(module, builder.diagnostics)
+		{
+			FileMetadataAttributes = builder.fileMetadataAttributes
+		};
 	}
 
 	public static Module Build(CompilationUnitSyntax syntax, out IReadOnlyList<BindDiagnostic> diagnostics)
@@ -45,6 +50,8 @@ public sealed partial class BindableNodeBuilder
 		{
 			if (item.ImportExportDeclaration is not null)
 				BuildImportExportDeclaration(module, item.ImportExportDeclaration);
+			else if (item.FileMetadataAttribute?.Attribute is not null)
+				fileMetadataAttributes.Add(BuildAttribute(item.FileMetadataAttribute.Attribute));
 			else if (item.AliasDeclaration is not null)
 				AddAliasDeclaration(module, item.AliasDeclaration);
 			else if (item.Declaration is not null)
@@ -2060,7 +2067,8 @@ public sealed partial class BindableNodeBuilder
 		return syntax switch
 		{
 			CompilationUnitSyntax compilationUnit => compilationUnit.Items is [CompilationUnitItemSyntax first, ..] ? GetRange(first) : null,
-			CompilationUnitItemSyntax item => GetRangeOrNull(item.ImportExportDeclaration) ?? GetRangeOrNull(item.AliasDeclaration) ?? GetRangeOrNull(item.Declaration),
+			CompilationUnitItemSyntax item => GetRangeOrNull(item.ImportExportDeclaration) ?? GetRangeOrNull(item.FileMetadataAttribute) ?? GetRangeOrNull(item.AliasDeclaration) ?? GetRangeOrNull(item.Declaration),
+			FileMetadataAttributeSyntax attribute => GetRangeOrNull(attribute.Attribute),
 			AliasDeclarationSyntax alias => alias.Identifier?.Range ?? alias.AliasKeyword?.Range,
 			ImportExportDeclarationSyntax declaration => declaration.Keyword?.Range,
 			QualifiedNamespaceSyntax qualifiedNamespace => qualifiedNamespace.Identifier?.Range,

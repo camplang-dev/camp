@@ -1,0 +1,1 @@
+tests/Diagnostics/file_metadata_attributes_late.camp(3,1): error: File metadata attributes must appear before declarations.

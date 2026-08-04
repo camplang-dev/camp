@@ -108,6 +108,28 @@ Recognized documentation attributes are:
 | `@overload` | Summary for an overload family in generated docs |
 | `@category` | Category name for grouping a top-level declaration in generated docs |
 
+If most declarations in a file belong to the same documentation category, write
+`@category("Name");` as a standalone file metadata attribute near the top of the
+file:
+
+```camp
+namespace Std;
+
+@category("I/O");
+
+public class File
+{
+}
+
+public class Directory
+{
+}
+```
+
+The semicolon matters: it makes the category a file default instead of attaching
+the attribute to the next declaration. A declaration can still use its own
+`@category(...)` when it belongs somewhere else.
+
 Inside a doc comment, write them as doc commands:
 
 ````camp
@@ -381,7 +403,7 @@ symbol links, or deprecation messages.
 | `@see("text")` | Declarations and declaration children | Related-symbol or related-topic documentation metadata |
 | `@deprecated("message")` | Declarations and declaration children | Marks a source API as deprecated for tooling; does not remove it from lookup or ABI output |
 | `@overload("text")` | One function or method in an overload family | Summary for the whole overload group in generated documentation |
-| `@category("name")` | Top-level declarations | Category label for documentation generators |
+| `@category("name")` | Top-level declarations, or standalone near the top of a file as `@category("name");` | Category label for documentation generators |
 | `@test` | Top-level functions with no visibility modifier | Marks a function as a discovered test; the built-in runner invokes only `void name(thrown Assertion*)` tests |
 | `@testonly` | Private or `internal` top-level declarations | Includes a helper only in test and coverage builds; top-level types make their whole body test-only |
 | `@skip("reason")` | Declarations also marked `@test` | Discovers the test but reports it as skipped without invoking it |

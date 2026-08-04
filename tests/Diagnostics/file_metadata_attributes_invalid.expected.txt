@@ -1,0 +1,4 @@
+tests/Diagnostics/file_metadata_attributes_invalid.camp(1,1): error: Attribute '@foo' cannot be used as a file metadata attribute.
+tests/Diagnostics/file_metadata_attributes_invalid.camp(3,1): error: File already has a default category.
+tests/Diagnostics/file_metadata_attributes_invalid.camp(4,1): error: File already has a default category.
+tests/Diagnostics/file_metadata_attributes_invalid.camp(4,1): error: File metadata attribute @category requires one string argument.

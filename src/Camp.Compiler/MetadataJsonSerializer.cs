@@ -18,6 +18,8 @@ public enum MetadataVisibility
 
 public static class MetadataJsonSerializer
 {
+	const string CategoryAttributeName = "@category";
+
 	public static string Serialize(Compilation compilation, MetadataVisibility visibility)
 	{
 		ArgumentNullException.ThrowIfNull(compilation);
@@ -246,7 +248,7 @@ public static class MetadataJsonSerializer
 						json.WriteBoolean("fixed", true);
 					break;
 			}
-			WriteMetadata(json, definition.Attributes);
+			WriteEffectiveMetadata(json, definition);
 			json.WriteEndObject();
 		}
 
@@ -982,6 +984,93 @@ public static class MetadataJsonSerializer
 			foreach (AttributeConstructor attribute in attributes)
 				WriteAttribute(json, attribute);
 			json.WriteEndArray();
+		}
+
+		void WriteEffectiveMetadata(Utf8JsonWriter json, Definition definition)
+		{
+			if (HasAttribute(definition.Attributes, CategoryAttributeName))
+			{
+				WriteMetadata(json, definition.Attributes);
+				return;
+			}
+
+			if (!TryGetInheritedCategoryAttribute(definition, out AttributeConstructor? inheritedCategory))
+				_ = TryGetFileCategoryAttribute(definition, out inheritedCategory);
+
+			if (inheritedCategory is null)
+			{
+				WriteMetadata(json, definition.Attributes);
+				return;
+			}
+
+			if (definition.Attributes.Count == 0)
+			{
+				WriteMetadata(json, [inheritedCategory]);
+				return;
+			}
+
+			WriteMetadata(json, [.. definition.Attributes, inheritedCategory]);
+		}
+
+		bool TryGetInheritedCategoryAttribute(Definition definition, out AttributeConstructor? category)
+		{
+			category = null;
+			if (!TryGetExtensionOwnerTypeName(definition, out string? ownerTypeName))
+				return false;
+			if (!typeDefinitions.TryGetValue(ownerTypeName, out TypeDefinition? ownerType))
+				return false;
+			if (TryGetExplicitCategoryAttribute(ownerType, out category))
+				return true;
+			return TryGetFileCategoryAttribute(ownerType, out category);
+		}
+
+		bool TryGetExtensionOwnerTypeName(Definition definition, out string ownerTypeName)
+		{
+			ownerTypeName = "";
+			if (!string.IsNullOrWhiteSpace(definition.OutOfScopeOwnerName))
+			{
+				ownerTypeName = BaseTypeName(definition.OutOfScopeOwnerName);
+				return true;
+			}
+
+			if (definition is FunctionDefinition function && GetExplicitThisParameter(function) is ThisParameterDefinition receiver)
+			{
+				string? receiverType = receiver.ResolvedType ?? FormatSourceMetadataType(BindableNodeAnalyzer.FormatTypeReference(receiver.Type));
+				ownerTypeName = BaseTypeName(receiverType ?? "");
+				return !string.IsNullOrWhiteSpace(ownerTypeName);
+			}
+
+			return false;
+		}
+
+		bool TryGetFileCategoryAttribute(Definition definition, out AttributeConstructor? category)
+		{
+			category = null;
+			if (!compilation.DefinitionOwners.TryGetValue(definition, out SourceFile? owner))
+				return false;
+			foreach (AttributeConstructor attribute in owner.FileMetadataAttributes)
+			{
+				if (AttributeNameEquals(attribute.Name, CategoryAttributeName))
+				{
+					category = attribute;
+					return true;
+				}
+			}
+			return false;
+		}
+
+		static bool TryGetExplicitCategoryAttribute(Definition definition, out AttributeConstructor? category)
+		{
+			foreach (AttributeConstructor attribute in definition.Attributes)
+			{
+				if (AttributeNameEquals(attribute.Name, CategoryAttributeName))
+				{
+					category = attribute;
+					return true;
+				}
+			}
+			category = null;
+			return false;
 		}
 
 		void WriteAttribute(Utf8JsonWriter json, AttributeConstructor attribute)

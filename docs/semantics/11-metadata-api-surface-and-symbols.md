@@ -216,6 +216,7 @@ selected view. Important source attributes include:
   source views;
 - async attributes such as `@awaitwith` and `@noawait`;
 - documentation attributes translated from doc comments;
+- file metadata attributes such as standalone `@category("name");`;
 - lifecycle, extern, callable, and interface markers represented by structured
   fields where the serializer has first-class support.
 
@@ -446,9 +447,27 @@ The analyzer should report a warning on each `@overload` usage when more than
 one declaration in the same overload group supplies it.
 
 `@category` supplies a documentation category string for a top-level
-declaration. The serializer emits it as an ordinary metadata attribute. The
-analyzer should report a warning when `@category` is attached to a member,
+declaration. The serializer emits it as an ordinary metadata attribute. A
+declaration-level `@category` overrides any inherited or file-default category.
+The analyzer should report a warning when `@category` is attached to a member,
 field, parameter, enum value, or any other nested declaration.
+
+A standalone `@category("name");` before ordinary declarations is a file
+metadata attribute. It sets the default category for top-level declarations in
+that source file that do not declare their own category. File metadata
+attributes may appear after `using`, `namespace`, and other import/export
+prelude declarations, but must appear before aliases and ordinary declarations.
+Only `@category` is currently supported as a file metadata attribute; it
+requires exactly one string literal argument. A source file may declare at most
+one file-default category.
+
+For metadata export, a top-level `this` extension method or out-of-scope static
+extension member first inherits the effective category of the type it extends.
+That effective type category is either the type's declaration-level `@category`
+or the type's file-default category. If the extended type has no effective
+category, the extension declaration falls back to the file-default category of
+the file containing the extension declaration. An explicit category on the
+extension declaration overrides both forms of inheritance.
 
 Parameter default values are source API. Metadata keeps `defaultValue` as source
 text. For source-capture defaults, metadata also emits a structured

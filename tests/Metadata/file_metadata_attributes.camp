@@ -1,0 +1,25 @@
+// @emit-metadata all
+
+namespace FileMeta;
+
+@category("File Default");
+
+export struct Box
+{
+}
+
+@category("Explicit Type")
+export struct Labeled
+{
+}
+
+export extern void open(Box* this);
+
+export extern void label(Labeled* this);
+
+export static int Box.Count = 0;
+
+@category("Explicit Extension")
+export static int Box.SpecialCount = 0;
+
+export static int int.FileMetaCode = 1;

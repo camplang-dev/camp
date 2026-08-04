@@ -1,0 +1,6 @@
+@foo("x");
+@category("First");
+@category("Second");
+@category(42);
+
+export extern void before();

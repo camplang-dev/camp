@@ -42,6 +42,7 @@ public sealed class SourceFile
 	public IReadOnlyList<ParseDiagnostic> PreprocessDiagnostics { get; set; } = [];
 	public CompilationUnitSyntax? SyntaxTree { get; set; }
 	public Module? BindableTree { get; set; }
+	public List<AttributeConstructor> FileMetadataAttributes { get; } = [];
 	public IReadOnlyList<ParseDiagnostic> ParseDiagnostics { get; set; } = [];
 	public IReadOnlyList<BindDiagnostic> BindDiagnostics { get; set; } = [];
 }
@@ -90,11 +91,18 @@ public static class CompilationPipeline
 		bool success = true;
 		foreach (SourceFile file in compilation.Files)
 		{
-			file.BindableTree = BindableNodeBuilder.Build(file.SyntaxTree!, out IReadOnlyList<BindDiagnostic> diagnostics);
+			BindResult bindResult = BindableNodeBuilder.Build(file.SyntaxTree!);
+			file.BindableTree = bindResult.Module;
+			file.FileMetadataAttributes.Clear();
+			file.FileMetadataAttributes.AddRange(bindResult.FileMetadataAttributes);
+			IReadOnlyList<BindDiagnostic> diagnostics = bindResult.Diagnostics;
+			IReadOnlyList<BindDiagnostic> fileMetadataDiagnostics = ValidateFileMetadataAttributes(file);
 			IReadOnlyList<BindDiagnostic> docDiagnostics = DocCommentTranslator.Apply(file);
 			IReadOnlyList<BindDiagnostic> apiDiagnostics = ApiHeaderValidator.Validate(file);
-			file.BindDiagnostics = [.. diagnostics, .. docDiagnostics, .. apiDiagnostics];
+			file.BindDiagnostics = [.. diagnostics, .. fileMetadataDiagnostics, .. docDiagnostics, .. apiDiagnostics];
 			if (diagnostics.Any(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error))
+				success = false;
+			if (fileMetadataDiagnostics.Any(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error))
 				success = false;
 			if (docDiagnostics.Any(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error))
 				success = false;
@@ -104,6 +112,29 @@ public static class CompilationPipeline
 		if (success)
 			compilation.SharedModule = BuildSharedModule(compilation);
 		return success;
+	}
+
+	static IReadOnlyList<BindDiagnostic> ValidateFileMetadataAttributes(SourceFile file)
+	{
+		List<BindDiagnostic> diagnostics = [];
+		bool hasCategory = false;
+		foreach (AttributeConstructor attribute in file.FileMetadataAttributes)
+		{
+			if (!AttributeNameEquals(attribute.Name, "@category"))
+			{
+				diagnostics.Add(new BindDiagnostic(GetRange(attribute.SourceSyntax), $"Attribute '{attribute.Name}' cannot be used as a file metadata attribute."));
+				continue;
+			}
+
+			if (hasCategory)
+				diagnostics.Add(new BindDiagnostic(GetRange(attribute.SourceSyntax), "File already has a default category."));
+			hasCategory = true;
+
+			List<ArgumentExpression> positional = attribute.Arguments.Where(static argument => string.IsNullOrWhiteSpace(argument.Name)).ToList();
+			if (positional.Count != 1 || attribute.Arguments.Count != 1 || positional[0].Value is not LiteralExpression { Kind: LiteralKind.String })
+				diagnostics.Add(new BindDiagnostic(GetRange(attribute.SourceSyntax), "File metadata attribute @category requires one string argument."));
+		}
+		return diagnostics;
 	}
 
 	public static bool ExpandDeclarations(Compilation compilation)
@@ -266,6 +297,16 @@ public static class CompilationPipeline
 	static bool TryGetRange(SyntaxNode syntax, out TokenRange range)
 	{
 		return SyntaxNodeTraversal.TryGetRange(syntax, out range);
+	}
+
+	static TokenRange? GetRange(SyntaxNode? syntax)
+	{
+		return syntax is not null && SyntaxNodeTraversal.TryGetRange(syntax, out TokenRange range) ? range : null;
+	}
+
+	static bool AttributeNameEquals(string actual, string expected)
+	{
+		return actual == expected || actual.TrimStart('@') == expected.TrimStart('@');
 	}
 
 	static bool GeneratedNameBelongsToFile(string name, HashSet<string> ownedNames)

@@ -1,0 +1,126 @@
+{
+  "format": "camp.metadata",
+  "version": 1,
+  "module": {
+    "name": "FileMeta",
+    "namespace": "FileMeta"
+  },
+  "view": {
+    "visibility": "all",
+    "level": "source",
+    "generated": false
+  },
+  "declarations": [
+    {
+      "id": "struct:FileMeta::Box",
+      "kind": "struct",
+      "name": "Box",
+      "visibility": "export",
+      "metadata": [
+        {
+          "name": "category",
+          "content": "File Default"
+        }
+      ]
+    },
+    {
+      "id": "struct:FileMeta::Labeled",
+      "kind": "struct",
+      "name": "Labeled",
+      "visibility": "export",
+      "metadata": [
+        {
+          "name": "category",
+          "content": "Explicit Type"
+        }
+      ]
+    },
+    {
+      "id": "function:FileMeta::open",
+      "kind": "function",
+      "name": "open",
+      "symbol": "Box_open",
+      "visibility": "export",
+      "returnType": "void",
+      "parameters": [
+        {
+          "id": "function:FileMeta::open/parameter:this",
+          "name": "this",
+          "type": "Box*"
+        }
+      ],
+      "metadata": [
+        {
+          "name": "category",
+          "content": "File Default"
+        }
+      ]
+    },
+    {
+      "id": "function:FileMeta::label",
+      "kind": "function",
+      "name": "label",
+      "symbol": "Labeled_label",
+      "visibility": "export",
+      "returnType": "void",
+      "parameters": [
+        {
+          "id": "function:FileMeta::label/parameter:this",
+          "name": "this",
+          "type": "Labeled*"
+        }
+      ],
+      "metadata": [
+        {
+          "name": "category",
+          "content": "Explicit Type"
+        }
+      ]
+    },
+    {
+      "id": "variable:FileMeta::Box.Count",
+      "kind": "variable",
+      "name": "Box.Count",
+      "symbol": "Box_Count",
+      "visibility": "export",
+      "type": "int",
+      "static": true,
+      "metadata": [
+        {
+          "name": "category",
+          "content": "File Default"
+        }
+      ]
+    },
+    {
+      "id": "variable:FileMeta::Box.SpecialCount",
+      "kind": "variable",
+      "name": "Box.SpecialCount",
+      "symbol": "Box_SpecialCount",
+      "visibility": "export",
+      "type": "int",
+      "static": true,
+      "metadata": [
+        {
+          "name": "category",
+          "content": "Explicit Extension"
+        }
+      ]
+    },
+    {
+      "id": "variable:FileMeta::int.FileMetaCode",
+      "kind": "variable",
+      "name": "int.FileMetaCode",
+      "symbol": "Int_FileMetaCode",
+      "visibility": "export",
+      "type": "int",
+      "static": true,
+      "metadata": [
+        {
+          "name": "category",
+          "content": "File Default"
+        }
+      ]
+    }
+  ]
+}

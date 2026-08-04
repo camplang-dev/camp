@@ -14,8 +14,15 @@ public class CompilationUnitSyntax : SyntaxNode
 public class CompilationUnitItemSyntax : SyntaxNode
 {
 	public ImportExportDeclarationSyntax? ImportExportDeclaration { get; set; }
+	public FileMetadataAttributeSyntax? FileMetadataAttribute { get; set; }
 	public AliasDeclarationSyntax? AliasDeclaration { get; set; }
 	public DeclarationSyntax? Declaration { get; set; }
+}
+
+public class FileMetadataAttributeSyntax : SyntaxNode
+{
+	public AttributeSyntax? Attribute { get; set; }
+	public Token? SemicolonToken { get; set; }
 }
 
 public abstract class ImportExportDeclarationSyntax : SyntaxNode

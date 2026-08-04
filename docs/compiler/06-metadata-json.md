@@ -468,6 +468,13 @@ Two documentation attributes have special meaning for documentation generators:
   declaration. The compiler preserves the string in metadata. If it appears on a
   nested declaration, the compiler reports a warning.
 
+A standalone file metadata attribute, written as `@category("Name");` near the
+top of a source file, is not emitted as a separate JSON record. Instead, the
+metadata serializer applies it as the default `category` metadata attribute for
+top-level declarations in that file that do not have an explicit category.
+Extension methods and static extension members inherit the category of the type
+they extend before falling back to their own file default.
+
 ## Aliases
 
 Alias records may contain:

@@ -13,8 +13,12 @@ public static class SyntaxNodeTraversal
 				break;
 			case CompilationUnitItemSyntax syntax:
 				if (syntax.ImportExportDeclaration is not null) yield return syntax.ImportExportDeclaration;
+				if (syntax.FileMetadataAttribute is not null) yield return syntax.FileMetadataAttribute;
 				if (syntax.AliasDeclaration is not null) yield return syntax.AliasDeclaration;
 				if (syntax.Declaration is not null) yield return syntax.Declaration;
+				break;
+			case FileMetadataAttributeSyntax syntax:
+				if (syntax.Attribute is not null) yield return syntax.Attribute;
 				break;
 			case UsingImportExportDeclarationSyntax syntax:
 				if (syntax.QualifiedNamespace is not null) yield return syntax.QualifiedNamespace;
@@ -357,8 +361,13 @@ public static class SyntaxNodeTraversal
 				break;
 			case CompilationUnitItemSyntax syntax:
 				if (syntax.ImportExportDeclaration is not null) foreach (Token token in Tokens(syntax.ImportExportDeclaration)) yield return token;
+				if (syntax.FileMetadataAttribute is not null) foreach (Token token in Tokens(syntax.FileMetadataAttribute)) yield return token;
 				if (syntax.AliasDeclaration is not null) foreach (Token token in Tokens(syntax.AliasDeclaration)) yield return token;
 				if (syntax.Declaration is not null) foreach (Token token in Tokens(syntax.Declaration)) yield return token;
+				break;
+			case FileMetadataAttributeSyntax syntax:
+				if (syntax.Attribute is not null) foreach (Token token in Tokens(syntax.Attribute)) yield return token;
+				foreach (Token token in Tokens(syntax.SemicolonToken)) yield return token;
 				break;
 			case UsingImportExportDeclarationSyntax syntax:
 				if (syntax.QualifiedNamespace is not null) foreach (Token token in Tokens(syntax.QualifiedNamespace)) yield return token;

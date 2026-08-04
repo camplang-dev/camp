@@ -90,7 +90,7 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			if (!AttributeNameEquals(attribute.Name, CategoryDocAttributeName))
 				continue;
-			if (!topLevel || IsOutOfScopeMember(definition))
+			if (!topLevel)
 				ReportWarning(GetRange(attribute.SourceSyntax ?? definition.SourceSyntax), "@category is used only on top-level declarations.");
 		}
 	}
