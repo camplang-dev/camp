@@ -42,7 +42,6 @@ public sealed class MsvcCompileTests
 			Assert.Skip("MSVC tools are not available on PATH.");
 		string source = WriteCase("std_file_time", """
 			using Std;
-			using Std::Time;
 
 			int timerTicks;
 			int asyncDone;

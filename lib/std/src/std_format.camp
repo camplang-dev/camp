@@ -1,3 +1,5 @@
+namespace Std;
+
 @category("Text");
 
 public nuint toString(in char this, prep char[] buffer = default)

@@ -1,5 +1,4 @@
 using Std;
-using Std::Math;
 
 export int main()
 {

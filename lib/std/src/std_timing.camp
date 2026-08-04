@@ -74,11 +74,13 @@ public void stopTimer(TimerHandle handle)
 /// Atomically stores a signed native integer and returns the previous value.
 /// - dest: The storage location to update.
 /// - value: The value to store.
+@symbol("atomicExchangeNInt")
 public extern nint atomicExchange(overload nint* dest, nint value);
 
 /// Atomically stores an unsigned native integer and returns the previous value.
 /// - dest: The storage location to update.
 /// - value: The value to store.
+@symbol("atomicExchangeNUInt")
 public extern nuint atomicExchange(overload nuint* dest, nuint value);
 
 /// Atomically stores a pointer and returns the previous value.
@@ -92,6 +94,7 @@ public extern void* atomicExchange(overload void** dest, void* value);
 /// - dest: The storage location to update.
 /// - expected: The value that must currently be stored for the exchange to occur.
 /// - value: The value to store when `expected` matches.
+@symbol("atomicCompareExchangeNInt")
 public extern nint atomicCompareExchange(overload nint* dest, nint expected, nint value);
 
 /// Atomically stores an unsigned native integer when the current value matches `expected`.
@@ -99,6 +102,7 @@ public extern nint atomicCompareExchange(overload nint* dest, nint expected, nin
 /// - dest: The storage location to update.
 /// - expected: The value that must currently be stored for the exchange to occur.
 /// - value: The value to store when `expected` matches.
+@symbol("atomicCompareExchangeNUInt")
 public extern nuint atomicCompareExchange(overload nuint* dest, nuint expected, nuint value);
 
 /// Atomically stores a pointer when the current value matches `expected`.
@@ -111,8 +115,11 @@ public extern void* atomicCompareExchange(overload void** dest, void* expected, 
 
 #if POSIX
 
+@symbol("usleep")
 extern int usleep(uint usec);
+@symbol("pthread_create")
 extern int pthread_create(nint* thread, void* attr, fn void*(void*) start, void* arg);
+@symbol("pthread_detach")
 extern int pthread_detach(nint thread);
 
 const nuint TIMING_POSIX_SLEEP_CHUNK_MS = 1000;

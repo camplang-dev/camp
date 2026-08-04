@@ -1,5 +1,4 @@
 using Std;
-using Std::Time;
 
 export int main()
 {

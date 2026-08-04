@@ -1,6 +1,6 @@
 using Std;
 
-namespace Std::Time;
+namespace Std;
 
 @category("Date/Time");
 
@@ -15,8 +15,10 @@ namespace Std::Time;
 // constructing sensible values when they care, and for checking isValid()
 // when input may be untrusted.
 
+@symbol("camp_time_get_utc_now_ms")
 extern bool camp_time_get_utc_now_ms(long* unix_ms);
 
+@symbol("camp_time_get_local_now")
 extern bool camp_time_get_local_now(
 	ushort* year,
 	byte* month,
@@ -27,6 +29,7 @@ extern bool camp_time_get_local_now(
 	byte* fraction
 );
 
+@symbol("camp_time_get_local_offset_minutes")
 extern bool camp_time_get_local_offset_minutes(short* minutes_east);
 
 const long TIME_MS_PER_SECOND = 1000;

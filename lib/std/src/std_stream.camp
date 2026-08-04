@@ -2,14 +2,23 @@ namespace Std;
 
 @category("I/O");
 
+@symbol("camp_io_stdin")
 internal extern nint camp_io_stdin();
+@symbol("camp_io_stdout")
 internal extern nint camp_io_stdout();
+@symbol("camp_io_stderr")
 internal extern nint camp_io_stderr();
+@symbol("camp_io_file_open")
 internal extern nint camp_io_file_open(string path, int access, int mode, int options, out IoError error);
+@symbol("camp_io_file_close")
 internal extern int camp_io_file_close(nint handle, out IoError error);
+@symbol("camp_io_file_read")
 internal extern nint camp_io_file_read(nint handle, void* buffer, nuint length, out IoError error);
+@symbol("camp_io_file_write")
 internal extern nint camp_io_file_write(nint handle, const void* buffer, nuint length, out IoError error);
+@symbol("camp_io_file_seek")
 internal extern long camp_io_file_seek(nint handle, long offset, int origin, out IoError error);
+@symbol("camp_io_file_flush")
 internal extern int camp_io_file_flush(nint handle, out IoError error);
 
 public enum IoError
@@ -252,20 +261,20 @@ public bool tryWrite(CharWriter this, overload double value, thrown IoError erro
 {
 	if (value < 0.0)
 	{
-		CharWriter_tryWriteChar(this, '-');
+		StdCharWriter_tryWriteChar(this, '-');
 		value = 0.0 - value;
 	}
 	
 	uint integerPart = (uint)value;
-	CharWriter_tryWriteUInt(this, integerPart);
-	CharWriter_tryWriteChar(this, '.');
+	StdCharWriter_tryWriteUInt(this, integerPart);
+	StdCharWriter_tryWriteChar(this, '.');
 	
 	double fraction = value - (double)integerPart;
 	for (int i = 0; i < 6; i++)
 	{
 		fraction *= 10.0;
 		uint digit = (uint)fraction;
-		CharWriter_tryWriteChar(this, (char)((int)'0' + (int)digit));
+		StdCharWriter_tryWriteChar(this, (char)((int)'0' + (int)digit));
 		fraction -= (double)digit;
 	}
 	return true;
@@ -280,7 +289,7 @@ escaped string readCopy(CharReader this, bool stopAtNewline, within allocator, t
 	
 	while (reading)
 	{
-		char ch = CharReader_readChar(this, catch error);
+		char ch = StdCharReader_readChar(this, catch error);
 		if (error != default)
 		{
 			if (buffer != null)
@@ -348,12 +357,12 @@ public char readChar(CharReader this, thrown IoError error)
 
 public escaped string readLine(CharReader this, within allocator, thrown IoError error)
 {
-	return CharReader_readCopy(this, true, within allocator, catch error);
+	return StdCharReader_readCopy(this, true, within allocator, catch error);
 }
 
 public escaped string readToEnd(CharReader this, within allocator, thrown IoError error)
 {
-	return CharReader_readCopy(this, false, within allocator, catch error);
+	return StdCharReader_readCopy(this, false, within allocator, catch error);
 }
 
 // public void writeStringAsync(AsyncCharWriter this, const char[] value, thrown IoError error);

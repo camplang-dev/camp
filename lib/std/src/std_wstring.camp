@@ -2,24 +2,42 @@ namespace Std;
 
 @category("Text");
 
+@symbol("utf16ncmp")
 extern nint utf16ncmp(const wchar* src1, const wchar* src2, nuint len);
+@symbol("utf16ncasecmp")
 extern nint utf16ncasecmp(const wchar* src1, const wchar* src2, nuint len);
+@symbol("camp_utf16nlen")
 extern nuint camp_utf16nlen(const wchar* src, nuint len);
+@symbol("camp_utf16size_lazy")
 extern nuint camp_utf16size_lazy(const wchar* src);
+@symbol("camp_utf16nsize_lazy")
 extern nuint camp_utf16nsize_lazy(const wchar* src, nuint len);
+@symbol("utf16codepoint")
 extern const wchar* utf16codepoint(const wchar* src, out uchar codepoint);
+@symbol("utf16codepointcalcsize")
 extern nuint utf16codepointcalcsize(const wchar* src);
+@symbol("camp_utf16ncpy")
 extern wchar* camp_utf16ncpy(wchar* dst, const wchar* src, nuint len);
+@symbol("camp_utf16cat")
 extern wchar* camp_utf16cat(wchar* dst, const wchar* src);
+@symbol("camp_utf16upr")
 extern void camp_utf16upr(wchar* src);
+@symbol("camp_utf16lwr")
 extern void camp_utf16lwr(wchar* src);
+@symbol("utf16lwrcodepoint")
 extern uchar utf16lwrcodepoint(uchar codepoint);
 
+@symbol("camp_utf16nstr")
 extern const wchar* camp_utf16nstr(const wchar* haystack, nuint haystackLen, const wchar* needle, nuint needleLen);
+@symbol("camp_utf16ncasestr")
 extern const wchar* camp_utf16ncasestr(const wchar* haystack, nuint haystackLen, const wchar* needle, nuint needleLen);
+@symbol("camp_utf16nchr")
 extern const wchar* camp_utf16nchr(const wchar* text, nuint len, uchar codepoint, int caseInsensitive);
+@symbol("camp_utf16nrchr")
 extern const wchar* camp_utf16nrchr(const wchar* text, nuint len, uchar codepoint, int caseInsensitive);
+@symbol("camp_utf16npbrk_codepoints")
 extern const wchar* camp_utf16npbrk_codepoints(const wchar* text, nuint len, const uchar* codepoints, nuint codepointCount, int caseInsensitive);
+@symbol("camp_utf16nrpbrk_codepoints")
 extern const wchar* camp_utf16nrpbrk_codepoints(const wchar* text, nuint len, const uchar* codepoints, nuint codepointCount, int caseInsensitive);
 
 public nint indexOf(const wchar[] this, const wchar[] match, bool caseInsensitive = false)

@@ -2,24 +2,42 @@ namespace Std;
 
 @category("Text");
 
+@symbol("utf8ncmp")
 extern nint utf8ncmp(const char* src1, const char* src2, nuint len);
+@symbol("utf8ncasecmp")
 extern nint utf8ncasecmp(const char* src1, const char* src2, nuint len);
+@symbol("camp_utf8nlen")
 extern nuint camp_utf8nlen(const char* src, nuint len);
+@symbol("camp_utf8size_lazy")
 extern nuint camp_utf8size_lazy(const char* src);
+@symbol("utf8nsize_lazy")
 extern nuint utf8nsize_lazy(const char* src, nuint len);
+@symbol("utf8codepoint")
 extern const char* utf8codepoint(const char* src, out uchar codepoint);
+@symbol("utf8codepointcalcsize")
 extern nuint utf8codepointcalcsize(const char* src);
+@symbol("utf8ncpy")
 extern char* utf8ncpy(char* dst, const char* src, nuint len);
+@symbol("camp_utf8cat")
 extern char* camp_utf8cat(char* dst, const char* src);
+@symbol("camp_utf8upr")
 extern void camp_utf8upr(char* src);
+@symbol("camp_utf8lwr")
 extern void camp_utf8lwr(char* src);
+@symbol("utf8lwrcodepoint")
 extern uchar utf8lwrcodepoint(uchar codepoint);
 
+@symbol("camp_utf8nstr")
 extern const char* camp_utf8nstr(const char* haystack, nuint haystackLen, const char* needle, nuint needleLen);
+@symbol("camp_utf8ncasestr")
 extern const char* camp_utf8ncasestr(const char* haystack, nuint haystackLen, const char* needle, nuint needleLen);
+@symbol("camp_utf8nchr")
 extern const char* camp_utf8nchr(const char* text, nuint len, uchar codepoint, int caseInsensitive);
+@symbol("camp_utf8nrchr")
 extern const char* camp_utf8nrchr(const char* text, nuint len, uchar codepoint, int caseInsensitive);
+@symbol("camp_utf8npbrk_codepoints")
 extern const char* camp_utf8npbrk_codepoints(const char* text, nuint len, const uchar* codepoints, nuint codepointCount, int caseInsensitive);
+@symbol("camp_utf8nrpbrk_codepoints")
 extern const char* camp_utf8nrpbrk_codepoints(const char* text, nuint len, const uchar* codepoints, nuint codepointCount, int caseInsensitive);
 
 public nint indexOf(const char[] this, const char[] match, bool caseInsensitive = false)

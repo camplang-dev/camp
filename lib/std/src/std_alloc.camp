@@ -3,12 +3,15 @@ namespace Std;
 @category("Memory");
 
 /// Allocates a native heap block.
+@symbol("malloc")
 public extern void* malloc(nuint size);
 
 /// Resizes a native heap block.
+@symbol("realloc")
 public extern void* realloc(void* ptr, nuint new_size);
 
 /// Releases a native heap block.
+@symbol("free")
 public extern void free(void* ptr);
 
 /// Common allocation interface used by `within`, collection storage, and
