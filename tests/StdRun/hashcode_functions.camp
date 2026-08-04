@@ -20,7 +20,7 @@ export int main()
 
 	int value = 4;
 	int other = 5;
-	HashPolicy<int*> pointers = Ptr_hashPolicy<int>();
+	HashPolicy<int*> pointers = pointerHashPolicy<int>();
 	if (!pointers.equals(&value, &value) || pointers.equals(&value, &other))
 		return 5;
 	if (pointers.hash(&value) != hashcodePointer<int>(&value))

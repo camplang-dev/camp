@@ -118,7 +118,7 @@ public nuint hashcodePointer<T: any>(in T* this) => hashInteger((nuint)(nint)thi
 public bool hashEqualsPointer<T: any>(in T* this, in T* other) => this == other;
 
 /// Returns a pointer-identity hash policy for `T*`.
-public HashPolicy<T*> Ptr_hashPolicy<T: any>() => { .hash = hashcodePointer, .equals = hashEqualsPointer };
+public HashPolicy<T*> pointerHashPolicy<T: any>() => { .hash = hashcodePointer, .equals = hashEqualsPointer };
 
 /// Returns a content hash code for a string.
 public nuint hashcode(in string this)
