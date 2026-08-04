@@ -1,6 +1,6 @@
 # Strict Static Classes
 
-Status: pending  
+Status: accepted  
 Proposal date: 2026-08-04  
 Last updated date: 2026-08-04
 
