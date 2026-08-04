@@ -93,11 +93,25 @@ Common commands:
 
 ```sh
 dotnet build src/camplang.sln
+scripts/run-tests.sh
 dotnet msbuild src/publish-tools.proj -p:RuntimeIdentifier=osx-x64
 dotnet msbuild src/test-fast.proj
 dotnet msbuild src/test-fast.proj -p:NoBuild=true
 dotnet msbuild src/coverage.proj
 ```
+
+`scripts/run-tests.sh` is the canonical local full-suite command. On macOS it
+automatically runs the suite in stable sections, including one `StdRun` golden
+case per VSTest invocation, because long all-in-one macOS VSTest processes can
+accumulate native build/run state and hang during the heaviest runtime golden
+coverage. On other hosts it defaults to a single full VSTest invocation. Use
+`scripts/run-tests.sh full` to force one invocation or
+`scripts/run-tests.sh sectioned` to force sectioned execution.
+
+Each VSTest invocation has a timeout controlled by
+`CAMP_TEST_TIMEOUT_SECONDS` and writes macOS process snapshots/samples under
+`tmp/test-hang-dumps` if a timeout occurs. Golden tests also print the active
+case name before execution so a future hang identifies the current fixture.
 
 `src/publish-tools.proj` produces the user-facing tools in
 `bin/publish/<rid>/`: `campc`, `camp-lsp`, and `camp-dap` with `.exe` on
@@ -209,8 +223,10 @@ runs.
 ## Commit Gate
 
 Before commits that change compiler behavior, the full non-skipped suite should
-pass at least once after the final change. For this documentation rewrite, unit
-tests are not required unless a later change explicitly asks for them.
+pass at least once after the final change. Prefer `scripts/run-tests.sh` for
+that gate so macOS uses the stable sectioned path automatically. For this
+documentation rewrite, unit tests are not required unless a later change
+explicitly asks for them.
 
 ## Golden Tests
 
