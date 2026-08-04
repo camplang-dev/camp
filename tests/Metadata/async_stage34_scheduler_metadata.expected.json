@@ -15,6 +15,7 @@
       "id": "class:AsyncStage34::Allocator",
       "kind": "class",
       "name": "Allocator",
+      "symbol": "AsyncStage34Allocator",
       "visibility": "export",
       "extern": true
     },
@@ -22,12 +23,14 @@
       "id": "class:AsyncStage34::Resumer",
       "kind": "class",
       "name": "Resumer",
+      "symbol": "AsyncStage34Resumer",
       "visibility": "export",
       "extern": true,
       "functions": [
         {
           "id": "class:AsyncStage34::Resumer/function:resumeAsync",
           "name": "resumeAsync",
+          "symbol": "AsyncStage34Resumer_resumeAsync",
           "visibility": "export",
           "extern": true,
           "async": true,
@@ -46,6 +49,7 @@
       "id": "function:AsyncStage34::loadAsync",
       "kind": "function",
       "name": "loadAsync",
+      "symbol": "AsyncStage34_loadAsync",
       "visibility": "export",
       "extern": true,
       "async": true,

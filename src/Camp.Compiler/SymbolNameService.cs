@@ -148,8 +148,6 @@ public static class SymbolNameService
 
 	public static bool IsSameSymbol(Definition definition)
 	{
-		return string.IsNullOrWhiteSpace(definition.Symbol)
-			|| definition.Symbol == definition.Name
-			|| !string.IsNullOrWhiteSpace(definition.DefaultSymbol) && definition.Symbol == definition.DefaultSymbol;
+		return string.IsNullOrWhiteSpace(definition.Symbol) || definition.Symbol == definition.Name;
 	}
 }

@@ -15,6 +15,7 @@
       "id": "function:RawFunctionStage1::consumeRaw",
       "kind": "function",
       "name": "consumeRaw",
+      "symbol": "RawFunctionStage1_consumeRaw",
       "visibility": "export",
       "extern": true,
       "returnType": "void",

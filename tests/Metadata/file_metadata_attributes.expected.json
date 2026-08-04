@@ -15,6 +15,7 @@
       "id": "struct:FileMeta::Box",
       "kind": "struct",
       "name": "Box",
+      "symbol": "FileMetaBox",
       "visibility": "export",
       "metadata": [
         {
@@ -27,6 +28,7 @@
       "id": "struct:FileMeta::Labeled",
       "kind": "struct",
       "name": "Labeled",
+      "symbol": "FileMetaLabeled",
       "visibility": "export",
       "metadata": [
         {
@@ -39,7 +41,7 @@
       "id": "function:FileMeta::open",
       "kind": "function",
       "name": "open",
-      "symbol": "Box_open",
+      "symbol": "FileMetaBox_open",
       "visibility": "export",
       "returnType": "void",
       "parameters": [
@@ -60,7 +62,7 @@
       "id": "function:FileMeta::label",
       "kind": "function",
       "name": "label",
-      "symbol": "Labeled_label",
+      "symbol": "FileMetaLabeled_label",
       "visibility": "export",
       "returnType": "void",
       "parameters": [
@@ -81,7 +83,7 @@
       "id": "variable:FileMeta::Box.Count",
       "kind": "variable",
       "name": "Box.Count",
-      "symbol": "Box_Count",
+      "symbol": "FileMetaFileMetaBox_Count",
       "visibility": "export",
       "type": "int",
       "static": true,
@@ -96,7 +98,7 @@
       "id": "variable:FileMeta::Box.SpecialCount",
       "kind": "variable",
       "name": "Box.SpecialCount",
-      "symbol": "Box_SpecialCount",
+      "symbol": "FileMetaFileMetaBox_SpecialCount",
       "visibility": "export",
       "type": "int",
       "static": true,
@@ -111,7 +113,7 @@
       "id": "variable:FileMeta::int.FileMetaCode",
       "kind": "variable",
       "name": "int.FileMetaCode",
-      "symbol": "Int_FileMetaCode",
+      "symbol": "FileMetaInt_FileMetaCode",
       "visibility": "export",
       "type": "int",
       "static": true,

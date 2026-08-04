@@ -137,6 +137,7 @@
         {
           "id": "interface:Runnable/function:run",
           "name": "run",
+          "symbol": "NativeRunnable_run",
           "visibility": "export",
           "returnType": "void"
         }

@@ -15,6 +15,7 @@
       "id": "function:TestMetadata::productionValue",
       "kind": "function",
       "name": "productionValue",
+      "symbol": "TestMetadata_productionValue",
       "visibility": "export",
       "returnType": "int"
     },
@@ -22,6 +23,7 @@
       "id": "struct:TestMetadata::Assertion",
       "kind": "struct",
       "name": "Assertion",
+      "symbol": "TestMetadataAssertion",
       "fields": [
         {
           "id": "struct:TestMetadata::Assertion/field:message",

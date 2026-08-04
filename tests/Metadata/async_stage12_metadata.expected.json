@@ -19,6 +19,7 @@
         {
           "id": "class:Resumer/function:resumeAsync",
           "name": "resumeAsync",
+          "symbol": "Resumer_resumeAsync",
           "visibility": "export",
           "async": true,
           "returnType": "void",
@@ -96,6 +97,7 @@
         {
           "id": "interface:IAsyncService/function:runAsync",
           "name": "runAsync",
+          "symbol": "IAsyncService_runAsync",
           "async": true,
           "returnType": "int",
           "parameters": [

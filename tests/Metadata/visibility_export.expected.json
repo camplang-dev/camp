@@ -15,6 +15,7 @@
       "id": "variable:Docs::ExportedValue",
       "kind": "variable",
       "name": "ExportedValue",
+      "symbol": "Docs_ExportedValue",
       "visibility": "export",
       "type": "int",
       "metadata": [
@@ -28,6 +29,7 @@
       "id": "class:Docs::ExportedClass",
       "kind": "class",
       "name": "ExportedClass",
+      "symbol": "DocsExportedClass",
       "visibility": "export",
       "extern": true,
       "metadata": [

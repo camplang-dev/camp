@@ -1116,9 +1116,26 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			ResolvedType = BuildInterfaceEntryCallableType(interfaceDefinition, member)
 		};
-		if (TryFindGeneratedFunction(InterfaceThunkName(lowering.Type, interfaceDefinition, member), out FunctionDefinition? thunkFunction) && thunkFunction is not null)
+		if (TryFindInterfaceThunkFunction(lowering, interfaceDefinition, member, out FunctionDefinition? thunkFunction) && thunkFunction is not null)
 			thunk.Candidates.Add(thunkFunction);
 		return thunk;
+	}
+
+	bool TryFindInterfaceThunkFunction(InterfaceImplementationLowering implementation, InterfaceDefinition entryInterface, FunctionDefinition member, out FunctionDefinition? function)
+	{
+		foreach ((FunctionDefinition candidate, InterfaceThunkLowering lowering) in interfaceThunkLowerings)
+		{
+			if (ReferenceEquals(lowering.Implementation, implementation)
+				&& ReferenceEquals(lowering.EntryInterface, entryInterface)
+				&& ReferenceEquals(lowering.Member, member))
+			{
+				function = candidate;
+				return true;
+			}
+		}
+
+		function = null;
+		return false;
 	}
 
 	BlockStatement CreateInterfaceThunkBody(FunctionDefinition thunk, InterfaceThunkLowering lowering)

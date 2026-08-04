@@ -15,6 +15,7 @@
       "id": "function:Docs::blockFunction",
       "kind": "function",
       "name": "blockFunction",
+      "symbol": "Docs_blockFunction",
       "visibility": "export",
       "extern": true,
       "returnType": "int",
@@ -46,6 +47,7 @@
       "id": "function:Docs::blockLiteralDocs",
       "kind": "function",
       "name": "blockLiteralDocs",
+      "symbol": "Docs_blockLiteralDocs",
       "visibility": "export",
       "extern": true,
       "returnType": "void",
@@ -64,6 +66,7 @@
       "id": "struct:Docs::BlockChildTargets",
       "kind": "struct",
       "name": "BlockChildTargets",
+      "symbol": "DocsBlockChildTargets",
       "visibility": "export",
       "fields": [
         {

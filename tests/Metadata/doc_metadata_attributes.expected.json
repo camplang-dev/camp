@@ -15,6 +15,7 @@
       "id": "struct:DocsMeta::Bag",
       "kind": "struct",
       "name": "Bag",
+      "symbol": "DocsMetaBag",
       "visibility": "export",
       "metadata": [
         {
@@ -27,7 +28,7 @@
       "id": "function:DocsMeta::writeInt",
       "kind": "function",
       "name": "write",
-      "symbol": "writeInt",
+      "symbol": "DocsMeta_writeInt",
       "visibility": "export",
       "invokerName": "write",
       "callableName": "writeInt",
@@ -51,7 +52,7 @@
       "id": "function:DocsMeta::writeBool",
       "kind": "function",
       "name": "write",
-      "symbol": "writeBool",
+      "symbol": "DocsMeta_writeBool",
       "visibility": "export",
       "invokerName": "write",
       "callableName": "writeBool",
@@ -69,6 +70,7 @@
       "id": "function:DocsMeta::loadAsync",
       "kind": "function",
       "name": "loadAsync",
+      "symbol": "DocsMeta_loadAsync",
       "visibility": "export",
       "async": true,
       "returnType": "void",
@@ -94,6 +96,7 @@
       "id": "function:DocsMeta::loadWithCallback",
       "kind": "function",
       "name": "loadWithCallback",
+      "symbol": "DocsMeta_loadWithCallback",
       "visibility": "export",
       "returnType": "void",
       "parameters": [

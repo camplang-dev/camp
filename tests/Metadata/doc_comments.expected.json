@@ -15,6 +15,7 @@
       "id": "newtype:Docs::Callback",
       "kind": "newtype",
       "name": "Callback",
+      "symbol": "DocsCallback",
       "visibility": "export",
       "callableType": "fn",
       "callspec": "_cdecl",
@@ -37,6 +38,7 @@
       "id": "newtype:Docs::Formatter",
       "kind": "newtype",
       "name": "Formatter",
+      "symbol": "DocsFormatter",
       "visibility": "export",
       "callableType": "delegate",
       "returnType": "nuint",
@@ -59,6 +61,7 @@
       "id": "newtype:Docs::Reader",
       "kind": "newtype",
       "name": "Reader",
+      "symbol": "DocsReader",
       "visibility": "export",
       "callableType": "iter",
       "returnType": "int",
@@ -73,6 +76,7 @@
       "id": "newtype:Docs::Handle",
       "kind": "newtype",
       "name": "Handle",
+      "symbol": "DocsHandle",
       "visibility": "export",
       "underlyingType": "nint",
       "metadata": [
@@ -86,6 +90,7 @@
       "id": "struct:Docs::Widget",
       "kind": "struct",
       "name": "Widget",
+      "symbol": "DocsWidget",
       "visibility": "export",
       "fields": [
         {
@@ -111,6 +116,7 @@
       "id": "struct:Docs::ChildTargets",
       "kind": "struct",
       "name": "ChildTargets",
+      "symbol": "DocsChildTargets",
       "visibility": "export",
       "fields": [
         {
@@ -136,13 +142,14 @@
       "id": "enum:Docs::Mode",
       "kind": "enum",
       "name": "Mode",
+      "symbol": "DocsMode",
       "visibility": "export",
       "underlyingType": "uint",
       "values": [
         {
           "id": "enum:Docs::Mode/value:First",
           "name": "First",
-          "symbol": "Mode_First",
+          "symbol": "DocsMode_First",
           "type": "Mode",
           "value": 4,
           "metadata": [
@@ -155,7 +162,7 @@
         {
           "id": "enum:Docs::Mode/value:Second",
           "name": "Second",
-          "symbol": "Mode_Second",
+          "symbol": "DocsMode_Second",
           "type": "Mode",
           "value": 5,
           "metadata": [
@@ -168,7 +175,7 @@
         {
           "id": "enum:Docs::Mode/value:Combined",
           "name": "Combined",
-          "symbol": "Mode_Combined",
+          "symbol": "DocsMode_Combined",
           "type": "Mode",
           "value": 12,
           "metadata": [
@@ -190,12 +197,14 @@
       "id": "class:Docs::ExportedClass",
       "kind": "class",
       "name": "ExportedClass",
+      "symbol": "DocsExportedClass",
       "visibility": "export",
       "extern": true,
       "functions": [
         {
           "id": "class:Docs::ExportedClass/function:run",
           "name": "run",
+          "symbol": "DocsExportedClass_run",
           "visibility": "export",
           "extern": true,
           "returnType": "void",
@@ -209,6 +218,7 @@
         {
           "id": "class:Docs::ExportedClass/function:getDefault",
           "name": "getDefault",
+          "symbol": "DocsExportedClass_getDefault",
           "visibility": "export",
           "extern": true,
           "modifier": "static",
@@ -233,11 +243,13 @@
       "id": "interface:Docs::Drawable",
       "kind": "interface",
       "name": "Drawable",
+      "symbol": "DocsDrawable",
       "visibility": "export",
       "functions": [
         {
           "id": "interface:Docs::Drawable/function:draw",
           "name": "draw",
+          "symbol": "DocsDrawable_draw",
           "returnType": "void"
         }
       ],
@@ -252,6 +264,7 @@
       "id": "struct:Docs::Shape",
       "kind": "struct",
       "name": "Shape",
+      "symbol": "DocsShape",
       "visibility": "export",
       "metadata": [
         {
@@ -264,11 +277,13 @@
       "id": "interface:Docs::Clickable",
       "kind": "interface",
       "name": "Clickable",
+      "symbol": "DocsClickable",
       "visibility": "export",
       "functions": [
         {
           "id": "interface:Docs::Clickable/function:click",
           "name": "click",
+          "symbol": "DocsClickable_click",
           "returnType": "void"
         }
       ],
@@ -283,6 +298,7 @@
       "id": "class:Docs::Button",
       "kind": "class",
       "name": "Button",
+      "symbol": "DocsButton",
       "visibility": "export",
       "extern": true,
       "baseTypes": [
@@ -291,8 +307,7 @@
       "interfaces": [
         {
           "type": "Clickable",
-          "ref": "interface:Docs::Clickable",
-          "symbol": "Button_Clickable"
+          "ref": "interface:Docs::Clickable"
         }
       ],
       "functions": [
@@ -306,6 +321,7 @@
         {
           "id": "class:Docs::Button/function:Button",
           "name": "Button",
+          "symbol": "DocsButton_Button",
           "visibility": "export",
           "extern": true,
           "modifier": "constructor",
@@ -323,6 +339,7 @@
       "id": "alias:Docs::WidgetAlias",
       "kind": "alias",
       "name": "WidgetAlias",
+      "symbol": "Docs_WidgetAlias",
       "visibility": "export",
       "target": "Widget",
       "resolvedTarget": "Widget",
@@ -339,6 +356,7 @@
       "id": "alias:Docs::IntAlias",
       "kind": "alias",
       "name": "IntAlias",
+      "symbol": "Docs_IntAlias",
       "visibility": "export",
       "target": "int",
       "resolvedTarget": "int",
@@ -354,6 +372,7 @@
       "id": "alias:Docs::HelperAlias",
       "kind": "alias",
       "name": "HelperAlias",
+      "symbol": "Docs_HelperAlias",
       "visibility": "export",
       "target": "helper",
       "resolvedTarget": "helper",
@@ -370,6 +389,7 @@
       "id": "function:Docs::helper",
       "kind": "function",
       "name": "helper",
+      "symbol": "Docs_helper",
       "visibility": "export",
       "extern": true,
       "returnType": "void",
@@ -384,6 +404,7 @@
       "id": "function:Docs::useFormatter",
       "kind": "function",
       "name": "useFormatter",
+      "symbol": "Docs_useFormatter",
       "visibility": "export",
       "extern": true,
       "returnType": "void",
@@ -405,6 +426,7 @@
       "id": "function:Docs::literalDocs",
       "kind": "function",
       "name": "literalDocs",
+      "symbol": "Docs_literalDocs",
       "visibility": "export",
       "extern": true,
       "returnType": "void",
@@ -423,7 +445,7 @@
       "id": "function:Docs::find",
       "kind": "function",
       "name": "find",
-      "symbol": "Array_find",
+      "symbol": "DocsArray_find",
       "visibility": "export",
       "extern": true,
       "returnType": "nint",

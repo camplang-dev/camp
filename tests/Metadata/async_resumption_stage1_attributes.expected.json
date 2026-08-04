@@ -15,10 +15,12 @@
       "id": "class:AsyncResumptionStage1::Dispatcher",
       "kind": "class",
       "name": "Dispatcher",
+      "symbol": "AsyncResumptionStage1Dispatcher",
       "functions": [
         {
           "id": "class:AsyncResumptionStage1::Dispatcher/function:resumeAsync",
           "name": "resumeAsync",
+          "symbol": "AsyncResumptionStage1Dispatcher_resumeAsync",
           "async": true,
           "returnType": "void",
           "parameters": [
@@ -35,6 +37,7 @@
       "id": "function:AsyncResumptionStage1::answerAsync",
       "kind": "function",
       "name": "answerAsync",
+      "symbol": "AsyncResumptionStage1_answerAsync",
       "async": true,
       "returnType": "int",
       "metadata": [
@@ -47,6 +50,7 @@
       "id": "function:AsyncResumptionStage1::copyAsync",
       "kind": "function",
       "name": "copyAsync",
+      "symbol": "AsyncResumptionStage1_copyAsync",
       "async": true,
       "returnType": "void",
       "parameters": [

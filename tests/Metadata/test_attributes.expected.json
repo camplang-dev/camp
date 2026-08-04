@@ -15,6 +15,7 @@
       "id": "struct:TestMetadata::Assertion",
       "kind": "struct",
       "name": "Assertion",
+      "symbol": "TestMetadataAssertion",
       "fields": [
         {
           "id": "struct:TestMetadata::Assertion/field:message",
@@ -37,6 +38,7 @@
       "id": "function:TestMetadata::addWorks",
       "kind": "function",
       "name": "addWorks",
+      "symbol": "TestMetadata_addWorks",
       "testOnly": true,
       "test": {
         "id": "TestMetadata::addWorks",
@@ -73,6 +75,7 @@
       "id": "function:TestMetadata::skippedDirect",
       "kind": "function",
       "name": "skippedDirect",
+      "symbol": "TestMetadata_skippedDirect",
       "testOnly": true,
       "test": {
         "id": "TestMetadata::skippedDirect",
@@ -109,6 +112,7 @@
       "id": "function:TestMetadata::invalidShape",
       "kind": "function",
       "name": "invalidShape",
+      "symbol": "TestMetadata_invalidShape",
       "testOnly": true,
       "test": {
         "id": "TestMetadata::invalidShape",
@@ -141,6 +145,7 @@
       "id": "struct:TestMetadata::Fixture",
       "kind": "struct",
       "name": "Fixture",
+      "symbol": "TestMetadataFixture",
       "visibility": "internal",
       "testOnly": true,
       "fields": [
@@ -160,6 +165,7 @@
       "id": "function:TestMetadata::helperValue",
       "kind": "function",
       "name": "helperValue",
+      "symbol": "TestMetadata_helperValue",
       "testOnly": true,
       "returnType": "int",
       "metadata": [

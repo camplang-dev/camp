@@ -15,12 +15,14 @@
       "id": "class:LateOverloadMetadata::JsonArray",
       "kind": "class",
       "name": "JsonArray",
+      "symbol": "LateOverloadMetadataJsonArray",
       "visibility": "export",
       "extern": true,
       "functions": [
         {
           "id": "class:LateOverloadMetadata::JsonArray/function:setElementInt",
           "name": "setElement",
+          "symbol": "LateOverloadMetadataJsonArray_setElementInt",
           "visibility": "export",
           "extern": true,
           "invokerName": "setElement",
@@ -53,6 +55,7 @@
         {
           "id": "class:LateOverloadMetadata::JsonArray/function:setElementBool",
           "name": "setElement",
+          "symbol": "LateOverloadMetadataJsonArray_setElementBool",
           "visibility": "export",
           "extern": true,
           "invokerName": "setElement",
@@ -85,6 +88,7 @@
         {
           "id": "class:LateOverloadMetadata::JsonArray/function:setElementString",
           "name": "setElement",
+          "symbol": "LateOverloadMetadataJsonArray_setElementString",
           "visibility": "export",
           "extern": true,
           "invokerName": "setElement",

@@ -20,6 +20,7 @@
         {
           "id": "newtype:Handle/function:value",
           "name": "value",
+          "symbol": "Handle_value",
           "visibility": "export",
           "extern": true,
           "returnType": "nint"
@@ -44,6 +45,7 @@
         {
           "id": "newtype:Calculator/function:context",
           "name": "context",
+          "symbol": "Calculator_context",
           "visibility": "export",
           "extern": true,
           "returnType": "nint"

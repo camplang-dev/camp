@@ -15,6 +15,7 @@
       "id": "struct:ConstOfMetadata::Box",
       "kind": "struct",
       "name": "Box",
+      "symbol": "ConstOfMetadataBox",
       "visibility": "export",
       "typeParameters": [
         {
@@ -35,6 +36,7 @@
       "id": "function:ConstOfMetadata::first",
       "kind": "function",
       "name": "first",
+      "symbol": "ConstOfMetadata_first",
       "visibility": "export",
       "extern": true,
       "returnType": "constof(source) char*",
@@ -61,6 +63,7 @@
       "id": "function:ConstOfMetadata::genericForm",
       "kind": "function",
       "name": "genericForm",
+      "symbol": "ConstOfMetadata_genericForm",
       "visibility": "export",
       "extern": true,
       "returnType": "Box\u003Cconstof(source) char*\u003E",
@@ -81,6 +84,7 @@
       "id": "newtype:ConstOfMetadata::Picker",
       "kind": "newtype",
       "name": "Picker",
+      "symbol": "ConstOfMetadataPicker",
       "visibility": "export",
       "callableType": "delegate",
       "returnType": "constof(source) char*",

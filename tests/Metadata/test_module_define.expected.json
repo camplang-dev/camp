@@ -15,6 +15,7 @@
       "id": "variable:TestMetadata::MODE",
       "kind": "variable",
       "name": "MODE",
+      "symbol": "TestMetadata_MODE",
       "visibility": "export",
       "type": "const int",
       "inline": true,

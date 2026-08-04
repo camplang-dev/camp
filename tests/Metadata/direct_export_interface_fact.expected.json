@@ -19,6 +19,7 @@
         {
           "id": "interface:IVisible/function:getValue",
           "name": "getValue",
+          "symbol": "IVisible_getValue",
           "returnType": "int",
           "propertyName": "Value"
         }
@@ -51,6 +52,7 @@
         {
           "id": "class:DirectWidget/function:DirectWidget",
           "name": "DirectWidget",
+          "symbol": "DirectWidget_DirectWidget",
           "visibility": "export",
           "extern": true,
           "modifier": "constructor",

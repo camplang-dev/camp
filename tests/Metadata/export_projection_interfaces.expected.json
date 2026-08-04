@@ -19,6 +19,7 @@
         {
           "id": "interface:IShown/function:getValue",
           "name": "getValue",
+          "symbol": "IShown_getValue",
           "returnType": "int",
           "propertyName": "Value"
         }
@@ -66,6 +67,7 @@
         {
           "id": "class:Widget/function:Widget",
           "name": "Widget",
+          "symbol": "Widget_Widget",
           "visibility": "export",
           "extern": true,
           "modifier": "constructor",

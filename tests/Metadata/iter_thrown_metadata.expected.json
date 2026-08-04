@@ -15,20 +15,21 @@
       "id": "enum:IteratorDocs::RangeError",
       "kind": "enum",
       "name": "RangeError",
+      "symbol": "IteratorDocsRangeError",
       "visibility": "export",
       "underlyingType": "uint",
       "values": [
         {
           "id": "enum:IteratorDocs::RangeError/value:None",
           "name": "None",
-          "symbol": "RangeError_None",
+          "symbol": "IteratorDocsRangeError_None",
           "type": "RangeError",
           "value": 0
         },
         {
           "id": "enum:IteratorDocs::RangeError/value:InvalidRange",
           "name": "InvalidRange",
-          "symbol": "RangeError_InvalidRange",
+          "symbol": "IteratorDocsRangeError_InvalidRange",
           "type": "RangeError",
           "value": 1
         }
@@ -38,6 +39,7 @@
       "id": "newtype:IteratorDocs::RangeReader",
       "kind": "newtype",
       "name": "RangeReader",
+      "symbol": "IteratorDocsRangeReader",
       "visibility": "export",
       "callableType": "iter",
       "returnType": "int",
@@ -52,6 +54,7 @@
       "id": "function:IteratorDocs::getRange",
       "kind": "function",
       "name": "getRange",
+      "symbol": "IteratorDocs_getRange",
       "visibility": "export",
       "extern": true,
       "returnType": "iter(int, thrown RangeError)",

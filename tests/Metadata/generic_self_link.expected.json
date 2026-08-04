@@ -15,6 +15,7 @@
       "id": "struct:Docs::Box",
       "kind": "struct",
       "name": "Box",
+      "symbol": "DocsBox",
       "visibility": "export",
       "typeParameters": [
         {

@@ -19,6 +19,7 @@
         {
           "id": "class:ExportedHookBase/function:getShadow",
           "name": "getShadow",
+          "symbol": "ExportedHookBase_getShadow",
           "visibility": "export",
           "returnType": "escaped void*",
           "propertyName": "Shadow",
@@ -31,6 +32,7 @@
         {
           "id": "class:ExportedHookBase/function:setShadow",
           "name": "setShadow",
+          "symbol": "ExportedHookBase_setShadow",
           "visibility": "export",
           "returnType": "void",
           "propertyName": "Shadow",

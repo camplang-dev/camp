@@ -15,6 +15,7 @@
       "id": "newtype:PrepMetadata::Formatter",
       "kind": "newtype",
       "name": "Formatter",
+      "symbol": "PrepMetadataFormatter",
       "visibility": "export",
       "callableType": "fn",
       "returnType": "nuint",
@@ -32,6 +33,7 @@
       "id": "function:PrepMetadata::formatValue",
       "kind": "function",
       "name": "formatValue",
+      "symbol": "PrepMetadata_formatValue",
       "visibility": "export",
       "extern": true,
       "returnType": "nuint",
@@ -55,11 +57,13 @@
       "id": "interface:PrepMetadata::Writer",
       "kind": "interface",
       "name": "Writer",
+      "symbol": "PrepMetadataWriter",
       "visibility": "export",
       "functions": [
         {
           "id": "interface:PrepMetadata::Writer/function:getText",
           "name": "getText",
+          "symbol": "PrepMetadataWriter_getText",
           "returnType": "nuint",
           "parameters": [
             {
@@ -83,12 +87,14 @@
       "id": "class:PrepMetadata::Thing",
       "kind": "class",
       "name": "Thing",
+      "symbol": "PrepMetadataThing",
       "visibility": "export",
       "extern": true,
       "functions": [
         {
           "id": "class:PrepMetadata::Thing/function:getText",
           "name": "getText",
+          "symbol": "PrepMetadataThing_getText",
           "visibility": "export",
           "extern": true,
           "returnType": "nuint",

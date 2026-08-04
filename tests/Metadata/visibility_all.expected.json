@@ -15,6 +15,7 @@
       "id": "variable:Docs::ExportedValue",
       "kind": "variable",
       "name": "ExportedValue",
+      "symbol": "Docs_ExportedValue",
       "visibility": "export",
       "type": "int",
       "metadata": [
@@ -28,6 +29,7 @@
       "id": "variable:Docs::PublicValue",
       "kind": "variable",
       "name": "PublicValue",
+      "symbol": "Docs_PublicValue",
       "visibility": "public",
       "type": "int",
       "metadata": [
@@ -41,6 +43,7 @@
       "id": "variable:Docs::InternalValue",
       "kind": "variable",
       "name": "InternalValue",
+      "symbol": "Docs_InternalValue",
       "visibility": "internal",
       "type": "int",
       "metadata": [
@@ -54,6 +57,7 @@
       "id": "variable:Docs::LocalValue",
       "kind": "variable",
       "name": "LocalValue",
+      "symbol": "Docs_LocalValue",
       "type": "int",
       "metadata": [
         {
@@ -66,6 +70,7 @@
       "id": "class:Docs::ExportedClass",
       "kind": "class",
       "name": "ExportedClass",
+      "symbol": "DocsExportedClass",
       "visibility": "export",
       "modifier": "abstract",
       "fields": [
@@ -92,6 +97,7 @@
       "id": "class:Docs::PublicClass",
       "kind": "class",
       "name": "PublicClass",
+      "symbol": "DocsPublicClass",
       "visibility": "public",
       "modifier": "abstract",
       "fields": [
@@ -118,6 +124,7 @@
       "id": "class:Docs::InternalClass",
       "kind": "class",
       "name": "InternalClass",
+      "symbol": "DocsInternalClass",
       "visibility": "internal",
       "modifier": "abstract",
       "fields": [
@@ -144,6 +151,7 @@
       "id": "class:Docs::LocalClass",
       "kind": "class",
       "name": "LocalClass",
+      "symbol": "DocsLocalClass",
       "modifier": "abstract",
       "fields": [
         {

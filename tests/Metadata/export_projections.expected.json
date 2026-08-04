@@ -15,20 +15,21 @@
       "id": "enum:Lib::PixelFormat",
       "kind": "enum",
       "name": "PixelFormat",
+      "symbol": "LibPixelFormat",
       "visibility": "export",
       "underlyingType": "uint",
       "values": [
         {
           "id": "enum:Lib::PixelFormat/value:RGB",
           "name": "RGB",
-          "symbol": "PixelFormat_RGB",
+          "symbol": "LibPixelFormat_RGB",
           "type": "PixelFormat",
           "value": 0
         },
         {
           "id": "enum:Lib::PixelFormat/value:BGR",
           "name": "BGR",
-          "symbol": "PixelFormat_BGR",
+          "symbol": "LibPixelFormat_BGR",
           "type": "PixelFormat",
           "value": 1
         }
@@ -38,6 +39,7 @@
       "id": "alias:Lib::ExportedCount",
       "kind": "alias",
       "name": "ExportedCount",
+      "symbol": "Lib_ExportedCount",
       "visibility": "export",
       "target": "int",
       "resolvedTarget": "int",
@@ -47,6 +49,7 @@
       "id": "variable:Lib::EXPORTED_LIMIT",
       "kind": "variable",
       "name": "EXPORTED_LIMIT",
+      "symbol": "Lib_EXPORTED_LIMIT",
       "visibility": "export",
       "type": "int",
       "inline": true,
@@ -56,6 +59,7 @@
       "id": "struct:Lib::ExportedPixel",
       "kind": "struct",
       "name": "ExportedPixel",
+      "symbol": "LibExportedPixel",
       "visibility": "export",
       "fields": [
         {
@@ -69,6 +73,7 @@
       "id": "function:Lib::projected_add_one",
       "kind": "function",
       "name": "projected_add_one",
+      "symbol": "Lib_projected_add_one",
       "visibility": "export",
       "extern": true,
       "returnType": "int",
