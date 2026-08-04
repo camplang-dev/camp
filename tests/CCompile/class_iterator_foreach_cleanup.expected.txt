@@ -9,7 +9,7 @@ static valuesIter *values(void);
 static int firstValue(void);
 static bool valuesIter_next(valuesIter *this, int *current);
 static void valuesIter_destroy(valuesIter *this);
-static bool valuesIter_iter(void *ctx, int *current);
+static bool valuesIter_op_iter(void *ctx, int *current);
 
 static void cleanup(void)
 {
@@ -94,7 +94,7 @@ static void valuesIter_destroy(valuesIter *this)
 	free((void *)(this));
 }
 
-static bool valuesIter_iter(void *ctx, int *current)
+static bool valuesIter_op_iter(void *ctx, int *current)
 {
 	valuesIter *state = (valuesIter *)(ctx);
 	if ((current == NULL))

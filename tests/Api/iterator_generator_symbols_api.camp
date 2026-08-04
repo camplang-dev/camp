@@ -1,0 +1,6 @@
+namespace GenAbi;
+
+export struct iter int numbers(int last)
+{
+	yield last;
+}

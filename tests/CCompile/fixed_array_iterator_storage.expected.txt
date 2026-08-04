@@ -5,7 +5,7 @@
 static chunksIter chunks(void);
 static bool chunksIter_next(chunksIter *this, uint8_t *current);
 static void chunksIter_destroy(chunksIter *this);
-static bool chunksIter_iter(void *ctx, uint8_t *current);
+static bool chunksIter_op_iter(void *ctx, uint8_t *current);
 
 static chunksIter chunks(void)
 {
@@ -67,7 +67,7 @@ static void chunksIter_destroy(chunksIter *this)
 	}
 }
 
-static bool chunksIter_iter(void *ctx, uint8_t *current)
+static bool chunksIter_op_iter(void *ctx, uint8_t *current)
 {
 	chunksIter *state = (chunksIter *)(ctx);
 	if ((current == NULL))

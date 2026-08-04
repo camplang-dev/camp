@@ -1,0 +1,68 @@
+{
+  "format": "camp.metadata",
+  "version": 1,
+  "module": {
+    "name": "GenAbi",
+    "namespace": "GenAbi"
+  },
+  "view": {
+    "visibility": "export",
+    "level": "api",
+    "generated": false
+  },
+  "declarations": [
+    {
+      "id": "function:GenAbi::numbers",
+      "kind": "function",
+      "name": "numbers",
+      "symbol": "GenAbi_numbers",
+      "visibility": "export",
+      "extern": true,
+      "returnType": "numbersIter",
+      "parameters": [
+        {
+          "id": "function:GenAbi::numbers/parameter:last",
+          "name": "last",
+          "type": "int"
+        }
+      ]
+    },
+    {
+      "id": "struct:GenAbi::numbersIter",
+      "kind": "struct",
+      "name": "numbersIter",
+      "symbol": "GenAbi_numbersIter",
+      "visibility": "export",
+      "modifier": "fixed",
+      "fields": [
+        {
+          "id": "struct:GenAbi::numbersIter/field:__state",
+          "name": "__state",
+          "type": "int"
+        },
+        {
+          "id": "struct:GenAbi::numbersIter/field:last",
+          "name": "last",
+          "type": "int"
+        }
+      ],
+      "functions": [
+        {
+          "id": "struct:GenAbi::numbersIter/function:next",
+          "name": "next",
+          "symbol": "GenAbi_numbersIter_next",
+          "visibility": "export",
+          "extern": true,
+          "returnType": "bool",
+          "parameters": [
+            {
+              "id": "struct:GenAbi::numbersIter/function:next/parameter:current",
+              "name": "current",
+              "type": "int*"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

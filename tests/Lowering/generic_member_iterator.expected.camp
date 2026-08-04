@@ -8,7 +8,7 @@ class Box<T>
 void main(Box<int>* box)
 {
 	Box_iterateIter<int> __local0 = Box_iterate(box);
-	fn bool(void*, int*) it = Box_iterateIter_iter;
+	fn bool(void*, int*) it = Box_iterateIter_op_iter;
 	void* it_context = (void*)&__local0;
 }
 

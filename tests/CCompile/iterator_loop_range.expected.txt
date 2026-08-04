@@ -5,7 +5,7 @@
 static loopRangeIter loopRange(int first, int last);
 static bool loopRangeIter_next(loopRangeIter *this, int *current);
 static void loopRangeIter_destroy(loopRangeIter *this);
-static bool loopRangeIter_iter(void *ctx, int *current);
+static bool loopRangeIter_op_iter(void *ctx, int *current);
 
 static loopRangeIter loopRange(int first, int last)
 {
@@ -47,7 +47,7 @@ static void loopRangeIter_destroy(loopRangeIter *this)
 	}
 }
 
-static bool loopRangeIter_iter(void *ctx, int *current)
+static bool loopRangeIter_op_iter(void *ctx, int *current)
 {
 	loopRangeIter *state = (loopRangeIter *)(ctx);
 	if ((current == NULL))

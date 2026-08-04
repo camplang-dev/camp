@@ -5,7 +5,7 @@
 static splitFirstIter splitFirst(const char *text, uintptr_t text_length);
 static bool splitFirstIter_next(splitFirstIter *this, const char **current, uintptr_t *current_length);
 static void splitFirstIter_destroy(splitFirstIter *this);
-static bool splitFirstIter_iter(void *ctx, const char **current, uintptr_t *current_length);
+static bool splitFirstIter_op_iter(void *ctx, const char **current, uintptr_t *current_length);
 
 static splitFirstIter splitFirst(const char *text, uintptr_t text_length)
 {
@@ -65,7 +65,7 @@ static void splitFirstIter_destroy(splitFirstIter *this)
 	}
 }
 
-static bool splitFirstIter_iter(void *ctx, const char **current, uintptr_t *current_length)
+static bool splitFirstIter_op_iter(void *ctx, const char **current, uintptr_t *current_length)
 {
 	splitFirstIter *state = (splitFirstIter *)(ctx);
 	if ((current == NULL))

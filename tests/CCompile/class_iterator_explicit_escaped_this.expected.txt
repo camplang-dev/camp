@@ -8,7 +8,7 @@ static void Source_setSeed(Source *this, int seed);
 static Source_valuesIter *Source_values(Source *this);
 static bool Source_valuesIter_next(Source_valuesIter *this, int *current);
 static void Source_valuesIter_destroy(Source_valuesIter *this);
-static bool Source_valuesIter_iter(void *ctx, int *current);
+static bool Source_valuesIter_op_iter(void *ctx, int *current);
 
 static void Source_setSeed(Source *this, int seed)
 {
@@ -91,7 +91,7 @@ static void Source_valuesIter_destroy(Source_valuesIter *this)
 	free((void *)(this));
 }
 
-static bool Source_valuesIter_iter(void *ctx, int *current)
+static bool Source_valuesIter_op_iter(void *ctx, int *current)
 {
 	Source_valuesIter *state = (Source_valuesIter *)(ctx);
 	if ((current == NULL))

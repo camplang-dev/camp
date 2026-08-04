@@ -6,7 +6,7 @@ static chunksIter chunks(void);
 static int sumLengths(bool (* values)(void *arg0, uint8_t **arg1, uintptr_t *arg2), void *values_context);
 static bool chunksIter_next(chunksIter *this, uint8_t **current, uintptr_t *current_length);
 static void chunksIter_destroy(chunksIter *this);
-static bool chunksIter_iter(void *ctx, uint8_t **current, uintptr_t *current_length);
+static bool chunksIter_op_iter(void *ctx, uint8_t **current, uintptr_t *current_length);
 
 static chunksIter chunks(void)
 {
@@ -37,7 +37,7 @@ __foreach_break4: ;
 int main(void)
 {
 	chunksIter _iterState5 = chunks();
-	return ((sumLengths((bool (*)(void *arg0, uint8_t **arg1, uintptr_t *arg2))chunksIter_iter, &_iterState5) == 5) ? 0 : 1);
+	return ((sumLengths((bool (*)(void *arg0, uint8_t **arg1, uintptr_t *arg2))chunksIter_op_iter, &_iterState5) == 5) ? 0 : 1);
 }
 
 static bool chunksIter_next(chunksIter *this, uint8_t **current, uintptr_t *current_length)
@@ -84,7 +84,7 @@ static void chunksIter_destroy(chunksIter *this)
 	}
 }
 
-static bool chunksIter_iter(void *ctx, uint8_t **current, uintptr_t *current_length)
+static bool chunksIter_op_iter(void *ctx, uint8_t **current, uintptr_t *current_length)
 {
 	chunksIter *state = (chunksIter *)(ctx);
 	if ((current == NULL))

@@ -10,13 +10,13 @@ static applyPredicateExplicitIter applyPredicateExplicit(bool (* inner)(void *ar
 static bool isEven(int number);
 static bool rangeIter_next(rangeIter *this, int *current);
 static void rangeIter_destroy(rangeIter *this);
-static bool rangeIter_iter(void *ctx, int *current);
+static bool rangeIter_op_iter(void *ctx, int *current);
 static bool applyPredicateIter_next(applyPredicateIter *this, int *current);
 static void applyPredicateIter_destroy(applyPredicateIter *this);
-static bool applyPredicateIter_iter(void *ctx, int *current);
+static bool applyPredicateIter_op_iter(void *ctx, int *current);
 static bool applyPredicateExplicitIter_next(applyPredicateExplicitIter *this, int *current);
 static void applyPredicateExplicitIter_destroy(applyPredicateExplicitIter *this);
-static bool applyPredicateExplicitIter_iter(void *ctx, int *current);
+static bool applyPredicateExplicitIter_op_iter(void *ctx, int *current);
 
 static rangeIter *range(int first, int last)
 {
@@ -52,7 +52,7 @@ static bool isEven(int number)
 void run(void)
 {
 	{
-		applyPredicateIter _foreachIter1 = applyPredicate((bool (*)(void *arg0, int *arg1))rangeIter_iter, range(2, 10), (bool (*)(int arg0))isEven);
+		applyPredicateIter _foreachIter1 = applyPredicate((bool (*)(void *arg0, int *arg1))rangeIter_op_iter, range(2, 10), (bool (*)(int arg0))isEven);
 		int _foreachCurrent2 = 0;
 		while (applyPredicateIter_next(&_foreachIter1, &_foreachCurrent2))
 		{
@@ -65,7 +65,7 @@ __foreach_continue3: ;
 __foreach_break4: ;
 	}
 	{
-		applyPredicateExplicitIter _foreachIter5 = applyPredicateExplicit((bool (*)(void *arg0, int *arg1))rangeIter_iter, range(22, 30), (bool (*)(int arg0))isEven);
+		applyPredicateExplicitIter _foreachIter5 = applyPredicateExplicit((bool (*)(void *arg0, int *arg1))rangeIter_op_iter, range(22, 30), (bool (*)(int arg0))isEven);
 		int _foreachCurrent6 = 0;
 		while (applyPredicateExplicitIter_next(&_foreachIter5, &_foreachCurrent6))
 		{
@@ -115,7 +115,7 @@ static void rangeIter_destroy(rangeIter *this)
 	free((void *)(this));
 }
 
-static bool rangeIter_iter(void *ctx, int *current)
+static bool rangeIter_op_iter(void *ctx, int *current)
 {
 	rangeIter *state = (rangeIter *)(ctx);
 	if ((current == NULL))
@@ -171,7 +171,7 @@ static void applyPredicateIter_destroy(applyPredicateIter *this)
 	}
 }
 
-static bool applyPredicateIter_iter(void *ctx, int *current)
+static bool applyPredicateIter_op_iter(void *ctx, int *current)
 {
 	applyPredicateIter *state = (applyPredicateIter *)(ctx);
 	if ((current == NULL))
@@ -222,7 +222,7 @@ static void applyPredicateExplicitIter_destroy(applyPredicateExplicitIter *this)
 	}
 }
 
-static bool applyPredicateExplicitIter_iter(void *ctx, int *current)
+static bool applyPredicateExplicitIter_op_iter(void *ctx, int *current)
 {
 	applyPredicateExplicitIter *state = (applyPredicateExplicitIter *)(ctx);
 	if ((current == NULL))

@@ -11,7 +11,7 @@ static void Collector_op_initnew(Collector *this, uintptr_t sizeof_T);
 static Collector *Collector_create(uintptr_t sizeof_T);
 static bool rangeIter_next(rangeIter *this, int *current);
 static void rangeIter_destroy(rangeIter *this);
-static bool rangeIter_iter(void *ctx, int *current);
+static bool rangeIter_op_iter(void *ctx, int *current);
 
 static rangeIter range(int first, int last)
 {
@@ -68,7 +68,7 @@ static Collector *Collector_create(uintptr_t sizeof_T)
 int main(void)
 {
 	rangeIter _iterState5 = range(1, 3);
-	uintptr_t methodCount = countIterator((bool (*)(void *arg0, void *arg1))rangeIter_iter, &_iterState5, sizeof(int));
+	uintptr_t methodCount = countIterator((bool (*)(void *arg0, void *arg1))rangeIter_op_iter, &_iterState5, sizeof(int));
 	Collector *collector = (Collector *)(malloc(sizeof(Collector)));
 	if ((collector != NULL))
 	{
@@ -76,7 +76,7 @@ int main(void)
 		Collector_op_initnew(collector, sizeof(int));
 	}
 	rangeIter _iterState6 = range(4, 7);
-	Collector_addEach(collector, (bool (*)(void *arg0, void *arg1))rangeIter_iter, &_iterState6);
+	Collector_addEach(collector, (bool (*)(void *arg0, void *arg1))rangeIter_op_iter, &_iterState6);
 	return ((((methodCount == 3) && (collector->count == 4))) ? 0 : 1);
 }
 
@@ -115,7 +115,7 @@ static void rangeIter_destroy(rangeIter *this)
 	}
 }
 
-static bool rangeIter_iter(void *ctx, int *current)
+static bool rangeIter_op_iter(void *ctx, int *current)
 {
 	rangeIter *state = (rangeIter *)(ctx);
 	if ((current == NULL))

@@ -132,7 +132,9 @@ public static class CompilerXmlSerializer
 				or nameof(Module.SourcefilePathMode)
 				or nameof(Module.SourcefileDefaultRoot)
 				or nameof(Module.SourcefileRoots)
-				or nameof(Module.DeclarationParticipationMode);
+				or nameof(Module.DeclarationParticipationMode)
+			|| property.DeclaringType == typeof(Definition)
+				&& property.Name == nameof(Definition.DefaultSymbol);
 	}
 
 	static void SerializeSemanticReference(XElement element, string name, object value)

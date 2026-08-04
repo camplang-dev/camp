@@ -7,7 +7,7 @@ static mapValuesIter mapValues(int *values, uintptr_t values_length, int (* map)
 static int doubleIt(int value);
 static bool mapValuesIter_next(mapValuesIter *this, int *current);
 static void mapValuesIter_destroy(mapValuesIter *this);
-static bool mapValuesIter_iter(void *ctx, int *current);
+static bool mapValuesIter_op_iter(void *ctx, int *current);
 
 static int __camp_delegate_doubleIt(void *arg0, int arg1)
 {
@@ -80,7 +80,7 @@ static void mapValuesIter_destroy(mapValuesIter *this)
 	}
 }
 
-static bool mapValuesIter_iter(void *ctx, int *current)
+static bool mapValuesIter_op_iter(void *ctx, int *current)
 {
 	mapValuesIter *state = (mapValuesIter *)(ctx);
 	if ((current == NULL))

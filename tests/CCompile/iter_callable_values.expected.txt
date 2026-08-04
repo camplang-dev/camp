@@ -6,7 +6,7 @@ static rangeIter range(int first, int last);
 static bool Source_pull(Source *this, int *current, Err *error);
 static bool rangeIter_next(rangeIter *this, int *current);
 static void rangeIter_destroy(rangeIter *this);
-static bool rangeIter_iter(void *ctx, int *current);
+static bool rangeIter_op_iter(void *ctx, int *current);
 
 static rangeIter range(int first, int last)
 {
@@ -30,7 +30,7 @@ static bool Source_pull(Source *this, int *current, Err *error)
 int main(void)
 {
 	rangeIter _iterState0 = range(1, 1);
-	bool (* values)(void *arg0, int *arg1) = rangeIter_iter;
+	bool (* values)(void *arg0, int *arg1) = rangeIter_op_iter;
 	void *values_context = (void *)(&_iterState0);
 	int current = 0;
 	if (!values(values_context, &current))
@@ -85,7 +85,7 @@ static void rangeIter_destroy(rangeIter *this)
 	}
 }
 
-static bool rangeIter_iter(void *ctx, int *current)
+static bool rangeIter_op_iter(void *ctx, int *current)
 {
 	rangeIter *state = (rangeIter *)(ctx);
 	if ((current == NULL))
