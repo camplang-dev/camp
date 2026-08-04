@@ -1,5 +1,7 @@
 namespace Std;
 
+@category("Text");
+
 public nint indexOf(const achar[] this, const achar[] match, bool caseInsensitive = false)
 {
 	nuint length = astringLogicalLength(this.elements, this.length);

@@ -1,5 +1,7 @@
 namespace Std;
 
+@category("Memory");
+
 /// Allocates a native heap block.
 public extern void* malloc(nuint size);
 

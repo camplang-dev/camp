@@ -1,5 +1,7 @@
 namespace Std;
 
+@category("I/O");
+
 public class Console
 {
 	public static CharReader getReader()

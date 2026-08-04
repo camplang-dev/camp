@@ -1,5 +1,7 @@
 namespace Std;
 
+@category("Synchronization");
+
 /// Represents a running timer.
 /// @remarks
 /// A default handle means no timer was started. Handles are opaque and are only

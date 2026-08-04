@@ -1,5 +1,7 @@
 namespace Std;
 
+@category("I/O");
+
 internal extern nint camp_io_stdin();
 internal extern nint camp_io_stdout();
 internal extern nint camp_io_stderr();

@@ -1,5 +1,7 @@
 namespace Std;
 
+@category("Text");
+
 public escaped string copyString(const char[] this, within allocator)
 {
 	return (string)strconvCopyCharSpan(this.elements, this.length, allocator);

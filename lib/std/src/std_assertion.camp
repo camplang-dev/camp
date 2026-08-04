@@ -1,5 +1,7 @@
 namespace Std;
 
+@category("Diagnostics");
+
 /// Describes a failed assertion.
 /// @remarks
 /// Assertion is the standard failure type used by Camp tests. The test runner

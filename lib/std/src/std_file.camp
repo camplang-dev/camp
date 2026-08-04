@@ -1,5 +1,7 @@
 namespace Std;
 
+@category("I/O");
+
 const int CAMP_IO_ACCESS_READ = 1;
 const int CAMP_IO_ACCESS_WRITE = 2;
 const int CAMP_IO_ACCESS_READ_WRITE = 3;

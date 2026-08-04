@@ -1,5 +1,7 @@
 namespace Std;
 
+@category("Text");
+
 public bool tryParse(const char[] this, overload out int result)
 {
 	ulong value = 0;

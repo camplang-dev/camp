@@ -1,5 +1,7 @@
 namespace Std;
 
+@category("Text");
+
 extern nint utf16ncmp(const wchar* src1, const wchar* src2, nuint len);
 extern nint utf16ncasecmp(const wchar* src1, const wchar* src2, nuint len);
 extern nuint camp_utf16nlen(const wchar* src, nuint len);

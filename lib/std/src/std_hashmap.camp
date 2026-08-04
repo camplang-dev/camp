@@ -1,5 +1,7 @@
 namespace Std;
 
+@category("Collections");
+
 inline nuint HASHMAP_EMPTY = (nuint)0;
 
 /// A hash-based map from keys to values.

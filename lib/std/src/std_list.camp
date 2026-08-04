@@ -1,5 +1,7 @@
 namespace Std;
 
+@category("Collections");
+
 /// A vectorized list of items.
 /// @remarks
 /// A [List<T>] wraps an array, copying elements in and out, and growing it as necessary.

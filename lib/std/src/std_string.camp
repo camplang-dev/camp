@@ -1,5 +1,7 @@
 namespace Std;
 
+@category("Text");
+
 extern nint utf8ncmp(const char* src1, const char* src2, nuint len);
 extern nint utf8ncasecmp(const char* src1, const char* src2, nuint len);
 extern nuint camp_utf8nlen(const char* src, nuint len);

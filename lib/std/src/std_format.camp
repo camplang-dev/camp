@@ -1,3 +1,5 @@
+@category("Text");
+
 public nuint toString(in char this, prep char[] buffer = default)
 {
 	if (buffer.length > 0)

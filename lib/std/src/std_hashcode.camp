@@ -1,5 +1,7 @@
 namespace Std;
 
+@category("Collections");
+
 /// Groups the hash and equality functions used by a hash-based collection.
 public struct HashPolicy<K: any>
 {

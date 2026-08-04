@@ -2,6 +2,8 @@ using Std;
 
 namespace Std::Time;
 
+@category("Date/Time");
+
 // Minimal date/time API surface for Camp.
 //
 // This module intentionally does not include named time zones, DST rule

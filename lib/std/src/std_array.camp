@@ -1,5 +1,7 @@
 namespace Std;
 
+@category("Collections");
+
 public void clear<T: any>(T[] this, sizeof(T))
 {
 	for (nuint i = 0; i < this.length; i++)
