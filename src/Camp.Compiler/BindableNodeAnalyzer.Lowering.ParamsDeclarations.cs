@@ -27,6 +27,12 @@ public sealed partial class BindableNodeAnalyzer
 						ExpandParamsFunctionDeclarations(function);
 					break;
 
+				case StaticClassDefinition staticClassDefinition:
+					ExpandParamsFields(staticClassDefinition.Fields);
+					foreach (FunctionDefinition function in staticClassDefinition.Functions)
+						ExpandParamsFunctionDeclarations(function);
+					break;
+
 				case StructDefinition structDefinition:
 					ExpandParamsFields(structDefinition.Fields);
 					foreach (FunctionDefinition function in structDefinition.Functions)

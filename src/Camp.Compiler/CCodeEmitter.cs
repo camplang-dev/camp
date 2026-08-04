@@ -598,6 +598,7 @@ public static class CCodeEmitter
 		readonly HashSet<string> emittedNames = new(StringComparer.Ordinal);
 		readonly AbiSurface abiSurface = AbiSurface.Build(compilation);
 		readonly Dictionary<FunctionDefinition, TypeDefinition> containingTypes = BuildContainingTypeMap(compilation);
+		readonly HashSet<FunctionDefinition> staticClassFunctions = BuildStaticClassFunctionSet(compilation);
 		readonly Dictionary<string, string> typeSymbols = BuildTypeSymbolMap(compilation);
 		readonly HashSet<string> interfaceNames = BuildInterfaceNameSet(compilation);
 		readonly HashSet<string> callableInterfaceNames = BuildCallableInterfaceNameSet(compilation);
@@ -1527,6 +1528,19 @@ public static class CCodeEmitter
 						break;
 				}
 			}
+		}
+
+		static HashSet<FunctionDefinition> BuildStaticClassFunctionSet(Compilation compilation)
+		{
+			HashSet<FunctionDefinition> functions = [];
+			foreach (Definition definition in GetActiveDefinitions(compilation))
+			{
+				if (definition is not StaticClassDefinition staticClassDefinition)
+					continue;
+				foreach (FunctionDefinition function in staticClassDefinition.Functions)
+					functions.Add(function);
+			}
+			return functions;
 		}
 
 		static bool ShouldEmitCFunction(FunctionDefinition function)
@@ -6386,6 +6400,7 @@ public static class CCodeEmitter
 			if (member.Member is FunctionDefinition function
 				&& (member.Target is null
 					|| function.OutOfScopeOwnerName is not null
+					|| staticClassFunctions.Contains(function)
 					|| containingTypes.TryGetValue(function, out TypeDefinition? owner) && owner is not InterfaceDefinition))
 				return CName(function);
 			if (member.Member is FunctionDefinition interfaceFunction

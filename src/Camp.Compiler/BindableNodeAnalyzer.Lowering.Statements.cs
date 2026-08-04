@@ -20,6 +20,13 @@ public sealed partial class BindableNodeAnalyzer
 					RewriteFunction(function, classDefinition);
 				break;
 
+			case StaticClassDefinition staticClassDefinition:
+				foreach (FieldDefinition field in staticClassDefinition.Fields)
+					field.InitialValue = LowerExpression(field.InitialValue);
+				foreach (FunctionDefinition function in staticClassDefinition.Functions)
+					RewriteFunction(function, containingType: null);
+				break;
+
 			case StructDefinition structDefinition:
 				foreach (FieldDefinition field in structDefinition.Fields)
 					field.InitialValue = LowerExpression(field.InitialValue);

@@ -6086,11 +6086,6 @@ public sealed partial class BindableNodeAnalyzer
 			staticClassLookup.Qualifiers.AddRange(named.Qualifiers);
 			if (!TryGetStaticClassDefinition(staticClassLookup, out StaticClassDefinition? staticClassDefinition) || staticClassDefinition is null)
 				return false;
-			if (named.Qualifiers.Count == 0 && !IsDefinitionVisible(staticClassDefinition, named.SourceSyntax))
-			{
-				ReportNotExported(staticClassDefinition, named.SourceSyntax, "Static class");
-				return true;
-			}
 			if (typeArguments.Count > 0)
 			{
 				foreach (TypeReference argument in typeArguments)

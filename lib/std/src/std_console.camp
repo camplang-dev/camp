@@ -8,24 +8,24 @@ namespace Std;
 /// auto name = Console.readLine();
 /// Console.writeLine($"Hello, {name}");
 /// ```
-public class Console
+static class Console
 {
 	/// Returns a character reader for standard input.
 	public static CharReader getReader()
 	{
-		return { Console_readFd, (void*)camp_io_stdin() };
+		return { Console.readFd, (void*)camp_io_stdin() };
 	}
 	
 	/// Returns a character writer for standard output.
 	public static CharWriter getWriter()
 	{
-		return { Console_writeFd, (void*)camp_io_stdout() };
+		return { Console.writeFd, (void*)camp_io_stdout() };
 	}
 	
 	/// Returns a character writer for standard error.
 	public static CharWriter getError()
 	{
-		return { Console_writeFd, (void*)camp_io_stderr() };
+		return { Console.writeFd, (void*)camp_io_stderr() };
 	}
 	
 	static bool writeFd(void* context, nuint* written, char* buffer, nuint buffer_length)
