@@ -3,11 +3,11 @@ using Std;
 export int main()
 {
 	HashPolicy<int> ints = int.HASH_POLICY;
-	if (ints.hash(123) != StdInt_hashcode(123) || !ints.equals(123, 123) || ints.equals(123, 124))
+	if (ints.hash(123) != 123.hashcode() || !ints.equals(123, 123) || ints.equals(123, 124))
 		return 1;
 
 	HashPolicy<short> shorts = short.HASH_POLICY;
-	if (!shorts.equals((short)-5, (short)-5) || shorts.hash((short)-5) != StdShort_hashcode((short)-5))
+	if (!shorts.equals((short)-5, (short)-5) || shorts.hash((short)-5) != ((short)-5).hashcode())
 		return 2;
 
 	HashPolicy<ulong> ulongs = ulong.HASH_POLICY;
@@ -15,15 +15,16 @@ export int main()
 		return 3;
 
 	HashPolicy<nuint> native = nuint.HASH_POLICY;
-	if (!native.equals((nuint)77, (nuint)77) || native.hash((nuint)77) != StdNUInt_hashcode((nuint)77))
+	if (!native.equals((nuint)77, (nuint)77) || native.hash((nuint)77) != ((nuint)77).hashcode())
 		return 4;
 
 	int value = 4;
 	int other = 5;
+	int* valuePtr = &value;
 	HashPolicy<int*> pointers = pointerHashPolicy<int>();
 	if (!pointers.equals(&value, &value) || pointers.equals(&value, &other))
 		return 5;
-	if (pointers.hash(&value) != Std_hashcodePointer<int>(&value))
+	if (pointers.hash(valuePtr) != valuePtr.hashcodePointer<int>())
 		return 6;
 
 	HashPolicy<string> strings = string.HASH_POLICY;
@@ -32,7 +33,7 @@ export int main()
 	string lowerCamp = "camp";
 	if (!strings.equals(camp, campAgain) || strings.equals(camp, lowerCamp))
 		return 7;
-	if (strings.hash(camp) != StdString_hashcode(camp))
+	if (strings.hash(camp) != camp.hashcode())
 		return 8;
 
 	HashPolicy<string> insensitive = string.CASE_INSENSITIVE_HASH_POLICY;

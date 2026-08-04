@@ -1900,23 +1900,26 @@ public sealed partial class BindableNodeAnalyzer
 		foreach (Definition definition in ActiveCurrentDefinitions())
 		{
 			if (definition is FunctionDefinition function
+				&& IsSourceLookupFunction(function)
 				&& IsCallableTopLevelFunctionNamed(function, lookupName)
 				&& IsFunctionNameVisible(function, name, scope.CurrentFunction.SourceSyntax))
-				functions.Add(function);
-		}
-		if (name.Qualifiers.Count == 0)
-		{
-			foreach (TypeDefinition type in typeDefinitions.Values)
-			{
-				foreach (FunctionDefinition function in GetTypeFunctions(type))
-				{
-					if (IsTypeFunctionSymbolNamed(type, function, lookupName) && IsMemberVisible(function, type, scope.CurrentFunction.SourceSyntax))
-						functions.Add(function);
-				}
-			}
+				AddFunctionCandidate(functions, function);
 		}
 
 		return functions;
+	}
+
+	static void AddFunctionCandidate(List<FunctionDefinition> functions, FunctionDefinition candidate)
+	{
+		foreach (FunctionDefinition existing in functions)
+			if (ReferenceEquals(existing, candidate))
+				return;
+		functions.Add(candidate);
+	}
+
+	static bool IsSourceLookupFunction(FunctionDefinition function)
+	{
+		return function.GeneratedInfo is null || function.GeneratedInfo.Category == GeneratedDeclarationCategory.None;
 	}
 
 	bool IsFunctionNameVisible(FunctionDefinition function, NamedExpression name, SyntaxNode? referenceSyntax)
@@ -1928,6 +1931,8 @@ public sealed partial class BindableNodeAnalyzer
 
 	static bool IsCallableTopLevelFunctionNamed(FunctionDefinition function, string name)
 	{
+		if (GetExplicitThisParameter(function) is not null)
+			return function.Name == name;
 		return IsFunctionNamed(function, name);
 	}
 
@@ -1962,11 +1967,6 @@ public sealed partial class BindableNodeAnalyzer
 	static bool IsDefinitionNamed(Definition definition, string name)
 	{
 		return definition.Name == name;
-	}
-
-	static bool IsTypeFunctionSymbolNamed(TypeDefinition type, FunctionDefinition function, string name)
-	{
-		return IsFunctionNamed(function, name);
 	}
 
 	BodySymbol? LookupGlobalStorageSymbol(NamedExpression name, SyntaxNode? referenceSyntax)

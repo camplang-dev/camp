@@ -261,20 +261,20 @@ public bool tryWrite(CharWriter this, overload double value, thrown IoError erro
 {
 	if (value < 0.0)
 	{
-		StdCharWriter_tryWriteChar(this, '-');
+		this.tryWrite('-', catch error);
 		value = 0.0 - value;
 	}
 	
 	uint integerPart = (uint)value;
-	StdCharWriter_tryWriteUInt(this, integerPart);
-	StdCharWriter_tryWriteChar(this, '.');
+	this.tryWrite(integerPart, catch error);
+	this.tryWrite('.', catch error);
 	
 	double fraction = value - (double)integerPart;
 	for (int i = 0; i < 6; i++)
 	{
 		fraction *= 10.0;
 		uint digit = (uint)fraction;
-		StdCharWriter_tryWriteChar(this, (char)((int)'0' + (int)digit));
+		this.tryWrite((char)((int)'0' + (int)digit), catch error);
 		fraction -= (double)digit;
 	}
 	return true;
@@ -289,7 +289,7 @@ escaped string readCopy(CharReader this, bool stopAtNewline, within allocator, t
 	
 	while (reading)
 	{
-		char ch = StdCharReader_readChar(this, catch error);
+		char ch = this.readChar(catch error);
 		if (error != default)
 		{
 			if (buffer != null)
@@ -357,12 +357,12 @@ public char readChar(CharReader this, thrown IoError error)
 
 public escaped string readLine(CharReader this, within allocator, thrown IoError error)
 {
-	return StdCharReader_readCopy(this, true, within allocator, catch error);
+	return this.readCopy(true, within allocator, catch error);
 }
 
 public escaped string readToEnd(CharReader this, within allocator, thrown IoError error)
 {
-	return StdCharReader_readCopy(this, false, within allocator, catch error);
+	return this.readCopy(false, within allocator, catch error);
 }
 
 // public void writeStringAsync(AsyncCharWriter this, const char[] value, thrown IoError error);

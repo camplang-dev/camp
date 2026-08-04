@@ -29,8 +29,11 @@ public nuint hashcode(in sbyte this) => hashInteger((nuint)(int)this);
 /// Returns true when two `sbyte` keys are equal.
 public bool hashEquals(in sbyte this, in sbyte other) => this == other;
 
+nuint hashcodeSByte(in sbyte value) => value.hashcode();
+bool hashEqualsSByte(in sbyte left, in sbyte right) => left.hashEquals(right);
+
 /// Standard hash policy for `sbyte`.
-public static const HashPolicy<sbyte> sbyte.HASH_POLICY = { .hash = StdSByte_hashcode, .equals = StdSByte_hashEquals };
+public static const HashPolicy<sbyte> sbyte.HASH_POLICY = { .hash = hashcodeSByte, .equals = hashEqualsSByte };
 
 /// Returns a hash code for a `ushort`.
 public nuint hashcode(in ushort this) => hashInteger((nuint)this);
@@ -38,8 +41,11 @@ public nuint hashcode(in ushort this) => hashInteger((nuint)this);
 /// Returns true when two `ushort` keys are equal.
 public bool hashEquals(in ushort this, in ushort other) => this == other;
 
+nuint hashcodeUShort(in ushort value) => value.hashcode();
+bool hashEqualsUShort(in ushort left, in ushort right) => left.hashEquals(right);
+
 /// Standard hash policy for `ushort`.
-public static const HashPolicy<ushort> ushort.HASH_POLICY = { .hash = StdUShort_hashcode, .equals = StdUShort_hashEquals };
+public static const HashPolicy<ushort> ushort.HASH_POLICY = { .hash = hashcodeUShort, .equals = hashEqualsUShort };
 
 /// Returns a hash code for a `short`.
 public nuint hashcode(in short this) => hashInteger((nuint)(int)this);
@@ -47,8 +53,11 @@ public nuint hashcode(in short this) => hashInteger((nuint)(int)this);
 /// Returns true when two `short` keys are equal.
 public bool hashEquals(in short this, in short other) => this == other;
 
+nuint hashcodeShort(in short value) => value.hashcode();
+bool hashEqualsShort(in short left, in short right) => left.hashEquals(right);
+
 /// Standard hash policy for `short`.
-public static const HashPolicy<short> short.HASH_POLICY = { .hash = StdShort_hashcode, .equals = StdShort_hashEquals };
+public static const HashPolicy<short> short.HASH_POLICY = { .hash = hashcodeShort, .equals = hashEqualsShort };
 
 /// Returns a hash code for a `uint`.
 public nuint hashcode(in uint this) => hashInteger((nuint)this);
@@ -56,8 +65,11 @@ public nuint hashcode(in uint this) => hashInteger((nuint)this);
 /// Returns true when two `uint` keys are equal.
 public bool hashEquals(in uint this, in uint other) => this == other;
 
+nuint hashcodeUInt(in uint value) => value.hashcode();
+bool hashEqualsUInt(in uint left, in uint right) => left.hashEquals(right);
+
 /// Standard hash policy for `uint`.
-public static const HashPolicy<uint> uint.HASH_POLICY = { .hash = StdUInt_hashcode, .equals = StdUInt_hashEquals };
+public static const HashPolicy<uint> uint.HASH_POLICY = { .hash = hashcodeUInt, .equals = hashEqualsUInt };
 
 /// Returns a hash code for an `int`.
 public nuint hashcode(in int this) => hashInteger((nuint)this);
@@ -65,8 +77,11 @@ public nuint hashcode(in int this) => hashInteger((nuint)this);
 /// Returns true when two `int` keys are equal.
 public bool hashEquals(in int this, in int other) => this == other;
 
+nuint hashcodeInt(in int value) => value.hashcode();
+bool hashEqualsInt(in int left, in int right) => left.hashEquals(right);
+
 /// Standard hash policy for `int`.
-public static const HashPolicy<int> int.HASH_POLICY = { .hash = StdInt_hashcode, .equals = StdInt_hashEquals };
+public static const HashPolicy<int> int.HASH_POLICY = { .hash = hashcodeInt, .equals = hashEqualsInt };
 
 /// Returns a hash code for a `ulong`.
 public nuint hashcode(in ulong this)
@@ -81,17 +96,23 @@ public nuint hashcode(in ulong this)
 /// Returns true when two `ulong` keys are equal.
 public bool hashEquals(in ulong this, in ulong other) => this == other;
 
+nuint hashcodeULong(in ulong value) => value.hashcode();
+bool hashEqualsULong(in ulong left, in ulong right) => left.hashEquals(right);
+
 /// Standard hash policy for `ulong`.
-public static const HashPolicy<ulong> ulong.HASH_POLICY = { .hash = StdULong_hashcode, .equals = StdULong_hashEquals };
+public static const HashPolicy<ulong> ulong.HASH_POLICY = { .hash = hashcodeULong, .equals = hashEqualsULong };
 
 /// Returns a hash code for a `long`.
-public nuint hashcode(in long this) => StdULong_hashcode((ulong)this);
+public nuint hashcode(in long this) => ((ulong)this).hashcode();
 
 /// Returns true when two `long` keys are equal.
 public bool hashEquals(in long this, in long other) => this == other;
 
+nuint hashcodeLong(in long value) => value.hashcode();
+bool hashEqualsLong(in long left, in long right) => left.hashEquals(right);
+
 /// Standard hash policy for `long`.
-public static const HashPolicy<long> long.HASH_POLICY = { .hash = StdLong_hashcode, .equals = StdLong_hashEquals };
+public static const HashPolicy<long> long.HASH_POLICY = { .hash = hashcodeLong, .equals = hashEqualsLong };
 
 /// Returns a hash code for a `nuint`.
 public nuint hashcode(in nuint this) => hashInteger(this);
@@ -99,8 +120,11 @@ public nuint hashcode(in nuint this) => hashInteger(this);
 /// Returns true when two `nuint` keys are equal.
 public bool hashEquals(in nuint this, in nuint other) => this == other;
 
+nuint hashcodeNUInt(in nuint value) => value.hashcode();
+bool hashEqualsNUInt(in nuint left, in nuint right) => left.hashEquals(right);
+
 /// Standard hash policy for `nuint`.
-public static const HashPolicy<nuint> nuint.HASH_POLICY = { .hash = StdNUInt_hashcode, .equals = StdNUInt_hashEquals };
+public static const HashPolicy<nuint> nuint.HASH_POLICY = { .hash = hashcodeNUInt, .equals = hashEqualsNUInt };
 
 /// Returns a hash code for an `nint`.
 public nuint hashcode(in nint this) => hashInteger((nuint)this);
@@ -108,8 +132,11 @@ public nuint hashcode(in nint this) => hashInteger((nuint)this);
 /// Returns true when two `nint` keys are equal.
 public bool hashEquals(in nint this, in nint other) => this == other;
 
+nuint hashcodeNInt(in nint value) => value.hashcode();
+bool hashEqualsNInt(in nint left, in nint right) => left.hashEquals(right);
+
 /// Standard hash policy for `nint`.
-public static const HashPolicy<nint> nint.HASH_POLICY = { .hash = StdNInt_hashcode, .equals = StdNInt_hashEquals };
+public static const HashPolicy<nint> nint.HASH_POLICY = { .hash = hashcodeNInt, .equals = hashEqualsNInt };
 
 /// Returns a pointer-identity hash code.
 public nuint hashcodePointer<T: any>(in T* this) => hashInteger((nuint)(nint)this);
@@ -117,8 +144,11 @@ public nuint hashcodePointer<T: any>(in T* this) => hashInteger((nuint)(nint)thi
 /// Returns true when two pointer keys have the same address.
 public bool hashEqualsPointer<T: any>(in T* this, in T* other) => this == other;
 
+nuint hashcodePointerValue<T: any>(in T* value) => hashInteger((nuint)(nint)value);
+bool hashEqualsPointerValue<T: any>(in T* left, in T* right) => left == right;
+
 /// Returns a pointer-identity hash policy for `T*`.
-public HashPolicy<T*> pointerHashPolicy<T: any>() => { .hash = Std_hashcodePointer, .equals = Std_hashEqualsPointer };
+public HashPolicy<T*> pointerHashPolicy<T: any>() => { .hash = hashcodePointerValue, .equals = hashEqualsPointerValue };
 
 /// Returns a content hash code for a string.
 public nuint hashcode(in string this)
@@ -168,8 +198,13 @@ public bool hashEqualsCaseInsensitive(in string this, in string other)
 	return left.compareTo(right, true) == 0;
 }
 
+nuint hashcodeString(in string value) => value.hashcode();
+bool hashEqualsString(in string left, in string right) => left.hashEquals(right);
+nuint hashcodeStringCaseInsensitive(in string value) => value.hashcodeCaseInsensitive();
+bool hashEqualsStringCaseInsensitive(in string left, in string right) => left.hashEqualsCaseInsensitive(right);
+
 /// Standard case-sensitive string hash policy.
-public static const HashPolicy<string> string.HASH_POLICY = { .hash = StdString_hashcode, .equals = StdString_hashEquals };
+public static const HashPolicy<string> string.HASH_POLICY = { .hash = hashcodeString, .equals = hashEqualsString };
 
 /// Standard case-insensitive string hash policy.
-public static const HashPolicy<string> string.CASE_INSENSITIVE_HASH_POLICY = { .hash = StdString_hashcodeCaseInsensitive, .equals = StdString_hashEqualsCaseInsensitive };
+public static const HashPolicy<string> string.CASE_INSENSITIVE_HASH_POLICY = { .hash = hashcodeStringCaseInsensitive, .equals = hashEqualsStringCaseInsensitive };

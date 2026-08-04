@@ -8,7 +8,7 @@ export int main()
 	auto capacity = map.Capacity;
 
 	map.addItems(56);
-	StringMap_addItems<int>(&map, 57);
+	addItems<int>(&map, 57);
 
 	Console.writeLine(callCount + (int)capacity);
 	return 0;

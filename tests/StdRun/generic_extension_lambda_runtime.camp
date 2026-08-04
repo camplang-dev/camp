@@ -6,8 +6,8 @@ export void main()
 	list.addRange([1, 2, 3, 4, 5, 1, 2, 3, 4, 5]);
 
 	list.removeAll(num => num == 2);
-	List_removeAll(list, num => num == 3);
-	List_removeAll<int>(list, num => num == 3);
+	removeAll(list, num => num == 3);
+	removeAll<int>(list, num => num == 3);
 
 	Console.writeLine(list.Length);
 }
