@@ -2,18 +2,27 @@ namespace Std;
 
 @category("I/O");
 
+/// Provides access to the process standard input, output, and error streams.
+/// @example
+/// ```camp
+/// auto name = Console.readLine();
+/// Console.writeLine($"Hello, {name}");
+/// ```
 public class Console
 {
+	/// Returns a character reader for standard input.
 	public static CharReader getReader()
 	{
 		return { Console_readFd, (void*)camp_io_stdin() };
 	}
 	
+	/// Returns a character writer for standard output.
 	public static CharWriter getWriter()
 	{
 		return { Console_writeFd, (void*)camp_io_stdout() };
 	}
 	
+	/// Returns a character writer for standard error.
 	public static CharWriter getError()
 	{
 		return { Console_writeFd, (void*)camp_io_stderr() };
@@ -43,6 +52,8 @@ public class Console
 	// public static AsyncCharWriter getAsyncWriter();
 	// public static AsyncCharWriter getAsyncError();
 	
+	/// Writes a character to standard output.
+	/// @overload Writes a value to standard output.
 	public static void write(overload char   value)
 	{
 		auto buf = [value];
@@ -50,30 +61,45 @@ public class Console
 		camp_io_file_write(camp_io_stdout(), buf.elements, buf.length, out error);
 	}
 	
+	/// Writes text to standard output.
 	public static void write(overload const char [] value)
 	{
 		IoError error = default;
 		camp_io_file_write(camp_io_stdout(), value.elements, value.length, out error);
 	}
 	
+	/// Writes text to standard output.
 	public static void write(overload string value)
 	{
 		IoError error = default;
 		camp_io_file_write(camp_io_stdout(), (const void*)(void*)value, value.Length, out error);
 	}
 	
+	/// Writes a boolean value to standard output.
 	public static void write(overload bool   value) => Console.write(value.toString());
+	/// Writes an unsigned 8-bit integer value to standard output.
 	public static void write(overload byte   value) => Console.write(value.toString());
+	/// Writes a signed 8-bit integer value to standard output.
 	public static void write(overload sbyte  value) => Console.write(value.toString());
+	/// Writes an unsigned 16-bit integer value to standard output.
 	public static void write(overload ushort value) => Console.write(value.toString());
+	/// Writes a signed 16-bit integer value to standard output.
 	public static void write(overload short  value) => Console.write(value.toString());
+	/// Writes an unsigned 32-bit integer value to standard output.
 	public static void write(overload uint   value) => Console.write(value.toString());
+	/// Writes a signed 32-bit integer value to standard output.
 	public static void write(overload int    value) => Console.write(value.toString());
+	/// Writes an unsigned 64-bit integer value to standard output.
 	public static void write(overload ulong  value) => Console.write(value.toString());
+	/// Writes a signed 64-bit integer value to standard output.
 	public static void write(overload long   value) => Console.write(value.toString());
+	/// Writes an unsigned native-size integer value to standard output.
 	public static void write(overload nuint  value) => Console.write(value.toString());
+	/// Writes a signed native-size integer value to standard output.
 	public static void write(overload nint   value) => Console.write(value.toString());
 	
+	/// Writes a character to standard output followed by a newline.
+	/// @overload Writes a value to standard output followed by a newline.
 	public static void writeLine(overload char   value)
 	{
 		auto buf = [value, '\n'];
@@ -81,33 +107,49 @@ public class Console
 		camp_io_file_write(camp_io_stdout(), buf.elements, buf.length, out error);
 	}
 	
+	/// Writes text to standard output followed by a newline.
 	public static void writeLine(overload const char [] value)
 	{
 		Console.write(value);
 		Console.write('\n');
 	}
 	
+	/// Writes text to standard output followed by a newline.
 	public static void writeLine(overload string value)
 	{
 		Console.write(value);
 		Console.write('\n');
 	}
 	
+	/// Writes a boolean value to standard output followed by a newline.
 	public static void writeLine(overload bool   value) => Console.writeLine(value.toString());
+	/// Writes an unsigned 8-bit integer value to standard output followed by a newline.
 	public static void writeLine(overload byte   value) => Console.writeLine(value.toString());
+	/// Writes a signed 8-bit integer value to standard output followed by a newline.
 	public static void writeLine(overload sbyte  value) => Console.writeLine(value.toString());
+	/// Writes an unsigned 16-bit integer value to standard output followed by a newline.
 	public static void writeLine(overload ushort value) => Console.writeLine(value.toString());
+	/// Writes a signed 16-bit integer value to standard output followed by a newline.
 	public static void writeLine(overload short  value) => Console.writeLine(value.toString());
+	/// Writes an unsigned 32-bit integer value to standard output followed by a newline.
 	public static void writeLine(overload uint   value) => Console.writeLine(value.toString());
+	/// Writes a signed 32-bit integer value to standard output followed by a newline.
 	public static void writeLine(overload int    value) => Console.writeLine(value.toString());
+	/// Writes an unsigned 64-bit integer value to standard output followed by a newline.
 	public static void writeLine(overload ulong  value) => Console.writeLine(value.toString());
+	/// Writes a signed 64-bit integer value to standard output followed by a newline.
 	public static void writeLine(overload long   value) => Console.writeLine(value.toString());
+	/// Writes an unsigned native-size integer value to standard output followed by a newline.
 	public static void writeLine(overload nuint  value) => Console.writeLine(value.toString());
+	/// Writes a signed native-size integer value to standard output followed by a newline.
 	public static void writeLine(overload nint   value) => Console.writeLine(value.toString());
 	
+	/// Writes a newline to standard output.
 	public static void newLine() => Console.write('\n');
 	
+	/// Reads one character from standard input.
 	public static char readChar() => Console.Reader.readChar(catch _);
 	
+	/// Reads one line from standard input.
 	public static escaped string readLine(within allocator) => Console.Reader.readLine(within allocator, catch _);
 }

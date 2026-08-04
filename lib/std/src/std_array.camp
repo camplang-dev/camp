@@ -2,12 +2,14 @@ namespace Std;
 
 @category("Collections");
 
+/// Clears every slot in an array to `default`.
 public void clear<T: any>(T[] this, sizeof(T))
 {
 	for (nuint i = 0; i < this.length; i++)
 		this[i] = default;
 }
 
+/// Copies an array into newly allocated storage.
 public escaped T[] copyArray<T: copyable>(const T[] this, within allocator, sizeof(T))
 {
 	T[] elements = new T[this.length];
@@ -15,6 +17,8 @@ public escaped T[] copyArray<T: copyable>(const T[] this, within allocator, size
 	return elements;
 }
 
+/// Copies array elements into another array.
+/// - destination: The array that receives copied elements. If it is shorter than the source, only the destination length is copied.
 public void copyTo<T: copyable>(const T[] this, T[] destination, sizeof(T))
 {
 	nuint count = this.length;
@@ -35,12 +39,16 @@ public void copyTo<T: copyable>(const T[] this, T[] destination, sizeof(T))
 	}
 }
 
+/// Copies elements from another array into this array.
+/// - source: The array to copy from. If it is longer than this array, only this array's length is copied.
 public void copyFrom<T: copyable>(T[] this, const T[] source, sizeof(T))
 {
 	T[] destination = { this.elements, this.length };
 	source.copyTo<T>(destination);
 }
 
+/// Resizes an array buffer.
+/// - newSize: The requested element count after resizing.
 public void resize<T: copyable>(escaped T[]* this, nuint newSize, within allocator, sizeof(T))
 {
 	if (this.length == newSize)
@@ -56,6 +64,7 @@ public void resize<T: copyable>(escaped T[]* this, nuint newSize, within allocat
 	this.length = newSize;
 }
 
+/// Reverses the elements of an array in place.
 public void reverse<T: copyable>(T[] this, sizeof(T))
 {
 	if (this.length < 2)
@@ -73,6 +82,8 @@ public void reverse<T: copyable>(T[] this, sizeof(T))
 	}
 }
 
+/// Sorts an array in place using insertion sort.
+/// - compare: Returns a negative value when the left item sorts before the right item, zero when equal, and a positive value otherwise.
 public void sort<T: copyable>(T[] this, delegate int(in T left, in T right) compare, sizeof(T))
 {
 	if (this.length < 2)
@@ -92,6 +103,10 @@ public void sort<T: copyable>(T[] this, delegate int(in T left, in T right) comp
 	}
 }
 
+/// Searches a sorted array for a value.
+/// - value: The item to find.
+/// - compare: Compares an array item with [value] using the same ordering used to sort the array.
+/// @returns The zero-based index of the matching item, or `-1` when no match exists.
 public nint binarySearch<T: any>(const T[] this, in T value, delegate int(in T left, in T right) compare, sizeof(T))
 {
 	nuint low = 0;
@@ -119,6 +134,10 @@ public nint binarySearch<T: any>(const T[] this, in T value, delegate int(in T l
 	return -1;
 }
 
+/// Finds the first matching item in an array.
+/// - item: The item to find.
+/// - equals: Returns true when an array item matches [item].
+/// @returns The zero-based index of the first match, or `-1` when no match exists.
 public nint findIndex<T: any>(const T[] this, in T item, delegate bool(in T left, in T right) equals, sizeof(T))
 {
 	for (nuint i = 0; i < this.length; i++)
@@ -128,6 +147,10 @@ public nint findIndex<T: any>(const T[] this, in T item, delegate bool(in T left
 	return -1;
 }
 
+/// Finds the last matching item in an array.
+/// - item: The item to find.
+/// - equals: Returns true when an array item matches [item].
+/// @returns The zero-based index of the last match, or `-1` when no match exists.
 public nint findLastIndex<T: any>(const T[] this, in T item, delegate bool(in T left, in T right) equals, sizeof(T))
 {
 	for (nuint i = this.length; i > 0; i--)
