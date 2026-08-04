@@ -31,7 +31,7 @@ int main()
 	auto c = new Counter(10);
 	int v = readValue(c.getIValue());
 	v += readValue(c.IValue);
-	v += readValue(Counter_getIValue(c));
+	v += readValue(c.getIValue());
 	delete c;
 	return v - 30;
 }

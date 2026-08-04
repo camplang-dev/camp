@@ -303,10 +303,7 @@ public sealed partial class BindableNodeAnalyzer
 	bool IsCallableTopLevelFunctionAliasTarget(FunctionDefinition function, AliasDefinition alias, string target)
 	{
 		if (GetExplicitThisParameter(function) is not null)
-			return function.Name == alias.TargetName
-				&& (alias.TargetQualifiers.Count == 0
-					? IsDefinitionVisible(function, alias.SourceSyntax)
-					: IsImportedQualifiedName(function, alias.TargetQualifiers, alias.SourceSyntax));
+			return false;
 		if (alias.TargetQualifiers.Count > 0)
 			return IsFunctionNamed(function, alias.TargetName)
 				&& IsImportedQualifiedName(function, alias.TargetQualifiers, alias.SourceSyntax);

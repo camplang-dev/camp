@@ -36,7 +36,6 @@ void main(Date date)
 {
 	auto parser = tryParseInt;
 	auto bound = date.format;
-	auto unbound = Date_format;
 	auto value = bound.plusOne();
 	Point* point = null;
 	auto formatter = point.format;

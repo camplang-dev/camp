@@ -1932,7 +1932,7 @@ public sealed partial class BindableNodeAnalyzer
 	static bool IsCallableTopLevelFunctionNamed(FunctionDefinition function, string name)
 	{
 		if (GetExplicitThisParameter(function) is not null)
-			return function.Name == name;
+			return false;
 		return IsFunctionNamed(function, name);
 	}
 

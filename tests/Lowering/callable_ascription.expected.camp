@@ -35,8 +35,6 @@ void main(Date date)
 	auto parser = tryParseInt;
 	fn int(void*, int) bound = Date_format;
 	void* bound_context = (void*)&date;
-	fn int(void*, int) unbound;
-	void* unbound_context;
 	auto value = DateFormatter_plusOne(bound, bound_context);
 	Point* point = null;
 	fn nuint(void*, char*, nuint) formatter = Point_formatCharArray;

@@ -19,7 +19,7 @@ newtype Id: int
 
 export int main()
 {
-	Counter.current = Counter.START + Holder.DEFAULT + CounterValue;
+	Counter.current = Counter.START + Holder.DEFAULT + Counter.privateValue;
 	Id id = Id.INVALID;
 	return Counter.current + (int)id;
 }

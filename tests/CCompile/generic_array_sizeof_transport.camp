@@ -39,5 +39,5 @@ export int main()
 	int[] values = [1, 3, 5, 7];
 	int needle = 5;
 	nint first = values.binarySearch(needle, compareInt);
-	return (int)(first + Array_binarySearch<int>(values, needle, compareInt));
+	return (int)(first + values.binarySearch<int>(needle, compareInt));
 }

@@ -27,7 +27,7 @@
         <FieldDefinition Name="text_length" Symbol="text_length" ResolvedType="nuint" SlotLifetimeFact="scoped(text):slot" ValueLifetimeFact="unscoped:explicit" />
       </Fields>
       <Functions>
-        <FunctionDefinition Modifier="Constructor" InvokerName="View" ReceiverLifetimeBinding="scoped:default receiver" Name="View" Symbol="View" ResolvedType="View">
+        <FunctionDefinition Modifier="Constructor" InvokerName="View" ReceiverLifetimeBinding="scoped:default receiver" Name="View" Symbol="View_View" ResolvedType="View">
           <Parameters>
             <ParameterDefinition Name="text" Symbol="text" ResolvedType="unscoped const char*" />
             <ParameterDefinition Name="text_length" Symbol="text_length" ResolvedType="nuint" />

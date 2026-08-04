@@ -1,18 +1,18 @@
 <?xml version="1.0" encoding="utf-16"?>
 <Module Namespace="StaticClassSurface" ResolvedType="#MODULE">
   <Definitions>
-    <StaticClassDefinition Name="Console" Symbol="Console" Namespace="StaticClassSurface" ResolvedType="Console">
+    <StaticClassDefinition Name="Console" Symbol="StaticClassSurfaceConsole" Namespace="StaticClassSurface" ResolvedType="Console">
       <Fields>
-        <FieldDefinition Modifier="Static" Name="writes" Symbol="Console_writes" Namespace="StaticClassSurface" Internal="" ResolvedType="int">
+        <FieldDefinition Modifier="Static" Name="writes" Symbol="StaticClassSurfaceConsole_writes" Namespace="StaticClassSurface" Internal="" ResolvedType="int">
           <Type Type="Int" ResolvedType="int" />
         </FieldDefinition>
-        <FieldDefinition Modifier="Static" IsInline="True" ConstantValue="Integer { Value = 80 }" Name="DEFAULT_WIDTH" Symbol="Console_DEFAULT_WIDTH" Namespace="StaticClassSurface" Public="" ResolvedType="int">
+        <FieldDefinition Modifier="Static" IsInline="True" ConstantValue="Integer { Value = 80 }" Name="DEFAULT_WIDTH" Symbol="StaticClassSurfaceConsole_DEFAULT_WIDTH" Namespace="StaticClassSurface" Public="" ResolvedType="int">
           <Type Type="Int" ResolvedType="int" />
           <InitialValue Type="LiteralExpression" Kind="Number" Text="80" Value="80" ResolvedType="int" />
         </FieldDefinition>
       </Fields>
       <Functions>
-        <FunctionDefinition Modifier="Static" InvokerName="getReader" Name="getReader" Symbol="Console_getReader" Namespace="StaticClassSurface" Public="" ResolvedType="int">
+        <FunctionDefinition Modifier="Static" InvokerName="getReader" Name="getReader" Symbol="StaticClassSurfaceConsole_getReader" Namespace="StaticClassSurface" Public="" ResolvedType="int">
           <ReturnType Type="Int" ResolvedType="int" />
           <Body Type="BlockStatement" ResolvedType="#UNRESOLVED">
             <Statements>
@@ -22,7 +22,7 @@
             </Statements>
           </Body>
         </FunctionDefinition>
-        <FunctionDefinition Modifier="Static" InvokerName="getWriter" Name="getWriter" Symbol="Console_getWriter" Namespace="StaticClassSurface" Public="" ResolvedType="int">
+        <FunctionDefinition Modifier="Static" InvokerName="getWriter" Name="getWriter" Symbol="StaticClassSurfaceConsole_getWriter" Namespace="StaticClassSurface" Public="" ResolvedType="int">
           <ReturnType Type="Int" ResolvedType="int" />
           <Body Type="BlockStatement" ResolvedType="#UNRESOLVED">
             <Statements>
@@ -32,7 +32,7 @@
             </Statements>
           </Body>
         </FunctionDefinition>
-        <FunctionDefinition Modifier="Static" InvokerName="writeLine" FullCallableName="writeLineCharArray" Name="writeLine" Symbol="Console_writeLineCharArray" Namespace="StaticClassSurface" Public="" ResolvedType="void">
+        <FunctionDefinition Modifier="Static" InvokerName="writeLine" FullCallableName="writeLineCharArray" Name="writeLine" Symbol="StaticClassSurfaceConsole_writeLineCharArray" Namespace="StaticClassSurface" Public="" ResolvedType="void">
           <ReturnType Type="Void" ResolvedType="void" />
           <Parameters>
             <ParameterDefinition IsOverloadSelector="True" LifetimeBinding="scoped:default parameter" Name="text" Symbol="text" Namespace="StaticClassSurface" ResolvedType="const char[]">

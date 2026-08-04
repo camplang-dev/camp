@@ -9,7 +9,7 @@ static chunksIter chunks(void);
 static int sumChunks(bool (* values)(void *arg0, uint8_t **arg1, uintptr_t *arg2), void *values_context);
 static bool chunksIter_next(chunksIter *this, uint8_t **current, uintptr_t *current_length);
 static void chunksIter_destroy(chunksIter *this);
-static bool chunksIter_iter(void *ctx, uint8_t **current, uintptr_t *current_length);
+static bool chunksIter_op_iter(void *ctx, uint8_t **current, uintptr_t *current_length);
 
 static void consume(uint8_t *values, uintptr_t values_length)
 {
@@ -76,7 +76,7 @@ int main(void)
 	uintptr_t fieldSpan_length;
 	fieldSpan = viewData(&holder, &fieldSpan_length);
 	chunksIter _iterState7 = chunks();
-	return ((sum(span, span_length) + sum(fieldSpan, fieldSpan_length)) + sumChunks((bool (*)(void *arg0, uint8_t **arg1, uintptr_t *arg2))chunksIter_iter, &_iterState7));
+	return ((sum(span, span_length) + sum(fieldSpan, fieldSpan_length)) + sumChunks((bool (*)(void *arg0, uint8_t **arg1, uintptr_t *arg2))chunksIter_op_iter, &_iterState7));
 }
 
 static bool chunksIter_next(chunksIter *this, uint8_t **current, uintptr_t *current_length)
@@ -123,7 +123,7 @@ static void chunksIter_destroy(chunksIter *this)
 	}
 }
 
-static bool chunksIter_iter(void *ctx, uint8_t **current, uintptr_t *current_length)
+static bool chunksIter_op_iter(void *ctx, uint8_t **current, uintptr_t *current_length)
 {
 	chunksIter *state = (chunksIter *)(ctx);
 	if ((current == NULL))

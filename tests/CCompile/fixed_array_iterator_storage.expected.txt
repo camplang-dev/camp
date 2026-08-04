@@ -15,17 +15,20 @@ static chunksIter chunks(void)
 int main(void)
 {
 	int total = 0;
-	chunksIter iterator = chunks();
-	uint8_t value = 0;
 	{
-		while (chunksIter_next(&iterator, &value))
+		chunksIter _foreachIter0 = chunks();
+		uint8_t _foreachCurrent1 = 0;
+		while (chunksIter_next(&_foreachIter0, &_foreachCurrent1))
 		{
-			total += (int)(value);
-__while_continue0: ;
+			uint8_t value = _foreachCurrent1;
+			{
+				total += (int)(value);
+			}
+__foreach_continue2: ;
 		}
-__while_break1: ;
+		chunksIter_destroy(&_foreachIter0);
+__foreach_break3: ;
 	}
-	chunksIter_destroy(&iterator);
 	return total;
 }
 

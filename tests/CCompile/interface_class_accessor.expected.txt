@@ -57,7 +57,7 @@ static int main(void)
 	}
 	int v = readValue(Counter_getIValue((const Counter *)(c)));
 	v += readValue(Counter_getIValue((const Counter *)(c)));
-	v += readValue(Counter_getIValue(c));
+	v += readValue(Counter_getIValue((const Counter *)(c)));
 	free((void *)(c));
 	return (v - 30);
 }

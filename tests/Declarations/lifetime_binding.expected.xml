@@ -3,7 +3,7 @@
   <Definitions>
     <ClassDefinition IsEscaped="True" Name="EscapedBox" Symbol="EscapedBox" ResolvedType="EscapedBox">
       <Functions>
-        <FunctionDefinition InvokerName="touch" ReceiverLifetimeBinding="escaped:default escaped receiver" Name="touch" Symbol="touch" ResolvedType="void">
+        <FunctionDefinition InvokerName="touch" ReceiverLifetimeBinding="escaped:default escaped receiver" Name="touch" Symbol="EscapedBox_touch" ResolvedType="void">
           <ReturnType Type="Void" ResolvedType="void" />
           <Body Type="BlockStatement" ResolvedType="#UNRESOLVED" />
         </FunctionDefinition>
@@ -11,7 +11,7 @@
     </ClassDefinition>
     <InterfaceDefinition IsEscaped="True" Name="Service" Symbol="Service" ResolvedType="Service">
       <Functions>
-        <FunctionDefinition InvokerName="run" ReceiverLifetimeBinding="escaped:default escaped receiver" Name="run" Symbol="run" ResolvedType="void">
+        <FunctionDefinition InvokerName="run" ReceiverLifetimeBinding="escaped:default escaped receiver" Name="run" Symbol="Service_run" ResolvedType="void">
           <ReturnType Type="Void" ResolvedType="void" />
         </FunctionDefinition>
       </Functions>
@@ -61,7 +61,7 @@
     </FunctionDefinition>
     <ClassDefinition Name="Holder" Symbol="Holder" ResolvedType="Holder">
       <Functions>
-        <FunctionDefinition InvokerName="set" ReceiverLifetimeBinding="scoped:default receiver" Name="set" Symbol="set" ResolvedType="void">
+        <FunctionDefinition InvokerName="set" ReceiverLifetimeBinding="scoped:default receiver" Name="set" Symbol="Holder_set" ResolvedType="void">
           <ReturnType Type="Void" ResolvedType="void" />
           <Parameters>
             <ParameterDefinition LifetimeBinding="unscoped:explicit" Name="value" Symbol="value" ResolvedType="unscoped const char[]">
@@ -80,7 +80,7 @@
     </ClassDefinition>
     <ClassDefinition Name="Formatter" Symbol="Formatter" ResolvedType="Formatter">
       <Functions>
-        <FunctionDefinition InvokerName="format" ReceiverLifetimeBinding="escaped:explicit receiver" Name="format" Symbol="format" ResolvedType="void">
+        <FunctionDefinition InvokerName="format" ReceiverLifetimeBinding="escaped:explicit receiver" Name="format" Symbol="Formatter_format" ResolvedType="void">
           <ReturnType Type="Void" ResolvedType="void" />
           <CallableAscriptionType Type="TypeDefinitionReference" Name="EscapedCallback" Definition="EscapedCallback" ResolvedType="EscapedCallback" />
           <CallableAscriptionNewtype Type="NewtypeDefinition" Name="EscapedCallback" Symbol="EscapedCallback" ResolvedType="EscapedCallback">

@@ -21,7 +21,7 @@ T[] copyArray<T: copyable>(const T[] this, sizeof(T))
 export int main()
 {
 	int[] values = [1, 2, 3];
-	int[] copied = Array_copyArray<int>(values);
+	int[] copied = values.copyArray<int>();
 	int result = copied[1];
 	delete copied;
 	return result;

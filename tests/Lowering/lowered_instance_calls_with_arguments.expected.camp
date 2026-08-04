@@ -24,13 +24,13 @@ class ClassThing
 void main()
 {
 	StructThing s = {};
-	first(&s);
-	second(&s, 1);
+	StructThing_first(&s);
+	StructThing_second(&s, 1);
 	ClassThing* c = (ClassThing*)malloc(sizeof(ClassThing));
 	if (c != null)
 	{
 		*c = default(ClassThing);
 	}
-	first(c);
-	second(c, 2);
+	ClassThing_first(c);
+	ClassThing_second(c, 2);
 }

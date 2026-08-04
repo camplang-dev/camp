@@ -5,7 +5,7 @@
 static duplicateIter duplicate(int *values, uintptr_t values_length);
 static bool duplicateIter_next(duplicateIter *this, int *current);
 static void duplicateIter_destroy(duplicateIter *this);
-static bool duplicateIter_iter(void *ctx, int *current);
+static bool duplicateIter_op_iter(void *ctx, int *current);
 
 static duplicateIter duplicate(int *values, uintptr_t values_length)
 {
@@ -84,7 +84,7 @@ static void duplicateIter_destroy(duplicateIter *this)
 	}
 }
 
-static bool duplicateIter_iter(void *ctx, int *current)
+static bool duplicateIter_op_iter(void *ctx, int *current)
 {
 	duplicateIter *state = (duplicateIter *)(ctx);
 	if ((current == NULL))

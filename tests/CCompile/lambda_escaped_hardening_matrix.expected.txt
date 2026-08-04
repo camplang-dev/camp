@@ -14,7 +14,7 @@ static int invoke(int (* callback)(void *arg0, int arg1), void *callback_context
 static int invoke0(int (* callback)(void *arg0), void *callback_context);
 static bool filterIter_next(filterIter *this, int *current);
 static void filterIter_destroy(filterIter *this);
-static bool filterIter_iter(void *ctx, int *current);
+static bool filterIter_op_iter(void *ctx, int *current);
 static int makeBlockAdder_lambda0(void *_context, int value);
 static uintptr_t makeSpanLength_lambda1(void *_context);
 static bool main_lambda2(void *_context, int *item);
@@ -188,7 +188,7 @@ static void filterIter_destroy(filterIter *this)
 	}
 }
 
-static bool filterIter_iter(void *ctx, int *current)
+static bool filterIter_op_iter(void *ctx, int *current)
 {
 	filterIter *state = (filterIter *)(ctx);
 	if ((current == NULL))

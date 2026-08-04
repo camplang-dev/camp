@@ -25,10 +25,10 @@ class ClassThing
 void main()
 {
 	StructThing s = {};
-	StructThing_first(&s);
-	StructThing_second(&s, 1);
+	s.first();
+	s.second(1);
 
 	ClassThing* c = new ClassThing();
-	ClassThing_first(c);
-	ClassThing_second(c, 2);
+	c.first();
+	c.second(2);
 }

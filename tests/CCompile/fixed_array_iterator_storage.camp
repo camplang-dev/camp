@@ -9,12 +9,9 @@ struct iter byte chunks()
 export int main()
 {
 	int total = 0;
-	chunksIter iterator = chunks();
-	byte value = 0;
-	while (chunksIter_next(&iterator, &value))
+	foreach (byte value in chunks())
 	{
 		total += (int)value;
 	}
-	delete iterator;
 	return total;
 }
