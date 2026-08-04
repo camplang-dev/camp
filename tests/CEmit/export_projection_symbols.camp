@@ -1,0 +1,22 @@
+namespace ProjectionAbi;
+
+@symbol("malloc")
+extern void* malloc(nuint size);
+@symbol("free")
+extern void free(void* ptr);
+
+public inline int LIMIT = 5;
+
+public class Box
+{
+	public inline int LIMIT = 7;
+
+	public int getValue() => LIMIT;
+	public static int getDefaultCapacity() => LIMIT;
+}
+
+public int addOne(int value) => value + 1;
+
+export LIMIT as EXPORTED_LIMIT;
+export Box { getValue as value, getDefaultCapacity, LIMIT } as ExportedBox;
+export addOne as projected_add_one;

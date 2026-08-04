@@ -41,6 +41,7 @@ public sealed partial class BindableNodeAnalyzer
 				: CreateProjectedDefinition(target, externalName, projection);
 			if (exportDefinition is null)
 				continue;
+			ApplyProjectedDefinitionSymbols(exportDefinition, projection);
 			projection.ExportedDefinition = exportDefinition;
 			ApplyBaseProjection(module, target, exportDefinition);
 			ApplyInterfaceProjection(projection, target, exportDefinition);
@@ -343,8 +344,8 @@ public sealed partial class BindableNodeAnalyzer
 					: function.Modifier == FunctionModifier.Destructor || function.Name.StartsWith("~", StringComparison.Ordinal)
 						? "~" + exportedType.Name
 						: externalName;
-				clone.Symbol = externalName;
 				clone.Export = "export";
+				ApplyProjectedMemberSymbol(clone, exportedType);
 				clone.Provenance = new NodeProvenance(member.SourceSyntax, function.Symbol, $"export projection for member '{function.Name}'");
 				clone.GeneratedInfo = new GeneratedDeclarationInfo(GeneratedDeclarationCategory.None, $"export projection for member '{function.Name}'", function);
 				return clone;
@@ -352,8 +353,8 @@ public sealed partial class BindableNodeAnalyzer
 				FieldDefinition fieldClone = CloneProjectedField(field);
 				fieldClone.SourceSyntax = member.SourceSyntax;
 				fieldClone.Name = externalName;
-				fieldClone.Symbol = externalName;
 				fieldClone.Export = "export";
+				ApplyProjectedMemberSymbol(fieldClone, exportedType);
 				fieldClone.Provenance = new NodeProvenance(member.SourceSyntax, field.Symbol, $"export projection for member '{field.Name}'");
 				fieldClone.GeneratedInfo = new GeneratedDeclarationInfo(GeneratedDeclarationCategory.None, $"export projection for member '{field.Name}'", field);
 				return fieldClone;
@@ -520,7 +521,6 @@ public sealed partial class BindableNodeAnalyzer
 				{
 					SourceSyntax = projection.SourceSyntax,
 					Name = externalName,
-					Symbol = externalName,
 					Export = "export",
 					TargetName = alias.TargetName,
 					ResolvedTargetName = alias.ResolvedTargetName,
@@ -536,7 +536,6 @@ public sealed partial class BindableNodeAnalyzer
 				{
 					SourceSyntax = projection.SourceSyntax,
 					Name = externalName,
-					Symbol = externalName,
 					Export = "export",
 					IsInline = variable.IsInline,
 					IsFixedStorage = variable.IsFixedStorage,
@@ -568,7 +567,6 @@ public sealed partial class BindableNodeAnalyzer
 		};
 		clone.SourceSyntax = projection.SourceSyntax;
 		clone.Name = externalName;
-		clone.Symbol = externalName;
 		clone.Export = "export";
 		clone.ResolvedType = externalName;
 		clone.Provenance = new NodeProvenance(projection.SourceSyntax, target.Symbol, $"export projection for '{target.Name}'");
@@ -755,7 +753,6 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			SourceSyntax = projection.SourceSyntax,
 			Name = externalName,
-			Symbol = externalName,
 			Export = "export",
 			CallSpec = target.CallSpec,
 			ReturnType = CloneProjectionTypeReference(target.ReturnType),
@@ -797,6 +794,90 @@ public sealed partial class BindableNodeAnalyzer
 			body.Statements.Add(new ReturnStatement { Expression = call, ResolvedType = "void" });
 		forwarder.Body = body;
 		return forwarder;
+	}
+
+	void ApplyProjectedDefinitionSymbols(Definition definition, ExportProjectionDefinition projection)
+	{
+		definition.Namespace = GetProjectionNamespace(projection);
+		switch (definition)
+		{
+			case TypeDefinition typeDefinition:
+				SetDefaultTypeSymbol(typeDefinition);
+				ApplyProjectedTypeMemberSymbols(typeDefinition);
+				break;
+			case FunctionDefinition function:
+				SetDefaultTopLevelSymbol(function, GetCallableName(function));
+				break;
+			case AliasDefinition:
+			case VariableDefinition:
+				SetDefaultTopLevelSymbol(definition, definition.Name);
+				break;
+		}
+	}
+
+	string? GetProjectionNamespace(ExportProjectionDefinition projection)
+	{
+		if (GetRange(projection.SourceSyntax) is TokenRange range
+			&& currentModule is not null
+			&& currentModule.SourceNamespaces.TryGetValue(range.Sequence, out string? namespaceName))
+			return namespaceName;
+		return currentModule?.Namespace;
+	}
+
+	void ApplyProjectedTypeMemberSymbols(TypeDefinition type)
+	{
+		foreach (FunctionDefinition function in GetProjectedTypeFunctions(type))
+			ApplyProjectedMemberSymbol(function, type);
+		foreach (FieldDefinition field in GetProjectedTypeFields(type))
+			ApplyProjectedMemberSymbol(field, type);
+		if (type is EnumDefinition enumDefinition)
+			foreach (VariableDefinition value in enumDefinition.Values)
+				ApplyProjectedMemberSymbol(value, type);
+	}
+
+	void ApplyProjectedMemberSymbol(Definition member, TypeDefinition type)
+	{
+		member.Namespace = type.Namespace;
+		switch (member)
+		{
+			case FunctionDefinition function:
+				SetDefaultMemberSymbol(function, EffectiveTypeSymbol(type), GetCallableName(function).TrimStart('~'));
+				break;
+			case FieldDefinition { Modifier: FieldModifier.Static } field:
+				SetDefaultMemberSymbol(field, EffectiveTypeSymbol(type), field.Name);
+				break;
+			case FieldDefinition field:
+				SetDefaultSymbol(field, field.Name);
+				break;
+			case VariableDefinition value:
+				SetDefaultMemberSymbol(value, EffectiveTypeSymbol(type), value.Name);
+				break;
+		}
+	}
+
+	static IEnumerable<FunctionDefinition> GetProjectedTypeFunctions(TypeDefinition type)
+	{
+		return type switch
+		{
+			ClassDefinition classDefinition => classDefinition.Functions,
+			StructDefinition structDefinition => structDefinition.Functions,
+			InterfaceDefinition interfaceDefinition => interfaceDefinition.Functions,
+			EnumDefinition enumDefinition => enumDefinition.Functions,
+			NewtypeDefinition newtypeDefinition => newtypeDefinition.Functions,
+			ParamsDefinition paramsDefinition => paramsDefinition.Functions,
+			_ => []
+		};
+	}
+
+	static IEnumerable<FieldDefinition> GetProjectedTypeFields(TypeDefinition type)
+	{
+		return type switch
+		{
+			ClassDefinition classDefinition => classDefinition.Fields,
+			StructDefinition structDefinition => structDefinition.Fields,
+			NewtypeDefinition newtypeDefinition => newtypeDefinition.Fields,
+			_ => []
+		};
 	}
 
 	static GenericParameter CloneProjectionGenericParameter(GenericParameter source)
