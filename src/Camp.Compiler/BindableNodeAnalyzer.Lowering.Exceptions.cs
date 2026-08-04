@@ -150,20 +150,23 @@ public sealed partial class BindableNodeAnalyzer
 				SourceSyntax = finallyCleanup.SourceSyntax,
 				ResolvedType = finallyCleanup.ResolvedType
 			};
+			List<Expression> clonedComponents = [];
 			foreach (Expression component in components)
 			{
+				Expression cloned = CloneParamsExpansionExpression(component) ?? component;
+				clonedComponents.Add(cloned);
 				grouped.Items.Add(new GroupedExpressionItem
 				{
-					SourceSyntax = component.SourceSyntax,
-					Expression = component,
-					ResolvedType = component.ResolvedType
+					SourceSyntax = cloned.SourceSyntax,
+					Expression = cloned,
+					ResolvedType = cloned.ResolvedType
 				});
 			}
 			expressionRewrites[expandedReference] = grouped;
 			currentCleanupScopes[^1].Statements.Add(new ExpressionStatement
 			{
 				ResolvedType = "void",
-				Expression = RewriteDeleteExpression(CloneParamsExpansionExpression(expandedReference))
+				Expression = RewriteDeleteExpression(clonedComponents[0])
 			});
 			return expandedReference;
 		}
