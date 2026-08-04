@@ -1,0 +1,1 @@
+tests/Diagnostics/namespace_symbol_collision.camp(20,12): error: Duplicate symbol name 'Collision'.

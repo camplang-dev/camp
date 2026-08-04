@@ -742,6 +742,33 @@ public sealed partial class BindableNodeAnalyzer
 		}
 	}
 
+	void SetDefaultSymbol(Definition definition, string defaultSymbol)
+	{
+		definition.DefaultSymbol = defaultSymbol;
+		if (!definition.SymbolOverridden)
+			definition.Symbol = defaultSymbol;
+	}
+
+	void SetDefaultTypeSymbol(Definition definition)
+	{
+		SetDefaultSymbol(definition, SymbolNameService.DefaultTypeSymbol(GetDefinitionNamespace(definition), definition.Name));
+	}
+
+	void SetDefaultTopLevelSymbol(Definition definition, string name)
+	{
+		SetDefaultSymbol(definition, SymbolNameService.DefaultTopLevelSymbol(GetDefinitionNamespace(definition), name));
+	}
+
+	void SetDefaultMemberSymbol(Definition definition, string ownerSymbol, string memberName)
+	{
+		SetDefaultSymbol(definition, SymbolNameService.DefaultMemberSymbol(ownerSymbol, memberName));
+	}
+
+	void SetDefaultOutOfScopeMemberSymbol(Definition definition, string ownerSymbol, string memberName)
+	{
+		SetDefaultSymbol(definition, SymbolNameService.DefaultOutOfScopeMemberSymbol(GetDefinitionNamespace(definition), ownerSymbol, memberName));
+	}
+
 	static bool IsSymbolAttribute(AttributeConstructor attribute)
 	{
 		string name = attribute.Name.StartsWith("@", StringComparison.Ordinal) ? attribute.Name[1..] : attribute.Name;
@@ -750,12 +777,12 @@ public sealed partial class BindableNodeAnalyzer
 
 	internal static string EffectiveTypeSymbol(TypeDefinition type)
 	{
-		return string.IsNullOrWhiteSpace(type.Symbol) ? type.Name : type.Symbol;
+		return string.IsNullOrWhiteSpace(type.Symbol) ? SymbolNameService.DefaultTypeSymbol(type.Namespace, type.Name) : type.Symbol;
 	}
 
 	internal static string EffectiveStaticClassSymbol(StaticClassDefinition definition)
 	{
-		return string.IsNullOrWhiteSpace(definition.Symbol) ? definition.Name : definition.Symbol;
+		return string.IsNullOrWhiteSpace(definition.Symbol) ? SymbolNameService.DefaultTypeSymbol(definition.Namespace, definition.Name) : definition.Symbol;
 	}
 
 

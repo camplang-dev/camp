@@ -547,13 +547,18 @@ public sealed partial class BindableNodeAnalyzer
 
 	static string BuildExtensionFunctionSymbol(string methodName, string receiverType, FunctionDefinition? function = null)
 	{
-		if (!new TypeShapeParser(receiverType).TryParse(out TypeShape shape))
-			return receiverType + "_" + methodName;
-
-		string receiverName = BuildFlattenedTypeFragment(shape, function);
+		string receiverName = BuildExtensionFunctionOwnerSymbol(receiverType, function);
 		return string.IsNullOrWhiteSpace(receiverName)
 			? methodName
 			: receiverName + "_" + methodName;
+	}
+
+	static string BuildExtensionFunctionOwnerSymbol(string receiverType, FunctionDefinition? function = null)
+	{
+		if (!new TypeShapeParser(receiverType).TryParse(out TypeShape shape))
+			return receiverType;
+
+		return BuildFlattenedTypeFragment(shape, function);
 	}
 
 	internal static string BuildFlattenedTypeFragment(string type, FunctionDefinition? function = null)

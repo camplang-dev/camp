@@ -48,6 +48,68 @@ public sealed class SymbolCollisionSet
 
 public static class SymbolNameService
 {
+	public static string NamespacePrefix(string? namespaceName)
+	{
+		if (string.IsNullOrWhiteSpace(namespaceName))
+			return "";
+
+		string prefix = "";
+		foreach (string segment in namespaceName.Split("::", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+			prefix = JoinPrefixAndTypeName(prefix, segment);
+		return prefix;
+	}
+
+	public static string DefaultTypeSymbol(string? namespaceName, string name)
+	{
+		return JoinPrefixAndTypeName(NamespacePrefix(namespaceName), name);
+	}
+
+	public static string DefaultTopLevelSymbol(string? namespaceName, string name)
+	{
+		string prefix = NamespacePrefix(namespaceName);
+		if (string.IsNullOrWhiteSpace(prefix))
+			return name;
+		if (string.IsNullOrWhiteSpace(name))
+			return prefix;
+		return prefix + "_" + name;
+	}
+
+	public static string DefaultMemberSymbol(string ownerSymbol, string memberName)
+	{
+		if (string.IsNullOrWhiteSpace(ownerSymbol))
+			return memberName;
+		if (string.IsNullOrWhiteSpace(memberName))
+			return ownerSymbol;
+		return ownerSymbol + "_" + memberName;
+	}
+
+	public static string DefaultOutOfScopeMemberSymbol(string? namespaceName, string ownerSymbol, string memberName)
+	{
+		string prefix = NamespacePrefix(namespaceName);
+		string effectiveOwner = string.IsNullOrWhiteSpace(prefix)
+			? ownerSymbol
+			: JoinPrefixAndTypeName(prefix, ownerSymbol);
+		return DefaultMemberSymbol(effectiveOwner, memberName);
+	}
+
+	static string JoinPrefixAndTypeName(string prefix, string name)
+	{
+		if (string.IsNullOrWhiteSpace(prefix))
+			return name;
+		if (string.IsNullOrWhiteSpace(name))
+			return prefix;
+		return StartsWithUppercaseAscii(name)
+			? prefix + name
+			: prefix + "_" + name;
+	}
+
+	static bool StartsWithUppercaseAscii(string text)
+	{
+		foreach (char ch in text)
+			return ch is >= 'A' and <= 'Z';
+		return false;
+	}
+
 	public static DeclarationName SourceName(Definition definition)
 	{
 		return new DeclarationName(DeclarationNameKind.Source, definition.Name);
@@ -75,14 +137,19 @@ public static class SymbolNameService
 
 		if (definition is FunctionDefinition function
 			&& !string.IsNullOrWhiteSpace(function.FullCallableName)
-			&& function.FullCallableName != definition.Symbol
 			&& !function.SymbolOverridden
 			&& getExplicitThisParameter(function) is null)
-			yield return new DeclarationName(DeclarationNameKind.FullCallableSymbol, function.FullCallableName);
+		{
+			string fullCallableSymbol = DefaultTopLevelSymbol(function.Namespace, function.FullCallableName);
+			if (fullCallableSymbol != definition.Symbol)
+				yield return new DeclarationName(DeclarationNameKind.FullCallableSymbol, fullCallableSymbol);
+		}
 	}
 
 	public static bool IsSameSymbol(Definition definition)
 	{
-		return string.IsNullOrWhiteSpace(definition.Symbol) || definition.Symbol == definition.Name;
+		return string.IsNullOrWhiteSpace(definition.Symbol)
+			|| definition.Symbol == definition.Name
+			|| !string.IsNullOrWhiteSpace(definition.DefaultSymbol) && definition.Symbol == definition.DefaultSymbol;
 	}
 }

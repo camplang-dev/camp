@@ -1,0 +1,39 @@
+namespace Pixel::Image;
+
+export extern int nativeCall();
+
+@symbol("nativeExact")
+export extern int exactCall();
+
+export struct Buffer
+{
+	public int getWidth()
+	{
+		return 4;
+	}
+
+	public static int CreateDefault()
+	{
+		return 7;
+	}
+}
+
+export struct buffer
+{
+}
+
+static class Metrics
+{
+	public static inline int Base = 3;
+
+	public static int getDefault()
+	{
+		return Metrics.Base;
+	}
+}
+
+export int CreateBuffer()
+{
+	Buffer buffer = {};
+	return buffer.Width + Buffer.CreateDefault() + Metrics.getDefault();
+}

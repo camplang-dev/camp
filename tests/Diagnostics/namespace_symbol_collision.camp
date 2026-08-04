@@ -1,0 +1,23 @@
+namespace Pixel;
+
+public int same(overload int tag)
+{
+	return tag;
+}
+
+public int same(overload byte tag)
+{
+	return tag;
+}
+
+@symbol("Collision")
+public int first()
+{
+	return 1;
+}
+
+@symbol("Collision")
+public int second()
+{
+	return 2;
+}

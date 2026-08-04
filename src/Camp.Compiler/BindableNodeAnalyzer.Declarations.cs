@@ -328,12 +328,14 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		AnalyzeAttributes(definition.Attributes);
 		ValidateUnsupportedAttributePlacement(definition);
+		SetDefaultTopLevelSymbol(definition, definition.Name);
 		ApplySymbolAttribute(definition, allowed: false, "alias");
 		definition.ResolvedType = definition.TargetKind.ToString();
 	}
 
 	void AnalyzeClassDefinition(ClassDefinition definition, AnalysisScope parentScope)
 	{
+		SetDefaultTypeSymbol(definition);
 		ApplySymbolAttribute(definition, allowed: true, "class");
 		if (definition.IsShadow)
 			EnsureShadowDataType(definition);
@@ -361,6 +363,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	void AnalyzeStaticClassDefinition(StaticClassDefinition definition, AnalysisScope parentScope)
 	{
+		SetDefaultTypeSymbol(definition);
 		ApplySymbolAttribute(definition, allowed: true, "static class");
 		definition.ResolvedType = definition.Name;
 		AnalysisScope scope = new(parentScope) { IsStaticMemberScope = true };
@@ -369,14 +372,14 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			AnalyzeFieldDefinition(field, scope, containingType: null);
 			if (field.Modifier == FieldModifier.Static && !field.SymbolOverridden)
-				field.Symbol = EffectiveStaticClassSymbol(definition) + "_" + field.Name;
+				SetDefaultMemberSymbol(field, EffectiveStaticClassSymbol(definition), field.Name);
 		}
 
 		foreach (FunctionDefinition function in definition.Functions)
 		{
 			AnalyzeFunctionDefinition(function, scope, containingType: null, suppressStaticThisDiagnostic: true);
 			if (function.Modifier == FunctionModifier.Static && !function.SymbolOverridden)
-				function.Symbol = EffectiveStaticClassSymbol(definition) + "_" + GetCallableName(function).TrimStart('~');
+				SetDefaultMemberSymbol(function, EffectiveStaticClassSymbol(definition), GetCallableName(function).TrimStart('~'));
 		}
 		ValidateStaticClassMembers(definition);
 		ValidateDuplicateMethodNames(definition.Functions);
@@ -413,6 +416,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	void AnalyzeStructDefinition(StructDefinition definition, AnalysisScope parentScope)
 	{
+		SetDefaultTypeSymbol(definition);
 		ApplySymbolAttribute(definition, allowed: true, "struct");
 		AnalysisScope scope = CreateTypeScope(definition, parentScope);
 		definition.ResolvedType = definition.Name;
@@ -432,6 +436,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	void AnalyzeInterfaceDefinition(InterfaceDefinition definition, AnalysisScope parentScope)
 	{
+		SetDefaultTypeSymbol(definition);
 		ApplySymbolAttribute(definition, allowed: true, "interface");
 		AnalysisScope scope = CreateTypeScope(definition, parentScope);
 		definition.ResolvedType = definition.Name;
@@ -446,6 +451,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	void AnalyzeEnumDefinition(EnumDefinition definition, AnalysisScope parentScope)
 	{
+		SetDefaultTypeSymbol(definition);
 		ApplySymbolAttribute(definition, allowed: true, "enum");
 		AnalysisScope scope = CreateTypeScope(definition, parentScope);
 		definition.ResolvedType = definition.Name;
@@ -457,7 +463,7 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			AnalyzeVariableDefinition(value, scope, allowSymbolAttribute: true);
 			if (!value.SymbolOverridden)
-				value.Symbol = definition.Symbol + "_" + value.Name;
+				SetDefaultMemberSymbol(value, definition.Symbol, value.Name);
 		}
 
 		foreach (FunctionDefinition function in definition.Functions)
@@ -497,6 +503,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (!analyzedNewtypeSignatures.Add(definition))
 			return scope;
 
+		SetDefaultTypeSymbol(definition);
 		ApplySymbolAttribute(definition, allowed: true, "newtype");
 		definition.ResolvedType = definition.Name;
 		AnalyzeGenericParameters(definition.GenericParameters, scope);
@@ -550,6 +557,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	void AnalyzeParamsDefinition(ParamsDefinition definition, AnalysisScope parentScope)
 	{
+		SetDefaultTypeSymbol(definition);
 		ApplySymbolAttribute(definition, allowed: false, "type");
 		AnalysisScope scope = CreateTypeScope(definition, parentScope);
 		definition.ResolvedType = definition.Name;
@@ -861,6 +869,7 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		AnalyzeAttributes(definition.Attributes);
 		ValidateUnsupportedAttributePlacement(definition);
+		SetDefaultTopLevelSymbol(definition, definition.Name);
 		ApplySymbolAttribute(definition, allowSymbolAttribute, allowSymbolAttribute ? "variable" : "enum value");
 		CheckName(definition.Name, GetNameRange(definition), "variable");
 		AnalyzeOutOfScopeMemberOwner(definition);
@@ -921,12 +930,12 @@ public sealed partial class BindableNodeAnalyzer
 			definition.Modifier = FieldModifier.Static;
 		if (definition.Modifier == FieldModifier.Static && containingType is not null)
 		{
+			SetDefaultMemberSymbol(definition, EffectiveTypeSymbol(containingType), definition.Name);
 			ApplySymbolAttribute(definition, allowed: true, "static field");
-			if (!definition.SymbolOverridden)
-				definition.Symbol = EffectiveTypeSymbol(containingType) + "_" + definition.Name;
 		}
 		else
 		{
+			SetDefaultSymbol(definition, definition.Name);
 			ApplySymbolAttribute(definition, allowed: false, "field");
 		}
 		if ((definition.Export is not null || definition.Public is not null || definition.Internal is not null) && definition.Modifier != FieldModifier.Static)
@@ -1069,6 +1078,7 @@ public sealed partial class BindableNodeAnalyzer
 		AnalyzeAttributes(definition.Attributes);
 		ValidateUnsupportedFunctionAttribute(definition);
 		BindAsyncImplementationAttributes(definition, containingType);
+		SetDefaultTopLevelSymbol(definition, definition.Name);
 		ApplySymbolAttribute(definition, allowed: true, "function");
 		CheckName(definition.Name.TrimStart('~'), GetNameRange(definition), "function");
 		NormalizeExtensionThisParameter(definition, containingType);
@@ -1131,10 +1141,14 @@ public sealed partial class BindableNodeAnalyzer
 		FinalizeThisReturnType(definition, containingType);
 		ValidateFunctionConstOfAnchors(definition);
 		ValidateAsyncResumer(definition, containingType);
-		if (containingType is null && !definition.SymbolOverridden && GetExplicitThisParameter(definition) is ThisParameterDefinition thisParameter)
-			definition.Symbol = BuildExtensionFunctionSymbol(GetCallableName(definition), thisParameter.ResolvedType ?? ErrorType, definition);
-		else if (containingType is null && !definition.SymbolOverridden && HasOverloadSelector(definition))
-			definition.Symbol = GetCallableName(definition);
+		if (containingType is null && GetExplicitThisParameter(definition) is ThisParameterDefinition thisParameter)
+			SetDefaultOutOfScopeMemberSymbol(definition, BuildExtensionFunctionOwnerSymbol(thisParameter.ResolvedType ?? ErrorType, definition), GetCallableName(definition));
+		else if (definition.OutOfScopeOwnerName is not null && definition.OutOfScopeOwnerSymbol is not null)
+			SetDefaultOutOfScopeMemberSymbol(definition, definition.OutOfScopeOwnerSymbol, GetCallableName(definition));
+		else if (containingType is not null && typeDefinitions.TryGetValue(containingType, out TypeDefinition? typeDefinition))
+			SetDefaultMemberSymbol(definition, EffectiveTypeSymbol(typeDefinition), GetCallableName(definition).TrimStart('~'));
+		else if (containingType is null)
+			SetDefaultTopLevelSymbol(definition, GetCallableName(definition));
 	}
 
 	void ValidateStaticFunctionHasNoExplicitThis(FunctionDefinition definition, bool suppressDiagnostic)
@@ -1156,7 +1170,7 @@ public sealed partial class BindableNodeAnalyzer
 		definition.OutOfScopeOwnerName = ownerName;
 		definition.OutOfScopeOwnerSymbol = ownerSymbol;
 		if (!definition.SymbolOverridden)
-			definition.Symbol = ownerSymbol + "_" + definition.Name;
+			SetDefaultOutOfScopeMemberSymbol(definition, ownerSymbol, definition.Name);
 	}
 
 	bool TryResolveOutOfScopeOwner(TypeReference ownerType, out string ownerName, out string ownerSymbol)
