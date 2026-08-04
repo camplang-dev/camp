@@ -1802,6 +1802,32 @@ public sealed partial class BindableNodeAnalyzer
 			return expression.ResolvedType;
 		}
 
+		NamedTypeReference staticClassLookup = new() { SourceSyntax = named.SourceSyntax, Name = named.Name };
+		staticClassLookup.Qualifiers.AddRange(named.Qualifiers);
+		if (TryGetStaticClassDefinition(staticClassLookup, out StaticClassDefinition? staticClassDefinition) && staticClassDefinition is not null)
+		{
+			if (named.Qualifiers.Count == 0 && !IsDefinitionVisible(staticClassDefinition, named.SourceSyntax))
+			{
+				ReportNotExported(staticClassDefinition, named.SourceSyntax, "Static class");
+				return ErrorType;
+			}
+
+			NamedTypeReference containerReference = new()
+			{
+				SourceSyntax = named.SourceSyntax,
+				Name = staticClassDefinition.Name,
+				ResolvedType = staticClassDefinition.Name
+			};
+			TypeReferenceExpression expression = new()
+			{
+				SourceSyntax = named.SourceSyntax,
+				Type = containerReference,
+				ResolvedType = staticClassDefinition.Name
+			};
+			expressionRewrites[named] = expression;
+			return expression.ResolvedType;
+		}
+
 		if (named.Qualifiers.Count == 0 && LookupHiddenGlobalSymbol(named.Name, named.SourceSyntax) is Definition hidden)
 		{
 			ReportNotExported(hidden, named.SourceSyntax, hidden is TypeDefinition ? "Type" : "Symbol");
@@ -6055,7 +6081,40 @@ public sealed partial class BindableNodeAnalyzer
 			return true;
 		}
 		if (!TryGetNamedExpressionTypeDefinition(named, out TypeDefinition? typeDefinition) || typeDefinition is null)
-			return false;
+		{
+			NamedTypeReference staticClassLookup = new() { SourceSyntax = named.SourceSyntax, Name = named.Name };
+			staticClassLookup.Qualifiers.AddRange(named.Qualifiers);
+			if (!TryGetStaticClassDefinition(staticClassLookup, out StaticClassDefinition? staticClassDefinition) || staticClassDefinition is null)
+				return false;
+			if (named.Qualifiers.Count == 0 && !IsDefinitionVisible(staticClassDefinition, named.SourceSyntax))
+			{
+				ReportNotExported(staticClassDefinition, named.SourceSyntax, "Static class");
+				return true;
+			}
+			if (typeArguments.Count > 0)
+			{
+				foreach (TypeReference argument in typeArguments)
+					AnalyzeType(argument, typeScope);
+				Report(GetRange(originalTarget?.SourceSyntax ?? named.SourceSyntax), $"Static class '{staticClassDefinition.Name}' cannot be used with generic type arguments.");
+			}
+			NamedTypeReference containerReference = new()
+			{
+				SourceSyntax = named.SourceSyntax,
+				Name = staticClassDefinition.Name,
+				ResolvedType = staticClassDefinition.Name
+			};
+			TypeReferenceExpression staticClassExpression = new()
+			{
+				SourceSyntax = named.SourceSyntax,
+				Type = containerReference,
+				ResolvedType = staticClassDefinition.Name
+			};
+			expressionRewrites[named] = staticClassExpression;
+			if (originalTarget is not null && !ReferenceEquals(originalTarget, named))
+				expressionRewrites[originalTarget] = staticClassExpression;
+			type = staticClassExpression.ResolvedType ?? ErrorType;
+			return true;
+		}
 		if (named.Qualifiers.Count == 0 && !IsDefinitionVisible(typeDefinition, named.SourceSyntax))
 		{
 			ReportNotExported(typeDefinition, named.SourceSyntax, "Type");

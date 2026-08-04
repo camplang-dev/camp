@@ -348,6 +348,12 @@ public sealed partial class BindableNodeAnalyzer
 			|| IsDefinitionInSameFile(owner, referenceSyntax);
 	}
 
+	bool IsStaticClassMemberVisible(Definition member, StaticClassDefinition owner, SyntaxNode? referenceSyntax)
+	{
+		return IsExternallyVisible(member)
+			|| IsDefinitionInSameFile(owner, referenceSyntax);
+	}
+
 	void ReportMemberNotExported(Definition member, SyntaxNode? referenceSyntax)
 	{
 		Report(GetRange(referenceSyntax), $"Member '{member.Name}' is declared in another file but is not exported.");
@@ -717,6 +723,11 @@ public sealed partial class BindableNodeAnalyzer
 	internal static string EffectiveTypeSymbol(TypeDefinition type)
 	{
 		return string.IsNullOrWhiteSpace(type.Symbol) ? type.Name : type.Symbol;
+	}
+
+	internal static string EffectiveStaticClassSymbol(StaticClassDefinition definition)
+	{
+		return string.IsNullOrWhiteSpace(definition.Symbol) ? definition.Name : definition.Symbol;
 	}
 
 

@@ -366,10 +366,18 @@ public sealed partial class BindableNodeAnalyzer
 		AnalysisScope scope = new(parentScope) { IsStaticMemberScope = true };
 
 		foreach (FieldDefinition field in definition.Fields)
+		{
 			AnalyzeFieldDefinition(field, scope, containingType: null);
+			if (field.Modifier == FieldModifier.Static && !field.SymbolOverridden)
+				field.Symbol = EffectiveStaticClassSymbol(definition) + "_" + field.Name;
+		}
 
 		foreach (FunctionDefinition function in definition.Functions)
+		{
 			AnalyzeFunctionDefinition(function, scope, containingType: null, suppressStaticThisDiagnostic: true);
+			if (function.Modifier == FunctionModifier.Static && !function.SymbolOverridden)
+				function.Symbol = EffectiveStaticClassSymbol(definition) + "_" + GetCallableName(function).TrimStart('~');
+		}
 		ValidateStaticClassMembers(definition);
 		ValidateDuplicateMethodNames(definition.Functions);
 		ValidateExpandedFieldNames(definition.Fields);
@@ -1200,6 +1208,12 @@ public sealed partial class BindableNodeAnalyzer
 				{
 					Report(GetRange(ownerType.SourceSyntax), $"Alias '{named.Name}' cannot be used as an out-of-scope static member owner.");
 					return false;
+				}
+				if (staticClassDefinitions.TryGetValue(name, out StaticClassDefinition? staticClassDefinition))
+				{
+					ownerName = staticClassDefinition.Name;
+					ownerSymbol = EffectiveStaticClassSymbol(staticClassDefinition);
+					return true;
 				}
 				if (!typeDefinitions.TryGetValue(name, out TypeDefinition? definition))
 				{

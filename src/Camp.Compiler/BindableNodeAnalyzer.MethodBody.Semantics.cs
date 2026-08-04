@@ -2181,6 +2181,14 @@ public sealed partial class BindableNodeAnalyzer
 				if (function.Modifier == FunctionModifier.Static)
 					functions.Add(function);
 		}
+		if (staticClassDefinitions.TryGetValue(ownerName, out StaticClassDefinition? staticClassDefinition))
+		{
+			foreach (FunctionDefinition function in staticClassDefinition.Functions)
+				if (function.Modifier == FunctionModifier.Static
+					&& (function.Name == name || GetCallableName(function) == name)
+					&& IsStaticClassMemberVisible(function, staticClassDefinition, referenceSyntax))
+					functions.Add(function);
+		}
 		foreach (FunctionDefinition function in LookupOutOfScopeStaticFunctions(ownerName, name, referenceSyntax))
 			functions.Add(function);
 		if (functions.Count > 0 && type is not null)
@@ -2442,6 +2450,30 @@ public sealed partial class BindableNodeAnalyzer
 			foreach (FunctionDefinition getter in LookupTypeFunctions(type, "get" + name, referenceSyntax))
 			{
 				if (getter.Modifier == FunctionModifier.Static && getter.Parameters.Count == 0)
+					members.Add(new BodySymbol(name, getter.ResolvedType ?? ErrorType, getter));
+			}
+		}
+		if (staticClassDefinitions.TryGetValue(ownerName, out StaticClassDefinition? staticClassDefinition))
+		{
+			foreach (FieldDefinition field in staticClassDefinition.Fields)
+			{
+				if (field.Modifier == FieldModifier.Static && field.Name == name && IsStaticClassMemberVisible(field, staticClassDefinition, referenceSyntax))
+					members.Add(new BodySymbol(name, field.ResolvedType ?? ErrorType, field, IsConstantField(field)));
+			}
+
+			foreach (FunctionDefinition function in staticClassDefinition.Functions)
+			{
+				if (function.Modifier == FunctionModifier.Static
+					&& (function.Name == name || GetCallableName(function) == name)
+					&& IsStaticClassMemberVisible(function, staticClassDefinition, referenceSyntax))
+					members.Add(new BodySymbol(name, BuildFunctionValueType(function, isInstance: false, allowCallableAscription: true), function));
+			}
+			foreach (FunctionDefinition getter in staticClassDefinition.Functions)
+			{
+				if (getter.Modifier == FunctionModifier.Static
+					&& getter.Parameters.Count == 0
+					&& (getter.Name == "get" + name || GetCallableName(getter) == "get" + name)
+					&& IsStaticClassMemberVisible(getter, staticClassDefinition, referenceSyntax))
 					members.Add(new BodySymbol(name, getter.ResolvedType ?? ErrorType, getter));
 			}
 		}

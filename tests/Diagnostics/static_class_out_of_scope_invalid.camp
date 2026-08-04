@@ -1,0 +1,18 @@
+static class Tools
+{
+	static void ok()
+	{
+	}
+}
+
+void Tools.missingStatic()
+{
+}
+
+static void Tools.badThis(this)
+{
+}
+
+static void Missing.owner()
+{
+}

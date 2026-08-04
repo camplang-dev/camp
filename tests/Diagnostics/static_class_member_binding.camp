@@ -1,0 +1,37 @@
+namespace StaticClassMemberBinding;
+
+static class Console
+{
+	static int count;
+
+	static int getCount()
+	{
+		return Console.count;
+	}
+
+	static void write(overload int value)
+	{
+		Console.count = value;
+	}
+
+	static void write(overload bool value)
+	{
+		if (value)
+			Console.count = 1;
+		else
+			Console.count = 0;
+	}
+}
+
+static void Console.reset()
+{
+	Console.count = 0;
+}
+
+int test()
+{
+	Console.reset();
+	Console.write(3);
+	Console.write(true);
+	return Console.Count;
+}

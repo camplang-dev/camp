@@ -1,0 +1,3 @@
+tests/Diagnostics/static_class_out_of_scope_invalid.camp(8,12): error: Out-of-scope method 'Tools.missingStatic' must be explicitly declared static; instance extensions use an explicit 'this' parameter.
+tests/Diagnostics/static_class_out_of_scope_invalid.camp(12,19): error: Static method 'badThis' may not declare a 'this' parameter.
+tests/Diagnostics/static_class_out_of_scope_invalid.camp(16,13): error: Out-of-scope static member owner 'Missing' could not be found.
