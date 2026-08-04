@@ -2317,9 +2317,54 @@ public sealed class BindableNodeCodeSerializer
 		};
 	}
 
-	static string GetFunctionReferenceName(FunctionDefinition function)
+	string GetFunctionReferenceName(FunctionDefinition function)
 	{
-		return string.IsNullOrWhiteSpace(function.Symbol) ? function.Name : function.Symbol;
+		if (!string.IsNullOrWhiteSpace(function.Symbol))
+			return function.Symbol;
+		string callableName = BindableNodeAnalyzer.GetCallableName(function);
+		if (!string.IsNullOrWhiteSpace(function.OutOfScopeOwnerName))
+			return function.OutOfScopeOwnerName + "_" + callableName;
+		if (TryFindContainingDefinition(function, out Definition? owner) && owner is not null)
+			return GetDefinitionSymbolName(owner) + "_" + callableName;
+		return callableName;
+	}
+
+	bool TryFindContainingDefinition(FunctionDefinition function, out Definition? owner)
+	{
+		foreach (Definition definition in currentModule?.Definitions ?? [])
+		{
+			switch (definition)
+			{
+				case StaticClassDefinition staticClassDefinition when staticClassDefinition.Functions.Contains(function):
+					owner = staticClassDefinition;
+					return true;
+				case ClassDefinition classDefinition when classDefinition.Functions.Contains(function):
+					owner = classDefinition;
+					return true;
+				case StructDefinition structDefinition when structDefinition.Functions.Contains(function):
+					owner = structDefinition;
+					return true;
+				case InterfaceDefinition interfaceDefinition when interfaceDefinition.Functions.Contains(function):
+					owner = interfaceDefinition;
+					return true;
+				case EnumDefinition enumDefinition when enumDefinition.Functions.Contains(function):
+					owner = enumDefinition;
+					return true;
+				case NewtypeDefinition newtypeDefinition when newtypeDefinition.Functions.Contains(function):
+					owner = newtypeDefinition;
+					return true;
+				case ParamsDefinition paramsDefinition when paramsDefinition.Functions.Contains(function):
+					owner = paramsDefinition;
+					return true;
+			}
+		}
+		owner = null;
+		return false;
+	}
+
+	static string GetDefinitionSymbolName(Definition definition)
+	{
+		return string.IsNullOrWhiteSpace(definition.Symbol) ? definition.Name : definition.Symbol;
 	}
 
 	string GetGeneratedName(BindableNode node, string name)

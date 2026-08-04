@@ -212,25 +212,39 @@ public sealed partial class BindableNodeAnalyzer
 
 	bool IsDefinitionImported(Definition definition, TokenSequence referenceSource)
 	{
-		if (string.IsNullOrWhiteSpace(definition.Namespace))
+		string? namespaceName = GetDefinitionNamespace(definition);
+		if (string.IsNullOrWhiteSpace(namespaceName))
 			return true;
 		if (currentModule is null)
 			return true;
 		if (currentModule.SourceNamespaces.TryGetValue(referenceSource, out string? referenceNamespace)
-			&& string.Equals(referenceNamespace, definition.Namespace, StringComparison.Ordinal))
+			&& string.Equals(referenceNamespace, namespaceName, StringComparison.Ordinal))
 			return true;
 		foreach (UsingDeclaration usingDeclaration in GetUsingsForSource(referenceSource))
 		{
 			if (usingDeclaration.Alias is not null)
 				continue;
-			if (!string.Equals(usingDeclaration.Name, definition.Namespace, StringComparison.Ordinal))
+			if (!string.Equals(usingDeclaration.Name, namespaceName, StringComparison.Ordinal))
 				continue;
 			if (usingDeclaration.SelectedNames.Count == 0 || usingDeclaration.SelectedNames.Contains(definition.Name))
 				return true;
 		}
-		if (definition.Namespace == "Std" && !HasExplicitRootStdUsing(referenceSource))
+		if (namespaceName == "Std" && !HasExplicitRootStdUsing(referenceSource))
 			return true;
 		return false;
+	}
+
+	string? GetDefinitionNamespace(Definition definition)
+	{
+		if (!string.IsNullOrWhiteSpace(definition.Namespace))
+			return definition.Namespace;
+		if (currentModule is null)
+			return null;
+		return currentModule.DefinitionSources.TryGetValue(definition, out TokenSequence? definitionSource)
+			&& definitionSource is not null
+			&& currentModule.SourceNamespaces.TryGetValue(definitionSource, out string? namespaceName)
+			? namespaceName
+			: null;
 	}
 
 	bool IsNamespaceVisible(string? namespaceName, TokenSequence referenceSource)
@@ -257,10 +271,11 @@ public sealed partial class BindableNodeAnalyzer
 		if (referenceRange is not TokenRange range)
 			return true;
 		string qualifier = string.Join("::", qualifiers);
-		if (!string.IsNullOrWhiteSpace(definition.Namespace) && string.Equals(definition.Namespace, qualifier, StringComparison.Ordinal))
-			return IsNamespaceVisible(definition.Namespace, range.Sequence) || IsNamespacePlainImported(definition.Namespace, range.Sequence);
+		string? namespaceName = GetDefinitionNamespace(definition);
+		if (!string.IsNullOrWhiteSpace(namespaceName) && string.Equals(namespaceName, qualifier, StringComparison.Ordinal))
+			return IsNamespaceVisible(namespaceName, range.Sequence) || IsNamespacePlainImported(namespaceName, range.Sequence);
 		return TryResolveNamespaceAlias(qualifier, range.Sequence, out string? aliasedNamespace)
-			&& string.Equals(aliasedNamespace, definition.Namespace, StringComparison.Ordinal);
+			&& string.Equals(aliasedNamespace, namespaceName, StringComparison.Ordinal);
 	}
 
 	bool IsNamespaceExplicitlyImported(string namespaceName, TokenSequence source)
@@ -318,8 +333,9 @@ public sealed partial class BindableNodeAnalyzer
 			&& GetRange(referenceSyntax) is TokenRange range
 			&& !IsDefinitionImported(definition, range.Sequence))
 		{
-			string namespaceName = string.IsNullOrWhiteSpace(definition.Namespace) ? "its namespace" : $"namespace '{definition.Namespace}'";
-			Report(GetRange(referenceSyntax), $"{symbolKind} '{definition.Name}' is declared in {namespaceName} but is not imported by this file.");
+			string? namespaceName = GetDefinitionNamespace(definition);
+			string namespaceDisplay = string.IsNullOrWhiteSpace(namespaceName) ? "its namespace" : $"namespace '{namespaceName}'";
+			Report(GetRange(referenceSyntax), $"{symbolKind} '{definition.Name}' is declared in {namespaceDisplay} but is not imported by this file.");
 			return;
 		}
 		Report(GetRange(referenceSyntax), $"{symbolKind} '{definition.Name}' is declared in another file but is not exported.");
@@ -338,6 +354,18 @@ public sealed partial class BindableNodeAnalyzer
 			return true;
 
 		return CurrentFunctionCanSeeSourceDefinition(definitionSource);
+	}
+
+	bool IsDefinitionImportedAtReference(Definition definition, SyntaxNode? referenceSyntax)
+	{
+		if (IsDefinitionInSameFile(definition, referenceSyntax))
+			return true;
+
+		TokenRange? referenceRange = GetRange(referenceSyntax);
+		if (referenceRange is not TokenRange range)
+			return true;
+
+		return IsDefinitionImported(definition, range.Sequence);
 	}
 
 	bool IsMemberVisible(Definition member, TypeDefinition owner, SyntaxNode? referenceSyntax)

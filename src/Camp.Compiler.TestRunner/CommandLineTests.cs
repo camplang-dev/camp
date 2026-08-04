@@ -1188,7 +1188,7 @@ public sealed class CommandLineTests
 		AssertCommandSucceeded(implicitResult);
 		AssertCommandSucceeded(aliasedResult);
 		Assert.NotEqual(0, suppressedResult.ExitCode);
-		Assert.Contains("Type 'Console' is declared in namespace 'Std' but is not imported by this file.", suppressedResult.StdErr, StringComparison.Ordinal);
+		Assert.Contains("Static class 'Console' is declared in another file but is not exported.", suppressedResult.StdErr, StringComparison.Ordinal);
 		Assert.NotEqual(0, selectedResult.ExitCode);
 		Assert.Contains("Type 'List' is declared in namespace 'Std' but is not imported by this file.", selectedResult.StdErr, StringComparison.Ordinal);
 	}

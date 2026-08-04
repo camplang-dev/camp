@@ -4031,12 +4031,28 @@ public static class CCodeEmitter
 				? GetCallableParametersForCall(function)
 				: GetCallableParametersForExpression(call.Target);
 			List<string> arguments = [];
+			int parameterIndex = 0;
+			if (call.Target is MemberReferenceExpression { Target: Expression receiver, Member: FunctionDefinition memberFunction }
+				&& function is not null
+				&& ReferenceEquals(function, memberFunction)
+				&& RequiresImplicitThisParameter(function)
+				&& parameters.Count > 0)
+			{
+				arguments.Add(FormatArgumentValue(new ArgumentExpression
+				{
+					SourceSyntax = receiver.SourceSyntax,
+					Value = receiver,
+					ResolvedType = receiver.ResolvedType
+				}, parameters[0], genericSubstitutions));
+				parameterIndex = 1;
+			}
 			for (int i = 0; i < call.Arguments.Count; i++)
 			{
 				if (function?.IsAsync == true && call.Arguments[i].Modifier == ArgumentModifier.Catch)
 					continue;
-				ParameterDefinition? parameter = i < parameters.Count ? parameters[i] : null;
+				ParameterDefinition? parameter = parameterIndex < parameters.Count ? parameters[parameterIndex] : null;
 				arguments.Add(FormatArgumentValue(call.Arguments[i], parameter, genericSubstitutions));
+				parameterIndex++;
 			}
 			arguments.Add(completion);
 			arguments.Add(completionContext);

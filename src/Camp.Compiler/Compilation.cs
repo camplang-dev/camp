@@ -210,6 +210,13 @@ public static class CompilationPipeline
 					MarkApiHeaderDefinition(function, isApiHeader);
 				break;
 
+			case StaticClassDefinition staticClassDefinition:
+				foreach (FieldDefinition field in staticClassDefinition.Fields)
+					MarkApiHeaderDefinition(field, isApiHeader);
+				foreach (FunctionDefinition function in staticClassDefinition.Functions)
+					MarkApiHeaderDefinition(function, isApiHeader);
+				break;
+
 			case StructDefinition structDefinition:
 				foreach (FieldDefinition field in structDefinition.Fields)
 					MarkApiHeaderDefinition(field, isApiHeader);

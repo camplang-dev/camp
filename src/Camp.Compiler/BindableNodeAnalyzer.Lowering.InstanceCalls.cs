@@ -28,6 +28,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (IsPropertyGetterReference(member) || IsPropertySetterReference(member))
 			return false;
 
+		EnsureFlattenedFunctionSymbol(function);
 		MethodReferenceExpression reference = new()
 		{
 			SourceSyntax = member.SourceSyntax,
