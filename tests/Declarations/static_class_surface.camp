@@ -1,0 +1,19 @@
+namespace StaticClassSurface;
+
+@category("I/O")
+static class Console
+{
+	public static int getReader()
+	{
+		return 0;
+	}
+	public static int getWriter()
+	{
+		return 1;
+	}
+	internal static int writes;
+	public static inline int DEFAULT_WIDTH = 80;
+	public static void writeLine(overload const char[] text)
+	{
+	}
+}

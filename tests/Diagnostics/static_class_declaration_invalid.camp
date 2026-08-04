@@ -1,0 +1,34 @@
+public static class PublicContainer
+{
+	public static void ok()
+	{
+	}
+}
+
+extern static class ExternContainer
+{
+	public static void ok()
+	{
+	}
+}
+
+static class Cache<T>
+{
+	public static void ok()
+	{
+	}
+}
+
+static class Derived: Base
+{
+	public static void ok()
+	{
+	}
+}
+
+fixed static class FixedContainer
+{
+	public static void ok()
+	{
+	}
+}

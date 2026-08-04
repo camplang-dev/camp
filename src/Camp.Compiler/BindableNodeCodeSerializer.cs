@@ -125,7 +125,7 @@ public sealed class BindableNodeCodeSerializer
 		{
 			if (apiHeader && !ShouldWriteApiDefinition(definition))
 				continue;
-			if (wroteDefinition && definition is TypeDefinition)
+			if (wroteDefinition && definition is TypeDefinition or StaticClassDefinition)
 				writer.WriteLine();
 			WriteDefinition(definition);
 			wroteDefinition = true;
@@ -143,6 +143,10 @@ public sealed class BindableNodeCodeSerializer
 		{
 			case ClassDefinition classDefinition:
 				WriteClassDefinition(classDefinition);
+				break;
+
+			case StaticClassDefinition staticClassDefinition:
+				WriteStaticClassDefinition(staticClassDefinition);
 				break;
 
 			case StructDefinition structDefinition:
@@ -200,6 +204,21 @@ public sealed class BindableNodeCodeSerializer
 		{
 			if (apiHeader)
 				WriteApiClassMembers(definition, definition.Fields, definition.Functions);
+			else
+				WriteMembers(definition.Fields, definition.Functions);
+		});
+	}
+
+	void WriteStaticClassDefinition(StaticClassDefinition definition)
+	{
+		WriteAttributes(definition.Attributes);
+		WriteIndent();
+		writer.Write("static class ");
+		writer.Write(definition.Name);
+		WriteLineBlock(() =>
+		{
+			if (apiHeader)
+				WriteApiClassMembers(null, definition.Fields, definition.Functions, allowSyntheticConstructor: false);
 			else
 				WriteMembers(definition.Fields, definition.Functions);
 		});

@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-16"?>
+<Module Namespace="StaticClassSurface" ResolvedType="#MODULE">
+  <Definitions>
+    <StaticClassDefinition Name="Console" Symbol="Console" Namespace="StaticClassSurface" ResolvedType="#UNRESOLVED">
+      <Fields>
+        <FieldDefinition Modifier="Static" Name="writes" Symbol="writes" Namespace="StaticClassSurface" Internal="" ResolvedType="#UNRESOLVED">
+          <Type Type="Int" ResolvedType="#UNRESOLVED" />
+        </FieldDefinition>
+        <FieldDefinition Modifier="Static" IsInline="True" Name="DEFAULT_WIDTH" Symbol="DEFAULT_WIDTH" Namespace="StaticClassSurface" Public="" ResolvedType="#UNRESOLVED">
+          <Type Type="Int" ResolvedType="#UNRESOLVED" />
+          <InitialValue Type="LiteralExpression" Kind="Number" Text="80" Value="80" ResolvedType="#UNRESOLVED" />
+        </FieldDefinition>
+      </Fields>
+      <Functions>
+        <FunctionDefinition Modifier="Static" Name="getReader" Symbol="getReader" Namespace="StaticClassSurface" Public="" ResolvedType="#UNRESOLVED">
+          <ReturnType Type="Int" ResolvedType="#UNRESOLVED" />
+          <Body Type="BlockStatement" ResolvedType="#UNRESOLVED">
+            <Statements>
+              <ReturnStatement ResolvedType="#UNRESOLVED">
+                <Expression Type="LiteralExpression" Kind="Number" Text="0" Value="0" ResolvedType="#UNRESOLVED" />
+              </ReturnStatement>
+            </Statements>
+          </Body>
+        </FunctionDefinition>
+        <FunctionDefinition Modifier="Static" Name="getWriter" Symbol="getWriter" Namespace="StaticClassSurface" Public="" ResolvedType="#UNRESOLVED">
+          <ReturnType Type="Int" ResolvedType="#UNRESOLVED" />
+          <Body Type="BlockStatement" ResolvedType="#UNRESOLVED">
+            <Statements>
+              <ReturnStatement ResolvedType="#UNRESOLVED">
+                <Expression Type="LiteralExpression" Kind="Number" Text="1" Value="1" ResolvedType="#UNRESOLVED" />
+              </ReturnStatement>
+            </Statements>
+          </Body>
+        </FunctionDefinition>
+        <FunctionDefinition Modifier="Static" Name="writeLine" Symbol="writeLine" Namespace="StaticClassSurface" Public="" ResolvedType="#UNRESOLVED">
+          <ReturnType Type="Void" ResolvedType="#UNRESOLVED" />
+          <Parameters>
+            <ParameterDefinition IsOverloadSelector="True" Name="text" Symbol="text" Namespace="StaticClassSurface" ResolvedType="#UNRESOLVED">
+              <Type Type="ArrayTypeReference" ResolvedType="#UNRESOLVED">
+                <ElementType Type="ConstTypeReference" ResolvedType="#UNRESOLVED">
+                  <Type Type="Char" ResolvedType="#UNRESOLVED" />
+                </ElementType>
+              </Type>
+            </ParameterDefinition>
+          </Parameters>
+          <Body Type="BlockStatement" ResolvedType="#UNRESOLVED" />
+        </FunctionDefinition>
+      </Functions>
+      <Attributes>
+        <AttributeConstructor Name="@category" ResolvedType="#ATTRIBUTE">
+          <Arguments>
+            <ArgumentExpression ResolvedType="#ATTRIBUTE">
+              <Value Type="LiteralExpression" Kind="String" Text="&quot;I/O&quot;" Value="I/O" ResolvedType="#ATTRIBUTE" />
+            </ArgumentExpression>
+          </Arguments>
+        </AttributeConstructor>
+      </Attributes>
+    </StaticClassDefinition>
+  </Definitions>
+</Module>

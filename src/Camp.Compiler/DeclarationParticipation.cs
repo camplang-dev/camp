@@ -85,7 +85,7 @@ public sealed class DeclarationParticipation
 	{
 		bool currentTestOnly = inheritedTestOnly || IsTest(definition) || HasExplicitTestOnly(definition);
 		testOnly[definition] = currentTestOnly;
-		bool childInheritedTestOnly = currentTestOnly && definition is TypeDefinition;
+		bool childInheritedTestOnly = currentTestOnly && definition is TypeDefinition or StaticClassDefinition;
 		foreach (Definition child in GetChildDefinitions(definition))
 			IndexDefinition(child, childInheritedTestOnly);
 	}
@@ -98,6 +98,12 @@ public sealed class DeclarationParticipation
 				foreach (FieldDefinition field in classDefinition.Fields)
 					yield return field;
 				foreach (FunctionDefinition function in classDefinition.Functions)
+					yield return function;
+				break;
+			case StaticClassDefinition staticClassDefinition:
+				foreach (FieldDefinition field in staticClassDefinition.Fields)
+					yield return field;
+				foreach (FunctionDefinition function in staticClassDefinition.Functions)
 					yield return function;
 				break;
 			case StructDefinition structDefinition:

@@ -584,6 +584,7 @@ public sealed partial class BindableNodeAnalyzer
 		IEnumerable<Definition> children = definition switch
 		{
 			ClassDefinition classDefinition => classDefinition.Fields.Cast<Definition>().Concat(classDefinition.Functions),
+			StaticClassDefinition staticClassDefinition => staticClassDefinition.Fields.Cast<Definition>().Concat(staticClassDefinition.Functions),
 			StructDefinition structDefinition => structDefinition.Fields.Cast<Definition>().Concat(structDefinition.Functions),
 			InterfaceDefinition interfaceDefinition => interfaceDefinition.Functions,
 			EnumDefinition enumDefinition => enumDefinition.Values.Cast<Definition>().Concat(enumDefinition.Functions),

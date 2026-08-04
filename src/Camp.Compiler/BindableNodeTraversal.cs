@@ -165,6 +165,13 @@ internal static class BindableNodeTraversal
 					yield return child;
 				break;
 
+			case StaticClassDefinition staticClassDefinition:
+				foreach (FieldDefinition child in staticClassDefinition.Fields)
+					yield return child;
+				foreach (FunctionDefinition child in staticClassDefinition.Functions)
+					yield return child;
+				break;
+
 			case AliasDefinition:
 				break;
 

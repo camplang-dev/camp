@@ -78,6 +78,13 @@ public sealed partial class BindableNodeBuilder
 					AssignNamespace(function, namespaceName);
 				break;
 
+			case StaticClassDefinition staticClassDefinition:
+				foreach (FieldDefinition field in staticClassDefinition.Fields)
+					AssignNamespace(field, namespaceName);
+				foreach (FunctionDefinition function in staticClassDefinition.Functions)
+					AssignNamespace(function, namespaceName);
+				break;
+
 			case StructDefinition structDefinition:
 				foreach (FieldDefinition field in structDefinition.Fields)
 					AssignNamespace(field, namespaceName);
@@ -282,6 +289,8 @@ public sealed partial class BindableNodeBuilder
 				return BuildStructDefinition(syntax);
 
 			case "class":
+				if (HasTypeDeclarationDeclarator(syntax, "static"))
+					return BuildStaticClassDefinition(syntax);
 				return BuildClassDefinition(syntax);
 
 			case "interface":
@@ -301,6 +310,14 @@ public sealed partial class BindableNodeBuilder
 				Report(syntax.Keyword?.Range, $"'{syntax.Keyword?.Value}' type declarations are not supported by this binder pass.");
 				return null;
 		}
+	}
+
+	static bool HasTypeDeclarationDeclarator(TypeDeclarationSyntax syntax, string keyword)
+	{
+		foreach (TypeDeclarationDeclaratorSyntax declarator in syntax.Declarators ?? [])
+			if (declarator.Keyword?.Value == keyword)
+				return true;
+		return false;
 	}
 
 	StructDefinition BuildStructDefinition(TypeDeclarationSyntax syntax)
@@ -415,6 +432,68 @@ public sealed partial class BindableNodeBuilder
 			else
 			{
 				Report(child, "Class member declaration is empty.");
+			}
+		}
+
+		return definition;
+	}
+
+	StaticClassDefinition BuildStaticClassDefinition(TypeDeclarationSyntax syntax)
+	{
+		StaticClassDefinition definition = new()
+		{
+			SourceSyntax = syntax,
+			Name = GetRequiredIdentifier(syntax.Identifier, syntax, "Static class declaration is missing a name."),
+			Symbol = syntax.Identifier?.Value ?? ""
+		};
+
+		ApplyDefinitionAttributes(definition, syntax.Attributes);
+		ApplyStaticClassDeclarators(definition, syntax.Declarators);
+
+		if (syntax.Type is not null)
+			Report(syntax.Type, "Static class declarations may not have a leading type.");
+
+		if (syntax.GenericParameterList is not null)
+			Report(syntax.GenericParameterList, "Static classes may not declare type parameters.");
+
+		if (syntax.UnderlyingTypeList is not null)
+			Report(syntax.UnderlyingTypeList, "Static classes may not declare base types or implemented interfaces.");
+
+		if (syntax.ParameterList is not null)
+			Report(syntax.ParameterList, "Static class declarations may not have a parameter list.");
+
+		if (syntax.Scope is null)
+		{
+			if (syntax.SemicolonToken is null)
+				Report(syntax, "Static class declaration is missing a body or semicolon.");
+
+			return definition;
+		}
+
+		if (syntax.Scope.EnumValueList is not null)
+			Report(syntax.Scope.EnumValueList, "Static class bodies may not contain enum values.");
+
+		foreach (DeclarationSyntax child in syntax.Scope.Declarations ?? [])
+		{
+			if (child.MemberDeclaration is not null)
+			{
+				if (IsMethodDeclaration(child.MemberDeclaration))
+				{
+					if (BuildFunctionDefinition(child.MemberDeclaration, isGlobal: false, allowVirtual: false, containingTypeName: definition.Name) is FunctionDefinition function)
+						definition.Functions.Add(function);
+				}
+				else if (BuildFieldDefinition(child.MemberDeclaration) is FieldDefinition field)
+				{
+					definition.Fields.Add(field);
+				}
+			}
+			else if (child.TypeDeclaration is not null)
+			{
+				Report(child.TypeDeclaration, "Nested type declarations are not supported in static classes by this binder pass.");
+			}
+			else
+			{
+				Report(child, "Static class member declaration is empty.");
 			}
 		}
 
@@ -1156,8 +1235,45 @@ public sealed partial class BindableNodeBuilder
 					Report(declarator, "'fixed' is not a valid class declarator.");
 					break;
 
+				case "static":
+					Report(declarator, "'static' is not a valid class declarator.");
+					break;
+
 				default:
 					Report(declarator, "Unknown class declarator.");
+					break;
+			}
+		}
+	}
+
+	void ApplyStaticClassDeclarators(StaticClassDefinition definition, List<TypeDeclarationDeclaratorSyntax>? declarators)
+	{
+		bool seenStatic = false;
+		foreach (TypeDeclarationDeclaratorSyntax declarator in declarators ?? [])
+		{
+			switch (declarator.Keyword?.Value)
+			{
+				case "static":
+					if (seenStatic)
+						Report(declarator, "Duplicate 'static' declarator.");
+					seenStatic = true;
+					break;
+
+				case "export":
+				case "internal":
+				case "public":
+				case "extern":
+				case "virtual":
+				case "abstract":
+				case "sealed":
+				case "fixed":
+				case "escaped":
+				case "shadow":
+					Report(declarator, $"'{declarator.Keyword.Value.Value}' is not a valid static class declarator.");
+					break;
+
+				default:
+					Report(declarator, "Unknown static class declarator.");
 					break;
 			}
 		}

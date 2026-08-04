@@ -1,0 +1,5 @@
+tests/Diagnostics/static_class_declaration_invalid.camp(1,1): error: 'public' is not a valid static class declarator.
+tests/Diagnostics/static_class_declaration_invalid.camp(8,1): error: 'extern' is not a valid static class declarator.
+tests/Diagnostics/static_class_declaration_invalid.camp(15,19): error: Static classes may not declare type parameters.
+tests/Diagnostics/static_class_declaration_invalid.camp(22,23): error: Static classes may not declare base types or implemented interfaces.
+tests/Diagnostics/static_class_declaration_invalid.camp(29,1): error: 'fixed' is not a valid static class declarator.
