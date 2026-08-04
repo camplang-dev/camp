@@ -1,0 +1,1 @@
+tests/Diagnostics/namespace_native_symbol_not_source_name.camp(10,9): error: Symbol 'SourceBoundary_increment' could not be found.

@@ -283,16 +283,8 @@ public sealed partial class BindableNodeAnalyzer
 		List<FunctionDefinition> matches = [];
 		foreach (Definition definition in ActiveCurrentDefinitions())
 		{
-			if (definition is FunctionDefinition function && IsCallableTopLevelFunctionAliasTarget(function, alias, target) && IsDefinitionVisible(function, alias.SourceSyntax))
+			if (definition is FunctionDefinition function && IsCallableTopLevelFunctionAliasTarget(function, alias, target))
 				matches.Add(function);
-		}
-		foreach (TypeDefinition type in typeDefinitions.Values)
-		{
-			foreach (FunctionDefinition function in GetTypeFunctions(type))
-			{
-				if (IsTypeFunctionSymbolNamed(type, function, target) && IsMemberVisible(function, type, alias.SourceSyntax))
-					matches.Add(function);
-			}
 		}
 
 		if (matches.Count == 0)
@@ -304,17 +296,16 @@ public sealed partial class BindableNodeAnalyzer
 			return true;
 		}
 
-		resolvedName = matches[0].Symbol;
+		resolvedName = GetCallableName(matches[0]);
 		return true;
 	}
 
-	static bool IsCallableTopLevelFunctionAliasTarget(FunctionDefinition function, AliasDefinition alias, string target)
+	bool IsCallableTopLevelFunctionAliasTarget(FunctionDefinition function, AliasDefinition alias, string target)
 	{
 		if (alias.TargetQualifiers.Count > 0)
-			return !string.IsNullOrWhiteSpace(function.Symbol) && function.Symbol == target;
-		if (GetExplicitThisParameter(function) is not null)
-			return !string.IsNullOrWhiteSpace(function.Symbol) && function.Symbol == target;
-		return IsFunctionNamed(function, target);
+			return IsFunctionNamed(function, alias.TargetName)
+				&& IsImportedQualifiedName(function, alias.TargetQualifiers, alias.SourceSyntax);
+		return IsFunctionNamed(function, target) && IsDefinitionVisible(function, alias.SourceSyntax);
 	}
 
 	static string BuildAliasTargetName(AliasDefinition alias)

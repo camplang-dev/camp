@@ -1928,9 +1928,6 @@ public sealed partial class BindableNodeAnalyzer
 
 	static bool IsCallableTopLevelFunctionNamed(FunctionDefinition function, string name)
 	{
-		if (GetExplicitThisParameter(function) is not null)
-			return function.Symbol == name;
-
 		return IsFunctionNamed(function, name);
 	}
 
@@ -1959,18 +1956,17 @@ public sealed partial class BindableNodeAnalyzer
 
 	static bool IsFunctionNamed(FunctionDefinition function, string name)
 	{
-		return function.Name == name || GetCallableName(function) == name || function.Symbol == name;
+		return function.Name == name || GetCallableName(function) == name;
 	}
 
 	static bool IsDefinitionNamed(Definition definition, string name)
 	{
-		return definition.Name == name || definition.Symbol == name;
+		return definition.Name == name;
 	}
 
 	static bool IsTypeFunctionSymbolNamed(TypeDefinition type, FunctionDefinition function, string name)
 	{
-		return (!string.IsNullOrWhiteSpace(function.Symbol) && function.Symbol != function.Name && function.Symbol == name)
-			|| (!function.SymbolOverridden && $"{EffectiveTypeSymbol(type)}_{GetCallableName(function).TrimStart('~')}" == name);
+		return IsFunctionNamed(function, name);
 	}
 
 	BodySymbol? LookupGlobalStorageSymbol(NamedExpression name, SyntaxNode? referenceSyntax)

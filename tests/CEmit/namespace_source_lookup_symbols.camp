@@ -1,0 +1,20 @@
+namespace SourceBoundary;
+
+alias inc = increment;
+
+int increment(int value)
+{
+	return value + 1;
+}
+
+fn int(int) getIncrement()
+{
+	return increment;
+}
+
+export int main()
+{
+	fn int(int) f = increment;
+	fn int(int) g = getIncrement();
+	return increment(1) + SourceBoundary::increment(2) + inc(3) + f(4) + g(5);
+}

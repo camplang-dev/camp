@@ -1,0 +1,11 @@
+namespace SourceBoundary;
+
+int increment(int value)
+{
+	return value + 1;
+}
+
+export int main()
+{
+	return SourceBoundary_increment(1);
+}
