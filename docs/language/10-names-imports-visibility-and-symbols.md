@@ -27,14 +27,14 @@ Std::Console.writeLine("ready");
 ```
 
 The namespace prefix is a source lookup path, not a runtime object. Member
-access still uses `.` after the qualified type or value:
+access still uses `.` after the qualified type, static class, or value:
 
 ```camp
 Std::Console.writeLine("ready");
 ```
 
-Here `Std::Console` is the qualified type name, and `.writeLine` is ordinary
-static member access.
+Here `Std::Console` is the qualified static class name, and `.writeLine` is
+ordinary static member access.
 
 Qualified names are useful at module boundaries, in examples, and anywhere two
 imports would otherwise make an unqualified name ambiguous.

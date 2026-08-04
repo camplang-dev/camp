@@ -73,9 +73,9 @@ is composable in allowed method-local and signature positions, such as
 
 In lowered ABI signatures, `classtype` is replaced by the enclosing class type.
 At source call sites, a result or parameter containing `classtype` is rebound
-according to the static class used for the call:
+according to the statically known class type used for the call:
 
-- instance calls use the receiver expression's static class;
+- instance calls use the receiver expression's statically known class type;
 - static calls use the type named on the left side of the call;
 - sealed classes have no derived rebinding, so the enclosing class is exact.
 

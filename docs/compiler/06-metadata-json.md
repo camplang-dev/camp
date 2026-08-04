@@ -161,6 +161,7 @@ Top-level and nested declaration kinds include:
 |---|---|
 | `alias` | Includes target spelling and resolved target data when available. |
 | `class` | May include base types, implemented interfaces, fields, and functions. |
+| `staticClass` | Source container for static fields, inline constants, properties through accessors, and static functions. |
 | `struct` | Includes fields and functions; source interfaces are emitted as interfaces. |
 | `interface` | Includes base interfaces and function slots. |
 | `enum` | Includes underlying type and values. |
@@ -205,6 +206,24 @@ but generated shadow data structs, shadow vtables, interface thunks, stored
 shadow-instance fields, and helper functions are implementation details. They
 must not appear as ordinary metadata declarations merely because the shadow
 class is exported.
+
+Static classes are source-level member containers, not ordinary types. Metadata
+uses `kind: "staticClass"` and an ID rooted as `staticClass:Name`:
+
+```json
+{
+  "id": "staticClass:Console",
+  "kind": "staticClass",
+  "name": "Console",
+  "functions": []
+}
+```
+
+A static class may contain visible static fields, inline constants, and
+functions. Property accessors remain function declarations with property
+metadata. Static class metadata must not include base types, implemented
+interfaces, constructors, destructors, instance fields, lifecycle helpers,
+receiver parameters, or ordinary constructible type facts.
 
 Interface implementation metadata may look like:
 

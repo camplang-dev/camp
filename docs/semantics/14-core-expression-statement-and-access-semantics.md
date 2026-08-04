@@ -31,6 +31,51 @@ generated label should keep provenance back to the property access, range
 argument, declaration target, discard target, or transfer statement that caused
 it.
 
+## Static Class Member Access
+
+A static class name is a source member-access target, not a value and not a
+type. Body analysis may resolve an unqualified name such as `Console` or a
+namespace-qualified name such as `Std::Console` as a static class container only
+where the source form immediately uses it as a member target:
+
+```camp
+Console.writeLine("ready");
+Std::Console.writeLine("ready");
+Console.Writer;
+```
+
+The `.` member after the container binds static functions, static fields,
+inline constants, and property accessors declared in the static class. Static
+class access never inserts a receiver argument, never creates a delegate
+context from the container, and never participates in instance receiver
+inference. A method reference to a static class member is a reference to the
+member function itself.
+
+Inside a static class member body, sibling members are not implicitly in scope.
+The body must use explicit container-qualified access, such as
+`Console.write(...)` or `Metrics.reset()`, under the same lookup rules used by
+ordinary callers.
+
+Out-of-scope static class members are declared with a static class qualifier and
+must themselves be marked `static`:
+
+```camp
+static void Metrics.reset() { }
+static void Diagnostics::Metrics.reset() { }
+```
+
+The qualifier before the member name must resolve to a static class container.
+The member must also satisfy ordinary static class member restrictions: no
+explicit `this`, no instance lifecycle role, no virtual/override/abstract/sealed
+role, and no instance storage.
+
+Static class containers are invalid in expression positions that require a
+value and invalid in source positions that require a type, including variable,
+field, parameter, and return types; pointer forms; callable signatures; generic
+arguments; construction and allocation; inheritance; interface implementation;
+`classtype`; `sizeof`; and `vtableof`. `typenameof(StaticClass)` is not a type
+query and is rejected by the same non-type rule.
+
 ## Property Accessor Binding
 
 Property access is syntactic sugar for method calls. A compatible compiler must

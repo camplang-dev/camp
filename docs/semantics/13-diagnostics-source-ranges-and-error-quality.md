@@ -301,6 +301,8 @@ Diagnostics changes should cover:
 
 - parser recovery;
 - invalid declaration/type/member surfaces;
+- static class misuse in type, construction, inheritance, interface,
+  lifecycle, receiver, and instance-member contexts;
 - overload and call argument failures;
 - conversion errors and warnings;
 - lifetime and `constof` mismatches;

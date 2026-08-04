@@ -218,6 +218,29 @@ generated private fields for virtual and interface dispatch. Those generated
 fields support the source contract; ordinary source code should reason from the
 class declaration, not from generated storage names.
 
+## Static Classes Are Not Objects
+
+A `static class` is a named container for static members. It is useful for APIs
+such as `Console.writeLine(...)`, where the grouped operations belong under one
+name but there is no instance to allocate or clean up.
+
+```camp
+static class Log
+{
+	static void info(const char[] text)
+	{
+		Console.writeLine(text);
+	}
+}
+
+Log.info("ready");
+```
+
+Do not use a static class when you need object state. Static classes are not
+constructed with `init` or `new`, are not deleted, and are not used as variable
+or parameter types. If callers should hold a value or pointer, use `struct`,
+`class`, `interface`, or `newtype` according to the shape you need.
+
 Class fields remain implementation details across the public ABI. Even an
 exported class is opaque to external callers: they can pass pointers around,
 but they cannot depend on field order, field names, or generated dispatch
@@ -607,8 +630,8 @@ The call through `target` binds `classtype*` to `MenuButton*`, so
 `MenuItem*` would bind the same source method to `MenuItem*` instead.
 
 Use a `this` return when a method returns the receiver itself. Use `classtype`
-when a signature refers to another object that belongs to the same static class
-family.
+when a signature refers to another object that belongs to the same receiver
+class family.
 
 A registry-backed static factory can also use `classtype`, but only when the
 implementation really can create the requested class:

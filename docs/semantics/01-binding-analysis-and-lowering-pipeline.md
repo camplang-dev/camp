@@ -204,6 +204,7 @@ Declaration collection must make source names available without requiring body
 analysis. It records:
 
 - type declarations and nested member declarations;
+- static class containers and their nested static members;
 - free functions and type-scoped functions;
 - aliases and callable ascriptions;
 - enum values and inline constants;
@@ -238,6 +239,18 @@ include:
 
 - interfaces may derive only from interfaces;
 - classes/structs may implement interfaces and classes may derive from classes;
+- static classes are source member containers, not types, and may not appear in
+  type, pointer, generic-argument, construction, allocation, inheritance,
+  interface-implementation, receiver, lifecycle, `classtype`, `sizeof`, or
+  `vtableof` type positions;
+- static class declarations accept attributes and doc comments but no ordinary
+  visibility, generic, lifecycle, virtual, inheritance, or interface surface on
+  the container itself;
+- static class members must be explicitly static and may not be constructors,
+  destructors, virtual/override/abstract/sealed members, instance fields, or
+  declarations with an explicit `this` parameter;
+- every `static` method, whether declared in a static class or ordinary type,
+  is forbidden from declaring an explicit `this` parameter;
 - required interface slots must be implemented;
 - optional/default interface slots have valid initializers;
 - virtual overrides match exactly;
@@ -273,6 +286,8 @@ and generated/source distinctions consistently.
 Body analysis resolves expression and statement semantics:
 
 - locals, variables, fields, members, properties, and components;
+- static class member access through an unqualified or namespace-qualified
+  container name;
 - overload resolution and generic inference;
 - target typing and default argument insertion;
 - assignment, call, return, yield, throw, catch, and delete checks;

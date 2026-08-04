@@ -9,10 +9,11 @@ That is the first real shift from "I can read a function body" to "I can read a
 Camp program."
 
 Declarations are the named pieces of a program: functions, structs, classes,
-interfaces, enums, newtypes, aliases, variables, constants, and members inside
-types. They are also where Camp puts most of the information that matters at a
-native boundary: visibility, exported API shape, allocation and error slots,
-receiver rules, generic capabilities, and interop markers.
+interfaces, enums, newtypes, aliases, variables, constants, static classes, and
+members inside containers. They are also where Camp puts most of the
+information that matters at a native boundary: visibility, exported API shape,
+allocation and error slots, receiver rules, generic capabilities, and interop
+markers.
 
 This chapter is the map. Later chapters go deep on each feature; this one helps
 you look at a source file and understand what kind of thing each declaration is
@@ -75,6 +76,7 @@ Common top-level forms:
 | function | A callable operation. | You want named executable behavior. |
 | `struct` | A value/layout type. | Storage shape and field layout matter. |
 | `class` | An identity/lifecycle type. | Instances have identity, allocation, or virtual behavior. |
+| `static class` | A static member container. | Related helpers, constants, or properties should share a qualified name but have no instances. |
 | `interface` | A dynamic contract. | Callers need a vtable-shaped API. |
 | `enum` | A named integer choice. | A raw integer would hide meaning. |
 | `newtype` | A distinct nominal wrapper. | Existing representation needs a new meaning. |
@@ -258,6 +260,33 @@ int computeTotal(const this)
 That `const this` matters. It says the method can read through the receiver but
 cannot mutate it through that receiver view.
 
+## Static Classes
+
+A `static class` groups static members without declaring an object type:
+
+```camp
+static class ExitCodes
+{
+	static inline int OK = 0;
+	static inline int USAGE = 2;
+
+	static bool isSuccess(int code)
+	{
+		return code == ExitCodes.OK;
+	}
+}
+```
+
+Use a static class when the grouping name is useful but there is no meaningful
+instance to construct, store, inherit from, or delete. Standard-library
+`Console` is the common example: calls such as `Console.writeLine("ready")`
+are ordinary static member calls on a library container.
+
+Members inside a static class are still explicit declarations. Write `static`
+on methods, fields, and properties that belong to the container. If the
+operation really needs receiver state, use an ordinary `class` or `struct`
+instead.
+
 ## Visibility And Exported Shape
 
 Visibility modifiers are part of the declaration's contract.
@@ -385,6 +414,7 @@ the name to make.
 | Named behavior | Function or method |
 | Small record with visible layout | `struct` |
 | Object identity, allocation, or virtual behavior | `class` |
+| Qualified helper group with no instances | `static class` |
 | Dynamic contract | `interface` |
 | Named set of integer values | `enum` |
 | Strong name for an existing representation | `newtype` |

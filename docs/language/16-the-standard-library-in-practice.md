@@ -72,7 +72,7 @@ constant in `Std`, it is library code.
 
 ## Console I/O
 
-`Console` is the first library class most programs touch:
+`Console` is the first library static class most programs touch:
 
 ```camp
 export int main(string[] args)
@@ -100,8 +100,8 @@ void writeReportHeader()
 ```
 
 That `CharWriter` is a callable iterator-style value. The console is not a
-special language feature; it is a standard-library object exposing the same
-stream model other APIs can use.
+special language feature; it is a standard-library static class exposing the
+same stream model other APIs can use.
 
 ## Allocation And `within`
 

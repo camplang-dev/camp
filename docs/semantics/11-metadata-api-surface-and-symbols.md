@@ -19,6 +19,7 @@ An API header should preserve enough information for another Camp compilation
 to:
 
 - resolve exported, projected, and artifact-public declarations;
+- resolve static class containers and their visible static members;
 - bind generic parameters and constraints;
 - type-check calls, construction, interface dispatch, and `vtableof`;
 - understand callable newtypes and async source shape;
@@ -30,6 +31,23 @@ components. For example, an async function remains source-level `async` even
 though C emission uses a completion callback. An array parameter remains an
 array parameter in the API header even though ABI lowering passes pointer and
 length components.
+
+Static classes are source containers in Camp API headers. When a static class
+has API-visible members, the API header prints:
+
+```camp
+static class Name
+{
+	export extern static void member();
+}
+```
+
+The container is written as `static class Name`, with no `extern` modifier and
+no `public` or `export` visibility on the container. The container has no ABI
+identity; extern/import/export meaning belongs to the visible member
+declarations. API headers must not synthesize ordinary class constructors,
+destructors, layout, lifecycle helpers, or receiver-bearing members for a static
+class.
 
 ## Metadata View Model
 
@@ -69,6 +87,7 @@ analysis. Referenced declarations not emitted in full may appear as stubs.
 Filtering should consider:
 
 - top-level `export`, `public`, and `internal`;
+- static class containers that own visible static members;
 - export projection declarations and their selected names/members/interfaces;
 - type members with member-level visibility;
 - source declarations referenced by exported signatures;
@@ -107,6 +126,10 @@ Generated declarations include:
 Some generated declarations still have ABI symbols and appear in emitted C. That
 does not make them metadata declarations. If tooling needs ABI-level inspection,
 it should use dumps or C emission artifacts, not source metadata.
+
+Static classes are source declarations, not generated declarations. Metadata
+and API headers should emit them as containers only when the selected view needs
+the container to hold visible members or visible metadata.
 
 ## Symbol Names
 
@@ -248,6 +271,10 @@ effective type symbol as their prefix. A member-level `@symbol` overrides the
 full emitted member symbol and takes precedence over the containing type's
 default prefix.
 
+Static class containers do not have independent ABI type symbols. A static
+class member still receives an emitted symbol, normally prefixed by the source
+container name unless the member declaration supplies its own `@symbol`.
+
 `@symbol` does not affect source lookup, metadata IDs, overload resolution,
 interface conformance, callable ascription, or documentation targets. Metadata
 and Camp API output should preserve the source name and the `@symbol`
@@ -369,12 +396,12 @@ that includes it or compile with the API header/source that owns it.
 
 ## Type Object Details
 
-Type objects describe kind, generic parameters, fields, functions, interfaces,
-enum values, aliases, and attributes.
+Type and container objects describe kind, generic parameters, fields, functions,
+interfaces, enum values, aliases, and attributes.
 
 The serializer should preserve:
 
-- class/struct/interface/newtype/enum/params kind;
+- class/struct/interface/newtype/enum/params/staticClass kind;
 - generic parameters and constraints;
 - base classes/interfaces;
 - implemented interface metadata;
@@ -386,6 +413,14 @@ The serializer should preserve:
 
 Generated fields such as virtual vtable pointers or stored `vtableof` fields
 should be hidden unless the source API explicitly exposes them.
+
+Static class metadata uses `kind: "staticClass"` and IDs rooted as
+`staticClass:Name`. It may contain static fields, inline constants, properties
+through their accessor functions, and static functions. It must not contain
+base types, implemented interfaces, constructors, destructors, instance fields,
+receiver-bearing members, lifecycle metadata, or ordinary constructible type
+facts. Container-level doc comments and metadata attributes, including
+`@category`, attach to the static class container.
 
 ## Function Object Details
 

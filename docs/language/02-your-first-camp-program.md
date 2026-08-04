@@ -55,7 +55,7 @@ export int main()
 }
 ```
 
-`Console` is not syntax. It is an ordinary standard-library class with static
+`Console` is not syntax. It is an ordinary standard-library static class with
 helpers such as `write`, `writeLine`, and `newLine`. That distinction matters:
 the language gives you imports and calls; the library gives you a console API.
 

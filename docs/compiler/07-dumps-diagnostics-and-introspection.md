@@ -106,6 +106,7 @@ Use API inspection when validating:
 
 - `export` filtering;
 - generated class extern surfaces;
+- static class source containers and visible static members;
 - interface accessor exposure;
 - generated constructor/destructor API declarations;
 - omitted implementation details in exported virtual/interface surfaces.

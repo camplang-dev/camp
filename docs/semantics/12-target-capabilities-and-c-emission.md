@@ -209,6 +209,11 @@ the effective type symbol for the emitted type spelling and as the default
 prefix for generated ABI helpers and static members. C emission must not apply
 `@symbol` to aliases, parameters, generic parameters, or instance fields.
 
+Static class containers have no emitted type spelling and no independent ABI
+symbol. Their static members are emitted like type-scoped static members using
+the static class name as the default prefix, or the member's own `@symbol` when
+one is supplied.
+
 ## C Reserved Identifiers
 
 C emission must avoid reserved identifiers and collisions. Diagnostics should
@@ -264,6 +269,13 @@ Header emission should preserve:
 - forward declarations where needed;
 - export/import decorations;
 - generated helpers only where ABI requires them.
+
+Static classes do not emit C forward declarations, struct layouts,
+constructors, destructors, create/init/delete helpers, vtables, interface
+storage, or receiver parameters. Only their ABI-visible static members and
+static storage/inline constants emit C artifacts. Project Camp API headers
+preserve `static class` source containers; C headers do not need a container
+declaration because the container has no C type identity.
 
 ## Shared Library Export/Import
 

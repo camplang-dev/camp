@@ -296,6 +296,7 @@ code. Ordinary Camp users should start with the language guide.
 ## 14. Core Expression, Statement, And Access Semantics
 
 - Body-Analysis Ownership
+- Static Class Member Access
 - Property Accessor Binding
 - Property Assignment Lowering
 - Index-Aware Parameters
