@@ -7,6 +7,11 @@ public sealed partial class BindableNodeAnalyzer
 {
 	Expression? LowerExpression(Expression? expression)
 	{
+		if (expression is not null
+			&& expressionRewrites.TryGetValue(expression, out Expression? rewritten)
+			&& !ReferenceEquals(rewritten, expression))
+			return LowerExpression(rewritten);
+
 		switch (expression)
 		{
 			case null:
@@ -160,7 +165,9 @@ public sealed partial class BindableNodeAnalyzer
 					return LowerExpression(RewritePropertyGetterCall(memberReference, []));
 				if (TryCreateParamsMemberComponentExpression(memberReference, out Expression paramsComponent))
 					return LowerExpression(paramsComponent);
-				if (memberReference is { Target: not null, Member: FunctionDefinition function } && FindContainingType(function) is not InterfaceDefinition)
+				if (memberReference is { Target: not null, Member: FunctionDefinition function }
+					&& IsInstanceInvocationFunction(function)
+					&& FindContainingType(function) is not InterfaceDefinition)
 					return RewriteInstanceMethodDelegate(memberReference);
 				break;
 
@@ -417,6 +424,9 @@ public sealed partial class BindableNodeAnalyzer
 
 	bool TryRewriteDelegateInvocation(CallExpression call)
 	{
+		if (callTargets.ContainsKey(call))
+			return false;
+
 		if (!TryCreateParamsComponentExpressions(call.Target, out List<Expression> components) || components.Count != 2)
 		{
 			if (!TryCreateDelegateComponentsFromExpandedCallTarget(call.Target, out components))

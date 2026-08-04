@@ -169,6 +169,9 @@ export int main()
 	DateTime localNow = DateTime.now();
 	if (!localNow.isValid())
 		return 35;
+	char[] localNowText = toDateString(DateTime.now());
+	if (localNowText.length == 0)
+		return 49;
 	OffsetDateTime localOffsetNow = OffsetDateTime.localNow();
 	if (!localOffsetNow.isValid())
 		return 36;
@@ -177,4 +180,9 @@ export int main()
 		return 37;
 
 	return 0;
+}
+
+nuint toDateString(DateTime date, prep char[] buffer)
+{
+	return date.toString(buffer);
 }

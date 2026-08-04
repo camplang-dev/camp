@@ -1313,7 +1313,7 @@ public sealed partial class BindableNodeAnalyzer
 				return components.Count > 0;
 
 			case MemberReferenceExpression { Target: not null, Member: FunctionDefinition function } member
-				when FindContainingType(function) is not InterfaceDefinition:
+				when IsInstanceInvocationFunction(function) && FindContainingType(function) is not InterfaceDefinition:
 				components.Add(CreateFlattenedMethodReference(member, member.Target, function));
 				components.Add(CreateDelegateContextExpression(member.Target, function));
 				return true;

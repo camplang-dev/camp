@@ -3632,13 +3632,13 @@ public sealed partial class BindableNodeAnalyzer
 				if (functions.Count > 1 && TrySelectOverload(member.Name, functions, arguments ?? [], scope, typeScope, member.SourceSyntax) is FunctionDefinition selectedMember)
 				{
 					member.ResolvedType = selectedMember.ResolvedType ?? ErrorType;
-					expressionRewrites[member] = CreateMemberReference(member, member.Target, BuildFunctionValueType(selectedMember, isInstance: true, allowCallableAscription: !IsTypeReferenceExpression(member.Target)), selectedMember);
+					expressionRewrites[member] = CreateMemberReference(member, member.Target, BuildFunctionValueType(selectedMember, isInstance: !isTypeTarget, allowCallableAscription: !isTypeTarget), selectedMember);
 					return selectedMember;
 				}
 				if (functions.Count == 1)
 				{
 					member.ResolvedType = functions[0].ResolvedType ?? ErrorType;
-					expressionRewrites[member] = CreateMemberReference(member, member.Target, BuildFunctionValueType(functions[0], isInstance: true, allowCallableAscription: !IsTypeReferenceExpression(member.Target)), functions[0]);
+					expressionRewrites[member] = CreateMemberReference(member, member.Target, BuildFunctionValueType(functions[0], isInstance: !isTypeTarget, allowCallableAscription: !isTypeTarget), functions[0]);
 					return functions[0];
 				}
 				if (functions.Count > 1)
