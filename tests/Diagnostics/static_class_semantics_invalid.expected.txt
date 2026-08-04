@@ -1,0 +1,14 @@
+tests/Diagnostics/static_class_semantics_invalid.camp(18,22): error: Static class 'Console' is not a type and cannot be used in a type position.
+tests/Diagnostics/static_class_semantics_invalid.camp(4,6): error: Static class field 'Console.instanceField' must be declared static.
+tests/Diagnostics/static_class_semantics_invalid.camp(10,7): error: Static class method 'Console.instanceMethod' must be declared static.
+tests/Diagnostics/static_class_semantics_invalid.camp(14,2): error: Static class 'Console' may not declare constructors or destructors.
+tests/Diagnostics/static_class_semantics_invalid.camp(18,14): error: Static class method 'Console.badThis' may not declare a 'this' parameter.
+tests/Diagnostics/static_class_semantics_invalid.camp(23,1): error: Static class 'Console' is not a type and cannot be used in a type position.
+tests/Diagnostics/static_class_semantics_invalid.camp(24,1): error: Static class 'Console' is not a type and cannot be used in a type position.
+tests/Diagnostics/static_class_semantics_invalid.camp(25,9): error: Static class 'Console' is not a type and cannot be used in a type position.
+tests/Diagnostics/static_class_semantics_invalid.camp(29,2): error: Static class 'Console' is not a type and cannot be used in a type position.
+tests/Diagnostics/static_class_semantics_invalid.camp(32,16): error: Static class 'Console' is not a type and cannot be used in a type position.
+tests/Diagnostics/static_class_semantics_invalid.camp(36,21): error: Static class 'Console' is not a type and cannot be used in a type position.
+tests/Diagnostics/static_class_semantics_invalid.camp(40,1): error: Static class 'Console' is not a type and cannot be used in a type position.
+tests/Diagnostics/static_class_semantics_invalid.camp(45,23): error: Static class 'Console' is not a type and cannot be used in a type position.
+tests/Diagnostics/static_class_semantics_invalid.camp(51,14): error: Static method 'staticBad' may not declare a 'this' parameter.

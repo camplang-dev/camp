@@ -1,19 +1,19 @@
 <?xml version="1.0" encoding="utf-16"?>
 <Module Namespace="StaticClassSurface" ResolvedType="#MODULE">
   <Definitions>
-    <StaticClassDefinition Name="Console" Symbol="Console" Namespace="StaticClassSurface" ResolvedType="#UNRESOLVED">
+    <StaticClassDefinition Name="Console" Symbol="Console" Namespace="StaticClassSurface" ResolvedType="Console">
       <Fields>
-        <FieldDefinition Modifier="Static" Name="writes" Symbol="writes" Namespace="StaticClassSurface" Internal="" ResolvedType="#UNRESOLVED">
-          <Type Type="Int" ResolvedType="#UNRESOLVED" />
+        <FieldDefinition Modifier="Static" Name="writes" Symbol="writes" Namespace="StaticClassSurface" Internal="" ResolvedType="int">
+          <Type Type="Int" ResolvedType="int" />
         </FieldDefinition>
-        <FieldDefinition Modifier="Static" IsInline="True" Name="DEFAULT_WIDTH" Symbol="DEFAULT_WIDTH" Namespace="StaticClassSurface" Public="" ResolvedType="#UNRESOLVED">
-          <Type Type="Int" ResolvedType="#UNRESOLVED" />
-          <InitialValue Type="LiteralExpression" Kind="Number" Text="80" Value="80" ResolvedType="#UNRESOLVED" />
+        <FieldDefinition Modifier="Static" IsInline="True" Name="DEFAULT_WIDTH" Symbol="DEFAULT_WIDTH" Namespace="StaticClassSurface" Public="" ResolvedType="int">
+          <Type Type="Int" ResolvedType="int" />
+          <InitialValue Type="LiteralExpression" Kind="Number" Text="80" Value="80" ResolvedType="int" />
         </FieldDefinition>
       </Fields>
       <Functions>
-        <FunctionDefinition Modifier="Static" Name="getReader" Symbol="getReader" Namespace="StaticClassSurface" Public="" ResolvedType="#UNRESOLVED">
-          <ReturnType Type="Int" ResolvedType="#UNRESOLVED" />
+        <FunctionDefinition Modifier="Static" InvokerName="getReader" Name="getReader" Symbol="getReader" Namespace="StaticClassSurface" Public="" ResolvedType="int">
+          <ReturnType Type="Int" ResolvedType="int" />
           <Body Type="BlockStatement" ResolvedType="#UNRESOLVED">
             <Statements>
               <ReturnStatement ResolvedType="#UNRESOLVED">
@@ -22,8 +22,8 @@
             </Statements>
           </Body>
         </FunctionDefinition>
-        <FunctionDefinition Modifier="Static" Name="getWriter" Symbol="getWriter" Namespace="StaticClassSurface" Public="" ResolvedType="#UNRESOLVED">
-          <ReturnType Type="Int" ResolvedType="#UNRESOLVED" />
+        <FunctionDefinition Modifier="Static" InvokerName="getWriter" Name="getWriter" Symbol="getWriter" Namespace="StaticClassSurface" Public="" ResolvedType="int">
+          <ReturnType Type="Int" ResolvedType="int" />
           <Body Type="BlockStatement" ResolvedType="#UNRESOLVED">
             <Statements>
               <ReturnStatement ResolvedType="#UNRESOLVED">
@@ -32,13 +32,13 @@
             </Statements>
           </Body>
         </FunctionDefinition>
-        <FunctionDefinition Modifier="Static" Name="writeLine" Symbol="writeLine" Namespace="StaticClassSurface" Public="" ResolvedType="#UNRESOLVED">
-          <ReturnType Type="Void" ResolvedType="#UNRESOLVED" />
+        <FunctionDefinition Modifier="Static" InvokerName="writeLine" FullCallableName="writeLineCharArray" Name="writeLine" Symbol="writeLineCharArray" Namespace="StaticClassSurface" Public="" ResolvedType="void">
+          <ReturnType Type="Void" ResolvedType="void" />
           <Parameters>
-            <ParameterDefinition IsOverloadSelector="True" Name="text" Symbol="text" Namespace="StaticClassSurface" ResolvedType="#UNRESOLVED">
-              <Type Type="ArrayTypeReference" ResolvedType="#UNRESOLVED">
-                <ElementType Type="ConstTypeReference" ResolvedType="#UNRESOLVED">
-                  <Type Type="Char" ResolvedType="#UNRESOLVED" />
+            <ParameterDefinition IsOverloadSelector="True" LifetimeBinding="scoped:default parameter" Name="text" Symbol="text" Namespace="StaticClassSurface" ResolvedType="const char[]">
+              <Type Type="ArrayTypeReference" ResolvedType="const char[]">
+                <ElementType Type="ConstTypeReference" ResolvedType="const char">
+                  <Type Type="Char" ResolvedType="char" />
                 </ElementType>
               </Type>
             </ParameterDefinition>

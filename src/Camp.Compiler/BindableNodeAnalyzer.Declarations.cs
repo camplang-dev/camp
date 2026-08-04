@@ -29,6 +29,7 @@ public sealed partial class BindableNodeAnalyzer
 		currentModule = module;
 		module.ResolvedType = ModuleType;
 		CollectTypeNames(module);
+		CollectStaticClassNames(module);
 		CollectAliasNames(module);
 		ResolveAliases();
 		AnalyzeNewtypeSignatures(module);
@@ -80,6 +81,34 @@ public sealed partial class BindableNodeAnalyzer
 		}
 	}
 
+	void CollectStaticClassNames(Module module)
+	{
+		foreach (Definition definition in ActiveDefinitions(module))
+		{
+			if (definition is not StaticClassDefinition staticClassDefinition)
+				continue;
+
+			CheckName(staticClassDefinition.Name, GetNameRange(staticClassDefinition), "static class");
+
+			if (string.IsNullOrWhiteSpace(staticClassDefinition.Name))
+				continue;
+
+			if (typeDefinitions.ContainsKey(staticClassDefinition.Name))
+			{
+				Report(GetNameRange(staticClassDefinition), $"Static class name '{staticClassDefinition.Name}' conflicts with a type name.");
+				continue;
+			}
+
+			if (staticClassDefinitions.TryGetValue(staticClassDefinition.Name, out StaticClassDefinition? existing))
+			{
+				if (!ReferenceEquals(existing, staticClassDefinition))
+					Report(GetNameRange(staticClassDefinition), $"Duplicate static class name '{staticClassDefinition.Name}'.");
+			}
+			else if (!staticClassDefinitions.TryAdd(staticClassDefinition.Name, staticClassDefinition))
+				Report(GetNameRange(staticClassDefinition), $"Duplicate static class name '{staticClassDefinition.Name}'.");
+		}
+	}
+
 	void AnalyzeNewtypeSignatures(Module module)
 	{
 		AnalysisScope scope = new();
@@ -98,6 +127,10 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			case ClassDefinition classDefinition:
 				AnalyzeClassDefinition(classDefinition, parentScope);
+				break;
+
+			case StaticClassDefinition staticClassDefinition:
+				AnalyzeStaticClassDefinition(staticClassDefinition, parentScope);
 				break;
 
 			case StructDefinition structDefinition:
@@ -323,6 +356,50 @@ public sealed partial class BindableNodeAnalyzer
 			GenerateVTableOfFields(definition);
 			ValidateExpandedFieldNames(definition.Fields);
 			ValidateFlexibleArrayMembers(definition.Fields, allowFlexibleArrayMember: false);
+		}
+	}
+
+	void AnalyzeStaticClassDefinition(StaticClassDefinition definition, AnalysisScope parentScope)
+	{
+		ApplySymbolAttribute(definition, allowed: true, "static class");
+		definition.ResolvedType = definition.Name;
+		AnalysisScope scope = new(parentScope) { IsStaticMemberScope = true };
+
+		foreach (FieldDefinition field in definition.Fields)
+			AnalyzeFieldDefinition(field, scope, containingType: null);
+
+		foreach (FunctionDefinition function in definition.Functions)
+			AnalyzeFunctionDefinition(function, scope, containingType: null, suppressStaticThisDiagnostic: true);
+		ValidateStaticClassMembers(definition);
+		ValidateDuplicateMethodNames(definition.Functions);
+		ValidateExpandedFieldNames(definition.Fields);
+		ValidateFlexibleArrayMembers(definition.Fields, allowFlexibleArrayMember: false);
+	}
+
+	void ValidateStaticClassMembers(StaticClassDefinition definition)
+	{
+		foreach (FieldDefinition field in definition.Fields)
+		{
+			if (field.Modifier != FieldModifier.Static)
+				Report(GetNameRange(field), $"Static class field '{definition.Name}.{field.Name}' must be declared static.");
+		}
+
+		foreach (FunctionDefinition function in definition.Functions)
+		{
+			if (function.Modifier is FunctionModifier.Constructor or FunctionModifier.Destructor || IsDestructorFunction(function))
+			{
+				Report(GetNameRange(function), $"Static class '{definition.Name}' may not declare constructors or destructors.");
+				continue;
+			}
+
+			if (function.Modifier != FunctionModifier.Static)
+				Report(GetNameRange(function), $"Static class method '{definition.Name}.{function.Name}' must be declared static.");
+
+			if (GetExplicitThisParameter(function) is not null)
+				Report(GetNameRange(function), $"Static class method '{definition.Name}.{function.Name}' may not declare a 'this' parameter.");
+
+			if (function.Modifier is FunctionModifier.Virtual or FunctionModifier.Abstract or FunctionModifier.Override or FunctionModifier.Sealed)
+				Report(GetNameRange(function), "Static class methods may not be virtual, abstract, override, or sealed.");
 		}
 	}
 
@@ -979,7 +1056,7 @@ public sealed partial class BindableNodeAnalyzer
 		}
 	}
 
-	void AnalyzeFunctionDefinition(FunctionDefinition definition, AnalysisScope parentScope, string? containingType)
+	void AnalyzeFunctionDefinition(FunctionDefinition definition, AnalysisScope parentScope, string? containingType, bool suppressStaticThisDiagnostic = false)
 	{
 		AnalyzeAttributes(definition.Attributes);
 		ValidateUnsupportedFunctionAttribute(definition);
@@ -1031,6 +1108,7 @@ public sealed partial class BindableNodeAnalyzer
 		ValidatePrepParameters(definition);
 		ValidateIndexAwareParameters(definition);
 		ValidateCallableAscription(definition, containingType);
+		ValidateStaticFunctionHasNoExplicitThis(definition, suppressStaticThisDiagnostic);
 		BindFunctionReceiverLifetime(definition, containingType);
 
 		ValidateExpandedParameterNames(definition.Parameters);
@@ -1049,6 +1127,12 @@ public sealed partial class BindableNodeAnalyzer
 			definition.Symbol = BuildExtensionFunctionSymbol(GetCallableName(definition), thisParameter.ResolvedType ?? ErrorType, definition);
 		else if (containingType is null && !definition.SymbolOverridden && HasOverloadSelector(definition))
 			definition.Symbol = GetCallableName(definition);
+	}
+
+	void ValidateStaticFunctionHasNoExplicitThis(FunctionDefinition definition, bool suppressDiagnostic)
+	{
+		if (!suppressDiagnostic && definition.Modifier == FunctionModifier.Static && GetExplicitThisParameter(definition) is not null)
+			Report(GetNameRange(definition), $"Static method '{definition.Name}' may not declare a 'this' parameter.");
 	}
 
 	void AnalyzeOutOfScopeMemberOwner(Definition definition)
@@ -1811,6 +1895,10 @@ public sealed partial class BindableNodeAnalyzer
 				AnalyzeTypeMethodBodies(classDefinition, classDefinition.Functions, parentScope);
 				break;
 
+			case StaticClassDefinition staticClassDefinition:
+				AnalyzeStaticClassMethodBodies(staticClassDefinition, parentScope);
+				break;
+
 			case StructDefinition structDefinition:
 				AnalyzeTypeMethodBodies(structDefinition, structDefinition.Functions, parentScope);
 				break;
@@ -1842,6 +1930,13 @@ public sealed partial class BindableNodeAnalyzer
 		AnalysisScope scope = CreateTypeScope(definition, parentScope);
 		foreach (FunctionDefinition function in functions)
 			AnalyzeFunctionMethodBody(function, FunctionUsesStaticMemberScope(function) ? CreateStaticMemberScope(definition, parentScope) : scope, definition);
+	}
+
+	void AnalyzeStaticClassMethodBodies(StaticClassDefinition definition, AnalysisScope parentScope)
+	{
+		AnalysisScope scope = new(parentScope) { IsStaticMemberScope = true };
+		foreach (FunctionDefinition function in definition.Functions)
+			AnalyzeFunctionMethodBody(function, scope, containingType: null);
 	}
 
 	void AnalyzeFunctionMethodBody(FunctionDefinition definition, AnalysisScope parentScope, TypeDefinition? containingType)

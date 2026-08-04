@@ -1,0 +1,2 @@
+tests/Diagnostics/static_class_construction_invalid.camp(10,6): error: Static class 'Console' is not a type and cannot be used in a type position.
+tests/Diagnostics/static_class_construction_invalid.camp(11,7): error: Static class 'Console' is not a type and cannot be used in a type position.

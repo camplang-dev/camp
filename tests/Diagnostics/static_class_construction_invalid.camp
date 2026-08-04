@@ -1,0 +1,13 @@
+static class Console
+{
+	static void write()
+	{
+	}
+}
+
+export int main()
+{
+	new Console();
+	init Console();
+	return 0;
+}

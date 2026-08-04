@@ -1,0 +1,60 @@
+static class Console
+{
+	static int ok;
+	int instanceField;
+
+	static void good()
+	{
+	}
+
+	void instanceMethod()
+	{
+	}
+
+	Console()
+	{
+	}
+
+	static void badThis(Console this)
+	{
+	}
+}
+
+Console variable;
+Console* pointer;
+fn void(Console) callback;
+
+struct Holder
+{
+	Console field;
+}
+
+class Derived: Console
+{
+}
+
+interface IConsole: Console
+{
+}
+
+Console returnsStaticClass()
+{
+	return default;
+}
+
+void takesStaticClass(Console value)
+{
+}
+
+class Utility
+{
+	static void staticBad(this)
+	{
+	}
+}
+
+void useStaticClass()
+{
+	new Console();
+	init Console();
+}

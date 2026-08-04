@@ -69,6 +69,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	readonly List<AnalysisDiagnostic> diagnostics = [];
 	readonly Dictionary<string, TypeDefinition> typeDefinitions = new(StringComparer.Ordinal);
+	readonly Dictionary<string, StaticClassDefinition> staticClassDefinitions = new(StringComparer.Ordinal);
 	readonly GeneratedDeclarationFactory generatedDeclarations = new();
 	readonly Dictionary<string, AliasDefinition> aliasDefinitions = new(StringComparer.Ordinal);
 	readonly Dictionary<TypeDefinition, TypeAnalysisInfo> typeInfos = [];
@@ -129,6 +130,26 @@ public sealed partial class BindableNodeAnalyzer
 			return typeDefinitions.TryGetValue(named.Name, out definition);
 
 		foreach (TypeDefinition candidate in typeDefinitions.Values)
+		{
+			if (candidate.Name != named.Name)
+				continue;
+			if (IsImportedQualifiedName(candidate, named.Qualifiers, named.SourceSyntax))
+			{
+				definition = candidate;
+				return true;
+			}
+		}
+
+		definition = null;
+		return false;
+	}
+
+	bool TryGetStaticClassDefinition(NamedTypeReference named, out StaticClassDefinition? definition)
+	{
+		if (named.Qualifiers.Count == 0)
+			return staticClassDefinitions.TryGetValue(named.Name, out definition);
+
+		foreach (StaticClassDefinition candidate in staticClassDefinitions.Values)
 		{
 			if (candidate.Name != named.Name)
 				continue;
