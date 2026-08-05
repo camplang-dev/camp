@@ -391,7 +391,7 @@ public sealed partial class BindableNodeAnalyzer
 	bool TryResolveExportProjectionTarget(ExportProjectionDefinition projection, out Definition? target)
 	{
 		string name = projection.TargetName;
-		foreach (TypeDefinition type in typeDefinitions.Values)
+		foreach (TypeDefinition type in allTypeDefinitions)
 		{
 			if (type.Name == name && IsImportedProjectionTarget(type, projection))
 			{

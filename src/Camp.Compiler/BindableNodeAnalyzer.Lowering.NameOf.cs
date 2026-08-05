@@ -237,7 +237,7 @@ public sealed partial class BindableNodeAnalyzer
 				return true;
 			}
 		}
-		foreach (TypeDefinition candidate in typeDefinitions.Values)
+		foreach (TypeDefinition candidate in allTypeDefinitions)
 		{
 			if (candidate.Name == name && IsImportedQualifiedName(candidate, qualifiers, syntax))
 			{

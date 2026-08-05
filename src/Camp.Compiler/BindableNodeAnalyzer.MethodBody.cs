@@ -1659,7 +1659,7 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (named.Qualifiers.Count == 0)
 			return typeDefinitions.TryGetValue(named.Name, out typeDefinition);
-		foreach (TypeDefinition candidate in typeDefinitions.Values)
+		foreach (TypeDefinition candidate in allTypeDefinitions)
 		{
 			if (candidate.Name != named.Name)
 				continue;
