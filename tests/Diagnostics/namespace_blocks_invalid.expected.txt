@@ -1,0 +1,4 @@
+tests/Diagnostics/namespace_blocks_invalid.camp(5,2): error: Using declarations are not allowed inside namespace blocks.
+tests/Diagnostics/namespace_blocks_invalid.camp(6,2): error: File metadata attributes are not allowed inside namespace blocks.
+tests/Diagnostics/namespace_blocks_invalid.camp(7,2): error: Namespace blocks may not be nested.
+tests/Diagnostics/namespace_blocks_invalid.camp(14,2): error: Namespace statements are not allowed inside namespace blocks.

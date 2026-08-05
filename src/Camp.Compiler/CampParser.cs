@@ -19,6 +19,7 @@ public sealed class CampParser
 	readonly List<ParseDiagnostic> diagnostics = [];
 	int index;
 	bool seenNonPreludeCompilationUnitItem;
+	int namespaceBlockDepth;
 
 	public CampParser(TokenSequence tokens)
 	{
@@ -58,6 +59,13 @@ public sealed class CampParser
 
 	CompilationUnitItemSyntax? ParseCompilationUnitItem()
 	{
+		NamespaceBlockSyntax? namespaceBlock = TryParseNamespaceBlock();
+		if (namespaceBlock is not null)
+		{
+			seenNonPreludeCompilationUnitItem = true;
+			return new CompilationUnitItemSyntax { NamespaceBlock = namespaceBlock };
+		}
+
 		ImportExportDeclarationSyntax? importExport = ParseImportExportDeclaration();
 		if (importExport is not null)
 			return new CompilationUnitItemSyntax { ImportExportDeclaration = importExport };
@@ -167,6 +175,92 @@ public sealed class CampParser
 			QualifiedNamespace = ParseQualifiedNamespace(),
 			SemicolonToken = Expect(";")
 		};
+	}
+
+	NamespaceBlockSyntax? TryParseNamespaceBlock()
+	{
+		int start = index;
+		int diagnosticStart = diagnostics.Count;
+		if (!Is("namespace"))
+			return null;
+
+		Token? keyword = Expect("namespace");
+		QualifiedNamespaceSyntax? namespaceName = ParseQualifiedNamespace();
+		if (!Is("{"))
+		{
+			index = start;
+			diagnostics.RemoveRange(diagnosticStart, diagnostics.Count - diagnosticStart);
+			return null;
+		}
+
+		NamespaceBlockSyntax syntax = new()
+		{
+			Keyword = keyword,
+			QualifiedNamespace = namespaceName,
+			OpenBraceToken = Expect("{"),
+			Items = []
+		};
+
+		if (namespaceBlockDepth > 0)
+			Report(keyword, "Namespace blocks may not be nested.");
+
+		namespaceBlockDepth++;
+		while (!AtEnd && !Is("}"))
+		{
+			int itemStart = index;
+			CompilationUnitItemSyntax? item = ParseNamespaceBlockItem();
+			if (item is not null)
+				syntax.Items.Add(item);
+			else
+				ReportAndAdvance("Expected declaration or export projection in namespace block.");
+
+			if (index == itemStart)
+				ReportAndAdvance("Parser did not consume a token.");
+		}
+		namespaceBlockDepth--;
+
+		syntax.CloseBraceToken = Expect("}");
+		return syntax;
+	}
+
+	CompilationUnitItemSyntax? ParseNamespaceBlockItem()
+	{
+		if (TryParseNamespaceBlock() is NamespaceBlockSyntax namespaceBlock)
+			return new CompilationUnitItemSyntax { NamespaceBlock = namespaceBlock };
+
+		if (Is("using"))
+		{
+			UsingImportExportDeclarationSyntax usingDeclaration = ParseUsingImportExportDeclaration();
+			Report(usingDeclaration.Keyword, "Using declarations are not allowed inside namespace blocks.");
+			return new CompilationUnitItemSyntax { ImportExportDeclaration = usingDeclaration };
+		}
+
+		if (Is("namespace"))
+		{
+			ExportImportExportDeclarationSyntax namespaceDeclaration = ParseNamespaceDeclaration();
+			Report(namespaceDeclaration.Keyword, "Namespace statements are not allowed inside namespace blocks.");
+			return new CompilationUnitItemSyntax { ImportExportDeclaration = namespaceDeclaration };
+		}
+
+		FileMetadataAttributeSyntax? fileMetadataAttribute = TryParseFileMetadataAttribute();
+		if (fileMetadataAttribute is not null)
+		{
+			Report(fileMetadataAttribute.Attribute?.AttributeIdentifier, "File metadata attributes are not allowed inside namespace blocks.");
+			return new CompilationUnitItemSyntax { FileMetadataAttribute = fileMetadataAttribute };
+		}
+
+		if (Is("export") && TryParseExportProjectionDeclaration() is ExportProjectionDeclarationSyntax projection)
+			return new CompilationUnitItemSyntax { ImportExportDeclaration = projection };
+
+		AliasDeclarationSyntax? aliasDeclaration = ParseAliasDeclaration();
+		if (aliasDeclaration is not null)
+			return new CompilationUnitItemSyntax { AliasDeclaration = aliasDeclaration };
+
+		DeclarationSyntax? declaration = ParseDeclaration();
+		if (declaration is not null)
+			return new CompilationUnitItemSyntax { Declaration = declaration };
+
+		return null;
 	}
 
 	ExportProjectionDeclarationSyntax? TryParseExportProjectionDeclaration()

@@ -15,6 +15,7 @@ public class CompilationUnitItemSyntax : SyntaxNode
 {
 	public ImportExportDeclarationSyntax? ImportExportDeclaration { get; set; }
 	public FileMetadataAttributeSyntax? FileMetadataAttribute { get; set; }
+	public NamespaceBlockSyntax? NamespaceBlock { get; set; }
 	public AliasDeclarationSyntax? AliasDeclaration { get; set; }
 	public DeclarationSyntax? Declaration { get; set; }
 }
@@ -23,6 +24,15 @@ public class FileMetadataAttributeSyntax : SyntaxNode
 {
 	public AttributeSyntax? Attribute { get; set; }
 	public Token? SemicolonToken { get; set; }
+}
+
+public class NamespaceBlockSyntax : SyntaxNode
+{
+	public Token? Keyword { get; set; }
+	public QualifiedNamespaceSyntax? QualifiedNamespace { get; set; }
+	public Token? OpenBraceToken { get; set; }
+	public List<CompilationUnitItemSyntax>? Items { get; set; }
+	public Token? CloseBraceToken { get; set; }
 }
 
 public abstract class ImportExportDeclarationSyntax : SyntaxNode

@@ -236,7 +236,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	string? GetDefinitionNamespace(Definition definition)
 	{
-		if (!string.IsNullOrWhiteSpace(definition.Namespace))
+		if (definition.NamespaceAssigned)
 			return definition.Namespace;
 		if (currentModule is null)
 			return null;

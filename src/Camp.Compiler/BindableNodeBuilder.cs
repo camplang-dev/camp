@@ -52,16 +52,15 @@ public sealed partial class BindableNodeBuilder
 				BuildImportExportDeclaration(module, item.ImportExportDeclaration);
 			else if (item.FileMetadataAttribute?.Attribute is not null)
 				fileMetadataAttributes.Add(BuildAttribute(item.FileMetadataAttribute.Attribute));
+			else if (item.NamespaceBlock is not null)
+				BuildNamespaceBlock(module, item.NamespaceBlock);
 			else if (item.AliasDeclaration is not null)
-				AddAliasDeclaration(module, item.AliasDeclaration);
+				AddAliasDeclaration(module, item.AliasDeclaration, module.Namespace);
 			else if (item.Declaration is not null)
-				AddGlobalDeclaration(module, item.Declaration);
+				AddGlobalDeclaration(module, item.Declaration, module.Namespace);
 			else
 				Report(item, "Compilation unit item does not contain a declaration.");
 		}
-
-		foreach (Definition definition in module.Definitions)
-			AssignNamespace(definition, module.Namespace);
 
 		return module;
 	}
@@ -69,6 +68,7 @@ public sealed partial class BindableNodeBuilder
 	static void AssignNamespace(Definition definition, string? namespaceName)
 	{
 		definition.Namespace = namespaceName;
+		definition.NamespaceAssigned = true;
 		switch (definition)
 		{
 			case ClassDefinition classDefinition:
@@ -137,18 +137,57 @@ public sealed partial class BindableNodeBuilder
 				if (exportSyntax.QualifiedNamespace is null)
 					Report(exportSyntax, "Namespace declaration is missing a namespace.");
 				else
-					module.Namespace = BuildQualifiedName(exportSyntax.QualifiedNamespace);
+					module.Namespace = NormalizeNamespaceName(BuildQualifiedName(exportSyntax.QualifiedNamespace));
 				if (exportSyntax.AsKeyword is not null)
 					Report(exportSyntax, $"Use 'namespace {module.Namespace};' instead of 'export as {module.Namespace};'.");
 				break;
 
 			case ExportProjectionDeclarationSyntax projectionSyntax:
-				module.ExportProjections.Add(BuildExportProjection(projectionSyntax));
+			{
+				ExportProjectionDefinition projection = BuildExportProjection(projectionSyntax);
+				projection.Namespace = module.Namespace;
+				projection.NamespaceAssigned = true;
+				module.ExportProjections.Add(projection);
 				break;
+			}
 
 			default:
 				Report(syntax, "Unsupported import or export declaration.");
 				break;
+		}
+	}
+
+	void BuildNamespaceBlock(Module module, NamespaceBlockSyntax syntax)
+	{
+		string? namespaceName = null;
+		if (syntax.QualifiedNamespace is null)
+			Report(syntax, "Namespace block is missing a namespace.");
+		else
+			namespaceName = NormalizeNamespaceName(BuildQualifiedName(syntax.QualifiedNamespace));
+
+		foreach (CompilationUnitItemSyntax item in syntax.Items ?? [])
+		{
+			if (item.Declaration is not null)
+				AddGlobalDeclaration(module, item.Declaration, namespaceName);
+			else if (item.AliasDeclaration is not null)
+				AddAliasDeclaration(module, item.AliasDeclaration, namespaceName);
+			else if (item.ImportExportDeclaration is ExportProjectionDeclarationSyntax projection)
+			{
+				ExportProjectionDefinition exportProjection = BuildExportProjection(projection);
+				exportProjection.Namespace = namespaceName;
+				exportProjection.NamespaceAssigned = true;
+				module.ExportProjections.Add(exportProjection);
+			}
+			else if (item.NamespaceBlock is not null)
+				Report(item.NamespaceBlock, "Namespace blocks may not be nested.");
+			else if (item.ImportExportDeclaration is UsingImportExportDeclarationSyntax)
+				Report(item.ImportExportDeclaration, "Using declarations are not allowed inside namespace blocks.");
+			else if (item.ImportExportDeclaration is ExportImportExportDeclarationSyntax)
+				Report(item.ImportExportDeclaration, "Namespace statements are not allowed inside namespace blocks.");
+			else if (item.FileMetadataAttribute is not null)
+				Report(item.FileMetadataAttribute, "File metadata attributes are not allowed inside namespace blocks.");
+			else
+				Report(item, "Namespace block item does not contain a declaration.");
 		}
 	}
 
@@ -211,14 +250,16 @@ public sealed partial class BindableNodeBuilder
 		return declaration;
 	}
 
-	void AddAliasDeclaration(Module module, AliasDeclarationSyntax syntax)
+	void AddAliasDeclaration(Module module, AliasDeclarationSyntax syntax, string? namespaceName = null)
 	{
 		AliasDefinition definition = new()
 		{
 			SourceSyntax = syntax,
 			Name = syntax.Identifier?.Value ?? "",
 			Symbol = syntax.Identifier?.Value ?? "",
-			TargetName = syntax.TargetName?.Identifier?.Value ?? ""
+			TargetName = syntax.TargetName?.Identifier?.Value ?? "",
+			Namespace = namespaceName,
+			NamespaceAssigned = true
 		};
 		ApplyDefinitionAttributes(definition, syntax.Attributes);
 
@@ -255,12 +296,15 @@ public sealed partial class BindableNodeBuilder
 		module.Definitions.Add(definition);
 	}
 
-	void AddGlobalDeclaration(Module module, DeclarationSyntax syntax)
+	void AddGlobalDeclaration(Module module, DeclarationSyntax syntax, string? namespaceName)
 	{
 		if (syntax.TypeDeclaration is not null)
 		{
 			if (BuildTypeDefinition(syntax.TypeDeclaration) is Definition definition)
+			{
+				AssignNamespace(definition, namespaceName);
 				module.Definitions.Add(definition);
+			}
 		}
 		else if (syntax.MemberDeclaration is not null)
 		{
@@ -268,10 +312,14 @@ public sealed partial class BindableNodeBuilder
 			{
 				bool outOfScopeMember = syntax.MemberDeclaration.OutOfScopeOwnerType is not null;
 				if (BuildFunctionDefinition(syntax.MemberDeclaration, isGlobal: !outOfScopeMember, allowVirtual: false) is FunctionDefinition function)
+				{
+					AssignNamespace(function, namespaceName);
 					module.Definitions.Add(function);
+				}
 			}
 			else if (BuildVariableDefinition(syntax.MemberDeclaration, isGlobal: true) is VariableDefinition variable)
 			{
+				AssignNamespace(variable, namespaceName);
 				module.Definitions.Add(variable);
 			}
 		}
@@ -2149,6 +2197,17 @@ public sealed partial class BindableNodeBuilder
 		return string.Join("::", parts);
 	}
 
+	static string? NormalizeNamespaceName(string? namespaceName)
+	{
+		if (string.IsNullOrWhiteSpace(namespaceName))
+			return null;
+		if (string.Equals(namespaceName, "global", StringComparison.Ordinal))
+			return null;
+		if (namespaceName.StartsWith("global::", StringComparison.Ordinal))
+			return namespaceName["global::".Length..];
+		return namespaceName;
+	}
+
 	string GetRequiredIdentifier(Token? token, SyntaxNode syntax, string message)
 	{
 		if (token is null)
@@ -2183,8 +2242,9 @@ public sealed partial class BindableNodeBuilder
 		return syntax switch
 		{
 			CompilationUnitSyntax compilationUnit => compilationUnit.Items is [CompilationUnitItemSyntax first, ..] ? GetRange(first) : null,
-			CompilationUnitItemSyntax item => GetRangeOrNull(item.ImportExportDeclaration) ?? GetRangeOrNull(item.FileMetadataAttribute) ?? GetRangeOrNull(item.AliasDeclaration) ?? GetRangeOrNull(item.Declaration),
+			CompilationUnitItemSyntax item => GetRangeOrNull(item.ImportExportDeclaration) ?? GetRangeOrNull(item.FileMetadataAttribute) ?? GetRangeOrNull(item.NamespaceBlock) ?? GetRangeOrNull(item.AliasDeclaration) ?? GetRangeOrNull(item.Declaration),
 			FileMetadataAttributeSyntax attribute => GetRangeOrNull(attribute.Attribute),
+			NamespaceBlockSyntax namespaceBlock => namespaceBlock.Keyword?.Range,
 			AliasDeclarationSyntax alias => alias.Identifier?.Range ?? alias.AliasKeyword?.Range,
 			ImportExportDeclarationSyntax declaration => declaration.Keyword?.Range,
 			QualifiedNamespaceSyntax qualifiedNamespace => qualifiedNamespace.Identifier?.Range,

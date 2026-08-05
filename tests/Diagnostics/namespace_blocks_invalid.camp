@@ -1,0 +1,15 @@
+namespace Outer;
+
+namespace Inner
+{
+	using Std;
+	@category("Bad");
+	namespace Nested
+	{
+		export int nested()
+		{
+			return 1;
+		}
+	}
+	namespace Other;
+}

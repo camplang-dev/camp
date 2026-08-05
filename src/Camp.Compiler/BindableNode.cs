@@ -48,6 +48,7 @@ public abstract class Definition : BindableNode
 	public string DefaultSymbol { get; set; } = "";
 	public string Symbol { get; set; } = "";
 	public string? Namespace { get; set; }
+	internal bool NamespaceAssigned { get; set; }
 	public bool SymbolOverridden { get; set; }
 	public string? Export { get; set; }
 	public string? Public { get; set; }
@@ -65,6 +66,8 @@ public class ExportProjectionDefinition : BindableNode
 	public List<string> TargetQualifiers { get; } = [];
 	public string TargetName { get; set; } = "";
 	public string? Alias { get; set; }
+	internal string? Namespace { get; set; }
+	internal bool NamespaceAssigned { get; set; }
 	public bool HasMemberBlock { get; set; }
 	public Definition? Target { get; set; }
 	public Definition? ExportedDefinition { get; set; }

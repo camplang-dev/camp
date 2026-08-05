@@ -83,8 +83,9 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			null => null,
 			CompilationUnitSyntax compilationUnit => compilationUnit.Items is [CompilationUnitItemSyntax first, ..] ? GetRange(first) : null,
-			CompilationUnitItemSyntax item => GetRange(item.ImportExportDeclaration) ?? GetRange(item.FileMetadataAttribute) ?? GetRange(item.AliasDeclaration) ?? GetRange(item.Declaration),
+			CompilationUnitItemSyntax item => GetRange(item.ImportExportDeclaration) ?? GetRange(item.FileMetadataAttribute) ?? GetRange(item.NamespaceBlock) ?? GetRange(item.AliasDeclaration) ?? GetRange(item.Declaration),
 			FileMetadataAttributeSyntax attribute => GetRange(attribute.Attribute),
+			NamespaceBlockSyntax namespaceBlock => namespaceBlock.Keyword?.Range,
 			ImportExportDeclarationSyntax declaration => declaration.Keyword?.Range,
 			ExportProjectionMemberSyntax member => member.Identifier?.Range ?? member.TildeToken?.Range,
 			ExportProjectionMemberBlockSyntax block => block.OpenBraceToken?.Range,

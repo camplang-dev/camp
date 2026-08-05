@@ -799,6 +799,7 @@ public sealed partial class BindableNodeAnalyzer
 	void ApplyProjectedDefinitionSymbols(Definition definition, ExportProjectionDefinition projection)
 	{
 		definition.Namespace = GetProjectionNamespace(projection);
+		definition.NamespaceAssigned = true;
 		switch (definition)
 		{
 			case TypeDefinition typeDefinition:
@@ -817,6 +818,8 @@ public sealed partial class BindableNodeAnalyzer
 
 	string? GetProjectionNamespace(ExportProjectionDefinition projection)
 	{
+		if (projection.NamespaceAssigned)
+			return projection.Namespace;
 		if (GetRange(projection.SourceSyntax) is TokenRange range
 			&& currentModule is not null
 			&& currentModule.SourceNamespaces.TryGetValue(range.Sequence, out string? namespaceName))
@@ -838,6 +841,7 @@ public sealed partial class BindableNodeAnalyzer
 	void ApplyProjectedMemberSymbol(Definition member, TypeDefinition type)
 	{
 		member.Namespace = type.Namespace;
+		member.NamespaceAssigned = type.NamespaceAssigned;
 		switch (member)
 		{
 			case FunctionDefinition function:

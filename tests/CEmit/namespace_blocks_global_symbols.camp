@@ -1,0 +1,22 @@
+namespace App;
+
+export int appValue()
+{
+	return 1;
+}
+
+namespace Tools
+{
+	export int toolValue()
+	{
+		return 2;
+	}
+}
+
+namespace global
+{
+	export int rootValue()
+	{
+		return 3;
+	}
+}
