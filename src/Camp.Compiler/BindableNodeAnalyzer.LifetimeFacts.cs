@@ -1030,6 +1030,12 @@ public sealed partial class BindableNodeAnalyzer
 			return;
 		if (IsInsideGenericBody(scope))
 			return;
+		if (IsGeneratedShadowLifecycleRewrite())
+			return;
+		if (ReferencesGeneratedShadowStorage(target) || ReferencesGeneratedShadowStorage(value))
+			return;
+		if (IsGeneratedShadowDataExpression(target) || IsGeneratedShadowDataExpression(value))
+			return;
 		if (!IsLifetimePointerBearingResolvedType(value.ResolvedType, scope))
 			return;
 
@@ -1057,6 +1063,46 @@ public sealed partial class BindableNodeAnalyzer
 			if (!ValueOutlivesAnchor(valueFact, anchor) && !IsExplicitScopedWithinAllocatorFact(valueFact))
 				Report(GetRange(syntax), $"{context} cannot store a scoped pointer-bearing value in storage tied to '{anchor}'.");
 		}
+	}
+
+	bool IsGeneratedShadowDataExpression(Expression? expression)
+	{
+		string? type = expression?.ResolvedType;
+		if (string.IsNullOrWhiteSpace(type))
+			return false;
+		if (TryGetPointerElementType(type) is string element)
+			type = element;
+		type = BaseTypeName(StripTopLevelValueQualifiers(type));
+		if (type.EndsWith("ShadowData", StringComparison.Ordinal)
+			|| type.EndsWith("_ShadowData", StringComparison.Ordinal))
+			return true;
+		return TryGetTypeDefinitionByResolvedName(type, out TypeDefinition? definition)
+			&& definition?.GeneratedInfo is { Category: GeneratedDeclarationCategory.Lifecycle, Reason: "shadow data" };
+	}
+
+	bool IsGeneratedShadowLifecycleRewrite()
+	{
+		if (currentRewriteFunction?.GeneratedInfo is not { Category: GeneratedDeclarationCategory.Lifecycle } info)
+			return false;
+		return info.Source switch
+		{
+			ClassDefinition { IsShadow: true } => true,
+			FunctionDefinition function => FindContainingType(function) is ClassDefinition { IsShadow: true },
+			_ => false
+		};
+	}
+
+	bool ReferencesGeneratedShadowStorage(Expression? expression)
+	{
+		return expression switch
+		{
+			MemberReferenceExpression { Member: FieldDefinition { GeneratedInfo.Reason: "shadow instance pointer" } } => true,
+			MemberReferenceExpression member => ReferencesGeneratedShadowStorage(member.Target),
+			UnaryExpression unary => ReferencesGeneratedShadowStorage(unary.Operand),
+			CastExpression cast => ReferencesGeneratedShadowStorage(cast.Expression),
+			ParenthesizedExpression parenthesized => ReferencesGeneratedShadowStorage(parenthesized.Expression),
+			_ => false
+		};
 	}
 
 	static bool IsExplicitScopedWithinAllocatorFact(LifetimeFact valueFact)

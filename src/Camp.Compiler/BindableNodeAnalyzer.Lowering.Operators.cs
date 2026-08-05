@@ -1275,20 +1275,22 @@ public sealed partial class BindableNodeAnalyzer
 		};
 	}
 
-	static string ShadowDataTypeName(ClassDefinition shadowClass)
+	string ShadowDataTypeName(ClassDefinition shadowClass)
 	{
+		EnsureShadowDataType(shadowClass);
 		return shadowClass.ShadowDataType?.Symbol ?? shadowClass.Symbol + "_ShadowData";
 	}
 
-	static TypeReference ShadowDataTypeReference(ClassDefinition shadowClass)
+	TypeReference ShadowDataTypeReference(ClassDefinition shadowClass)
 	{
+		EnsureShadowDataType(shadowClass);
 		string name = ShadowDataTypeName(shadowClass);
 		return shadowClass.ShadowDataType is StructDefinition shadowData
 			? new TypeDefinitionReference { Name = name, Definition = shadowData, ResolvedType = name }
 			: new NamedTypeReference { Name = name, ResolvedType = name };
 	}
 
-	static TypeReference ConstShadowDataTypeReference(ClassDefinition shadowClass)
+	TypeReference ConstShadowDataTypeReference(ClassDefinition shadowClass)
 	{
 		return new ConstTypeReference
 		{

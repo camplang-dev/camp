@@ -348,6 +348,7 @@ public sealed partial class BindableNodeAnalyzer
 			ResolvedType = EffectiveTypeSymbol(definition) + "_ShadowData",
 			GeneratedInfo = new GeneratedDeclarationInfo(GeneratedDeclarationCategory.Lifecycle, "shadow data", definition)
 		};
+		typeDefinitions[definition.ShadowDataType.Name] = definition.ShadowDataType;
 		typeDefinitions[definition.ShadowDataType.Symbol] = definition.ShadowDataType;
 	}
 
