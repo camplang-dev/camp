@@ -1,0 +1,37 @@
+namespace App;
+
+int value()
+{
+	return 1;
+}
+
+namespace Tools
+{
+	int value()
+	{
+		return 10;
+	}
+
+	int local()
+	{
+		return value();
+	}
+
+	int rootBase()
+	{
+		return global::base();
+	}
+}
+
+namespace global
+{
+	int base()
+	{
+		return 100;
+	}
+}
+
+int main()
+{
+	return App::value() + Tools::local() + Tools::rootBase() == 111 ? 0 : 1;
+}

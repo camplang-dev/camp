@@ -1,0 +1,11 @@
+namespace App;
+
+int value()
+{
+	return 1;
+}
+
+int main()
+{
+	return App_value();
+}

@@ -1,0 +1,65 @@
+// file: namespace_blocks_source_lookup.c
+#include "namespace_blocks_source_lookup_private.h"
+
+/* Private file declarations. */
+static int App_value(void);
+static int Tools_value(void);
+static int Tools_local(void);
+static int Tools_rootBase(void);
+static int base(void);
+static int App_main(void);
+
+static int App_value(void)
+{
+	return 1;
+}
+
+static int Tools_value(void)
+{
+	return 10;
+}
+
+static int Tools_local(void)
+{
+	return Tools_value();
+}
+
+static int Tools_rootBase(void)
+{
+	return base();
+}
+
+static int base(void)
+{
+	return 100;
+}
+
+static int App_main(void)
+{
+	return ((((App_value() + Tools_local()) + Tools_rootBase()) == 111) ? 0 : 1);
+}
+
+// file: namespace_blocks_source_lookup_private.h
+#ifndef NAMESPACE_BLOCKS_SOURCE_LOOKUP_PRIVATE_H_
+#define NAMESPACE_BLOCKS_SOURCE_LOOKUP_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Layouts. */
+
+/* Function declarations. */
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: namespace_blocks_source_lookup.c

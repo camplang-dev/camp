@@ -27,6 +27,7 @@ public sealed partial class BindableNodeAnalyzer
 	readonly Dictionary<Expression, Expression> knownStringLengths = [];
 	readonly Dictionary<FunctionDefinition, Dictionary<string, LabelStatement>> functionLabels = [];
 	FunctionDefinition? currentAnalysisFunction;
+	TypeDefinition? currentAnalysisContainingType;
 
 	void AnalyzeMethodBody(FunctionDefinition function, AnalysisScope typeAndMethodScope, TypeDefinition? containingType)
 	{
@@ -34,7 +35,9 @@ public sealed partial class BindableNodeAnalyzer
 			return;
 
 		FunctionDefinition? previousAnalysisFunction = currentAnalysisFunction;
+		TypeDefinition? previousAnalysisContainingType = currentAnalysisContainingType;
 		currentAnalysisFunction = function;
+		currentAnalysisContainingType = containingType;
 		try
 		{
 			BodyScope scope = new(null, function, containingType);
@@ -66,6 +69,7 @@ public sealed partial class BindableNodeAnalyzer
 		finally
 		{
 			currentAnalysisFunction = previousAnalysisFunction;
+			currentAnalysisContainingType = previousAnalysisContainingType;
 		}
 	}
 

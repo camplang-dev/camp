@@ -1925,7 +1925,7 @@ public sealed partial class BindableNodeAnalyzer
 	bool IsFunctionNameVisible(FunctionDefinition function, NamedExpression name, SyntaxNode? referenceSyntax)
 	{
 		if (name.Qualifiers.Count == 0)
-			return IsDefinitionVisible(function, referenceSyntax);
+			return IsUnqualifiedDefinitionVisible(function, referenceSyntax);
 		return IsImportedQualifiedName(function, name.Qualifiers, referenceSyntax);
 	}
 
@@ -1992,7 +1992,7 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		foreach (Definition definition in ActiveCurrentDefinitions())
 		{
-			if (definition is VariableDefinition variable && IsDefinitionNamed(variable, name) && IsDefinitionVisible(variable, referenceSyntax))
+			if (definition is VariableDefinition variable && IsDefinitionNamed(variable, name) && IsUnqualifiedDefinitionVisible(variable, referenceSyntax))
 				return new BodySymbol(name, variable.ResolvedType ?? variable.Type?.ResolvedType ?? ErrorType, variable, IsConstantVariable(variable));
 			if (definition is TypeDefinition type)
 			{
@@ -2010,7 +2010,7 @@ public sealed partial class BindableNodeAnalyzer
 	bool IsStorageNameVisible(Definition definition, NamedExpression name, SyntaxNode? referenceSyntax)
 	{
 		if (name.Qualifiers.Count == 0)
-			return IsDefinitionVisible(definition, referenceSyntax);
+			return IsUnqualifiedDefinitionVisible(definition, referenceSyntax);
 		return IsImportedQualifiedName(definition, name.Qualifiers, referenceSyntax);
 	}
 
@@ -2018,7 +2018,7 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		foreach (Definition definition in ActiveCurrentDefinitions())
 		{
-			if (IsDefinitionNamed(definition, name) && !IsDefinitionVisible(definition, referenceSyntax))
+			if (IsDefinitionNamed(definition, name) && !IsUnqualifiedDefinitionVisible(definition, referenceSyntax))
 				return definition;
 			if (definition is TypeDefinition type)
 			{

@@ -1,0 +1,1 @@
+tests/Diagnostics/namespace_generated_symbols_not_source.camp(10,9): error: Symbol 'App_value' could not be found.

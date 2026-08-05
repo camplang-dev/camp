@@ -119,51 +119,60 @@ public sealed partial class BindableNodeAnalyzer
 
 	void AnalyzeDefinition(Definition definition, AnalysisScope parentScope)
 	{
-		AnalyzeAttributes(definition.Attributes);
-		if (definition is not FunctionDefinition)
-			ValidateUnsupportedAttributePlacement(definition);
-
-		switch (definition)
+		Definition? previousAnalysisDefinition = currentAnalysisDefinition;
+		currentAnalysisDefinition = definition;
+		try
 		{
-			case ClassDefinition classDefinition:
-				AnalyzeClassDefinition(classDefinition, parentScope);
-				break;
+			AnalyzeAttributes(definition.Attributes);
+			if (definition is not FunctionDefinition)
+				ValidateUnsupportedAttributePlacement(definition);
 
-			case StaticClassDefinition staticClassDefinition:
-				AnalyzeStaticClassDefinition(staticClassDefinition, parentScope);
-				break;
+			switch (definition)
+			{
+				case ClassDefinition classDefinition:
+					AnalyzeClassDefinition(classDefinition, parentScope);
+					break;
 
-			case StructDefinition structDefinition:
-				AnalyzeStructDefinition(structDefinition, parentScope);
-				break;
+				case StaticClassDefinition staticClassDefinition:
+					AnalyzeStaticClassDefinition(staticClassDefinition, parentScope);
+					break;
 
-			case InterfaceDefinition interfaceDefinition:
-				AnalyzeInterfaceDefinition(interfaceDefinition, parentScope);
-				break;
+				case StructDefinition structDefinition:
+					AnalyzeStructDefinition(structDefinition, parentScope);
+					break;
 
-			case EnumDefinition enumDefinition:
-				AnalyzeEnumDefinition(enumDefinition, parentScope);
-				break;
+				case InterfaceDefinition interfaceDefinition:
+					AnalyzeInterfaceDefinition(interfaceDefinition, parentScope);
+					break;
 
-			case NewtypeDefinition newtypeDefinition:
-				AnalyzeNewtypeDefinition(newtypeDefinition, parentScope);
-				break;
+				case EnumDefinition enumDefinition:
+					AnalyzeEnumDefinition(enumDefinition, parentScope);
+					break;
 
-			case ParamsDefinition paramsDefinition:
-				AnalyzeParamsDefinition(paramsDefinition, parentScope);
-				break;
+				case NewtypeDefinition newtypeDefinition:
+					AnalyzeNewtypeDefinition(newtypeDefinition, parentScope);
+					break;
 
-			case AliasDefinition aliasDefinition:
-				AnalyzeAliasDefinition(aliasDefinition);
-				break;
+				case ParamsDefinition paramsDefinition:
+					AnalyzeParamsDefinition(paramsDefinition, parentScope);
+					break;
 
-			case VariableDefinition variableDefinition:
-				AnalyzeVariableDefinition(variableDefinition, parentScope);
-				break;
+				case AliasDefinition aliasDefinition:
+					AnalyzeAliasDefinition(aliasDefinition);
+					break;
 
-			case FunctionDefinition functionDefinition:
-				AnalyzeFunctionDefinition(functionDefinition, parentScope, containingType: null);
-				break;
+				case VariableDefinition variableDefinition:
+					AnalyzeVariableDefinition(variableDefinition, parentScope);
+					break;
+
+				case FunctionDefinition functionDefinition:
+					AnalyzeFunctionDefinition(functionDefinition, parentScope, containingType: null);
+					break;
+			}
+		}
+		finally
+		{
+			currentAnalysisDefinition = previousAnalysisDefinition;
 		}
 	}
 
