@@ -237,6 +237,8 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (source == target || source == ErrorType || target == ErrorType || target == TargetType)
 			return true;
+		if (AreSameNominalType(source, target))
+			return true;
 
 		string erasedConstOfSource = EraseConstOfQualifiers(source);
 		string erasedConstOfTarget = EraseConstOfQualifiers(target);
@@ -387,6 +389,54 @@ public sealed partial class BindableNodeAnalyzer
 	bool CanConvertStructuralGroupedToNominalParams(string source, string target)
 	{
 		return false;
+	}
+
+	bool AreSameNominalType(string source, string target)
+	{
+		if (source.Contains('<', StringComparison.Ordinal) || target.Contains('<', StringComparison.Ordinal))
+			return false;
+		return NormalizeNominalTypeAliases(source) == NormalizeNominalTypeAliases(target);
+	}
+
+	string NormalizeNominalTypeAliases(string type)
+	{
+		foreach (TypeDefinition definition in allTypeDefinitions)
+		{
+			string symbol = ResolvedNominalTypeName(definition);
+			if (symbol == definition.Name)
+				continue;
+			type = ReplaceTypeToken(type, symbol, definition.Name);
+		}
+		return type;
+	}
+
+	static string ReplaceTypeToken(string text, string token, string replacement)
+	{
+		int index = 0;
+		while (index < text.Length)
+		{
+			int found = text.IndexOf(token, index, StringComparison.Ordinal);
+			if (found < 0)
+				break;
+			int end = found + token.Length;
+			bool before = found == 0 || !IsIdentifierChar(text[found - 1]);
+			bool after = end == text.Length || !IsIdentifierChar(text[end]);
+			if (before && after)
+			{
+				text = text[..found] + replacement + text[end..];
+				index = found + replacement.Length;
+			}
+			else
+			{
+				index = end;
+			}
+		}
+		return text;
+	}
+
+	static bool IsIdentifierChar(char ch)
+	{
+		return char.IsLetterOrDigit(ch) || ch == '_';
 	}
 
 	readonly record struct GroupedTypeComponent(string? Name, string Type);
@@ -3343,7 +3393,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	TypeDefinition? FindContainingType(FunctionDefinition function)
 	{
-		foreach (TypeDefinition type in typeDefinitions.Values)
+		foreach (TypeDefinition type in allTypeDefinitions)
 		{
 			foreach (FunctionDefinition candidate in GetTypeFunctions(type))
 			{
@@ -3706,13 +3756,13 @@ public sealed partial class BindableNodeAnalyzer
 
 	bool IsEnumType(string type)
 	{
-		return typeDefinitions.TryGetValue(BaseTypeName(type), out TypeDefinition? definition) && definition is EnumDefinition;
+		return TryGetTypeDefinitionByResolvedName(type, out TypeDefinition? definition) && definition is EnumDefinition;
 	}
 
 	bool TryGetUnderlyingNumericType(string type, out string? underlying)
 	{
 		underlying = null;
-		if (!typeDefinitions.TryGetValue(BaseTypeName(type), out TypeDefinition? definition))
+		if (!TryGetTypeDefinitionByResolvedName(type, out TypeDefinition? definition))
 			return false;
 
 		TypeReference? underlyingType = definition switch

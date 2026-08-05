@@ -74,7 +74,11 @@ public static class MetadataJsonSerializer
 			foreach (Definition definition in ActiveDefinitions())
 			{
 				if (definition is TypeDefinition typeDefinition)
+				{
 					typeDefinitions[definition.Name] = typeDefinition;
+					if (!string.IsNullOrWhiteSpace(definition.Symbol))
+						typeDefinitions[definition.Symbol] = typeDefinition;
+				}
 				if (IsOutOfScopeStaticClassMember(definition))
 					continue;
 				if (!string.IsNullOrWhiteSpace(definition.Name))
@@ -784,7 +788,7 @@ public static class MetadataJsonSerializer
 			return successSlots <= 1 && thrownSlots <= 1;
 		}
 
-		static bool TryGetAwaitableCallbackShape(ParameterDefinition parameter, out CallableShape callback)
+		bool TryGetAwaitableCallbackShape(ParameterDefinition parameter, out CallableShape callback)
 		{
 			if (parameter.Type is not null && TryParseAwaitableCallbackShape(FormatType(parameter.Type, parameter.Type.ResolvedType), out callback))
 				return true;
@@ -816,7 +820,7 @@ public static class MetadataJsonSerializer
 			return false;
 		}
 
-		static string FormatCallableParameterSlot(ParameterDefinition parameter)
+		string FormatCallableParameterSlot(ParameterDefinition parameter)
 		{
 			string type = FormatType(parameter.Type, parameter.ResolvedType);
 			return parameter.Modifier == ParameterModifier.None
@@ -991,14 +995,14 @@ public static class MetadataJsonSerializer
 			json.WriteEndArray();
 		}
 
-		static void WriteTypeProperty(Utf8JsonWriter json, string propertyName, TypeReference? type, string? resolvedType)
+		void WriteTypeProperty(Utf8JsonWriter json, string propertyName, TypeReference? type, string? resolvedType)
 		{
 			if (type is null && string.IsNullOrWhiteSpace(resolvedType))
 				return;
 			json.WriteString(propertyName, FormatType(type, resolvedType));
 		}
 
-		static string FormatType(TypeReference? type, string? resolvedType)
+		string FormatType(TypeReference? type, string? resolvedType)
 		{
 			string formatted = type is not null
 				? BindableNodeCodeSerializer.SerializeType(type)
@@ -1008,9 +1012,48 @@ public static class MetadataJsonSerializer
 			return FormatSourceMetadataType(formatted);
 		}
 
-		static string FormatSourceMetadataType(string type)
+			string FormatSourceMetadataType(string type)
+			{
+				type = type.Replace("#THIS", "escaped this", StringComparison.Ordinal);
+				HashSet<TypeDefinition> visited = new(ReferenceEqualityComparer.Instance);
+				foreach (TypeDefinition definition in typeDefinitions.Values)
+				{
+					if (!visited.Add(definition))
+						continue;
+					if (string.IsNullOrWhiteSpace(definition.Symbol) || definition.Symbol == definition.Name)
+						continue;
+					type = ReplaceTypeToken(type, definition.Symbol, definition.Name);
+			}
+			return type;
+		}
+
+		static string ReplaceTypeToken(string text, string token, string replacement)
 		{
-			return type.Replace("#THIS", "escaped this", StringComparison.Ordinal);
+			int index = 0;
+			while (index < text.Length)
+			{
+				int found = text.IndexOf(token, index, StringComparison.Ordinal);
+				if (found < 0)
+					break;
+				int end = found + token.Length;
+				bool before = found == 0 || !IsIdentifierChar(text[found - 1]);
+				bool after = end == text.Length || !IsIdentifierChar(text[end]);
+				if (before && after)
+				{
+					text = text[..found] + replacement + text[end..];
+					index = found + replacement.Length;
+				}
+				else
+				{
+					index = end;
+				}
+			}
+			return text;
+		}
+
+		static bool IsIdentifierChar(char ch)
+		{
+			return char.IsLetterOrDigit(ch) || ch == '_';
 		}
 
 		void WriteMetadata(Utf8JsonWriter json, IReadOnlyList<AttributeConstructor> attributes)
@@ -2092,7 +2135,7 @@ public static class MetadataJsonSerializer
 			return source;
 		}
 
-		static bool IsVoidReturn(FunctionDefinition function)
+		bool IsVoidReturn(FunctionDefinition function)
 		{
 			return FormatType(function.ReturnType, function.ResolvedType) == "void";
 		}

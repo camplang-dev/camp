@@ -69,7 +69,11 @@ public sealed partial class BindableNodeAnalyzer
 
 	readonly List<AnalysisDiagnostic> diagnostics = [];
 	readonly Dictionary<string, TypeDefinition> typeDefinitions = new(StringComparer.Ordinal);
+	readonly Dictionary<string, TypeDefinition> qualifiedTypeDefinitions = new(StringComparer.Ordinal);
+	readonly List<TypeDefinition> allTypeDefinitions = [];
 	readonly Dictionary<string, StaticClassDefinition> staticClassDefinitions = new(StringComparer.Ordinal);
+	readonly Dictionary<string, StaticClassDefinition> qualifiedStaticClassDefinitions = new(StringComparer.Ordinal);
+	readonly List<StaticClassDefinition> allStaticClassDefinitions = [];
 	readonly GeneratedDeclarationFactory generatedDeclarations = new();
 	readonly Dictionary<string, AliasDefinition> aliasDefinitions = new(StringComparer.Ordinal);
 	readonly Dictionary<TypeDefinition, TypeAnalysisInfo> typeInfos = [];
@@ -128,9 +132,20 @@ public sealed partial class BindableNodeAnalyzer
 	bool TryGetNamedTypeDefinition(NamedTypeReference named, out TypeDefinition? definition)
 	{
 		if (named.Qualifiers.Count == 0)
-			return typeDefinitions.TryGetValue(named.Name, out definition);
+		{
+			foreach (TypeDefinition candidate in allTypeDefinitions)
+			{
+				if (candidate.Name == named.Name && IsUnqualifiedDefinitionVisible(candidate, named.SourceSyntax))
+				{
+					definition = candidate;
+					return true;
+				}
+			}
+			definition = null;
+			return false;
+		}
 
-		foreach (TypeDefinition candidate in typeDefinitions.Values)
+		foreach (TypeDefinition candidate in allTypeDefinitions)
 		{
 			if (candidate.Name != named.Name)
 				continue;
@@ -148,9 +163,20 @@ public sealed partial class BindableNodeAnalyzer
 	bool TryGetStaticClassDefinition(NamedTypeReference named, out StaticClassDefinition? definition)
 	{
 		if (named.Qualifiers.Count == 0)
-			return staticClassDefinitions.TryGetValue(named.Name, out definition);
+		{
+			foreach (StaticClassDefinition candidate in allStaticClassDefinitions)
+			{
+				if (candidate.Name == named.Name && IsUnqualifiedDefinitionVisible(candidate, named.SourceSyntax))
+				{
+					definition = candidate;
+					return true;
+				}
+			}
+			definition = null;
+			return false;
+		}
 
-		foreach (StaticClassDefinition candidate in staticClassDefinitions.Values)
+		foreach (StaticClassDefinition candidate in allStaticClassDefinitions)
 		{
 			if (candidate.Name != named.Name)
 				continue;
@@ -342,6 +368,42 @@ public sealed partial class BindableNodeAnalyzer
 	static bool StringEqualsNamespace(string? left, string? right)
 	{
 		return string.Equals(left ?? "", right ?? "", StringComparison.Ordinal);
+	}
+
+	string DefinitionLookupKey(Definition definition)
+	{
+		return NamespaceLookupKey(GetDefinitionNamespace(definition), definition.Name);
+	}
+
+	static string NamespaceLookupKey(string? namespaceName, string name)
+	{
+		return (namespaceName ?? "") + "\u001F" + name;
+	}
+
+	string ResolvedNominalTypeName(TypeDefinition definition)
+	{
+		return string.IsNullOrWhiteSpace(definition.Symbol)
+			? SymbolNameService.DefaultTypeSymbol(GetDefinitionNamespace(definition), definition.Name)
+			: definition.Symbol;
+	}
+
+	bool TryGetTypeDefinitionByResolvedName(string? name, out TypeDefinition? definition)
+	{
+		definition = null;
+		if (string.IsNullOrWhiteSpace(name))
+			return false;
+		string baseName = BaseTypeName(name);
+		if (typeDefinitions.TryGetValue(baseName, out definition))
+			return true;
+		foreach (TypeDefinition candidate in allTypeDefinitions)
+		{
+			if (candidate.Name == baseName || ResolvedNominalTypeName(candidate) == baseName)
+			{
+				definition = candidate;
+				return true;
+			}
+		}
+		return false;
 	}
 
 	bool IsNamespaceExplicitlyImported(string namespaceName, TokenSequence source)

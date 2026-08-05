@@ -1,0 +1,71 @@
+// file: namespace_duplicate_type_names.c
+#include "namespace_duplicate_type_names_private.h"
+
+/* Private file declarations. */
+static AHandle A_make(void);
+static int A_read(AHandle handle);
+static BHandle B_make(void);
+static int B_read(BHandle handle);
+static int App_main(void);
+
+static AHandle A_make(void)
+{
+	return (AHandle){ .value = 2 };
+}
+
+static int A_read(AHandle handle)
+{
+	return handle.value;
+}
+
+static BHandle B_make(void)
+{
+	return (BHandle){ .value = 3 };
+}
+
+static int B_read(BHandle handle)
+{
+	return handle.value;
+}
+
+static int App_main(void)
+{
+	AHandle a = A_make();
+	BHandle b = B_make();
+	return (((A_read(a) + B_read(b)) == 5) ? 0 : 1);
+}
+
+// file: namespace_duplicate_type_names_private.h
+#ifndef NAMESPACE_DUPLICATE_TYPE_NAMES_PRIVATE_H_
+#define NAMESPACE_DUPLICATE_TYPE_NAMES_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct AHandle AHandle;
+typedef struct BHandle BHandle;
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Layouts. */
+struct AHandle
+{
+	int value;
+};
+struct BHandle
+{
+	int value;
+};
+
+/* Function declarations. */
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: namespace_duplicate_type_names.c

@@ -26,7 +26,9 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			case TypeDefinitionReference definition:
 				AnalyzeTypeList(definition.TypeArguments, scope);
-				type.ResolvedType = AddTypeArguments(definition.Name, definition.TypeArguments);
+				type.ResolvedType = definition.Definition is not null
+					? AddTypeArguments(ResolvedNominalTypeName(definition.Definition), definition.TypeArguments)
+					: AddTypeArguments(definition.Name, definition.TypeArguments);
 				break;
 
 			case GenericParameterTypeReference genericParameter:
@@ -920,15 +922,16 @@ public sealed partial class BindableNodeAnalyzer
 
 			if (typeDefinitions.TryGetValue(alias.ResolvedTargetName, out TypeDefinition? aliasType))
 			{
+				string resolvedType = ResolvedNominalTypeName(aliasType);
 				TypeDefinitionReference reference = new()
 				{
 					SourceSyntax = named.SourceSyntax,
 					Name = aliasType.Name,
 					Definition = aliasType,
-					ResolvedType = aliasType.Name
+					ResolvedType = resolvedType
 				};
 				typeRewrites[named] = reference;
-				return aliasType.Name;
+				return resolvedType;
 			}
 		}
 		else if (named.Qualifiers.Count > 0 && named.TypeArguments.Count == 0 && TryResolveQualifiedAlias(named, AliasTargetKind.Type, out AliasDefinition? qualifiedAlias))
@@ -947,15 +950,16 @@ public sealed partial class BindableNodeAnalyzer
 
 			if (typeDefinitions.TryGetValue(qualifiedAlias.ResolvedTargetName, out TypeDefinition? aliasType))
 			{
+				string resolvedType = ResolvedNominalTypeName(aliasType);
 				TypeDefinitionReference reference = new()
 				{
 					SourceSyntax = named.SourceSyntax,
 					Name = aliasType.Name,
 					Definition = aliasType,
-					ResolvedType = aliasType.Name
+					ResolvedType = resolvedType
 				};
 				typeRewrites[named] = reference;
-				return aliasType.Name;
+				return resolvedType;
 			}
 		}
 
@@ -1005,7 +1009,7 @@ public sealed partial class BindableNodeAnalyzer
 
 			ValidateGenericArity(named, definition);
 			ValidateGenericTypeArgumentConstraints(named, definition, scope);
-			string resolvedType = AddTypeArguments(named.Name, named.TypeArguments);
+			string resolvedType = AddTypeArguments(ResolvedNominalTypeName(definition), named.TypeArguments);
 			TypeDefinitionReference reference = new()
 			{
 				SourceSyntax = named.SourceSyntax,

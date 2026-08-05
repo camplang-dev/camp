@@ -2090,7 +2090,7 @@ public static class CCodeEmitter
 		IEnumerable<StructDefinition> GetLayoutOrderedStructDefinitions(List<Definition> definitions)
 		{
 			List<StructDefinition> structs = definitions.OfType<StructDefinition>().ToList();
-			Dictionary<string, StructDefinition> byName = structs.ToDictionary(static definition => definition.Name, StringComparer.Ordinal);
+			Dictionary<string, StructDefinition> byName = structs.ToDictionary(CName, StringComparer.Ordinal);
 			HashSet<StructDefinition> emitted = new(ReferenceEqualityComparer.Instance);
 			HashSet<StructDefinition> visiting = new(ReferenceEqualityComparer.Instance);
 
@@ -2136,7 +2136,7 @@ public static class CCodeEmitter
 				case IterTypeReference:
 					yield break;
 				case TypeDefinitionReference { Definition: StructDefinition dependency }:
-					yield return dependency.Name;
+					yield return CName(dependency);
 					yield break;
 				case TypeDefinitionReference reference:
 					if (!string.IsNullOrWhiteSpace(reference.Name))
@@ -7813,6 +7813,29 @@ public static class CCodeEmitter
 				ArrayTypeReference array => ContainsFixedArrayTypeReference(array.ElementType),
 				OptionalTypeReference optional => ContainsFixedArrayTypeReference(optional.ElementType),
 				GenericTypeReference generic => ContainsFixedArrayTypeReference(generic.Type),
+				_ => false
+			};
+		}
+
+		static bool ContainsTypeDefinitionReference(TypeReference? type)
+		{
+			return type switch
+			{
+				null => false,
+				TypeDefinitionReference => true,
+				AttributedTypeReference attributed => ContainsTypeDefinitionReference(attributed.Type),
+				ConstTypeReference constant => ContainsTypeDefinitionReference(constant.Type),
+				ConstOfTypeReference constOf => ContainsTypeDefinitionReference(constOf.Type),
+				VolatileTypeReference vol => ContainsTypeDefinitionReference(vol.Type),
+				EscapedTypeReference escaped => ContainsTypeDefinitionReference(escaped.Type),
+				ScopedTypeReference scoped => ContainsTypeDefinitionReference(scoped.Type),
+				UnscopedTypeReference unscoped => ContainsTypeDefinitionReference(unscoped.Type),
+				TargetTypeSpecTypeReference targetSpec => ContainsTypeDefinitionReference(targetSpec.Type),
+				PointerTypeReference pointer => ContainsTypeDefinitionReference(pointer.ElementType),
+				ArrayTypeReference array => ContainsTypeDefinitionReference(array.ElementType),
+				OptionalTypeReference optional => ContainsTypeDefinitionReference(optional.ElementType),
+				GenericTypeReference generic => ContainsTypeDefinitionReference(generic.Type),
+				ThrownTypeReference thrown => ContainsTypeDefinitionReference(thrown.Type),
 				_ => false
 			};
 		}

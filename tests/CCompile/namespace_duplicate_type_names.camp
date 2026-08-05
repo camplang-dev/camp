@@ -1,0 +1,44 @@
+namespace A
+{
+	struct Handle
+	{
+		int value;
+	}
+
+	Handle make()
+	{
+		return {.value = 2};
+	}
+
+	int read(Handle handle)
+	{
+		return handle.value;
+	}
+}
+
+namespace B
+{
+	struct Handle
+	{
+		int value;
+	}
+
+	Handle make()
+	{
+		return {.value = 3};
+	}
+
+	int read(Handle handle)
+	{
+		return handle.value;
+	}
+}
+
+namespace App;
+
+int main()
+{
+	A::Handle a = A::make();
+	B::Handle b = B::make();
+	return A::read(a) + B::read(b) == 5 ? 0 : 1;
+}

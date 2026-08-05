@@ -69,15 +69,24 @@ public sealed partial class BindableNodeAnalyzer
 			if (string.IsNullOrWhiteSpace(typeDefinition.Name))
 				continue;
 
-			if (typeDefinitions.TryGetValue(typeDefinition.Name, out TypeDefinition? existing))
+			string qualifiedKey = DefinitionLookupKey(typeDefinition);
+			if (qualifiedTypeDefinitions.TryGetValue(qualifiedKey, out TypeDefinition? existing))
 			{
 				if (!ReferenceEquals(existing, typeDefinition))
 					Report(GetNameRange(typeDefinition), $"Duplicate type name '{typeDefinition.Name}'.");
 			}
-			else if (!typeDefinitions.TryAdd(typeDefinition.Name, typeDefinition))
+			else if (!qualifiedTypeDefinitions.TryAdd(qualifiedKey, typeDefinition))
 				Report(GetNameRange(typeDefinition), $"Duplicate type name '{typeDefinition.Name}'.");
 			else
+			{
+				allTypeDefinitions.Add(typeDefinition);
 				typeInfos[typeDefinition] = new TypeAnalysisInfo(typeDefinition);
+				if (!typeDefinitions.ContainsKey(typeDefinition.Name))
+					typeDefinitions[typeDefinition.Name] = typeDefinition;
+				else
+					typeDefinitions.Remove(typeDefinition.Name);
+				typeDefinitions[SymbolNameService.DefaultTypeSymbol(GetDefinitionNamespace(typeDefinition), typeDefinition.Name)] = typeDefinition;
+			}
 		}
 	}
 
@@ -93,19 +102,28 @@ public sealed partial class BindableNodeAnalyzer
 			if (string.IsNullOrWhiteSpace(staticClassDefinition.Name))
 				continue;
 
-			if (typeDefinitions.ContainsKey(staticClassDefinition.Name))
+			string qualifiedKey = DefinitionLookupKey(staticClassDefinition);
+			if (qualifiedTypeDefinitions.ContainsKey(qualifiedKey))
 			{
 				Report(GetNameRange(staticClassDefinition), $"Static class name '{staticClassDefinition.Name}' conflicts with a type name.");
 				continue;
 			}
 
-			if (staticClassDefinitions.TryGetValue(staticClassDefinition.Name, out StaticClassDefinition? existing))
+			if (qualifiedStaticClassDefinitions.TryGetValue(qualifiedKey, out StaticClassDefinition? existing))
 			{
 				if (!ReferenceEquals(existing, staticClassDefinition))
 					Report(GetNameRange(staticClassDefinition), $"Duplicate static class name '{staticClassDefinition.Name}'.");
 			}
-			else if (!staticClassDefinitions.TryAdd(staticClassDefinition.Name, staticClassDefinition))
+			else if (!qualifiedStaticClassDefinitions.TryAdd(qualifiedKey, staticClassDefinition))
 				Report(GetNameRange(staticClassDefinition), $"Duplicate static class name '{staticClassDefinition.Name}'.");
+			else
+			{
+				allStaticClassDefinitions.Add(staticClassDefinition);
+				if (!staticClassDefinitions.ContainsKey(staticClassDefinition.Name))
+					staticClassDefinitions[staticClassDefinition.Name] = staticClassDefinition;
+				else
+					staticClassDefinitions.Remove(staticClassDefinition.Name);
+			}
 		}
 	}
 
@@ -642,7 +660,7 @@ public sealed partial class BindableNodeAnalyzer
 			}
 		}
 
-		foreach (TypeDefinition type in typeDefinitions.Values)
+		foreach (TypeDefinition type in allTypeDefinitions)
 		{
 			foreach (FieldDefinition field in GetTypeFields(type))
 			{
@@ -1144,7 +1162,13 @@ public sealed partial class BindableNodeAnalyzer
 		ValidateFunctionConstOfAnchors(definition);
 		ValidateAsyncResumer(definition, containingType);
 		if (containingType is null && GetExplicitThisParameter(definition) is ThisParameterDefinition thisParameter)
-			SetDefaultOutOfScopeMemberSymbol(definition, BuildExtensionFunctionOwnerSymbol(thisParameter.ResolvedType ?? ErrorType, definition), GetCallableName(definition));
+		{
+			string receiverType = thisParameter.ResolvedType ?? ErrorType;
+			string ownerSymbol = TryGetTypeDefinitionByResolvedName(receiverType, out TypeDefinition? receiverDefinition) && receiverDefinition is not null
+				? receiverDefinition.Name
+				: BuildExtensionFunctionOwnerSymbol(receiverType, definition);
+			SetDefaultOutOfScopeMemberSymbol(definition, ownerSymbol, GetCallableName(definition));
+		}
 		else if (definition.OutOfScopeOwnerName is not null && definition.OutOfScopeOwnerSymbol is not null)
 			SetDefaultOutOfScopeMemberSymbol(definition, definition.OutOfScopeOwnerSymbol, GetCallableName(definition));
 		else if (containingType is not null && typeDefinitions.TryGetValue(containingType, out TypeDefinition? typeDefinition))
@@ -1228,7 +1252,7 @@ public sealed partial class BindableNodeAnalyzer
 				if (staticClassDefinitions.TryGetValue(name, out StaticClassDefinition? staticClassDefinition))
 				{
 					ownerName = staticClassDefinition.Name;
-					ownerSymbol = EffectiveStaticClassSymbol(staticClassDefinition);
+					ownerSymbol = staticClassDefinition.Name;
 					return true;
 				}
 				if (!typeDefinitions.TryGetValue(name, out TypeDefinition? definition))
@@ -1242,7 +1266,7 @@ public sealed partial class BindableNodeAnalyzer
 					return false;
 				}
 				ownerName = definition.Name;
-				ownerSymbol = EffectiveTypeSymbol(definition);
+				ownerSymbol = definition.Name;
 				return true;
 
 			default:
