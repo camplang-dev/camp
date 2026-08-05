@@ -286,13 +286,13 @@ public sealed partial class BindableNodeAnalyzer
 		if (CanLiftToOptional(source, target))
 			return true;
 
-		if (source == AllocatorType && (target == "Allocator*" || target == "Allocator**"))
+		if (source == AllocatorType && IsAllocatorInterfacePointerType(target, allowPointerToPointer: true))
 			return true;
 
-		if ((source == "Allocator*" || source == "Allocator**") && target == AllocatorType)
+		if (IsAllocatorInterfacePointerType(source, allowPointerToPointer: true) && target == AllocatorType)
 			return true;
 
-		if (source == "Allocator*" && target == "Allocator**")
+		if (IsAllocatorInterfacePointerType(source) && IsAllocatorInterfacePointerType(target, allowPointerToPointer: true))
 			return true;
 
 		if (IsUntypedPointerType(target) && (IsObjectPointerType(source) || TryGetCallableShape(source, out _)))
@@ -320,6 +320,22 @@ public sealed partial class BindableNodeAnalyzer
 			return CanImplicitlyConvertShape(sourceShape, targetShape);
 
 		return IsNumericType(source) && IsNumericType(target) && NumericRank(source) <= NumericRank(target);
+	}
+
+	bool IsAllocatorInterfacePointerType(string type, bool allowPointerToPointer = false)
+	{
+		int pointerDepth = 0;
+		string element = type;
+		while (TryGetPointerElementType(element) is string next)
+		{
+			pointerDepth++;
+			element = next;
+		}
+		if (pointerDepth != 1 && (!allowPointerToPointer || pointerDepth != 2))
+			return false;
+		return typeDefinitions.TryGetValue(BaseTypeName(StripTopLevelValueQualifiers(element)), out TypeDefinition? definition)
+			&& definition is InterfaceDefinition
+			&& definition.Name == "Allocator";
 	}
 
 	static string EraseConstOfQualifiers(string type)
@@ -3154,17 +3170,24 @@ public sealed partial class BindableNodeAnalyzer
 		return isPropertyGetterSyntax ? AddConstToReceiverInstance(receiverType) : receiverType;
 	}
 
-	static string BuildOwnedReceiverType(string targetType, TypeDefinition owner)
+	string BuildOwnedReceiverType(string targetType, TypeDefinition owner)
 	{
+		string ownerTypeName = ResolvedNominalTypeName(owner);
 		if (owner is NewtypeDefinition)
-			return StripTopLevelValueQualifiers(BaseTypeName(targetType) == owner.Name ? targetType : owner.Name);
-		if (TryGetPointerElementType(targetType) is string elementType && BaseTypeName(elementType) == owner.Name)
+			return StripTopLevelValueQualifiers(TypeNamesSameDefinition(targetType, owner) ? targetType : ownerTypeName);
+		if (TryGetPointerElementType(targetType) is string elementType && TypeNamesSameDefinition(elementType, owner))
 			return $"{StripTopLevelValueQualifiers(elementType)}*";
-		if (BaseTypeName(targetType) == owner.Name)
+		if (TypeNamesSameDefinition(targetType, owner))
 			return $"{StripTopLevelValueQualifiers(targetType)}*";
 		if (owner is ClassDefinition && TryGetPointerElementType(targetType) is null)
-			return $"{owner.Name}*";
-		return TryGetPointerElementType(targetType) is not null ? $"{owner.Name}*" : owner.Name;
+			return $"{ownerTypeName}*";
+		return TryGetPointerElementType(targetType) is not null ? $"{ownerTypeName}*" : ownerTypeName;
+	}
+
+	bool TypeNamesSameDefinition(string typeName, TypeDefinition definition)
+	{
+		return TryGetTypeDefinitionByResolvedName(typeName, out TypeDefinition? resolved)
+			&& ReferenceEquals(resolved, definition);
 	}
 
 	static bool IsPropertyGetterFunction(FunctionDefinition function)
@@ -3580,7 +3603,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	TypeDefinition? GetTypeDefinition(string typeName)
 	{
-		return typeDefinitions.TryGetValue(BaseTypeName(typeName), out TypeDefinition? type) ? type : null;
+		return TryGetTypeDefinitionByResolvedName(typeName, out TypeDefinition? type) ? type : null;
 	}
 
 	string ReportMultipleCandidates(SyntaxNode? syntax, string name)

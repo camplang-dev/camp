@@ -183,8 +183,11 @@ public sealed class CommandLineTests
 		Assert.Contains("--artifact static", wrapperBuild, StringComparison.Ordinal);
 		Assert.Contains("#if POSIX", wrapperSource, StringComparison.Ordinal);
 		Assert.Contains("#elif WINDOWS", wrapperSource, StringComparison.Ordinal);
-		Assert.Contains("@symbol(\"getpid\")", wrapperSource, StringComparison.Ordinal);
-		Assert.Contains("@symbol(\"GetCurrentProcessId\")", wrapperSource, StringComparison.Ordinal);
+		Assert.Contains("namespace global", wrapperSource, StringComparison.Ordinal);
+		Assert.Contains("extern int getpid();", wrapperSource, StringComparison.Ordinal);
+		Assert.Contains("extern uint GetCurrentProcessId();", wrapperSource, StringComparison.Ordinal);
+		Assert.Contains("global::getpid()", wrapperSource, StringComparison.Ordinal);
+		Assert.Contains("global::GetCurrentProcessId()", wrapperSource, StringComparison.Ordinal);
 		Assert.Contains("getCurrentProcessId", wrapperSource, StringComparison.Ordinal);
 		ProcessResult wrapperTest = RunCampcIn(root, "test", Path.Combine("native-pid", "native-pid.campbuild"), "--target", target, "--out-dir", Path.Combine(root, "native-pid", "out"));
 		AssertCommandSucceeded(wrapperTest);

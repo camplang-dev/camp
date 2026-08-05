@@ -309,19 +309,23 @@ static class CampInit
 			namespace {{namespaceName}};
 
 			#if POSIX
-			@symbol("getpid")
-			extern int getpid();
+			namespace global
+			{
+				extern int getpid();
+			}
 			#elif WINDOWS
-			@symbol("GetCurrentProcessId")
-			extern uint GetCurrentProcessId();
+			namespace global
+			{
+				extern uint GetCurrentProcessId();
+			}
 			#endif
 
 			export int getCurrentProcessId()
 			{
 			#if POSIX
-				return getpid();
+				return global::getpid();
 			#elif WINDOWS
-				return (int)GetCurrentProcessId();
+				return (int)global::GetCurrentProcessId();
 			#else
 				return -1;
 			#endif

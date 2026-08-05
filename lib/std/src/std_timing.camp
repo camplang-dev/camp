@@ -115,12 +115,12 @@ public extern void* atomicCompareExchange(overload void** dest, void* expected, 
 
 #if POSIX
 
-@symbol("usleep")
-extern int usleep(uint usec);
-@symbol("pthread_create")
-extern int pthread_create(nint* thread, void* attr, fn void*(void*) start, void* arg);
-@symbol("pthread_detach")
-extern int pthread_detach(nint thread);
+namespace global
+{
+	extern int usleep(uint usec);
+	extern int pthread_create(nint* thread, void* attr, fn void*(void*) start, void* arg);
+	extern int pthread_detach(nint thread);
+}
 
 const nuint TIMING_POSIX_SLEEP_CHUNK_MS = 1000;
 
@@ -137,7 +137,7 @@ void timingSleepPlatform(nuint timeoutMs)
 	while (timeoutMs > 0)
 	{
 		nuint step = timeoutMs > TIMING_POSIX_SLEEP_CHUNK_MS ? TIMING_POSIX_SLEEP_CHUNK_MS : timeoutMs;
-		usleep((uint)(step * 1000));
+		global::usleep((uint)(step * 1000));
 		timeoutMs -= step;
 	}
 }
@@ -169,13 +169,13 @@ TimerHandle timingStartTimerPlatform(nuint intervalMs, escaped delegate void(Tim
 
 	state.intervalMs = intervalMs;
 	state.callback = callback;
-	if (pthread_create(&state.thread, null, timingTimerThread, state) != 0)
+	if (global::pthread_create(&state.thread, null, timingTimerThread, state) != 0)
 	{
 		within(default) delete state;
 		return default;
 	}
 
-	pthread_detach(state.thread);
+	global::pthread_detach(state.thread);
 	return (TimerHandle)(nint)state;
 }
 

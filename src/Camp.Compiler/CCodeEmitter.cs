@@ -1778,11 +1778,17 @@ public static class CCodeEmitter
 			foreach (Definition definition in GetActiveDefinitions(compilation))
 			{
 				if (definition is InterfaceDefinition interfaceDefinition)
-					names.Add(interfaceDefinition.Name);
+					AddInterfaceNames(names, interfaceDefinition);
 				else if (definition is StructDefinition { SourceInterface: InterfaceDefinition sourceInterface })
-					names.Add(sourceInterface.Name);
+					AddInterfaceNames(names, sourceInterface);
 			}
 			return names;
+		}
+
+		static void AddInterfaceNames(HashSet<string> names, InterfaceDefinition definition)
+		{
+			names.Add(definition.Name);
+			names.Add(BindableNodeAnalyzer.EffectiveTypeSymbol(definition));
 		}
 
 		static HashSet<string> BuildCallableInterfaceNameSet(Compilation compilation)
@@ -1791,7 +1797,7 @@ public static class CCodeEmitter
 			foreach (Definition definition in GetActiveDefinitions(compilation))
 			{
 				if (definition is StructDefinition { SourceInterface: InterfaceDefinition sourceInterface })
-					names.Add(sourceInterface.Name);
+					AddInterfaceNames(names, sourceInterface);
 			}
 			return names;
 		}

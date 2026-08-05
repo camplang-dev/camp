@@ -206,6 +206,11 @@ public sealed partial class BindableNodeAnalyzer
 		if (CurrentFunctionCanSeeSourceDefinition(definitionSource))
 			return true;
 
+		if (definition is StaticClassDefinition staticClassDefinition
+			&& StaticClassHasExternallyVisibleMember(staticClassDefinition)
+			&& IsDefinitionImported(definition, range.Sequence, referenceSyntax))
+			return true;
+
 		if (!IsExternallyVisible(definition))
 			return false;
 
@@ -508,6 +513,12 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		return IsExternallyVisible(member)
 			|| IsDefinitionInSameFile(owner, referenceSyntax);
+	}
+
+	static bool StaticClassHasExternallyVisibleMember(StaticClassDefinition definition)
+	{
+		return definition.Fields.Any(field => field.Modifier == FieldModifier.Static && IsExternallyVisible(field))
+			|| definition.Functions.Any(IsExternallyVisible);
 	}
 
 	void ReportMemberNotExported(Definition member, SyntaxNode? referenceSyntax)

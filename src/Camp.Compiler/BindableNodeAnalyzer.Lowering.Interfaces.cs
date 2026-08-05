@@ -111,7 +111,7 @@ public sealed partial class BindableNodeAnalyzer
 				SourceSyntax = member.SourceSyntax,
 				Type = new GenericParameterTypeReference { Name = genericName, ResolvedType = genericName },
 				InterfaceType = InterfaceType(interfaceDefinition),
-				ResolvedType = interfaceDefinition.Name + "*"
+				ResolvedType = InterfaceResolvedName(interfaceDefinition) + "*"
 			});
 			context = new CastExpression
 			{
@@ -119,7 +119,7 @@ public sealed partial class BindableNodeAnalyzer
 				Kind = CastKind.Type,
 				Type = PointerTo(PointerTo(InterfaceType(interfaceDefinition))),
 				Expression = context,
-				ResolvedType = interfaceDefinition.Name + "**"
+				ResolvedType = InterfaceResolvedName(interfaceDefinition) + "**"
 			};
 		}
 
@@ -131,7 +131,7 @@ public sealed partial class BindableNodeAnalyzer
 				SourceSyntax = member.Target.SourceSyntax,
 				Operator = UnaryOperator.PointerDereference,
 				Operand = member.Target,
-				ResolvedType = TryGetPointerElementType(member.Target.ResolvedType ?? "") ?? $"{interfaceDefinition.Name}*"
+				ResolvedType = TryGetPointerElementType(member.Target.ResolvedType ?? "") ?? $"{InterfaceResolvedName(interfaceDefinition)}*"
 			},
 			Name = GetCallableName(function),
 			Member = function,
@@ -167,7 +167,7 @@ public sealed partial class BindableNodeAnalyzer
 			SourceSyntax = member.SourceSyntax,
 			Type = new GenericParameterTypeReference { Name = genericName, ResolvedType = genericName },
 			InterfaceType = InterfaceType(interfaceDefinition),
-			ResolvedType = interfaceDefinition.Name + "*"
+			ResolvedType = InterfaceResolvedName(interfaceDefinition) + "*"
 		});
 		context = new CastExpression
 		{
@@ -175,7 +175,7 @@ public sealed partial class BindableNodeAnalyzer
 			Kind = CastKind.Type,
 			Type = PointerTo(PointerTo(InterfaceType(interfaceDefinition))),
 			Expression = context,
-			ResolvedType = interfaceDefinition.Name + "**"
+			ResolvedType = InterfaceResolvedName(interfaceDefinition) + "**"
 		};
 
 		Expression slot = new MemberExpression
@@ -183,7 +183,7 @@ public sealed partial class BindableNodeAnalyzer
 			SourceSyntax = member.SourceSyntax,
 			Target = vtable,
 			Name = GetCallableName(function),
-			ResolvedType = BuildFlattenedFunctionValueType(function, $"{interfaceDefinition.Name}**")
+			ResolvedType = BuildFlattenedFunctionValueType(function, $"{InterfaceResolvedName(interfaceDefinition)}**")
 		};
 		if (TryGetParamsComponentShape(null, member.ResolvedType, "value", out ParamsComponentShape delegateShape)
 			&& delegateShape.Components.Count > 0
@@ -211,9 +211,15 @@ public sealed partial class BindableNodeAnalyzer
 		return true;
 	}
 
-	static bool IsInterfaceInstanceReceiver(string? type, InterfaceDefinition interfaceDefinition)
+	bool IsInterfaceInstanceReceiver(string? type, InterfaceDefinition interfaceDefinition)
 	{
-		return type == interfaceDefinition.Name + "**" || TryGetPointerElementType(type ?? "") == interfaceDefinition.Name;
+		return !string.IsNullOrWhiteSpace(type)
+			&& TypeNamesSameDefinition(type, interfaceDefinition);
+	}
+
+	static string InterfaceResolvedName(InterfaceDefinition interfaceDefinition)
+	{
+		return EffectiveTypeSymbol(interfaceDefinition);
 	}
 
 	static bool TryGetGenericReceiverTypeName(string? receiverType, out string genericName)
@@ -499,8 +505,8 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		string sourceType = value.ResolvedType ?? "";
 		if (sourceType == targetResolvedType
-			|| sourceType == targetInterface.Name + "**"
-			|| TryGetPointerElementType(sourceType) == targetInterface.Name)
+			|| TypeNamesSameDefinition(sourceType, targetInterface)
+			|| TryGetPointerElementType(sourceType) is string sourceElement && TypeNamesSameDefinition(sourceElement, targetInterface))
 		{
 			return value;
 		}
@@ -542,7 +548,7 @@ public sealed partial class BindableNodeAnalyzer
 				Type = PointerTo(PointerTo(InterfaceType(targetInterface))),
 				Kind = CastKind.Type,
 				Expression = value,
-				ResolvedType = $"{targetInterface.Name}**"
+				ResolvedType = $"{InterfaceResolvedName(targetInterface)}**"
 			};
 		}
 
@@ -695,17 +701,17 @@ public sealed partial class BindableNodeAnalyzer
 		Expression localReference = CreateVariableReference(local.Target, local.Target.ResolvedType ?? indirectType.ResolvedType ?? ErrorType);
 		currentStatementPrefix.Add(new ExpressionStatement
 		{
-			ResolvedType = "void",
-			Expression = new AssignmentExpression
-			{
-				Target = CreateInterfaceIndirectMember(localReference, "_vt", $"const {targetInterface.Name}*"),
+				ResolvedType = "void",
+				Expression = new AssignmentExpression
+				{
+				Target = CreateInterfaceIndirectMember(localReference, "_vt", $"const {InterfaceResolvedName(targetInterface)}*"),
 				Operator = AssignmentOperator.Assign,
 				Value = new VariableReferenceExpression
 				{
 					Variable = lowering.VTable,
 					ResolvedType = lowering.VTable.ResolvedType
 				},
-				ResolvedType = $"const {targetInterface.Name}*"
+				ResolvedType = $"const {InterfaceResolvedName(targetInterface)}*"
 			}
 		});
 		currentStatementPrefix.Add(new ExpressionStatement
@@ -730,15 +736,15 @@ public sealed partial class BindableNodeAnalyzer
 			UnaryExpression addressOfVTable = new()
 			{
 				Operator = UnaryOperator.AddressOf,
-				Operand = CreateInterfaceIndirectMember(localReference, "_vt", $"const {targetInterface.Name}*"),
-				ResolvedType = $"const {targetInterface.Name}**"
+				Operand = CreateInterfaceIndirectMember(localReference, "_vt", $"const {InterfaceResolvedName(targetInterface)}*"),
+				ResolvedType = $"const {InterfaceResolvedName(targetInterface)}**"
 			};
 			return new CastExpression
 			{
 				Type = PointerTo(PointerTo(InterfaceType(targetInterface))),
 				Kind = CastKind.Type,
 				Expression = addressOfVTable,
-				ResolvedType = $"{targetInterface.Name}**"
+				ResolvedType = $"{InterfaceResolvedName(targetInterface)}**"
 			};
 		}
 
