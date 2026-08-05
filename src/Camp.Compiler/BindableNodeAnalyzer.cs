@@ -160,6 +160,21 @@ public sealed partial class BindableNodeAnalyzer
 		return false;
 	}
 
+	bool TryGetHiddenTypeDefinition(string name, SyntaxNode? referenceSyntax, out TypeDefinition? definition)
+	{
+		foreach (TypeDefinition candidate in allTypeDefinitions)
+		{
+			if (candidate.Name == name && !IsUnqualifiedDefinitionVisible(candidate, referenceSyntax))
+			{
+				definition = candidate;
+				return true;
+			}
+		}
+
+		definition = null;
+		return false;
+	}
+
 	bool TryGetStaticClassDefinition(NamedTypeReference named, out StaticClassDefinition? definition)
 	{
 		if (named.Qualifiers.Count == 0)
@@ -281,7 +296,9 @@ public sealed partial class BindableNodeAnalyzer
 		if (CurrentFunctionCanSeeSourceDefinition(definitionSource))
 			return true;
 
-		return IsExternallyVisible(definition);
+		return IsExternallyVisible(definition)
+			|| definition is StaticClassDefinition staticClassDefinition
+				&& StaticClassHasExternallyVisibleMember(staticClassDefinition);
 	}
 
 	bool IsUnqualifiedDefinitionVisible(Definition definition, SyntaxNode? referenceSyntax)

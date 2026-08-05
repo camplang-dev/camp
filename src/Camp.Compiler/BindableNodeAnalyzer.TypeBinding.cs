@@ -1023,6 +1023,12 @@ public sealed partial class BindableNodeAnalyzer
 			return resolvedType;
 		}
 
+		if (named.Qualifiers.Count == 0 && TryGetHiddenTypeDefinition(named.Name, named.SourceSyntax, out TypeDefinition? hiddenType) && hiddenType is not null)
+		{
+			ReportNotExported(hiddenType, named.SourceSyntax, "Type");
+			return $"{UnresolvedType}({sourceName})";
+		}
+
 		if (named.Name == "<missing>")
 			return MissingTypeName;
 

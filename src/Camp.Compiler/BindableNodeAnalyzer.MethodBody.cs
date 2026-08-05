@@ -1834,7 +1834,12 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (named.Qualifiers.Count == 0 && LookupHiddenGlobalSymbol(named.Name, named.SourceSyntax) is Definition hidden)
 		{
-			ReportNotExported(hidden, named.SourceSyntax, hidden is TypeDefinition ? "Type" : "Symbol");
+			ReportNotExported(hidden, named.SourceSyntax, hidden switch
+			{
+				TypeDefinition => "Type",
+				StaticClassDefinition => "Static class",
+				_ => "Symbol"
+			});
 			return ErrorType;
 		}
 
