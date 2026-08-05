@@ -39,7 +39,7 @@ void Widget_destroy(Widget *this)
 
 IRef **Widget_getIRef(const Widget *this)
 {
-	return (IRef **)(&this->_vt_IRef);
+	return &this->_vt_IRef;
 }
 
 void Handle_retain(Handle *this)
