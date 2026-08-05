@@ -22,6 +22,7 @@ public static class GoldenFileTestRunner
 		string testName = testCase.Kind + "/" + Path.GetFileNameWithoutExtension(testCase.CasePath);
 		Console.Error.WriteLine("[camp-test] golden begin " + testName);
 		Console.Error.Flush();
+		TestMetrics.RecordGoldenCase(testCase.Kind);
 		using IDisposable timing = TestTiming.Measure("Golden " + testCase.Kind + "/" + Path.GetFileNameWithoutExtension(testCase.CasePath));
 		if (testCase.Kind == GoldenFileTestKind.StdRun && OperatingSystem.IsWindows() && !MsvcAvailable())
 			Assert.Skip("StdRun executable golden tests require MSVC tools on Windows.");

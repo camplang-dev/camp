@@ -4503,6 +4503,7 @@ public sealed class CommandLineTests
 
 	static ProcessResult RunCampc(IReadOnlyDictionary<string, string?>? environmentVariables, params string[] arguments)
 	{
+		TestMetrics.RecordExternalCampcInvocation();
 		using IDisposable timing = TestTiming.Measure("CommandLine campc " + string.Join(" ", arguments.Take(6)) + (arguments.Length > 6 ? " ..." : ""));
 		string repositoryRoot = FindRepositoryRoot();
 		ProcessStartInfo info = TestToolPaths.CreateCampcStartInfo(repositoryRoot);
@@ -4532,6 +4533,7 @@ public sealed class CommandLineTests
 
 	static ProcessResult RunCampcIn(string workingDirectory, params string[] arguments)
 	{
+		TestMetrics.RecordExternalCampcInvocation();
 		using IDisposable timing = TestTiming.Measure("CommandLine campc in " + Path.GetFileName(workingDirectory) + " " + string.Join(" ", arguments.Take(6)) + (arguments.Length > 6 ? " ..." : ""));
 		string repositoryRoot = FindRepositoryRoot();
 		ProcessStartInfo info = TestToolPaths.CreateCampcStartInfo(repositoryRoot);
@@ -4551,6 +4553,7 @@ public sealed class CommandLineTests
 
 	static ProcessResult RunCampcFrom(string campcPath, string workingDirectory, params string[] arguments)
 	{
+		TestMetrics.RecordExternalCampcInvocation();
 		using IDisposable timing = TestTiming.Measure("CommandLine installed campc " + string.Join(" ", arguments.Take(6)) + (arguments.Length > 6 ? " ..." : ""));
 		ProcessStartInfo info = TestToolPaths.CreateStartInfoForPath(campcPath);
 		info.WorkingDirectory = workingDirectory;

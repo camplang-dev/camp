@@ -7,6 +7,8 @@ cd "$repo_root"
 
 configuration="${CAMP_TEST_CONFIGURATION:-Debug}"
 timeout_seconds="${CAMP_TEST_TIMEOUT_SECONDS:-900}"
+sample_processes="${CAMP_TEST_SAMPLE_PROCESSES:-0}"
+stdrun_batch_size="${CAMP_TEST_STDRUN_BATCH_SIZE:-1}"
 mode="${1:-auto}"
 
 test_project="src/Camp.Compiler.TestRunner/Camp.Compiler.TestRunner.csproj"
@@ -40,6 +42,7 @@ Modes:
 Environment:
   CAMP_TEST_TIMEOUT_SECONDS  Per VSTest invocation timeout in seconds. Default: 900.
   CAMP_TEST_CONFIGURATION    Build configuration. Default: Debug.
+  CAMP_TEST_SAMPLE_PROCESSES Optional process-count sampling. Set to 1 to enable.
 USAGE
 }
 
@@ -67,6 +70,74 @@ echo "[camp-test] configuration: $configuration"
 echo "[camp-test] target framework: $target_framework"
 echo "[camp-test] mode: $mode"
 echo "[camp-test] timeout per invocation: ${timeout_seconds}s"
+echo "[camp-test] StdRun batch size: $stdrun_batch_size"
+echo "[camp-test] process sampling: $sample_processes"
+
+now_ms() {
+	python3 - <<'PY'
+import time
+print(int(time.time() * 1000))
+PY
+}
+
+suite_start_ms="$(now_ms)"
+vstest_invocations=0
+max_dotnet=0
+max_testhost=0
+max_campc=0
+max_clang=0
+max_ld=0
+max_generated_test=0
+
+count_processes() {
+	local pattern="$1"
+	ps -axo command= | awk -v pattern="$pattern" '$0 ~ pattern { count++ } END { print count + 0 }'
+}
+
+update_max() {
+	local current="$1"
+	local variable="$2"
+	local existing="${!variable}"
+	if (( current > existing )); then
+		printf -v "$variable" '%s' "$current"
+	fi
+}
+
+sample_process_counts() {
+	if [[ "$sample_processes" != "1" ]]; then
+		return
+	fi
+	update_max "$(count_processes '(^|/)dotnet( |$)')" max_dotnet
+	update_max "$(count_processes 'testhost')" max_testhost
+	update_max "$(count_processes '(^|/)campc(\\.dll|\\.exe)?( |$)')" max_campc
+	update_max "$(count_processes '(^|/)(clang|clang\\+\\+)( |$)')" max_clang
+	update_max "$(count_processes '(^|/)ld( |$)')" max_ld
+	update_max "$(count_processes 'golden-stdrun|StdRun|\\.out/build/')" max_generated_test
+}
+
+write_summary() {
+	local status="$?"
+	local suite_end_ms
+	suite_end_ms="$(now_ms)"
+	local elapsed_ms=$((suite_end_ms - suite_start_ms))
+	echo "[camp-test] summary: status=$status elapsed_ms=$elapsed_ms vstest_invocations=$vstest_invocations"
+	if [[ "$sample_processes" == "1" ]]; then
+		local metrics_dir="tmp/test-metrics"
+		mkdir -p "$metrics_dir"
+		local metrics_file="$metrics_dir/process-counts.txt"
+		{
+			echo "max_dotnet=$max_dotnet"
+			echo "max_testhost=$max_testhost"
+			echo "max_campc=$max_campc"
+			echo "max_clang=$max_clang"
+			echo "max_ld=$max_ld"
+			echo "max_generated_test=$max_generated_test"
+		} > "$metrics_file"
+		echo "[camp-test] process-count metrics: $metrics_file"
+	fi
+}
+
+trap write_summary EXIT
 
 dump_process_state() {
 	local label="$1"
@@ -101,6 +172,8 @@ run_with_timeout() {
 	local label="$1"
 	shift
 	echo "[camp-test] begin $label"
+	local label_start_ms
+	label_start_ms="$(now_ms)"
 	(
 		"$@"
 	) &
@@ -109,6 +182,7 @@ run_with_timeout() {
 	start="$(date +%s)"
 	while kill -0 "$pid" 2>/dev/null; do
 		sleep 5
+		sample_process_counts
 		local now
 		now="$(date +%s)"
 		if (( now - start > timeout_seconds )); then
@@ -121,16 +195,23 @@ run_with_timeout() {
 	done
 	wait "$pid"
 	local status=$?
-	echo "[camp-test] end $label status=$status"
+	local label_end_ms
+	label_end_ms="$(now_ms)"
+	local elapsed_ms=$((label_end_ms - label_start_ms))
+	echo "[camp-test] end $label status=$status elapsed_ms=$elapsed_ms"
 	return "$status"
 }
 
 vstest() {
+	vstest_invocations=$((vstest_invocations + 1))
 	run_with_timeout "$1" dotnet vstest "$test_assembly" "${@:2}"
 }
 
 echo "[camp-test] building solution"
+build_start_ms="$(now_ms)"
 dotnet build "$solution" -c "$configuration"
+build_end_ms="$(now_ms)"
+echo "[camp-test] build elapsed_ms=$((build_end_ms - build_start_ms))"
 
 if [[ "$mode" == "full" ]]; then
 	vstest "full suite"
