@@ -126,6 +126,53 @@ source name of `open`, but its default C symbol is prefixed for the namespace.
 Camp source still calls `open`, imports `Pixel`, or qualifies the source name
 as `Pixel::open`; it does not call the generated ABI spelling.
 
+The statement form sets the default namespace for the rest of the file. A file
+can also use namespace blocks when a small group of declarations belongs
+somewhere else:
+
+```camp
+namespace Imaging;
+
+export struct Image
+{
+	int width;
+	int height;
+}
+
+namespace Imaging::Codecs
+{
+	export enum CodecKind
+	{
+		PNG,
+		JPEG
+	}
+}
+```
+
+A namespace block replaces the file default for the declarations inside the
+block. It does not append to it, so the block above declares
+`Imaging::Codecs::CodecKind`, not `Imaging::Imaging::Codecs::CodecKind`.
+
+Use `namespace global` for the root namespace:
+
+```camp
+namespace Platform;
+
+namespace global
+{
+	extern int puts(string text);
+}
+
+void log(string text)
+{
+	global::puts(text);
+}
+```
+
+Root declarations have no namespace prefix in source or in their default native
+symbol. `global::` is useful when code inside a namespace must name a root
+declaration explicitly.
+
 ## Private, `internal`, `public`, And `export`
 
 Declarations are private unless marked otherwise.
@@ -398,9 +445,10 @@ Image *camp_image_open(const char *path, size_t path_length, ImageError *error);
 declaration exported, and should not be used as a source organization tool. It
 changes native symbol identity.
 
-This matters most for namespaced `extern` declarations. If the native function
-already exists under an exact platform spelling, give the Camp wrapper a
-readable source name and attach `@symbol` for the ABI name:
+This matters most for namespaced `extern` declarations. `extern` follows the
+same namespace/default-symbol policy as any other native-facing declaration. If
+the native function already exists under an exact platform spelling, give the
+Camp wrapper a readable source name and attach `@symbol` for the ABI name:
 
 ```camp
 namespace Posix;
@@ -412,6 +460,23 @@ public extern int getpid();
 Without `@symbol`, the declaration uses Camp's normal namespace-prefixed
 default symbol, which is what you usually want for Camp-authored libraries but
 not for existing platform APIs.
+
+If a raw foreign declaration does not need a namespaced Camp API at all, put it
+in `namespace global` instead:
+
+```camp
+namespace Posix;
+
+namespace global
+{
+	extern int getpid();
+}
+
+public int currentProcessId()
+{
+	return global::getpid();
+}
+```
 
 Camp API output preserves the Camp declaration name and the `@symbol` attribute
 instead of renaming the declaration to the native symbol.

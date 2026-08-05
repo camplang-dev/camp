@@ -93,7 +93,7 @@ Fields:
 | `format` | Always `camp.metadata`. |
 | `version` | Metadata schema version. The documented version is `1`. |
 | `module.name` | Logical metadata module/project name. |
-| `module.namespace` | Present when source uses `namespace`. |
+| `module.namespace` | Present when the module has a primary source namespace. Individual declarations may still carry different effective namespaces when source uses namespace blocks. |
 | `view.visibility` | `export`, `public`, or `all`. |
 | `view.level` | `api` for export view, `source` for public/all views. |
 | `view.generated` | `false` for the primary metadata view. |

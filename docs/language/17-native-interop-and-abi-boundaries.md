@@ -292,7 +292,8 @@ When a native-facing declaration has no `@symbol`, Camp computes a default ABI
 symbol from the declaration's source namespace and kind. That makes Camp
 libraries safer to link because namespaced source declarations naturally get
 namespaced native symbols. It does not change how Camp source names the
-declaration.
+declaration. `extern` declarations follow this same rule; `extern` does not
+make a declaration escape the current namespace.
 
 For existing C or platform APIs, write `@symbol` when the native spelling is
 fixed:
@@ -306,6 +307,27 @@ public extern int getpid();
 
 Camp source still calls `getpid()` or `Posix::getpid()` according to ordinary
 source lookup. The C import uses `getpid`.
+
+If the raw import does not need to be part of a namespaced Camp source API, put
+it in the root namespace instead:
+
+```camp
+namespace Posix;
+
+namespace global
+{
+	extern int getpid();
+}
+
+public int currentProcessId()
+{
+	return global::getpid();
+}
+```
+
+Use `@symbol` when you want a namespaced Camp declaration with a different ABI
+spelling. Use `namespace global` when the declaration itself should live at the
+root and its default native symbol should be unprefixed.
 
 ## Call Specs And Type Specs
 
@@ -777,8 +799,10 @@ Keep platform splits close to the native boundary:
 @symbol("Sleep")
 extern _winapi void nativeSleep(uint milliseconds);
 #elif POSIX
-@symbol("usleep")
-extern int nativeSleepMicros(uint microseconds);
+namespace global
+{
+	extern int usleep(uint microseconds);
+}
 #endif
 
 void sleepMilliseconds(uint milliseconds)
@@ -786,7 +810,7 @@ void sleepMilliseconds(uint milliseconds)
 #if WINDOWS
 	nativeSleep(milliseconds);
 #elif POSIX
-	nativeSleepMicros(milliseconds * 1000);
+	global::usleep(milliseconds * 1000);
 #endif
 }
 ```

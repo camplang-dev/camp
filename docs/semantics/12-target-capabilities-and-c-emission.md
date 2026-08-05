@@ -262,7 +262,9 @@ Rules:
 Existing platform or C-library imports inside a namespace should normally use
 `@symbol` to preserve the exact ABI spelling. Without `@symbol`, an `extern`
 declaration follows the same namespace-prefixed default symbol policy as a
-Camp-authored declaration.
+Camp-authored declaration. If the source declaration itself should be root and
+unprefixed, place it in `namespace global` and reference it with `global::`
+from namespaced code.
 
 Symbol policy must match metadata/API expectations without making metadata an
 ABI dump.
@@ -273,6 +275,14 @@ The private header contains declarations needed by generated source files in
 the current compilation. Public headers expose exported declarations from a
 source file. Project API headers expose source API for downstream Camp
 compilation.
+
+Camp API headers are self-contained source API files. They should not copy
+`using` declarations from producer source files. If a single generated API
+header contains declarations from multiple source namespaces, it should emit
+namespace blocks and spell cross-namespace type references with qualification
+unless the reference is in the current namespace section or is an unambiguous
+implicit `Std` name. Root references from a non-root namespace should use
+`global::`.
 
 Header emission should preserve:
 

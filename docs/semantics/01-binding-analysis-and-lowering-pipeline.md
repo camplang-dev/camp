@@ -120,6 +120,53 @@ generic parameter scopes, receiver scopes, and body-local declarations. A symbol
 found through one scope layer should not silently bypass a more local
 declaration with the same name unless the language rule explicitly permits it.
 
+## Namespace Context
+
+The parser accepts namespace statements in the file prelude and namespace
+blocks at top level:
+
+```camp
+namespace App;
+
+namespace Tools
+{
+	export struct Runner
+	{
+	}
+}
+
+namespace global
+{
+	extern int puts(string text);
+}
+```
+
+A namespace statement sets the file default namespace. A namespace block
+replaces that default for declarations inside the block; it does not append to
+the file default. Nested namespace blocks are invalid. Namespace blocks contain
+ordinary declarations only; `using` declarations, namespace statements, and file
+metadata attributes remain prelude/file-level constructs.
+
+`global` is the source spelling of the root namespace in namespace declarations
+and qualified names. Internally, the root namespace is canonicalized as the
+absence of a namespace. The analyzer must still distinguish an explicit root
+declaration from a declaration that merely inherited no namespace so metadata
+and tooling do not apply a file-default namespace to declarations inside
+`namespace global { ... }`.
+
+For source lookup, each declaration and each body is analyzed under its
+effective namespace: the surrounding namespace block if present, otherwise the
+file namespace statement, otherwise root. Unqualified lookup searches local
+scopes, members, the effective namespace, imported namespaces, and the implicit
+root `Std` import according to the ordinary lookup order. Qualification with
+`Name::member` searches that namespace directly and does not require a `using`;
+`global::member` searches the root namespace.
+
+Type identity is namespace-aware. Two types or static classes with the same
+simple source name are distinct when their effective namespaces differ. Binding
+and compatibility checks should compare resolved type definitions, not only
+source spelling or emitted C identifiers.
+
 ## Declaration Participation And Test-Only Ownership
 
 Declaration participation is separate from source visibility. `private`,

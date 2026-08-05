@@ -102,11 +102,19 @@ tooling. It serializes the Camp API header surface that downstream Camp
 compilations consume. This is distinct from metadata JSON and from C API
 headers.
 
+Generated Camp API headers are self-contained source API files. They do not
+preserve producer source-file `using` declarations. When a surface spans
+multiple namespaces, API output groups declarations with namespace blocks and
+spells references outside the current namespace with qualification unless an
+unambiguous implicit `Std` name is available.
+
 Use API inspection when validating:
 
 - `export` filtering;
 - generated class extern surfaces;
 - static class source containers and visible static members;
+- multi-namespace API headers and namespace-block grouping;
+- canonical type-reference spelling across namespace sections;
 - interface accessor exposure;
 - generated constructor/destructor API declarations;
 - omitted implementation details in exported virtual/interface surfaces.

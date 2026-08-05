@@ -163,6 +163,14 @@ source qualification such as `Pixel::name`. Generated native spellings such as
 `Pixel_name` are not source aliases unless the source actually declares that
 name.
 
+Namespace statements set the default source/API namespace for a file. Namespace
+blocks assign an explicit replacement namespace to the declarations they
+contain; they do not append to the file default. `namespace global` assigns the
+root namespace. Metadata, API filtering, test discovery, coverage, and language
+service records must use each declaration's effective namespace rather than a
+single module-wide namespace. An explicit root declaration must remain root even
+when the containing file has a non-root namespace default.
+
 Default native symbol construction uses declaration category:
 
 - no-namespace declarations keep their historical unprefixed default symbols;
@@ -184,6 +192,13 @@ Default native symbol construction uses declaration category:
   in the declaring file for their namespace prefix and still receive the
   receiver/static-owner type prefix for the member portion.
 
+`extern` declarations follow the same default native symbol policy as
+Camp-authored declarations. They are not implicitly unprefixed merely because
+their implementation is external. Use `@symbol` when a declaration should have
+a namespaced Camp source name but a fixed foreign ABI spelling. Use
+`namespace global` when the declaration should live at root and therefore use
+an unprefixed default native symbol.
+
 Generated declarations derive their default native symbols from the effective
 native symbol of the source declaration or containing type that owns them. This
 includes lifecycle helpers, create/delete/init helpers, vtable/interface
@@ -191,6 +206,36 @@ helpers, lambda/delegate adapters, async frames, iterator state methods and
 protocol adapters, and other generated emission helpers. Generated helpers
 participate in native symbol collision analysis even when they are not source
 metadata declarations.
+
+Generated helpers that need an owner type, interface type, static-class
+container, or projected declaration should carry the resolved source definition
+identity. They must not reconstruct ownership from simple names after namespace
+prefixing has been applied.
+
+## Camp API Headers
+
+Generated Camp API headers serialize the source API that downstream Camp
+compilations consume. They are source declarations, not C headers and not
+metadata JSON.
+
+API output must not preserve producer source-file `using` declarations. The
+serializer is responsible for spelling every type reference so the generated
+header is self-contained with only the ordinary implicit root `Std` import.
+
+When the exported/public surface contains declarations in more than one
+namespace, the API header groups them with namespace blocks. Declarations inside
+their own namespace section use ordinary unqualified source names for names in
+that same namespace. References to declarations outside the current section use
+fully qualified names, except that `Std` names may use the implicit `Std` import
+when doing so is unambiguous. References to root declarations from a namespace
+section use `global::Name` when qualification is required.
+
+The API serializer may choose simple names only when the spelling resolves to
+the same declaration in the emitted header context. If two declarations with
+the same simple name exist in different namespaces, cross-namespace references
+must use qualification. API headers should preserve source-level names and
+`@symbol` attributes; they must not expose generated native symbol spellings as
+source names.
 
 Export projections compute default exported symbols from the projected source
 name when no explicit symbol is present on the projected declaration. A
