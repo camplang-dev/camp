@@ -3140,7 +3140,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	bool CanGenericNamedReceiverMatch(string actualName, string receiverName)
 	{
-		if (BaseTypeName(actualName) != BaseTypeName(receiverName))
+		if (NormalizeNominalTypeAliases(BaseTypeName(actualName)) != NormalizeNominalTypeAliases(BaseTypeName(receiverName)))
 			return false;
 
 		List<string> actualArguments = ExtractConstructedTypeArguments(actualName);

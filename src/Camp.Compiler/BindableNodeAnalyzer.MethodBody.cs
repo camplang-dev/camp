@@ -4357,7 +4357,7 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (pattern.Kind == TypeShapeKind.Named)
 		{
-			if (BaseTypeName(pattern.Name) != BaseTypeName(actual.Name))
+			if (NormalizeNominalTypeAliases(BaseTypeName(pattern.Name)) != NormalizeNominalTypeAliases(BaseTypeName(actual.Name)))
 				return;
 
 			List<string> patternArguments = ExtractConstructedTypeArguments(pattern.Name);
