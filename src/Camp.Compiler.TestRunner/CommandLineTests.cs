@@ -1330,7 +1330,7 @@ public sealed class CommandLineTests
 			""");
 		string buildDir = TempPath("async-header-build");
 
-		ProcessResult result = RunCampc("build", source, "--nostdlib", "--artifact", "none", "--out-dir", buildDir);
+		ProcessResult result = BuildInProcess("async-header-build", noStdLib: true, source);
 
 		Assert.Equal(0, result.ExitCode);
 		string artifactDirectory = Path.Combine(buildDir, ArtifactDirectoryForHost(null));
@@ -1419,12 +1419,12 @@ public sealed class CommandLineTests
 			}
 			""");
 
-		ProcessResult artifactNone = RunCampc("build", source, "--nostdlib", "--artifact", "none", "--out-dir", TempPath("within-policy-none"));
-		ProcessResult explicitNone = RunCampc("build", source, "--nostdlib", "--artifact", "none", "--explicit-within", "--out-dir", TempPath("within-policy-explicit-none"));
-		ProcessResult staticDefault = RunCampc("build", source, "--nostdlib", "--artifact", "static", "--out-dir", TempPath("within-policy-static"));
+		ProcessResult artifactNone = BuildInProcess("within-policy-none", noStdLib: true, source);
+		ProcessResult explicitNone = BuildInProcess("within-policy-explicit-none", noStdLib: true, request => request.WithinAllocationPolicy = WithinAllocationPolicy.Explicit, source);
+		ProcessResult staticDefault = BuildInProcess("within-policy-static", noStdLib: true, request => request.BuildKind = NativeBuildKind.Static, source);
 		ProcessResult buildPragma = RunCampc("build", buildPragmaSource, "--nostdlib", "--artifact", "none", "--out-dir", TempPath("within-policy-build-pragma"));
-		ProcessResult fileImplicit = RunCampc("build", fileImplicitSource, "--nostdlib", "--artifact", "none", "--explicit-within", "--out-dir", TempPath("within-policy-file-implicit"));
-		ProcessResult fileExplicit = RunCampc("build", fileExplicitSource, "--nostdlib", "--artifact", "none", "--implicit-within", "--out-dir", TempPath("within-policy-file-explicit"));
+		ProcessResult fileImplicit = BuildInProcess("within-policy-file-implicit", noStdLib: true, request => request.WithinAllocationPolicy = WithinAllocationPolicy.Explicit, fileImplicitSource);
+		ProcessResult fileExplicit = BuildInProcess("within-policy-file-explicit", noStdLib: true, request => request.WithinAllocationPolicy = WithinAllocationPolicy.Implicit, fileExplicitSource);
 
 		AssertCommandSucceeded(artifactNone);
 		Assert.NotEqual(0, explicitNone.ExitCode);
@@ -4089,7 +4089,11 @@ public sealed class CommandLineTests
 			""");
 		string outDir = TempPath("metadata-std-filter-out");
 
-		ProcessResult result = RunCampc("build", temp, "--artifact", "none", "--metadata", "export", "--out-dir", outDir, "--name", "metadata_std_filter");
+		ProcessResult result = BuildInProcess("metadata-std-filter-out", noStdLib: false, request =>
+		{
+			request.EmitMetadata = MetadataVisibility.Export;
+			request.ProjectName = "metadata_std_filter";
+		}, temp);
 
 		Assert.Equal(0, result.ExitCode);
 		string metadataPath = Path.Combine(outDir, ArtifactDirectoryForHost(null), "metadata_std_filter_api.json");
@@ -4503,13 +4507,26 @@ public sealed class CommandLineTests
 
 	static ProcessResult BuildInProcess(string outputName, bool noStdLib, params string[] files)
 	{
-		return BuildWithApiInProcess(outputName, noStdLib, files, []);
+		return BuildInProcess(outputName, noStdLib, configure: null, files);
+	}
+
+	static ProcessResult BuildInProcess(string outputName, bool noStdLib, Action<CompilerRequest>? configure, params string[] files)
+	{
+		return BuildWithApiInProcess(outputName, noStdLib, files, [], configure);
 	}
 
 	static ProcessResult BuildWithApiInProcess(string outputName, bool noStdLib, IReadOnlyList<string> files, IReadOnlyList<string> apiFiles)
 	{
+		return BuildWithApiInProcess(outputName, noStdLib, files, apiFiles, configure: null);
+	}
+
+	static ProcessResult BuildWithApiInProcess(string outputName, bool noStdLib, IReadOnlyList<string> files, IReadOnlyList<string> apiFiles, Action<CompilerRequest>? configure)
+	{
 		using IDisposable timing = TestTiming.Measure("CommandLine in-process build " + outputName);
 		string repositoryRoot = FindRepositoryRoot();
+		string outputDirectory = TempPath(outputName);
+		if (Directory.Exists(outputDirectory))
+			Directory.Delete(outputDirectory, recursive: true);
 		CompilerRequest request = new()
 		{
 			RuntimeRoot = Path.Combine(repositoryRoot, "bin"),
@@ -4517,12 +4534,13 @@ public sealed class CommandLineTests
 			PackageSourceRoot = Path.Combine(repositoryRoot, "lib"),
 			PackageArtifactRoot = Path.Combine(repositoryRoot, "tmp", "cli-tests-packages"),
 			WorkingDirectory = repositoryRoot,
-			OutDir = TempPath(outputName),
+			OutDir = outputDirectory,
 			NoStdLib = noStdLib,
 			BuildKind = null
 		};
 		request.Files.AddRange(files);
 		request.ApiFiles.AddRange(apiFiles);
+		configure?.Invoke(request);
 
 		CompilerResult result = CompilerDriver.Execute(request);
 		return new ProcessResult(result.ExitCode, Normalize(result.StdOut), Normalize(result.StdErr));
