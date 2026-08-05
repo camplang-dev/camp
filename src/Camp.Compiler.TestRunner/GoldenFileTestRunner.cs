@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Xml;
 using System.Xml.Linq;
@@ -15,6 +16,9 @@ namespace Camp.Compiler.Tests;
 public static class GoldenFileTestRunner
 {
 	static readonly object StdRunCompilerLock = new();
+	static readonly object StdRunBatchLock = new();
+	static readonly Dictionary<string, Dictionary<string, string>?> StdRunBatchResults = new(StringComparer.Ordinal);
+	static readonly Regex StdRunMainPattern = new(@"\bexport\s+int\s+main\s*\(\s*\)", RegexOptions.Compiled);
 
 	public static void Run(GoldenFileTestCase testCase)
 	{
@@ -29,18 +33,26 @@ public static class GoldenFileTestRunner
 		if (testCase.Kind == GoldenFileTestKind.CCompile && !OperatingSystem.IsMacOS() && ExpectedCompileFailure(testCase))
 			Assert.Skip("CCompile compile-failure diagnostics are host-clang dependent.");
 
-		CompilerRequest request = CreateRequest(testCase);
-		CompilerResult result;
-		if (testCase.Kind is GoldenFileTestKind.CCompile or GoldenFileTestKind.StdRun)
+		string actual;
+		if (TryRunCombinedStdRun(testCase, out string? combinedActual) && combinedActual is not null)
 		{
-			using IDisposable gate = TestResourceGate.EnterNative();
-			result = ExecuteCompiler(testCase, request);
+			actual = Normalize(combinedActual);
 		}
 		else
 		{
-			result = ExecuteCompiler(testCase, request);
+			CompilerRequest request = CreateRequest(testCase);
+			CompilerResult result;
+			if (testCase.Kind is GoldenFileTestKind.CCompile or GoldenFileTestKind.StdRun)
+			{
+				using IDisposable gate = TestResourceGate.EnterNative();
+				result = ExecuteCompiler(testCase, request);
+			}
+			else
+			{
+				result = ExecuteCompiler(testCase, request);
+			}
+			actual = Normalize(SelectOutput(testCase, result));
 		}
-		string actual = Normalize(SelectOutput(testCase, result));
 		File.WriteAllText(testCase.ActualPath, actual);
 
 		if (!File.Exists(testCase.ExpectedPath))
@@ -54,6 +66,164 @@ public static class GoldenFileTestRunner
 			Assert.Fail($"Golden file mismatch. Expected: '{testCase.ExpectedPath}'. Actual: '{testCase.ActualPath}'.");
 
 		DeleteActualFiles(testCase);
+	}
+
+	static bool TryRunCombinedStdRun(GoldenFileTestCase testCase, out string? actual)
+	{
+		actual = null;
+		if (testCase.Kind != GoldenFileTestKind.StdRun)
+			return false;
+		if (IsEnvironmentSwitchEnabled("CAMP_TEST_DISABLE_STDRUN_COMBINE"))
+			return false;
+		string? casesFilter = Environment.GetEnvironmentVariable("CAMP_TEST_CASES");
+		if (string.IsNullOrWhiteSpace(casesFilter))
+			return false;
+
+		List<GoldenFileTestCase> batch = GetStdRunBatchCases(testCase.RepositoryRoot, casesFilter);
+		if (batch.Count <= 1)
+			return false;
+		string batchKey = string.Join("|", batch.Select(static item => item.CasePath));
+		Dictionary<string, string>? results;
+		lock (StdRunBatchLock)
+		{
+			if (!StdRunBatchResults.TryGetValue(batchKey, out results))
+			{
+				results = ExecuteCombinedStdRunBatch(batch);
+				StdRunBatchResults[batchKey] = results;
+			}
+		}
+		return results is not null && results.TryGetValue(testCase.CasePath, out actual);
+	}
+
+	static List<GoldenFileTestCase> GetStdRunBatchCases(string repositoryRoot, string casesFilter)
+	{
+		string stdRunRoot = Path.Combine(repositoryRoot, "tests", "StdRun");
+		HashSet<string> selected = casesFilter
+			.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+			.Select(static item => Path.GetFileNameWithoutExtension(item.Replace('\\', '/')))
+			.ToHashSet(StringComparer.OrdinalIgnoreCase);
+		return Directory.GetFiles(stdRunRoot, "*.camp")
+			.OrderBy(static path => path, StringComparer.Ordinal)
+			.Where(path => selected.Contains(Path.GetFileNameWithoutExtension(path)))
+			.Select(path => new GoldenFileTestCase
+			{
+				RepositoryRoot = repositoryRoot,
+				CasePath = path,
+				Kind = GoldenFileTestKind.StdRun
+			})
+			.ToList();
+	}
+
+	static Dictionary<string, string>? ExecuteCombinedStdRunBatch(IReadOnlyList<GoldenFileTestCase> batch)
+	{
+		List<GoldenFileTestCase> compatible = batch.Where(IsCompatibleCombinedStdRunCase).ToList();
+		if (compatible.Count <= 1)
+			return null;
+
+		string repositoryRoot = compatible[0].RepositoryRoot;
+		string batchName = "batch-" + Math.Abs(string.Join("|", compatible.Select(static item => item.CasePath)).GetHashCode()).ToString(System.Globalization.CultureInfo.InvariantCulture);
+		string outputRoot = Path.Combine(repositoryRoot, "tmp", "golden-stdrun-combined", batchName);
+		if (Directory.Exists(outputRoot))
+			Directory.Delete(outputRoot, recursive: true);
+		Directory.CreateDirectory(outputRoot);
+		string combinedSource = Path.Combine(outputRoot, "combined.camp");
+		File.WriteAllText(combinedSource, CreateCombinedStdRunSource(compatible));
+
+		GoldenFileTestCase combinedCase = new()
+		{
+			RepositoryRoot = repositoryRoot,
+			CasePath = combinedSource,
+			Kind = GoldenFileTestKind.StdRun
+		};
+		CompilerRequest request = CreateRequest(combinedCase);
+		request.OutDir = Path.Combine(outputRoot, "out");
+		request.PackageArtifactRoot = Path.Combine(repositoryRoot, "tmp", "golden-stdrun-packages");
+		request.Files.Clear();
+		request.Files.Add(Path.GetRelativePath(repositoryRoot, combinedSource));
+
+		CompilerResult result;
+		using (TestResourceGate.EnterNative())
+		{
+			lock (StdRunCompilerLock)
+				result = CompilerDriver.Execute(request);
+		}
+		if (result.ExitCode != 0)
+			return null;
+
+		string runOutput = RunGeneratedExecutable(combinedCase, result);
+		Dictionary<string, string>? parsed = TryParseCombinedStdRunOutput(compatible, runOutput);
+		return parsed;
+	}
+
+	static bool IsCompatibleCombinedStdRunCase(GoldenFileTestCase testCase)
+	{
+		if (!File.Exists(testCase.ExpectedPath) || Normalize(File.ReadAllText(testCase.ExpectedPath)) != "exit: 0\n")
+			return false;
+		string text = File.ReadAllText(testCase.CasePath);
+		return StdRunMainPattern.Matches(text).Count == 1
+			&& !text.Contains("main(string[] args)", StringComparison.Ordinal)
+			&& !text.Contains("Console.", StringComparison.Ordinal)
+			&& !text.Contains("FileHandle", StringComparison.Ordinal)
+			&& !text.Contains("tmp/", StringComparison.Ordinal)
+			&& !text.Contains("DateTime.now", StringComparison.Ordinal)
+			&& !text.Contains("OffsetDateTime.localNow", StringComparison.Ordinal)
+			&& !text.Contains("OffsetDateTime.utcNow", StringComparison.Ordinal)
+			&& !text.Contains("#build", StringComparison.Ordinal)
+			&& !text.Contains("// @", StringComparison.Ordinal);
+	}
+
+	static string CreateCombinedStdRunSource(IReadOnlyList<GoldenFileTestCase> cases)
+	{
+		StringBuilder builder = new();
+		builder.AppendLine("using Std;");
+		for (int i = 0; i < cases.Count; i++)
+		{
+			string text = File.ReadAllText(cases[i].CasePath);
+			text = StdRunMainPattern.Replace(text, "int __camp_stdrun_main()", 1);
+			builder.Append("namespace __CampStdRunCase").Append(i.ToString(System.Globalization.CultureInfo.InvariantCulture)).AppendLine();
+			builder.AppendLine("{");
+			builder.AppendLine(text);
+			builder.AppendLine("}");
+		}
+		builder.AppendLine("export int main()");
+		builder.AppendLine("{");
+		for (int i = 0; i < cases.Count; i++)
+		{
+			builder.Append("\tint code").Append(i.ToString(System.Globalization.CultureInfo.InvariantCulture))
+				.Append(" = __CampStdRunCase").Append(i.ToString(System.Globalization.CultureInfo.InvariantCulture)).AppendLine("::__camp_stdrun_main();");
+			builder.Append("\tConsole.write(\"__CAMP_STDRUN_EXIT_").Append(i.ToString(System.Globalization.CultureInfo.InvariantCulture)).AppendLine("__\");");
+			builder.Append("\tConsole.writeLine(code").Append(i.ToString(System.Globalization.CultureInfo.InvariantCulture)).AppendLine(");");
+		}
+		builder.AppendLine("\treturn 0;");
+		builder.AppendLine("}");
+		return builder.ToString();
+	}
+
+	static Dictionary<string, string>? TryParseCombinedStdRunOutput(IReadOnlyList<GoldenFileTestCase> cases, string runOutput)
+	{
+		if (!runOutput.StartsWith("exit: 0\n", StringComparison.Ordinal))
+			return null;
+		Dictionary<string, string> results = new(StringComparer.Ordinal);
+		string[] lines = Normalize(runOutput)["exit: 0\n".Length..].Split('\n', StringSplitOptions.RemoveEmptyEntries);
+		for (int i = 0; i < cases.Count; i++)
+		{
+			string prefix = "__CAMP_STDRUN_EXIT_" + i.ToString(System.Globalization.CultureInfo.InvariantCulture) + "__";
+			string? line = lines.FirstOrDefault(value => value.StartsWith(prefix, StringComparison.Ordinal));
+			if (line is null || !int.TryParse(line[prefix.Length..], out int exitCode))
+				return null;
+			if (exitCode != 0)
+				return null;
+			results[cases[i].CasePath] = "exit: " + exitCode.ToString(System.Globalization.CultureInfo.InvariantCulture) + "\n";
+		}
+		return results;
+	}
+
+	static bool IsEnvironmentSwitchEnabled(string name)
+	{
+		string? value = Environment.GetEnvironmentVariable(name);
+		return !string.IsNullOrWhiteSpace(value)
+			&& !value.Equals("0", StringComparison.OrdinalIgnoreCase)
+			&& !value.Equals("false", StringComparison.OrdinalIgnoreCase);
 	}
 
 	static void DeleteActualFiles(GoldenFileTestCase testCase)
