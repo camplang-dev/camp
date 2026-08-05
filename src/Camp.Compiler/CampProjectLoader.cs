@@ -411,7 +411,7 @@ public static class CampProjectLoader
 	{
 		string targetName = string.IsNullOrWhiteSpace(request.TargetName) ? CompilerDefaults.TargetName : request.TargetName;
 		string targetsDirectory = CampRuntimeLayout.Resolve(request.WorkingDirectory, request.RuntimeRoot).TargetDirectory;
-		if (!TargetCatalog.TryLoad(targetsDirectory, out TargetCatalog? catalog, out _) || !catalog!.TryGetTarget(targetName, out TargetDefinition? target))
+		if (!TargetCatalog.TryLoadCached(targetsDirectory, out TargetCatalog? catalog, out _) || !catalog!.TryGetTarget(targetName, out TargetDefinition? target))
 			return FallbackArtifactDirectoryName(targetName, buildKind, profileName);
 		try
 		{

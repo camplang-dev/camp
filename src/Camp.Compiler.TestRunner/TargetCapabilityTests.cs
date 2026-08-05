@@ -246,10 +246,48 @@ _small->_large=compatible
 		}
 	}
 
+	[Fact]
+	public void Target_catalog_cache_reuses_and_invalidates_when_target_files_change()
+	{
+		string root = Path.Combine(Path.GetTempPath(), "camp-target-cache-" + Guid.NewGuid().ToString("N"));
+		Directory.CreateDirectory(root);
+		try
+		{
+			WriteTarget(root, "cache.ini", """
+[target]
+name=cacheA
+""");
+
+			int startHits = TargetCatalog.CacheHits;
+			int startMisses = TargetCatalog.CacheMisses;
+
+			Assert.True(TargetCatalog.TryLoadCached(root, out TargetCatalog? first, out string? error), error);
+			Assert.True(first!.TryGetTarget("cacheA", out _));
+			Assert.True(TargetCatalog.TryLoadCached(root, out TargetCatalog? second, out error), error);
+			Assert.Same(first, second);
+			Assert.Equal(startMisses + 1, TargetCatalog.CacheMisses);
+			Assert.Equal(startHits + 1, TargetCatalog.CacheHits);
+
+			WriteTarget(root, "cache.ini", """
+[target]
+name=cacheBLonger
+""");
+			Assert.True(TargetCatalog.TryLoadCached(root, out TargetCatalog? third, out error), error);
+			Assert.NotSame(first, third);
+			Assert.True(third!.TryGetTarget("cacheBLonger", out _));
+			Assert.Equal(startMisses + 2, TargetCatalog.CacheMisses);
+		}
+		finally
+		{
+			if (Directory.Exists(root))
+				Directory.Delete(root, recursive: true);
+		}
+	}
+
 	static TargetCatalog LoadCatalog()
 	{
 		string targetsDirectory = Path.Combine(FindRepositoryRoot(), "targets");
-		if (!TargetCatalog.TryLoad(targetsDirectory, out TargetCatalog? catalog, out string? error))
+		if (!TargetCatalog.TryLoadCached(targetsDirectory, out TargetCatalog? catalog, out string? error))
 			throw new InvalidOperationException(error ?? "Target catalog could not be loaded.");
 		return catalog!;
 	}

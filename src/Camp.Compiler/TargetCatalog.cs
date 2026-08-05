@@ -1,13 +1,19 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
 
 namespace Camp.Compiler;
 
 public sealed class TargetCatalog
 {
+	static readonly ConcurrentDictionary<string, TargetCatalog> cache = new(StringComparer.Ordinal);
+	static int cacheHits;
+	static int cacheMisses;
+	static int cacheBypasses;
 	readonly Dictionary<string, TargetDefinition> targets;
 
 	TargetCatalog(Dictionary<string, TargetDefinition> targets)
@@ -20,6 +26,79 @@ public sealed class TargetCatalog
 	public bool TryGetTarget(string name, out TargetDefinition? target)
 	{
 		return targets.TryGetValue(name, out target);
+	}
+
+	public static int CacheHits => Volatile.Read(ref cacheHits);
+	public static int CacheMisses => Volatile.Read(ref cacheMisses);
+	public static int CacheBypasses => Volatile.Read(ref cacheBypasses);
+
+	public static bool TryLoadCached(string targetsDirectory, out TargetCatalog? catalog, out string? error)
+	{
+		if (CacheDisabled())
+		{
+			Interlocked.Increment(ref cacheBypasses);
+			return TryLoad(targetsDirectory, out catalog, out error);
+		}
+
+		if (!TryCreateCacheKey(targetsDirectory, out string? key, out error))
+		{
+			catalog = null;
+			return false;
+		}
+
+		if (cache.TryGetValue(key!, out catalog))
+		{
+			error = null;
+			Interlocked.Increment(ref cacheHits);
+			return true;
+		}
+
+		Interlocked.Increment(ref cacheMisses);
+		if (!TryLoad(targetsDirectory, out catalog, out error))
+			return false;
+
+		catalog = cache.GetOrAdd(key!, catalog!);
+		return true;
+	}
+
+	static bool CacheDisabled()
+	{
+		return IsEnvironmentSwitchEnabled("CAMP_TEST_DISABLE_CACHE")
+			|| IsEnvironmentSwitchEnabled("CAMP_DISABLE_TARGET_CACHE");
+	}
+
+	static bool IsEnvironmentSwitchEnabled(string name)
+	{
+		string? value = Environment.GetEnvironmentVariable(name);
+		return !string.IsNullOrWhiteSpace(value)
+			&& !value.Equals("0", StringComparison.OrdinalIgnoreCase)
+			&& !value.Equals("false", StringComparison.OrdinalIgnoreCase);
+	}
+
+	static bool TryCreateCacheKey(string targetsDirectory, out string? key, out string? error)
+	{
+		key = null;
+		error = null;
+		if (!Directory.Exists(targetsDirectory))
+		{
+			error = $"Target directory '{targetsDirectory}' could not be found.";
+			return false;
+		}
+
+		StringBuilder builder = new();
+		builder.Append(Path.GetFullPath(targetsDirectory));
+		foreach (string filename in Directory.GetFiles(targetsDirectory, "*.ini", SearchOption.AllDirectories).OrderBy(static x => x, StringComparer.Ordinal))
+		{
+			FileInfo info = new(filename);
+			builder.Append('\n');
+			builder.Append(Path.GetFullPath(filename));
+			builder.Append('|');
+			builder.Append(info.Length.ToString(System.Globalization.CultureInfo.InvariantCulture));
+			builder.Append('|');
+			builder.Append(info.LastWriteTimeUtc.Ticks.ToString(System.Globalization.CultureInfo.InvariantCulture));
+		}
+		key = builder.ToString();
+		return true;
 	}
 
 	public static bool TryLoad(string targetsDirectory, out TargetCatalog? catalog, out string? error)

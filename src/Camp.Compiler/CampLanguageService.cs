@@ -601,7 +601,7 @@ public static class CampLanguageService
 	{
 		foreach (string targetRoot in CandidateTargetRoots(request))
 		{
-			if (TargetCatalog.TryLoad(targetRoot, out TargetCatalog? catalog, out _) && catalog!.TryGetTarget(request.TargetName, out TargetDefinition? target))
+			if (TargetCatalog.TryLoadCached(targetRoot, out TargetCatalog? catalog, out _) && catalog!.TryGetTarget(request.TargetName, out TargetDefinition? target))
 			{
 				try
 				{

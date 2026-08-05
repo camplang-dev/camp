@@ -1415,7 +1415,7 @@ public sealed class LspServerTests
 
 	static string ArtifactDirectoryForTarget(string targetName, NativeBuildKind? buildKind)
 	{
-		Assert.True(TargetCatalog.TryLoad(Path.Combine(FindRepositoryRoot(), "targets"), out TargetCatalog? catalog, out string? error), error);
+		Assert.True(TargetCatalog.TryLoadCached(Path.Combine(FindRepositoryRoot(), "targets"), out TargetCatalog? catalog, out string? error), error);
 		Assert.True(catalog!.TryGetTarget(targetName, out TargetDefinition? target));
 		return BuildArtifactLayout.GetArtifactDirectoryName(target!, buildKind, "DEBUG");
 	}

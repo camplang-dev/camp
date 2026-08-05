@@ -4676,21 +4676,21 @@ public sealed class CommandLineTests
 
 	static string ArtifactDirectoryForTarget(string targetName, NativeBuildKind? buildKind)
 	{
-		Assert.True(TargetCatalog.TryLoad(Path.Combine(FindRepositoryRoot(), "targets"), out TargetCatalog? catalog, out string? error), error);
+		Assert.True(TargetCatalog.TryLoadCached(Path.Combine(FindRepositoryRoot(), "targets"), out TargetCatalog? catalog, out string? error), error);
 		Assert.True(catalog!.TryGetTarget(targetName, out TargetDefinition? target));
 		return BuildArtifactLayout.GetArtifactDirectoryName(target!, buildKind, "DEBUG");
 	}
 
 	static string ArtifactDirectoryForTarget(string targetName, DependencyLinkKind linkKind)
 	{
-		Assert.True(TargetCatalog.TryLoad(Path.Combine(FindRepositoryRoot(), "targets"), out TargetCatalog? catalog, out string? error), error);
+		Assert.True(TargetCatalog.TryLoadCached(Path.Combine(FindRepositoryRoot(), "targets"), out TargetCatalog? catalog, out string? error), error);
 		Assert.True(catalog!.TryGetTarget(targetName, out TargetDefinition? target));
 		return BuildArtifactLayout.GetArtifactDirectoryName(target!, linkKind, "DEBUG");
 	}
 
 	static string NativeArtifactPathForTarget(string targetName, NativeBuildKind buildKind, string outputDirectory, string projectName)
 	{
-		Assert.True(TargetCatalog.TryLoad(Path.Combine(FindRepositoryRoot(), "targets"), out TargetCatalog? catalog, out string? error), error);
+		Assert.True(TargetCatalog.TryLoadCached(Path.Combine(FindRepositoryRoot(), "targets"), out TargetCatalog? catalog, out string? error), error);
 		Assert.True(catalog!.TryGetTarget(targetName, out TargetDefinition? target));
 		return NativeBuildDriver.GetArtifactPath(new NativeBuildOptions
 		{

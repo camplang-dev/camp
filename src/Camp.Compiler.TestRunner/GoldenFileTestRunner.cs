@@ -178,7 +178,7 @@ public static class GoldenFileTestRunner
 	{
 		compilation = null;
 		error = null;
-		if (!TargetCatalog.TryLoad(request.TargetRoot ?? Path.Combine(testCase.RepositoryRoot, "targets"), out TargetCatalog? catalog, out error))
+		if (!TargetCatalog.TryLoadCached(request.TargetRoot ?? Path.Combine(testCase.RepositoryRoot, "targets"), out TargetCatalog? catalog, out error))
 			return false;
 		if (!catalog!.TryGetTarget(request.TargetName, out TargetDefinition? target) || target is null)
 		{

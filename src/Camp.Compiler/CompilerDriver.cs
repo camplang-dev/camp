@@ -392,7 +392,7 @@ public static class CompilerDriver
 			}
 
 			string targetsDirectory = GetTargetRoot();
-			if (!TargetCatalog.TryLoad(targetsDirectory, out TargetCatalog? catalog, out string? error))
+			if (!TargetCatalog.TryLoadCached(targetsDirectory, out TargetCatalog? catalog, out string? error))
 			{
 				ErrorLine(error ?? $"Target directory '{targetsDirectory}' could not be loaded.");
 				if (string.IsNullOrWhiteSpace(request.TargetRoot))

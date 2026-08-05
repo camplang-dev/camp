@@ -157,7 +157,7 @@ public static class SemanticCompiler
 	static TargetDefinition LoadTarget(string repositoryRoot)
 	{
 		string targetsDirectory = Path.Combine(repositoryRoot, "targets");
-		if (!TargetCatalog.TryLoad(targetsDirectory, out TargetCatalog? catalog, out string? error))
+		if (!TargetCatalog.TryLoadCached(targetsDirectory, out TargetCatalog? catalog, out string? error))
 			throw new InvalidOperationException(error ?? "Target catalog could not be loaded.");
 		if (!catalog!.TryGetTarget("clang-macos-x64", out TargetDefinition? target))
 			throw new InvalidOperationException("Target 'clang-macos-x64' could not be loaded.");

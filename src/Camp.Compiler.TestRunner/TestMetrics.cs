@@ -32,7 +32,13 @@ public static class TestMetrics
 
 	static void WriteReport()
 	{
-		if (goldenCases == 0 && nativeCompileCases == 0 && stdRunCases == 0 && externalCampcInvocations == 0)
+		if (goldenCases == 0
+			&& nativeCompileCases == 0
+			&& stdRunCases == 0
+			&& externalCampcInvocations == 0
+			&& TargetCatalog.CacheHits == 0
+			&& TargetCatalog.CacheMisses == 0
+			&& TargetCatalog.CacheBypasses == 0)
 			return;
 		if (Environment.GetEnvironmentVariable("CAMP_TEST_METRICS") is string value && value.Equals("0", StringComparison.OrdinalIgnoreCase))
 			return;
@@ -42,7 +48,10 @@ public static class TestMetrics
 			+ $"golden_cases={goldenCases} "
 			+ $"native_compile_cases={nativeCompileCases} "
 			+ $"stdrun_cases={stdRunCases} "
-			+ $"external_campc_invocations={externalCampcInvocations}";
+			+ $"external_campc_invocations={externalCampcInvocations} "
+			+ $"target_cache_hits={TargetCatalog.CacheHits} "
+			+ $"target_cache_misses={TargetCatalog.CacheMisses} "
+			+ $"target_cache_bypasses={TargetCatalog.CacheBypasses}";
 		Console.Error.WriteLine(summary);
 		WriteFileReport(summary);
 	}
