@@ -1828,7 +1828,6 @@ public static class CompilerDriver
 		static Module BuildApiOutputModule(Compilation compilation, CampApiSurfaceKind apiSurface)
 		{
 			Module output = new() { ResolvedType = compilation.SharedModule?.ResolvedType };
-			HashSet<string> usingKeys = [];
 			HashSet<Definition> definitions = [];
 			foreach (SourceFile file in compilation.Files)
 			{
@@ -1836,11 +1835,6 @@ public static class CompilerDriver
 					continue;
 				output.SourceSyntax ??= module.SourceSyntax;
 				output.Namespace ??= module.Namespace;
-				foreach (UsingDeclaration usingDeclaration in module.Usings)
-				{
-					if (usingKeys.Add(UsingDeclarationKey(usingDeclaration)))
-						output.Usings.Add(usingDeclaration);
-				}
 				foreach (Definition definition in module.Definitions)
 				{
 					if (DeclarationParticipation.Includes(definition, compilation.SharedModule!)
@@ -2077,14 +2071,6 @@ public static class CompilerDriver
 		{
 			return definition.GeneratedInfo?.Category == GeneratedDeclarationCategory.Iterator
 				|| definition.GeneratedInfo?.Reason.StartsWith("export projection for ", StringComparison.Ordinal) == true;
-		}
-
-		static string UsingDeclarationKey(UsingDeclaration usingDeclaration)
-		{
-			return string.Join('\u001f',
-				usingDeclaration.Name ?? "",
-				usingDeclaration.Alias ?? "",
-				string.Join('\u001e', usingDeclaration.SelectedNames));
 		}
 
 		static Module BuildOutputModule(Compilation compilation, SourceFile file)

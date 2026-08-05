@@ -1,0 +1,27 @@
+namespace StageApi
+{
+	export struct Local
+	{
+		OtherApi::Other member;
+		global::Root root;
+	}
+	export extern OtherApi::Other makeOther(Local value);
+}
+
+namespace OtherApi
+{
+	export struct Other
+	{
+		StageApi::Local member;
+		global::Root root;
+	}
+}
+
+namespace global
+{
+	export struct Root
+	{
+		StageApi::Local local;
+		OtherApi::Other other;
+	}
+}

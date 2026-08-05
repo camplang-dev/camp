@@ -2752,7 +2752,80 @@ public sealed class CommandLineTests
 		Assert.Contains("export extern class RefThing : IRefCount", api, StringComparison.Ordinal);
 		Assert.Contains("export struct NamedRef", api, StringComparison.Ordinal);
 		Assert.DoesNotContain("export struct NamedRef : INamed", api, StringComparison.Ordinal);
-		Assert.Equal(1, CountOccurrences(api, "using Std;"));
+		Assert.DoesNotContain("using Std;", api, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Generated_multi_namespace_api_header_is_consumable()
+	{
+		string root = TempPath("multi-namespace-api-consume");
+		Directory.CreateDirectory(root);
+		string librarySource = Path.Combine(root, "library.camp");
+		File.WriteAllText(librarySource, """
+			namespace ApiA;
+
+			export struct Handle
+			{
+				int value;
+			}
+
+			export extern ApiB::Handle convertToB(Handle value);
+
+			namespace ApiB
+			{
+				export struct Handle
+				{
+					int value;
+				}
+
+				export extern ApiA::Handle convertToA(Handle value);
+			}
+
+			namespace global
+			{
+				export struct RootHandle
+				{
+					int value;
+				}
+			}
+			""");
+
+		CompilerRequest apiRequest = new()
+		{
+			WorkingDirectory = root,
+			RuntimeRoot = Path.Combine(FindRepositoryRoot(), "bin"),
+			NoStdLib = true,
+			InspectApi = true
+		};
+		apiRequest.Files.Add("library.camp");
+		CompilerResult apiResult = CompilerDriver.Execute(apiRequest);
+
+		Assert.Equal(0, apiResult.ExitCode);
+		Assert.Contains("namespace ApiA", apiResult.StdOut, StringComparison.Ordinal);
+		Assert.Contains("namespace ApiB", apiResult.StdOut, StringComparison.Ordinal);
+		Assert.Contains("namespace global", apiResult.StdOut, StringComparison.Ordinal);
+		Assert.Contains("export extern ApiB::Handle convertToB(Handle value);", apiResult.StdOut, StringComparison.Ordinal);
+		Assert.Contains("export extern ApiA::Handle convertToA(Handle value);", apiResult.StdOut, StringComparison.Ordinal);
+
+		string apiHeader = Path.Combine(root, "library_api.camp");
+		File.WriteAllText(apiHeader, apiResult.StdOut);
+		string consumerSource = Path.Combine(root, "consumer.camp");
+		File.WriteAllText(consumerSource, """
+			export extern void consume(ApiA::Handle a, ApiB::Handle b, global::RootHandle root);
+			""");
+
+		CompilerRequest consumerRequest = new()
+		{
+			WorkingDirectory = root,
+			RuntimeRoot = Path.Combine(FindRepositoryRoot(), "bin"),
+			NoStdLib = true,
+			Inspect = CompilerInspectMode.Declarations
+		};
+		consumerRequest.ApiFiles.Add("library_api.camp");
+		consumerRequest.Files.Add("consumer.camp");
+		CompilerResult consumerResult = CompilerDriver.Execute(consumerRequest);
+
+		Assert.Equal(0, consumerResult.ExitCode);
 	}
 
 	[Fact]

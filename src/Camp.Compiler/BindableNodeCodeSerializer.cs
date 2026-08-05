@@ -30,6 +30,7 @@ public sealed class BindableNodeCodeSerializer
 	readonly bool apiDefinitionsAlreadyFiltered;
 	readonly Dictionary<BindableNode, string> generatedNames = new();
 	Module? currentModule;
+	string? currentOutputNamespace;
 	int indent;
 	int generatedLocalIndex;
 	bool writingInterfaceMembers;
@@ -90,6 +91,13 @@ public sealed class BindableNodeCodeSerializer
 	void WriteModule(Module module)
 	{
 		currentModule = module;
+		currentOutputNamespace = module.Namespace;
+		if (apiHeader && ShouldWriteNamespaceSections(module))
+		{
+			WriteNamespaceSections(module);
+			return;
+		}
+
 		bool wrotePrelude = false;
 		if (!string.IsNullOrWhiteSpace(module.Namespace))
 		{
@@ -100,7 +108,7 @@ public sealed class BindableNodeCodeSerializer
 			wrotePrelude = true;
 		}
 
-		foreach (UsingDeclaration usingDeclaration in module.Usings)
+		foreach (UsingDeclaration usingDeclaration in apiHeader ? [] : module.Usings)
 		{
 			if (wrotePrelude)
 			{
@@ -132,6 +140,70 @@ public sealed class BindableNodeCodeSerializer
 				writer.WriteLine();
 			WriteDefinition(definition);
 			wroteDefinition = true;
+		}
+	}
+
+	bool ShouldWriteNamespaceSections(Module module)
+	{
+		HashSet<string> namespaces = [];
+		foreach (Definition definition in module.Definitions)
+		{
+			if (apiHeader && IsOutOfScopeStaticClassMember(definition))
+				continue;
+			if (apiHeader && !ShouldWriteApiDefinition(definition))
+				continue;
+			namespaces.Add(definition.Namespace ?? "");
+			if (namespaces.Count > 1)
+				return true;
+		}
+		return false;
+	}
+
+	void WriteNamespaceSections(Module module)
+	{
+		List<string?> namespaceOrder = [];
+		HashSet<string> seen = [];
+		foreach (Definition definition in module.Definitions)
+		{
+			if (apiHeader && IsOutOfScopeStaticClassMember(definition))
+				continue;
+			if (apiHeader && !ShouldWriteApiDefinition(definition))
+				continue;
+			string key = definition.Namespace ?? "";
+			if (seen.Add(key))
+				namespaceOrder.Add(definition.Namespace);
+		}
+
+		bool wroteSection = false;
+		foreach (string? namespaceName in namespaceOrder)
+		{
+			if (wroteSection)
+				writer.WriteLine();
+			WriteIndent();
+			writer.Write("namespace ");
+			writer.Write(string.IsNullOrWhiteSpace(namespaceName) ? "global" : namespaceName);
+			writer.WriteLine();
+			WriteLineBlock(() =>
+			{
+				string? previousOutputNamespace = currentOutputNamespace;
+				currentOutputNamespace = namespaceName;
+				bool wroteDefinition = false;
+				foreach (Definition definition in module.Definitions)
+				{
+					if ((definition.Namespace ?? "") != (namespaceName ?? ""))
+						continue;
+					if (apiHeader && IsOutOfScopeStaticClassMember(definition))
+						continue;
+					if (apiHeader && !ShouldWriteApiDefinition(definition))
+						continue;
+					if (wroteDefinition && definition is TypeDefinition or StaticClassDefinition)
+						writer.WriteLine();
+					WriteDefinition(definition);
+					wroteDefinition = true;
+				}
+				currentOutputNamespace = previousOutputNamespace;
+			}, leadingLineBreak: false);
+			wroteSection = true;
 		}
 	}
 
@@ -1822,7 +1894,7 @@ public sealed class BindableNodeCodeSerializer
 				break;
 
 			case TypeDefinitionReference definition:
-				writer.Write(definition.Name);
+				writer.Write(apiHeader ? GetApiTypeName(definition) : definition.Name);
 				if (definition.TypeArguments.Count > 0)
 					WriteDelimited("<", ">", definition.TypeArguments, WriteType);
 				break;
@@ -1956,6 +2028,43 @@ public sealed class BindableNodeCodeSerializer
 				writer.Write(")");
 				break;
 		}
+	}
+
+	string GetApiTypeName(TypeDefinitionReference reference)
+	{
+		TypeDefinition? definition = reference.Definition;
+		if (definition is null)
+			return reference.Name;
+		return GetApiTypeName(definition);
+	}
+
+	string GetApiTypeName(TypeDefinition definition)
+	{
+		string? definitionNamespace = NormalizeNamespace(definition.Namespace);
+		string? outputNamespace = NormalizeNamespace(currentOutputNamespace);
+		if (definitionNamespace == outputNamespace)
+			return definition.Name;
+		if (definitionNamespace == "Std" && !ApiNameIsAmbiguous(definition.Name, definition))
+			return definition.Name;
+		if (string.IsNullOrEmpty(definitionNamespace))
+			return "global::" + definition.Name;
+		return definitionNamespace + "::" + definition.Name;
+	}
+
+	bool ApiNameIsAmbiguous(string name, TypeDefinition definition)
+	{
+		foreach (Definition candidate in currentModule?.Definitions ?? [])
+			if (candidate is TypeDefinition typeDefinition
+				&& !ReferenceEquals(typeDefinition, definition)
+				&& typeDefinition.Name == name
+				&& NormalizeNamespace(typeDefinition.Namespace) == NormalizeNamespace(currentOutputNamespace))
+				return true;
+		return false;
+	}
+
+	static string? NormalizeNamespace(string? namespaceName)
+	{
+		return string.IsNullOrWhiteSpace(namespaceName) ? null : namespaceName;
 	}
 
 	void WriteFixedArrayType(FixedArrayTypeReference fixedArray)
