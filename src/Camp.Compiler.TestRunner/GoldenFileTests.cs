@@ -21,13 +21,14 @@ public sealed class GoldenFileTests
 		string casesRoot = Path.Combine(repositoryRoot, "tests");
 		string? kindFilter = Environment.GetEnvironmentVariable("CAMP_TEST_KIND");
 		string? caseFilter = Environment.GetEnvironmentVariable("CAMP_TEST_CASE");
+		string? casesFilter = Environment.GetEnvironmentVariable("CAMP_TEST_CASES");
 		foreach (string casePath in Directory.GetFiles(casesRoot, "*.camp", SearchOption.AllDirectories)
 			.Where(static path => !Path.GetFileName(path).Contains(".expected.", StringComparison.Ordinal) && !Path.GetFileName(path).Contains(".actual.", StringComparison.Ordinal))
 			.OrderBy(static path => path, StringComparer.Ordinal))
 		{
 			GoldenFileTestKind kind = GetKind(casesRoot, casePath);
 			string relativePath = Path.GetRelativePath(casesRoot, casePath).Replace('\\', '/');
-			if (!MatchesFilter(kind.ToString(), kindFilter) || !MatchesCaseFilter(relativePath, caseFilter))
+			if (!MatchesFilter(kind.ToString(), kindFilter) || !MatchesCaseFilter(relativePath, caseFilter) || !MatchesCaseListFilter(relativePath, casesFilter))
 				continue;
 
 			yield return [new GoldenFileTestCase
@@ -54,6 +55,17 @@ public sealed class GoldenFileTests
 		string extensionless = Path.ChangeExtension(relativePath, null)?.Replace('\\', '/') ?? relativePath;
 		return filter.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
 			.Any(item => extensionless.Contains(item.Replace('\\', '/'), StringComparison.OrdinalIgnoreCase));
+	}
+
+	static bool MatchesCaseListFilter(string relativePath, string? filter)
+	{
+		if (string.IsNullOrWhiteSpace(filter))
+			return true;
+		string extensionless = Path.ChangeExtension(relativePath, null)?.Replace('\\', '/') ?? relativePath;
+		string fileName = Path.GetFileName(extensionless);
+		return filter.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+			.Select(static item => item.Replace('\\', '/'))
+			.Any(item => extensionless.Equals(item, StringComparison.OrdinalIgnoreCase) || fileName.Equals(item, StringComparison.OrdinalIgnoreCase));
 	}
 
 	static GoldenFileTestKind GetKind(string casesRoot, string casePath)

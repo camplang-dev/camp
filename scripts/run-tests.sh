@@ -8,7 +8,8 @@ cd "$repo_root"
 configuration="${CAMP_TEST_CONFIGURATION:-Debug}"
 timeout_seconds="${CAMP_TEST_TIMEOUT_SECONDS:-900}"
 sample_processes="${CAMP_TEST_SAMPLE_PROCESSES:-0}"
-stdrun_batch_size="${CAMP_TEST_STDRUN_BATCH_SIZE:-1}"
+stdrun_batch_size="${CAMP_TEST_STDRUN_BATCH_SIZE:-}"
+list_stdrun_batches="${CAMP_TEST_LIST_STDRUN_BATCHES:-0}"
 mode="${1:-auto}"
 
 test_project="src/Camp.Compiler.TestRunner/Camp.Compiler.TestRunner.csproj"
@@ -43,6 +44,8 @@ Environment:
   CAMP_TEST_TIMEOUT_SECONDS  Per VSTest invocation timeout in seconds. Default: 900.
   CAMP_TEST_CONFIGURATION    Build configuration. Default: Debug.
   CAMP_TEST_SAMPLE_PROCESSES Optional process-count sampling. Set to 1 to enable.
+  CAMP_TEST_STDRUN_BATCH_SIZE StdRun cases per VSTest invocation in sectioned mode.
+  CAMP_TEST_LIST_STDRUN_BATCHES Print StdRun batches and exit after discovery.
 USAGE
 }
 
@@ -62,6 +65,19 @@ fi
 
 if [[ "$mode" != "full" && "$mode" != "sectioned" ]]; then
 	usage >&2
+	exit 2
+fi
+
+if [[ -z "$stdrun_batch_size" ]]; then
+	if [[ "$host" == "Darwin" && "$mode" == "sectioned" ]]; then
+		stdrun_batch_size=8
+	else
+		stdrun_batch_size=1
+	fi
+fi
+
+if ! [[ "$stdrun_batch_size" =~ ^[0-9]+$ ]] || (( stdrun_batch_size < 1 )); then
+	echo "CAMP_TEST_STDRUN_BATCH_SIZE must be a positive integer." >&2
 	exit 2
 fi
 
@@ -207,6 +223,39 @@ vstest() {
 	run_with_timeout "$1" dotnet vstest "$test_assembly" "${@:2}"
 }
 
+discover_stdrun_cases() {
+	find tests/StdRun -maxdepth 1 -name '*.camp' -type f \
+		| sed 's#^tests/StdRun/##; s#\.camp$##' \
+		| sort
+}
+
+join_cases() {
+	local IFS=,
+	echo "$*"
+}
+
+print_stdrun_batches() {
+	local cases=("$@")
+	local batch_count=$(( (${#cases[@]} + stdrun_batch_size - 1) / stdrun_batch_size ))
+	for ((batch_index = 0; batch_index < batch_count; batch_index++)); do
+		local start_index=$((batch_index * stdrun_batch_size))
+		local batch=("${cases[@]:start_index:stdrun_batch_size}")
+		local last_index=$((${#batch[@]} - 1))
+		local first_case="${batch[0]}"
+		local last_case="${batch[$last_index]}"
+		echo "[camp-test] StdRun batch $((batch_index + 1))/$batch_count $first_case..$last_case cases=$(join_cases "${batch[@]}")"
+	done
+}
+
+if [[ "$list_stdrun_batches" == "1" ]]; then
+	stdrun_cases=()
+	while IFS= read -r case_name; do
+		stdrun_cases+=("$case_name")
+	done < <(discover_stdrun_cases)
+	print_stdrun_batches "${stdrun_cases[@]}"
+	exit 0
+fi
+
 echo "[camp-test] building solution"
 build_start_ms="$(now_ms)"
 dotnet build "$solution" -c "$configuration"
@@ -222,23 +271,37 @@ golden_kinds=(Ast Declarations LoweringXml Lowering Diagnostics CEmit CCompile A
 for kind in "${golden_kinds[@]}"; do
 	export CAMP_TEST_KIND="$kind"
 	unset CAMP_TEST_CASE
+	unset CAMP_TEST_CASES
 	vstest "golden $kind" --TestCaseFilter:FullyQualifiedName~GoldenFileTests
 done
 
 stdrun_cases=()
 while IFS= read -r case_name; do
 	stdrun_cases+=("$case_name")
-done < <(find tests/StdRun -maxdepth 1 -name '*.camp' -type f \
-	| sed 's#^tests/StdRun/##; s#\.camp$##' \
-	| sort)
-for case_name in "${stdrun_cases[@]}"; do
+done < <(discover_stdrun_cases)
+
+stdrun_batch_count=$(( (${#stdrun_cases[@]} + stdrun_batch_size - 1) / stdrun_batch_size ))
+for ((batch_index = 0; batch_index < stdrun_batch_count; batch_index++)); do
+	start_index=$((batch_index * stdrun_batch_size))
+	batch=("${stdrun_cases[@]:start_index:stdrun_batch_size}")
+	last_index=$((${#batch[@]} - 1))
+	first_case="${batch[0]}"
+	last_case="${batch[$last_index]}"
 	export CAMP_TEST_KIND=StdRun
-	export CAMP_TEST_CASE="$case_name"
-	vstest "golden StdRun/$case_name" --TestCaseFilter:FullyQualifiedName~GoldenFileTests
+	if (( ${#batch[@]} == 1 )); then
+		export CAMP_TEST_CASE="${batch[0]}"
+		unset CAMP_TEST_CASES
+		vstest "golden StdRun/${batch[0]}" --TestCaseFilter:FullyQualifiedName~GoldenFileTests
+	else
+		unset CAMP_TEST_CASE
+		export CAMP_TEST_CASES="$(join_cases "${batch[@]}")"
+		vstest "golden StdRun batch $((batch_index + 1))/$stdrun_batch_count $first_case..$last_case" --TestCaseFilter:FullyQualifiedName~GoldenFileTests
+	fi
 done
 
 unset CAMP_TEST_KIND
 unset CAMP_TEST_CASE
+unset CAMP_TEST_CASES
 
 test_classes=(
 	CampCoverageDecorationTests
