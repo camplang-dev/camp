@@ -350,7 +350,7 @@ public sealed partial class BindableNodeAnalyzer
 		string? qualifier = NormalizeSourceNamespaceQualifier(qualifiers);
 		string? namespaceName = GetDefinitionNamespace(definition);
 		if (StringEqualsNamespace(namespaceName, qualifier))
-			return (IsDefinitionInSameFile(definition, referenceSyntax) || IsNamespaceVisible(namespaceName, range.Sequence))
+			return (definition.IsApiHeader || IsDefinitionInSameFile(definition, referenceSyntax) || IsNamespaceVisible(namespaceName, range.Sequence))
 				&& IsDefinitionAccessibleWithoutImport(definition, referenceSyntax);
 		string alias = string.Join("::", qualifiers);
 		return TryResolveNamespaceAlias(alias, range.Sequence, out string? aliasedNamespace)
