@@ -1099,7 +1099,7 @@ public sealed class CommandLineTests
 			}
 			""");
 
-		ProcessResult result = RunCampc("build", library, app, "--nostdlib", "--artifact", "none", "--out-dir", TempPath("using-qualified-positive-out"));
+		ProcessResult result = BuildInProcess("using-qualified-positive-out", noStdLib: true, library, app);
 
 		AssertCommandSucceeded(result);
 	}
@@ -1138,9 +1138,9 @@ public sealed class CommandLineTests
 			export int main() => Lib::getValue();
 			""");
 
-		ProcessResult noImportResult = RunCampc("build", library, noImport, "--nostdlib", "--artifact", "none", "--out-dir", TempPath("using-no-import-out"));
-		ProcessResult selectedResult = RunCampc("build", library, selected, "--nostdlib", "--artifact", "none", "--out-dir", TempPath("using-selected-out"));
-		ProcessResult aliasOriginalResult = RunCampc("build", library, aliasOriginal, "--nostdlib", "--artifact", "none", "--out-dir", TempPath("using-alias-original-out"));
+		ProcessResult noImportResult = BuildInProcess("using-no-import-out", noStdLib: true, library, noImport);
+		ProcessResult selectedResult = BuildInProcess("using-selected-out", noStdLib: true, library, selected);
+		ProcessResult aliasOriginalResult = BuildInProcess("using-alias-original-out", noStdLib: true, library, aliasOriginal);
 
 		Assert.NotEqual(0, noImportResult.ExitCode);
 		Assert.Contains("Symbol 'getValue' is declared in namespace 'Lib' but is not imported by this file.", noImportResult.StdErr, StringComparison.Ordinal);
@@ -1189,10 +1189,10 @@ public sealed class CommandLineTests
 			}
 			""");
 
-		ProcessResult implicitResult = RunCampc("build", implicitStd, "--artifact", "none", "--out-dir", TempPath("using-implicit-std-out"));
-		ProcessResult aliasedResult = RunCampc("build", aliasedStd, "--artifact", "none", "--out-dir", TempPath("using-aliased-std-out"));
-		ProcessResult suppressedResult = RunCampc("build", suppressedStd, "--artifact", "none", "--out-dir", TempPath("using-suppressed-std-out"));
-		ProcessResult selectedResult = RunCampc("build", selectedStd, "--artifact", "none", "--out-dir", TempPath("using-selected-std-out"));
+		ProcessResult implicitResult = BuildInProcess("using-implicit-std-out", noStdLib: false, implicitStd);
+		ProcessResult aliasedResult = BuildInProcess("using-aliased-std-out", noStdLib: false, aliasedStd);
+		ProcessResult suppressedResult = BuildInProcess("using-suppressed-std-out", noStdLib: false, suppressedStd);
+		ProcessResult selectedResult = BuildInProcess("using-selected-std-out", noStdLib: false, selectedStd);
 
 		AssertCommandSucceeded(implicitResult);
 		AssertCommandSucceeded(aliasedResult);
@@ -1214,8 +1214,8 @@ public sealed class CommandLineTests
 			export int namespace() => 0;
 			""");
 
-		ProcessResult oldResult = RunCampc("build", oldNamespace, "--nostdlib", "--artifact", "none", "--out-dir", TempPath("old-namespace-out"));
-		ProcessResult reservedResult = RunCampc("build", reserved, "--nostdlib", "--artifact", "none", "--out-dir", TempPath("reserved-namespace-out"));
+		ProcessResult oldResult = BuildInProcess("old-namespace-out", noStdLib: true, oldNamespace);
+		ProcessResult reservedResult = BuildInProcess("reserved-namespace-out", noStdLib: true, reserved);
 
 		Assert.NotEqual(0, oldResult.ExitCode);
 		Assert.Contains("Use 'namespace OldName;' instead of 'export as OldName;'.", oldResult.StdErr, StringComparison.Ordinal);
@@ -1235,7 +1235,7 @@ public sealed class CommandLineTests
 			}
 			""");
 
-		ProcessResult result = RunCampc("build", source, "--nostdlib", "--artifact", "none", "--out-dir", TempPath("public-visibility-out"));
+		ProcessResult result = BuildInProcess("public-visibility-out", noStdLib: true, source);
 
 		AssertCommandSucceeded(result);
 	}
@@ -1264,7 +1264,7 @@ public sealed class CommandLineTests
 			}
 			""");
 
-		ProcessResult result = RunCampc("build", source, "--nostdlib", "--artifact", "none", "--out-dir", TempPath("enum-comparison-shorthand"));
+		ProcessResult result = BuildInProcess("enum-comparison-shorthand", noStdLib: true, source);
 
 		AssertCommandSucceeded(result);
 	}
@@ -1287,7 +1287,7 @@ public sealed class CommandLineTests
 			}
 			""");
 
-		ProcessResult result = RunCampc("build", source, "--nostdlib", "--artifact", "none", "--out-dir", TempPath("finally-delete-range"));
+		ProcessResult result = BuildInProcess("finally-delete-range", noStdLib: true, source);
 
 		Assert.NotEqual(0, result.ExitCode);
 		Assert.Contains("finally_delete_range.camp(10,15): error: delete requires a pointer or a type with a destructor, not 'HBRUSH'.", Normalize(result.StdErr), StringComparison.Ordinal);
@@ -1315,7 +1315,7 @@ public sealed class CommandLineTests
 			}
 			""");
 
-		ProcessResult result = RunCampc("build", source, "--nostdlib", "--artifact", "none", "--out-dir", TempPath("foreach-iterator-delete-range"));
+		ProcessResult result = BuildInProcess("foreach-iterator-delete-range", noStdLib: true, source);
 
 		Assert.NotEqual(0, result.ExitCode);
 		Assert.Contains("foreach_iterator_delete_range.camp(11,2): error: delete requires a pointer or a type with a destructor, not 'BrokenIter'.", Normalize(result.StdErr), StringComparison.Ordinal);
@@ -4007,7 +4007,7 @@ public sealed class CommandLineTests
 			}
 			""");
 
-		ProcessResult result = RunCampc("build", source, "--api", api, "--nostdlib", "--artifact", "none", "--out-dir", TempPath("api-only-declarations-out"));
+		ProcessResult result = BuildWithApiInProcess("api-only-declarations-out", noStdLib: true, [source], [api]);
 
 		AssertCommandSucceeded(result);
 	}
@@ -4027,7 +4027,7 @@ public sealed class CommandLineTests
 			}
 			""");
 
-		ProcessResult result = RunCampc("build", source, "--api", api, "--nostdlib", "--artifact", "none", "--out-dir", TempPath("api-function-body-out"));
+		ProcessResult result = BuildWithApiInProcess("api-function-body-out", noStdLib: true, [source], [api]);
 
 		Assert.NotEqual(0, result.ExitCode);
 		Assert.Contains("Function 'helper' in API file", result.StdErr, StringComparison.Ordinal);
@@ -4046,7 +4046,7 @@ public sealed class CommandLineTests
 			}
 			""");
 
-		ProcessResult result = RunCampc("build", source, "--api", api, "--nostdlib", "--artifact", "none", "--out-dir", TempPath("api-global-storage-out"));
+		ProcessResult result = BuildWithApiInProcess("api-global-storage-out", noStdLib: true, [source], [api]);
 
 		Assert.NotEqual(0, result.ExitCode);
 		Assert.Contains("Variable 'state' in API file", result.StdErr, StringComparison.Ordinal);
@@ -4068,7 +4068,7 @@ public sealed class CommandLineTests
 			}
 			""");
 
-		ProcessResult result = RunCampc("build", source, "--api", api, "--nostdlib", "--artifact", "none", "--out-dir", TempPath("api-static-storage-out"));
+		ProcessResult result = BuildWithApiInProcess("api-static-storage-out", noStdLib: true, [source], [api]);
 
 		Assert.NotEqual(0, result.ExitCode);
 		Assert.Contains("Static field 'Counter.current' in API file", result.StdErr, StringComparison.Ordinal);
@@ -4499,6 +4499,33 @@ public sealed class CommandLineTests
 	static ProcessResult RunCampc(params string[] arguments)
 	{
 		return RunCampc(null, arguments);
+	}
+
+	static ProcessResult BuildInProcess(string outputName, bool noStdLib, params string[] files)
+	{
+		return BuildWithApiInProcess(outputName, noStdLib, files, []);
+	}
+
+	static ProcessResult BuildWithApiInProcess(string outputName, bool noStdLib, IReadOnlyList<string> files, IReadOnlyList<string> apiFiles)
+	{
+		using IDisposable timing = TestTiming.Measure("CommandLine in-process build " + outputName);
+		string repositoryRoot = FindRepositoryRoot();
+		CompilerRequest request = new()
+		{
+			RuntimeRoot = Path.Combine(repositoryRoot, "bin"),
+			TargetRoot = Path.Combine(repositoryRoot, "targets"),
+			PackageSourceRoot = Path.Combine(repositoryRoot, "lib"),
+			PackageArtifactRoot = Path.Combine(repositoryRoot, "tmp", "cli-tests-packages"),
+			WorkingDirectory = repositoryRoot,
+			OutDir = TempPath(outputName),
+			NoStdLib = noStdLib,
+			BuildKind = null
+		};
+		request.Files.AddRange(files);
+		request.ApiFiles.AddRange(apiFiles);
+
+		CompilerResult result = CompilerDriver.Execute(request);
+		return new ProcessResult(result.ExitCode, Normalize(result.StdOut), Normalize(result.StdErr));
 	}
 
 	static ProcessResult RunCampc(IReadOnlyDictionary<string, string?>? environmentVariables, params string[] arguments)
