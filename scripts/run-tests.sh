@@ -10,6 +10,8 @@ timeout_seconds="${CAMP_TEST_TIMEOUT_SECONDS:-900}"
 sample_processes="${CAMP_TEST_SAMPLE_PROCESSES:-0}"
 stdrun_batch_size="${CAMP_TEST_STDRUN_BATCH_SIZE:-}"
 list_stdrun_batches="${CAMP_TEST_LIST_STDRUN_BATCHES:-0}"
+native_parallelism="${CAMP_TEST_NATIVE_PARALLELISM:-auto}"
+cli_parallelism="${CAMP_TEST_CLI_PARALLELISM:-auto}"
 mode="${1:-auto}"
 
 test_project="src/Camp.Compiler.TestRunner/Camp.Compiler.TestRunner.csproj"
@@ -46,6 +48,8 @@ Environment:
   CAMP_TEST_SAMPLE_PROCESSES Optional process-count sampling. Set to 1 to enable.
   CAMP_TEST_STDRUN_BATCH_SIZE StdRun cases per VSTest invocation in sectioned mode.
   CAMP_TEST_LIST_STDRUN_BATCHES Print StdRun batches and exit after discovery.
+  CAMP_TEST_NATIVE_PARALLELISM Native compile/run gate. Default: 1 on macOS, unlimited elsewhere.
+  CAMP_TEST_CLI_PARALLELISM External campc process gate. Default: 1 on macOS, unlimited elsewhere.
 USAGE
 }
 
@@ -88,6 +92,8 @@ echo "[camp-test] mode: $mode"
 echo "[camp-test] timeout per invocation: ${timeout_seconds}s"
 echo "[camp-test] StdRun batch size: $stdrun_batch_size"
 echo "[camp-test] process sampling: $sample_processes"
+echo "[camp-test] native parallelism: $native_parallelism"
+echo "[camp-test] CLI parallelism: $cli_parallelism"
 
 now_ms() {
 	python3 - <<'PY'

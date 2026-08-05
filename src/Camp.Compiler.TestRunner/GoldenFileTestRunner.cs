@@ -30,7 +30,16 @@ public static class GoldenFileTestRunner
 			Assert.Skip("CCompile compile-failure diagnostics are host-clang dependent.");
 
 		CompilerRequest request = CreateRequest(testCase);
-		CompilerResult result = ExecuteCompiler(testCase, request);
+		CompilerResult result;
+		if (testCase.Kind is GoldenFileTestKind.CCompile or GoldenFileTestKind.StdRun)
+		{
+			using IDisposable gate = TestResourceGate.EnterNative();
+			result = ExecuteCompiler(testCase, request);
+		}
+		else
+		{
+			result = ExecuteCompiler(testCase, request);
+		}
 		string actual = Normalize(SelectOutput(testCase, result));
 		File.WriteAllText(testCase.ActualPath, actual);
 

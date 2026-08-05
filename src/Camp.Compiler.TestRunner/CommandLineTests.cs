@@ -4524,6 +4524,7 @@ public sealed class CommandLineTests
 		}
 
 		using Process process = new() { StartInfo = info };
+		using IDisposable gate = TestResourceGate.EnterCli();
 		process.Start();
 		string stdout = process.StandardOutput.ReadToEnd();
 		string stderr = process.StandardError.ReadToEnd();
@@ -4544,6 +4545,7 @@ public sealed class CommandLineTests
 			info.ArgumentList.Add(argument);
 
 		using Process process = new() { StartInfo = info };
+		using IDisposable gate = TestResourceGate.EnterCli();
 		process.Start();
 		string stdout = process.StandardOutput.ReadToEnd();
 		string stderr = process.StandardError.ReadToEnd();
@@ -4563,6 +4565,7 @@ public sealed class CommandLineTests
 			info.ArgumentList.Add(argument);
 
 		using Process process = new() { StartInfo = info };
+		using IDisposable gate = TestResourceGate.EnterCli();
 		process.Start();
 		string stdout = process.StandardOutput.ReadToEnd();
 		string stderr = process.StandardError.ReadToEnd();
