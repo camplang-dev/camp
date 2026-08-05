@@ -62,7 +62,7 @@ public sealed partial class BindableNodeAnalyzer
 
 			case CastExpression cast:
 				cast.Expression = LowerExpression(cast.Expression);
-				if (IsInterfacePointerType(cast.Type))
+				if (IsInterfacePointerType(cast.Type) && !IsInterfaceFieldAddressCast(cast))
 					return LowerInterfaceConversion(cast.Type, cast.Expression) ?? cast;
 				break;
 

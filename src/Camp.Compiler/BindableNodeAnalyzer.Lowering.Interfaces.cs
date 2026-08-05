@@ -760,7 +760,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	Expression AddressOfInterfaceField(Expression instance, FieldDefinition field)
 	{
-		return new UnaryExpression
+		UnaryExpression address = new()
 		{
 			Operator = UnaryOperator.AddressOf,
 			Operand = new MemberReferenceExpression
@@ -772,6 +772,54 @@ public sealed partial class BindableNodeAnalyzer
 			},
 			ResolvedType = $"{field.ResolvedType}*"
 		};
+
+		if (TryGetInterfaceDefinitionFromVTableField(field, out InterfaceDefinition? interfaceDefinition)
+			&& interfaceDefinition is not null)
+		{
+			return new CastExpression
+			{
+				Kind = CastKind.Type,
+				Type = PointerTo(PointerTo(InterfaceType(interfaceDefinition))),
+				Expression = address,
+				ResolvedType = $"{InterfaceResolvedName(interfaceDefinition)}**"
+			};
+		}
+
+		return address;
+	}
+
+	bool IsInterfaceFieldAddressCast(CastExpression cast)
+	{
+		return cast.Expression is UnaryExpression
+		{
+			Operator: UnaryOperator.AddressOf,
+			Operand: MemberReferenceExpression { Member: FieldDefinition field }
+		}
+		&& TryGetInterfaceDefinitionFromVTableField(field, out _);
+	}
+
+	bool TryGetInterfaceDefinitionFromVTableField(FieldDefinition field, out InterfaceDefinition? interfaceDefinition)
+	{
+		interfaceDefinition = null;
+		TypeReference? type = field.Type;
+		if (type is PointerTypeReference pointer)
+			type = pointer.ElementType;
+		if (type is ConstTypeReference constant)
+			type = constant.Type;
+		if (type is TypeDefinitionReference { Definition: InterfaceDefinition definition })
+		{
+			interfaceDefinition = definition;
+			return true;
+		}
+		string? resolvedType = field.ResolvedType;
+		if (TryGetPointerElementType(resolvedType) is string resolvedElement
+			&& TryGetTypeDefinitionByResolvedName(StripTopLevelValueQualifiers(resolvedElement), out TypeDefinition? resolvedDefinition)
+			&& resolvedDefinition is InterfaceDefinition resolvedInterface)
+		{
+			interfaceDefinition = resolvedInterface;
+			return true;
+		}
+		return false;
 	}
 
 	bool NeedsVirtualTableAssignment(TypeDefinition type)

@@ -5695,7 +5695,9 @@ public static class CCodeEmitter
 				&& expectedParameterType is not null
 				&& argument.Value?.ResolvedType is string thisValueType
 				&& IsResolvedPointerType(expectedParameterType)
-				&& !IsResolvedPointerType(thisValueType))
+				&& !IsResolvedPointerType(thisValueType)
+				&& argument.Value is not CastExpression
+				&& !IsExpandedArrayParameterReference(argument.Value))
 				value = "&" + value;
 			if (argument.Modifier == ArgumentModifier.None
 				&& argument.Value is not null
@@ -5791,6 +5793,12 @@ public static class CCodeEmitter
 		static bool IsResolvedPointerType(string type)
 		{
 			return type.TrimEnd().EndsWith("*", StringComparison.Ordinal);
+		}
+
+		static bool IsExpandedArrayParameterReference(Expression? expression)
+		{
+			return expression is VariableReferenceExpression { Variable: ParameterDefinition parameter }
+				&& TryGetExpandedArrayElementType(parameter.ResolvedType, out _);
 		}
 
 		bool ContainsGenericParameterTypeName(string type)

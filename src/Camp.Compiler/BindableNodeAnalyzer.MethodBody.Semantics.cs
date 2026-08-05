@@ -333,8 +333,11 @@ public sealed partial class BindableNodeAnalyzer
 		}
 		if (pointerDepth != 1 && (!allowPointerToPointer || pointerDepth != 2))
 			return false;
-		return typeDefinitions.TryGetValue(BaseTypeName(StripTopLevelValueQualifiers(element)), out TypeDefinition? definition)
-			&& definition is InterfaceDefinition
+		string allocatorElement = BaseTypeName(StripTopLevelValueQualifiers(element));
+		if (allocatorElement == "Allocator")
+			return true;
+		return TryGetTypeDefinitionByResolvedName(allocatorElement, out TypeDefinition? definition)
+			&& definition is not null
 			&& definition.Name == "Allocator";
 	}
 

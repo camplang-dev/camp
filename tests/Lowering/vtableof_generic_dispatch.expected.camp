@@ -15,7 +15,7 @@ class Widget
 
 	constof(this) IRef* getIRef()
 	{
-		return &this._vt_IRef;
+		return (IRef**)&this._vt_IRef;
 	}
 
 	void op_initnew()
