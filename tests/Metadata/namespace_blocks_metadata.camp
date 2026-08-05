@@ -1,0 +1,44 @@
+// @emit-metadata all
+// @test-module
+
+namespace MetaA;
+
+export struct Handle
+{
+	int value;
+}
+
+/// Runs in the file-default namespace.
+/// @test
+void defaultTest()
+{
+}
+
+namespace MetaB
+{
+	export struct Handle
+	{
+		MetaA::Handle other;
+	}
+
+	/// Runs in the block namespace.
+	/// @test
+	void blockTest()
+	{
+	}
+}
+
+namespace global
+{
+	export struct RootHandle
+	{
+		MetaA::Handle a;
+		MetaB::Handle b;
+	}
+
+	/// Runs in the root namespace.
+	/// @test
+	void rootTest()
+	{
+	}
+}

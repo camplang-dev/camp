@@ -83,7 +83,9 @@ public static class CampTestDiscovery
 	static string GetQualifiedFunctionName(Module module, FunctionDefinition function, string name)
 	{
 		string? namespaceName = function.Namespace;
-		if (module.DefinitionSources.TryGetValue(function, out TokenSequence? source)
+		if (string.IsNullOrWhiteSpace(namespaceName)
+			&& !function.NamespaceAssigned
+			&& module.DefinitionSources.TryGetValue(function, out TokenSequence? source)
 			&& source is not null
 			&& module.SourceNamespaces.TryGetValue(source, out string? sourceNamespace))
 			namespaceName = sourceNamespace;

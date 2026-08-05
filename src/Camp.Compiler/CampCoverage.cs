@@ -245,7 +245,9 @@ public sealed class CampCoverageMapBuilder
 		function = GetCoverageSourceFunction(function);
 		string name = GetVisibleFunctionName(function);
 		string? namespaceName = function.Namespace;
-		if (CCodeEmitter.TryGetNodeSourceRange(function, out TokenRange range)
+		if (string.IsNullOrWhiteSpace(namespaceName)
+			&& !function.NamespaceAssigned
+			&& CCodeEmitter.TryGetNodeSourceRange(function, out TokenRange range)
 			&& module.SourceNamespaces.TryGetValue(range.Sequence, out string? sourceNamespace))
 			namespaceName = sourceNamespace;
 		string qualified = containingTypes.TryGetValue(function, out TypeDefinition? type)

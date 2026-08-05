@@ -173,6 +173,24 @@ public sealed class LanguageServiceTests
 			{
 				return 0;
 			}
+
+			namespace BlockTests
+			{
+				/// Block case.
+				@test
+				void blockCase(thrown EditorTests::Assertion* assertion)
+				{
+				}
+			}
+
+			namespace global
+			{
+				/// Root case.
+				@test
+				void rootCase(thrown EditorTests::Assertion* assertion)
+				{
+				}
+			}
 			""";
 		File.WriteAllText(source, text);
 		CompilerRequest request = Request(root, source);
@@ -181,7 +199,7 @@ public sealed class LanguageServiceTests
 		CampTestDiscoverySnapshot snapshot = CampLanguageService.DiscoverTests(request);
 
 		Assert.True(snapshot.Success, string.Join(Environment.NewLine, snapshot.Diagnostics.Select(static diagnostic => diagnostic.Message)));
-		Assert.Equal(2, snapshot.Tests.Count);
+		Assert.Equal(4, snapshot.Tests.Count);
 		CampDiscoveredTest valid = snapshot.Tests.Single(static test => test.Name == "validCase");
 		Assert.Equal("EditorTests::validCase", valid.Id);
 		Assert.Equal("Valid case.", valid.Summary);
@@ -191,6 +209,12 @@ public sealed class LanguageServiceTests
 
 		CampDiscoveredTest invalid = snapshot.Tests.Single(static test => test.Name == "invalidCase");
 		Assert.Equal("invalid", invalid.RunnerSignature);
+		CampDiscoveredTest block = snapshot.Tests.Single(static test => test.Name == "blockCase");
+		Assert.Equal("BlockTests::blockCase", block.Id);
+		Assert.Equal("valid", block.RunnerSignature);
+		CampDiscoveredTest rootCase = snapshot.Tests.Single(static test => test.Name == "rootCase");
+		Assert.Equal("rootCase", rootCase.Id);
+		Assert.Equal("valid", rootCase.RunnerSignature);
 		CampSourceDiagnostic diagnostic = Assert.Single(snapshot.Diagnostics, static diagnostic => diagnostic.Code == "CAMPTEST001");
 		Assert.Equal(Path.GetFullPath(source), diagnostic.Path);
 		Assert.Equal(invalid.Range.Start.Line, diagnostic.Range?.Start.Line);

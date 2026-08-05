@@ -1,0 +1,147 @@
+{
+  "format": "camp.metadata",
+  "version": 1,
+  "module": {
+    "name": "MetaA",
+    "namespace": "MetaA"
+  },
+  "view": {
+    "visibility": "all",
+    "level": "source",
+    "generated": false
+  },
+  "declarations": [
+    {
+      "id": "struct:MetaA::Handle",
+      "kind": "struct",
+      "name": "Handle",
+      "symbol": "MetaAHandle",
+      "visibility": "export",
+      "fields": [
+        {
+          "id": "struct:MetaA::Handle/field:value",
+          "name": "value",
+          "type": "int"
+        }
+      ]
+    },
+    {
+      "id": "function:MetaA::defaultTest",
+      "kind": "function",
+      "name": "defaultTest",
+      "symbol": "MetaA_defaultTest",
+      "testOnly": true,
+      "test": {
+        "id": "MetaA::defaultTest",
+        "name": "defaultTest",
+        "qualifiedName": "MetaA::defaultTest",
+        "sourcefile": "tests/Metadata/namespace_blocks_metadata.camp",
+        "sourceline": 13,
+        "summary": "Runs in the file-default namespace.",
+        "skipped": false,
+        "skipReason": null,
+        "runnerSignature": "invalid",
+        "hasBody": true
+      },
+      "returnType": "void",
+      "metadata": [
+        {
+          "name": "summary",
+          "content": "Runs in the file-default namespace."
+        },
+        {
+          "name": "test"
+        }
+      ]
+    },
+    {
+      "id": "struct:MetaB::Handle",
+      "kind": "struct",
+      "name": "Handle",
+      "symbol": "MetaBHandle",
+      "visibility": "export",
+      "fields": [
+        {
+          "id": "struct:MetaB::Handle/field:other",
+          "name": "other",
+          "type": "Handle"
+        }
+      ]
+    },
+    {
+      "id": "function:MetaB::blockTest",
+      "kind": "function",
+      "name": "blockTest",
+      "symbol": "MetaB_blockTest",
+      "testOnly": true,
+      "test": {
+        "id": "MetaB::blockTest",
+        "name": "blockTest",
+        "qualifiedName": "MetaB::blockTest",
+        "sourcefile": "tests/Metadata/namespace_blocks_metadata.camp",
+        "sourceline": 26,
+        "summary": "Runs in the block namespace.",
+        "skipped": false,
+        "skipReason": null,
+        "runnerSignature": "invalid",
+        "hasBody": true
+      },
+      "returnType": "void",
+      "metadata": [
+        {
+          "name": "summary",
+          "content": "Runs in the block namespace."
+        },
+        {
+          "name": "test"
+        }
+      ]
+    },
+    {
+      "id": "struct:RootHandle",
+      "kind": "struct",
+      "name": "RootHandle",
+      "visibility": "export",
+      "fields": [
+        {
+          "id": "struct:RootHandle/field:a",
+          "name": "a",
+          "type": "Handle"
+        },
+        {
+          "id": "struct:RootHandle/field:b",
+          "name": "b",
+          "type": "Handle"
+        }
+      ]
+    },
+    {
+      "id": "function:rootTest",
+      "kind": "function",
+      "name": "rootTest",
+      "testOnly": true,
+      "test": {
+        "id": "rootTest",
+        "name": "rootTest",
+        "qualifiedName": "rootTest",
+        "sourcefile": "tests/Metadata/namespace_blocks_metadata.camp",
+        "sourceline": 41,
+        "summary": "Runs in the root namespace.",
+        "skipped": false,
+        "skipReason": null,
+        "runnerSignature": "invalid",
+        "hasBody": true
+      },
+      "returnType": "void",
+      "metadata": [
+        {
+          "name": "summary",
+          "content": "Runs in the root namespace."
+        },
+        {
+          "name": "test"
+        }
+      ]
+    }
+  ]
+}

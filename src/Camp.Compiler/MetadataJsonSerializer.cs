@@ -75,9 +75,10 @@ public static class MetadataJsonSerializer
 			{
 				if (definition is TypeDefinition typeDefinition)
 				{
-					typeDefinitions[definition.Name] = typeDefinition;
+					AddTypeDefinitionKey(definition.Name, typeDefinition, overwrite: false);
+					AddTypeDefinitionKey(GetQualifiedDefinitionName(typeDefinition), typeDefinition, overwrite: true);
 					if (!string.IsNullOrWhiteSpace(definition.Symbol))
-						typeDefinitions[definition.Symbol] = typeDefinition;
+						AddTypeDefinitionKey(definition.Symbol, typeDefinition, overwrite: true);
 				}
 				if (IsOutOfScopeStaticClassMember(definition))
 					continue;
@@ -87,6 +88,16 @@ public static class MetadataJsonSerializer
 					symbols.TryAdd(definition.Symbol, definition);
 				IndexDefinition(definition, GetTopLevelId(definition));
 			}
+		}
+
+		void AddTypeDefinitionKey(string? key, TypeDefinition definition, bool overwrite)
+		{
+			if (string.IsNullOrWhiteSpace(key))
+				return;
+			if (overwrite)
+				typeDefinitions[key] = definition;
+			else
+				typeDefinitions.TryAdd(key, definition);
 		}
 
 		void IndexDefinition(Definition definition, string id)
@@ -1555,7 +1566,8 @@ public static class MetadataJsonSerializer
 
 		string GetTopLevelId(Definition definition)
 		{
-			string prefix = string.IsNullOrWhiteSpace(module.Namespace) ? "" : module.Namespace + "::";
+			string? namespaceName = GetEffectiveMetadataNamespace(definition);
+			string prefix = string.IsNullOrWhiteSpace(namespaceName) ? "" : namespaceName + "::";
 			return GetKind(definition) + ":" + prefix + GetMetadataIdName(definition);
 		}
 
@@ -2009,12 +2021,27 @@ public static class MetadataJsonSerializer
 				prefix = staticClassDefinition.Name + ".";
 
 			string? namespaceName = function.Namespace;
-			if (module.DefinitionSources.TryGetValue(function, out TokenSequence? source)
+			if (string.IsNullOrWhiteSpace(namespaceName)
+				&& !function.NamespaceAssigned
+				&& module.DefinitionSources.TryGetValue(function, out TokenSequence? source)
 				&& source is not null
 				&& module.SourceNamespaces.TryGetValue(source, out string? sourceNamespace))
 				namespaceName = sourceNamespace;
 
 			return (string.IsNullOrWhiteSpace(namespaceName) ? "" : namespaceName + "::") + prefix + name;
+		}
+
+		string GetQualifiedDefinitionName(Definition definition)
+		{
+			string? namespaceName = GetEffectiveMetadataNamespace(definition);
+			return string.IsNullOrWhiteSpace(namespaceName) ? definition.Name : namespaceName + "::" + definition.Name;
+		}
+
+		string? GetEffectiveMetadataNamespace(Definition definition)
+		{
+			if (!string.IsNullOrWhiteSpace(definition.Namespace) || definition.NamespaceAssigned)
+				return definition.Namespace;
+			return module.Namespace;
 		}
 
 		TypeDefinition? FindContainingType(FunctionDefinition function)
