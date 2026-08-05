@@ -239,6 +239,14 @@ public sealed partial class BindableNodeAnalyzer
 			return true;
 		if (AreSameNominalType(source, target))
 			return true;
+		if (!source.Contains('<', StringComparison.Ordinal) && !target.Contains('<', StringComparison.Ordinal) && NominalAliasShapesMatch(source, target))
+		{
+			string normalizedNominalSource = NormalizeNominalTypeAliases(source);
+			string normalizedNominalTarget = NormalizeNominalTypeAliases(target);
+			if ((normalizedNominalSource != source || normalizedNominalTarget != target)
+				&& CanImplicitlyConvert(normalizedNominalSource, normalizedNominalTarget))
+				return true;
+		}
 
 		string erasedConstOfSource = EraseConstOfQualifiers(source);
 		string erasedConstOfTarget = EraseConstOfQualifiers(target);
@@ -408,6 +416,13 @@ public sealed partial class BindableNodeAnalyzer
 			type = ReplaceTypeToken(type, symbol, definition.Name);
 		}
 		return type;
+	}
+
+	static bool NominalAliasShapesMatch(string source, string target)
+	{
+		return source.Contains('*', StringComparison.Ordinal) == target.Contains('*', StringComparison.Ordinal)
+			&& source.Contains("[]", StringComparison.Ordinal) == target.Contains("[]", StringComparison.Ordinal)
+			&& source.Contains('?', StringComparison.Ordinal) == target.Contains('?', StringComparison.Ordinal);
 	}
 
 	static string ReplaceTypeToken(string text, string token, string replacement)
@@ -3023,7 +3038,7 @@ public sealed partial class BindableNodeAnalyzer
 			return true;
 		if (TryGetPointerElementType(receiverType) is not string receiverElement || TryGetPointerElementType(actualType) is not null)
 			return false;
-		if (BaseTypeName(receiverElement) == BaseTypeName(actualType))
+		if (NormalizeNominalTypeAliases(BaseTypeName(receiverElement)) == NormalizeNominalTypeAliases(BaseTypeName(actualType)))
 			return true;
 		return CanImplicitlyConvert(AddPointer(actualType), receiverType);
 	}

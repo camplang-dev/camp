@@ -867,6 +867,8 @@ public sealed partial class BindableNodeAnalyzer
 
 			definition.Symbol = symbol;
 			definition.SymbolOverridden = true;
+			if (definition is TypeDefinition typeDefinition)
+				typeDefinitions[symbol] = typeDefinition;
 		}
 	}
 

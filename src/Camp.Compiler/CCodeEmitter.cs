@@ -5685,6 +5685,13 @@ public static class CCodeEmitter
 				&& NeedsGenericScalarCast(concreteType))
 				value = CastToErasedGeneric(value, concreteType);
 			if (argument.Modifier == ArgumentModifier.None
+				&& parameter is ThisParameterDefinition
+				&& expectedParameterType is not null
+				&& argument.Value?.ResolvedType is string thisValueType
+				&& IsResolvedPointerType(expectedParameterType)
+				&& !IsResolvedPointerType(thisValueType))
+				value = "&" + value;
+			if (argument.Modifier == ArgumentModifier.None
 				&& argument.Value is not null
 				&& delegateThunksByExpression.TryGetValue(argument.Value, out DelegateThunk? thunk))
 			{

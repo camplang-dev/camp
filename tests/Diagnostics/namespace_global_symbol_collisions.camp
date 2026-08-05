@@ -1,0 +1,16 @@
+namespace global
+{
+	int dup()
+	{
+		return 1;
+	}
+}
+
+namespace App
+{
+	@symbol("dup")
+	int other()
+	{
+		return 2;
+	}
+}

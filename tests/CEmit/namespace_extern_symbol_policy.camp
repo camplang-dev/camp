@@ -1,0 +1,16 @@
+namespace Posix;
+
+extern int getpid();
+
+@symbol("puts")
+extern int writeLine(byte* text);
+
+namespace global
+{
+	extern int chdir(byte* path);
+}
+
+export int main()
+{
+	return Posix::getpid() + chdir(default);
+}
