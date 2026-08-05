@@ -870,7 +870,7 @@ public sealed partial class BindableNodeAnalyzer
 		string deletedType = elementType ?? primitiveStringElementType ?? targetType;
 		FunctionDefinition? opDelete = null;
 		TypeDefinition? deletedDefinition = null;
-		if (typeDefinitions.TryGetValue(BaseTypeName(deletedType), out TypeDefinition? foundDeletedDefinition))
+		if (TryGetTypeDefinitionByResolvedName(deletedType, out TypeDefinition? foundDeletedDefinition) && foundDeletedDefinition is not null)
 		{
 			deletedDefinition = foundDeletedDefinition;
 			opDelete = deletedDefinition is ClassDefinition { Extern: not null }
