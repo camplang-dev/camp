@@ -217,6 +217,7 @@ static class CampInit
 		return CommonFiles(context, "src/posix.camp", """
 			namespace Posix;
 
+			@symbol("getpid")
 			public extern int getpid();
 			""", $$"""
 			# {{context.ProjectName}}
@@ -261,6 +262,7 @@ static class CampInit
 		return CommonFiles(context, "src/windows.camp", """
 			namespace Windows;
 
+			@symbol("GetCurrentProcessId")
 			public extern uint GetCurrentProcessId();
 			""", $$"""
 			# {{context.ProjectName}}
@@ -307,8 +309,10 @@ static class CampInit
 			namespace {{namespaceName}};
 
 			#if POSIX
+			@symbol("getpid")
 			extern int getpid();
 			#elif WINDOWS
+			@symbol("GetCurrentProcessId")
 			extern uint GetCurrentProcessId();
 			#endif
 

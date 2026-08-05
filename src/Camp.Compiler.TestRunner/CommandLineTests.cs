@@ -161,14 +161,18 @@ public sealed class CommandLineTests
 		ProcessResult posixInit = RunCampcIn(root, "init", "posix-api", "--template", "posix-api");
 		AssertCommandSucceeded(posixInit);
 		Assert.False(File.Exists(Path.Combine(root, "posix-api", "src", "main.camp")));
-		Assert.Contains("public extern int getpid();", File.ReadAllText(Path.Combine(root, "posix-api", "src", "posix.camp")), StringComparison.Ordinal);
+		string posixSource = File.ReadAllText(Path.Combine(root, "posix-api", "src", "posix.camp"));
+		Assert.Contains("@symbol(\"getpid\")", posixSource, StringComparison.Ordinal);
+		Assert.Contains("public extern int getpid();", posixSource, StringComparison.Ordinal);
 		Assert.Contains("--api ../posix-api/src/*.camp", File.ReadAllText(Path.Combine(root, "posix-api", "README.md")), StringComparison.Ordinal);
 		AssertCommandSucceeded(RunCampcIn(root, "build", Path.Combine("posix-api", "posix-api.campbuild"), "--out-dir", Path.Combine(root, "posix-api", "out")));
 
 		ProcessResult windowsInit = RunCampcIn(root, "init", "windows-api", "--template", "windows-api");
 		AssertCommandSucceeded(windowsInit);
 		Assert.False(File.Exists(Path.Combine(root, "windows-api", "src", "main.camp")));
-		Assert.Contains("public extern uint GetCurrentProcessId();", File.ReadAllText(Path.Combine(root, "windows-api", "src", "windows.camp")), StringComparison.Ordinal);
+		string windowsSource = File.ReadAllText(Path.Combine(root, "windows-api", "src", "windows.camp"));
+		Assert.Contains("@symbol(\"GetCurrentProcessId\")", windowsSource, StringComparison.Ordinal);
+		Assert.Contains("public extern uint GetCurrentProcessId();", windowsSource, StringComparison.Ordinal);
 		Assert.Contains("--api ../windows-api/src/*.camp", File.ReadAllText(Path.Combine(root, "windows-api", "README.md")), StringComparison.Ordinal);
 		AssertCommandSucceeded(RunCampcIn(root, "build", Path.Combine("windows-api", "windows-api.campbuild"), "--out-dir", Path.Combine(root, "windows-api", "out")));
 
@@ -179,6 +183,8 @@ public sealed class CommandLineTests
 		Assert.Contains("--artifact static", wrapperBuild, StringComparison.Ordinal);
 		Assert.Contains("#if POSIX", wrapperSource, StringComparison.Ordinal);
 		Assert.Contains("#elif WINDOWS", wrapperSource, StringComparison.Ordinal);
+		Assert.Contains("@symbol(\"getpid\")", wrapperSource, StringComparison.Ordinal);
+		Assert.Contains("@symbol(\"GetCurrentProcessId\")", wrapperSource, StringComparison.Ordinal);
 		Assert.Contains("getCurrentProcessId", wrapperSource, StringComparison.Ordinal);
 		ProcessResult wrapperTest = RunCampcIn(root, "test", Path.Combine("native-pid", "native-pid.campbuild"), "--target", target, "--out-dir", Path.Combine(root, "native-pid", "out"));
 		AssertCommandSucceeded(wrapperTest);
