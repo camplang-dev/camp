@@ -1,6 +1,6 @@
 # Namespace-Prefixed Default Symbols
 
-Status: pending  
+Status: accepted  
 Proposal date: 2026-08-04  
 Last updated date: 2026-08-04
 
@@ -34,6 +34,11 @@ PixelLib_CreateImage
 
 `@symbol` supplies a complete final native symbol. Namespace prefixing applies
 only when a declaration is using its default native symbol.
+
+This proposal changes native symbol construction only. It does not make the
+generated native symbol spelling a Camp source name. Source lookup continues to
+use source identifiers, ordinary imports, member access, and `Namespace::name`
+qualification.
 
 ## Motivation
 
@@ -396,8 +401,11 @@ Default exported symbol:
 SuperLib_CreateAllocator
 ```
 
-The implementation must define source-declaration versus projection-level
-`@symbol` precedence before this proposal is complete.
+This proposal does not introduce projection-level `@symbol` syntax. Export
+projections therefore use the projected source name and the current namespace
+to compute a projected default symbol. A future proposal may add an explicit
+projection-level symbol override if a separate projected ABI spelling is
+needed.
 
 ## Extern Declarations
 
@@ -503,8 +511,8 @@ declarations, with `@symbol` taking precedence.
 - bare type projection uses namespace-prefixed type symbol;
 - renamed type projection uses projected name as symbol basis;
 - renamed function projection uses `Namespace_Function`;
-- projection-level `@symbol` precedence is tested after the precedence rule is
-  implemented;
+- projection-level `@symbol` is not part of this proposal and is therefore not
+  tested;
 - extern declarations without `@symbol` use namespace-prefixed defaults;
 - extern declarations with `@symbol` use exact native symbols.
 
