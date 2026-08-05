@@ -239,7 +239,7 @@ public sealed partial class BindableNodeAnalyzer
 			return true;
 		if (AreSameNominalType(source, target))
 			return true;
-		if (!source.Contains('<', StringComparison.Ordinal) && !target.Contains('<', StringComparison.Ordinal) && NominalAliasShapesMatch(source, target))
+		if (NominalAliasShapesMatch(source, target))
 		{
 			string normalizedNominalSource = NormalizeNominalTypeAliases(source);
 			string normalizedNominalTarget = NormalizeNominalTypeAliases(target);
