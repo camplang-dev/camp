@@ -53,17 +53,19 @@ public static class GoldenFileTestRunner
 			}
 			actual = Normalize(SelectOutput(testCase, result));
 		}
-		File.WriteAllText(testCase.ActualPath, actual);
-
 		if (!File.Exists(testCase.ExpectedPath))
 		{
+			File.WriteAllText(testCase.ActualPath, actual);
 			File.WriteAllText(testCase.ExpectedPath, "");
 			Assert.Fail($"Missing golden file. Created empty expected file at '{testCase.ExpectedPath}' and wrote actual output to '{testCase.ActualPath}'.");
 		}
 
 		string expected = Normalize(File.ReadAllText(testCase.ExpectedPath));
 		if (expected != actual)
+		{
+			File.WriteAllText(testCase.ActualPath, actual);
 			Assert.Fail($"Golden file mismatch. Expected: '{testCase.ExpectedPath}'. Actual: '{testCase.ActualPath}'.");
+		}
 
 		DeleteActualFiles(testCase);
 	}
