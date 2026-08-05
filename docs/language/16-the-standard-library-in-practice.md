@@ -37,14 +37,9 @@ shape. `using Std as S;` aliases the namespace, and `using Std { Console };`
 selects only named declarations. Any explicit root `Std` import replaces the
 implicit one for that file.
 
-Some library areas live in child namespaces:
-
-```camp
-using Std::Time;
-```
-
-Use the child namespace when the domain benefits from shorter names, as with
-`Date`, `Instant`, and `TimeSpan`.
+The current standard library keeps its everyday surface in the root `Std`
+namespace. Prefer a normal `Std` import or selected root imports for standard
+library code.
 
 ## Language Forms Versus Library APIs
 
@@ -509,12 +504,10 @@ type limits are library conveniences.
 
 ## Time
 
-`Std::Time` contains small value types for dates, times, instants, offsets, and
+`Std` contains small value types for dates, times, instants, offsets, and
 durations:
 
 ```camp
-using Std::Time;
-
 void printDate()
 {
 	Date date = { 2026, 7, 14 };
@@ -527,8 +520,6 @@ The time API is intentionally modest. It includes useful value types and ISO-ish
 formatting/parsing helpers, not a full calendar/time-zone framework.
 
 ```camp
-using Std::Time;
-
 bool parseDate(const char[] text, out Date date)
 {
 	return text.tryParse(out date) && date.isValid();

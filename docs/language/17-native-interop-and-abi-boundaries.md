@@ -288,6 +288,25 @@ symbol and the default prefix for generated ABI helpers and static members.
 Once a declaration has a symbol override, treat the override as the stable ABI
 name and the Camp name as the stable source name.
 
+When a native-facing declaration has no `@symbol`, Camp computes a default ABI
+symbol from the declaration's source namespace and kind. That makes Camp
+libraries safer to link because namespaced source declarations naturally get
+namespaced native symbols. It does not change how Camp source names the
+declaration.
+
+For existing C or platform APIs, write `@symbol` when the native spelling is
+fixed:
+
+```camp
+namespace Posix;
+
+@symbol("getpid")
+public extern int getpid();
+```
+
+Camp source still calls `getpid()` or `Posix::getpid()` according to ordinary
+source lookup. The C import uses `getpid`.
+
 ## Call Specs And Type Specs
 
 Call specs describe native calling conventions:

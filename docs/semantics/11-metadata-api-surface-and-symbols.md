@@ -141,7 +141,12 @@ Compiler code should keep these name concepts distinct:
 - **source name:** what the programmer writes and what lookup sees;
 - **callable name:** the overload/ascription-aware function identity;
 - **invoker name:** the name used for call syntax and overload families;
-- **symbol name:** the native symbol, possibly affected by `@symbol`;
+- **default native symbol:** the compiler-computed native symbol before an
+  explicit `@symbol` override is applied;
+- **effective native symbol:** the final native symbol after applying
+  `@symbol`, or the default native symbol when no override is present;
+- **symbol name:** metadata/API shorthand for the effective native symbol where
+  symbol metadata is emitted;
 - **full callable symbol:** type-qualified callable symbol where generated;
 - **C identifier:** an emitted identifier safe for the selected C target;
 - **API name:** source-level name exposed to Camp consumers;
@@ -150,6 +155,46 @@ Compiler code should keep these name concepts distinct:
 Do not use `@symbol` to affect source lookup, metadata IDs, overload
 resolution, interface conformance, or callable ascription. It affects emitted
 native symbol identity.
+
+Namespace prefixing is part of default native symbol construction, not source
+lookup. A source declaration in `namespace Pixel;` remains available by source
+name in that namespace, through ordinary `using Pixel;` imports, or through
+source qualification such as `Pixel::name`. Generated native spellings such as
+`Pixel_name` are not source aliases unless the source actually declares that
+name.
+
+Default native symbol construction uses declaration category:
+
+- no-namespace declarations keep their historical unprefixed default symbols;
+- top-level functions, globals, and inline constants use
+  `<NamespacePrefix>_<DeclarationSymbol>`;
+- type declarations use the type prefix join rule:
+  - empty prefix: `Name`;
+  - non-empty prefix and uppercase first emitted name character:
+    `<NamespacePrefix><Name>`;
+  - otherwise: `<NamespacePrefix>_<Name>`;
+- nested namespaces flatten into the namespace prefix with `_` between
+  components before the category rule is applied;
+- type members use the containing type's effective native symbol plus `_` plus
+  the member symbol;
+- static class members use the static class source container's effective
+  namespace/type prefix in the same way as other type-contained members, even
+  though the static class itself does not emit a C type;
+- out-of-scope extension and static extension members use the namespace active
+  in the declaring file for their namespace prefix and still receive the
+  receiver/static-owner type prefix for the member portion.
+
+Generated declarations derive their default native symbols from the effective
+native symbol of the source declaration or containing type that owns them. This
+includes lifecycle helpers, create/delete/init helpers, vtable/interface
+helpers, lambda/delegate adapters, async frames, iterator state methods and
+protocol adapters, and other generated emission helpers. Generated helpers
+participate in native symbol collision analysis even when they are not source
+metadata declarations.
+
+Export projections compute default exported symbols from the projected source
+name when no explicit symbol is present on the projected declaration. A
+projection does not create a source alias inside ordinary source lookup.
 
 For overload-family entries, the source name and invoker name are the family
 name, while the callable name is the concrete source-callable identity after the
@@ -272,8 +317,9 @@ full emitted member symbol and takes precedence over the containing type's
 default prefix.
 
 Static class containers do not have independent ABI type symbols. A static
-class member still receives an emitted symbol, normally prefixed by the source
-container name unless the member declaration supplies its own `@symbol`.
+class member still receives an emitted symbol, normally prefixed by the
+namespace-prefixed static class container name unless the member declaration
+supplies its own `@symbol`.
 
 `@symbol` does not affect source lookup, metadata IDs, overload resolution,
 interface conformance, callable ascription, or documentation targets. Metadata

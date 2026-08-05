@@ -66,8 +66,8 @@ using Std { Console };
 ```
 
 With either form, only the explicit alias or selected names are available from
-the root `Std` namespace. A child namespace import such as `using Std::Time;`
-does not replace the implicit root import.
+the root `Std` namespace. Imports of unrelated namespaces or child namespaces
+do not replace the implicit root import.
 
 Selected imports bring in only the names you ask for:
 
@@ -117,8 +117,14 @@ Imaging::Size imageSize = default;
 ```
 
 This is source and API structure. It does not allocate a namespace object, and
-it does not by itself choose a C symbol. Think of it as the library's Camp name
-on the shelf.
+it does not create a source prefix you write into ordinary names. Think of it
+as the library's Camp name on the shelf.
+
+For exported or native-facing declarations, the namespace also contributes to
+the default emitted ABI name. A function declared as `Pixel::open` has a
+source name of `open`, but its default C symbol is prefixed for the namespace.
+Camp source still calls `open`, imports `Pixel`, or qualifies the source name
+as `Pixel::open`; it does not call the generated ABI spelling.
 
 ## Private, `internal`, `public`, And `export`
 
@@ -392,6 +398,21 @@ Image *camp_image_open(const char *path, size_t path_length, ImageError *error);
 declaration exported, and should not be used as a source organization tool. It
 changes native symbol identity.
 
+This matters most for namespaced `extern` declarations. If the native function
+already exists under an exact platform spelling, give the Camp wrapper a
+readable source name and attach `@symbol` for the ABI name:
+
+```camp
+namespace Posix;
+
+@symbol("getpid")
+public extern int getpid();
+```
+
+Without `@symbol`, the declaration uses Camp's normal namespace-prefixed
+default symbol, which is what you usually want for Camp-authored libraries but
+not for existing platform APIs.
+
 Camp API output preserves the Camp declaration name and the `@symbol` attribute
 instead of renaming the declaration to the native symbol.
 
@@ -438,6 +459,13 @@ symbol. Generated ABI helpers and default static member symbols use that
 effective type symbol as their prefix, so `Widget.getDefaultSize` above emits
 with a `NativeWidget_` prefix. A member-level `@symbol` overrides the full
 member symbol and wins over the containing type's default prefix.
+
+When no `@symbol` is present, namespaced declarations receive namespace-based
+default ABI names. Top-level functions, globals, and constants use a namespace
+prefix separated with `_`; type names use a joined namespace/type prefix, and
+members use the containing type's effective native symbol as their prefix.
+These are ABI names only. Camp source continues to use source names, imports,
+member access, and `Namespace::name` qualification.
 
 Aliases, parameters, generic parameters, and instance fields do not accept
 `@symbol`.

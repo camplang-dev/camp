@@ -44,8 +44,8 @@ export int main()
 This default applies to command-line builds, dumps, language-service loose-file
 analysis, and project analysis. If a file contains an explicit root `Std` import
 such as `using Std;`, `using Std as S;`, or `using Std { Console };`, that
-explicit import replaces the implicit root import for that file. Child namespace
-imports such as `using Std::Time;` do not replace it.
+explicit import replaces the implicit root import for that file. Imports of
+unrelated namespaces or child namespaces do not replace it.
 
 ## `--nostdlib`
 

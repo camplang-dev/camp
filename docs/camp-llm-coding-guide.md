@@ -202,8 +202,8 @@ project already does so. When stdlib is enabled, the compiler provides an
 implicit root `Std` import; do not add `using Std;` as boilerplate in generated
 examples. Add an explicit root `Std` import only when you need to replace that
 default with an alias such as `using Std as S;` or a selected import such as
-`using Std { Console };`. Child namespace imports such as `using Std::Time;`
-are still useful and do not replace the implicit root import. For generated
+`using Std { Console };`. Imports of unrelated namespaces or child namespaces
+do not replace the implicit root import. For generated
 examples, prefer `PascalCase` namespace names and lower camel case locals unless
 nearby code uses a different convention.
 
@@ -891,6 +891,9 @@ Rules for generated interop code:
   type declaration it also supplies the default native prefix for generated ABI
   helpers and static members; member-level `@symbol` overrides the full member
   symbol.
+- Namespaces affect default native ABI symbols, but not source lookup spelling;
+  source code qualifies with `Namespace::name`, not generated names such as
+  `Namespace_name`.
 - Use explicit integer widths for ABI-visible values.
 - Keep ownership and cleanup paired in the Camp wrapper, not scattered through
   callers.

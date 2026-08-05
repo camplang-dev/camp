@@ -242,14 +242,27 @@ rules.
 Rules:
 
 - source lookup uses source names, not emitted symbols;
-- `@symbol` affects emitted native symbols;
-- namespaced modules and export projections affect API names, and emitters use
-  those projected names where they define public wrapper or header symbols;
+- default native symbols are computed before emission and are distinct from
+  source names;
+- `@symbol` supplies the complete effective native symbol for the declaration
+  it is attached to;
+- namespaced declarations without `@symbol` receive namespace-prefixed default
+  native symbols according to declaration category;
+- export projections use the projected source name when computing default
+  exported symbols;
+- emitters should consume the analyzed effective native symbol instead of
+  reconstructing native names locally;
 - generated interface/vtable/virtual/lambda/async symbols should carry
-  provenance;
+  provenance and derive from the effective symbol of the source declaration or
+  containing type that owns them;
 - exported symbols should receive target export decorations;
 - imported/shared-library references should receive target import decorations
   where the target defines them.
+
+Existing platform or C-library imports inside a namespace should normally use
+`@symbol` to preserve the exact ABI spelling. Without `@symbol`, an `extern`
+declaration follows the same namespace-prefixed default symbol policy as a
+Camp-authored declaration.
 
 Symbol policy must match metadata/API expectations without making metadata an
 ABI dump.
