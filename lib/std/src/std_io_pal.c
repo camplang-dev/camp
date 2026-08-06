@@ -1273,6 +1273,10 @@ int camp_io_set_environment_variable(const char *name, const char *value, int *e
         camp_io_set_error(error, CAMP_IO_INVALID_ARGUMENT);
         return 0;
     }
+#if defined(__EMSCRIPTEN__) || defined(__wasi__)
+    camp_io_set_error(error, CAMP_IO_NOT_SUPPORTED);
+    return 0;
+#else
     if (setenv(name, value, 1) != 0)
     {
         camp_io_set_error(error, camp_io_error_from_errno(errno));
@@ -1280,6 +1284,7 @@ int camp_io_set_environment_variable(const char *name, const char *value, int *e
     }
     camp_io_set_error(error, CAMP_IO_OK);
     return 1;
+#endif
 }
 
 int camp_io_remove_environment_variable(const char *name, int *error)
@@ -1290,6 +1295,10 @@ int camp_io_remove_environment_variable(const char *name, int *error)
         camp_io_set_error(error, CAMP_IO_INVALID_ARGUMENT);
         return -1;
     }
+#if defined(__EMSCRIPTEN__) || defined(__wasi__)
+    camp_io_set_error(error, CAMP_IO_NOT_SUPPORTED);
+    return -1;
+#else
     existed = getenv(name) != NULL;
     if (unsetenv(name) != 0)
     {
@@ -1298,6 +1307,7 @@ int camp_io_remove_environment_variable(const char *name, int *error)
     }
     camp_io_set_error(error, CAMP_IO_OK);
     return existed ? 1 : 0;
+#endif
 }
 
 int camp_io_has_environment_variable(const char *name)
