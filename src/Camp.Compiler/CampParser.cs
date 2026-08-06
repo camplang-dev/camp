@@ -436,7 +436,7 @@ public sealed class CampParser
 			Keyword = Take()
 		};
 
-		if (syntax.Keyword?.Value == "newtype" && Is("fn"))
+		if (syntax.Keyword?.Value == "newtype" && IsAny("fn", "delegate"))
 		{
 			TypeSyntax? callable = ParseType();
 			if (callable is CallableTypeSyntax callableType)
@@ -594,7 +594,7 @@ public sealed class CampParser
 		else
 		{
 			int typeStart = index;
-			TypeSyntax? type = ParseType(requireIdentifierAfterTerminalTargetSpec: true);
+			TypeSyntax? type = ParseDeclarationReturnType();
 			if (type is not null && LooksLikeMemberName())
 				syntax.Type = type;
 			else
@@ -812,6 +812,23 @@ public sealed class CampParser
 		}
 	}
 
+	TypeSyntax? ParseDeclarationReturnType()
+	{
+		if (Is("prep"))
+			return ParsePrepReturnType();
+
+		return ParseType(requireIdentifierAfterTerminalTargetSpec: true);
+	}
+
+	PrepReturnTypeSyntax ParsePrepReturnType()
+	{
+		return new PrepReturnTypeSyntax
+		{
+			PrepKeyword = Take(),
+			Type = ParseType(requireIdentifierAfterTerminalTargetSpec: true)
+		};
+	}
+
 	TypeSyntax? ParseTypePrefix()
 	{
 		if (IsClass(TokenClass.AttributeIdentifier))
@@ -833,7 +850,7 @@ public sealed class CampParser
 				callable.CallSpec = Take();
 			if (IsPossibleTargetSpecIdentifier())
 				callable.TargetSpec = Take();
-			callable.ReturnType = ParseType();
+			callable.ReturnType = Is("prep") ? ParsePrepReturnType() : ParseType();
 			callable.ParameterList = Is("(") ? ParseParameterList() : null;
 			return callable;
 		}
@@ -1030,7 +1047,7 @@ public sealed class CampParser
 			"do", "double", "else", "enum", "escaped", "export", "extern", "false", "finally",
 			"fixed", "float", "fn", "for", "foreach", "if", "implements", "in", "init", "int",
 			"interface", "internal", "iter", "long", "namespace", "new", "newtype", "nint", "null", "nuint", "once", "out",
-			"override", "params", "public", "return", "sbyte", "scoped", "sealed", "short", "sizeof",
+			"override", "params", "prep", "public", "return", "sbyte", "scoped", "sealed", "short", "sizeof",
 			"static", "string", "struct", "switch", "this", "thrown", "true", "try", "uchar", "uint",
 			"ulong", "unscoped", "unsafe", "upon", "ushort", "untyped", "using", "virtual", "void", "volatile",
 			"vtableof", "wchar", "while", "within", "wstring", "yield", "typenameof");

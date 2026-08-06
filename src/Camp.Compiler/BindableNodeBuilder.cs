@@ -696,6 +696,8 @@ public sealed partial class BindableNodeBuilder
 			definition.IteratorKind = syntax.Type is IterTypeSyntax ? GetIteratorKind(syntax.Type) : IteratorKind.None;
 			definition.UnderlyingType = BuildTypeReference(syntax.Type, allowIteratorStorage: true);
 			AddParameters(definition.Parameters, syntax.ParameterList);
+			if (syntax.Type is CallableTypeSyntax callableType)
+				NormalizeCallableNewtypePrepReturn(definition, callableType);
 		}
 
 		if (syntax.Scope is not null)
@@ -922,6 +924,7 @@ public sealed partial class BindableNodeBuilder
 		bool isDestructor = syntax.TildeToken is not null;
 		bool isConstructor = !isDestructor && syntax.Type is null;
 		bool isLifecycleMember = isConstructor || isDestructor;
+		PrepReturnTypeSyntax? prepReturnType = syntax.Type as PrepReturnTypeSyntax;
 
 		FunctionDefinition definition = new()
 		{
@@ -957,7 +960,14 @@ public sealed partial class BindableNodeBuilder
 		else
 		{
 			definition.IteratorKind = GetIteratorKind(syntax.Type);
-			definition.ReturnType = BuildTypeReference(syntax.Type, allowIteratorStorage: true);
+			if (prepReturnType is not null)
+			{
+				definition.ReturnType = BuildPrepReturnLengthType(prepReturnType);
+			}
+			else
+			{
+				definition.ReturnType = BuildTypeReference(syntax.Type, allowIteratorStorage: true);
+			}
 		}
 
 		if (syntax.CallableAscriptionType is not null)
@@ -975,6 +985,8 @@ public sealed partial class BindableNodeBuilder
 			foreach (ParameterSyntax parameter in syntax.ParameterList.Parameters ?? [])
 				definition.Parameters.Add(BuildParameterDefinition(parameter));
 		}
+		if (prepReturnType is not null)
+			AddSyntheticPrepBufferParameter(definition.Parameters, prepReturnType);
 
 		if (isLifecycleMember)
 			ValidateLifecycleMember(definition, syntax, containingTypeName, isInterface, isConstructor);
@@ -1817,6 +1829,7 @@ public sealed partial class BindableNodeBuilder
 
 	CallableTypeReference BuildCallableTypeReference(CallableTypeSyntax syntax)
 	{
+		bool prepReturn = syntax.ReturnType is PrepReturnTypeSyntax;
 		CallableTypeReference type = new()
 		{
 			SourceSyntax = syntax,
@@ -1830,13 +1843,70 @@ public sealed partial class BindableNodeBuilder
 			},
 			CallSpec = syntax.CallSpec?.Value,
 			TargetSpec = syntax.TargetSpec?.Value,
-			ReturnType = syntax.ReturnType is null ? MissingType(syntax, "Callable type is missing a return type.") : BuildTypeReference(syntax.ReturnType)
+			ReturnType = syntax.ReturnType is null ? MissingType(syntax, "Callable type is missing a return type.") : prepReturn ? BuildPrepReturnLengthType((PrepReturnTypeSyntax)syntax.ReturnType) : BuildTypeReference(syntax.ReturnType)
 		};
 
 		foreach (ParameterSyntax parameter in syntax.ParameterList?.Parameters ?? [])
 			type.Parameters.Add(BuildParameterDefinition(parameter));
+		if (syntax.ReturnType is PrepReturnTypeSyntax prepReturnType)
+			AddSyntheticPrepBufferParameter(type.Parameters, prepReturnType);
 
 		return type;
+	}
+
+	void NormalizeCallableNewtypePrepReturn(NewtypeDefinition definition, CallableTypeSyntax syntax)
+	{
+		if (syntax.ReturnType is not PrepReturnTypeSyntax prepReturn)
+			return;
+
+		if (definition.UnderlyingType is CallableTypeReference callable)
+		{
+			callable.ReturnType = BuildPrepReturnLengthType(prepReturn);
+			callable.Parameters.Clear();
+		}
+		AddSyntheticPrepBufferParameter(definition.Parameters, prepReturn);
+	}
+
+	TypeReference BuildPrepReturnLengthType(PrepReturnTypeSyntax syntax)
+	{
+		return new PrimitiveTypeReference
+		{
+			SourceSyntax = syntax,
+			Type = PrimitiveType.NUInt
+		};
+	}
+
+	void AddSyntheticPrepBufferParameter(List<ParameterDefinition> parameters, PrepReturnTypeSyntax syntax)
+	{
+		foreach (ParameterDefinition parameter in parameters)
+		{
+			if (parameter.Name == "buffer")
+				Report(parameter.SourceSyntax ?? syntax, "Return-position prep creates a parameter named 'buffer'; use explicit prep-parameter syntax to choose a different buffer name.");
+		}
+
+		ParameterDefinition buffer = new()
+		{
+			SourceSyntax = syntax,
+			Name = "buffer",
+			Symbol = "buffer",
+			Modifier = ParameterModifier.Prep,
+			Type = syntax.Type is null ? MissingType(syntax, "Prep return type is missing an array type.") : BuildTypeReference(syntax.Type),
+			DefaultValue = new DefaultExpression { SourceSyntax = syntax }
+		};
+
+		parameters.Insert(GetSyntheticPrepBufferInsertionIndex(parameters), buffer);
+	}
+
+	static int GetSyntheticPrepBufferInsertionIndex(List<ParameterDefinition> parameters)
+	{
+		for (int i = 0; i < parameters.Count; i++)
+		{
+			if (parameters[i].Modifier is ParameterModifier.Within or ParameterModifier.Thrown
+				|| parameters[i] is WithinParameterDefinition or SizeOfParameterDefinition or NameOfParameterDefinition or VTableOfParameterDefinition)
+				return i;
+		}
+
+		return parameters.Count;
 	}
 
 	TypeReference BuildGenericTypeReference(GenericTypeSyntax syntax)

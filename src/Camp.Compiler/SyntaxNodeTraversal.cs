@@ -108,6 +108,9 @@ public static class SyntaxNodeTraversal
 				if (syntax.ReturnType is not null) yield return syntax.ReturnType;
 				if (syntax.ParameterList is not null) yield return syntax.ParameterList;
 				break;
+			case PrepReturnTypeSyntax syntax:
+				if (syntax.Type is not null) yield return syntax.Type;
+				break;
 			case AttributedTypeSyntax syntax:
 				if (syntax.Attribute is not null) yield return syntax.Attribute;
 				if (syntax.Type is not null) yield return syntax.Type;
@@ -547,6 +550,10 @@ public static class SyntaxNodeTraversal
 				foreach (Token token in Tokens(syntax.TargetSpec)) yield return token;
 				if (syntax.ReturnType is not null) foreach (Token token in Tokens(syntax.ReturnType)) yield return token;
 				if (syntax.ParameterList is not null) foreach (Token token in Tokens(syntax.ParameterList)) yield return token;
+				break;
+			case PrepReturnTypeSyntax syntax:
+				foreach (Token token in Tokens(syntax.PrepKeyword)) yield return token;
+				if (syntax.Type is not null) foreach (Token token in Tokens(syntax.Type)) yield return token;
 				break;
 			case RawFunctionPointerTypeSyntax syntax:
 				foreach (Token token in Tokens(syntax.FnKeyword)) yield return token;

@@ -1,0 +1,1 @@
+tests/Diagnostics/prep_return_position_buffer_name_invalid.camp(1,31): error: Return-position prep creates a parameter named 'buffer'; use explicit prep-parameter syntax to choose a different buffer name.

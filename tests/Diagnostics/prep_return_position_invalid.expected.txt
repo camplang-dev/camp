@@ -1,0 +1,4 @@
+tests/Diagnostics/prep_return_position_invalid.camp(1,6): error: A prep parameter must be a mutable array type.
+tests/Diagnostics/prep_return_position_invalid.camp(6,12): error: A prep parameter must be mutable; const array buffers are not valid prep buffers.
+tests/Diagnostics/prep_return_position_invalid.camp(1,1): (no line,column) error: A function may declare at most one prep parameter.
+tests/Diagnostics/prep_return_position_invalid.camp(1,1): (no line,column) error: once callable signatures cannot declare prep parameters.

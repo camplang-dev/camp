@@ -1,0 +1,4 @@
+prep char[] badBufferName(int buffer)
+{
+	return 0;
+}

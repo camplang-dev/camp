@@ -1,0 +1,23 @@
+namespace PrepReturnSurface;
+
+extern prep char[] writeFree(int value);
+
+static class Writers
+{
+	public extern static prep char[] writeStatic(string prefix, sizeof(int), thrown int error);
+}
+
+interface Writer
+{
+	prep char[] write(const this);
+}
+
+class ConcreteWriter
+{
+	extern prep char[] writeMethod(const this);
+}
+
+newtype fn prep char[] Formatter();
+newtype delegate prep char[] Renderer();
+
+extern void accept(fn prep char[]() formatter, delegate prep char[]() renderer);

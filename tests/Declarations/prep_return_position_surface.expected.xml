@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="utf-16"?>
+<Module Namespace="PrepReturnSurface" ResolvedType="#MODULE">
+  <Definitions>
+    <FunctionDefinition InvokerName="writeFree" Name="writeFree" Symbol="PrepReturnSurface_writeFree" Namespace="PrepReturnSurface" Extern="" ResolvedType="nuint">
+      <ReturnType Type="NUInt" ResolvedType="nuint" />
+      <Parameters>
+        <ParameterDefinition LifetimeBinding="scoped:default parameter" Name="value" Symbol="value" Namespace="PrepReturnSurface" ResolvedType="int">
+          <Type Type="Int" ResolvedType="int" />
+        </ParameterDefinition>
+        <ParameterDefinition Modifier="Prep" LifetimeBinding="scoped:default parameter" Name="buffer" Symbol="buffer" Namespace="PrepReturnSurface" ResolvedType="char[]">
+          <Type Type="ArrayTypeReference" ResolvedType="char[]">
+            <ElementType Type="Char" ResolvedType="char" />
+          </Type>
+          <DefaultValue Type="DefaultExpression" ResolvedType="char[]" ValueLifetimeFact="default" />
+        </ParameterDefinition>
+      </Parameters>
+    </FunctionDefinition>
+    <StaticClassDefinition Name="Writers" Symbol="PrepReturnSurfaceWriters" Namespace="PrepReturnSurface" ResolvedType="Writers">
+      <Functions>
+        <FunctionDefinition Modifier="Static" InvokerName="writeStatic" Name="writeStatic" Symbol="PrepReturnSurfaceWriters_writeStatic" Namespace="PrepReturnSurface" Public="" Extern="" ResolvedType="nuint">
+          <ReturnType Type="NUInt" ResolvedType="nuint" />
+          <Parameters>
+            <ParameterDefinition LifetimeBinding="scoped:default parameter" Name="prefix" Symbol="prefix" Namespace="PrepReturnSurface" ResolvedType="string">
+              <Type Type="String" ResolvedType="string" />
+            </ParameterDefinition>
+            <ParameterDefinition Modifier="Prep" LifetimeBinding="scoped:default parameter" Name="buffer" Symbol="buffer" Namespace="PrepReturnSurface" ResolvedType="char[]">
+              <Type Type="ArrayTypeReference" ResolvedType="char[]">
+                <ElementType Type="Char" ResolvedType="char" />
+              </Type>
+              <DefaultValue Type="DefaultExpression" ResolvedType="char[]" ValueLifetimeFact="default" />
+            </ParameterDefinition>
+            <SizeOfParameterDefinition Name="sizeof_int" Symbol="sizeof_int" Namespace="PrepReturnSurface" ResolvedType="nuint">
+              <Type Type="Int" ResolvedType="int" />
+            </SizeOfParameterDefinition>
+            <ParameterDefinition Modifier="Thrown" LifetimeBinding="scoped:default parameter" Name="error" Symbol="error" Namespace="PrepReturnSurface" ResolvedType="int">
+              <Type Type="Int" ResolvedType="int" />
+            </ParameterDefinition>
+          </Parameters>
+        </FunctionDefinition>
+      </Functions>
+    </StaticClassDefinition>
+    <InterfaceDefinition Name="Writer" Symbol="PrepReturnSurfaceWriter" Namespace="PrepReturnSurface" ResolvedType="Writer">
+      <Functions>
+        <FunctionDefinition InvokerName="write" ReceiverLifetimeBinding="scoped:default receiver" Name="write" Symbol="PrepReturnSurfaceWriter_write" Namespace="PrepReturnSurface" ResolvedType="nuint">
+          <ReturnType Type="NUInt" ResolvedType="nuint" />
+          <Parameters>
+            <ThisParameterDefinition LifetimeBinding="scoped:default parameter" Name="this" Symbol="this" Namespace="PrepReturnSurface" ResolvedType="const Writer*" />
+            <ParameterDefinition Modifier="Prep" LifetimeBinding="scoped:default parameter" Name="buffer" Symbol="buffer" Namespace="PrepReturnSurface" ResolvedType="char[]">
+              <Type Type="ArrayTypeReference" ResolvedType="char[]">
+                <ElementType Type="Char" ResolvedType="char" />
+              </Type>
+              <DefaultValue Type="DefaultExpression" ResolvedType="char[]" ValueLifetimeFact="default" />
+            </ParameterDefinition>
+          </Parameters>
+        </FunctionDefinition>
+      </Functions>
+    </InterfaceDefinition>
+    <ClassDefinition Name="ConcreteWriter" Symbol="PrepReturnSurfaceConcreteWriter" Namespace="PrepReturnSurface" ResolvedType="ConcreteWriter">
+      <Functions>
+        <FunctionDefinition InvokerName="writeMethod" ReceiverLifetimeBinding="scoped:default receiver" Name="writeMethod" Symbol="PrepReturnSurfaceConcreteWriter_writeMethod" Namespace="PrepReturnSurface" Extern="" ResolvedType="nuint">
+          <ReturnType Type="NUInt" ResolvedType="nuint" />
+          <Parameters>
+            <ThisParameterDefinition LifetimeBinding="scoped:default parameter" Name="this" Symbol="this" Namespace="PrepReturnSurface" ResolvedType="const ConcreteWriter*" />
+            <ParameterDefinition Modifier="Prep" LifetimeBinding="scoped:default parameter" Name="buffer" Symbol="buffer" Namespace="PrepReturnSurface" ResolvedType="char[]">
+              <Type Type="ArrayTypeReference" ResolvedType="char[]">
+                <ElementType Type="Char" ResolvedType="char" />
+              </Type>
+              <DefaultValue Type="DefaultExpression" ResolvedType="char[]" ValueLifetimeFact="default" />
+            </ParameterDefinition>
+          </Parameters>
+        </FunctionDefinition>
+      </Functions>
+    </ClassDefinition>
+    <NewtypeDefinition Name="Formatter" Symbol="PrepReturnSurfaceFormatter" Namespace="PrepReturnSurface" ResolvedType="Formatter">
+      <UnderlyingType Type="CallableTypeReference" Kind="Function" ResolvedType="fn nuint()">
+        <ReturnType Type="NUInt" ResolvedType="nuint" />
+      </UnderlyingType>
+      <Parameters>
+        <ParameterDefinition Modifier="Prep" LifetimeBinding="scoped:default parameter" Name="buffer" Symbol="buffer" ResolvedType="char[]">
+          <Type Type="ArrayTypeReference" ResolvedType="char[]">
+            <ElementType Type="Char" ResolvedType="char" />
+          </Type>
+          <DefaultValue Type="DefaultExpression" ResolvedType="char[]" ValueLifetimeFact="default" />
+        </ParameterDefinition>
+      </Parameters>
+    </NewtypeDefinition>
+    <NewtypeDefinition Name="Renderer" Symbol="PrepReturnSurfaceRenderer" Namespace="PrepReturnSurface" ResolvedType="Renderer">
+      <UnderlyingType Type="CallableTypeReference" Kind="Delegate" ResolvedType="delegate nuint()">
+        <ReturnType Type="NUInt" ResolvedType="nuint" />
+      </UnderlyingType>
+      <Parameters>
+        <ParameterDefinition Modifier="Prep" LifetimeBinding="scoped:default parameter" Name="buffer" Symbol="buffer" ResolvedType="char[]">
+          <Type Type="ArrayTypeReference" ResolvedType="char[]">
+            <ElementType Type="Char" ResolvedType="char" />
+          </Type>
+          <DefaultValue Type="DefaultExpression" ResolvedType="char[]" ValueLifetimeFact="default" />
+        </ParameterDefinition>
+      </Parameters>
+    </NewtypeDefinition>
+    <FunctionDefinition InvokerName="accept" Name="accept" Symbol="PrepReturnSurface_accept" Namespace="PrepReturnSurface" Extern="" ResolvedType="void">
+      <ReturnType Type="Void" ResolvedType="void" />
+      <Parameters>
+        <ParameterDefinition LifetimeBinding="scoped:default parameter" Name="formatter" Symbol="formatter" Namespace="PrepReturnSurface" ResolvedType="fn nuint(prep char[])">
+          <Type Type="CallableTypeReference" Kind="Function" ResolvedType="fn nuint(prep char[])">
+            <ReturnType Type="NUInt" ResolvedType="nuint" />
+            <Parameters>
+              <ParameterDefinition Modifier="Prep" LifetimeBinding="scoped:default parameter" Name="buffer" Symbol="buffer" ResolvedType="char[]">
+                <Type Type="ArrayTypeReference" ResolvedType="char[]">
+                  <ElementType Type="Char" ResolvedType="char" />
+                </Type>
+                <DefaultValue Type="DefaultExpression" ResolvedType="char[]" ValueLifetimeFact="default" />
+              </ParameterDefinition>
+            </Parameters>
+          </Type>
+        </ParameterDefinition>
+        <ParameterDefinition LifetimeBinding="scoped:default parameter" Name="renderer" Symbol="renderer" Namespace="PrepReturnSurface" ResolvedType="delegate nuint(prep char[])">
+          <Type Type="CallableTypeReference" Kind="Delegate" ResolvedType="delegate nuint(prep char[])">
+            <ReturnType Type="NUInt" ResolvedType="nuint" />
+            <Parameters>
+              <ParameterDefinition Modifier="Prep" LifetimeBinding="scoped:default parameter" Name="buffer" Symbol="buffer" ResolvedType="char[]">
+                <Type Type="ArrayTypeReference" ResolvedType="char[]">
+                  <ElementType Type="Char" ResolvedType="char" />
+                </Type>
+                <DefaultValue Type="DefaultExpression" ResolvedType="char[]" ValueLifetimeFact="default" />
+              </ParameterDefinition>
+            </Parameters>
+          </Type>
+        </ParameterDefinition>
+      </Parameters>
+    </FunctionDefinition>
+  </Definitions>
+</Module>

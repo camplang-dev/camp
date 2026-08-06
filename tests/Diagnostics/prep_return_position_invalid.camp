@@ -1,0 +1,22 @@
+prep int badNotArray()
+{
+	return 0;
+}
+
+prep const char[] badConst()
+{
+	return 0;
+}
+
+prep char[] badDuplicate(prep char[] existing)
+{
+	return 0;
+}
+
+void badOnce(once prep char[]() callback)
+{
+}
+
+newtype fn prep int BadCallable();
+
+newtype delegate prep const char[] BadDelegate();

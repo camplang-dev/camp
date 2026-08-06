@@ -250,6 +250,12 @@ public abstract class TypeSyntax : SyntaxNode
 {
 }
 
+public class PrepReturnTypeSyntax : TypeSyntax
+{
+	public Token? PrepKeyword { get; set; }
+	public TypeSyntax? Type { get; set; }
+}
+
 public class ThisTypeSyntax : TypeSyntax
 {
 	public Token? ThisKeyword { get; set; }
