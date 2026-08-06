@@ -3608,6 +3608,13 @@ public sealed partial class BindableNodeAnalyzer
 			&& target is not MemberExpression and not MemberReferenceExpression;
 	}
 
+	bool IncludeExplicitThisArgumentForSourceBinding(Expression? target, FunctionDefinition? function)
+	{
+		if (function is not null && FindContainingType(function) is InterfaceDefinition)
+			return false;
+		return IncludeExplicitThisArgument(target, function);
+	}
+
 	FunctionDefinition? ResolveCallTarget(Expression? target, BodyScope scope, AnalysisScope typeScope, List<ArgumentExpression>? arguments = null)
 	{
 		int argumentCount = arguments?.Count ?? 0;

@@ -5122,6 +5122,7 @@ public static class CCodeEmitter
 			}
 			if (TryRepairFormattedInterfaceSlotCallTarget(call, target, out string repairedTarget))
 				target = repairedTarget;
+			RepairDuplicateInterfaceSlotContextArgument(target, arguments);
 			if (function?.IsAsync == true)
 				RepairAsyncCallArgumentSlots(function, arguments);
 			string text = target + "(" + string.Join(", ", arguments) + ")";
@@ -5133,6 +5134,16 @@ public static class CCodeEmitter
 			if (TryGetCallResultCastType(call, function, genericSubstitutions, out string? castType))
 				return "(" + FormatResolvedType(castType!, "").Declaration.Trim() + ")(" + text + ")";
 			return text;
+		}
+
+		static void RepairDuplicateInterfaceSlotContextArgument(string target, List<string> arguments)
+		{
+			if (arguments.Count < 2 || arguments[0] != arguments[1])
+				return;
+			if (!target.StartsWith("(*" + arguments[0] + ")->", StringComparison.Ordinal))
+				return;
+
+			arguments.RemoveAt(1);
 		}
 
 		bool TryFormatExpandedDelegateArgument(ArgumentExpression argument, List<ParameterDefinition> parameters, int parameterIndex, Dictionary<string, string> genericSubstitutions, out string callArgument, out string contextArgument)

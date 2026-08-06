@@ -1,0 +1,51 @@
+using Std;
+
+interface Formatter
+{
+	nuint write(const this, prep char[] buffer = default);
+}
+
+class Box: Formatter
+{
+	Box()
+	{
+	}
+
+	nuint write(const this, prep char[] buffer = default): Formatter
+	{
+		if (buffer.length >= 1)
+			buffer[0] = '4';
+		if (buffer.length >= 2)
+			buffer[1] = '2';
+		return 2;
+	}
+}
+
+int check(Formatter* formatter)
+{
+	char[] text = formatter.write();
+	if (text.compareTo("42") != 0)
+		return 1;
+
+	if (formatter.write().length != 2)
+		return 2;
+
+	if (formatter.write(buffer: default) != 2)
+		return 3;
+
+	char[] storage = init char[2];
+	if (formatter.write(buffer: storage) != 2)
+		return 4;
+	if (storage.compareTo("42") != 0)
+		return 5;
+
+	return 0;
+}
+
+export int main()
+{
+	Box* box = new Box();
+	int result = check(box);
+	delete box;
+	return result;
+}

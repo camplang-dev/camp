@@ -102,6 +102,7 @@ public sealed partial class BindableNodeAnalyzer
 			return false;
 
 		Expression context = member.Target;
+		Expression slotTarget;
 		if (!IsInterfaceInstanceReceiver(context.ResolvedType, interfaceDefinition) && TryGetGenericReceiverTypeName(context.ResolvedType, out string genericName))
 		{
 			if (!IsGenericParameterName(genericName))
@@ -121,18 +122,35 @@ public sealed partial class BindableNodeAnalyzer
 				Expression = context,
 				ResolvedType = InterfaceResolvedName(interfaceDefinition) + "**"
 			};
-		}
-
-		call.Target = new MemberReferenceExpression
-		{
-			SourceSyntax = member.SourceSyntax,
-			Target = new UnaryExpression
+			slotTarget = new UnaryExpression
 			{
 				SourceSyntax = member.Target.SourceSyntax,
 				Operator = UnaryOperator.PointerDereference,
 				Operand = member.Target,
 				ResolvedType = TryGetPointerElementType(member.Target.ResolvedType ?? "") ?? $"{InterfaceResolvedName(interfaceDefinition)}*"
-			},
+			};
+		}
+		else if (member.Target is UnaryExpression { Operator: UnaryOperator.PointerDereference, Operand: Expression operand } dereference
+			&& IsInterfaceInstanceReceiver(operand.ResolvedType, interfaceDefinition))
+		{
+			context = operand;
+			slotTarget = dereference;
+		}
+		else
+		{
+			slotTarget = new UnaryExpression
+			{
+				SourceSyntax = member.Target.SourceSyntax,
+				Operator = UnaryOperator.PointerDereference,
+				Operand = member.Target,
+				ResolvedType = TryGetPointerElementType(member.Target.ResolvedType ?? "") ?? $"{InterfaceResolvedName(interfaceDefinition)}*"
+			};
+		}
+
+		call.Target = new MemberReferenceExpression
+		{
+			SourceSyntax = member.SourceSyntax,
+			Target = slotTarget,
 			Name = GetCallableName(function),
 			Member = function,
 			ResolvedType = member.ResolvedType

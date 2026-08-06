@@ -509,7 +509,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	CallExpression CreatePreparedFormatterCall(PreparedFormatterPart part, Expression buffer)
 	{
-		bool includeExplicitThis = IncludeExplicitThisArgument(part.Call.Target, part.Function);
+		bool includeExplicitThis = IncludeExplicitThisArgumentForSourceBinding(part.Call.Target, part.Function);
 		List<ParameterDefinition> callableParameters = GetCallableParametersForCall(part.Function, includeExplicitThis);
 		ParameterDefinition? prepParameter = null;
 		foreach (ParameterDefinition parameter in callableParameters)

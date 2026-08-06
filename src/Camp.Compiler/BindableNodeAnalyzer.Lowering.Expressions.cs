@@ -492,7 +492,7 @@ public sealed partial class BindableNodeAnalyzer
 	void AddImplicitDefaultArguments(CallExpression call)
 	{
 		FunctionDefinition? function = callTargets.TryGetValue(call, out FunctionDefinition? foundFunction) ? foundFunction : null;
-		bool includeExplicitThis = function is not null && IncludeExplicitThisArgument(call.Target, function);
+		bool includeExplicitThis = function is not null && IncludeExplicitThisArgumentForSourceBinding(call.Target, function);
 		List<ParameterDefinition> callableParameters = function is not null
 			? GetCallableParametersForCall(function, includeExplicitThis)
 			: callableInvocationParameters.TryGetValue(call, out List<ParameterDefinition>? foundParameters) ? GetCallableParameters(foundParameters) : [];

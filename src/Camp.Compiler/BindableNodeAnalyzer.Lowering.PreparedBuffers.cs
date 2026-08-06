@@ -234,7 +234,7 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (callTargets.TryGetValue(sourceCall, out function))
 		{
-			bool includeExplicitThis = IncludeExplicitThisArgument(sourceCall.Target, function);
+			bool includeExplicitThis = IncludeExplicitThisArgumentForSourceBinding(sourceCall.Target, function);
 			callableParameters = GetCallableParametersForCall(function, includeExplicitThis);
 			return true;
 		}
@@ -316,9 +316,16 @@ public sealed partial class BindableNodeAnalyzer
 		call.PreparedConvertedResultType = null;
 		call.Arguments.Clear();
 
+		Expression? interfaceContext = TryGetInterfacePreparedCallContext(sourceCall, function);
 		bool[] supplied = new bool[callableParameters.Count];
 		foreach (ArgumentExpression sourceArgument in sourceCall.Arguments)
 		{
+			if (interfaceContext is not null
+				&& string.IsNullOrWhiteSpace(sourceArgument.Name)
+				&& sourceArgument.Modifier == ArgumentModifier.None
+				&& IsSamePreparedInterfaceContext(sourceArgument.Value, interfaceContext))
+				continue;
+
 			ArgumentExpression argument = ClonePreparedArgument(sourceArgument);
 			if (TryBindCallArgumentToParameter(sourceArgument, callableParameters, supplied, sourceCall.SourceSyntax, out int parameterIndex)
 				&& parameterIndex >= 0
@@ -344,6 +351,28 @@ public sealed partial class BindableNodeAnalyzer
 		if (callGenericSubstitutions.TryGetValue(sourceCall, out Dictionary<string, string>? substitutions))
 			callGenericSubstitutions[call] = new Dictionary<string, string>(substitutions, StringComparer.Ordinal);
 		return call;
+	}
+
+	Expression? TryGetInterfacePreparedCallContext(CallExpression sourceCall, FunctionDefinition function)
+	{
+		if (FindContainingType(function) is not InterfaceDefinition)
+			return null;
+		if (sourceCall.Target is not MemberReferenceExpression { Target: Expression target })
+			return null;
+		return target is UnaryExpression { Operator: UnaryOperator.PointerDereference, Operand: Expression operand }
+			? operand
+			: target;
+	}
+
+	bool IsSamePreparedInterfaceContext(Expression? argument, Expression context)
+	{
+		if (ReferenceEquals(argument, context))
+			return true;
+		if (argument is VariableReferenceExpression argumentVariable
+			&& context is VariableReferenceExpression contextVariable
+			&& ReferenceEquals(argumentVariable.Variable, contextVariable.Variable))
+			return true;
+		return false;
 	}
 
 	CallExpression CreatePreparedProtocolCallForTarget(
