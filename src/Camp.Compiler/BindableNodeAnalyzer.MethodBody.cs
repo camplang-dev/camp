@@ -6013,7 +6013,13 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		string left;
 		string right;
-		if (IsComparisonOperator(binary.Operator) && binary.Left is NamedExpression leftName && binary.Right is not null && !CanResolveLocalNamedExpression(leftName, scope))
+		string? enumOperandTarget = GetBitwiseEnumOperandTarget(binary.Operator, targetType);
+		if (enumOperandTarget is not null)
+		{
+			left = BodyAnalyzeExpression(binary.Left, scope, typeScope, enumOperandTarget);
+			right = BodyAnalyzeExpression(binary.Right, scope, typeScope, enumOperandTarget);
+		}
+		else if (IsComparisonOperator(binary.Operator) && binary.Left is NamedExpression leftName && binary.Right is not null && !CanResolveLocalNamedExpression(leftName, scope))
 		{
 			right = BodyAnalyzeExpression(binary.Right, scope, typeScope);
 			left = BodyAnalyzeExpression(binary.Left, scope, typeScope, IsEnumTargetType(right) ? right : null);
@@ -6040,6 +6046,13 @@ public sealed partial class BindableNodeAnalyzer
 			BinaryOperator.NullCoalescing => left,
 			_ => ErrorType
 		};
+	}
+
+	string? GetBitwiseEnumOperandTarget(BinaryOperator op, string? targetType)
+	{
+		return op is BinaryOperator.BitwiseOr or BinaryOperator.BitwiseXor or BinaryOperator.BitwiseAnd
+			? GetEnumTargetTypeName(targetType)
+			: null;
 	}
 
 	bool IsTextualComposition(BinaryExpression binary, string leftType, string rightType)

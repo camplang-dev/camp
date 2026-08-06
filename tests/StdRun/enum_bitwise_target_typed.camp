@@ -1,0 +1,48 @@
+enum Bits
+{
+	NONE = 0,
+	A = 1,
+	B = 2,
+	C = 4,
+	D = 8
+}
+
+int raw(Bits value)
+{
+	return (int)value;
+}
+
+bool has(Bits value, Bits mask)
+{
+	return (value & mask) != NONE;
+}
+
+int accept(Bits value)
+{
+	return raw(value);
+}
+
+export int main()
+{
+	Bits assignmentOr = A | B;
+	Bits assignmentAnd = assignmentOr & A;
+	Bits assignmentXor = assignmentOr ^ B;
+	Bits assignmentNot = ~A;
+	Bits nested = (A | B | C) & ~B;
+	
+	if (raw(assignmentOr) != 3)
+		return 1;
+	if (raw(assignmentAnd) != 1)
+		return 2;
+	if (raw(assignmentXor) != 1)
+		return 3;
+	if ((raw(assignmentNot) & 1) != 0)
+		return 4;
+	if (!has(nested, A) || has(nested, B) || !has(nested, C))
+		return 5;
+	if (accept(A | D) != 9)
+		return 6;
+	if (accept((A | B) & ~A) != 2)
+		return 7;
+	return 0;
+}
