@@ -1,15 +1,15 @@
 namespace PrepMetadata;
 
-export newtype fn nuint Formatter(prep char[] buffer = default);
+export newtype fn prep char[] Formatter();
 
-export extern nuint formatValue(prep char[] buffer = default);
+export extern prep char[] formatValue();
 
 export interface Writer
 {
-	nuint getText(prep char[] buffer = default);
+	prep char[] getText();
 }
 
 export extern class Thing
 {
-	export extern nuint getText(prep char[] buffer = default);
+	export extern prep char[] getText();
 }

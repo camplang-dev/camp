@@ -104,7 +104,7 @@ public sealed class LanguageServiceTests
 		string root = CreateTempDirectory("language-service-prep");
 		string source = Path.Combine(root, "main.camp");
 		string text = """
-			nuint writeValue(prep char[] buffer = default)
+			prep char[] writeValue()
 			{
 				if (buffer.length > 0)
 					buffer[0] = 'x';
@@ -113,7 +113,7 @@ public sealed class LanguageServiceTests
 
 			struct Label
 			{
-				nuint getText(this, prep char[] buffer = default) => 0;
+				prep char[] getText(this) => 0;
 			}
 
 			export int main()
@@ -137,11 +137,11 @@ public sealed class LanguageServiceTests
 		string completionText = text.Replace("_ = label;", "label.", StringComparison.Ordinal);
 		IReadOnlyList<CampCompletionItem> completions = symbols.GetCompletions(source, PositionAfter(completionText, "label."), completionText);
 		Assert.NotNull(callHover);
-		Assert.Contains("nuint writeValue(prep char[] buffer = default)", callHover!.Markdown, StringComparison.Ordinal);
+		Assert.Contains("prep char[] writeValue()", callHover!.Markdown, StringComparison.Ordinal);
 		Assert.NotNull(resultHover);
 		Assert.Contains("Type: `char[]`", resultHover!.Markdown, StringComparison.Ordinal);
 		Assert.NotNull(signatureHelp);
-		Assert.Contains("nuint writeValue(prep char[] buffer = default)", Assert.Single(signatureHelp!.Signatures).Label, StringComparison.Ordinal);
+		Assert.Contains("prep char[] writeValue()", Assert.Single(signatureHelp!.Signatures).Label, StringComparison.Ordinal);
 		Assert.Contains(completions, static item => item.Label == "getText");
 		Assert.DoesNotContain(completions, static item => item.Label == "Text");
 	}
@@ -380,6 +380,80 @@ public sealed class LanguageServiceTests
 
 		Assert.Contains("const char[] getName(int index)", signature, StringComparison.Ordinal);
 		Assert.DoesNotContain("result_length", signature, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Symbol_query_displays_canonical_prep_as_return_position()
+	{
+		FunctionDefinition function = new()
+		{
+			Name = "writeValue",
+			Symbol = "writeValue",
+			ReturnType = new PrimitiveTypeReference { Type = PrimitiveType.NUInt, ResolvedType = "nuint" },
+			ResolvedType = "nuint"
+		};
+		function.Parameters.Add(new ParameterDefinition
+		{
+			Name = "buffer",
+			Symbol = "buffer",
+			Modifier = ParameterModifier.Prep,
+			Type = new ArrayTypeReference
+			{
+				ElementType = new PrimitiveTypeReference { Type = PrimitiveType.Char, ResolvedType = "char" },
+				ResolvedType = "char[]"
+			},
+			DefaultValue = new DefaultExpression(),
+			ResolvedType = "char[]"
+		});
+
+		string? signature = CampSymbolQueryService.FormatSignatureForLanguageService(function);
+
+		Assert.Equal("prep char[] writeValue();", signature);
+	}
+
+	[Fact]
+	public void Symbol_query_keeps_noncanonical_prep_in_lowered_position()
+	{
+		FunctionDefinition function = new()
+		{
+			Name = "render",
+			Symbol = "render",
+			ReturnType = new PrimitiveTypeReference { Type = PrimitiveType.NUInt, ResolvedType = "nuint" },
+			ResolvedType = "nuint"
+		};
+		function.Parameters.Add(new ParameterDefinition
+		{
+			Name = "style",
+			Symbol = "style",
+			Type = new PrimitiveTypeReference { Type = PrimitiveType.Int, ResolvedType = "int" },
+			ResolvedType = "int"
+		});
+		function.Parameters.Add(new ParameterDefinition
+		{
+			Name = "buffer",
+			Symbol = "buffer",
+			Modifier = ParameterModifier.Prep,
+			Type = new ArrayTypeReference
+			{
+				ElementType = new PrimitiveTypeReference { Type = PrimitiveType.Char, ResolvedType = "char" },
+				ResolvedType = "char[]"
+			},
+			DefaultValue = new DefaultExpression(),
+			ResolvedType = "char[]"
+		});
+		function.Parameters.Add(new ParameterDefinition
+		{
+			Name = "suffix",
+			Symbol = "suffix",
+			Type = new PrimitiveTypeReference { Type = PrimitiveType.Bool, ResolvedType = "bool" },
+			DefaultValue = new DefaultExpression(),
+			ResolvedType = "bool"
+		});
+
+		string? signature = CampSymbolQueryService.FormatSignatureForLanguageService(function);
+
+		Assert.Contains("nuint render(int style, prep char[] buffer = default, bool suffix = default)", signature, StringComparison.Ordinal);
+		Assert.DoesNotContain("prep char[] render", signature, StringComparison.Ordinal);
 	}
 
 	[Fact]

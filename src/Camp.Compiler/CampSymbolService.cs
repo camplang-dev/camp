@@ -1760,12 +1760,17 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 	static List<ParameterDefinition> GetSignatureHelpParameters(FunctionDefinition function)
 	{
 		List<ParameterDefinition> visible = GetVisibleCallParameters(function);
+		ParameterDefinition? displayPrepReturn = TryGetCanonicalPrepReturnParameter(function);
 		if (visible.Count < 2)
-			return visible.Where(parameter => !IsGeneratedExpandedReturnParameter(function, parameter)).ToList();
+			return visible.Where(parameter => !IsGeneratedExpandedReturnParameter(function, parameter) && !ReferenceEquals(parameter, displayPrepReturn)).ToList();
 		List<ParameterDefinition> result = [];
 		foreach (ParameterDefinition parameter in visible)
 		{
 			if (IsGeneratedExpandedReturnParameter(function, parameter))
+				continue;
+			if (ReferenceEquals(parameter, displayPrepReturn))
+				continue;
+			if (displayPrepReturn is not null && IsExpandedComponentParameter(displayPrepReturn, parameter))
 				continue;
 			if (IsExpandedComponentParameter(result.LastOrDefault(), parameter))
 				continue;
@@ -2000,7 +2005,138 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 		HashSet<string> hiddenParameters = GetHiddenSignatureHelpParameterNames(function);
 		if (hiddenParameters.Count > 0)
 			label = RemoveParametersFromSignatureLabel(label, hiddenParameters);
-		return RestorePreparedArrayParameters(label, function);
+		label = RestorePreparedArrayParameters(label, function);
+		return TryFormatPrepReturnSignature(label, function, out string prepReturnLabel)
+			? prepReturnLabel
+			: label;
+	}
+
+	static bool TryFormatPrepReturnSignature(string label, FunctionDefinition function, out string prepReturnLabel)
+	{
+		prepReturnLabel = "";
+		ParameterDefinition? prep = TryGetCanonicalPrepReturnParameter(function);
+		if (prep is null || string.IsNullOrWhiteSpace(prep.Name))
+			return TryFormatPrepReturnSignatureFromLabel(label, function, out prepReturnLabel);
+
+		string withoutBuffer = RemoveParametersFromSignatureLabel(label, new HashSet<string>(StringComparer.Ordinal) { prep.Name });
+		string returnType = BindableNodeCodeSerializer.SerializeType(function.ReturnType);
+		if (string.IsNullOrWhiteSpace(returnType) || returnType == "#ERROR")
+			returnType = function.ResolvedType ?? "";
+		string functionName = BindableNodeAnalyzer.GetCallableName(function);
+		if (string.IsNullOrWhiteSpace(functionName))
+			functionName = function.Name;
+		string prefix = returnType + " " + functionName + "(";
+		int index = withoutBuffer.IndexOf(prefix, StringComparison.Ordinal);
+		if (index < 0)
+			return false;
+
+		string prepType = BindableNodeCodeSerializer.SerializeType(prep.Type);
+		if (string.IsNullOrWhiteSpace(prepType) || prepType == "#ERROR")
+			prepType = prep.ResolvedType ?? "";
+		if (prepType.EndsWith("*", StringComparison.Ordinal))
+			prepType = prepType[..^1].TrimEnd() + "[]";
+		prepReturnLabel = withoutBuffer[..index] + "prep " + prepType + " " + withoutBuffer[(index + returnType.Length + 1)..];
+		return true;
+	}
+
+	static bool TryFormatPrepReturnSignatureFromLabel(string label, FunctionDefinition function, out string prepReturnLabel)
+	{
+		prepReturnLabel = "";
+		string returnType = BindableNodeCodeSerializer.SerializeType(function.ReturnType);
+		if (string.IsNullOrWhiteSpace(returnType) || returnType == "#ERROR")
+			returnType = function.ResolvedType ?? "";
+		if (returnType != "nuint")
+			return false;
+		string functionName = BindableNodeAnalyzer.GetCallableName(function);
+		if (string.IsNullOrWhiteSpace(functionName))
+			functionName = function.Name;
+		string prefix = returnType + " " + functionName + "(";
+		int index = label.IndexOf(prefix, StringComparison.Ordinal);
+		if (index < 0)
+			return false;
+		int open = label.IndexOf('(', index);
+		if (open < 0)
+			return false;
+		int close = FindMatchingCloseParen(label, open);
+		if (close < 0)
+			return false;
+		List<string> parameters = SplitTopLevelCommaSeparated(label[(open + 1)..close])
+			.Select(static parameter => parameter.Trim())
+			.Where(static parameter => parameter.Length > 0)
+			.ToList();
+		int prepIndex = parameters.FindIndex(static parameter => parameter.StartsWith("prep ", StringComparison.Ordinal) && ParameterTextDeclaresName(parameter, "buffer"));
+		if (prepIndex < 0 || prepIndex != parameters.Count - 1)
+			return false;
+		string prepParameter = parameters[prepIndex];
+		int bufferName = prepParameter.IndexOf(" buffer", StringComparison.Ordinal);
+		if (bufferName < 0)
+			return false;
+		string prepType = prepParameter["prep ".Length..bufferName].Trim();
+		if (!prepType.EndsWith("[]", StringComparison.Ordinal))
+			return false;
+		parameters.RemoveAt(prepIndex);
+		string withoutBuffer = label[..(open + 1)] + string.Join(", ", parameters) + label[close..];
+		prepReturnLabel = withoutBuffer[..index] + "prep " + prepType + " " + withoutBuffer[(index + returnType.Length + 1)..];
+		return true;
+	}
+
+	static ParameterDefinition? TryGetCanonicalPrepReturnParameter(FunctionDefinition function)
+	{
+		ParameterDefinition? prep = null;
+		int prepIndex = -1;
+		int prepCount = 0;
+		for (int i = 0; i < function.Parameters.Count; i++)
+		{
+			if (function.Parameters[i].Modifier != ParameterModifier.Prep)
+				continue;
+			prepCount++;
+			if (prep is not null)
+			{
+				if (!IsExpandedComponentParameter(prep, function.Parameters[i]))
+					return null;
+				continue;
+			}
+			else
+			{
+				prep = function.Parameters[i];
+				prepIndex = i;
+			}
+		}
+		if (prep is null || prepIndex < 0)
+			return null;
+		if (prep.Name != "buffer")
+			return null;
+		if (prepCount > 2)
+			return null;
+		string prepType = BindableNodeCodeSerializer.SerializeType(prep.Type);
+		if (prepType.EndsWith("*", StringComparison.Ordinal))
+			prepType = prepType[..^1].TrimEnd() + "[]";
+		if (!prepType.EndsWith("[]", StringComparison.Ordinal))
+			return null;
+		string returnType = BindableNodeCodeSerializer.SerializeType(function.ReturnType);
+		if (string.IsNullOrWhiteSpace(returnType) || returnType == "#ERROR")
+			returnType = function.ResolvedType ?? "";
+		if (returnType != "nuint")
+			return null;
+		if (prepIndex != GetCanonicalPrepReturnInsertionIndex(function.Parameters))
+			return null;
+		return prep;
+	}
+
+	static int GetCanonicalPrepReturnInsertionIndex(List<ParameterDefinition> parameters)
+	{
+		int visibleIndex = 0;
+		for (int i = 0; i < parameters.Count; i++)
+		{
+			ParameterDefinition parameter = parameters[i];
+			if (parameter.Modifier == ParameterModifier.Prep)
+				continue;
+			if (parameter.Modifier is ParameterModifier.Within or ParameterModifier.Thrown
+				|| parameter is WithinParameterDefinition or SizeOfParameterDefinition or NameOfParameterDefinition or VTableOfParameterDefinition)
+				return visibleIndex;
+			visibleIndex++;
+		}
+		return visibleIndex;
 	}
 
 	static string RestorePreparedArrayParameters(string label, FunctionDefinition function)
