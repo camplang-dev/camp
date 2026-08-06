@@ -386,7 +386,7 @@ and `delete file` is not how you close it. Call `close`, usually as cleanup.
 bool writeSmallFile(string path)
 {
 	IoError error = default;
-	FileOptions options = default;
+	FileOptions options = SHARE_READ | WRITE_THROUGH;
 
 	FileHandle file = FileHandle.open(
 		path,

@@ -43,18 +43,7 @@ int FileHandle_mode(FileMode mode)
 
 int FileHandle_options(FileOptions options)
 {
-	int flags = 0;
-	if (options.sequential)
-		flags |= CAMP_IO_OPTION_SEQUENTIAL;
-	if (options.randomAccess)
-		flags |= CAMP_IO_OPTION_RANDOM_ACCESS;
-	if (options.writeThrough)
-		flags |= CAMP_IO_OPTION_WRITE_THROUGH;
-	if (options.allowSharedRead)
-		flags |= CAMP_IO_OPTION_SHARE_READ;
-	if (options.allowSharedWrite)
-		flags |= CAMP_IO_OPTION_SHARE_WRITE;
-	return flags;
+	return (int)options;
 }
 
 public enum FileAccess
@@ -72,13 +61,23 @@ public enum FileMode
 	APPEND
 }
 
-public struct FileOptions
+/// Options that adjust native file-open behavior.
+///
+/// Combine values with bitwise operators when more than one behavior is needed.
+public enum FileOptions: int
 {
-	bool sequential;
-	bool randomAccess;
-	bool writeThrough;
-	bool allowSharedRead;
-	bool allowSharedWrite;
+	/// No additional file-open options.
+	NONE = 0,
+	/// Hint that the file will be read or written sequentially.
+	SEQUENTIAL = 1,
+	/// Hint that the file will be accessed in a non-sequential pattern.
+	RANDOM_ACCESS = 2,
+	/// Request writes to pass through intermediate caches where supported.
+	WRITE_THROUGH = 4,
+	/// Allow other handles to read the file while this handle is open.
+	SHARE_READ = 8,
+	/// Allow other handles to write the file while this handle is open.
+	SHARE_WRITE = 16
 }
 
 #if NO_FILES

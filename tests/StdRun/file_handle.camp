@@ -3,7 +3,7 @@ using Std;
 export int main()
 {
 	IoError error = default;
-	FileOptions options = default;
+	FileOptions options = SHARE_READ | SHARE_WRITE;
 	FileHandle writerHandle = FileHandle.open("tmp/golden-stdrun-file.txt", FileAccess.WRITE, FileMode.CREATE_OR_TRUNCATE, options, catch error);
 	if (error != default)
 		return 1;
