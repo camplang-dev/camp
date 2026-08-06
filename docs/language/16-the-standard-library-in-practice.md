@@ -277,10 +277,10 @@ working with.
 
 ## Formatting
 
-Formatting in `Std` uses `toString` methods with `prep` buffers. Omitting the
-buffer produces the formatted character array; supplying the buffer calls the
-formatter directly and returns its required length. Interpolated strings use
-the same preparation shape for runtime holes. Character, text, primitive, and
+Formatting in `Std` uses `toString` methods with `prep char[]` results. Calling
+them normally produces the formatted character array. Supplying `buffer:` lets
+you reuse storage and returns the required length. Interpolated strings use the
+same preparation shape for runtime holes. Character, text, primitive, and
 date/time formatting APIs use this `toString` convention.
 
 You often do not need to see that two-step protocol directly:
@@ -330,13 +330,12 @@ void showTotal(int total)
 Date/time values use the same style, which makes library formatting feel
 consistent across domains.
 
-You can make your own formatting surface by adding a formatter method. A
-formatter returns the required character count. When a buffer is supplied, it
-writes as much of the formatted text as fits. It does not write a null
-terminator.
+You can make your own formatting surface by adding a formatter method. The
+method writes as much of the formatted text as fits in `buffer` and returns the
+required character count. It does not write a null terminator.
 
 ```camp
-public nuint formatHex(in byte this, prep char[] buffer = default)
+public prep char[] formatHex(in byte this)
 {
 	const char[] digits = "0123456789ABCDEF";
 	uint value = (uint)this;

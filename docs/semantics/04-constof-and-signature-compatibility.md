@@ -244,6 +244,16 @@ Method references retain this declaration-shaped scalar result and prep slot.
 When an invocation transforms, the same resolved `constof` substitutions and
 anchor relationships are reused for both generated protocol calls.
 
+Return-position prep is a source-level spelling transform. In function,
+method, `fn`, `delegate`, and callable newtype declarations, `prep T[]` in the
+return position lowers to the same scalar length return and `prep T[] buffer =
+default` parameter shape as explicit prep-parameter syntax. The synthetic
+`buffer` parameter is inserted in the canonical prep position before
+compiler-supplied slots such as `within`, `thrown`, `sizeof`, `typenameof`, and
+`vtableof`; use explicit prep-parameter syntax when a different name or
+position is required. Function bodies still write through `buffer` and return
+the required length.
+
 ## Virtual Overrides Remain Exact
 
 Virtual and abstract override matching is exact with respect to ordinary const

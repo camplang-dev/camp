@@ -257,12 +257,12 @@ its inputs. Text formatting, byte serialization, and platform-style queries
 often use the same pattern: first ask how much storage is needed, then call
 again with a buffer to receive the result.
 
-Camp gives that pattern a direct signature shape with `prep`. A `prep`
-parameter is the result buffer supplied by the caller, and the function returns
-the length needed for the complete result:
+Camp gives that pattern a direct signature shape with `prep` in the return
+position. The method body writes the result into `buffer` and returns the
+length needed for the complete result:
 
 ```camp
-nuint toString(in Status this, prep char[] buffer = default)
+prep char[] toString(in Status this)
 {
 	const char[] text = this.enabled ? "enabled" : "disabled";
 	nuint count = min(text.length, buffer.length);
@@ -291,6 +291,20 @@ char[] storage = init char[required];
 status.toString(buffer: storage);
 ```
 
+When composing several prepared pieces into one result, track the required
+length and pass the remaining slice to later writes:
+
+```camp
+prep char[] describe(User user)
+{
+	auto need = "name: ".toString(buffer);
+	need += user.name.toString(buffer[need..]);
+	need += " age: ".toString(buffer[need..]);
+	need += user.age.toString(buffer[need..]);
+	return need;
+}
+```
+
 An omitted buffer can allocate input-sized scoped storage, so keep the result
 when it will be used repeatedly. For large or repeated results, measuring once
 and reusing explicit storage can reduce stack use and repeated work.
@@ -311,7 +325,7 @@ allocation-producing operation visible instead of making it look like a field:
 ```camp
 struct Control
 {
-	nuint getText(const this, prep char[] buffer = default)
+	prep char[] getText(const this)
 	{
 		const char[] text = "Ready";
 		nuint count = min(text.length, buffer.length);

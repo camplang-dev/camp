@@ -537,22 +537,23 @@ Parameter order is source API. Overload selectors are parameter facts, not a
 separate overload table, and metadata consumers must not assume the selector is
 the first callable parameter.
 
-`prep` parameters are source API. Metadata records them as ordinary parameter
-objects with `modifier: "prep"`, using source-level array spelling in source
-views. If the metadata view expands array ABI components, each emitted
-component that belongs to the source `prep` parameter must remain marked with
-`modifier: "prep"` so consumers can reconstruct the caller-prepared contract.
-API headers must print the `prep` modifier and any ordinary default value.
-Neither API headers nor metadata emit a synthetic array-returning overload for
-an omitted prep slot; transformation is an invocation fact. Call-site tooling
-may report the transformed array expression type, while declaration hover,
-signature help, definitions, method references, and navigation retain the
-scalar/prep source signature.
+`prep` declarations are source API. Source may spell a canonical prep method
+with `prep` in return position, but API headers and metadata serialize the
+lowered signature: scalar length return plus an ordinary parameter object with
+`modifier: "prep"`. If the metadata view expands array ABI components, each
+emitted component that belongs to the source `prep` parameter must remain marked
+with `modifier: "prep"` so consumers can reconstruct the caller-prepared
+contract. API headers must print the `prep` modifier and any ordinary default
+value. Neither API headers nor metadata emit a synthetic array-returning
+overload for an omitted prep slot; transformation is an invocation fact.
+Call-site tooling may report the transformed array expression type. Declaration
+hover and signature help may display canonical lowered prep signatures as
+return-position prep, but non-canonical prep signatures must preserve exact
+buffer details.
 
 The standard UTF-8 formatter convention is named `toString`. Standard-library
-API and metadata views expose the renamed source declarations and no exact
-public `format` alias. This is a source-name change only; prep parameter and ABI
-expansion remain unchanged.
+API and metadata views expose the renamed source declarations. This is a
+source-name change only; prep parameter and ABI expansion remain unchanged.
 
 For async functions, metadata keeps the source async shape and omits generated
 completion helpers. The metadata `async` flag means the declaration is callable

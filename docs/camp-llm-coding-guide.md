@@ -59,9 +59,10 @@ High-impact distinctions:
 - Runtime `$"..."` eagerly produces text. With `auto`, the type is `string`.
   Non-`new` interpolation uses scoped storage; use `within(...) new $"..."`
   when heap lifetime is required.
-- Use `prep` parameters for caller-prepared array results. Omitting the prep
-  argument produces scoped prepared storage; `(new)` directly before that call
-  uses allocated storage under the active `within` context.
+- Prefer return-position `prep` for caller-prepared array results, such as
+  `prep char[] toString(...)`. Omitting the prep buffer produces scoped
+  prepared storage; `(new)` directly before that call uses allocated storage
+  under the active `within` context.
 - Textual `+` and textual `+=` are diagnostics. Use interpolation instead.
 - Generic code must state the capabilities it uses. `T: any` is intentionally
   restrictive.
@@ -129,12 +130,12 @@ auto title = $"Camp"; // string
 ```
 
 When defining a new type that should appear inside interpolation, prefer a
-`toString` method with a `prep char[]` result buffer:
+`toString` method with a `prep char[]` result:
 
 ```camp
 newtype MyValue: int;
 
-public nuint toString(in MyValue this, prep char[] buffer = default)
+public prep char[] toString(in MyValue this)
 {
 	int value = (int)this;
 	return value.toString(buffer);
@@ -459,7 +460,8 @@ when required by the value flow:
 - `in` keeps a parameter input-only where the declaration requires it.
 - `thrown` declares the error channel.
 - `within` identifies the allocator or allocation context used by the operation.
-- `prep` marks one mutable array parameter as the caller-prepared result buffer.
+- `prep` in return position declares a caller-prepared array result; explicit
+  prep parameters appear in lowered/API-oriented signatures.
 - `escaped` means a value can outlive the current scope.
 - `scoped` means the value is limited to the current scope.
 

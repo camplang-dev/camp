@@ -174,11 +174,12 @@ expanded-form services as the analyzer/lowerer.
 ### Prepared Result Emission
 
 A prep declaration emits its ordinary scalar return and expanded mutable-array
-parameter components; there is no synthetic array-returning ABI function. A
-lowered transformed call emits a sizing call, checked allocation arithmetic,
-storage allocation, and a writing call. Both calls use the same captured
-receiver, explicit arguments, capability values, target/call specs, error path,
-and dynamic dispatch target. A full call emits only its single ordinary call.
+parameter components, even when source used return-position prep; there is no
+synthetic array-returning ABI function. A lowered transformed call emits a
+sizing call, checked allocation arithmetic, storage allocation, and a writing
+call. Both calls use the same captured receiver, explicit arguments, capability
+values, target/call specs, error path, and dynamic dispatch target. A full call
+emits only its single ordinary call.
 
 Array length and required-size arithmetic use the selected target's length
 component type, not the compiler host width. Element-size multiplication and
