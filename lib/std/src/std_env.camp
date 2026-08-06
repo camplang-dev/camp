@@ -7,17 +7,13 @@ static class Env
 {
 	/// Gets the current working directory as UTF-8 text.
 	///
-	/// - buffer: Optional caller-provided storage. When omitted, Camp prepares
-	/// storage for the result.
-	/// @returns The required byte length, excluding a null terminator, when an
-	/// explicit buffer is supplied.
-	/// @remarks Unsupported or unavailable current-directory access produces a
-	/// zero-length result instead of throwing.
+	/// @remarks Unsupported or unavailable current-directory access produces an
+	/// empty result instead of throwing.
 	/// @example
 	/// ```camp
 	/// auto cwd = Env.getCurrentDirectory();
 	/// ```
-	public static nuint getCurrentDirectory(prep char[] buffer = default)
+	public static prep char[] getCurrentDirectory()
 	{
 		nint result = camp_io_get_current_directory(buffer.elements, buffer.length);
 		return result > 0 ? (nuint)result : 0;
@@ -39,13 +35,9 @@ static class Env
 
 	/// Gets the executable path as UTF-8 text when the host exposes it.
 	///
-	/// - buffer: Optional caller-provided storage. When omitted, Camp prepares
-	/// storage for the result.
-	/// @returns The required byte length, excluding a null terminator, when an
-	/// explicit buffer is supplied.
-	/// @remarks Unsupported or unavailable executable-path access produces a
-	/// zero-length result instead of throwing.
-	public static nuint getExecutablePath(prep char[] buffer = default)
+	/// @remarks Unsupported or unavailable executable-path access produces an
+	/// empty result instead of throwing.
+	public static prep char[] getExecutablePath()
 	{
 		nint result = camp_io_get_executable_path(buffer.elements, buffer.length);
 		return result > 0 ? (nuint)result : 0;
@@ -54,13 +46,9 @@ static class Env
 	/// Gets the value of an environment variable as UTF-8 text.
 	///
 	/// - name: The variable name. Empty names and names containing `=` are invalid.
-	/// - buffer: Optional caller-provided storage. When omitted, Camp prepares
-	/// storage for the result.
-	/// @returns The required byte length, excluding a null terminator, when an
-	/// explicit buffer is supplied.
 	/// @remarks Missing variables and defined-empty variables both produce a
-	/// zero-length text result. Use `hasVariable` to distinguish those cases.
-	public static nuint getVariable(string name, prep char[] buffer = default)
+	/// empty text result. Use `hasVariable` to distinguish those cases.
+	public static prep char[] getVariable(string name)
 	{
 		nint result = camp_io_get_environment_variable(name, buffer.elements, buffer.length);
 		return result > 0 ? (nuint)result : 0;

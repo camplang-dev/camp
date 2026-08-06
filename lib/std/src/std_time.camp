@@ -128,11 +128,7 @@ public newtype TimeSpan: long
 }
 
 /// Formats a duration as `H:MM:SS` with optional milliseconds.
-/// @remarks
-/// Formatting writes into the caller-provided buffer when space is available
-/// and returns the required character count.
-/// - buffer: Destination buffer.
-public nuint toString(in TimeSpan this, prep char[] buffer = default)
+public prep char[] toString(in TimeSpan this)
 {
 	if (this == TimeSpan.INVALID)
 	{
@@ -215,10 +211,8 @@ public newtype UtcOffset: short
 /// Formats a UTC offset as `Z` or `+HH:MM`.
 /// @remarks
 /// Formatting always computes from the stored value, even when [isValid] would
-/// return false. It writes into the caller-provided buffer when space is
-/// available and returns the required character count.
-/// - buffer: Destination buffer.
-public nuint toString(in UtcOffset this, prep char[] buffer = default)
+/// return false.
+public prep char[] toString(in UtcOffset this)
 {
 	short total = (short)this;
 	if (total == 0)
@@ -322,11 +316,8 @@ public newtype Instant: long
 }
 
 /// Formats an instant as UTC ISO text with a trailing `Z`.
-/// @remarks
-/// Formatting writes into the caller-provided buffer when space is available
-/// and returns the required character count. Invalid input returns `0`.
-/// - buffer: Destination buffer.
-public nuint toString(in Instant this, prep char[] buffer = default)
+/// @remarks Invalid input returns an empty result.
+public prep char[] toString(in Instant this)
 {
 	DateTime utc = this.getUtcDateTime();
 	if (!utc.isValid())
@@ -417,12 +408,8 @@ public struct Date
 	}
 
 	/// Formats this date as `YYYY-MM-DD`.
-	/// @remarks
-	/// Formatting writes into the caller-provided buffer when space is available
-	/// and returns the required character count. Field ranges are not checked
-	/// during formatting.
-	/// - buffer: Destination buffer.
-	public nuint toString(const this, prep char[] buffer = default)
+	/// @remarks Field ranges are not checked during formatting.
+	public prep char[] toString(const this)
 	{
 		fixed char[10] scratch = default;
 		char[] text = scratch;
@@ -473,12 +460,8 @@ public struct TimeOfDay
 	}
 
 	/// Formats this time as `HH:MM:SS` with optional milliseconds.
-	/// @remarks
-	/// Formatting writes into the caller-provided buffer when space is available
-	/// and returns the required character count. Field ranges are not checked
-	/// during formatting.
-	/// - buffer: Destination buffer.
-	public nuint toString(const this, prep char[] buffer = default)
+	/// @remarks Field ranges are not checked during formatting.
+	public prep char[] toString(const this)
 	{
 		ushort ms = this.getMs();
 		nuint length = ms == 0 ? 8 : 12;
@@ -568,11 +551,8 @@ public struct DateTime
 	}
 
 	/// Formats this value as ISO date-time text.
-	/// @remarks
-	/// Formatting writes into the caller-provided buffer when space is available
-	/// and returns the required character count. Invalid input returns `0`.
-	/// - buffer: Destination buffer.
-	public nuint toString(const this, prep char[] buffer = default)
+	/// @remarks Invalid input returns an empty result.
+	public prep char[] toString(const this)
 	{
 		if (!this.isValid())
 			return 0;
@@ -669,11 +649,8 @@ public struct OffsetDateTime
 	public Instant toInstant(const this) => this.local.toInstant(this.offset);
 
 	/// Formats this value as ISO offset date-time text.
-	/// @remarks
-	/// Formatting writes into the caller-provided buffer when space is available
-	/// and returns the required character count. Invalid input returns `0`.
-	/// - buffer: Destination buffer.
-	public nuint toString(const this, prep char[] buffer = default)
+	/// @remarks Invalid input returns an empty result.
+	public prep char[] toString(const this)
 	{
 		fixed char[29] scratch = default;
 		char[] text = scratch;

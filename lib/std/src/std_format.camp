@@ -2,14 +2,14 @@ namespace Std;
 
 @category("Text");
 
-public nuint toString(in char this, prep char[] buffer = default)
+public prep char[] toString(in char this)
 {
 	if (buffer.length > 0)
 		buffer[0] = this;
 	return 1;
 }
 
-public nuint toString(const char[] this, prep char[] buffer = default)
+public prep char[] toString(const char[] this)
 {
 	nuint length = 0;
 	while (length < this.length && this[length] != '\0')
@@ -21,13 +21,13 @@ public nuint toString(const char[] this, prep char[] buffer = default)
 	return length;
 }
 
-public nuint toString(in string this, prep char[] buffer = default)
+public prep char[] toString(in string this)
 {
 	const char[] text = { (const char*)this, this.Length };
 	return text.toString(buffer);
 }
 
-public nuint toString(in bool this, prep char[] buffer = default)
+public prep char[] toString(in bool this)
 {
 	if (this)
 	{
@@ -41,17 +41,17 @@ public nuint toString(in bool this, prep char[] buffer = default)
 	}
 }
 
-public nuint toString(in byte   this, prep char[] buffer = default) => applyFormat((long)this, false, buffer);
-public nuint toString(in sbyte  this, prep char[] buffer = default) => applyFormat(abs((int)this), this < 0, buffer);
-public nuint toString(in ushort this, prep char[] buffer = default) => applyFormat((long)this, false, buffer);
-public nuint toString(in short  this, prep char[] buffer = default) => applyFormat(abs((int)this), this < 0, buffer);
-public nuint toString(in uint   this, prep char[] buffer = default) => applyFormat((long)this, false, buffer);
-public nuint toString(in int    this, prep char[] buffer = default) => applyFormat(abs((long)this), this < 0, buffer);
-public nuint toString(in nuint  this, prep char[] buffer = default) => applyFormat((long)this, false, buffer);
-public nuint toString(in nint   this, prep char[] buffer = default) => applyFormat(abs((long)this), this < 0, buffer);
-public nuint toString(in ulong  this, prep char[] buffer = default) => applyFormat(this, false, buffer);
+public prep char[] toString(in byte   this) => applyFormat((long)this, false, buffer);
+public prep char[] toString(in sbyte  this) => applyFormat(abs((int)this), this < 0, buffer);
+public prep char[] toString(in ushort this) => applyFormat((long)this, false, buffer);
+public prep char[] toString(in short  this) => applyFormat(abs((int)this), this < 0, buffer);
+public prep char[] toString(in uint   this) => applyFormat((long)this, false, buffer);
+public prep char[] toString(in int    this) => applyFormat(abs((long)this), this < 0, buffer);
+public prep char[] toString(in nuint  this) => applyFormat((long)this, false, buffer);
+public prep char[] toString(in nint   this) => applyFormat(abs((long)this), this < 0, buffer);
+public prep char[] toString(in ulong  this) => applyFormat(this, false, buffer);
 
-public nuint toString(in long   this, prep char[] buffer = default)
+public prep char[] toString(in long   this)
 {
 	if (this == (-9223372036854775807 - 1))
 	{
