@@ -54,7 +54,8 @@ The language gives you forms such as:
 
 The standard library gives you ordinary declarations built from those forms:
 
-- `Console`, `FileHandle`, `List<T>`, `HashMap<K, V>`, and `HashSet<T>`;
+- `Console`, `Env`, `Path`, `FileSystem`, `FileHandle`, `List<T>`,
+  `HashMap<K, V>`, and `HashSet<T>`;
 - `Allocator` and `HeapAllocator`;
 - array copying, sorting, searching, and resizing helpers;
 - string searching, trimming, copying, case conversion, and parsing helpers;
@@ -97,6 +98,45 @@ void writeReportHeader()
 That `CharWriter` is a callable iterator-style value. The console is not a
 special language feature; it is a standard-library static class exposing the
 same stream model other APIs can use.
+
+## Environment, Paths, And Filesystem
+
+`Env` exposes process-level environment information:
+
+```camp
+auto cwd = Env.getCurrentDirectory();
+auto exe = Env.getExecutablePath();
+
+if (Env.hasVariable("CAMP_HOME"))
+	Console.writeLine(Env.getVariable("CAMP_HOME"));
+```
+
+The read APIs use ordinary prepared-result style. Most code calls them as shown
+above and receives a `char[]`. When you need to reuse storage, pass an explicit
+buffer.
+
+`Path` is for lexical path text. It answers questions such as “does this text
+look rooted for this target?” or “what is the file-name span?” without touching
+the host filesystem:
+
+```camp
+const char[] name = Path.fileNameSpan("logs/today.txt");
+const char[] ext = Path.extensionSpan(name);
+```
+
+Use `FileSystem` when you want to query or mutate the host filesystem:
+
+```camp
+IoError error = default;
+
+FileSystem.createDirectory("logs", true, catch error);
+if (error == default && FileSystem.exists("logs"))
+	Console.writeLine("logs directory is ready");
+```
+
+Host-facing `Env` and `FileSystem` inputs are `string` values because operating
+systems expect null-terminated path and environment text. If you only have a
+span, copy it to a string before passing it to these APIs.
 
 ## Allocation And `within`
 

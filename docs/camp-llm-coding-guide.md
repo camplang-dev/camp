@@ -843,6 +843,28 @@ Use `try`, `catch`, and `finally` according to the language docs and existing
 style. Do not replace `thrown` errors with ad hoc boolean return values unless
 the API intentionally uses a `tryX` shape with `out` parameters.
 
+## Environment, Paths, And Filesystem
+
+Use the standard-library host APIs instead of inventing native declarations for
+ordinary environment and filesystem work:
+
+- Use `Env` for process environment information. `getCurrentDirectory`,
+  `getExecutablePath`, and `getVariable` are `prep char[]` result APIs; call
+  them normally for prepared storage or pass `buffer:` when reusing storage.
+- Use `Path` only for lexical path operations such as separator checks,
+  rooted/fully-qualified checks, and file-name/directory/extension spans. It
+  does not query the filesystem or normalize paths.
+- Use `FileSystem` for host filesystem probes and mutations such as
+  create/delete directory, copy/move/delete file, existence checks, directory
+  checks, and file size.
+- Pass OS-facing paths, environment names, and environment values as `string`.
+  If the available value is a `const char[]` span, explicitly copy it to a
+  string before calling `Env` or `FileSystem`.
+- Check the API doc comments for edge cases: Env reads return zero-length text
+  for missing/unavailable values, `hasVariable` distinguishes defined-empty
+  variables, and FileSystem convenience probes return `false` for missing paths
+  or probe failures.
+
 ## Tests
 
 Built-in Camp tests are top-level functions marked `@test`. Do not write tests

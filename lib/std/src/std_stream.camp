@@ -20,6 +20,40 @@ internal extern nint camp_io_file_write(nint handle, const void* buffer, nuint l
 internal extern long camp_io_file_seek(nint handle, long offset, int origin, out IoError error);
 @symbol("camp_io_file_flush")
 internal extern int camp_io_file_flush(nint handle, out IoError error);
+@symbol("camp_io_get_current_directory")
+internal extern nint camp_io_get_current_directory(char* buffer, nuint length);
+@symbol("camp_io_set_current_directory")
+internal extern int camp_io_set_current_directory(string path, out IoError error);
+@symbol("camp_io_get_executable_path")
+internal extern nint camp_io_get_executable_path(char* buffer, nuint length);
+@symbol("camp_io_get_environment_variable")
+internal extern nint camp_io_get_environment_variable(string name, char* buffer, nuint length);
+@symbol("camp_io_set_environment_variable")
+internal extern int camp_io_set_environment_variable(string name, string value, out IoError error);
+@symbol("camp_io_remove_environment_variable")
+internal extern int camp_io_remove_environment_variable(string name, out IoError error);
+@symbol("camp_io_has_environment_variable")
+internal extern int camp_io_has_environment_variable(string name);
+@symbol("camp_io_create_directory")
+internal extern int camp_io_create_directory(string path, out IoError error);
+@symbol("camp_io_create_directory_recursive")
+internal extern int camp_io_create_directory_recursive(string path, out IoError error);
+@symbol("camp_io_delete_directory")
+internal extern int camp_io_delete_directory(string path, out IoError error);
+@symbol("camp_io_delete_directory_recursive")
+internal extern int camp_io_delete_directory_recursive(string path, out IoError error);
+@symbol("camp_io_delete_file")
+internal extern int camp_io_delete_file(string path, out IoError error);
+@symbol("camp_io_copy_file")
+internal extern int camp_io_copy_file(string source, string dest, int overwrite, out IoError error);
+@symbol("camp_io_move_file")
+internal extern int camp_io_move_file(string source, string dest, int overwrite, out IoError error);
+@symbol("camp_io_path_exists")
+internal extern int camp_io_path_exists(string path);
+@symbol("camp_io_path_is_directory")
+internal extern int camp_io_path_is_directory(string path);
+@symbol("camp_io_file_get_size")
+internal extern int camp_io_file_get_size(string path, out ulong size, out IoError error);
 
 public enum IoError
 {

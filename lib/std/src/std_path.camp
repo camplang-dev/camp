@@ -1,0 +1,242 @@
+namespace Std;
+
+@category("I/O");
+
+/// Provides lexical helpers for working with platform path text.
+///
+/// `Path` does not query the filesystem, normalize segments, resolve links, or
+/// validate whether a path exists.
+static class Path
+{
+	/// Returns the preferred directory separator for the active target.
+	public static char getDirectorySeparator()
+	{
+#if WINDOWS
+		return '\\';
+#else
+		return '/';
+#endif
+	}
+
+	/// Returns the separator used between entries in a path-list environment variable.
+	public static char getPathSeparator()
+	{
+#if WINDOWS
+		return ';';
+#else
+		return ':';
+#endif
+	}
+
+	/// Returns true when [value] is a directory separator for the active target.
+	public static bool isDirectorySeparator(char value)
+	{
+#if WINDOWS
+		return value == '\\' || value == '/';
+#else
+		return value == '/';
+#endif
+	}
+
+	/// Returns true when [path] has a root component for the active target syntax.
+	///
+	/// @remarks A rooted path is not necessarily fully qualified. On Windows,
+	/// `\foo` and `C:foo` are rooted but depend on current drive state.
+	public static bool isRooted(const char[] path)
+	{
+		if (path.length == 0)
+			return false;
+#if WINDOWS
+		if (Path.isDirectorySeparator(path[0]))
+			return true;
+		return path.length >= 2 && path[1] == ':';
+#else
+		return path[0] == '/';
+#endif
+	}
+
+	/// Returns true when [path] is absolute without depending on current directory state.
+	///
+	/// @remarks On Windows, `C:\foo` and `\\server\share` are fully qualified,
+	/// but `C:foo` and `\foo` are only rooted.
+	public static bool isFullyQualified(const char[] path)
+	{
+#if WINDOWS
+		if (path.length >= 3 && path[1] == ':' && Path.isDirectorySeparator(path[2]))
+			return true;
+		return Path.isUncRooted(path);
+#else
+		return path.length > 0 && path[0] == '/';
+#endif
+	}
+
+	/// Returns a view of the final path component in [path].
+	///
+	/// @returns A span into [path]. A path ending in a directory separator has an
+	/// empty file-name span.
+	public static scoped constof(path) char[] fileNameSpan(const char[] path)
+	{
+		if (path.length == 0)
+			return path[..0];
+		if (Path.isDirectorySeparator(path[path.length - 1]))
+			return path[path.length..];
+
+		nuint start = Path.lastSeparatorAfterRoot(path) + 1;
+		if (start == 0)
+			start = 0;
+		return path[start..];
+	}
+
+	/// Returns a view of the directory portion of [path].
+	///
+	/// @returns A span into [path]. The result does not include a trailing
+	/// separator except when the directory portion is the root.
+	public static scoped constof(path) char[] directoryNameSpan(const char[] path)
+	{
+		if (path.length == 0)
+			return path[..0];
+
+		nuint root = Path.rootLength(path);
+		nuint end = path.length;
+		bool trimmedTrailingSeparator = false;
+		while (end > root && Path.isDirectorySeparator(path[end - 1]))
+		{
+			trimmedTrailingSeparator = true;
+			end--;
+		}
+		if (end == root)
+			return path[..root];
+
+		nint separator = -1;
+		for (nuint i = end; i > 0; i--)
+		{
+			if (Path.isDirectorySeparator(path[i - 1]))
+			{
+				separator = (nint)(i - 1);
+				break;
+			}
+		}
+
+		if (separator < 0)
+		{
+			if (trimmedTrailingSeparator)
+				return path[..end];
+#if WINDOWS
+			if (path.length >= 2 && path[1] == ':')
+				return path[..2];
+#endif
+			return path[..0];
+		}
+
+		nuint length = (nuint)separator;
+		if (length < root)
+			length = root;
+		return path[..length];
+	}
+
+	/// Returns a view of the extension of the final file-name segment in [path].
+	///
+	/// @returns The extension including the leading `.`, or an empty span when
+	/// the final segment has no extension.
+	/// @remarks Leading dots alone do not create an extension: `.bashrc` and
+	/// `....jpg` return an empty span, while `.profile.old` returns `.old`.
+	public static scoped constof(path) char[] extensionSpan(const char[] path)
+	{
+		nuint fileStart = path.length;
+		if (path.length > 0 && !Path.isDirectorySeparator(path[path.length - 1]))
+		{
+			nint separator = Path.lastSeparatorAfterRoot(path);
+			fileStart = separator < 0 ? 0 : (nuint)separator + 1;
+		}
+		if (fileStart >= path.length)
+			return path[path.length..];
+
+		nint dot = -1;
+		for (nuint i = path.length; i > fileStart; i--)
+		{
+			if (path[i - 1] == '.')
+			{
+				dot = (nint)(i - 1 - fileStart);
+				break;
+			}
+		}
+		if (dot <= 0)
+			return path[fileStart..fileStart];
+
+		bool sawNonDotBeforeExtension = false;
+		for (nuint j = 0; j < (nuint)dot; j++)
+		{
+			if (path[fileStart + j] != '.')
+			{
+				sawNonDotBeforeExtension = true;
+				break;
+			}
+		}
+		if (!sawNonDotBeforeExtension)
+			return path[fileStart..fileStart];
+
+		return path[fileStart + (nuint)dot..];
+	}
+
+	static nint lastSeparatorAfterRoot(const char[] path)
+	{
+		nuint root = Path.rootLength(path);
+		for (nuint i = path.length; i > root; i--)
+			if (Path.isDirectorySeparator(path[i - 1]))
+				return (nint)(i - 1);
+		return -1;
+	}
+
+	static nuint rootLength(const char[] path)
+	{
+		if (path.length == 0)
+			return 0;
+#if WINDOWS
+		if (Path.isUncRooted(path))
+		{
+			nuint separators = 0;
+			for (nuint i = 2; i < path.length; i++)
+			{
+				if (Path.isDirectorySeparator(path[i]))
+				{
+					separators++;
+					if (separators == 2)
+						return i;
+				}
+			}
+			return path.length;
+		}
+		if (path.length >= 3 && path[1] == ':' && Path.isDirectorySeparator(path[2]))
+			return 3;
+		if (path.length >= 2 && path[1] == ':')
+			return 2;
+		if (Path.isDirectorySeparator(path[0]))
+			return 1;
+		return 0;
+#else
+		return path[0] == '/' ? 1 : 0;
+#endif
+	}
+
+	static bool isUncRooted(const char[] path)
+	{
+#if WINDOWS
+		if (path.length < 5 || !Path.isDirectorySeparator(path[0]) || !Path.isDirectorySeparator(path[1]))
+			return false;
+		nuint i = 2;
+		nuint serverStart = i;
+		while (i < path.length && !Path.isDirectorySeparator(path[i]))
+			i++;
+		if (i == serverStart || i >= path.length)
+			return false;
+		while (i < path.length && Path.isDirectorySeparator(path[i]))
+			i++;
+		nuint shareStart = i;
+		while (i < path.length && !Path.isDirectorySeparator(path[i]))
+			i++;
+		return i > shareStart;
+#else
+		return false;
+#endif
+	}
+}

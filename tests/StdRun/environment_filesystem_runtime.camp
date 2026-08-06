@@ -1,0 +1,156 @@
+using Std;
+
+void writeFile(string path, const byte[] bytes, thrown IoError error)
+{
+	FileOptions options = default;
+	FileHandle handle = FileHandle.open(path, FileAccess.WRITE, FileMode.CREATE_OR_TRUNCATE, options, catch error);
+	handle.write(bytes, catch error);
+	handle.close();
+	error = default;
+}
+
+int read3(string path, byte a, byte b, byte c, int code)
+{
+	IoError error = default;
+	FileOptions options = default;
+	FileHandle handle = FileHandle.open(path, FileAccess.READ, FileMode.OPEN_EXISTING, options, catch error);
+	if (error != default)
+		return code;
+	byte[] buffer = init byte[4];
+	nuint readCount = 0;
+	handle.read(buffer, out readCount, catch error);
+	handle.close();
+	if (error != default || readCount != 3)
+		return code + 1;
+	if (buffer[0] != a || buffer[1] != b || buffer[2] != c)
+		return code + 2;
+	Console.writeLine("ok");
+	return 0;
+}
+
+export int main()
+{
+	IoError error = default;
+	string root = "tmp/camp-stdlib-env-fs-test";
+	string sentinel = "tmp/camp-stdlib-env-fs-test/.camp-fs-test-root";
+	string nested = "tmp/camp-stdlib-env-fs-test/a/b";
+	string file = "tmp/camp-stdlib-env-fs-test/a/b/file.txt";
+	string copy = "tmp/camp-stdlib-env-fs-test/a/b/copy.txt";
+	string moved = "tmp/camp-stdlib-env-fs-test/a/b/moved.txt";
+	string occupied = "tmp/camp-stdlib-env-fs-test/a/b/occupied.txt";
+	string cwdTest = "tmp/camp-stdlib-cwd-test";
+
+	if (FileSystem.exists(sentinel))
+		FileSystem.deleteDirectory(root, true, catch error);
+	if (error != default)
+		return 1;
+
+	FileSystem.createDirectory(root, true, catch error);
+	if (error != default)
+		return 2;
+	writeFile(sentinel, [(byte)'o', (byte)'k'], catch error);
+	if (error != default)
+		return 3;
+	FileSystem.createDirectory(nested, true, catch error);
+	if (error != default || !FileSystem.exists(nested) || !FileSystem.isDirectory(nested))
+		return 4;
+	FileSystem.createDirectory(nested, false, catch error);
+	if (error != default)
+		return 5;
+
+	writeFile(file, [(byte)'a', (byte)'b', (byte)'c'], catch error);
+	if (error != default || FileSystem.getSize(file, catch error) != 3 || error != default)
+		return 6;
+	if (!FileSystem.exists(file) || FileSystem.isDirectory(file))
+		return 7;
+
+	FileSystem.copyFile(file, copy, false, catch error);
+	if (error != default)
+		return 8;
+	int readResult = read3(copy, (byte)'a', (byte)'b', (byte)'c', 10);
+	if (readResult != 0)
+		return readResult;
+
+	writeFile(occupied, [(byte)'x', (byte)'y', (byte)'z'], catch error);
+	FileSystem.copyFile(file, occupied, false, catch error);
+	if (error != IoError.ALREADY_EXISTS)
+		return 13;
+	error = default;
+	FileSystem.copyFile(file, occupied, true, catch error);
+	if (error != default)
+		return 14;
+
+	FileSystem.moveFile(copy, moved, false, catch error);
+	if (error != default || FileSystem.exists(copy) || !FileSystem.exists(moved))
+		return 15;
+	FileSystem.moveFile(moved, occupied, false, catch error);
+	if (error != IoError.ALREADY_EXISTS)
+		return 16;
+	error = default;
+	FileSystem.moveFile(moved, occupied, true, catch error);
+	if (error != default || FileSystem.exists(moved))
+		return 17;
+
+	FileSystem.deleteFile(file, catch error);
+	if (error != default || FileSystem.exists(file))
+		return 18;
+	FileSystem.deleteDirectory(root, false, catch error);
+	if (error != IoError.DIRECTORY_NOT_EMPTY)
+		return 19;
+	error = default;
+
+	auto cwd = Env.getCurrentDirectory();
+	if (cwd.length == 0)
+		return 20;
+	if (Env.getCurrentDirectory(buffer: default) != cwd.length)
+		return 21;
+	char[] cwdBuffer = init char[cwd.length + 1];
+	if (Env.getCurrentDirectory(buffer: cwdBuffer) != cwd.length || cwdBuffer[..cwd.length].compareTo(cwd) != 0)
+		return 22;
+	auto exe = Env.getExecutablePath();
+	if (exe.length == 0)
+		return 23;
+
+	Env.removeVariable("CAMP_STDLIB_ENV_TEST_VALUE", catch error);
+	if (error != default)
+		return 24;
+	if (Env.hasVariable("CAMP_STDLIB_ENV_TEST_VALUE") || Env.getVariable("CAMP_STDLIB_ENV_TEST_VALUE").length != 0)
+		return 25;
+	Env.setVariable("CAMP_STDLIB_ENV_TEST_VALUE", "", catch error);
+	if (error != default || !Env.hasVariable("CAMP_STDLIB_ENV_TEST_VALUE") || Env.getVariable("CAMP_STDLIB_ENV_TEST_VALUE").length != 0)
+		return 26;
+	Env.setVariable("CAMP_STDLIB_ENV_TEST_VALUE", "abc", catch error);
+	if (error != default || Env.getVariable("CAMP_STDLIB_ENV_TEST_VALUE").compareTo("abc") != 0)
+		return 27;
+	char[] envBuffer = init char[4];
+	if (Env.getVariable("CAMP_STDLIB_ENV_TEST_VALUE", buffer: envBuffer) != 3 || envBuffer[..3].compareTo("abc") != 0)
+		return 28;
+	if (!Env.removeVariable("CAMP_STDLIB_ENV_TEST_VALUE", catch error) || error != default)
+		return 29;
+	if (Env.removeVariable("CAMP_STDLIB_ENV_TEST_VALUE", catch error) || error != default)
+		return 30;
+
+	if (FileSystem.exists(cwdTest))
+		FileSystem.deleteDirectory(cwdTest, true, catch error);
+	FileSystem.createDirectory(cwdTest, true, catch error);
+	if (error != default)
+		return 31;
+	string oldCwd = cwd.copyString() finally delete;
+	Env.setCurrentDirectory(cwdTest, catch error);
+	if (error != default)
+		return 32;
+	Env.setCurrentDirectory(oldCwd, catch error);
+	if (error != default)
+		return 33;
+	FileSystem.deleteDirectory(cwdTest, true, catch error);
+	if (error != default)
+		return 34;
+
+	if (!FileSystem.exists(sentinel))
+		return 35;
+	FileSystem.deleteDirectory(root, true, catch error);
+	if (error != default || FileSystem.exists(root))
+		return 36;
+
+	return 0;
+}

@@ -1,0 +1,85 @@
+using Std;
+
+int expect(const char[] actual, const char[] expected, int code)
+{
+	return actual.compareTo(expected) == 0 ? 0 : code;
+}
+
+export int main()
+{
+#if WINDOWS
+	if (Path.getDirectorySeparator() != '\\')
+		return 1;
+	if (Path.getPathSeparator() != ';')
+		return 2;
+	if (!Path.isDirectorySeparator('\\') || !Path.isDirectorySeparator('/'))
+		return 3;
+	if (Path.isRooted("") || Path.isRooted("foo\\bar"))
+		return 4;
+	if (!Path.isRooted("\\foo") || !Path.isRooted("/foo") || !Path.isRooted("C:foo"))
+		return 5;
+	if (Path.isFullyQualified("\\foo") || Path.isFullyQualified("C:foo"))
+		return 6;
+	if (!Path.isFullyQualified("C:\\foo") || !Path.isFullyQualified("C:/foo") || !Path.isFullyQualified("\\\\server\\share") || !Path.isFullyQualified("//server/share"))
+		return 7;
+	if (expect(Path.fileNameSpan("C:\\dir\\file.txt"), "file.txt", 8) != 0)
+		return 8;
+	if (expect(Path.fileNameSpan("C:\\dir\\"), "", 9) != 0)
+		return 9;
+	if (expect(Path.directoryNameSpan("C:\\file.txt"), "C:\\", 10) != 0)
+		return 10;
+	if (expect(Path.directoryNameSpan("C:\\dir\\file.txt"), "C:\\dir", 11) != 0)
+		return 11;
+	if (expect(Path.directoryNameSpan("C:foo"), "C:", 12) != 0)
+		return 12;
+#else
+	if (Path.getDirectorySeparator() != '/')
+		return 1;
+	if (Path.getPathSeparator() != ':')
+		return 2;
+	if (!Path.isDirectorySeparator('/') || Path.isDirectorySeparator('\\'))
+		return 3;
+	if (Path.isRooted("") || Path.isRooted(".") || Path.isRooted("foo/bar"))
+		return 4;
+	if (!Path.isRooted("/foo") || !Path.isRooted("//server/share"))
+		return 5;
+	if (Path.isFullyQualified("foo/bar") || !Path.isFullyQualified("/foo") || !Path.isFullyQualified("//server/share"))
+		return 6;
+	if (expect(Path.fileNameSpan("dir/file.txt"), "file.txt", 7) != 0)
+		return 7;
+	if (expect(Path.fileNameSpan("dir/"), "", 8) != 0)
+		return 8;
+	if (expect(Path.directoryNameSpan("/file.txt"), "/", 9) != 0)
+		return 9;
+	if (expect(Path.directoryNameSpan("/dir/file.txt"), "/dir", 10) != 0)
+		return 10;
+#endif
+
+	if (expect(Path.fileNameSpan("file.txt"), "file.txt", 20) != 0)
+		return 20;
+	if (expect(Path.directoryNameSpan("file.txt"), "", 21) != 0)
+		return 21;
+	if (expect(Path.directoryNameSpan("dir/file.txt"), "dir", 22) != 0)
+		return 22;
+	if (expect(Path.directoryNameSpan("dir/"), "dir", 23) != 0)
+		return 23;
+	if (expect(Path.extensionSpan("file"), "", 24) != 0)
+		return 24;
+	if (expect(Path.extensionSpan("file.txt"), ".txt", 25) != 0)
+		return 25;
+	if (expect(Path.extensionSpan("archive.tar.gz"), ".gz", 26) != 0)
+		return 26;
+	if (expect(Path.extensionSpan(".bashrc"), "", 27) != 0)
+		return 27;
+	if (expect(Path.extensionSpan(".profile.old"), ".old", 28) != 0)
+		return 28;
+	if (expect(Path.extensionSpan("....jpg"), "", 29) != 0)
+		return 29;
+	if (expect(Path.extensionSpan("file."), ".", 30) != 0)
+		return 30;
+	if (expect(Path.extensionSpan("dir.name/file.c"), ".c", 31) != 0)
+		return 31;
+
+	Console.writeLine("ok");
+	return 0;
+}

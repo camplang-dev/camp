@@ -1,0 +1,117 @@
+namespace Std;
+
+@category("I/O");
+
+/// Provides access to process environment information.
+///
+/// Read APIs return caller-prepared UTF-8 text and do not throw. Missing,
+/// invalid, unsupported, or unavailable values produce a zero-length result.
+static class Env
+{
+	/// Gets the current working directory as UTF-8 text.
+	///
+	/// - buffer: Optional caller-provided storage. When omitted, Camp prepares
+	/// storage for the result.
+	/// @returns The required byte length, excluding a null terminator, when an
+	/// explicit buffer is supplied.
+	/// @remarks Unsupported or unavailable current-directory access produces a
+	/// zero-length result instead of throwing.
+	/// @example
+	/// ```camp
+	/// auto cwd = Env.getCurrentDirectory();
+	/// nuint needed = Env.getCurrentDirectory(buffer: default);
+	/// char[] storage = init char[needed];
+	/// Env.getCurrentDirectory(buffer: storage);
+	/// ```
+	public static nuint getCurrentDirectory(prep char[] buffer = default)
+	{
+		nint result = camp_io_get_current_directory(buffer.elements, buffer.length);
+		return result > 0 ? (nuint)result : 0;
+	}
+
+	/// Changes the current working directory.
+	///
+	/// - path: The new current directory as a null-terminated UTF-8 string.
+	/// @throws IoError when the directory cannot be selected.
+#if NO_FILES
+	@notsupported("The current target does not support changing the current directory.")
+#endif
+	public static void setCurrentDirectory(string path, thrown IoError error)
+	{
+		if (camp_io_set_current_directory(path, out error) == 0)
+			throw error;
+		error = default;
+	}
+
+	/// Gets the executable path as UTF-8 text when the host exposes it.
+	///
+	/// - buffer: Optional caller-provided storage. When omitted, Camp prepares
+	/// storage for the result.
+	/// @returns The required byte length, excluding a null terminator, when an
+	/// explicit buffer is supplied.
+	/// @remarks Unsupported or unavailable executable-path access produces a
+	/// zero-length result instead of throwing.
+	public static nuint getExecutablePath(prep char[] buffer = default)
+	{
+		nint result = camp_io_get_executable_path(buffer.elements, buffer.length);
+		return result > 0 ? (nuint)result : 0;
+	}
+
+	/// Gets the value of an environment variable as UTF-8 text.
+	///
+	/// - name: The variable name. Empty names and names containing `=` are invalid.
+	/// - buffer: Optional caller-provided storage. When omitted, Camp prepares
+	/// storage for the result.
+	/// @returns The required byte length, excluding a null terminator, when an
+	/// explicit buffer is supplied.
+	/// @remarks Missing variables and defined-empty variables both produce a
+	/// zero-length text result. Use `hasVariable` to distinguish those cases.
+	public static nuint getVariable(string name, prep char[] buffer = default)
+	{
+		nint result = camp_io_get_environment_variable(name, buffer.elements, buffer.length);
+		return result > 0 ? (nuint)result : 0;
+	}
+
+	/// Sets or replaces an environment variable.
+	///
+	/// - name: The variable name. Empty names and names containing `=` are invalid.
+	/// - value: The new variable value. An empty string defines an empty variable.
+	/// @throws IoError when the variable cannot be set.
+#if NO_FILES
+	@notsupported("The current target does not support mutating environment variables.")
+#endif
+	public static void setVariable(string name, string value, thrown IoError error)
+	{
+		if (camp_io_set_environment_variable(name, value, out error) == 0)
+			throw error;
+		error = default;
+	}
+
+	/// Removes an environment variable.
+	///
+	/// - name: The variable name. Empty names and names containing `=` are invalid.
+	/// @returns `true` when the variable existed before removal, or `false` when
+	/// it was already missing.
+	/// @throws IoError when the remove request itself is invalid or fails.
+#if NO_FILES
+	@notsupported("The current target does not support mutating environment variables.")
+#endif
+	public static bool removeVariable(string name, thrown IoError error)
+	{
+		int result = camp_io_remove_environment_variable(name, out error);
+		if (result < 0)
+			throw error;
+		error = default;
+		return result != 0;
+	}
+
+	/// Returns true when an environment variable is defined.
+	///
+	/// - name: The variable name. Empty names and names containing `=` are invalid.
+	/// @remarks Defined-empty variables return `true` here even though
+	/// `getVariable` returns zero-length text for them.
+	public static bool hasVariable(string name)
+	{
+		return camp_io_has_environment_variable(name) != 0;
+	}
+}

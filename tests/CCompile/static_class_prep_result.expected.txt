@@ -1,0 +1,66 @@
+// file: static_class_prep_result.c
+#include "static_class_prep_result_private.h"
+
+/* Private file declarations. */
+static uintptr_t Tools_render(char *buffer, uintptr_t buffer_length);
+
+static uintptr_t Tools_render(char *buffer, uintptr_t buffer_length)
+{
+	if ((buffer_length >= 2))
+	{
+		buffer[0] = 'o';
+		buffer[1] = 'k';
+	}
+	return 2;
+}
+
+int main(void)
+{
+	uintptr_t _pr0 = Tools_render(NULL, 0);
+	char *_pe1 = (char *)(__builtin_alloca((sizeof(char) * _pr0)));
+	Tools_render(_pe1, _pr0);
+	char *_pa2 = _pe1;
+	uintptr_t _prepArray2_length = _pr0;
+	char *text = _pa2;
+	uintptr_t text_length = _prepArray2_length;
+	if ((((text_length != 2) || (text[0] != 'o')) || (text[1] != 'k')))
+	{
+		return 1;
+	}
+	return 0;
+}
+
+// file: static_class_prep_result.h
+#ifndef STATIC_CLASS_PREP_RESULT_H_
+#define STATIC_CLASS_PREP_RESULT_H_
+
+#include "static_class_prep_result_private.h"
+
+int main(void);
+
+#endif
+// file: static_class_prep_result_private.h
+#ifndef STATIC_CLASS_PREP_RESULT_PRIVATE_H_
+#define STATIC_CLASS_PREP_RESULT_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Layouts. */
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: static_class_prep_result.c

@@ -260,11 +260,21 @@ public sealed partial class BindableNodeAnalyzer
 		switch (call.Target)
 		{
 			case MemberExpression member:
-				member.Target = MaterializePreparedValue(LowerExpression(member.Target) ?? member.Target, "prepReceiver");
+			{
+				Expression? loweredTarget = LowerExpression(member.Target) ?? member.Target;
+				member.Target = loweredTarget is TypeReferenceExpression
+					? loweredTarget
+					: MaterializePreparedValue(loweredTarget, "prepReceiver");
 				break;
+			}
 			case MemberReferenceExpression member:
-				member.Target = MaterializePreparedValue(LowerExpression(member.Target) ?? member.Target, "prepReceiver");
+			{
+				Expression? loweredTarget = LowerExpression(member.Target) ?? member.Target;
+				member.Target = loweredTarget is TypeReferenceExpression
+					? loweredTarget
+					: MaterializePreparedValue(loweredTarget, "prepReceiver");
 				break;
+			}
 			default:
 				call.Target = LowerExpression(call.Target) ?? call.Target;
 				if (!callTargets.ContainsKey(call))
