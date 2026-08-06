@@ -19,6 +19,7 @@ static class Metrics
 }
 
 /// Adds to the count.
+/// - value: Amount to add.
 export static void Metrics.add(int value)
 {
 	Metrics.hidden = Metrics.hidden + value;

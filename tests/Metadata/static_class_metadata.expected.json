@@ -22,7 +22,13 @@
           "visibility": "export",
           "extern": true,
           "modifier": "static",
-          "returnType": "void"
+          "returnType": "void",
+          "metadata": [
+            {
+              "name": "summary",
+              "content": "Resets the count."
+            }
+          ]
         },
         {
           "id": "staticClass:Metrics/function:add",
@@ -36,7 +42,13 @@
             {
               "id": "staticClass:Metrics/function:add/parameter:value",
               "name": "value",
-              "type": "int"
+              "type": "int",
+              "metadata": [
+                {
+                  "name": "summary",
+                  "content": "Amount to add."
+                }
+              ]
             }
           ],
           "metadata": [

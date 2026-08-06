@@ -495,6 +495,12 @@ public static class DocCommentTranslator
 				foreach (FunctionDefinition function in newtypeDefinition.Functions)
 					AddDefinitionTargets(targets, function);
 				break;
+			case StaticClassDefinition staticClassDefinition:
+				foreach (FieldDefinition field in staticClassDefinition.Fields)
+					AddTarget(targets, field);
+				foreach (FunctionDefinition function in staticClassDefinition.Functions)
+					AddDefinitionTargets(targets, function);
+				break;
 			case FunctionDefinition function:
 				foreach (GenericParameter parameter in function.GenericParameters)
 					AddTarget(targets, parameter);
@@ -560,6 +566,7 @@ public static class DocCommentTranslator
 			InterfaceDefinition interfaceDefinition => ResolveFunctionChildList(interfaceDefinition.Functions, target),
 			EnumDefinition enumDefinition => ResolveEnumChild(enumDefinition, target),
 			NewtypeDefinition newtypeDefinition => ResolveNewtypeChild(newtypeDefinition, target),
+			StaticClassDefinition staticClassDefinition => ResolveStaticClassChild(staticClassDefinition, target),
 			_ => null
 		};
 	}
@@ -616,6 +623,14 @@ public static class DocCommentTranslator
 		return ResolveFunctionChildList(type.Functions, target);
 	}
 
+	static BindableNode? ResolveStaticClassChild(StaticClassDefinition type, string target)
+	{
+		foreach (FieldDefinition field in type.Fields)
+			if (field.Name == target)
+				return field;
+		return ResolveFunctionChildList(type.Functions, target);
+	}
+
 	static BindableNode? ResolveSymbol(string text, BindableNode owner, Module module)
 	{
 		string simple = SimplifySymbolText(text);
@@ -627,6 +642,8 @@ public static class DocCommentTranslator
 				return definition;
 			if (definition is TypeDefinition type && ResolveChildTarget(type, simple) is BindableNode nested)
 				return nested;
+			if (definition is StaticClassDefinition staticClass && ResolveChildTarget(staticClass, simple) is BindableNode staticNested)
+				return staticNested;
 		}
 		return null;
 	}
