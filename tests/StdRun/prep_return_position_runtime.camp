@@ -1,0 +1,63 @@
+using Std;
+
+newtype fn prep char[] Writer();
+
+export void main()
+{
+	Writer writer = writeValue;
+	Console.writeLine(writer());
+
+	Console.writeLine(writeValue(buffer: default).toString());
+
+	char[] storage = init char[1];
+	Console.writeLine(writeValue(buffer: storage).toString());
+	Console.writeLine(storage);
+
+	fn prep char[]() lambda = (prep char[] buffer = default) =>
+	{
+		if (buffer.length > 0)
+			buffer[0] = 'l';
+		return 1;
+	};
+	Console.writeLine(lambda());
+
+	WriterImpl* implementation = new WriterImpl();
+	IWriter* interfaceWriter = implementation;
+	Console.writeLine(interfaceWriter.write());
+	Console.writeLine(implementation.writeGeneric());
+	Console.writeLine(implementation.writeVirtual());
+}
+
+prep char[] writeValue()
+{
+	if (buffer.length > 0)
+		buffer[0] = 'r';
+	return 1;
+}
+
+interface IWriter
+{
+	prep char[] write();
+}
+
+virtual class WriterImpl: IWriter
+{
+	prep char[] write(): IWriter
+	{
+		if (buffer.length > 0)
+			buffer[0] = 'i';
+		return 1;
+	}
+
+	virtual prep char[] writeVirtual()
+	{
+		if (buffer.length > 0)
+			buffer[0] = 'v';
+		return 1;
+	}
+}
+
+prep char[] writeGeneric<T: implements IWriter>(T* this, vtableof(T: IWriter))
+{
+	return this.write(buffer);
+}

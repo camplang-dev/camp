@@ -233,6 +233,7 @@ public class FunctionDefinition : Definition
 	public string InvokerName { get; set; } = "";
 	public string FullCallableName { get; set; } = "";
 	public TypeReference? ReturnType { get; set; }
+	internal bool UsesPrepReturnSyntax { get; set; }
 	public TypeReference? CallableAscriptionType { get; set; }
 	public NewtypeDefinition? CallableAscriptionNewtype { get; set; }
 	public string? InterfaceImplementationSlotName { get; set; }
@@ -437,6 +438,7 @@ public class CallableTypeReference : TypeReference
 	public string? CallSpec { get; set; }
 	public string? TargetSpec { get; set; }
 	public TypeReference? ReturnType { get; set; }
+	internal bool UsesPrepReturnSyntax { get; set; }
 	public List<ParameterDefinition> Parameters { get; } = [];
 }
 

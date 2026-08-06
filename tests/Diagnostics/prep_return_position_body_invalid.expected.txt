@@ -1,0 +1,2 @@
+tests/Diagnostics/prep_return_position_body_invalid.camp(3,9): error: A prep-returning method writes the prepared value into 'buffer' and returns the required buffer length; return the length as 'nuint' instead of returning the buffer.
+tests/Diagnostics/prep_return_position_body_invalid.camp(1,1): (no line,column) warning: Prep buffer 'buffer' is never written or passed to another prep method; prep methods should write the prepared value through their buffer.

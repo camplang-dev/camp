@@ -1,0 +1,4 @@
+prep char[] returnsBuffer()
+{
+	return buffer;
+}

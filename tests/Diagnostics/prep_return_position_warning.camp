@@ -1,0 +1,10 @@
+prep char[] neverWrites()
+{
+	return 0;
+}
+
+prep char[] onlyReads()
+{
+	auto length = buffer.length;
+	return length;
+}

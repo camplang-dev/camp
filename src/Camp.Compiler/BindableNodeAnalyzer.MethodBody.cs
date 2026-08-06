@@ -60,6 +60,7 @@ public sealed partial class BindableNodeAnalyzer
 
 			function.Body.ResolvedType = "void";
 			BodyAnalyzeBlock(function.Body.Statements, scope, typeAndMethodScope);
+			WarnIfPrepBuffersAreNotWritten(function);
 			CollectAsyncAwaitSites(function);
 			ValidateNoAwaitBody(function);
 			BindFunctionLabels(function);
@@ -403,7 +404,11 @@ public sealed partial class BindableNodeAnalyzer
 				if (fixedArraySpanEscape)
 					Report(GetRange(returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax), "Cannot return a span view to local fixed-size array storage.");
 				string returnTargetType = GetLifetimeStructuralTargetType(returnTargetSourceType, returnStatement.Expression);
-				CheckAssignable(returnTargetType, returnType, returnStatement.Expression, returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax, "Return expression");
+				bool prepArrayReturnMistake = IsPrepReturnArrayMistake(scope.CurrentFunction, returnType);
+				if (prepArrayReturnMistake)
+					Report(GetRange(returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax), "A prep-returning method writes the prepared value into 'buffer' and returns the required buffer length; return the length as 'nuint' instead of returning the buffer.");
+				else
+					CheckAssignable(returnTargetType, returnType, returnStatement.Expression, returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax, "Return expression");
 				CheckConstOfProducedResult(scope.CurrentFunction.ReturnType, returnStatement.Expression, returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax, "Return expression");
 				if (scope.CurrentFunctionSourceReturnType is string sourceReturnType
 					&& sourceReturnType != FormatTypeReference(scope.CurrentFunction.ReturnType))
@@ -842,6 +847,182 @@ public sealed partial class BindableNodeAnalyzer
 			LambdaExpression lambda => LambdaHasCaptures(lambda, scope.CurrentFunction, scope.ContainingType),
 			_ => false
 		};
+	}
+
+	bool IsPrepReturnArrayMistake(FunctionDefinition function, string returnedType)
+	{
+		if (!function.UsesPrepReturnSyntax)
+			return false;
+		ParameterDefinition? prep = function.Parameters.FirstOrDefault(static parameter => parameter.Modifier == ParameterModifier.Prep);
+		if (prep is null)
+			return false;
+		string prepType = prep.ResolvedType ?? prep.Type?.ResolvedType ?? ErrorType;
+		return returnedType == prepType;
+	}
+
+	void WarnIfPrepBuffersAreNotWritten(FunctionDefinition function)
+	{
+		if (function.Body is null)
+			return;
+
+		foreach (ParameterDefinition prep in function.Parameters.Where(static parameter => parameter.Modifier == ParameterModifier.Prep))
+		{
+			if (!PrepBufferHasWriteUse(function.Body, prep))
+				Warn(prep.SourceSyntax ?? function.SourceSyntax, $"Prep buffer '{prep.Name}' is never written or passed to another prep method; prep methods should write the prepared value through their buffer.");
+		}
+	}
+
+	bool PrepBufferHasWriteUse(Statement? statement, ParameterDefinition prep)
+	{
+		switch (statement)
+		{
+			case null:
+				return false;
+			case BlockStatement block:
+				return block.Statements.Any(child => PrepBufferHasWriteUse(child, prep));
+			case ExpressionStatement expressionStatement:
+				return PrepBufferHasWriteUse(expressionStatement.Expression, prep);
+			case DeclarationStatement declaration:
+				return PrepBufferHasWriteUse(declaration.InitialValue, prep);
+			case IfStatement ifStatement:
+				return PrepBufferHasWriteUse(ifStatement.Condition, prep)
+					|| PrepBufferHasWriteUse(ifStatement.Body, prep)
+					|| PrepBufferHasWriteUse(ifStatement.ElseBody, prep);
+			case WhileStatement whileStatement:
+				return PrepBufferHasWriteUse(whileStatement.Condition, prep)
+					|| PrepBufferHasWriteUse(whileStatement.Body, prep);
+			case DoWhileStatement doWhile:
+				return PrepBufferHasWriteUse(doWhile.Body, prep)
+					|| PrepBufferHasWriteUse(doWhile.Condition, prep);
+			case ForStatement forStatement:
+				return PrepBufferHasWriteUse(forStatement.Condition, prep)
+					|| PrepBufferHasWriteUse(forStatement.Body, prep);
+			case ForeachStatement foreachStatement:
+				return PrepBufferHasWriteUse(foreachStatement.Source, prep)
+					|| PrepBufferHasWriteUse(foreachStatement.Body, prep);
+			case SwitchStatement switchStatement:
+				return PrepBufferHasWriteUse(switchStatement.Expression, prep)
+					|| switchStatement.Statements.Any(child => PrepBufferHasWriteUse(child, prep));
+			case CaseStatement caseStatement:
+				return PrepBufferHasWriteUse(caseStatement.Expression, prep);
+			case ReturnStatement returnStatement:
+				return PrepBufferHasWriteUse(returnStatement.Expression, prep);
+			case YieldStatement yieldStatement:
+				return PrepBufferHasWriteUse(yieldStatement.Expression, prep);
+			case DeleteStatement deleteStatement:
+				return PrepBufferHasWriteUse(deleteStatement.Expression, prep);
+			case TryStatement tryStatement:
+				return PrepBufferHasWriteUse(tryStatement.Body, prep)
+					|| tryStatement.Catches.Any(child => PrepBufferHasWriteUse(child, prep))
+					|| PrepBufferHasWriteUse(tryStatement.Finally, prep);
+			case CatchStatement catchStatement:
+				return PrepBufferHasWriteUse(catchStatement.Body, prep);
+			case FinallyStatement finallyStatement:
+				return PrepBufferHasWriteUse(finallyStatement.Body, prep);
+			case WithinStatement withinStatement:
+				return PrepBufferHasWriteUse(withinStatement.Allocator, prep)
+					|| PrepBufferHasWriteUse(withinStatement.Body, prep);
+			default:
+				return false;
+		}
+	}
+
+	bool PrepBufferHasWriteUse(ForStatementCondition? condition, ParameterDefinition prep)
+	{
+		if (condition is null)
+			return false;
+		return PrepBufferHasWriteUse(condition.Declaration, prep)
+			|| condition.Clauses.Any(clause => PrepBufferHasWriteUse(clause, prep));
+	}
+
+	bool PrepBufferHasWriteUse(Expression? expression, ParameterDefinition prep)
+	{
+		if (expression is not null && expressionRewrites.TryGetValue(expression, out Expression? rewritten) && !ReferenceEquals(rewritten, expression))
+			return PrepBufferHasWriteUse(rewritten, prep);
+
+		switch (expression)
+		{
+			case null:
+				return false;
+			case AssignmentExpression assignment:
+				return ExpressionReferencesParameter(assignment.Target, prep)
+					|| PrepBufferHasWriteUse(assignment.Value, prep);
+			case CallExpression call:
+				return CallPassesPrepBufferToWritableParameter(call, prep)
+					|| PrepBufferHasWriteUse(call.Target, prep)
+					|| call.Arguments.Any(argument => PrepBufferHasWriteUse(argument, prep));
+			case LambdaExpression:
+				return false;
+			default:
+				return BindableNodeTraversal.Children(expression)
+					.OfType<Expression>()
+					.Any(child => PrepBufferHasWriteUse(child, prep));
+		}
+	}
+
+	bool PrepBufferHasWriteUse(ArgumentExpression? argument, ParameterDefinition prep)
+	{
+		return argument is not null && PrepBufferHasWriteUse(argument.Value, prep);
+	}
+
+	bool CallPassesPrepBufferToWritableParameter(CallExpression call, ParameterDefinition prep)
+	{
+		List<ParameterDefinition>? callableParameters;
+		Expression? callTarget = null;
+		if (callTargets.TryGetValue(call, out FunctionDefinition? target))
+		{
+			callableParameters = GetCallableParametersForCall(target, IncludeExplicitThisArgument(call.Target, target));
+			callTarget = call.Target;
+		}
+		else if (!callableInvocationParameters.TryGetValue(call, out callableParameters))
+		{
+			return false;
+		}
+
+		int argumentOffset = callTarget is not null ? 0 : System.Math.Max(0, call.Arguments.Count - callableParameters.Count);
+		for (int i = 0; i < call.Arguments.Count; i++)
+		{
+			ArgumentExpression argument = call.Arguments[i];
+			int parameterIndex = i - argumentOffset;
+			ParameterDefinition? targetParameter = !string.IsNullOrWhiteSpace(argument.Name)
+				? callableParameters.FirstOrDefault(parameter => parameter.Name == argument.Name)
+				: parameterIndex >= 0 && parameterIndex < callableParameters.Count ? callableParameters[parameterIndex] : null;
+			if (targetParameter is not null
+				&& IsWritablePrepBufferTarget(targetParameter)
+				&& ExpressionReferencesParameter(argument.Value, prep))
+				return true;
+		}
+
+		return false;
+	}
+
+	bool IsWritablePrepBufferTarget(ParameterDefinition parameter)
+	{
+		if (parameter.Modifier == ParameterModifier.Prep)
+			return true;
+		if (parameter.Modifier is ParameterModifier.In or ParameterModifier.Thrown or ParameterModifier.Within)
+			return false;
+		string type = parameter.ResolvedType ?? parameter.Type?.ResolvedType ?? ErrorType;
+		return TryParseTypeShape(type, out TypeShape shape)
+			&& shape.Kind is TypeShapeKind.Array or TypeShapeKind.Pointer
+			&& shape.Element is TypeShape element
+			&& !IsConstQualified(TypeShapeParser.Format(element));
+	}
+
+	bool ExpressionReferencesParameter(Expression? expression, ParameterDefinition parameter)
+	{
+		if (expression is null)
+			return false;
+		if (expressionRewrites.TryGetValue(expression, out Expression? rewritten)
+			&& !ReferenceEquals(rewritten, expression))
+			return ExpressionReferencesParameter(rewritten, parameter);
+		if (expression is VariableReferenceExpression variable && ReferenceEquals(variable.Variable, parameter))
+			return true;
+		if (expression is LambdaExpression)
+			return false;
+		return BindableNodeTraversal.Children(expression)
+			.OfType<Expression>()
+			.Any(child => ExpressionReferencesParameter(child, parameter));
 	}
 
 	bool ContainsScopedPreparedBuffer(Expression? expression)

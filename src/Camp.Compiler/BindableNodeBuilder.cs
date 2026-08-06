@@ -962,6 +962,7 @@ public sealed partial class BindableNodeBuilder
 			definition.IteratorKind = GetIteratorKind(syntax.Type);
 			if (prepReturnType is not null)
 			{
+				definition.UsesPrepReturnSyntax = true;
 				definition.ReturnType = BuildPrepReturnLengthType(prepReturnType);
 			}
 			else
@@ -1843,7 +1844,8 @@ public sealed partial class BindableNodeBuilder
 			},
 			CallSpec = syntax.CallSpec?.Value,
 			TargetSpec = syntax.TargetSpec?.Value,
-			ReturnType = syntax.ReturnType is null ? MissingType(syntax, "Callable type is missing a return type.") : prepReturn ? BuildPrepReturnLengthType((PrepReturnTypeSyntax)syntax.ReturnType) : BuildTypeReference(syntax.ReturnType)
+			ReturnType = syntax.ReturnType is null ? MissingType(syntax, "Callable type is missing a return type.") : prepReturn ? BuildPrepReturnLengthType((PrepReturnTypeSyntax)syntax.ReturnType) : BuildTypeReference(syntax.ReturnType),
+			UsesPrepReturnSyntax = prepReturn
 		};
 
 		foreach (ParameterSyntax parameter in syntax.ParameterList?.Parameters ?? [])
@@ -1861,6 +1863,7 @@ public sealed partial class BindableNodeBuilder
 
 		if (definition.UnderlyingType is CallableTypeReference callable)
 		{
+			callable.UsesPrepReturnSyntax = true;
 			callable.ReturnType = BuildPrepReturnLengthType(prepReturn);
 			callable.Parameters.Clear();
 		}

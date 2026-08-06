@@ -285,29 +285,6 @@ public sealed partial class BindableNodeAnalyzer
 				},
 				ResolvedType = parameter.ResolvedType
 			});
-			if (parameter.Modifier == ParameterModifier.Prep
-				&& TryGetParamsComponentShape(parameter.Type, parameter.ResolvedType, parameter.Name, out ParamsComponentShape prepShape)
-				&& prepShape.Components.Count == 2)
-			{
-				ParamsComponent length = prepShape.Components[1];
-				arguments.Add(new ArgumentExpression
-				{
-					SourceSyntax = parameter.SourceSyntax,
-					Value = new MemberExpression
-					{
-						SourceSyntax = parameter.SourceSyntax,
-						Target = new VariableReferenceExpression
-						{
-							SourceSyntax = parameter.SourceSyntax,
-							Variable = parameter,
-							ResolvedType = parameter.ResolvedType
-						},
-						Name = "length",
-						ResolvedType = length.Type
-					},
-					ResolvedType = length.Type
-				});
-			}
 		}
 		return arguments;
 	}
@@ -1573,7 +1550,7 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			if (parameter is ThisParameterDefinition)
 				continue;
-			parameters.Add(parameter.ResolvedType ?? ErrorType);
+			parameters.Add(GetParameterTypeNames([parameter]).FirstOrDefault() ?? ErrorType);
 		}
 		string returnType = member.Modifier == FunctionModifier.Constructor ? "any" : member.ResolvedType ?? ErrorType;
 		return $"fn {returnType}({string.Join(", ", parameters)})";
@@ -1638,7 +1615,7 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			if (parameter is ThisParameterDefinition)
 				continue;
-			parameters.Add(parameter.ResolvedType ?? ErrorType);
+			parameters.Add(GetParameterTypeNames([parameter]).FirstOrDefault() ?? ErrorType);
 		}
 		return $"fn {GetFunctionReturnTypeName(function)}({string.Join(", ", parameters)})";
 	}
