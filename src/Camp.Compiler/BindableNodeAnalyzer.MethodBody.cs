@@ -862,7 +862,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	void WarnIfPrepBuffersAreNotWritten(FunctionDefinition function)
 	{
-		if (function.Body is null)
+		if (function.Body is null || !function.UsesPrepReturnSyntax)
 			return;
 
 		foreach (ParameterDefinition prep in function.Parameters.Where(static parameter => parameter.Modifier == ParameterModifier.Prep))
