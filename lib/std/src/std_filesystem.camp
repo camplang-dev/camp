@@ -3,16 +3,13 @@ namespace Std;
 @category("I/O");
 
 /// Provides common host filesystem operations.
-///
-/// All paths are null-terminated UTF-8 `string` values. Use `Path` for lexical
-/// span processing and convert spans to strings before passing them here.
 static class FileSystem
 {
 	/// Creates a directory.
 	///
 	/// - path: Directory path to create.
 	/// - recursive: When true, missing parent directories are created.
-	/// Throws `IoError` when the directory cannot be created.
+	/// @remarks Throws `IoError` when the directory cannot be created.
 #if NO_FILES
 	@notsupported("The current target does not support filesystem operations.")
 #endif
@@ -30,9 +27,9 @@ static class FileSystem
 	///
 	/// - path: Directory path to delete.
 	/// - recursive: When true, contained files and directories are removed first.
-	/// Throws `IoError` when the directory cannot be deleted.
-	/// @remarks Recursive deletion deletes symlink or reparse-point entries
-	/// themselves rather than following them as directories.
+	/// @remarks Throws `IoError` when the directory cannot be deleted.
+	/// Recursive deletion deletes symlink or reparse-point entries themselves
+	/// rather than following them as directories.
 #if NO_FILES
 	@notsupported("The current target does not support filesystem operations.")
 #endif
@@ -49,7 +46,7 @@ static class FileSystem
 	/// Deletes a file.
 	///
 	/// - path: File path to delete.
-	/// Throws `IoError` when the file cannot be deleted.
+	/// @remarks Throws `IoError` when the file cannot be deleted.
 #if NO_FILES
 	@notsupported("The current target does not support filesystem operations.")
 #endif
@@ -65,7 +62,7 @@ static class FileSystem
 	/// - source: Existing source file path.
 	/// - dest: Destination file path.
 	/// - overwrite: When true, an existing destination file may be replaced.
-	/// Throws `IoError` when the file cannot be copied.
+	/// @remarks Throws `IoError` when the file cannot be copied.
 #if NO_FILES
 	@notsupported("The current target does not support filesystem operations.")
 #endif
@@ -84,7 +81,7 @@ static class FileSystem
 	/// - source: Existing source file path.
 	/// - dest: Destination file path.
 	/// - overwrite: When true, an existing destination file may be replaced.
-	/// Throws `IoError` when the file cannot be moved.
+	/// @remarks Throws `IoError` when the file cannot be moved.
 #if NO_FILES
 	@notsupported("The current target does not support filesystem operations.")
 #endif
@@ -121,7 +118,7 @@ static class FileSystem
 	/// Gets a file size in bytes.
 	///
 	/// - file: File path to query.
-	/// Throws `IoError` when the file size cannot be queried.
+	/// @remarks Throws `IoError` when the file size cannot be queried.
 #if NO_FILES
 	@notsupported("The current target does not support filesystem operations.")
 #endif

@@ -3,9 +3,6 @@ namespace Std;
 @category("I/O");
 
 /// Provides access to process environment information.
-///
-/// Read APIs return caller-prepared UTF-8 text and do not throw. Missing,
-/// invalid, unsupported, or unavailable values produce a zero-length result.
 static class Env
 {
 	/// Gets the current working directory as UTF-8 text.
@@ -19,9 +16,6 @@ static class Env
 	/// @example
 	/// ```camp
 	/// auto cwd = Env.getCurrentDirectory();
-	/// nuint needed = Env.getCurrentDirectory(buffer: default);
-	/// char[] storage = init char[needed];
-	/// Env.getCurrentDirectory(buffer: storage);
 	/// ```
 	public static nuint getCurrentDirectory(prep char[] buffer = default)
 	{
@@ -32,7 +26,7 @@ static class Env
 	/// Changes the current working directory.
 	///
 	/// - path: The new current directory as a null-terminated UTF-8 string.
-	/// Throws `IoError` when the directory cannot be selected.
+	/// @remarks Throws `IoError` when the directory cannot be selected.
 #if NO_FILES
 	@notsupported("The current target does not support changing the current directory.")
 #endif
@@ -76,7 +70,7 @@ static class Env
 	///
 	/// - name: The variable name. Empty names and names containing `=` are invalid.
 	/// - value: The new variable value. An empty string defines an empty variable.
-	/// Throws `IoError` when the variable cannot be set.
+	/// @remarks Throws `IoError` when the variable cannot be set.
 #if NO_FILES
 	@notsupported("The current target does not support mutating environment variables.")
 #endif
@@ -92,7 +86,7 @@ static class Env
 	/// - name: The variable name. Empty names and names containing `=` are invalid.
 	/// @returns `true` when the variable existed before removal, or `false` when
 	/// it was already missing.
-	/// Throws `IoError` when the remove request itself is invalid or fails.
+	/// @remarks Throws `IoError` when the remove request itself is invalid or fails.
 #if NO_FILES
 	@notsupported("The current target does not support mutating environment variables.")
 #endif

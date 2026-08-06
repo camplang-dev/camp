@@ -3,9 +3,6 @@ namespace Std;
 @category("I/O");
 
 /// Provides lexical helpers for working with platform path text.
-///
-/// `Path` does not query the filesystem, normalize segments, resolve links, or
-/// validate whether a path exists.
 static class Path
 {
 	/// Returns the preferred directory separator for the active target.
