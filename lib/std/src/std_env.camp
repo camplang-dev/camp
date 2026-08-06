@@ -32,7 +32,7 @@ static class Env
 	/// Changes the current working directory.
 	///
 	/// - path: The new current directory as a null-terminated UTF-8 string.
-	/// @throws IoError when the directory cannot be selected.
+	/// Throws `IoError` when the directory cannot be selected.
 #if NO_FILES
 	@notsupported("The current target does not support changing the current directory.")
 #endif
@@ -76,7 +76,7 @@ static class Env
 	///
 	/// - name: The variable name. Empty names and names containing `=` are invalid.
 	/// - value: The new variable value. An empty string defines an empty variable.
-	/// @throws IoError when the variable cannot be set.
+	/// Throws `IoError` when the variable cannot be set.
 #if NO_FILES
 	@notsupported("The current target does not support mutating environment variables.")
 #endif
@@ -92,7 +92,7 @@ static class Env
 	/// - name: The variable name. Empty names and names containing `=` are invalid.
 	/// @returns `true` when the variable existed before removal, or `false` when
 	/// it was already missing.
-	/// @throws IoError when the remove request itself is invalid or fails.
+	/// Throws `IoError` when the remove request itself is invalid or fails.
 #if NO_FILES
 	@notsupported("The current target does not support mutating environment variables.")
 #endif

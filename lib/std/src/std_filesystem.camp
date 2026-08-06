@@ -12,7 +12,7 @@ static class FileSystem
 	///
 	/// - path: Directory path to create.
 	/// - recursive: When true, missing parent directories are created.
-	/// @throws IoError when the directory cannot be created.
+	/// Throws `IoError` when the directory cannot be created.
 #if NO_FILES
 	@notsupported("The current target does not support filesystem operations.")
 #endif
@@ -30,7 +30,7 @@ static class FileSystem
 	///
 	/// - path: Directory path to delete.
 	/// - recursive: When true, contained files and directories are removed first.
-	/// @throws IoError when the directory cannot be deleted.
+	/// Throws `IoError` when the directory cannot be deleted.
 	/// @remarks Recursive deletion deletes symlink or reparse-point entries
 	/// themselves rather than following them as directories.
 #if NO_FILES
@@ -49,7 +49,7 @@ static class FileSystem
 	/// Deletes a file.
 	///
 	/// - path: File path to delete.
-	/// @throws IoError when the file cannot be deleted.
+	/// Throws `IoError` when the file cannot be deleted.
 #if NO_FILES
 	@notsupported("The current target does not support filesystem operations.")
 #endif
@@ -65,7 +65,7 @@ static class FileSystem
 	/// - source: Existing source file path.
 	/// - dest: Destination file path.
 	/// - overwrite: When true, an existing destination file may be replaced.
-	/// @throws IoError when the file cannot be copied.
+	/// Throws `IoError` when the file cannot be copied.
 #if NO_FILES
 	@notsupported("The current target does not support filesystem operations.")
 #endif
@@ -84,7 +84,7 @@ static class FileSystem
 	/// - source: Existing source file path.
 	/// - dest: Destination file path.
 	/// - overwrite: When true, an existing destination file may be replaced.
-	/// @throws IoError when the file cannot be moved.
+	/// Throws `IoError` when the file cannot be moved.
 #if NO_FILES
 	@notsupported("The current target does not support filesystem operations.")
 #endif
@@ -121,7 +121,7 @@ static class FileSystem
 	/// Gets a file size in bytes.
 	///
 	/// - file: File path to query.
-	/// @throws IoError when the file size cannot be queried.
+	/// Throws `IoError` when the file size cannot be queried.
 #if NO_FILES
 	@notsupported("The current target does not support filesystem operations.")
 #endif
