@@ -253,7 +253,7 @@ public static class NativeBuildDriver
 
 	static bool RunCommand(string command, string workingDirectory, NativeBuildResult result, IReadOnlyDictionary<string, string>? toolchainEnvironment)
 	{
-		const int timeoutMilliseconds = 30000;
+		const int timeoutMilliseconds = 120000;
 		ProcessStartInfo info = new()
 		{
 			FileName = OperatingSystem.IsWindows() ? "cmd.exe" : "/bin/sh",

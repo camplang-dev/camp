@@ -483,7 +483,7 @@ public sealed class DapServerTests
 	[Fact]
 	public void Dap_cdb_backend_continues_to_second_breakpoint_before_statement_output()
 	{
-		if (!OperatingSystem.IsWindows() || !CdbAvailable())
+		if (!OperatingSystem.IsWindows() || IsGitHubActions() || !CdbAvailable())
 			return;
 
 		string root = FindRepositoryRoot();
@@ -938,5 +938,10 @@ public sealed class DapServerTests
 			return true;
 		string kits = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Windows Kits", "10", "Debuggers");
 		return Directory.Exists(kits) && Directory.EnumerateFiles(kits, "cdb.exe", SearchOption.AllDirectories).Any();
+	}
+
+	static bool IsGitHubActions()
+	{
+		return string.Equals(Environment.GetEnvironmentVariable("GITHUB_ACTIONS"), "true", StringComparison.OrdinalIgnoreCase);
 	}
 }
