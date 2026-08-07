@@ -372,15 +372,14 @@ public sealed class DapServerTests
 		Assert.Equal("breakpoint", dap.ReadEvent("stopped")["body"]?["reason"]?.GetValue<string>());
 		JsonNode firstStack = dap.Request("stackTrace", new { threadId = 1 });
 		Assert.Equal(7, firstStack["body"]?["stackFrames"]?[0]?["line"]?.GetValue<int>());
-		string firstOutput = dap.ReadEvent("output")["body"]?["output"]?.GetValue<string>() ?? "";
+		string firstOutput = dap.ReadOutputContaining("What is your name?");
 		Assert.Contains("What is your name?", firstOutput, StringComparison.Ordinal);
 		Assert.DoesNotContain("Hello", firstOutput, StringComparison.Ordinal);
 
 		JsonNode continued = dap.Request("continue", new { threadId = 1 });
 		Assert.True(continued["body"]?["allThreadsContinued"]?.GetValue<bool>());
 		Assert.Equal("continued", dap.ReadEvent("continued")["event"]?.GetValue<string>());
-		JsonNode secondOutputEvent = dap.ReadEvent("output");
-		string secondOutput = secondOutputEvent["body"]?["output"]?.GetValue<string>() ?? "";
+		string secondOutput = dap.ReadOutputContaining("Hello, Andrew");
 		Assert.Contains("Hello, Andrew", secondOutput, StringComparison.Ordinal);
 		Assert.DoesNotContain("The date is", secondOutput, StringComparison.Ordinal);
 		Assert.Equal("breakpoint", dap.ReadEvent("stopped")["body"]?["reason"]?.GetValue<string>());
@@ -537,15 +536,14 @@ public sealed class DapServerTests
 		Assert.Equal("breakpoint", dap.ReadEvent("stopped")["body"]?["reason"]?.GetValue<string>());
 		JsonNode firstStack = dap.Request("stackTrace", new { threadId = 1 });
 		Assert.Equal(7, firstStack["body"]?["stackFrames"]?[0]?["line"]?.GetValue<int>());
-		string firstOutput = dap.ReadEvent("output")["body"]?["output"]?.GetValue<string>() ?? "";
+		string firstOutput = dap.ReadOutputContaining("What is your name?");
 		Assert.Contains("What is your name?", firstOutput, StringComparison.Ordinal);
 		Assert.DoesNotContain("Hello", firstOutput, StringComparison.Ordinal);
 
 		JsonNode continued = dap.Request("continue", new { threadId = 1 });
 		Assert.True(continued["body"]?["allThreadsContinued"]?.GetValue<bool>());
 		Assert.Equal("continued", dap.ReadEvent("continued")["event"]?.GetValue<string>());
-		JsonNode secondOutputEvent = dap.ReadEvent("output");
-		string secondOutput = secondOutputEvent["body"]?["output"]?.GetValue<string>() ?? "";
+		string secondOutput = dap.ReadOutputContaining("Hello, Andrew");
 		Assert.Contains("Hello, Andrew", secondOutput, StringComparison.Ordinal);
 		Assert.DoesNotContain("The date is", secondOutput, StringComparison.Ordinal);
 		Assert.Equal("breakpoint", dap.ReadEvent("stopped")["body"]?["reason"]?.GetValue<string>());
@@ -759,6 +757,41 @@ public sealed class DapServerTests
 					return message;
 				if (message["type"]?.GetValue<string>() == "event")
 					observedEvents.Add(message);
+			}
+		}
+
+		public string ReadOutputContaining(string expected)
+		{
+			StringBuilder output = new();
+			DateTime deadline = DateTime.UtcNow.AddMilliseconds(RequestTimeoutMilliseconds);
+			while (true)
+			{
+				for (int i = 0; i < observedEvents.Count; i++)
+				{
+					if (observedEvents[i]["event"]?.GetValue<string>() != "output")
+						continue;
+
+					JsonNode message = observedEvents[i];
+					observedEvents.RemoveAt(i);
+					output.Append(message["body"]?["output"]?.GetValue<string>() ?? "");
+					if (output.ToString().Contains(expected, StringComparison.Ordinal))
+						return output.ToString();
+					i--;
+				}
+
+				JsonNode next = ReadMessage(RemainingMilliseconds(deadline));
+				if (next["type"]?.GetValue<string>() != "event")
+					continue;
+
+				if (next["event"]?.GetValue<string>() == "output")
+				{
+					output.Append(next["body"]?["output"]?.GetValue<string>() ?? "");
+					if (output.ToString().Contains(expected, StringComparison.Ordinal))
+						return output.ToString();
+					continue;
+				}
+
+				observedEvents.Add(next);
 			}
 		}
 
