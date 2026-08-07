@@ -975,7 +975,7 @@ public sealed partial class BindableNodeAnalyzer
 		return expression switch
 		{
 			null => null,
-			LiteralExpression literal => new LiteralExpression { SourceSyntax = literal.SourceSyntax, Kind = literal.Kind, Text = literal.Text, Value = literal.Value, ResolvedType = literal.ResolvedType },
+			LiteralExpression literal => new LiteralExpression { SourceSyntax = literal.SourceSyntax, Kind = literal.Kind, Text = literal.Text, Value = literal.Value, CodePoint = literal.CodePoint, ResolvedType = literal.ResolvedType },
 			DefaultExpression defaultExpression => new DefaultExpression { SourceSyntax = defaultExpression.SourceSyntax, ResolvedType = defaultExpression.ResolvedType },
 			DefaultWithinContextExpression defaultWithin => new DefaultWithinContextExpression { SourceSyntax = defaultWithin.SourceSyntax, ResolvedType = defaultWithin.ResolvedType },
 			NamedExpression named => CloneNamedExpression(named),

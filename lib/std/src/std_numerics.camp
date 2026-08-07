@@ -31,6 +31,18 @@ public inline nint nint.MAX = (nint)(((nuint)1 << (((nuint)sizeof(nint) * 8) - 1
 public inline nuint nuint.MIN = (nuint)0;
 public inline nuint nuint.MAX = ((((nuint)1 << (((nuint)sizeof(nuint) * 8) - 1)) - 1) * 2) + 1;
 
+public inline achar achar.MIN = (achar)0;
+public inline achar achar.MAX = (achar)0x7F;
+
+public inline char char.MIN = (char)0;
+public inline char char.MAX = (char)0x7F;
+
+public inline wchar wchar.MIN = (wchar)0;
+public inline wchar wchar.MAX = (wchar)0xFFFF;
+
+public inline uchar uchar.MIN = (uchar)0;
+public inline uchar uchar.MAX = (uchar)0x10FFFF;
+
 public byte abs(overload sbyte value) => value < 0 ? (byte)-value : (byte)value;
 
 public ushort abs(overload short value) => value < 0 ? (ushort)-value : (ushort)value;
@@ -68,6 +80,15 @@ public nint max(overload nint left, nint right) => left > right ? left : right;
 
 public nuint min(overload nuint left, nuint right) => left < right ? left : right;
 public nuint max(overload nuint left, nuint right) => left > right ? left : right;
+
+public achar min(overload achar left, achar right) => left < right ? left : right;
+public achar max(overload achar left, achar right) => left > right ? left : right;
+
+public char min(overload char left, char right) => left < right ? left : right;
+public char max(overload char left, char right) => left > right ? left : right;
+
+public wchar min(overload wchar left, wchar right) => left < right ? left : right;
+public wchar max(overload wchar left, wchar right) => left > right ? left : right;
 
 public uchar min(overload uchar left, uchar right) => left < right ? left : right;
 public uchar max(overload uchar left, uchar right) => left > right ? left : right;

@@ -1,0 +1,58 @@
+using Std;
+
+export int main()
+{
+	if (achar.MIN != (achar)0 || achar.MAX != (achar)0x7F)
+		return 1;
+	if (char.MIN != (char)0 || char.MAX != (char)0x7F)
+		return 2;
+	if (wchar.MIN != (wchar)0 || wchar.MAX != (wchar)0xFFFF)
+		return 3;
+	if (uchar.MIN != (uchar)0 || uchar.MAX != (uchar)0x10FFFF)
+		return 4;
+
+	if (min((achar)'b', (achar)'a') != (achar)'a' || max((achar)'b', (achar)'a') != (achar)'b')
+		return 5;
+	if (min('b', 'a') != 'a' || max('b', 'a') != 'b')
+		return 6;
+	if (min((wchar)'é', (wchar)'A') != (wchar)'A' || max((wchar)'é', (wchar)'A') != (wchar)'é')
+		return 7;
+	if (min((uchar)'😀', (uchar)'é') != (uchar)'é' || max((uchar)'😀', (uchar)'é') != (uchar)'😀')
+		return 8;
+
+	auto letter = 'A'.toString();
+	auto accent = ((wchar)'é').toString();
+	auto face = '😀'.toString();
+	if (letter.length != 1 || letter[0] != 'A')
+		return 9;
+	if (accent.length != 2 || accent.getChar(0) != (uchar)'é')
+		return 10;
+	if (face.length != 4 || face.getChar(0) != (uchar)'😀')
+		return 11;
+
+	achar a = (achar)'A';
+	achar b = (achar)'B';
+	HashPolicy<achar> achars = achar.HASH_POLICY;
+	if (a.hashcode() != achars.hash(a) || !a.hashEquals(a) || a.hashEquals(b) || achars.equals(a, b))
+		return 12;
+
+	char c = 'C';
+	char d = 'D';
+	HashPolicy<char> chars = char.HASH_POLICY;
+	if (c.hashcode() != chars.hash(c) || !chars.equals(c, c) || chars.equals(c, d))
+		return 13;
+
+	wchar w = 'é';
+	wchar x = (wchar)'A';
+	HashPolicy<wchar> wchars = wchar.HASH_POLICY;
+	if (w.hashcode() != wchars.hash(w) || !wchars.equals(w, w) || wchars.equals(w, x))
+		return 14;
+
+	uchar u = '😀';
+	uchar v = 'é';
+	HashPolicy<uchar> uchars = uchar.HASH_POLICY;
+	if (u.hashcode() != uchars.hash(u) || !uchars.equals(u, u) || uchars.equals(u, v))
+		return 15;
+
+	return 0;
+}

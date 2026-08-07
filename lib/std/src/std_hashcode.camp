@@ -138,6 +138,54 @@ bool hashEqualsNInt(in nint left, in nint right) => left.hashEquals(right);
 /// Standard hash policy for `nint`.
 public static const HashPolicy<nint> nint.HASH_POLICY = { .hash = hashcodeNInt, .equals = hashEqualsNInt };
 
+/// Returns a hash code for an `achar`.
+public nuint hashcode(in achar this) => hashInteger((nuint)(byte)this);
+
+/// Returns true when two `achar` keys are equal.
+public bool hashEquals(in achar this, in achar other) => this == other;
+
+nuint hashcodeAChar(in achar value) => value.hashcode();
+bool hashEqualsAChar(in achar left, in achar right) => left.hashEquals(right);
+
+/// Standard hash policy for `achar`.
+public static const HashPolicy<achar> achar.HASH_POLICY = { .hash = hashcodeAChar, .equals = hashEqualsAChar };
+
+/// Returns a hash code for a `char`.
+public nuint hashcode(in char this) => hashInteger((nuint)(byte)this);
+
+/// Returns true when two `char` keys are equal.
+public bool hashEquals(in char this, in char other) => this == other;
+
+nuint hashcodeChar(in char value) => value.hashcode();
+bool hashEqualsChar(in char left, in char right) => left.hashEquals(right);
+
+/// Standard hash policy for `char`.
+public static const HashPolicy<char> char.HASH_POLICY = { .hash = hashcodeChar, .equals = hashEqualsChar };
+
+/// Returns a hash code for a `wchar`.
+public nuint hashcode(in wchar this) => hashInteger((nuint)this);
+
+/// Returns true when two `wchar` keys are equal.
+public bool hashEquals(in wchar this, in wchar other) => this == other;
+
+nuint hashcodeWChar(in wchar value) => value.hashcode();
+bool hashEqualsWChar(in wchar left, in wchar right) => left.hashEquals(right);
+
+/// Standard hash policy for `wchar`.
+public static const HashPolicy<wchar> wchar.HASH_POLICY = { .hash = hashcodeWChar, .equals = hashEqualsWChar };
+
+/// Returns a hash code for a `uchar`.
+public nuint hashcode(in uchar this) => hashInteger((nuint)this);
+
+/// Returns true when two `uchar` keys are equal.
+public bool hashEquals(in uchar this, in uchar other) => this == other;
+
+nuint hashcodeUChar(in uchar value) => value.hashcode();
+bool hashEqualsUChar(in uchar left, in uchar right) => left.hashEquals(right);
+
+/// Standard hash policy for `uchar`.
+public static const HashPolicy<uchar> uchar.HASH_POLICY = { .hash = hashcodeUChar, .equals = hashEqualsUChar };
+
 /// Returns a pointer-identity hash code.
 public nuint hashcodePointer<T: any>(in T* this) => hashInteger((nuint)(nint)this);
 

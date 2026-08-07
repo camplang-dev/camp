@@ -9,6 +9,31 @@ public prep char[] toString(in char this)
 	return 1;
 }
 
+public prep char[] toString(in achar this)
+{
+	if (buffer.length > 0)
+		buffer[0] = (char)this;
+	return 1;
+}
+
+public prep char[] toString(in wchar this)
+{
+	uchar codepoint = normalizeScalar((uchar)this);
+	nuint length = formatUtf8LengthOf(codepoint);
+	if (buffer.length >= length)
+		formatWriteUtf8(buffer.elements, 0, codepoint);
+	return length;
+}
+
+public prep char[] toString(in uchar this)
+{
+	uchar codepoint = normalizeScalar(this);
+	nuint length = formatUtf8LengthOf(codepoint);
+	if (buffer.length >= length)
+		formatWriteUtf8(buffer.elements, 0, codepoint);
+	return length;
+}
+
 public prep char[] toString(const char[] this)
 {
 	nuint length = 0;
@@ -39,6 +64,56 @@ public prep char[] toString(in bool this)
 		copyFormatterText("false", buffer);
 		return 5;
 	}
+}
+
+uchar normalizeScalar(uchar value)
+{
+	if (value > uchar.MAX)
+		return (uchar)0xFFFD;
+	if (value >= 0xD800 && value <= 0xDFFF)
+		return (uchar)0xFFFD;
+	return value;
+}
+
+nuint formatUtf8LengthOf(uchar codepoint)
+{
+	if (codepoint < 0x80)
+		return 1;
+	if (codepoint < 0x800)
+		return 2;
+	if (codepoint < 0x10000)
+		return 3;
+	return 4;
+}
+
+nuint formatWriteUtf8(char* output, nuint index, uchar codepoint)
+{
+	if (codepoint < 0x80)
+	{
+		output[index] = (char)codepoint;
+		return index + 1;
+	}
+
+	if (codepoint < 0x800)
+	{
+		output[index] = (char)(0xC0 | (codepoint >> 6));
+		output[index + 1] = (char)(0x80 | (codepoint & 0x3F));
+		return index + 2;
+	}
+
+	if (codepoint < 0x10000)
+	{
+		output[index] = (char)(0xE0 | (codepoint >> 12));
+		output[index + 1] = (char)(0x80 | ((codepoint >> 6) & 0x3F));
+		output[index + 2] = (char)(0x80 | (codepoint & 0x3F));
+		return index + 3;
+	}
+
+	output[index] = (char)(0xF0 | (codepoint >> 18));
+	output[index + 1] = (char)(0x80 | ((codepoint >> 12) & 0x3F));
+	output[index + 2] = (char)(0x80 | ((codepoint >> 6) & 0x3F));
+	output[index + 3] = (char)(0x80 | (codepoint & 0x3F));
+	return index + 4;
 }
 
 public prep char[] toString(in byte   this) => applyFormat((long)this, false, buffer);
