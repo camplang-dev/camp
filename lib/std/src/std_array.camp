@@ -1,6 +1,6 @@
 namespace Std;
 
-@category("Collections");
+@category("Arrays");
 
 /// Clears every slot in an array to `default`.
 public void clear<T: any>(T[] this, sizeof(T))

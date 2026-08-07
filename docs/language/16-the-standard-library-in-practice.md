@@ -630,13 +630,13 @@ guide. The library lives under `lib/std/src`, and the files are small enough to
 read directly:
 
 - `std_console.camp` for `Console`;
-- `std_array.camp` for array helpers;
+- `std_array.camp` for arrays;
 - `std_string.camp`, `std_wstring.camp`, and `std_astring.camp` for text;
 - `std_format.camp` for formatting;
 - `std_stream.camp` for readers and writers;
 - `std_file.camp` for files;
 - `std_list.camp`, `std_hashmap.camp`, and `std_hashset.camp` for collections;
-- `std_math.camp` for limits and numeric helpers;
+- `std_numerics.camp` for limits and numeric helpers;
 - `std_time.camp` and `std_timing.camp` for time and timers.
 
 The patterns are more important than memorizing every method:

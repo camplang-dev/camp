@@ -1,6 +1,6 @@
 namespace Std;
 
-@category("Core");
+@category("Primitives");
 
 public inline byte byte.MIN = (byte)0;
 public inline byte byte.MAX = (byte)255;
