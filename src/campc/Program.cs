@@ -541,16 +541,15 @@ sealed class CampCli
 		request.UsePackages.AddRange(bag.UsePackages.Select(static package => package.ToString()));
 		if (!TryAddUseSourceRoots(bag.UseSources, environment.WorkingDirectory, request.UseSourceRoots, errors))
 			return false;
+		request.Files.AddRange(sourceFiles.Select(path => Path.GetRelativePath(environment.WorkingDirectory, path)));
+		request.ApiFiles.AddRange(apiFiles.Select(path => Path.GetRelativePath(environment.WorkingDirectory, path)));
 		if (!TryBuildProjectReferences(bag.ProjectReferences, request, environment, projectReferenceStack ?? [], out List<string> projectApiHeaders, out List<string> sharedProjectApiHeaders, out List<string> projectLibraries, errors))
 			return false;
-		foreach (string projectApiHeader in projectApiHeaders)
-			apiFiles.Add(projectApiHeader);
+		request.ApiFiles.AddRange(projectApiHeaders);
 		request.SharedLibraryApiHeaders.AddRange(sharedProjectApiHeaders);
 		request.References.AddRange(projectLibraries);
 		if (command == CommandKind.Cover && !TryApplyRootCoverageSubject(request, bag.ProjectReferences.Count, errors))
 			return false;
-		request.Files.AddRange(sourceFiles.Select(path => Path.GetRelativePath(environment.WorkingDirectory, path)));
-		request.ApiFiles.AddRange(apiFiles.Select(path => Path.GetRelativePath(environment.WorkingDirectory, path)));
 		return true;
 	}
 
