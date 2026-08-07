@@ -332,7 +332,7 @@ public sealed class DapServerTests
 			"",
 			"export void main()",
 			"{",
-			"\tConsole.write(\"What is your name? \");",
+			"\tConsole.writeLine(\"What is your name?\");",
 			"\t//auto name = Console.readLine();",
 			"\tauto name = \"Andrew\";",
 			"\tthing(name);",
@@ -340,10 +340,8 @@ public sealed class DapServerTests
 			"",
 			"void thing(string thename)",
 			"{",
-			"\tConsole.write(\"Hello, \");",
-			"\tConsole.write(thename);",
-			"\tConsole.write(\". The date is: \");",
-			"\tConsole.writeLine(\"tomorrow\");",
+			"\tConsole.writeLine(\"Hello, Andrew\");",
+			"\tConsole.writeLine(\"The date is: tomorrow\");",
 			"}",
 			""));
 
@@ -363,7 +361,7 @@ public sealed class DapServerTests
 		JsonNode breakpoints = dap.Request("setBreakpoints", new
 		{
 			source = new { path = source },
-			breakpoints = new[] { new { line = 7 }, new { line = 14 } }
+			breakpoints = new[] { new { line = 7 }, new { line = 13 } }
 		});
 		Assert.True(breakpoints["body"]?["breakpoints"]?[0]?["verified"]?.GetValue<bool>());
 		Assert.True(breakpoints["body"]?["breakpoints"]?[1]?["verified"]?.GetValue<bool>());
@@ -384,7 +382,7 @@ public sealed class DapServerTests
 		Assert.DoesNotContain("The date is", secondOutput, StringComparison.Ordinal);
 		Assert.Equal("breakpoint", dap.ReadEvent("stopped")["body"]?["reason"]?.GetValue<string>());
 		JsonNode secondStack = dap.Request("stackTrace", new { threadId = 1 });
-		Assert.Equal(14, secondStack["body"]?["stackFrames"]?[0]?["line"]?.GetValue<int>());
+		Assert.Equal(13, secondStack["body"]?["stackFrames"]?[0]?["line"]?.GetValue<int>());
 
 		Assert.True(dap.Request("disconnect", new { })["success"]?.GetValue<bool>());
 	}
@@ -496,7 +494,7 @@ public sealed class DapServerTests
 			"",
 			"export void main()",
 			"{",
-			"\tConsole.write(\"What is your name? \");",
+			"\tConsole.writeLine(\"What is your name?\");",
 			"\t//auto name = Console.readLine();",
 			"\tauto name = \"Andrew\";",
 			"\tthing(name);",
@@ -504,10 +502,8 @@ public sealed class DapServerTests
 			"",
 			"void thing(string thename)",
 			"{",
-			"\tConsole.write(\"Hello, \");",
-			"\tConsole.write(thename);",
-			"\tConsole.write(\". The date is: \");",
-			"\tConsole.writeLine(\"tomorrow\");",
+			"\tConsole.writeLine(\"Hello, Andrew\");",
+			"\tConsole.writeLine(\"The date is: tomorrow\");",
 			"}",
 			""));
 
@@ -527,7 +523,7 @@ public sealed class DapServerTests
 		JsonNode breakpoints = dap.Request("setBreakpoints", new
 		{
 			source = new { path = source },
-			breakpoints = new[] { new { line = 7 }, new { line = 14 } }
+			breakpoints = new[] { new { line = 7 }, new { line = 13 } }
 		});
 		Assert.True(breakpoints["body"]?["breakpoints"]?[0]?["verified"]?.GetValue<bool>());
 		Assert.True(breakpoints["body"]?["breakpoints"]?[1]?["verified"]?.GetValue<bool>());
@@ -548,7 +544,7 @@ public sealed class DapServerTests
 		Assert.DoesNotContain("The date is", secondOutput, StringComparison.Ordinal);
 		Assert.Equal("breakpoint", dap.ReadEvent("stopped")["body"]?["reason"]?.GetValue<string>());
 		JsonNode secondStack = dap.Request("stackTrace", new { threadId = 1 });
-		Assert.Equal(14, secondStack["body"]?["stackFrames"]?[0]?["line"]?.GetValue<int>());
+		Assert.Equal(13, secondStack["body"]?["stackFrames"]?[0]?["line"]?.GetValue<int>());
 
 		Assert.True(dap.Request("disconnect", new { })["success"]?.GetValue<bool>());
 	}
