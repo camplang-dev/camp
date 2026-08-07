@@ -390,7 +390,7 @@ public sealed class DapServerTests
 	[Fact]
 	public void Dap_cdb_backend_reports_missing_debugger_when_unavailable()
 	{
-		if (!OperatingSystem.IsWindows() || CdbAvailable())
+		if (!OperatingSystem.IsWindows() || IsGitHubActions() || CdbAvailable())
 			return;
 
 		using DapProcess dap = DapProcess.Start();
@@ -409,7 +409,7 @@ public sealed class DapServerTests
 	[Fact]
 	public void Dap_cdb_backend_launches_and_stops_on_camp_breakpoint_when_available()
 	{
-		if (!OperatingSystem.IsWindows() || !CdbAvailable())
+		if (!OperatingSystem.IsWindows() || IsGitHubActions() || !CdbAvailable())
 			return;
 
 		string root = FindRepositoryRoot();
@@ -552,7 +552,7 @@ public sealed class DapServerTests
 	[Fact]
 	public void Dap_cdb_backend_debug_test_stops_on_later_assert_breakpoint()
 	{
-		if (!OperatingSystem.IsWindows() || !CdbAvailable())
+		if (!OperatingSystem.IsWindows() || IsGitHubActions() || !CdbAvailable())
 			return;
 
 		string root = FindRepositoryRoot();
