@@ -1,0 +1,6 @@
+export int main()
+{
+	uchar multi = 'ab';
+	uchar surrogate = '\uD800';
+	return 0;
+}

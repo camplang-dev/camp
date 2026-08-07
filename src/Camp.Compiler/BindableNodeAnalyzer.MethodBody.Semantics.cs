@@ -70,11 +70,41 @@ public sealed partial class BindableNodeAnalyzer
 			&& rewrittenConverted == expected)
 			return;
 
+		if (TryReportInvalidCharacterLiteralTarget(expected, value, syntax, context))
+			return;
+
 		if (TryCheckInterfacePointerConversion(expected, actual, value, syntax, context))
 			return;
 
 		if (!CanAssignToType(expected, actual))
 			Report(GetRange(syntax), $"{context} cannot convert '{actual}' to '{expected}'.");
+	}
+
+	bool TryReportInvalidCharacterLiteralTarget(string expected, Expression? value, SyntaxNode? syntax, string context)
+	{
+		if (value is ParenthesizedExpression parenthesized)
+			value = parenthesized.Expression;
+		if (value is CastExpression)
+			return false;
+		if (value is not LiteralExpression { Kind: LiteralKind.Character, CodePoint: int codePoint })
+			return false;
+
+		string target = StripTopLevelValueQualifiers(expected);
+		if (TryParseTypeShape(target, out TypeShape shape) && shape.Kind == TypeShapeKind.Named)
+			target = shape.Name;
+
+		bool fits = target switch
+		{
+			"uchar" => IsValidUnicodeScalar(codePoint),
+			"wchar" => IsWCharLiteralCodePoint(codePoint),
+			"char" or "achar" => IsNarrowCharacterLiteralCodePoint(codePoint),
+			_ => true
+		};
+		if (fits)
+			return false;
+
+		Report(GetRange(value.SourceSyntax ?? syntax), $"Character literal cannot implicitly convert to '{target}'.");
+		return true;
 	}
 
 	bool CanAssignToType(string expected, string actual)
@@ -3907,6 +3937,61 @@ public sealed partial class BindableNodeAnalyzer
 
 		Report(GetRange(literal.SourceSyntax), $"String literal cannot implicitly convert to mutable type '{targetType}'.");
 		return ErrorType;
+	}
+
+	string GetCharacterLiteralType(LiteralExpression literal, string? targetType)
+	{
+		if (literal.CodePoint is not int codePoint || !IsValidUnicodeScalar(codePoint))
+			return ErrorType;
+
+		string? target = string.IsNullOrWhiteSpace(targetType) || targetType == TargetType || targetType == AutoType
+			? null
+			: StripTopLevelValueQualifiers(targetType);
+		if (target is not null && TryParseTypeShape(target, out TypeShape shape) && shape.Kind == TypeShapeKind.Named)
+			target = shape.Name;
+
+		if (target is "uchar")
+			return "uchar";
+		if (target is "wchar")
+		{
+			if (IsWCharLiteralCodePoint(codePoint))
+				return "wchar";
+			Report(GetRange(literal.SourceSyntax), "Character literal cannot implicitly convert to 'wchar'.");
+			return ErrorType;
+		}
+		if (target is "char" or "achar")
+		{
+			if (IsNarrowCharacterLiteralCodePoint(codePoint))
+				return target;
+			Report(GetRange(literal.SourceSyntax), $"Character literal cannot implicitly convert to '{target}'.");
+			return ErrorType;
+		}
+
+		if (codePoint <= 0x7F)
+			return "char";
+		if (codePoint <= 0xFFFF)
+			return "wchar";
+		return "uchar";
+	}
+
+	static bool IsNarrowCharacterLiteralCodePoint(int codePoint)
+	{
+		return codePoint is >= 0 and <= 0x7F;
+	}
+
+	static bool IsWCharLiteralCodePoint(int codePoint)
+	{
+		return codePoint is >= 0 and <= 0xFFFF && !IsSurrogateCodePoint(codePoint);
+	}
+
+	static bool IsValidUnicodeScalar(int codePoint)
+	{
+		return codePoint is >= 0 and <= 0x10FFFF && !IsSurrogateCodePoint(codePoint);
+	}
+
+	static bool IsSurrogateCodePoint(int codePoint)
+	{
+		return codePoint is >= 0xD800 and <= 0xDFFF;
 	}
 
 	static bool IsFixedCharacterArrayType(string? type)

@@ -1,0 +1,60 @@
+// file: unicode_character_literals_cemit.c
+#include "unicode_character_literals_cemit_private.h"
+
+/* Private file declarations. */
+static void acceptUChar(uint32_t value);
+static void acceptWChar(uint16_t value);
+
+static void acceptUChar(uint32_t value)
+{
+}
+
+static void acceptWChar(uint16_t value)
+{
+}
+
+int main(void)
+{
+	char ascii = 'A';
+	uint16_t accent = ((uint16_t)0xE9);
+	uint32_t face = ((uint32_t)0x1F600);
+	acceptWChar(accent);
+	acceptUChar(face);
+	acceptUChar(((uint32_t)0x1F600));
+	return (((int)(ascii) + (int)(accent)) + (int)(face));
+}
+
+// file: unicode_character_literals_cemit.h
+#ifndef UNICODE_CHARACTER_LITERALS_CEMIT_H_
+#define UNICODE_CHARACTER_LITERALS_CEMIT_H_
+
+#include "unicode_character_literals_cemit_private.h"
+
+int main(void);
+
+#endif
+// file: unicode_character_literals_cemit_private.h
+#ifndef UNICODE_CHARACTER_LITERALS_CEMIT_PRIVATE_H_
+#define UNICODE_CHARACTER_LITERALS_CEMIT_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Layouts. */
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: unicode_character_literals_cemit.c

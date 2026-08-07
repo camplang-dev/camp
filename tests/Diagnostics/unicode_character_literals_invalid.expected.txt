@@ -1,0 +1,2 @@
+tests/Diagnostics/unicode_character_literals_invalid.camp(3,16): error: Character literal must contain exactly one Unicode scalar value.
+tests/Diagnostics/unicode_character_literals_invalid.camp(4,20): error: Character literal must contain exactly one Unicode scalar value.

@@ -7027,12 +7027,25 @@ public static class CCodeEmitter
 			{
 				LiteralKind.Number => FormatNumberLiteralForC(literal.Text),
 				LiteralKind.String => literal.Text,
-				LiteralKind.Character => literal.Text,
+				LiteralKind.Character => FormatCharacterLiteral(literal),
 				LiteralKind.True => "true",
 				LiteralKind.False => "false",
 				LiteralKind.Null => "NULL",
 				_ => "0"
 			};
+		}
+
+		string FormatCharacterLiteral(LiteralExpression literal)
+		{
+			if (literal.CodePoint is not int codePoint)
+				return literal.Text;
+
+			string resolvedType = StripTypeQualifiers(literal.ResolvedType ?? "char");
+			if (resolvedType is "char" or "achar" && codePoint <= 0x7F)
+				return FormatCCharacterLiteral((char)codePoint);
+
+			string cType = FormatResolvedType(resolvedType, "").Declaration.Trim();
+			return "((" + cType + ")0x" + codePoint.ToString("X", CultureInfo.InvariantCulture) + ")";
 		}
 
 		string FormatNameOfExpression(NameOfExpression nameOf)

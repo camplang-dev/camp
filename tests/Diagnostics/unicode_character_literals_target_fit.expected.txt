@@ -1,0 +1,2 @@
+tests/Diagnostics/unicode_character_literals_target_fit.camp(3,16): error: Character literal cannot implicitly convert to 'char'.
+tests/Diagnostics/unicode_character_literals_target_fit.camp(4,15): error: Character literal cannot implicitly convert to 'wchar'.

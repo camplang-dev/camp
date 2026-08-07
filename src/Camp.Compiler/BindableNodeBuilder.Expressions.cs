@@ -191,16 +191,35 @@ public sealed partial class BindableNodeBuilder
 			LiteralKind.String or LiteralKind.Character => DecodeStringLiteral(literal.Value),
 			_ => literal.Value
 		};
-		if (kind == LiteralKind.Character && value is string characterText && characterText.Length != 1)
-			Report(syntax, "Character literal must contain exactly one character.");
+		int? codePoint = null;
+		if (kind == LiteralKind.Character && value is string characterText)
+		{
+			if (TryGetSingleUnicodeScalar(characterText, out int scalar))
+				codePoint = scalar;
+			else
+				Report(syntax, "Character literal must contain exactly one Unicode scalar value.");
+		}
 
 		return new LiteralExpression
 		{
 			SourceSyntax = syntax,
 			Kind = kind,
 			Text = literal.Value,
-			Value = value
+			Value = value,
+			CodePoint = codePoint
 		};
+	}
+
+	static bool TryGetSingleUnicodeScalar(string text, out int codePoint)
+	{
+		codePoint = 0;
+		if (text.Length == 0)
+			return false;
+		System.Buffers.OperationStatus status = Rune.DecodeFromUtf16(text.AsSpan(), out Rune rune, out int consumed);
+		if (status != System.Buffers.OperationStatus.Done || consumed != text.Length)
+			return false;
+		codePoint = rune.Value;
+		return true;
 	}
 
 	Expression BuildInterpolatedStringExpression(InterpolatedStringExpressionSyntax syntax, string context)
@@ -936,7 +955,9 @@ public sealed partial class BindableNodeBuilder
 			return;
 
 		string digits = text[start..end];
-		if (int.TryParse(digits, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out int value))
+		if (int.TryParse(digits, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out int value)
+			&& value <= 0x10FFFF
+			&& value is not (>= 0xD800 and <= 0xDFFF))
 			builder.Append(char.ConvertFromUtf32(value));
 
 		index = end - 1;

@@ -746,6 +746,8 @@ public sealed partial class BindableNodeAnalyzer
 		ValidateFixedStorageMarker(declaration.Target.Type, declaration.IsFixedStorage, declaration.Target.Type?.SourceSyntax ?? declaration.Target.SourceSyntax ?? declaration.SourceSyntax);
 		ValidateNoDirectExternClassType(declaration.Target.Type, declaration.Target.Type?.SourceSyntax ?? declaration.Target.SourceSyntax ?? declaration.SourceSyntax, "local variable storage");
 		ValidateNoExternClassArrayElement(declaration.Target.Type, declaration.Target.Type?.SourceSyntax ?? declaration.Target.SourceSyntax ?? declaration.SourceSyntax);
+		if (declaration.InitialValue is not null)
+			TryReportInvalidCharacterLiteralTarget(declaration.Target.ResolvedType ?? ErrorType, declaration.InitialValue, declaration.InitialValue.SourceSyntax, "Declaration initializer");
 
 		if (declaration.InitialValue is not null && IsDirectFixedArrayType(declaration.Target.Type) && !IsValidFixedStorageInitializer(declaration.Target.Type, declaration.InitialValue))
 			Report(GetRange(declaration.InitialValue.SourceSyntax ?? declaration.SourceSyntax), "Fixed-size arrays cannot be copied by value; initialize them with an array literal, string literal, or default.");
@@ -1441,7 +1443,7 @@ public sealed partial class BindableNodeAnalyzer
 			LiteralKind.True or LiteralKind.False => "bool",
 			LiteralKind.Null => "#NULL",
 			LiteralKind.String => GetStringLiteralType(literal, targetType),
-			LiteralKind.Character => "char",
+			LiteralKind.Character => GetCharacterLiteralType(literal, targetType),
 			LiteralKind.Number => GetNumberLiteralType(literal.Text, targetType),
 			_ => ErrorType
 		};

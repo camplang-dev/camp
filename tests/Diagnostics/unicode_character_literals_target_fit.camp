@@ -1,0 +1,6 @@
+export int main()
+{
+	char narrow = 'é';
+	wchar wide = '😀';
+	return 0;
+}

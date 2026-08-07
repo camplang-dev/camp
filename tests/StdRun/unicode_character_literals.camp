@@ -1,0 +1,42 @@
+int kind(overload char value) => 1;
+int kind(overload wchar value) => 2;
+int kind(overload uchar value) => 3;
+
+int acceptUChar(uchar value) => (int)value;
+int acceptWChar(wchar value) => (int)value;
+
+export int main()
+{
+	auto ascii = 'A';
+	auto accent = 'é';
+	auto face = '😀';
+	
+	if (kind(ascii) != 1 || (int)ascii != 65)
+		return 1;
+	if (kind(accent) != 2 || (int)accent != 233)
+		return 2;
+	if (kind(face) != 3 || (int)face != 128512)
+		return 3;
+	
+	uchar wideAscii = 'A';
+	uchar wideAccent = 'é';
+	uchar wideFace = '😀';
+	wchar bmp = 'é';
+	if (acceptUChar(wideAscii) != 65 || acceptUChar(wideAccent) != 233 || acceptUChar(wideFace) != 128512)
+		return 4;
+	if (acceptWChar(bmp) != 233)
+		return 5;
+	
+	achar aa = (achar)'A';
+	achar ab = (achar)'B';
+	if (!(aa < ab) || !(aa <= ab) || !(ab > aa) || !(ab >= aa) || !(aa == aa) || aa == ab || aa != aa)
+		return 6;
+	if (!(ascii < (char)'B') || !(accent < (wchar)'€') || !(face > (uchar)'€'))
+		return 7;
+	
+	uchar[] codepoints = ['A', 'é', '😀'];
+	if (codepoints[0] != (uchar)65 || codepoints[1] != (uchar)233 || codepoints[2] != (uchar)128512)
+		return 8;
+	
+	return 0;
+}

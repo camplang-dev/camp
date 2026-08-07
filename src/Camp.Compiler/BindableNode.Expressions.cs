@@ -11,6 +11,7 @@ public class LiteralExpression : Expression
 	public LiteralKind Kind { get; set; }
 	public string Text { get; set; } = "";
 	public object? Value { get; set; }
+	public int? CodePoint { get; set; }
 }
 
 public class InterpolatedStringExpression : Expression

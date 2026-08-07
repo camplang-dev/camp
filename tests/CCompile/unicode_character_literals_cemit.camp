@@ -1,0 +1,18 @@
+void accept(overload uchar value)
+{
+}
+
+void accept(overload wchar value)
+{
+}
+
+export int main()
+{
+	char ascii = 'A';
+	wchar accent = 'é';
+	uchar face = '😀';
+	accept(accent);
+	accept(face);
+	accept('😀');
+	return (int)ascii + (int)accent + (int)face;
+}
