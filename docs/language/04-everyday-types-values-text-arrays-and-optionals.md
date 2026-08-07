@@ -104,6 +104,14 @@ them from `Std`.
 | Raw boundary carrier | `untyped` |
 | No value | `void` |
 
+Character/code values represent text units at different boundaries:
+
+- `char` is the ordinary UTF-8 text unit used by `string` and `char[]`;
+- `wchar` is a UTF-16 code unit used by `wstring` and `wchar[]`;
+- `uchar` is a complete Unicode code point;
+- `achar` is an ANSI/native-code-page text unit used by `astring` and
+  `achar[]`.
+
 Use fixed-size integer types for stable formats and ABIs:
 
 ```camp
@@ -421,6 +429,17 @@ byte small = 12;
 long offset = 123456789;
 double ratio = 0.5;
 char marker = 'R';
+```
+
+With `auto`, character literals infer the smallest ordinary character type that
+can represent the value:
+
+```camp
+auto ascii = 'A';   // char
+auto accent = 'é';  // wchar
+auto face = '😀';   // uchar
+
+uchar codepoint = '😀';
 ```
 
 When a literal belongs to a protocol, file format, or ABI, give it an explicit

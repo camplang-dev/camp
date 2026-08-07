@@ -320,7 +320,7 @@ full details.
 | Shape | Meaning | Agent notes |
 | --- | --- | --- |
 | `bool`, integer, float types | Built-in scalar values | Use explicit widths when ABI or serialization matters. |
-| `char`, `const char[]`, `string` | Character and text forms | Confirm the exact string API from metadata. |
+| `char`, `wchar`, `uchar`, `achar`; `const char[]`, `string` | Character and text forms | `uchar` is the full Unicode scalar/code-point type; confirm exact string APIs from metadata. |
 | `T*` | Pointer to `T` | Use `.` for member access. Do not write `->`. |
 | `const T`, `volatile T`, `constof(...)` | Type qualifiers | Preserve qualifiers through APIs. Do not cast them away casually. |
 | `T[]` | Array view over contiguous elements | Not ownership by itself. Track backing storage separately. |

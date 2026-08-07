@@ -131,6 +131,13 @@ The emitter should use target C spelling for:
 If a target marks a primitive as unsupported, the analyzer should diagnose at
 the source use before emission rather than generating invalid C.
 
+Character literals with ASCII `char` or `achar` resolved types may emit as
+ordinary C character literals when the spelling is safe. Non-ASCII and
+supplementary character literals must emit as numeric constants with the
+resolved target C type, such as `((uint16_t)0xE9)` or `((uint32_t)0x1F600)`, so
+generated C does not depend on implementation-defined multicharacter or
+wide-character literal behavior.
+
 ## C Emission Preconditions
 
 C emission requires a lowered bindable tree with no unresolved/error marker

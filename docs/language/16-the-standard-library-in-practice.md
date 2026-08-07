@@ -283,6 +283,10 @@ you reuse storage and returns the required length. Interpolated strings use the
 same preparation shape for runtime holes. Character, text, primitive, and
 date/time formatting APIs use this `toString` convention.
 
+The primitive character-code types also provide the ordinary primitive helper
+surface: `MIN`, `MAX`, `min`, `max`, `toString`, `hashcode`, `hashEquals`, and
+`HASH_POLICY`.
+
 You often do not need to see that two-step protocol directly:
 
 ```camp

@@ -48,7 +48,7 @@ initializer is analyzed.
 | `0`, `42`, `0xFF` | Integer literals are checked against the target type where needed |
 | `1.5` | Floating literal, converted according to the target type |
 | `true`, `false` | `bool` |
-| `'x'` | Character literal, targetable to compatible character/code-unit types |
+| `'x'`, `'é'`, `'😀'` | Character literal, inferred or target-typed as a compatible character/code type |
 | `"ready"` | String literal, target-driven |
 | `null` | Null pointer/callable-like value where a compatible target exists |
 | `default` | Default value for the target type |

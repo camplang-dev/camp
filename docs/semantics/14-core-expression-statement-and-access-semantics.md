@@ -12,6 +12,61 @@ treat them as parser conveniences: most of these forms affect overload
 resolution, lifetime facts, generated temporaries, metadata, or ABI-visible
 calls.
 
+## Character Literals
+
+A character literal denotes exactly one Unicode scalar value. Decoding first
+applies the ordinary string/character escape rules, then validates the decoded
+text as one scalar value. Empty literals, multi-scalar literals, malformed
+escapes, and unpaired or escaped surrogate code points are invalid.
+
+When no useful target type is available, including `auto`, a character literal
+uses the narrowest ordinary character-code primitive that can represent the
+scalar:
+
+| Scalar range | Inferred type |
+|---|---|
+| `U+0000..U+007F` | `char` |
+| `U+0080..U+FFFF`, excluding surrogates | `wchar` |
+| `U+10000..U+10FFFF` | `uchar` |
+
+Target typing may request a wider valid representation. A `uchar` target
+accepts any valid scalar. A `wchar` target accepts only non-surrogate BMP
+scalars. A `char` or `achar` target accepts only ASCII-range scalars. Ordinary
+numeric conversions between character-code primitive values are not a license
+to target-type a non-ASCII literal as `char` or `achar`.
+
+```camp
+auto a = 'A';          // char
+auto e = 'é';          // wchar
+auto face = '😀';      // uchar
+
+uchar cp = '😀';       // valid wider target
+char bad = 'é';        // invalid target fit
+wchar tooWide = '😀';  // invalid target fit
+```
+
+The standard primitive character-code helper surface covers `achar`, `char`,
+`wchar`, and `uchar` consistently:
+
+- each type exposes `MIN` and `MAX`;
+- each type has `min(overload T left, T right)` and
+  `max(overload T left, T right)` overloads;
+- each type has UTF-8 `toString()` formatting;
+- each type has `hashcode()`, `hashEquals()`, and `HASH_POLICY`.
+
+The logical character-code ranges for those constants are:
+
+| Type | `MIN` | `MAX` |
+|---|---:|---:|
+| `achar` | `0` | `0x7F` |
+| `char` | `0` | `0x7F` |
+| `wchar` | `0` | `0xFFFF` |
+| `uchar` | `0` | `0x10FFFF` |
+
+The `wchar.MAX` value is the maximum UTF-16 code-unit value; it does not make
+surrogate code points valid Unicode scalar values where scalar validity is
+required.
+
 ## Body-Analysis Ownership
 
 Body analysis owns the source legality of these forms. Lowering may rewrite
@@ -977,6 +1032,9 @@ Important diagnostic categories include:
 - prep-bearing property candidate requiring explicit method syntax;
 - invalid `(new)` prepared operand, ownership chain, allocation context, or
   lifetime;
+- invalid character literals that do not contain exactly one Unicode scalar
+  value;
+- character literals that do not fit an explicit target character-code type;
 - source `goto` crosses cleanup in a way the compiler diagnoses.
 
 Diagnostics should point at the source syntax that introduced the special
@@ -1001,6 +1059,8 @@ Changes here should cover:
 - prepared scoped/allocated lowering, immediate `.length`, explicit buffers,
   target conversions, lifetimes, capabilities, dispatch, and error paths;
 - prep property rejection and property metadata exclusion;
+- character literal scalar validation, target typing, C emission, overload
+  selection, and constant-text interpolation participation;
 - bare and explicit `toString`, alternate prepared formatters, direct text,
   UTF-8 result targets, and direct-to-destination interpolation lowering;
 - omitted trailing `out` declaration and deconstruction binding;
