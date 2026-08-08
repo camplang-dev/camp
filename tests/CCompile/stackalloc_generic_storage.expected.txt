@@ -1,0 +1,104 @@
+// file: stackalloc_generic_storage.c
+#include "stackalloc_generic_storage_private.h"
+
+/* Private file declarations. */
+static void __camp_delegate_add(void *arg0, int *arg1);
+static void assignGeneric(void *source, void *destination, uintptr_t sizeof_T);
+static void defaultGeneric(void *destination, uintptr_t sizeof_T);
+static void forEachGeneric(const void *values, uintptr_t values_length, void (* visit)(void *arg0, void *arg1), void *visit_context, uintptr_t sizeof_T);
+static void add(int *item);
+static int sum;
+
+static void __camp_delegate_add(void *arg0, int *arg1)
+{
+	(void)arg0;
+	add(arg1);
+}
+
+static int sum = 0;
+static void assignGeneric(void *source, void *destination, uintptr_t sizeof_T)
+{
+	uint8_t *scratch = __builtin_alloca(sizeof_T);
+	__builtin_memcpy(scratch, source, sizeof_T);
+	__builtin_memcpy(destination, scratch, sizeof_T);
+}
+
+static void defaultGeneric(void *destination, uintptr_t sizeof_T)
+{
+	uint8_t *scratch = __builtin_alloca(sizeof_T);
+	__builtin_memset(scratch, 0, sizeof_T);
+	__builtin_memcpy(destination, scratch, sizeof_T);
+}
+
+static void forEachGeneric(const void *values, uintptr_t values_length, void (* visit)(void *arg0, void *arg1), void *visit_context, uintptr_t sizeof_T)
+{
+	{
+		const void *_foreachElements0 = values;
+		uintptr_t _foreachLength1 = values_length;
+		uintptr_t _foreachIndex2 = 0;
+		uint8_t *value = __builtin_alloca(sizeof_T);
+		__builtin_memset(value, 0, sizeof_T);
+		while ((_foreachIndex2 < _foreachLength1))
+		{
+			__builtin_memmove(value, (void*)(((const uint8_t*)_foreachElements0) + (_foreachIndex2 * sizeof_T)), sizeof_T);
+			{
+				visit(visit_context, value);
+			}
+__foreach_continue3: ;
+			_foreachIndex2++;
+		}
+__foreach_break4: ;
+	}
+}
+
+static void add(int *item)
+{
+	sum += (*item);
+}
+
+int main(void)
+{
+	int value = 0;
+	assignGeneric(&(int){42}, &value, sizeof(int));
+	int cleared = 5;
+	defaultGeneric(&cleared, sizeof(int));
+	int *values = (int []){1, 2, 3};
+	uintptr_t values_length = 3;
+	forEachGeneric(values, values_length, (void (*)(void *arg0, void *arg1))__camp_delegate_add, NULL, sizeof(int));
+	return ((((value == 42) && (cleared == 0)) && (sum == 6)) ? 0 : 1);
+}
+
+// file: stackalloc_generic_storage.h
+#ifndef STACKALLOC_GENERIC_STORAGE_H_
+#define STACKALLOC_GENERIC_STORAGE_H_
+
+#include "stackalloc_generic_storage_private.h"
+
+int main(void);
+
+#endif
+// file: stackalloc_generic_storage_private.h
+#ifndef STACKALLOC_GENERIC_STORAGE_PRIVATE_H_
+#define STACKALLOC_GENERIC_STORAGE_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Layouts. */
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: stackalloc_generic_storage.c

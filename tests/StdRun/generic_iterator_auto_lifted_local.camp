@@ -31,7 +31,7 @@ struct Point
 
 struct iter T iterate<T: copyable>(const T[] this, sizeof(T))
 {
-	foreach (auto item in this)
+	foreach (stackalloc T item in this)
 	{
 		yield item;
 	}
@@ -40,7 +40,7 @@ struct iter T iterate<T: copyable>(const T[] this, sizeof(T))
 struct iter T reverse<T: copyable>(iter T this, sizeof(T), within allocator)
 {
 	auto list = new List<T>() finally delete;
-	foreach (auto item in this)
+	foreach (stackalloc T item in this)
 	{
 		list.add(item);
 	}

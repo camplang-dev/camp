@@ -1,4 +1,6 @@
 tests/Diagnostics/generic_copyable_sizeof_invalid.camp(3,9): error: Copying erased generic values requires sizeof(T).
+tests/Diagnostics/generic_copyable_sizeof_invalid.camp(8,2): error: Erased generic type 'T' requires explicit stackalloc local storage; write 'stackalloc T name'.
 tests/Diagnostics/generic_copyable_sizeof_invalid.camp(8,11): error: Copying erased generic values requires sizeof(T).
 tests/Diagnostics/generic_copyable_sizeof_invalid.camp(13,12): error: Copying erased generic values requires sizeof(T).
 tests/Diagnostics/generic_copyable_sizeof_invalid.camp(18,12): error: Default-filling erased generic storage requires sizeof(T).
+tests/Diagnostics/generic_copyable_sizeof_invalid.camp(23,2): error: Erased generic type 'T' requires explicit stackalloc local storage; write 'stackalloc T name'.

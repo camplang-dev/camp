@@ -196,6 +196,7 @@ public sealed partial class BindableNodeBuilder
 		{
 			statement.Target.SourceSyntax = iteration.Target;
 			BuildDeclarationTarget(statement.Target, iteration.Target, "Foreach statement");
+			statement.IsStackAllocStorage = iteration.Target?.StackAllocKeyword is not null;
 			statement.Source = BuildExpression(iteration.Expression, "Foreach source");
 		}
 		else

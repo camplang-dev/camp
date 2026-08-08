@@ -1,7 +1,7 @@
 export int sumGeneric<T: any>(T[] this, delegate int(in T item) valueOf, sizeof(T))
 {
 	int total = 0;
-	foreach (auto item in this)
+	foreach (stackalloc T item in this)
 		total += valueOf(item);
 	return total;
 }

@@ -762,6 +762,7 @@ public sealed partial class BindableNodeAnalyzer
 		ValidateFixedStorageMarker(declaration.Target.Type, declaration.IsFixedStorage, declaration.Target.Type?.SourceSyntax ?? declaration.Target.SourceSyntax ?? declaration.SourceSyntax);
 		ValidateNoDirectExternClassType(declaration.Target.Type, declaration.Target.Type?.SourceSyntax ?? declaration.Target.SourceSyntax ?? declaration.SourceSyntax, "local variable storage");
 		ValidateNoExternClassArrayElement(declaration.Target.Type, declaration.Target.Type?.SourceSyntax ?? declaration.Target.SourceSyntax ?? declaration.SourceSyntax);
+		ValidateErasedGenericLocalStorage(declaration, initialType, scope);
 		if (declaration.InitialValue is not null)
 			TryReportInvalidCharacterLiteralTarget(declaration.Target.ResolvedType ?? ErrorType, declaration.InitialValue, declaration.InitialValue.SourceSyntax, "Declaration initializer");
 
@@ -820,6 +821,43 @@ public sealed partial class BindableNodeAnalyzer
 	void ReportAnyGenericDefaultFillNeedsSizeOf(SyntaxNode? syntax)
 	{
 		Report(GetRange(syntax), "Default-filling erased generic storage requires sizeof(T).");
+	}
+
+	void ValidateErasedGenericLocalStorage(DeclarationStatement declaration, string initialType, BodyScope scope)
+	{
+		string declaredType = declaration.Target.ResolvedType ?? ErrorType;
+		if (!TryGetErasedGenericValueParameter(scope, declaredType, out GenericParameter? parameter))
+		{
+			if (declaration.Target.Type is AutoTypeReference or null
+				&& TryGetErasedGenericValueParameter(scope, initialType, out parameter))
+			{
+				string parameterName = parameter?.Name ?? BaseTypeName(initialType);
+				Report(GetRange(declaration.InitialValue?.SourceSyntax ?? declaration.Target.Type?.SourceSyntax ?? declaration.Target.SourceSyntax ?? declaration.SourceSyntax), $"Auto cannot infer stackalloc storage for erased generic type '{parameterName}'; write 'stackalloc {parameterName} name' explicitly.");
+			}
+			return;
+		}
+		if (parameter is null)
+			return;
+
+		string erasedName = parameter.Name;
+		if (declaration.IsStackAllocStorage)
+		{
+			if (!HasSizeOfCapability(scope, erasedName))
+				Report(GetRange(declaration.Target.Type?.SourceSyntax ?? declaration.Target.SourceSyntax ?? declaration.SourceSyntax), $"stackalloc {erasedName} requires sizeof({erasedName}) in scope.");
+			return;
+		}
+
+		Report(GetRange(declaration.Target.Type?.SourceSyntax ?? declaration.Target.SourceSyntax ?? declaration.SourceSyntax), $"Erased generic type '{erasedName}' requires explicit stackalloc local storage; write 'stackalloc {erasedName} name'.");
+	}
+
+	bool TryGetErasedGenericValueParameter(BodyScope scope, string? type, out GenericParameter? parameter)
+	{
+		parameter = null;
+		string name = BaseTypeName(StripTopLevelValueQualifiers(type ?? ""));
+		if (string.IsNullOrWhiteSpace(name))
+			return false;
+		parameter = FindBodyGenericParameter(scope, name);
+		return parameter?.Constraint is AnyTypeReference or CopyableTypeReference;
 	}
 
 	static bool IsValidFixedStorageInitializer(TypeReference? targetType, Expression value)
@@ -1306,7 +1344,23 @@ public sealed partial class BindableNodeAnalyzer
 		if (statement.Target.Names.Count != 1)
 			Report(GetRange(statement.Target.SourceSyntax ?? statement.SourceSyntax), "Foreach statement must declare exactly one loop variable.");
 		BodyAnalyzeDeclarationTarget(statement.Target, scope, typeScope, elementType);
+		ValidateErasedGenericForeachStorage(statement, elementType, scope);
 		BodyAnalyzeOptionalLoopStatement(statement.Body, scope, typeScope);
+	}
+
+	void ValidateErasedGenericForeachStorage(ForeachStatement statement, string elementType, BodyScope scope)
+	{
+		if (!TryGetErasedGenericValueParameter(scope, elementType, out GenericParameter? parameter) || parameter is null)
+			return;
+
+		if (statement.IsStackAllocStorage)
+		{
+			if (!HasSizeOfCapability(scope, parameter.Name))
+				Report(GetRange(statement.Target.Type?.SourceSyntax ?? statement.Target.SourceSyntax ?? statement.SourceSyntax), $"foreach stackalloc {parameter.Name} requires sizeof({parameter.Name}) in scope.");
+			return;
+		}
+
+		Report(GetRange(statement.Target.Type?.SourceSyntax ?? statement.Target.SourceSyntax ?? statement.SourceSyntax), $"Foreach over erased generic values requires explicit stackalloc item storage; write 'foreach (stackalloc {parameter.Name} item in ...)'.");
 	}
 
 	void BodyAnalyzeSwitchStatement(SwitchStatement statement, BodyScope scope, AnalysisScope typeScope)

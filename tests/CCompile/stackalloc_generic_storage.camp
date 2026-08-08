@@ -1,0 +1,37 @@
+void assignGeneric<T: copyable>(in T source, out T destination, sizeof(T))
+{
+	stackalloc T scratch = source;
+	destination = scratch;
+}
+
+void defaultGeneric<T: copyable>(out T destination, sizeof(T))
+{
+	stackalloc T scratch = default;
+	destination = scratch;
+}
+
+void forEachGeneric<T: copyable>(const T[] values, delegate void(in T item) visit, sizeof(T))
+{
+	foreach (stackalloc T value in values)
+	{
+		visit(value);
+	}
+}
+
+int sum = 0;
+
+void add(in int item)
+{
+	sum += item;
+}
+
+export int main()
+{
+	int value = 0;
+	assignGeneric(42, out value);
+	int cleared = 5;
+	defaultGeneric(out cleared);
+	int[] values = [1, 2, 3];
+	forEachGeneric(values, add);
+	return value == 42 && cleared == 0 && sum == 6 ? 0 : 1;
+}

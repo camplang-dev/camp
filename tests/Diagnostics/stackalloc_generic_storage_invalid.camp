@@ -1,0 +1,21 @@
+void ordinaryLocal<T: copyable>(in T source, sizeof(T))
+{
+	T value = source;
+}
+
+void autoLocal<T: copyable>(T[] values, sizeof(T))
+{
+	auto value = values[0];
+}
+
+void foreachAuto<T: copyable>(T[] values, sizeof(T))
+{
+	foreach (auto value in values)
+	{
+	}
+}
+
+void stackallocWithoutSize<T: copyable>(in T source)
+{
+	stackalloc T value = source;
+}

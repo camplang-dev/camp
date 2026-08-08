@@ -826,6 +826,7 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			SourceSyntax = foreachStatement.SourceSyntax,
 			ResolvedType = "void",
+			IsStackAllocStorage = foreachStatement.IsStackAllocStorage,
 			InitialValue = new IndexExpression
 			{
 				SourceSyntax = foreachStatement.SourceSyntax,
@@ -838,18 +839,30 @@ public sealed partial class BindableNodeAnalyzer
 		loopValue.Target.ResolvedType = elementType;
 		foreach (string name in foreachStatement.Target.Names)
 			loopValue.Target.Names.Add(name);
-		((IndexExpression)loopValue.InitialValue).Arguments.Add(new ArgumentExpression
+		IndexExpression indexedValue = (IndexExpression)loopValue.InitialValue;
+		indexedValue.Arguments.Add(new ArgumentExpression
 		{
 			SourceSyntax = foreachStatement.SourceSyntax,
 			Value = IndexReference(),
 			ResolvedType = "nuint"
 		});
+		Statement loopValueStatement = loopValue;
+		if (foreachStatement.IsStackAllocStorage)
+		{
+			loopValue.InitialValue = new DefaultExpression { SourceSyntax = foreachStatement.SourceSyntax, ResolvedType = elementType };
+			statements.Add(loopValue);
+			loopValueStatement = CreateAssignmentStatement(
+				CreateVariableReference(loopValue.Target, elementType),
+				indexedValue,
+				elementType,
+				foreachStatement.SourceSyntax);
+		}
 
 		string continueLabel = NewGeneratedLabelName("foreach_continue");
 		string breakLabel = NewGeneratedLabelName("foreach_break");
 		BlockStatement loopBody = new() { SourceSyntax = foreachStatement.Body?.SourceSyntax ?? foreachStatement.SourceSyntax, ResolvedType = "void" };
 		currentLoopTransferTargets.Add(new LoopTransferTarget(breakLabel, continueLabel));
-		List<Statement> bodyStatements = [loopValue];
+		List<Statement> bodyStatements = [loopValueStatement];
 		if (foreachStatement.Body is not null)
 			bodyStatements.Add(foreachStatement.Body);
 		RewriteStatementList(bodyStatements);
@@ -990,6 +1003,7 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			SourceSyntax = foreachStatement.SourceSyntax,
 			ResolvedType = "void",
+			IsStackAllocStorage = foreachStatement.IsStackAllocStorage,
 			InitialValue = CurrentReference()
 		};
 		loopValue.Target.SourceSyntax = foreachStatement.Target.SourceSyntax;
