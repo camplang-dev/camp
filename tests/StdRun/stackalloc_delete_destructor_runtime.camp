@@ -1,0 +1,23 @@
+using Std;
+
+int destroyed = 0;
+
+class Tracked
+{
+	Tracked()
+	{
+	}
+
+	~Tracked()
+	{
+		destroyed++;
+	}
+}
+
+export int main()
+{
+	Tracked* tracked = stackalloc Tracked();
+	delete tracked;
+	Console.writeLine(destroyed);
+	return 0;
+}

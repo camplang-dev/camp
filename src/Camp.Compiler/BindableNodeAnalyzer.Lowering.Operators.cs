@@ -894,6 +894,16 @@ public sealed partial class BindableNodeAnalyzer
 
 	Expression RewriteDeleteExpression(Expression? expression)
 	{
+		return RewriteDeleteExpression(expression, suppressDeallocate: false);
+	}
+
+	Expression RewriteStackAllocDeleteExpression(Expression? expression)
+	{
+		return RewriteDeleteExpression(expression, suppressDeallocate: true);
+	}
+
+	Expression RewriteDeleteExpression(Expression? expression, bool suppressDeallocate)
+	{
 		if (expression is NamedExpression { Qualifiers.Count: 0, Name: "base" } && CreateBaseDeleteCall() is Expression baseDelete)
 			return baseDelete;
 
@@ -906,7 +916,7 @@ public sealed partial class BindableNodeAnalyzer
 				currentWithinContext = defaultWithin ? null : CaptureWithinContext(allocator, within.SourceSyntax);
 				if (defaultWithin)
 					currentDefaultWithinContextDepth++;
-				Expression result = RewriteDeleteExpression(within.Expression);
+				Expression result = RewriteDeleteExpression(within.Expression, suppressDeallocate);
 				currentWithinContext = previousWithinContext;
 				currentDefaultWithinContextDepth = previousDefaultWithinContextDepth;
 				return result;
@@ -946,9 +956,14 @@ public sealed partial class BindableNodeAnalyzer
 			return new LiteralExpression { Kind = LiteralKind.Null, Text = "null", ResolvedType = "void" };
 
 		if (isArray)
+		{
+			if (suppressDeallocate)
+				return new LiteralExpression { Kind = LiteralKind.Null, Text = "null", ResolvedType = "void" };
 			return CreateFreeCall(CreateArrayElementsAccess(target));
+		}
 
 		bool deallocate = opDelete?.Name != DestroyMethodName
+			&& !suppressDeallocate
 			&& (isPointer || isThisPointer)
 			&& deletedDefinition is not ClassDefinition { Extern: not null };
 		return CreateDeleteExpression(target, opDelete, deallocate);

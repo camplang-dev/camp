@@ -1,0 +1,6 @@
+tests/Diagnostics/stackalloc_lifetime_restrictions.camp(34,9): error: Return expression cannot return stackalloc-backed storage.
+tests/Diagnostics/stackalloc_lifetime_restrictions.camp(40,9): error: Return expression cannot return stackalloc-backed storage.
+tests/Diagnostics/stackalloc_lifetime_restrictions.camp(51,17): error: Assignment cannot store a non-escaped pointer-bearing value in escaped storage.
+tests/Diagnostics/stackalloc_lifetime_restrictions.camp(63,16): error: Async bodies cannot use stackalloc because stackalloc storage cannot cross suspension.
+tests/Diagnostics/stackalloc_lifetime_restrictions.camp(72,24): error: Prepared result cannot use implicit dynamic stack allocation inside a loop; use explicit stackalloc outside the repeated path or heap allocation with '(new)'.
+tests/Diagnostics/stackalloc_lifetime_restrictions.camp(73,15): error: Interpolated string cannot use implicit dynamic stack allocation inside a loop; use explicit stackalloc outside the repeated path or heap allocation with '(new)'.

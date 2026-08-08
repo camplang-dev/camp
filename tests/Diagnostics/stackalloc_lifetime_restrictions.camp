@@ -1,0 +1,75 @@
+using Std;
+
+int[] globalValues;
+
+class Resumer
+{
+	void resumeAsync(escaped once void() continuation)
+	{
+		continuation();
+	}
+}
+
+class Holder
+{
+	int[] values;
+}
+
+void acceptsEscaped(escaped int[] values)
+{
+}
+
+void touch(char[] buffer)
+{
+}
+
+prep char[] textValue()
+{
+	touch(buffer);
+	return 0;
+}
+
+int[] returnDirect()
+{
+	return stackalloc int[4];
+}
+
+int[] returnLocal()
+{
+	auto values = stackalloc int[4];
+	return values;
+}
+
+struct iter int[] yieldStackAlloc()
+{
+	yield stackalloc int[4];
+}
+
+void storeEscaped()
+{
+	auto values = stackalloc int[4];
+	globalValues = values;
+	acceptsEscaped(values);
+}
+
+void deleteStackAlloc()
+{
+	Holder* holder = stackalloc Holder();
+	within(default) delete holder;
+}
+
+async int asyncStackAlloc(@awaitwith Resumer* resumer)
+{
+	auto values = stackalloc int[4];
+	return 0;
+}
+
+void implicitDynamicLoop()
+{
+	for (int i = 0; i < 2; i++)
+	{
+		string label = "x";
+		auto text = textValue();
+		auto line = $"line {label}";
+	}
+}

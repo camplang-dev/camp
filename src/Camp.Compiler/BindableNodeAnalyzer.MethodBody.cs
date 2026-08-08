@@ -297,7 +297,8 @@ public sealed partial class BindableNodeAnalyzer
 			CurrentFunctionSourceReturnType = scope.CurrentFunctionSourceReturnType,
 			CurrentIteratorElementType = scope.CurrentIteratorElementType,
 			CurrentIteratorThrownType = scope.CurrentIteratorThrownType,
-			ExplicitWithinContextDepth = scope.ExplicitWithinContextDepth
+			ExplicitWithinContextDepth = scope.ExplicitWithinContextDepth,
+			LoopDepth = scope.LoopDepth
 		};
 
 		foreach (Statement statement in statements)
@@ -337,17 +338,17 @@ public sealed partial class BindableNodeAnalyzer
 
 			case WhileStatement whileStatement:
 				RequireExpressionType("bool", BodyAnalyzeExpression(whileStatement.Condition, scope, typeScope), whileStatement.Condition?.SourceSyntax, "While condition");
-				BodyAnalyzeOptionalStatement(whileStatement.Body, scope, typeScope);
+				BodyAnalyzeOptionalLoopStatement(whileStatement.Body, scope, typeScope);
 				break;
 
 			case DoWhileStatement doWhile:
-				BodyAnalyzeOptionalStatement(doWhile.Body, scope, typeScope);
+				BodyAnalyzeOptionalLoopStatement(doWhile.Body, scope, typeScope);
 				RequireExpressionType("bool", BodyAnalyzeExpression(doWhile.Condition, scope, typeScope), doWhile.Condition?.SourceSyntax, "Do-while condition");
 				break;
 
 			case ForStatement forStatement:
 				BodyAnalyzeForCondition(forStatement.Condition, scope, typeScope);
-				BodyAnalyzeOptionalStatement(forStatement.Body, scope, typeScope);
+				BodyAnalyzeOptionalLoopStatement(forStatement.Body, scope, typeScope);
 				break;
 
 			case ForeachStatement foreachStatement:
@@ -464,10 +465,14 @@ public sealed partial class BindableNodeAnalyzer
 				else
 				{
 					string deleteType = BodyAnalyzeExpression(deleteStatement.Expression, scope, typeScope);
+					deleteStatement.IsStackAllocCleanup = IsStackAllocBackedExpression(deleteStatement.Expression);
 					ValidateDeleteThisReceiver(deleteStatement.Expression, deleteType);
 					ValidateExternClassDelete(deleteStatement.Expression, deleteType);
-					RequireExplicitWithinForDelete(deleteStatement.Expression, deleteType, scope, "pointer-form delete requires an explicit within context; use within(allocator) delete or within(default) delete.");
-					CheckLifetimeDeleteAgainstFree(deleteStatement.Expression, deleteStatement.Expression?.SourceSyntax ?? deleteStatement.SourceSyntax, scope);
+					if (!deleteStatement.IsStackAllocCleanup)
+					{
+						RequireExplicitWithinForDelete(deleteStatement.Expression, deleteType, scope, "pointer-form delete requires an explicit within context; use within(allocator) delete or within(default) delete.");
+						CheckLifetimeDeleteAgainstFree(deleteStatement.Expression, deleteStatement.Expression?.SourceSyntax ?? deleteStatement.SourceSyntax, scope);
+					}
 				}
 				break;
 
@@ -578,6 +583,15 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (statement is not null)
 			BodyAnalyzeStatement(statement, scope, typeScope);
+	}
+
+	void BodyAnalyzeOptionalLoopStatement(Statement? statement, BodyScope scope, AnalysisScope typeScope)
+	{
+		if (statement is null)
+			return;
+		scope.LoopDepth++;
+		BodyAnalyzeStatement(statement, scope, typeScope);
+		scope.LoopDepth--;
 	}
 
 	void BindFunctionLabels(FunctionDefinition function)
@@ -708,6 +722,8 @@ public sealed partial class BindableNodeAnalyzer
 
 	void BodyAnalyzeDeclarationStatement(DeclarationStatement declaration, BodyScope scope, AnalysisScope typeScope)
 	{
+		if (declaration.IsStackAllocStorage)
+			ValidateStackAllocAllowed(declaration.SourceSyntax ?? declaration.Target.SourceSyntax, scope);
 		AnalyzeOptionalType(declaration.Target.Type, typeScope);
 		ValidateNoLifetimeAnnotation(declaration.Target.Type, declaration.Target.Type?.SourceSyntax ?? declaration.Target.SourceSyntax ?? declaration.SourceSyntax, "local variable types");
 		TryRewriteOmittedOutDeconstruction(declaration, scope, typeScope);
@@ -1036,7 +1052,7 @@ public sealed partial class BindableNodeAnalyzer
 
 		return expression switch
 		{
-			PreparedBufferExpression { HeapAllocated: false } => true,
+			PreparedBufferExpression { HeapAllocated: false, StackAllocated: false } => true,
 			ParenthesizedExpression parenthesized => ContainsScopedPreparedBuffer(parenthesized.Expression),
 			CastExpression cast => ContainsScopedPreparedBuffer(cast.Expression),
 			WithinExpression within => ContainsScopedPreparedBuffer(within.Expression),
@@ -1044,6 +1060,22 @@ public sealed partial class BindableNodeAnalyzer
 			ConditionalExpression conditional => ContainsScopedPreparedBuffer(conditional.WhenTrue) || ContainsScopedPreparedBuffer(conditional.WhenFalse),
 			_ => false
 		};
+	}
+
+	void ValidateStackAllocAllowed(SyntaxNode? syntax, BodyScope scope)
+	{
+		if (scope.CurrentIteratorElementType is not null || scope.CurrentFunction.IteratorKind != IteratorKind.None)
+			Report(GetRange(syntax), "Iterator generator bodies cannot use stackalloc because stackalloc storage cannot outlive suspension.");
+		if (scope.CurrentFunction.IsAsync)
+			Report(GetRange(syntax), "Async bodies cannot use stackalloc because stackalloc storage cannot cross suspension.");
+		else if (scope.CurrentFunction.AwaitSites.Count > 0)
+			Report(GetRange(syntax), "Functions that contain await cannot use stackalloc because stackalloc storage cannot cross suspension.");
+	}
+
+	void ValidateImplicitDynamicStackAllocationCycle(SyntaxNode? syntax, BodyScope scope, string construct)
+	{
+		if (scope.LoopDepth > 0)
+			Report(GetRange(syntax), $"{construct} cannot use implicit dynamic stack allocation inside a loop; use explicit stackalloc outside the repeated path or heap allocation with '(new)'.");
 	}
 
 	bool EscapesLocalFixedArraySpan(string targetType, Expression? expression)
@@ -1274,7 +1306,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (statement.Target.Names.Count != 1)
 			Report(GetRange(statement.Target.SourceSyntax ?? statement.SourceSyntax), "Foreach statement must declare exactly one loop variable.");
 		BodyAnalyzeDeclarationTarget(statement.Target, scope, typeScope, elementType);
-		BodyAnalyzeOptionalStatement(statement.Body, scope, typeScope);
+		BodyAnalyzeOptionalLoopStatement(statement.Body, scope, typeScope);
 	}
 
 	void BodyAnalyzeSwitchStatement(SwitchStatement statement, BodyScope scope, AnalysisScope typeScope)
@@ -1364,6 +1396,10 @@ public sealed partial class BindableNodeAnalyzer
 
 	string BodyAnalyzePreparedBufferExpression(PreparedBufferExpression expression, BodyScope scope, AnalysisScope typeScope, string? targetType)
 	{
+		if (expression.StackAllocated)
+			ValidateStackAllocAllowed(expression.SourceSyntax ?? expression.Expression?.SourceSyntax, scope);
+		else if (!expression.HeapAllocated)
+			ValidateImplicitDynamicStackAllocationCycle(expression.SourceSyntax ?? expression.Expression?.SourceSyntax, scope, "Prepared result");
 		if (!TryCreatePreparedSourceCall(expression, out CallExpression? call))
 		{
 			BodyAnalyzeExpression(expression.Expression, scope, typeScope, targetType);
@@ -1451,6 +1487,8 @@ public sealed partial class BindableNodeAnalyzer
 
 	string BodyAnalyzeInterpolatedStringExpression(InterpolatedStringExpression interpolation, BodyScope scope, AnalysisScope typeScope, string? targetType)
 	{
+		if (interpolation.StackAllocated)
+			ValidateStackAllocAllowed(interpolation.SourceSyntax, scope);
 		bool constant = true;
 		StringBuilder value = new();
 		List<InterpolatedStringExpressionSegment> runtimeHoles = [];
@@ -1500,6 +1538,8 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		expressionConstants[interpolation] = false;
+		if (!interpolation.HeapAllocated && !interpolation.StackAllocated)
+			ValidateImplicitDynamicStackAllocationCycle(interpolation.SourceSyntax, scope, "Interpolated string");
 		bool success = true;
 		foreach (InterpolatedStringExpressionSegment hole in runtimeHoles)
 		{
@@ -2490,6 +2530,8 @@ public sealed partial class BindableNodeAnalyzer
 
 	string BodyAnalyzeConstructionExpression(ConstructionExpression construction, BodyScope scope, AnalysisScope typeScope, string? targetExpressionType)
 	{
+		if (construction.Kind == ConstructionKind.StackAlloc)
+			ValidateStackAllocAllowed(construction.SourceSyntax ?? construction.Type?.SourceSyntax, scope);
 		if (construction.Type is not null)
 			AnalyzeType(construction.Type, typeScope);
 
@@ -3226,6 +3268,7 @@ public sealed partial class BindableNodeAnalyzer
 			returnType = SubstituteGenericType(prepParameter!.ResolvedType ?? ErrorType, genericSubstitutions);
 			returnType = SubstituteConstOfResolvedType(prepParameter.Type, returnType, constOfAnchors, genericSubstitutions);
 			preparedResult = RegisterImplicitPreparedCall(call, returnType);
+			ValidateImplicitDynamicStackAllocationCycle(call.SourceSyntax ?? GetExpressionDiagnosticSyntax(call.Target), scope, "Prepared result");
 		}
 		else if (function is not null && binding.Parameters.Any(static parameter => parameter.Modifier == ParameterModifier.Prep))
 		{
@@ -6563,6 +6606,7 @@ public sealed partial class BindableNodeAnalyzer
 		public Dictionary<string, string> ComponentSymbols { get; } = new(StringComparer.Ordinal);
 		public Dictionary<string, BodyComponentSymbol> ComponentSymbolTypes { get; } = new(StringComparer.Ordinal);
 		public int ExplicitWithinContextDepth { get; set; } = parent?.ExplicitWithinContextDepth ?? 0;
+		public int LoopDepth { get; set; } = parent?.LoopDepth ?? 0;
 		public int NewDelegateLambdaDepth { get; set; } = parent?.NewDelegateLambdaDepth ?? 0;
 		public string? CurrentWithinContextLifetimeFact { get; set; } = parent?.CurrentWithinContextLifetimeFact;
 		public bool AllowClassTypeNameOfDefaultValue { get; set; } = parent?.AllowClassTypeNameOfDefaultValue ?? false;

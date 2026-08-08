@@ -267,6 +267,13 @@ public sealed partial class BindableNodeAnalyzer
 						ResolvedType = "void",
 						Expression = CreateDeleteShadowExpression(deleteStatement.SourceSyntax)
 					});
+				if (deleteStatement.IsStackAllocCleanup)
+					return WithPendingCleanups(new ExpressionStatement
+					{
+						SourceSyntax = deleteStatement.SourceSyntax,
+						ResolvedType = "void",
+						Expression = RewriteStackAllocDeleteExpression(deleteStatement.Expression)
+					});
 				return WithPendingCleanups(new ExpressionStatement
 				{
 					SourceSyntax = deleteStatement.SourceSyntax,

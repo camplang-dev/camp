@@ -234,10 +234,20 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		string? name = declaration.Target.Names.Count == 1 ? declaration.Target.Names[0] : null;
 		string? slotFact = CreateDeclarationSlotLifetimeFact(name, declaration.Target.Type, declaration.Target.ResolvedType, declaration.IsFixedStorage, typeScope);
+		string? initialValueFact = GetExpressionLifetimeFact(declaration.InitialValue);
+		if (declaration.IsStackAllocStorage && !string.IsNullOrWhiteSpace(name))
+			initialValueFact = MakeLifetimeFact("scoped", name, "stackalloc slot");
+		else if (initialValueFact is not null
+			&& !string.IsNullOrWhiteSpace(name)
+			&& TryParseLifetimeFact(initialValueFact, out LifetimeFact parsedInitialValueFact)
+			&& IsStackAllocLifetimeFact(parsedInitialValueFact))
+		{
+			initialValueFact = FormatLifetimeFact(new LifetimeFact("scoped", [name], parsedInitialValueFact.Source));
+		}
 		declaration.Target.SlotLifetimeFact = slotFact;
 		declaration.Target.ValueLifetimeFact = declaration.IsFixedStorage
 			? slotFact
-			: GetExpressionLifetimeFact(declaration.InitialValue)
+			: initialValueFact
 				?? CreateDeclarationValueLifetimeFact(declaration.Target.Type, declaration.Target.ResolvedType, declaration.IsFixedStorage, typeScope)
 				?? slotFact;
 		declaration.SlotLifetimeFact = slotFact;
@@ -260,7 +270,18 @@ public sealed partial class BindableNodeAnalyzer
 			CastExpression cast => cast.LifetimeBinding
 				?? (IsFunctionPointerResolvedType(resolvedType) ? MakeLifetimeFact("escaped", null, "function pointer cast") : null)
 				?? GetExpressionLifetimeFact(cast.Expression),
-			PreparedBufferExpression prepared => prepared.HeapAllocated ? MakeLifetimeFact("unknown", null, "new") : MakeLifetimeFact("scoped", null, "init"),
+			PreparedBufferExpression prepared => prepared.HeapAllocated
+				? MakeLifetimeFact("unknown", null, "new")
+				: prepared.StackAllocated
+					? MakeLifetimeFact("scoped", null, "stackalloc")
+					: MakeLifetimeFact("scoped", null, "init"),
+			InterpolatedStringExpression interpolation => interpolation.HeapAllocated
+				? MakeLifetimeFact("unknown", null, "new")
+				: interpolation.StackAllocated
+					? MakeLifetimeFact("scoped", null, "stackalloc")
+					: IsLifetimePointerBearingResolvedType(resolvedType, scope)
+						? MakeLifetimeFact("scoped", null, "interpolation")
+						: null,
 			ConstructionExpression construction => IsLifetimePointerBearingResolvedType(resolvedType, scope) ? GetConstructionLifetimeFact(construction, resolvedType, scope) : null,
 			WithinExpression within => GetWithinExpressionLifetimeFact(within, resolvedType, scope),
 			FinallyCleanupExpression finallyCleanup => GetExpressionLifetimeFact(finallyCleanup.Expression),
@@ -328,6 +349,7 @@ public sealed partial class BindableNodeAnalyzer
 		return construction.Kind switch
 		{
 			ConstructionKind.New => GetNewConstructionLifetimeFact(construction),
+			ConstructionKind.StackAlloc => MakeLifetimeFact("scoped", null, "stackalloc"),
 			ConstructionKind.Init or ConstructionKind.Selected => GetInitConstructionLifetimeFact(construction, resolvedType, scope),
 			_ => null
 		};
@@ -1130,6 +1152,12 @@ public sealed partial class BindableNodeAnalyzer
 		if (valueFact.Kind == "escaped" || valueFact.Kind == "unscoped")
 			return;
 
+		if (IsStackAllocLifetimeFact(valueFact))
+		{
+			Report(GetRange(syntax), $"{context} cannot return stackalloc-backed storage.");
+			return;
+		}
+
 		string? localAnchor = valueFact.Anchors.FirstOrDefault(anchor => IsLocalLifetimeAnchor(anchor, scope));
 		if (localAnchor is not null)
 			Report(GetRange(syntax), $"{context} cannot return a pointer-bearing value tied to local storage '{localAnchor}'.");
@@ -1149,6 +1177,12 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (valueFact.Kind is "escaped" or "unscoped" or "unknown")
 			return;
+
+		if (IsStackAllocLifetimeFact(valueFact))
+		{
+			Report(GetRange(syntax), "Yield expression cannot yield stackalloc-backed storage.");
+			return;
+		}
 
 		Report(GetRange(syntax), "Yield expression cannot yield a pointer-bearing value that does not outlive the iterator frame.");
 	}
@@ -1178,8 +1212,19 @@ public sealed partial class BindableNodeAnalyzer
 		if (actualFact.Kind is "escaped" or "unknown")
 			return;
 
-		if (actualFact.Kind == "scoped" && actualFact.Anchors.Any(anchor => IsLocalLifetimeAnchor(anchor, scope)))
+		if (actualFact.Kind == "scoped" && (IsStackAllocLifetimeFact(actualFact) || actualFact.Anchors.Any(anchor => IsLocalLifetimeAnchor(anchor, scope))))
 			Report(GetRange(syntax), "Delete target cannot satisfy free parameter lifetime 'escaped'.");
+	}
+
+	bool IsStackAllocBackedExpression(Expression? expression)
+	{
+		return TryParseLifetimeFact(GetExpressionLifetimeFact(expression), out LifetimeFact fact)
+			&& IsStackAllocLifetimeFact(fact);
+	}
+
+	static bool IsStackAllocLifetimeFact(LifetimeFact fact)
+	{
+		return fact.Source.Contains("stackalloc", StringComparison.Ordinal);
 	}
 
 	bool TryGetEscapedStorageTarget(Expression target)
