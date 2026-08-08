@@ -425,7 +425,7 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			NamedTypeReference named => CloneNamed(named),
 			TypeDefinitionReference definition => CloneDefinitionReference(definition),
-			GenericParameterTypeReference generic => new GenericParameterTypeReference { Name = generic.Name, Parameter = generic.Parameter },
+			GenericParameterTypeReference generic => new GenericParameterTypeReference { Name = generic.Name, Parameter = generic.Parameter, ResolvedType = generic.ResolvedType },
 			AllocatorTypeReference => new AllocatorTypeReference(),
 			ClassTypeReference classType => new ClassTypeReference { Definition = classType.Definition },
 			ThisTypeReference => new ThisTypeReference(),

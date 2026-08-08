@@ -1,0 +1,41 @@
+using Std;
+
+struct Pair
+{
+	int first;
+	int second;
+}
+
+Pair makePair(int first, int second)
+{
+	Pair value = default;
+	value.first = first;
+	value.second = second;
+	return value;
+}
+
+struct iter T duplicateEach<T: copyable>(T[] values, sizeof(T))
+{
+	foreach (stackalloc T item in values)
+	{
+		yield item;
+		yield item;
+	}
+}
+
+export int main()
+{
+	int[] numbers = [4, 5];
+	int numberTotal = 0;
+	foreach (auto number in duplicateEach(numbers))
+		numberTotal += number;
+
+	Pair[] pairs = [makePair(1, 10), makePair(2, 20)];
+	int pairTotal = 0;
+	foreach (auto pair in duplicateEach(pairs))
+		pairTotal += pair.first + pair.second;
+
+	Console.writeLine(numberTotal);
+	Console.writeLine(pairTotal);
+	return numberTotal == 18 && pairTotal == 66 ? 0 : 1;
+}

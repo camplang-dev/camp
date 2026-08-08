@@ -516,6 +516,19 @@ public sealed partial class BindableNodeAnalyzer
 					Type = NuintType(),
 					ResolvedType = "nuint"
 				});
+				if (!string.IsNullOrWhiteSpace(fields.CurrentFieldName)
+					&& foreachStatement.Target.Names.Count == 1
+					&& foreachStatement.Target.Names[0] != "_")
+				{
+					AddIteratorField(state, new FieldDefinition
+					{
+						SourceSyntax = foreachStatement.SourceSyntax,
+						Name = fields.CurrentFieldName,
+						Symbol = fields.CurrentFieldName,
+						Type = PointerTo(TypeReferenceForResolvedName(fields.ElementType, foreachStatement.Target.SourceSyntax ?? foreachStatement.SourceSyntax)),
+						ResolvedType = AddPointer(fields.ElementType)
+					}, foreachStatement.Target.Names[0]);
+				}
 				continue;
 			}
 			if (fields is { IsProtocol: true, ContextFieldName: not null })
@@ -529,6 +542,11 @@ public sealed partial class BindableNodeAnalyzer
 					ResolvedType = "void*"
 				});
 			}
+			string? currentSourceName = foreachStatement.IsStackAllocStorage
+				&& foreachStatement.Target.Names.Count == 1
+				&& foreachStatement.Target.Names[0] != "_"
+				? foreachStatement.Target.Names[0]
+				: null;
 			AddIteratorField(state, new FieldDefinition
 			{
 				SourceSyntax = foreachStatement.SourceSyntax,
@@ -536,7 +554,7 @@ public sealed partial class BindableNodeAnalyzer
 				Symbol = fields.CurrentFieldName,
 				Type = TypeReferenceForResolvedName(fields.ElementType, foreachStatement.Target.SourceSyntax ?? foreachStatement.SourceSyntax),
 				ResolvedType = fields.ElementType
-			});
+			}, currentSourceName);
 		}
 	}
 
@@ -612,10 +630,16 @@ public sealed partial class BindableNodeAnalyzer
 		if (TryGetArrayElementType(arraySourceType) is string arrayElementType)
 		{
 			int arrayIndex = iteratorForeachStateIndex++;
+			string currentFieldName = foreachStatement.IsStackAllocStorage
+				&& foreachStatement.Target.Names.Count == 1
+				&& foreachStatement.Target.Names[0] != "_"
+				? $"__foreachCurrent{arrayIndex}"
+				: "";
 			fields = IteratorForeachStateFields.ForArray(
 				$"__foreachElements{arrayIndex}",
 				$"__foreachLength{arrayIndex}",
 				$"__foreachIndex{arrayIndex}",
+				currentFieldName,
 				AddPointer(arrayElementType),
 				arrayElementType);
 			return true;
@@ -1272,6 +1296,7 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			List<Statement> rewrittenStatements = RewriteIteratorBodyStatements(function.Body, lowering);
 			BlockStatement body = new() { ResolvedType = "void" };
+			body.Statements.AddRange(CreateIteratorStackAllocForeachStorageRefresh(function));
 			body.Statements.AddRange(lowering.CreateResumeDispatch());
 			foreach (Statement statement in rewrittenStatements)
 				body.Statements.Add(statement);
@@ -1282,6 +1307,79 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			currentIteratorStateThisType = previousIteratorStateThisType;
 		}
+	}
+
+	List<Statement> CreateIteratorStackAllocForeachStorageRefresh(FunctionDefinition function)
+	{
+		List<Statement> statements = [];
+		foreach (IteratorForeachStateFields fields in GetIteratorForeachStateFields(function))
+		{
+			if (string.IsNullOrWhiteSpace(fields.CurrentFieldName))
+				continue;
+			TypeReference elementType = IteratorElementTypeReference(function, fields.ElementType);
+			statements.Add(CreateAssignmentStatement(
+				ThisMemberReference(fields.CurrentFieldName, AddPointer(fields.ElementType)),
+				CreateStackAllocCall(elementType, null),
+				AddPointer(fields.ElementType),
+				null));
+			if (fields is { IsArray: true, IndexFieldName: not null })
+			{
+				statements.Add(new IfStatement
+				{
+					ResolvedType = "void",
+					Condition = new BinaryExpression
+					{
+						Left = new BinaryExpression
+						{
+							Left = ThisMemberReference(IteratorStateFieldName, "int"),
+							Operator = BinaryOperator.NotEqual,
+							Right = NumberLiteral("0", "int"),
+							ResolvedType = "bool"
+						},
+						Operator = BinaryOperator.LogicalAnd,
+						Right = new BinaryExpression
+						{
+							Left = ThisMemberReference(IteratorStateFieldName, "int"),
+							Operator = BinaryOperator.NotEqual,
+							Right = NumberLiteral("-1", "int"),
+							ResolvedType = "bool"
+						},
+						ResolvedType = "bool"
+					},
+					Body = CreateAssignmentStatement(
+						ThisMemberReference(fields.CurrentFieldName, fields.ElementType),
+						new IndexExpression
+						{
+							Target = ThisMemberReference(fields.IteratorFieldName, fields.IteratorType),
+							ResolvedType = fields.ElementType,
+							Arguments =
+							{
+								new ArgumentExpression
+								{
+									Value = ThisMemberReference(fields.IndexFieldName, "nuint"),
+									ResolvedType = "nuint"
+								}
+							}
+						},
+						fields.ElementType,
+						null)
+				});
+			}
+		}
+		return statements;
+	}
+
+	static TypeReference IteratorElementTypeReference(FunctionDefinition function, string elementType)
+	{
+		foreach (GenericParameter parameter in function.GenericParameters)
+			if (parameter.Name == elementType)
+				return new GenericParameterTypeReference
+				{
+					Name = parameter.Name,
+					Parameter = parameter,
+					ResolvedType = elementType
+				};
+		return TypeReferenceForResolvedName(elementType);
 	}
 
 	List<Statement> RewriteIteratorBodyStatements(BlockStatement? body, IteratorBodyLowering lowering)
@@ -2117,9 +2215,9 @@ public sealed partial class BindableNodeAnalyzer
 		public string? IndexFieldName { get; init; }
 		public string? ContextFieldName { get; init; }
 
-		public static IteratorForeachStateFields ForArray(string elementsFieldName, string lengthFieldName, string indexFieldName, string elementPointerType, string elementType)
+		public static IteratorForeachStateFields ForArray(string elementsFieldName, string lengthFieldName, string indexFieldName, string currentFieldName, string elementPointerType, string elementType)
 		{
-			return new IteratorForeachStateFields(elementsFieldName, "", elementPointerType, elementType)
+			return new IteratorForeachStateFields(elementsFieldName, currentFieldName, elementPointerType, elementType)
 			{
 				IsArray = true,
 				LengthFieldName = lengthFieldName,
@@ -2167,6 +2265,20 @@ public sealed partial class BindableNodeAnalyzer
 				foreach (string name in declaration.Target.Names)
 					if (name != "_")
 						liftedTypes[name] = declaration.Target.ResolvedType ?? declaration.Target.Type?.ResolvedType ?? FormatTypeReference(declaration.Target.Type);
+			}
+			foreach (ForeachStatement foreachStatement in analyzer.EnumerateIteratorForeachStatements(function.Body))
+			{
+				if (!analyzer.iteratorForeachStates.TryGetValue(foreachStatement, out IteratorForeachStateFields? fields)
+					|| string.IsNullOrWhiteSpace(fields.CurrentFieldName)
+					|| !foreachStatement.IsStackAllocStorage
+					|| foreachStatement.Target.Names.Count != 1)
+				{
+					continue;
+				}
+
+				string name = foreachStatement.Target.Names[0];
+				if (name != "_")
+					liftedTypes[name] = fields.ElementType;
 			}
 		}
 

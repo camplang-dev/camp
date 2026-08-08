@@ -66,6 +66,11 @@ public sealed partial class BindableNodeAnalyzer
 					return LowerInterfaceConversion(cast.Type, cast.Expression) ?? cast;
 				break;
 
+			case StackAllocExpression stackAlloc:
+				stackAlloc.Size = LowerExpression(stackAlloc.Size);
+				stackAlloc.ResolvedType = "void*";
+				break;
+
 			case SizeOfExpression sizeOf:
 				return LowerSizeOfExpression(sizeOf);
 

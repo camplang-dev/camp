@@ -5870,6 +5870,12 @@ public static class CCodeEmitter
 				case VariableReferenceExpression { Variable: DeclarationTarget target } when IsAnyGenericParameterType(target.ResolvedType):
 					value = CName(target);
 					return true;
+				case MemberReferenceExpression { ResolvedType: string memberType } member when IsAnyGenericParameterType(memberType):
+					value = FormatExpression(member);
+					return true;
+				case MemberReferenceExpression { ResolvedType: string memberPointerType } member when TryGetPointerElementType(memberPointerType, out string memberElementType) && IsAnyGenericParameterType(memberElementType):
+					value = FormatExpression(member);
+					return true;
 				case VariableReferenceExpression { Variable: DeclarationTarget { Type: MaterializedStructTypeReference } target }:
 					value = "&" + CName(target);
 					return true;
@@ -6360,6 +6366,12 @@ public static class CCodeEmitter
 					when IsAnyGenericParameterType(targetType):
 					address = FormatExpression(unary.Operand);
 					genericType = targetType;
+					return true;
+
+				case MemberReferenceExpression { ResolvedType: string memberType } member
+					when IsAnyGenericParameterType(memberType):
+					address = FormatExpression(member);
+					genericType = memberType;
 					return true;
 
 				default:

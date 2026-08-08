@@ -727,10 +727,16 @@ public sealed partial class BindableNodeAnalyzer
 		};
 	}
 
-	static ArgumentExpression CreateIteratorProtocolCurrentArgument(Expression value, string parameterType, SyntaxNode? syntax)
+	ArgumentExpression CreateIteratorProtocolCurrentArgument(Expression value, string parameterType, SyntaxNode? syntax)
 	{
 		if (value.ResolvedType == parameterType)
 			return new ArgumentExpression { SourceSyntax = syntax, Value = value, ResolvedType = value.ResolvedType };
+		if (TryGetPointerElementType(parameterType) is string pointedType
+			&& value.ResolvedType == pointedType
+			&& IsCurrentRewriteGenericParameter(pointedType))
+		{
+			return new ArgumentExpression { SourceSyntax = syntax, Value = value, ResolvedType = parameterType };
+		}
 
 		return new ArgumentExpression
 		{
@@ -744,6 +750,12 @@ public sealed partial class BindableNodeAnalyzer
 			},
 			ResolvedType = parameterType
 		};
+	}
+
+	bool IsCurrentRewriteGenericParameter(string name)
+	{
+		return currentRewriteFunction?.GenericParameters.Exists(parameter => parameter.Name == name) == true
+			|| currentRewriteContainingType?.GenericParameters.Exists(parameter => parameter.Name == name) == true;
 	}
 
 	Statement CreateIteratorProtocolCleanupStatement(Expression call, Expression context, SyntaxNode? syntax)
@@ -806,6 +818,7 @@ public sealed partial class BindableNodeAnalyzer
 		Expression ElementsReference() => useLiftedState && stateFields is not null ? ThisMemberReference(stateFields.IteratorFieldName, stateFields.IteratorType) : CreateVariableReference(elementsLocal!.Target, elementPointerType);
 		Expression LengthReference() => useLiftedState && stateFields is { LengthFieldName: not null } ? ThisMemberReference(stateFields.LengthFieldName, "nuint") : CreateVariableReference(lengthLocal!.Target, lengthLocal.Target.ResolvedType ?? "nuint");
 		Expression IndexReference() => useLiftedState && stateFields is { IndexFieldName: not null } ? ThisMemberReference(stateFields.IndexFieldName, "nuint") : CreateVariableReference(indexLocal!.Target, "nuint");
+		Expression CurrentReference() => ThisMemberReference(stateFields!.CurrentFieldName, stateFields.ElementType);
 		if (useLiftedState && stateFields is not null)
 		{
 			statements.Add(CreateAssignmentStatement(ElementsReference(), elements, elementPointerType, foreachStatement.SourceSyntax));
@@ -853,6 +866,16 @@ public sealed partial class BindableNodeAnalyzer
 			statements.Add(loopValue);
 			loopValueStatement = CreateAssignmentStatement(
 				CreateVariableReference(loopValue.Target, elementType),
+				indexedValue,
+				elementType,
+				foreachStatement.SourceSyntax);
+		}
+		else if (foreachStatement.IsStackAllocStorage
+			&& useLiftedState
+			&& stateFields is { CurrentFieldName: not "" })
+		{
+			loopValueStatement = CreateAssignmentStatement(
+				CurrentReference(),
 				indexedValue,
 				elementType,
 				foreachStatement.SourceSyntax);
