@@ -36,6 +36,6 @@ escaped class Service
 
 void main()
 {
-	const Date d = init Date();
+	const Date d = Date();
 	TextFormatter f = d.format;
 }

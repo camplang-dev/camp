@@ -61,5 +61,5 @@ void badGlobal()
 
 export void main()
 {
-	auto initialized = init BadDeleteShadow();
+	auto initialized = BadDeleteShadow();
 }

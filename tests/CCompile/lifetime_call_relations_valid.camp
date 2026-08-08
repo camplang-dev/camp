@@ -36,7 +36,7 @@ export int main()
 	auto heap = getEscaped();
 	auto same = identity(heap);
 
-	Buffer buffer = init Buffer();
+	Buffer buffer = Buffer();
 	buffer.setItems(heap);
 	auto items = buffer.getItems();
 

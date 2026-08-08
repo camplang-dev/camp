@@ -28,6 +28,6 @@ struct Widget
 
 void badDelete()
 {
-	Widget local = init Widget();
+	Widget local = Widget();
 	delete &local;
 }

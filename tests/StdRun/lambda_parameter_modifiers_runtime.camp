@@ -28,7 +28,7 @@ export int main()
 	if (caught != 7)
 		return 3;
 
-	LocalAllocator allocatorValue = init LocalAllocator();
+	LocalAllocator allocatorValue = LocalAllocator();
 	LocalAllocator* allocator = &allocatorValue;
 	delegate int(within LocalAllocator* allocator) allocUser = (within LocalAllocator* current) => current == allocator ? 4 : 0;
 	int value = allocUser(within allocator);

@@ -4,4 +4,3 @@ tests/Diagnostics/shadow_classes_stage3_invalid.camp(26,8): error: Shadow field 
 tests/Diagnostics/shadow_classes_stage3_invalid.camp(31,15): error: Assignment cannot store a non-escaped pointer-bearing value in escaped storage.
 tests/Diagnostics/shadow_classes_stage3_invalid.camp(53,10): warning: 'delete shadow' uses the default allocator here, but the shadow constructor accepts a within allocator.
 tests/Diagnostics/shadow_classes_stage3_invalid.camp(59,9): error: 'delete shadow' is valid only inside an instance method declared directly in a shadow class.
-tests/Diagnostics/shadow_classes_stage3_invalid.camp(64,21): error: Cannot use init for shadow class 'BadDeleteShadow'. Use new instead so the compiler can install shadow data.

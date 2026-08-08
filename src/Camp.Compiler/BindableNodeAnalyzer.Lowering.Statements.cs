@@ -847,7 +847,7 @@ public sealed partial class BindableNodeAnalyzer
 			ResolvedType = "nuint"
 		});
 		Statement loopValueStatement = loopValue;
-		if (foreachStatement.IsStackAllocStorage)
+		if (foreachStatement.IsStackAllocStorage && !useLiftedState)
 		{
 			loopValue.InitialValue = new DefaultExpression { SourceSyntax = foreachStatement.SourceSyntax, ResolvedType = elementType };
 			statements.Add(loopValue);

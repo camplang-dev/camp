@@ -16,7 +16,7 @@ int read3(string path, byte a, byte b, byte c, int code)
 	FileHandle handle = FileHandle.open(path, FileAccess.READ, FileMode.OPEN_EXISTING, options, catch error);
 	if (error != default)
 		return code;
-	byte[] buffer = init byte[4];
+	byte[] buffer = stackalloc byte[4];
 	nuint readCount = 0;
 	handle.read(buffer, out readCount, catch error);
 	handle.close();
@@ -104,7 +104,7 @@ export int main()
 		return 20;
 	if (Env.getCurrentDirectory(buffer: default) != cwd.length)
 		return 21;
-	char[] cwdBuffer = init char[cwd.length + 1];
+	char[] cwdBuffer = stackalloc char[cwd.length + 1];
 	if (Env.getCurrentDirectory(buffer: cwdBuffer) != cwd.length || cwdBuffer[..cwd.length].compareTo(cwd) != 0)
 		return 22;
 	auto exe = Env.getExecutablePath();
@@ -122,7 +122,7 @@ export int main()
 	Env.setVariable("CAMP_STDLIB_ENV_TEST_VALUE", "abc", catch error);
 	if (error != default || Env.getVariable("CAMP_STDLIB_ENV_TEST_VALUE").compareTo("abc") != 0)
 		return 27;
-	char[] envBuffer = init char[4];
+	char[] envBuffer = stackalloc char[4];
 	if (Env.getVariable("CAMP_STDLIB_ENV_TEST_VALUE", buffer: envBuffer) != 3 || envBuffer[..3].compareTo("abc") != 0)
 		return 28;
 	if (!Env.removeVariable("CAMP_STDLIB_ENV_TEST_VALUE", catch error) || error != default)

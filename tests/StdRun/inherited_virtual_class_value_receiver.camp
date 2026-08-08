@@ -1,6 +1,6 @@
 export int main()
 {
-	auto stackValue = init Derived();
+	auto stackValue = Derived();
 	stackValue.touch();
 	if (stackValue.getCount() != 1)
 		return 1;

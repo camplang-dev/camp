@@ -80,7 +80,7 @@
             </Target>
             <InitialValue Type="LiteralExpression" Kind="Number" Text="7" Value="7" />
           </DeclarationStatement>
-          <ForeachStatement>
+          <ForeachStatement IsStackAllocStorage="True">
             <Target Type="DeclarationTarget">
               <Type Type="Int" />
               <Names>

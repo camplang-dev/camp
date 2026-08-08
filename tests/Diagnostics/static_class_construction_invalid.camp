@@ -8,6 +8,6 @@ static class Console
 export int main()
 {
 	new Console();
-	init Console();
+	Console();
 	return 0;
 }

@@ -37,7 +37,7 @@ char[] badScopedReturn()
 
 char[] badInstanceReturn()
 {
-	Buffer buffer = init Buffer();
+	Buffer buffer = Buffer();
 	return buffer.getItems();
 }
 

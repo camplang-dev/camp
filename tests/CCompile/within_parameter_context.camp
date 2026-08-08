@@ -8,7 +8,7 @@ int hasAllocator(within LocalAllocator* allocator) => allocator == null ? 0 : 1;
 
 export int main()
 {
-	LocalAllocator local = init LocalAllocator();
+	LocalAllocator local = LocalAllocator();
 	LocalAllocator* allocator = &local;
 	int total = 0;
 

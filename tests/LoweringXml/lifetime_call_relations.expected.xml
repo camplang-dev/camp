@@ -188,8 +188,8 @@
             </Attributes>
           </EffectiveThisParameter>
           <Parameters>
-            <ParameterDefinition Modifier="Out" Name="result" Symbol="result" ResolvedType="char*" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="scoped:default receiver:member" />
-            <ParameterDefinition Modifier="Out" Name="result_length" Symbol="result_length" ResolvedType="nuint" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="scoped:default receiver:member" />
+            <ParameterDefinition Modifier="Out" Name="result" Symbol="result" ResolvedType="char*" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="scoped:default parameter" />
+            <ParameterDefinition Modifier="Out" Name="result_length" Symbol="result_length" ResolvedType="nuint" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="scoped:default parameter" />
           </Parameters>
           <Body Type="BlockStatement" ResolvedType="void">
             <Statements>
@@ -197,7 +197,7 @@
                 <Statements>
                   <ExpressionStatement ResolvedType="void">
                     <Expression Type="AssignmentExpression" Operator="Assign" ResolvedType="char*">
-                      <Target Type="VariableReferenceExpression" Variable="result" ResolvedType="char*" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="scoped:default receiver:member" />
+                      <Target Type="VariableReferenceExpression" Variable="result" ResolvedType="char*" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="scoped:default parameter" />
                       <Value Type="MemberReferenceExpression" Name="items" Member="items" ResolvedType="char*">
                         <Target Type="ThisExpression" ResolvedType="const Buffer*" />
                       </Value>
@@ -205,7 +205,7 @@
                   </ExpressionStatement>
                   <ExpressionStatement ResolvedType="void">
                     <Expression Type="AssignmentExpression" Operator="Assign" ResolvedType="nuint">
-                      <Target Type="VariableReferenceExpression" Variable="result_length" ResolvedType="nuint" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="scoped:default receiver:member" />
+                      <Target Type="VariableReferenceExpression" Variable="result_length" ResolvedType="nuint" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="scoped:default parameter" />
                       <Value Type="MemberReferenceExpression" Name="items_length" Member="items_length" ResolvedType="nuint">
                         <Target Type="ThisExpression" ResolvedType="const Buffer*" />
                       </Value>

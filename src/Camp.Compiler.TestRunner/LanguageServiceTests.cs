@@ -796,7 +796,7 @@ public sealed class LanguageServiceTests
 
 		export int main()
 		{
-			Counter counter = init Counter();
+			Counter counter = Counter();
 			Box<Counter> boxed = default;
 			return helper(&counter, 2);
 		}
@@ -1162,7 +1162,7 @@ public sealed class LanguageServiceTests
 
 			export void main()
 			{
-				Env e = init Env();
+				Env e = Env();
 				e.hdc.selectObject((HPEN)0);
 			}
 			""";
@@ -1180,7 +1180,7 @@ public sealed class LanguageServiceTests
 
 			export void main()
 			{
-				Env e = init Env();
+				Env e = Env();
 				e.hdc.selectObject(
 			}
 			""";

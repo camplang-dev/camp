@@ -5,7 +5,7 @@ export int main()
 	if (!widened.specified || widened.value != 12)
 		return 1;
 
-	byte[] bytes = init byte[3];
+	byte[] bytes = stackalloc byte[3];
 	const byte[] readonlyBytes = bytes;
 	byte[] mutableAgain = (unsafe byte[])readonlyBytes;
 	mutableAgain[0] = 7;

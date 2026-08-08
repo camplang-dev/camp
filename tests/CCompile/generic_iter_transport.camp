@@ -9,7 +9,7 @@ struct iter int range(int first, int last)
 
 nuint countIterator<T: any>(iter T values, sizeof(T))
 {
-	T current = default;
+	stackalloc T current = default;
 	nuint count = 0;
 	while (values(&current))
 		count++;
@@ -27,7 +27,7 @@ class Collector<T: any>
 
 	void addEach(iter T values)
 	{
-		T current = default;
+		stackalloc T current = default;
 		while (values(&current))
 			this.count++;
 	}

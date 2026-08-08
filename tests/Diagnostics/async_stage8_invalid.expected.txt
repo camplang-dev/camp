@@ -1,1 +1,1 @@
-tests/Diagnostics/async_stage8_invalid.camp(4,18): error: Async bodies cannot use init array construction because declaration-scope storage cannot cross suspension; use fixed storage or new instead.
+tests/Diagnostics/async_stage8_invalid.camp(4,18): error: Async bodies cannot use stackalloc because stackalloc storage cannot cross suspension.

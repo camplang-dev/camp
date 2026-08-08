@@ -48,7 +48,7 @@ class Counter: ICounterReader
 
 export int main()
 {
-	const Date d = init Date();
+	const Date d = Date();
 	TextFormatter f = d.format;
 	auto test = new Test();
 	EscapedDelegate e1 = test.increment;

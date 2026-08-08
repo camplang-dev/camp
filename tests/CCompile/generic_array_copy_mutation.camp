@@ -33,7 +33,7 @@ void reverse<T: copyable>(T[] values, sizeof(T))
 	nuint right = values.length - 1;
 	while (left < right)
 	{
-		T temp = values[left];
+		stackalloc T temp = values[left];
 		values[left] = values[right];
 		values[right] = temp;
 		left++;
@@ -55,7 +55,7 @@ void sort<T: copyable>(
 
 		while (j > 0 && compare(values[j - 1], values[j]) > 0)
 		{
-			T temp = values[j - 1];
+			stackalloc T temp = values[j - 1];
 			values[j - 1] = values[j];
 			values[j] = temp;
 			j--;

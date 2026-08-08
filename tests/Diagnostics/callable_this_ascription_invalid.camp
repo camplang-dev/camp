@@ -54,9 +54,9 @@ escaped class ConstOnlyService
 
 int main()
 {
-	const PlainDate d = init PlainDate();
+	const PlainDate d = PlainDate();
 	ConstCallback cb1 = d.run;
-	Worker w = init Worker();
+	Worker w = Worker();
 	EscapedCallback cb2 = w.run;
 	return 0;
 }

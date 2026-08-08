@@ -71,7 +71,7 @@ public class List<T: copyable>
 	/// - at: The index of the item to replace.  If `at >= this.length`, the return value is `default`.
 	public T getItem(@index nuint at)
 	{
-		T result = default;
+			stackalloc T result = default;
 		if (at >= this.length)
 			return result;
 

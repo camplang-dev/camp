@@ -7,7 +7,7 @@ export int main()
 {
 	byte test = 127;
 	auto size = test.formatHex();
-	auto buffer = init char[size];
+	auto buffer = stackalloc char[size];
 	test.formatHex(buffer);
 
 	ByteFormatter formatter = test.formatHex;

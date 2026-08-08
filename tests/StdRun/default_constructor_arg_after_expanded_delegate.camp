@@ -23,7 +23,7 @@ fixed struct WriterHolder
 
 export int main()
 {
-	auto compact = init WriterHolder(writeChar);
-	auto tabs = init WriterHolder(writeChar, TABS);
+	auto compact = WriterHolder(writeChar);
+	auto tabs = WriterHolder(writeChar, TABS);
 	return compact.format == COMPACT && tabs.format == TABS ? 0 : 1;
 }

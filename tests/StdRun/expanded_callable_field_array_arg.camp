@@ -21,7 +21,7 @@ export int main()
 {
 	auto output = new List<char>() finally delete;
 	CharWriter writer = output.getCharWriter();
-	auto holder = init WriterHolder(writer);
+	auto holder = WriterHolder(writer);
 	holder.writeAll("b");
 	output.add('\0');
 	char[] buffer = output.takeBuffer() finally delete;

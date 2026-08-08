@@ -26,7 +26,7 @@ fixed struct WriterHolder
 export int main()
 {
 	CharWriter writer = { appendChar, null };
-	auto holder = init WriterHolder(writer);
+	auto holder = WriterHolder(writer);
 	holder.writeA();
 	return 0;
 }

@@ -33,7 +33,7 @@ int check(Formatter* formatter)
 	if (formatter.write(buffer: default) != 2)
 		return 3;
 
-	char[] storage = init char[2];
+	char[] storage = stackalloc char[2];
 	if (formatter.write(buffer: storage) != 2)
 		return 4;
 	if (storage.compareTo("42") != 0)

@@ -74,7 +74,7 @@ public void reverse<T: copyable>(T[] this, sizeof(T))
 	nuint right = this.length - 1;
 	while (left < right)
 	{
-		T temp = this[left];
+			stackalloc T temp = this[left];
 		this[left] = this[right];
 		this[right] = temp;
 		left++;
@@ -95,7 +95,7 @@ public void sort<T: copyable>(T[] this, delegate int(in T left, in T right) comp
 
 		while (j > 0 && compare(this[j - 1], this[j]) > 0)
 		{
-			T temp = this[j - 1];
+				stackalloc T temp = this[j - 1];
 			this[j - 1] = this[j];
 			this[j] = temp;
 			j--;

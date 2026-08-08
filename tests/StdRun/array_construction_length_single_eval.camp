@@ -15,7 +15,7 @@ export int main(string[] args)
 		return calls;
 	delete newBuffer;
 
-	char[] initBuffer = init char[nextLength()];
+	char[] initBuffer = stackalloc char[nextLength()];
 	if (calls != 2)
 		return calls;
 

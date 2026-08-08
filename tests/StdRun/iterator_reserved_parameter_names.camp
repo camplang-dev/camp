@@ -14,6 +14,6 @@ export void main()
 
 struct iter T iterate<T: copyable>(T[] this, sizeof(T))
 {
-	foreach (auto v in this)
+	foreach (stackalloc T v in this)
 		yield v;
 }

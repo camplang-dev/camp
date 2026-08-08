@@ -1,6 +1,6 @@
 struct iter byte[] badInit()
 {
-	byte[] scratch = init byte[4];
+	byte[] scratch = stackalloc byte[4];
 	yield scratch;
 }
 

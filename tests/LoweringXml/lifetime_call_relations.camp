@@ -42,7 +42,7 @@ void facts()
 	auto scopedAnchored = scopedTo(heap, heap);
 	auto unscopedAnchored = unscopedTo(heap, heap);
 
-	Buffer buffer = init Buffer();
+	Buffer buffer = Buffer();
 	buffer.setItems(heap);
 	auto items = buffer.getItems();
 

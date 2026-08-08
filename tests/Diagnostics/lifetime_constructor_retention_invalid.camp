@@ -24,7 +24,7 @@ struct Scratch
 View badConstructor()
 {
 	fixed char[16] local = "hello";
-	View view = init View(local[..]);
+	View view = View(local[..]);
 	return view;
 }
 
@@ -38,7 +38,7 @@ View badAggregate()
 View badLaterAssignmentDoesNotWiden()
 {
 	fixed char[16] local = "hello";
-	View view = init View(local[..]);
+	View view = View(local[..]);
 	view.text = getEscaped();
 	return view;
 }
@@ -46,6 +46,6 @@ View badLaterAssignmentDoesNotWiden()
 Scratch badConstructorBodyDoesNotWiden()
 {
 	fixed char[16] local = "hello";
-	Scratch scratch = init Scratch(local[..]);
+	Scratch scratch = Scratch(local[..]);
 	return scratch;
 }

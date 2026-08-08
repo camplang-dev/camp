@@ -5,6 +5,6 @@ extern class Box<T: any>
 
 export int main()
 {
-	Box<const char[]> value = init Box<const char[]>();
+	Box<const char[]> value = default;
 	return 0;
 }

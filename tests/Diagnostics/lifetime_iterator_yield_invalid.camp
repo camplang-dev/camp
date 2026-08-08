@@ -5,7 +5,7 @@ struct iter const char[] badParameter(char[] text)
 
 struct iter const char[] badLocal()
 {
-	char[] local = init char[16];
+	char[] local = stackalloc char[16];
 	yield local;
 }
 

@@ -29,13 +29,13 @@ class Box
 
 View makeView(const char[] input)
 {
-	View view = init View(input);
+	View view = View(input);
 	return view;
 }
 
 Scratch makeScratch(const char[] input)
 {
-	Scratch scratch = init Scratch(input);
+	Scratch scratch = Scratch(input);
 	return scratch;
 }
 

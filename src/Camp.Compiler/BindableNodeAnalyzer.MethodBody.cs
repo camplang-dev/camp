@@ -853,7 +853,10 @@ public sealed partial class BindableNodeAnalyzer
 	bool TryGetErasedGenericValueParameter(BodyScope scope, string? type, out GenericParameter? parameter)
 	{
 		parameter = null;
-		string name = BaseTypeName(StripTopLevelValueQualifiers(type ?? ""));
+		string normalized = StripTopLevelValueQualifiers(type ?? "");
+		if (!TryParseTypeShape(normalized, out TypeShape shape) || shape.Kind != TypeShapeKind.Named)
+			return false;
+		string name = shape.Name;
 		if (string.IsNullOrWhiteSpace(name))
 			return false;
 		parameter = FindBodyGenericParameter(scope, name);
@@ -3364,6 +3367,7 @@ public sealed partial class BindableNodeAnalyzer
 
 		constructionType = BodyAnalyzeConstructionExpression(construction, scope, typeScope, targetType);
 		construction.ResolvedType = constructionType;
+		ApplyExpressionLifetimeFact(construction, constructionType, scope, typeScope);
 		expressionRewrites[call] = construction;
 		return true;
 	}
@@ -3372,6 +3376,16 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		constructedType = null;
 		displayName = "";
+		if (call.Target is TypeReferenceExpression typeReferenceExpression)
+		{
+			constructedType = typeReferenceExpression.Type;
+			if (constructedType is null)
+				return false;
+			AnalyzeType(constructedType, typeScope);
+			displayName = FormatTypeReference(constructedType);
+			return !string.IsNullOrWhiteSpace(constructedType.ResolvedType) && constructedType.ResolvedType != ErrorType;
+		}
+
 		if (call.Target is not NamedExpression named)
 			return false;
 

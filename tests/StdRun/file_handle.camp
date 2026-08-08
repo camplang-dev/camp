@@ -20,7 +20,7 @@ export int main()
 	if (readerHandle.getLength(catch error) != 3 || error != default)
 		return 5;
 	
-	byte[] buffer = init byte[4];
+	byte[] buffer = stackalloc byte[4];
 	nuint readCount = 0;
 	readerHandle.read(buffer, out readCount, catch error);
 	if (error != default)

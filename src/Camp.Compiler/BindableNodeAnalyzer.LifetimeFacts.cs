@@ -235,6 +235,12 @@ public sealed partial class BindableNodeAnalyzer
 		string? name = declaration.Target.Names.Count == 1 ? declaration.Target.Names[0] : null;
 		string? slotFact = CreateDeclarationSlotLifetimeFact(name, declaration.Target.Type, declaration.Target.ResolvedType, declaration.IsFixedStorage, typeScope);
 		string? initialValueFact = GetExpressionLifetimeFact(declaration.InitialValue);
+		if (declaration.InitialValue is not null
+			&& expressionRewrites.TryGetValue(declaration.InitialValue, out Expression? rewrittenInitialValue)
+			&& !ReferenceEquals(rewrittenInitialValue, declaration.InitialValue))
+		{
+			initialValueFact = GetExpressionLifetimeFact(rewrittenInitialValue);
+		}
 		if (declaration.IsStackAllocStorage && !string.IsNullOrWhiteSpace(name))
 			initialValueFact = MakeLifetimeFact("scoped", name, "stackalloc slot");
 		else if (initialValueFact is not null
@@ -256,6 +262,14 @@ public sealed partial class BindableNodeAnalyzer
 
 	void ApplyExpressionLifetimeFact(Expression expression, string resolvedType, BodyScope scope, AnalysisScope typeScope)
 	{
+		if (expressionRewrites.TryGetValue(expression, out Expression? rewritten)
+			&& !ReferenceEquals(rewritten, expression))
+		{
+			if (GetExpressionLifetimeFact(rewritten) is string rewrittenFact)
+				expression.ValueLifetimeFact = rewrittenFact;
+			return;
+		}
+
 		string? fact = expression switch
 		{
 			VariableReferenceExpression variable => GetStorageValueLifetimeFact(variable.Variable),
@@ -558,6 +572,9 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (callTargets.TryGetValue(call, out FunctionDefinition? function))
 		{
+			if (function.Modifier == FunctionModifier.Constructor || function.Name == InitNewMethodName)
+				return GetConstructorCallLifetimeFact(call, resolvedType, scope);
+
 			LifetimeFact template = GetReturnLifetimeTemplate(function, resolvedType);
 			List<ParameterDefinition> callableParameters = GetCallableParameters(function.Parameters, IncludeExplicitThisArgument(call.Target, function));
 			LifetimeCallContext context = BuildLifetimeCallContext(function, call.Target, callableParameters, ZipCallArguments(call.Arguments, callableParameters), substitutions: null, scope);
@@ -565,6 +582,30 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		return MakeLifetimeFact("unknown", null, "call");
+	}
+
+	string? GetConstructorCallLifetimeFact(CallExpression call, string resolvedType, BodyScope scope)
+	{
+		if (!IsLifetimePointerBearingResolvedType(resolvedType, scope))
+			return null;
+
+		List<LifetimeFact> retainedFacts = [];
+		foreach (ArgumentExpression argument in call.Arguments)
+		{
+			if (argument.Value is null)
+				continue;
+			if (argument.Value is UnaryExpression { Operator: UnaryOperator.AddressOf })
+				continue;
+			if (!IsLifetimePointerBearingResolvedType(argument.Value.ResolvedType ?? argument.ResolvedType ?? ErrorType, scope)
+				&& GetExpressionLifetimeFact(argument.Value) is null)
+				continue;
+			if (TryParseLifetimeFact(GetExpressionLifetimeFact(argument.Value), out LifetimeFact argumentFact))
+				retainedFacts.Add(argumentFact);
+		}
+
+		return CombineRetainedLifetimeFacts(retainedFacts) is LifetimeFact retained
+			? FormatLifetimeFact(new LifetimeFact(retained.Kind, retained.Anchors, "init"))
+			: null;
 	}
 
 	static List<(ArgumentExpression Argument, ParameterDefinition Parameter)> ZipCallArguments(List<ArgumentExpression> arguments, List<ParameterDefinition> parameters)
@@ -1154,6 +1195,8 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (IsStackAllocLifetimeFact(valueFact))
 		{
+			if (TryGetErasedGenericValueParameter(scope, value?.ResolvedType, out _))
+				return;
 			Report(GetRange(syntax), $"{context} cannot return stackalloc-backed storage.");
 			return;
 		}

@@ -56,5 +56,5 @@ class Utility
 void useStaticClass()
 {
 	new Console();
-	init Console();
+	Console();
 }

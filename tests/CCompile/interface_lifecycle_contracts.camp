@@ -50,7 +50,7 @@ int main()
 		ManagedClass* managed = new ManagedClass();
 		delete managed;
 
-		ManagedStruct local = init ManagedStruct();
+		ManagedStruct local = ManagedStruct();
 		delete local;
 	}
 	return 0;

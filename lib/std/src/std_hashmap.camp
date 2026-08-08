@@ -96,7 +96,7 @@ public class HashMap<K: copyable, V: copyable>
 	/// Returns the value for a key, or `default` when the key is absent.
 	public V getItem(const this, in K key)
 	{
-		V value = default;
+			stackalloc V value = default;
 		this.tryGet(key, out value);
 		return value;
 	}

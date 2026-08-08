@@ -18,7 +18,7 @@ fixed struct WriterHolder
 export int main()
 {
 	auto output = new List<char>() finally delete;
-	auto holder = init WriterHolder(output.getCharWriter());
+	auto holder = WriterHolder(output.getCharWriter());
 	holder.write();
 	output.add('\0');
 	char[] buffer = output.takeBuffer() finally delete;

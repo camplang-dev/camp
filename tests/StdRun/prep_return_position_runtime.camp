@@ -9,7 +9,7 @@ export void main()
 
 	Console.writeLine(writeValue(buffer: default).toString());
 
-	char[] storage = init char[1];
+	char[] storage = stackalloc char[1];
 	Console.writeLine(writeValue(buffer: storage).toString());
 	Console.writeLine(storage);
 

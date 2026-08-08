@@ -1,11 +1,11 @@
 char[] badFixed()
 {
-	auto buffer = init char[16];
+	auto buffer = stackalloc char[16];
 	return buffer;
 }
 
 char[] badDynamic(nuint size)
 {
-	auto buffer = init char[size];
+	auto buffer = stackalloc char[size];
 	return buffer;
 }
