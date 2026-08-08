@@ -1,0 +1,5 @@
+exit: 0
+1
+17
+sum=17
+value: sum=17

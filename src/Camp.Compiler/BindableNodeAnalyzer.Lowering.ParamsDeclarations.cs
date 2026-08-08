@@ -912,7 +912,7 @@ public sealed partial class BindableNodeAnalyzer
 			&& shape.Kind == ParamsComponentShapeKind.Array
 			&& shape.Components.Count == 2)
 		{
-			values.Add(construction.Kind == ConstructionKind.Init
+			values.Add(construction.Kind is ConstructionKind.Init or ConstructionKind.StackAlloc
 				? CreateStackAllocCall(construction.Type, construction.SourceSyntax, construction.ElementCount)
 				: CreateAllocCall(
 					construction.Type,

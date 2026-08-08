@@ -289,9 +289,39 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			ConstructionKind.New => CreateNewExpression(definition, construction.Type, construction.Arguments, construction.SourceSyntax, construction.ResolvedType, constructorTarget, construction.Initializer),
 			ConstructionKind.Selected => CreateSelectedConstructionTemporary(definition, construction, constructorTarget),
+			ConstructionKind.StackAlloc => CreateStackAllocConstructionExpression(definition, construction, constructorTarget),
 			ConstructionKind.Init => (Expression?)CreateInitCallForConstruction(construction, target: null, constructorTarget) ?? construction,
 			_ => construction
 		};
+	}
+
+	Expression CreateStackAllocConstructionExpression(TypeDefinition definition, ConstructionExpression construction, FunctionDefinition? constructorTarget)
+	{
+		string constructedType = construction.Type?.ResolvedType
+			?? (construction.ResolvedType?.EndsWith("*", StringComparison.Ordinal) == true ? construction.ResolvedType[..^1] : construction.ResolvedType)
+			?? definition.Name;
+		string pointerType = AddPointer(constructedType);
+		TypeReference typeReference = construction.Type ?? TypeReferenceFor(definition);
+		string localName = NewGeneratedLocalName("stack");
+		Expression allocation = CreateStackAllocCall(typeReference, construction.SourceSyntax);
+		DeclarationStatement pointerLocal = CreateGeneratedLocal(localName, pointerType, PointerTo(CloneType(typeReference) ?? TypeReferenceFor(definition)), allocation);
+		Expression pointerReference = CreateVariableReference(pointerLocal.Target, pointerType);
+
+		if (currentStatementPrefix is null)
+		{
+			GroupedExpression grouped = new() { SourceSyntax = construction.SourceSyntax, ResolvedType = pointerType };
+			grouped.Items.Add(new GroupedExpressionItem { Expression = allocation, ResolvedType = pointerType });
+			return grouped;
+		}
+
+		currentStatementPrefix.Add(pointerLocal);
+		if (CreateVirtualTableAssignment(pointerReference, definition) is Expression vtableAssignment)
+			currentStatementPrefix.Add(new ExpressionStatement { SourceSyntax = construction.SourceSyntax, Expression = vtableAssignment, ResolvedType = vtableAssignment.ResolvedType ?? "void" });
+		if (CreateInitCallForConstruction(construction, pointerReference, constructorTarget) is CallExpression initCall)
+			currentStatementPrefix.Add(new ExpressionStatement { SourceSyntax = construction.SourceSyntax, Expression = initCall, ResolvedType = "void" });
+		foreach (Expression assignment in CreateTrailingInitializerAssignments(pointerReference, construction.Initializer, definition, construction.SourceSyntax))
+			currentStatementPrefix.Add(new ExpressionStatement { SourceSyntax = assignment.SourceSyntax ?? construction.SourceSyntax, Expression = assignment, ResolvedType = assignment.ResolvedType ?? "void" });
+		return pointerReference;
 	}
 
 	Expression CreateSelectedConstructionTemporary(TypeDefinition definition, ConstructionExpression construction, FunctionDefinition? constructorTarget)
@@ -1336,7 +1366,7 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			Name = "elements",
 			ResolvedType = $"{elementType.ResolvedType}*",
-			Expression = kind == ConstructionKind.Init
+			Expression = kind is ConstructionKind.Init or ConstructionKind.StackAlloc
 				? CreateStackAllocCall(elementType, syntax, length)
 				: CreateAllocCall(elementType, CurrentAllocator(), syntax, length)
 		});

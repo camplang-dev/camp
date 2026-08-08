@@ -1,0 +1,51 @@
+using Std;
+
+int lengthCalls = 0;
+
+nuint nextLength()
+{
+	lengthCalls++;
+	return 4;
+}
+
+class Counter
+{
+	int value;
+
+	Counter(int value)
+	{
+		this.value = value;
+	}
+
+	int getValue()
+	{
+		return this.value;
+	}
+}
+
+prep char[] label(int value)
+{
+	auto need = "sum=".toString(buffer);
+	need += value.toString(buffer[need..]);
+	return need;
+}
+
+export int main()
+{
+	int[] values = stackalloc int[nextLength()];
+	values[0] = 2;
+	values[1] = 3;
+	values[2] = 5;
+	values[3] = 7;
+	int sum = values[0] + values[1] + values[2] + values[3];
+
+	Counter* counter = stackalloc Counter(sum);
+	auto text = (stackalloc) label(sum);
+	auto line = stackalloc $"value: {text}";
+
+	Console.writeLine(lengthCalls);
+	Console.writeLine(counter.getValue());
+	Console.writeLine(text);
+	Console.writeLine(line);
+	return 0;
+}
