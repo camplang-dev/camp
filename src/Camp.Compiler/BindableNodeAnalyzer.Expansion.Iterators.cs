@@ -132,66 +132,229 @@ public sealed partial class BindableNodeAnalyzer
 	void ValidateIteratorGeneratorSourceBody(FunctionDefinition function)
 	{
 		bool hasYield = false;
+		IteratorStackAllocAssignmentState stackAllocState = new();
 		foreach (Statement statement in function.Body?.Statements ?? [])
-			ValidateIteratorGeneratorSourceStatement(function, statement, ref hasYield);
+			ValidateIteratorGeneratorSourceStatement(function, statement, ref hasYield, stackAllocState);
 
 		if (!hasYield)
 			Report(GetRange(function.Body?.SourceSyntax ?? function.SourceSyntax), "Iterator generator body must contain a yield statement or 'yield break;'.");
 	}
 
-	void ValidateIteratorGeneratorSourceStatement(FunctionDefinition function, Statement? statement, ref bool hasYield)
+	void ValidateIteratorGeneratorSourceStatement(FunctionDefinition function, Statement? statement, ref bool hasYield, IteratorStackAllocAssignmentState stackAllocState)
 	{
 		switch (statement)
 		{
 			case null:
 				return;
 			case BlockStatement block:
+			{
+				IteratorStackAllocAssignmentState blockState = stackAllocState.Clone();
 				foreach (Statement child in block.Statements)
-					ValidateIteratorGeneratorSourceStatement(function, child, ref hasYield);
+					ValidateIteratorGeneratorSourceStatement(function, child, ref hasYield, blockState);
+				break;
+			}
+			case DeclarationStatement declaration:
+				ValidateIteratorGeneratorSourceExpression(declaration.InitialValue, stackAllocState);
+				if (declaration.IsStackAllocStorage)
+				{
+					foreach (string name in declaration.Target.Names)
+						stackAllocState.TrackAssigned(name);
+				}
+				break;
+			case ExpressionStatement expressionStatement:
+				ValidateIteratorGeneratorSourceExpressionStatement(expressionStatement, stackAllocState);
 				break;
 			case IfStatement ifStatement:
-				ValidateIteratorGeneratorSourceStatement(function, ifStatement.Body, ref hasYield);
-				ValidateIteratorGeneratorSourceStatement(function, ifStatement.ElseBody, ref hasYield);
+			{
+				ValidateIteratorGeneratorSourceExpression(ifStatement.Condition, stackAllocState);
+				IteratorStackAllocAssignmentState thenState = stackAllocState.Clone();
+				IteratorStackAllocAssignmentState elseState = stackAllocState.Clone();
+				ValidateIteratorGeneratorSourceStatement(function, ifStatement.Body, ref hasYield, thenState);
+				ValidateIteratorGeneratorSourceStatement(function, ifStatement.ElseBody, ref hasYield, elseState);
+				stackAllocState.MergeConditional(thenState, elseState);
 				break;
+			}
 			case WhileStatement whileStatement:
-				ValidateIteratorGeneratorSourceStatement(function, whileStatement.Body, ref hasYield);
+			{
+				ValidateIteratorGeneratorSourceExpression(whileStatement.Condition, stackAllocState);
+				IteratorStackAllocAssignmentState bodyState = stackAllocState.Clone();
+				ValidateIteratorGeneratorSourceStatement(function, whileStatement.Body, ref hasYield, bodyState);
+				stackAllocState.MergePossibleLoopBody(bodyState);
 				break;
+			}
 			case DoWhileStatement doWhile:
-				ValidateIteratorGeneratorSourceStatement(function, doWhile.Body, ref hasYield);
+			{
+				IteratorStackAllocAssignmentState bodyState = stackAllocState.Clone();
+				ValidateIteratorGeneratorSourceStatement(function, doWhile.Body, ref hasYield, bodyState);
+				ValidateIteratorGeneratorSourceExpression(doWhile.Condition, bodyState);
+				stackAllocState.MergePossibleLoopBody(bodyState);
 				break;
+			}
 			case ForStatement forStatement:
-				ValidateIteratorGeneratorSourceStatement(function, forStatement.Body, ref hasYield);
+			{
+				IteratorStackAllocAssignmentState forState = stackAllocState.Clone();
+				if (forStatement.Condition.Declaration is not null)
+					ValidateIteratorGeneratorSourceStatement(function, forStatement.Condition.Declaration, ref hasYield, forState);
+				foreach (Expression? clause in forStatement.Condition.Clauses)
+					ValidateIteratorGeneratorSourceExpression(clause, forState);
+				IteratorStackAllocAssignmentState bodyState = forState.Clone();
+				ValidateIteratorGeneratorSourceStatement(function, forStatement.Body, ref hasYield, bodyState);
+				stackAllocState.MergePossibleLoopBody(bodyState);
 				break;
+			}
 			case ForeachStatement foreachStatement:
-				ValidateIteratorGeneratorSourceStatement(function, foreachStatement.Body, ref hasYield);
+			{
+				ValidateIteratorGeneratorSourceExpression(foreachStatement.Source, stackAllocState);
+				IteratorStackAllocAssignmentState foreachState = stackAllocState.Clone();
+				if (foreachStatement.IsStackAllocStorage)
+				{
+					foreach (string name in foreachStatement.Target.Names)
+						foreachState.TrackAssigned(name);
+				}
+				ValidateIteratorGeneratorSourceStatement(function, foreachStatement.Body, ref hasYield, foreachState);
 				break;
+			}
 			case SwitchStatement switchStatement:
+				ValidateIteratorGeneratorSourceExpression(switchStatement.Expression, stackAllocState);
 				foreach (Statement child in switchStatement.Statements)
-					ValidateIteratorGeneratorSourceStatement(function, child, ref hasYield);
+					ValidateIteratorGeneratorSourceStatement(function, child, ref hasYield, stackAllocState);
+				break;
+			case CaseStatement caseStatement:
+				ValidateIteratorGeneratorSourceExpression(caseStatement.Expression, stackAllocState);
 				break;
 			case ReturnStatement returnStatement:
 				Report(GetRange(returnStatement.SourceSyntax), "Return statements are not valid in iterator generators; use 'yield break;' to end the iterator.");
 				break;
+			case DeleteStatement deleteStatement:
+				ValidateIteratorGeneratorSourceExpression(deleteStatement.Expression, stackAllocState);
+				break;
 			case YieldStatement yieldStatement:
 				hasYield = true;
+				ValidateIteratorGeneratorSourceExpression(yieldStatement.Expression, stackAllocState);
 				if (!yieldStatement.IsBreak && yieldStatement.Expression is null)
 					Report(GetRange(yieldStatement.SourceSyntax), "Yield statement must yield a value or use 'yield break;'.");
+				stackAllocState.MarkSuspended();
 				break;
 			case TryStatement tryStatement:
-				ValidateIteratorGeneratorSourceStatement(function, tryStatement.Body, ref hasYield);
+				ValidateIteratorGeneratorSourceStatement(function, tryStatement.Body, ref hasYield, stackAllocState);
 				foreach (CatchStatement catchStatement in tryStatement.Catches)
-					ValidateIteratorGeneratorSourceStatement(function, catchStatement, ref hasYield);
-				ValidateIteratorGeneratorSourceStatement(function, tryStatement.Finally, ref hasYield);
+					ValidateIteratorGeneratorSourceStatement(function, catchStatement, ref hasYield, stackAllocState);
+				ValidateIteratorGeneratorSourceStatement(function, tryStatement.Finally, ref hasYield, stackAllocState);
 				break;
 			case CatchStatement catchStatement:
-				ValidateIteratorGeneratorSourceStatement(function, catchStatement.Body, ref hasYield);
+				ValidateIteratorGeneratorSourceStatement(function, catchStatement.Body, ref hasYield, stackAllocState);
 				break;
 			case FinallyStatement finallyStatement:
-				ValidateIteratorGeneratorSourceStatement(function, finallyStatement.Body, ref hasYield);
+				ValidateIteratorGeneratorSourceStatement(function, finallyStatement.Body, ref hasYield, stackAllocState);
 				break;
 			case WithinStatement withinStatement:
-				ValidateIteratorGeneratorSourceStatement(function, withinStatement.Body, ref hasYield);
+				ValidateIteratorGeneratorSourceExpression(withinStatement.Allocator, stackAllocState);
+				ValidateIteratorGeneratorSourceStatement(function, withinStatement.Body, ref hasYield, stackAllocState);
 				break;
+		}
+	}
+
+	void ValidateIteratorGeneratorSourceExpressionStatement(ExpressionStatement statement, IteratorStackAllocAssignmentState stackAllocState)
+	{
+		if (statement.Expression is AssignmentExpression assignment)
+		{
+			ValidateIteratorGeneratorSourceExpression(assignment.Value, stackAllocState);
+			if (assignment.Operator == AssignmentOperator.Assign && TryGetSimpleAssignedName(assignment.Target, out string? assignedName) && assignedName is not null)
+			{
+				stackAllocState.MarkAssigned(assignedName);
+			}
+			else
+			{
+				ValidateIteratorGeneratorSourceExpression(assignment.Target, stackAllocState);
+			}
+			return;
+		}
+
+		ValidateIteratorGeneratorSourceExpression(statement.Expression, stackAllocState);
+	}
+
+	void ValidateIteratorGeneratorSourceExpression(Expression? expression, IteratorStackAllocAssignmentState stackAllocState)
+	{
+		stackAllocState.ReportIfUnassigned(this, expression);
+	}
+
+	static bool TryGetSimpleAssignedName(Expression? expression, out string? name)
+	{
+		name = expression switch
+		{
+			NamedExpression named when named.Qualifiers.Count == 0 => named.Name,
+			VariableReferenceExpression variable => GetReferenceName(variable.Variable),
+			ParenthesizedExpression parenthesized => TryGetSimpleAssignedName(parenthesized.Expression, out string? parenthesizedName) ? parenthesizedName : null,
+			_ => null
+		};
+		return !string.IsNullOrWhiteSpace(name);
+	}
+
+	sealed class IteratorStackAllocAssignmentState
+	{
+		readonly HashSet<string> tracked = new(StringComparer.Ordinal);
+		readonly HashSet<string> unassigned = new(StringComparer.Ordinal);
+
+		public IteratorStackAllocAssignmentState()
+		{
+		}
+
+		IteratorStackAllocAssignmentState(HashSet<string> tracked, HashSet<string> unassigned)
+		{
+			this.tracked.UnionWith(tracked);
+			this.unassigned.UnionWith(unassigned);
+		}
+
+		public IteratorStackAllocAssignmentState Clone()
+		{
+			return new IteratorStackAllocAssignmentState(tracked, unassigned);
+		}
+
+		public void TrackAssigned(string name)
+		{
+			if (name == "_")
+				return;
+			tracked.Add(name);
+			unassigned.Remove(name);
+		}
+
+		public void MarkAssigned(string name)
+		{
+			if (tracked.Contains(name))
+				unassigned.Remove(name);
+		}
+
+		public void MarkSuspended()
+		{
+			unassigned.UnionWith(tracked);
+		}
+
+		public void MergeConditional(IteratorStackAllocAssignmentState thenState, IteratorStackAllocAssignmentState elseState)
+		{
+			tracked.UnionWith(thenState.tracked);
+			tracked.UnionWith(elseState.tracked);
+			unassigned.UnionWith(thenState.unassigned);
+			unassigned.UnionWith(elseState.unassigned);
+		}
+
+		public void MergePossibleLoopBody(IteratorStackAllocAssignmentState bodyState)
+		{
+			tracked.UnionWith(bodyState.tracked);
+			unassigned.UnionWith(bodyState.unassigned);
+		}
+
+		public void ReportIfUnassigned(BindableNodeAnalyzer analyzer, Expression? expression)
+		{
+			if (expression is null || unassigned.Count == 0)
+				return;
+			foreach (string name in unassigned)
+			{
+				if (ReferencesAnyName(expression, new HashSet<string>([name], StringComparer.Ordinal)))
+				{
+					analyzer.Report(GetRange(expression.SourceSyntax), $"Stackalloc value '{name}' is unassigned after suspension; assign it before reading it again.");
+					return;
+				}
+			}
 		}
 	}
 
@@ -516,19 +679,6 @@ public sealed partial class BindableNodeAnalyzer
 					Type = NuintType(),
 					ResolvedType = "nuint"
 				});
-				if (!string.IsNullOrWhiteSpace(fields.CurrentFieldName)
-					&& foreachStatement.Target.Names.Count == 1
-					&& foreachStatement.Target.Names[0] != "_")
-				{
-					AddIteratorField(state, new FieldDefinition
-					{
-						SourceSyntax = foreachStatement.SourceSyntax,
-						Name = fields.CurrentFieldName,
-						Symbol = fields.CurrentFieldName,
-						Type = PointerTo(TypeReferenceForResolvedName(fields.ElementType, foreachStatement.Target.SourceSyntax ?? foreachStatement.SourceSyntax)),
-						ResolvedType = AddPointer(fields.ElementType)
-					}, foreachStatement.Target.Names[0]);
-				}
 				continue;
 			}
 			if (fields is { IsProtocol: true, ContextFieldName: not null })
@@ -542,11 +692,6 @@ public sealed partial class BindableNodeAnalyzer
 					ResolvedType = "void*"
 				});
 			}
-			string? currentSourceName = foreachStatement.IsStackAllocStorage
-				&& foreachStatement.Target.Names.Count == 1
-				&& foreachStatement.Target.Names[0] != "_"
-				? foreachStatement.Target.Names[0]
-				: null;
 			AddIteratorField(state, new FieldDefinition
 			{
 				SourceSyntax = foreachStatement.SourceSyntax,
@@ -554,7 +699,7 @@ public sealed partial class BindableNodeAnalyzer
 				Symbol = fields.CurrentFieldName,
 				Type = TypeReferenceForResolvedName(fields.ElementType, foreachStatement.Target.SourceSyntax ?? foreachStatement.SourceSyntax),
 				ResolvedType = fields.ElementType
-			}, currentSourceName);
+			});
 		}
 	}
 
@@ -630,16 +775,10 @@ public sealed partial class BindableNodeAnalyzer
 		if (TryGetArrayElementType(arraySourceType) is string arrayElementType)
 		{
 			int arrayIndex = iteratorForeachStateIndex++;
-			string currentFieldName = foreachStatement.IsStackAllocStorage
-				&& foreachStatement.Target.Names.Count == 1
-				&& foreachStatement.Target.Names[0] != "_"
-				? $"__foreachCurrent{arrayIndex}"
-				: "";
 			fields = IteratorForeachStateFields.ForArray(
 				$"__foreachElements{arrayIndex}",
 				$"__foreachLength{arrayIndex}",
 				$"__foreachIndex{arrayIndex}",
-				currentFieldName,
 				AddPointer(arrayElementType),
 				arrayElementType);
 			return true;
@@ -1296,7 +1435,7 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			List<Statement> rewrittenStatements = RewriteIteratorBodyStatements(function.Body, lowering);
 			BlockStatement body = new() { ResolvedType = "void" };
-			body.Statements.AddRange(CreateIteratorStackAllocForeachStorageRefresh(function));
+			body.Statements.AddRange(CreateIteratorProtocolForeachCurrentStorage(function));
 			body.Statements.AddRange(lowering.CreateResumeDispatch());
 			foreach (Statement statement in rewrittenStatements)
 				body.Statements.Add(statement);
@@ -1309,64 +1448,30 @@ public sealed partial class BindableNodeAnalyzer
 		}
 	}
 
-	List<Statement> CreateIteratorStackAllocForeachStorageRefresh(FunctionDefinition function)
+	List<Statement> CreateIteratorProtocolForeachCurrentStorage(FunctionDefinition function)
 	{
 		List<Statement> statements = [];
 		foreach (IteratorForeachStateFields fields in GetIteratorForeachStateFields(function))
 		{
-			if (string.IsNullOrWhiteSpace(fields.CurrentFieldName))
+			if (!fields.IsProtocol || string.IsNullOrWhiteSpace(fields.CurrentFieldName) || !IsIteratorGenericType(function, fields.ElementType))
 				continue;
+
 			TypeReference elementType = IteratorElementTypeReference(function, fields.ElementType);
 			statements.Add(CreateAssignmentStatement(
 				ThisMemberReference(fields.CurrentFieldName, AddPointer(fields.ElementType)),
 				CreateStackAllocCall(elementType, null),
 				AddPointer(fields.ElementType),
 				null));
-			if (fields is { IsArray: true, IndexFieldName: not null })
-			{
-				statements.Add(new IfStatement
-				{
-					ResolvedType = "void",
-					Condition = new BinaryExpression
-					{
-						Left = new BinaryExpression
-						{
-							Left = ThisMemberReference(IteratorStateFieldName, "int"),
-							Operator = BinaryOperator.NotEqual,
-							Right = NumberLiteral("0", "int"),
-							ResolvedType = "bool"
-						},
-						Operator = BinaryOperator.LogicalAnd,
-						Right = new BinaryExpression
-						{
-							Left = ThisMemberReference(IteratorStateFieldName, "int"),
-							Operator = BinaryOperator.NotEqual,
-							Right = NumberLiteral("-1", "int"),
-							ResolvedType = "bool"
-						},
-						ResolvedType = "bool"
-					},
-					Body = CreateAssignmentStatement(
-						ThisMemberReference(fields.CurrentFieldName, fields.ElementType),
-						new IndexExpression
-						{
-							Target = ThisMemberReference(fields.IteratorFieldName, fields.IteratorType),
-							ResolvedType = fields.ElementType,
-							Arguments =
-							{
-								new ArgumentExpression
-								{
-									Value = ThisMemberReference(fields.IndexFieldName, "nuint"),
-									ResolvedType = "nuint"
-								}
-							}
-						},
-						fields.ElementType,
-						null)
-				});
-			}
 		}
 		return statements;
+	}
+
+	static bool IsIteratorGenericType(FunctionDefinition function, string type)
+	{
+		foreach (GenericParameter parameter in function.GenericParameters)
+			if (parameter.Name == type)
+				return true;
+		return false;
 	}
 
 	static TypeReference IteratorElementTypeReference(FunctionDefinition function, string elementType)
@@ -1573,8 +1678,12 @@ public sealed partial class BindableNodeAnalyzer
 				return ReferencesAnyName(cast.Expression, names);
 			case UnaryExpression unary:
 				return ReferencesAnyName(unary.Operand, names);
+			case PostfixUpdateExpression update:
+				return ReferencesAnyName(update.Expression, names);
 			case BinaryExpression binary:
 				return ReferencesAnyName(binary.Left, names) || ReferencesAnyName(binary.Right, names);
+			case RangeExpression range:
+				return ReferencesAnyName(range.Start, names) || ReferencesAnyName(range.End, names);
 			case ConditionalExpression conditional:
 				return ReferencesAnyName(conditional.Condition, names)
 					|| ReferencesAnyName(conditional.WhenTrue, names)
@@ -2215,9 +2324,9 @@ public sealed partial class BindableNodeAnalyzer
 		public string? IndexFieldName { get; init; }
 		public string? ContextFieldName { get; init; }
 
-		public static IteratorForeachStateFields ForArray(string elementsFieldName, string lengthFieldName, string indexFieldName, string currentFieldName, string elementPointerType, string elementType)
+		public static IteratorForeachStateFields ForArray(string elementsFieldName, string lengthFieldName, string indexFieldName, string elementPointerType, string elementType)
 		{
-			return new IteratorForeachStateFields(elementsFieldName, currentFieldName, elementPointerType, elementType)
+			return new IteratorForeachStateFields(elementsFieldName, "", elementPointerType, elementType)
 			{
 				IsArray = true,
 				LengthFieldName = lengthFieldName,
@@ -2265,20 +2374,6 @@ public sealed partial class BindableNodeAnalyzer
 				foreach (string name in declaration.Target.Names)
 					if (name != "_")
 						liftedTypes[name] = declaration.Target.ResolvedType ?? declaration.Target.Type?.ResolvedType ?? FormatTypeReference(declaration.Target.Type);
-			}
-			foreach (ForeachStatement foreachStatement in analyzer.EnumerateIteratorForeachStatements(function.Body))
-			{
-				if (!analyzer.iteratorForeachStates.TryGetValue(foreachStatement, out IteratorForeachStateFields? fields)
-					|| string.IsNullOrWhiteSpace(fields.CurrentFieldName)
-					|| !foreachStatement.IsStackAllocStorage
-					|| foreachStatement.Target.Names.Count != 1)
-				{
-					continue;
-				}
-
-				string name = foreachStatement.Target.Names[0];
-				if (name != "_")
-					liftedTypes[name] = fields.ElementType;
 			}
 		}
 

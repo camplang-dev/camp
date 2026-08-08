@@ -1,0 +1,25 @@
+using Std;
+
+struct iter T duplicateForeach<T: copyable>(T[] values, sizeof(T))
+{
+	foreach (stackalloc T item in values)
+	{
+		yield item;
+		yield item;
+	}
+}
+
+struct iter T duplicateLocal<T: copyable>(T[] values, sizeof(T))
+{
+	stackalloc T current = values[0];
+	yield current;
+	yield current;
+}
+
+struct iter T assignBeforeReuse<T: copyable>(T[] values, sizeof(T))
+{
+	stackalloc T current = values[0];
+	yield current;
+	current = values[1];
+	yield current;
+}

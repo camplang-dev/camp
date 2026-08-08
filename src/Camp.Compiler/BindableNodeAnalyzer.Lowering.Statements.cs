@@ -818,7 +818,6 @@ public sealed partial class BindableNodeAnalyzer
 		Expression ElementsReference() => useLiftedState && stateFields is not null ? ThisMemberReference(stateFields.IteratorFieldName, stateFields.IteratorType) : CreateVariableReference(elementsLocal!.Target, elementPointerType);
 		Expression LengthReference() => useLiftedState && stateFields is { LengthFieldName: not null } ? ThisMemberReference(stateFields.LengthFieldName, "nuint") : CreateVariableReference(lengthLocal!.Target, lengthLocal.Target.ResolvedType ?? "nuint");
 		Expression IndexReference() => useLiftedState && stateFields is { IndexFieldName: not null } ? ThisMemberReference(stateFields.IndexFieldName, "nuint") : CreateVariableReference(indexLocal!.Target, "nuint");
-		Expression CurrentReference() => ThisMemberReference(stateFields!.CurrentFieldName, stateFields.ElementType);
 		if (useLiftedState && stateFields is not null)
 		{
 			statements.Add(CreateAssignmentStatement(ElementsReference(), elements, elementPointerType, foreachStatement.SourceSyntax));
@@ -859,33 +858,22 @@ public sealed partial class BindableNodeAnalyzer
 			Value = IndexReference(),
 			ResolvedType = "nuint"
 		});
-		Statement loopValueStatement = loopValue;
-		if (foreachStatement.IsStackAllocStorage && !useLiftedState)
+		List<Statement> loopValueStatements = [loopValue];
+		if (foreachStatement.IsStackAllocStorage)
 		{
 			loopValue.InitialValue = new DefaultExpression { SourceSyntax = foreachStatement.SourceSyntax, ResolvedType = elementType };
-			statements.Add(loopValue);
-			loopValueStatement = CreateAssignmentStatement(
+			loopValueStatements.Add(CreateAssignmentStatement(
 				CreateVariableReference(loopValue.Target, elementType),
 				indexedValue,
 				elementType,
-				foreachStatement.SourceSyntax);
-		}
-		else if (foreachStatement.IsStackAllocStorage
-			&& useLiftedState
-			&& stateFields is { CurrentFieldName: not "" })
-		{
-			loopValueStatement = CreateAssignmentStatement(
-				CurrentReference(),
-				indexedValue,
-				elementType,
-				foreachStatement.SourceSyntax);
+				foreachStatement.SourceSyntax));
 		}
 
 		string continueLabel = NewGeneratedLabelName("foreach_continue");
 		string breakLabel = NewGeneratedLabelName("foreach_break");
 		BlockStatement loopBody = new() { SourceSyntax = foreachStatement.Body?.SourceSyntax ?? foreachStatement.SourceSyntax, ResolvedType = "void" };
 		currentLoopTransferTargets.Add(new LoopTransferTarget(breakLabel, continueLabel));
-		List<Statement> bodyStatements = [loopValueStatement];
+		List<Statement> bodyStatements = [.. loopValueStatements];
 		if (foreachStatement.Body is not null)
 			bodyStatements.Add(foreachStatement.Body);
 		RewriteStatementList(bodyStatements);

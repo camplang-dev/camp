@@ -1,0 +1,2 @@
+tests/Diagnostics/stackalloc_iterator_suspension.camp(8,9): error: Stackalloc value 'item' is unassigned after suspension; assign it before reading it again.
+tests/Diagnostics/stackalloc_iterator_suspension.camp(16,8): error: Stackalloc value 'current' is unassigned after suspension; assign it before reading it again.

@@ -376,8 +376,37 @@ foreach (stackalloc T item in values)
 
 For non-lifted foreach lowering, the compiler may allocate one stackalloc item
 slot before the loop and assign into it each iteration. For iterator-lifted
-foreach lowering, allocation must remain on the resumed iteration path so a
-resume cannot skip the stackalloc operation.
+foreach lowering, any stackalloc storage area that is needed after resumption
+must be allocated on the resumed execution path so a resume cannot use a stale
+stack address.
+
+That storage rule does not create a source-level exception to definite
+assignment. Every `stackalloc T` local or foreach target becomes unassigned
+after a suspension point such as `yield` or `await`. The value may not be read,
+passed, yielded, indexed, or used as a member receiver until source assigns it
+again:
+
+```camp
+foreach (stackalloc T item in values)
+{
+	yield item;
+	yield item; // ERROR: item is unassigned after suspension
+}
+```
+
+The common iterator-foreach shape is valid because the next loop iteration
+assigns the foreach target before the body reads it again:
+
+```camp
+foreach (stackalloc T item in values)
+{
+	yield item;
+}
+```
+
+Manual iterator consumption follows the same rule. Assigning a value into the
+slot after suspension makes the next read valid; merely reallocating the storage
+slot during lowering does not.
 
 Generic default slots and materialized generic results must preserve the same
 storage identity and capability requirements. The ABI may pass hidden result

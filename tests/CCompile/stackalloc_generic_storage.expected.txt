@@ -36,10 +36,10 @@ static void forEachGeneric(const void *values, uintptr_t values_length, void (* 
 		const void *_foreachElements0 = values;
 		uintptr_t _foreachLength1 = values_length;
 		uintptr_t _foreachIndex2 = 0;
-		uint8_t *value = __builtin_alloca(sizeof_T);
-		__builtin_memset(value, 0, sizeof_T);
 		while ((_foreachIndex2 < _foreachLength1))
 		{
+			uint8_t *value = __builtin_alloca(sizeof_T);
+			__builtin_memset(value, 0, sizeof_T);
 			__builtin_memmove(value, (void*)(((const uint8_t*)_foreachElements0) + (_foreachIndex2 * sizeof_T)), sizeof_T);
 			{
 				visit(visit_context, value);
