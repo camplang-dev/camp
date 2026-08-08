@@ -160,7 +160,7 @@
         },
         {
           "name": "keyword.control.camp",
-          "match": "\\b(?:if|else|do|while|for|foreach|in|return|break|continue|goto|try|catch|finally|throw|yield|await|postpone|upon|switch|case|default|delete|new|init|within)\\b"
+          "match": "\\b(?:if|else|do|while|for|foreach|in|return|break|continue|goto|try|catch|finally|throw|yield|await|postpone|upon|switch|case|default|delete|new|stackalloc|within)\\b"
         },
         {
           "name": "keyword.declaration.camp",
@@ -218,7 +218,7 @@
       "patterns": [
         {
           "name": "entity.name.function.camp",
-          "match": "\\b(?!(?:if|else|do|while|for|foreach|in|return|break|continue|goto|try|catch|finally|throw|yield|await|postpone|upon|switch|case|default|delete|new|init|within|using|namespace|as|export|internal|public|extern|inline|static|shadow|class|struct|interface|enum|newtype|params|alias|this|operator|constructor|destructor|virtual|abstract|override|sealed|escaped|scoped|unscoped|const|constof|volatile|fixed|unsafe|overload|implements|copyable|sizeof|vtableof|typenameof|caller|sourceof|classtype|thrown|out|delegate|fn|iter|once|async|true|false|null|base|any|auto|void|bool|byte|sbyte|short|ushort|int|uint|long|ulong|nint|nuint|float|double|char|uchar|achar|wchar|string|astring|wstring)\\b)[A-Za-z_][A-Za-z0-9_]*(?=\\s*\\()"
+          "match": "\\b(?!(?:if|else|do|while|for|foreach|in|return|break|continue|goto|try|catch|finally|throw|yield|await|postpone|upon|switch|case|default|delete|new|stackalloc|within|using|namespace|as|export|internal|public|extern|inline|static|shadow|class|struct|interface|enum|newtype|params|alias|this|operator|constructor|destructor|virtual|abstract|override|sealed|escaped|scoped|unscoped|const|constof|volatile|fixed|unsafe|overload|implements|copyable|sizeof|vtableof|typenameof|caller|sourceof|classtype|thrown|out|delegate|fn|iter|once|async|true|false|null|base|any|auto|void|bool|byte|sbyte|short|ushort|int|uint|long|ulong|nint|nuint|float|double|char|uchar|achar|wchar|string|astring|wstring)\\b)[A-Za-z_][A-Za-z0-9_]*(?=\\s*\\()"
         }
       ]
     },

@@ -994,9 +994,16 @@ public sealed class CampLspWorkspace
 	{
 		return
 		[
-			"if", "else", "while", "for", "foreach", "return", "try", "catch", "finally",
-			"new", "init", "default", "true", "false", "null", "using", "export",
-			"class", "struct", "interface", "enum", "newtype", "delegate", "fn", "prep"
+			"if", "else", "do", "while", "for", "foreach", "switch", "case", "default",
+			"return", "yield", "break", "continue", "goto", "try", "catch", "finally",
+			"throw", "delete", "await", "postpone", "within", "new", "stackalloc",
+			"true", "false", "null", "using", "namespace", "as", "export", "internal",
+			"public", "extern", "static", "virtual", "override", "sealed", "abstract",
+			"fixed", "inline", "alias", "shadow", "class", "struct", "interface",
+			"enum", "newtype", "params", "delegate", "fn", "iter", "once", "async",
+			"const", "constof", "volatile", "escaped", "scoped", "unscoped", "in",
+			"out", "thrown", "overload", "prep", "unsafe", "implements", "copyable",
+			"sizeof", "typenameof", "vtableof", "caller", "sourceof", "classtype"
 		];
 	}
 

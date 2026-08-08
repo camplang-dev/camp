@@ -51,7 +51,8 @@ public sealed class SyntaxHighlightingFilesTests
 		Assert.DoesNotContain("keyword.declaration.camp\",\n          \"match\": \"\\\\b(?:caller|sourceof)", vscode, StringComparison.Ordinal);
 		AssertVsixContains(vscodeVsix, "extension/syntaxes/camp.tmLanguage.json", "storage.modifier.parameter.prep.camp");
 		Assert.Contains("syntax keyword campTestAttribute test testonly skip", vimSyntax, StringComparison.Ordinal);
-		Assert.Contains("syntax match campKeyword \"\\<prep\\>", vimSyntax, StringComparison.Ordinal);
+		Assert.Contains("stackalloc", vimSyntax, StringComparison.Ordinal);
+		Assert.Contains(" prep ", vimSyntax, StringComparison.Ordinal);
 		Assert.Contains("syntax region campInterpolatedString", vimSyntax, StringComparison.Ordinal);
 		Assert.Contains("*.camp", vimDetect, StringComparison.Ordinal);
 		Assert.Contains("*.campbuild", vimDetect, StringComparison.Ordinal);

@@ -15,7 +15,7 @@ variables:
   intrinsic_keywords: '\b(?:sizeof|typenameof|vtableof|caller|sourceof)\b(?=\s*\()'
   test_support_functions: '\b(?:assert|fail)\b(?=\s*\()'
   constraint_keywords: '\b(?:implements|copyable)\b'
-  statement_keywords: 'if|do|while|for|else|foreach|switch|case|default|try|catch|finally|return|yield|continue|break|goto|throw|delete|await|postpone|within|prep|init|new'
+  statement_keywords: 'if|do|while|for|else|foreach|switch|case|default|try|catch|finally|return|yield|continue|break|goto|throw|delete|await|postpone|within|prep|stackalloc|new'
   declaration_keywords: 'export|internal|public|extern|static|virtual|override|sealed|abstract|fixed|escaped|inline|alias|shadow'
 
 contexts:

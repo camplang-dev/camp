@@ -82,24 +82,13 @@ mkdir -p "$output_dir"
 output_dir="$(cd "$output_dir" && pwd)"
 
 resolve_vscode_vsix() {
-    release_asset="$repo_root/extras/editors/vscode/vscode-camp.vsix"
-    if [ -f "$release_asset" ]; then
-        echo "$release_asset"
-        return
-    fi
-
-    existing="$(find "$repo_root/extras/vscode-camp" -maxdepth 1 -name 'vscode-camp-*.vsix' -type f | head -n 1)"
-    if [ -n "$existing" ]; then
-        echo "$existing"
-        return
-    fi
-
     if ! command -v npm >/dev/null 2>&1; then
-        echo "No bundled VS Code extension was found, and npm is not available to build it." >&2
+        echo "npm is required to build the VS Code extension package." >&2
         exit 1
     fi
 
-    (cd "$repo_root/extras/vscode-camp" && npm ci && npm run package)
+    rm -f "$repo_root"/extras/vscode-camp/vscode-camp-*.vsix
+    (cd "$repo_root/extras/vscode-camp" && npm ci >&2 && npm run package >&2)
     built="$(find "$repo_root/extras/vscode-camp" -maxdepth 1 -name 'vscode-camp-*.vsix' -type f | head -n 1)"
     if [ -z "$built" ]; then
         echo "VS Code extension package build did not produce a vscode-camp-*.vsix file." >&2
@@ -151,9 +140,7 @@ cp -R "$repo_root/lib" "$layout/lib"
 cp -R "$repo_root/targets" "$layout/targets"
 mkdir -p "$layout/extras"
 cp -R "$repo_root/extras/editors" "$layout/extras/editors"
-if [ "$vscode_vsix" != "$repo_root/extras/editors/vscode/vscode-camp.vsix" ]; then
-    cp "$vscode_vsix" "$layout/extras/editors/vscode/vscode-camp.vsix"
-fi
+cp "$vscode_vsix" "$layout/extras/editors/vscode/vscode-camp.vsix"
 find "$layout/lib" "$layout/targets" "$layout/extras" -name .DS_Store -delete
 cp "$repo_root/LICENSE" "$layout/LICENSE"
 cp "$repo_root/README.md" "$layout/README.md"

@@ -22,28 +22,19 @@ if (-not $OutputDir) {
 New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null
 
 function Resolve-VscodeVsix {
-    $releaseAsset = Join-Path $RepoRoot "extras\editors\vscode\vscode-camp.vsix"
-    if (Test-Path $releaseAsset) {
-        return $releaseAsset
-    }
-
     $extensionDir = Join-Path $RepoRoot "extras\vscode-camp"
-    $existing = Get-ChildItem $extensionDir -Filter "vscode-camp-*.vsix" -File -ErrorAction SilentlyContinue | Select-Object -First 1
-    if ($existing) {
-        return $existing.FullName
-    }
-
     if (-not (Get-Command npm -ErrorAction SilentlyContinue)) {
-        throw "No bundled VS Code extension was found, and npm is not available to build it."
+        throw "npm is required to build the VS Code extension package."
     }
 
+    Get-ChildItem $extensionDir -Filter "vscode-camp-*.vsix" -File -ErrorAction SilentlyContinue | Remove-Item -Force
     Push-Location $extensionDir
     try {
-        npm ci
+        npm ci 1>&2
         if ($LASTEXITCODE -ne 0) {
             exit $LASTEXITCODE
         }
-        npm run package
+        npm run package 1>&2
         if ($LASTEXITCODE -ne 0) {
             exit $LASTEXITCODE
         }
@@ -110,9 +101,7 @@ try {
     Copy-Item (Join-Path $RepoRoot "targets") (Join-Path $layout "targets") -Recurse
     New-Item -ItemType Directory -Force -Path (Join-Path $layout "extras") | Out-Null
     Copy-Item (Join-Path $RepoRoot "extras\editors") (Join-Path $layout "extras\editors") -Recurse
-    if ($vscodeVsix -ne (Join-Path $RepoRoot "extras\editors\vscode\vscode-camp.vsix")) {
-        Copy-Item $vscodeVsix (Join-Path $layout "extras\editors\vscode\vscode-camp.vsix")
-    }
+    Copy-Item $vscodeVsix (Join-Path $layout "extras\editors\vscode\vscode-camp.vsix")
     Get-ChildItem $layout -Filter ".DS_Store" -Recurse -Force -ErrorAction SilentlyContinue | Remove-Item -Force
     Copy-Item (Join-Path $RepoRoot "LICENSE") (Join-Path $layout "LICENSE")
     Copy-Item (Join-Path $RepoRoot "README.md") (Join-Path $layout "README.md")
