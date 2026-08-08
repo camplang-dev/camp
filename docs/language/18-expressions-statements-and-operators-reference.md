@@ -127,10 +127,12 @@ char[] chars = $"total: {total}";
 fixed char[16] storage = $"total";
 ```
 
-Without `new`, runtime interpolation uses scoped storage, much like `init`
-array storage. Use `new $"..."` when the produced text needs heap lifetime:
+Without `new` or `stackalloc`, runtime interpolation uses compiler-selected
+scoped storage. Use `stackalloc $"..."` when you want that storage choice to be
+explicit. Use `new $"..."` when the produced text needs heap lifetime:
 
 ```camp
+char[] scratch = stackalloc $"total: {total}";
 string copy = within(default) new $"total: {total}" finally delete;
 ```
 
@@ -432,29 +434,32 @@ component changes type.
 
 | Form | Meaning |
 |---|---|
-| `init Type(args)` | Construct in existing/local storage |
+| `Type(args)` | Construct in storage selected by the destination |
+| `stackalloc Type(args)` | Allocate activation-stack storage, then construct |
 | `new Type(args)` | Allocate storage, usually heap-like, then construct |
 | `within (allocator) expression` | Evaluate allocation-aware expression in allocator context |
 | `within(default) expression` | Use the default allocation path for the wrapped expression |
 | `delete value` | Destroy/deallocate according to the operand and allocation path |
 | `expression finally cleanup` | Register cleanup for the surrounding scope |
-| `init Type(args) { .field = value }` | Construct, then apply trailing initializer as one initialization operation |
+| `Type(args) { .field = value }` | Construct, then apply trailing initializer as one initialization operation |
 | `new Type(args) { .field = value }` | Allocate and construct, then apply trailing initializer |
 
 ```camp
-Buffer local = init Buffer(1024) finally delete;
+Buffer local = Buffer(1024) finally delete;
+Buffer* scratch = stackalloc Buffer(1024) finally delete;
 Buffer* heap = within (allocator) new Buffer(1024) finally delete;
 
-HttpRequest request = init HttpRequest("GET", url)
+HttpRequest request = HttpRequest("GET", url)
 {
 	.timeoutMs = 5000,
 };
 ```
 
-`init` creates the value in storage that is already present for the local,
-field, or destination. In ordinary local code, that usually means storage with
-the current block's lifetime. `new` allocates storage before construction; in
-ordinary code that usually means heap-like storage through the current
+Constructor-shaped calls create the value in storage that is already present
+for the local, field, or destination. In ordinary local code, that usually
+means storage with the current block's lifetime. `stackalloc` explicitly
+selects activation-stack storage. `new` allocates storage before construction;
+in ordinary code that usually means heap-like storage through the current
 allocator path.
 
 ## Special Expressions
@@ -704,7 +709,7 @@ general closure literal.
 | Names | unqualified names, `::` qualified names |
 | Access | `.`, `[]`, property/indexer rewrites, expanded components |
 | Calls | ordinary calls, named arguments, defaults, `out`, `catch`, `within` |
-| Construction | `init`, `new`, initializer lists, trailing initializers |
+| Construction | constructor-shaped type calls, `stackalloc`, `new`, initializer lists, trailing initializers |
 | Conversion | casts, unsafe casts, lifetime casts |
 | Operators | arithmetic, comparison, logical, bitwise, assignment, update |
 | Capabilities | `sizeof`, `typenameof`, `vtableof` |

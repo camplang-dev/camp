@@ -346,6 +346,44 @@ simply because the source body does not name one. If a language feature needs
 generic destruction, it should flow through an explicit capability or a
 well-defined generated helper.
 
+## Erased Generic Value Storage
+
+An exact erased generic value local such as `T value` is runtime-sized storage.
+Source must choose that storage explicitly:
+
+```camp
+void swapFirst<T: copyable>(T[] values, sizeof(T))
+{
+	stackalloc T temp = values[0];
+	values[0] = values[1];
+	values[1] = temp;
+}
+```
+
+The compiler rejects ordinary `T` locals and `auto` locals that would need to
+infer stackalloc storage for an erased generic value. `stackalloc T` requires
+`sizeof(T)` in scope. Array views, pointers, and other non-exact shapes do not
+trigger this exact-value rule.
+
+Foreach over erased generic array values follows the same rule:
+
+```camp
+foreach (stackalloc T item in values)
+{
+	use(item);
+}
+```
+
+For non-lifted foreach lowering, the compiler may allocate one stackalloc item
+slot before the loop and assign into it each iteration. For iterator-lifted
+foreach lowering, allocation must remain on the resumed iteration path so a
+resume cannot skip the stackalloc operation.
+
+Generic default slots and materialized generic results must preserve the same
+storage identity and capability requirements. The ABI may pass hidden result
+or capability parameters, but source diagnostics should describe the missing
+source storage or capability.
+
 ## Materialized Generic Results
 
 Some generic returns cannot be represented as a simple scalar return in the

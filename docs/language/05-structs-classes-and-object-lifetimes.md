@@ -19,7 +19,8 @@ outside code can hold a class pointer and call exported functions, but it
 cannot reach into the object's fields.
 
 This chapter explains the user-facing model: what the declarations mean, how
-construction and destruction work, what `new`, `init`, and `delete` do, and how
+construction and destruction work, what `new`, `stackalloc`, constructor calls,
+and `delete` do, and how
 object shape affects exported APIs. The exact compiler layout matters at some
 boundaries, but the source model is the place to start.
 
@@ -166,7 +167,7 @@ fixed struct TextBuilder
 
 void reuse(char* scratch)
 {
-	TextBuilder builder = init TextBuilder(scratch, 256);
+	TextBuilder builder = TextBuilder(scratch, 256);
 	TextBuilder* pointer = &builder;
 
 	builder.clear();
@@ -177,10 +178,11 @@ void reuse(char* scratch)
 ```
 
 A fixed struct can have ordinary struct members: fields, methods,
-constructors, destructors, static members, and interface implementations. It
-can be constructed with `init` in local or caller-owned storage, or with `new`
-in allocated storage. After that, pass it by pointer when another API needs to
-observe or mutate the same instance.
+constructors, destructors, static members, and interface implementations. A
+constructor-shaped call such as `TextBuilder(args)` constructs into storage
+already selected by the surrounding declaration or destination. Use `new` when
+the instance itself needs allocated storage. After that, pass it by pointer
+when another API needs to observe or mutate the same instance.
 
 The ABI distinction remains the same as for ordinary structs. An exported
 fixed struct exposes its actual fields. If you need address-stable state but
@@ -237,9 +239,9 @@ Log.info("ready");
 ```
 
 Do not use a static class when you need object state. Static classes are not
-constructed with `init` or `new`, are not deleted, and are not used as variable
-or parameter types. If callers should hold a value or pointer, use `struct`,
-`class`, `interface`, or `newtype` according to the shape you need.
+constructed, allocated with `new`, deleted, or used as variable or parameter
+types. If callers should hold a value or pointer, use `struct`, `class`,
+`interface`, or `newtype` according to the shape you need.
 
 Class fields remain implementation details across the public ABI. Even an
 exported class is opaque to external callers: they can pass pointers around,
@@ -348,12 +350,19 @@ A constructor establishes the invariants that the type's methods and destructor
 rely on. It can take ordinary parameters, `within` allocation context
 parameters, generic capabilities, and `thrown` error slots.
 
-`init` constructs a value for the current context. For an ordinary local
-variable, that means block-lifetime storage, often stack storage in the
-generated program:
+For an ordinary local variable, a constructor-shaped call constructs into the
+local's storage:
 
 ```camp
-Position position = init Position();
+Position position = Position();
+```
+
+`stackalloc` allocates short-lived activation-stack storage and then constructs
+there. This is useful for temporary pointer-oriented values that must not
+escape the current function:
+
+```camp
+Counter* scratch = stackalloc Counter();
 ```
 
 `new` allocates storage and then constructs the object there. In everyday code,
@@ -417,7 +426,7 @@ struct PacketHeader
 	fixed char[16] tag;
 }
 
-PacketHeader header = init PacketHeader()
+PacketHeader header = PacketHeader()
 {
 	.magic = [0x43, 0x41, 0x4D, 0x50],
 	.tag = "request",
@@ -477,21 +486,29 @@ struct Buffer
 The allocation chapter goes deeper on `within`; here the key is that lifecycle
 functions can make allocation context part of the type's contract.
 
-## `new`, `init`, And `delete` In Context
+## `new`, `stackalloc`, Constructor Calls, And `delete` In Context
 
-The three everyday lifecycle forms are:
+The everyday lifecycle forms are:
 
 | Form | Meaning |
 |---|---|
-| `init T(...)` | Construct a value in storage the current context already owns; local `init` values usually have block lifetime. |
+| `T(...)` | Construct a value in storage already selected by the destination. |
+| `stackalloc T(...)` | Allocate short-lived activation-stack storage, then construct into it. |
 | `new T(...)` | Allocate storage, usually from the active heap or allocator, then construct into it. |
 | `delete value` | Run cleanup; also free storage for owning pointer forms. |
 
-Use `init` for local or block-lifetime values. Think "construct this value for
-the current block":
+Use constructor-shaped calls for ordinary local values. Think "construct into
+the storage this declaration already has":
 
 ```camp
-Position position = init Position();
+Position position = Position();
+```
+
+Use `stackalloc` for temporary pointer-oriented storage that must not escape or
+cross `await`/`yield`:
+
+```camp
+Widget* scratch = stackalloc Widget();
 ```
 
 Use `new` when the instance itself should live on the heap or another active

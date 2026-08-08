@@ -191,8 +191,12 @@ Expression lifetime facts are propagated through body analysis:
   argument facts.
 - `new` derives its value fact from the allocator or allocation helper return
   contract; if that cannot be resolved, it remains unknown rather than escaped.
-- `init` and initializer lists combine retained facts from pointer-bearing
-  constructor arguments and fields.
+- Constructor-shaped type calls and initializer lists combine retained facts
+  from pointer-bearing constructor arguments and fields.
+- `stackalloc` produces a scoped stackalloc-backed fact tied to the current
+  activation segment. Slices, views, casts that preserve carriers, locals, and
+  prepared/interpolated results derived from that storage preserve the
+  stackalloc-backed origin.
 - Capture-free lambdas can be treated as escaped callable values; captured
   lambdas depend on the target callable lifetime and generated context
   ownership.
@@ -350,9 +354,10 @@ generated fields and cleanup code.
 
 Important restrictions include:
 
-- async bodies that can suspend must not retain stack-only values in the frame;
-- iterator generator bodies cannot use init-array construction in a way that
-  would lift temporary array storage across yields;
+- async bodies that can suspend must not retain stackalloc-backed or otherwise
+  stack-only values in the frame;
+- iterator generator bodies cannot retain stackalloc-backed or temporary array
+  storage across yields;
 - yielded references must be valid for the iterator protocol surface;
 - cleanup code generated for `finally`, delegates, and destructor paths must
   not delete or free values through incompatible lifetime contracts.

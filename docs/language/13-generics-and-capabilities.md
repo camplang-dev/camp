@@ -337,12 +337,14 @@ class BufferView<T: copyable>
 ```
 
 Local variables are different. A generic function can use local `T` storage
-when its signature carries the capabilities needed by the operation:
+when its signature carries the capabilities needed by the operation, but erased
+generic storage is explicit. Use `stackalloc T` when the function needs a
+short-lived local slot for an erased value:
 
 ```camp
 T choose<T: copyable>(T left, T right, bool useLeft, sizeof(T))
 {
-	T selected = useLeft ? left : right;
+	stackalloc T selected = useLeft ? left : right;
 	return selected;
 }
 ```
@@ -553,7 +555,7 @@ use `T: copyable`:
 ```camp
 struct iter T iterate<T: copyable>(T[] values, sizeof(T))
 {
-	foreach (auto value in values)
+	foreach (stackalloc T value in values)
 		yield value;
 }
 ```

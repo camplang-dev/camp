@@ -427,6 +427,11 @@ This same rule applies to pointers, array views, delegates, interface adapters,
 generic values, and allocator values. If it must survive an `await`, the
 signature must make that lifetime believable.
 
+`stackalloc` storage is intentionally short-lived activation storage, so do not
+carry a stackalloc-backed value across `await`. Use it before the suspension
+point, or choose `new`/owned storage when the value must still exist after the
+async function resumes.
+
 ## Cleanup In Async Code
 
 Cleanup remains deterministic. `finally`, `finally delete`, and cleanup methods

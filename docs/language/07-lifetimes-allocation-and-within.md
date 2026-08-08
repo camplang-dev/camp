@@ -220,24 +220,37 @@ the local proof that the constructed view satisfies it. That proof should be
 rare and local. If many callers need to write the same cast, the API probably
 needs a clearer lifetime shape.
 
-## `init`, `new`, And `delete`
+## Constructor Calls, `stackalloc`, `new`, And `delete`
 
-Camp has two everyday ways to construct an object. `init` constructs a value in
-storage that already exists. `new` allocates storage first, then constructs the
+Camp has three everyday storage choices for construction. A constructor-shaped
+call such as `Buffer(4096)` constructs into storage already selected by the
+surrounding declaration or destination. `stackalloc` selects short-lived
+activation-stack storage. `new` allocates storage first, then constructs the
 value there.
 
-Use `init` when the value belongs to the current block:
+Use an ordinary constructor call when the value belongs to a local declaration:
 
 ```camp
-Buffer scratch = init Buffer(4096) finally delete;
+Buffer scratch = Buffer(4096) finally delete;
 useBuffer(&scratch);
 ```
 
-The local variable `scratch` has scoped storage. `init Buffer(4096)` constructs
-the `Buffer` in that storage, and `finally delete` makes cleanup run on every
-exit from the scope-like use. The `delete` here is about destruction and owned
-resources inside the value; it does not free the local variable's stack-like
-storage.
+The local variable `scratch` has scoped storage. `Buffer(4096)` constructs the
+`Buffer` in that storage, and `finally delete` makes cleanup run on every exit
+from the scope-like use. The `delete` here is about destruction and owned
+resources inside the value; it does not free the local variable's storage.
+
+Use `stackalloc` for short-lived scratch storage that is explicitly dynamic but
+still tied to the current function activation:
+
+```camp
+char[] scratchText = stackalloc char[256];
+Widget* scratchWidget = stackalloc Widget();
+```
+
+Do not return stackalloc-backed values, store them into longer-lived objects,
+or keep using them across `await` or `yield`. When a value must survive those
+boundaries, allocate it with `new` or arrange for caller-owned storage instead.
 
 Use `new` when the object itself needs allocated storage and the caller will
 hold an owning pointer:
@@ -255,12 +268,12 @@ to the receiving function. Whoever owns the pointer eventually calls `delete`,
 which runs the destructor and frees the storage through the matching allocation
 context.
 
-The distinction is lifetime-shaped as well as storage-shaped. A local `init`
-value is normally scoped to the current block. A `new` object is allocated
-storage that can be retained when the API's lifetime contract allows it. The
-language still expects explicit ownership design: copying a pointer does not
-copy the object, and `delete` must be applied exactly where the ownership path
-says cleanup belongs.
+The distinction is lifetime-shaped as well as storage-shaped. A value
+constructed into a local variable is normally scoped to the current block. A
+`new` object is allocated storage that can be retained when the API's lifetime
+contract allows it. The language still expects explicit ownership design:
+copying a pointer does not copy the object, and `delete` must be applied
+exactly where the ownership path says cleanup belongs.
 
 ## Allocation Contexts With `within`
 

@@ -469,7 +469,7 @@ auto owned = (new) value.toString();
 auto arenaOwned = within(arena) (new) value.toString();
 ```
 
-It changes only prepared-result storage from scoped `init`-like allocation to
+It changes only prepared-result storage from scoped stack allocation to
 ordinary `new` allocation. Lookup, arguments, dispatch, intrinsic type, and
 target conversion are otherwise unchanged. Allocator selection follows the
 active `within` policy.
@@ -627,10 +627,11 @@ requires the same explicit `within` context as other heap allocation. `new` is
 not valid for fixed-array targets because fixed-array interpolation writes into
 existing fixed storage.
 
-Non-`new` runtime interpolation uses scoped storage equivalent to `init`
-character-array storage. The result cannot be returned, stored, or otherwise
-escape unless ordinary scoped lifetime rules allow the same escape for the
-equivalent initialized storage.
+`stackalloc $"..."` explicitly selects activation-stack storage for the runtime
+interpolation result. Non-`new` runtime interpolation without an explicit
+storage modifier uses compiler-selected scoped storage. The result cannot be
+returned, stored, or otherwise escape unless ordinary scoped lifetime rules
+allow the same escape for equivalent stack-backed storage.
 
 ### Formatter Protocol
 
@@ -789,8 +790,8 @@ bounds-failure mechanism; interpolation does not add a `thrown` result.
 
 Async functions and generator methods receive no special interpolation rules.
 A non-`new` interpolation that requires scoped result storage follows the same
-lifetime and frame-placement rules as equivalent non-const `init` character
-array storage in that source position.
+lifetime and frame-placement rules as equivalent stack-backed character-array
+storage in that source position.
 
 ### Overload Selection
 

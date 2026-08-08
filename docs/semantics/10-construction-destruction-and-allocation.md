@@ -1,8 +1,9 @@
 # Construction, Destruction, And Allocation
 
-This supplement describes lifecycle lowering: constructors, `init`, `new`,
-destructors, `delete`, `within` allocation contexts, generated cleanup, and
-extern lifecycle boundaries. User-facing syntax appears in
+This supplement describes lifecycle lowering: constructors,
+constructor-shaped type calls, `stackalloc`, `new`, destructors, `delete`,
+`within` allocation contexts, generated cleanup, and extern lifecycle
+boundaries. User-facing syntax appears in
 [Structs, Classes, And Object Lifetimes](../language/05-structs-classes-and-object-lifetimes.md).
 
 The compiler's lifecycle rules sit at the intersection of type binding,
@@ -35,7 +36,8 @@ generated or user-defined.
 
 Construction analysis must decide:
 
-- source construction kind: `init` or `new`;
+- source construction kind: selected destination construction, `stackalloc`,
+  or `new`;
 - target type and constructed generic arguments;
 - constructor overload or generated default constructor;
 - hidden capability parameters such as `sizeof(T)` or `vtableof(T: I)`;
@@ -140,26 +142,28 @@ Base initialization must run before derived fields/methods depend on base
 state. Derived initialization must not overwrite generated base vtable/interface
 state unless the lowering path intentionally updates it for the dynamic type.
 
-## `init`
+## Selected Destination Construction
 
-`init` constructs into source storage. Async bodies must reject `init` array
-construction when declaration-scope storage would cross suspension.
+Constructor-shaped type calls construct into storage selected by the
+surrounding declaration, assignment, argument materialization, or other target.
+They do not allocate by themselves.
 
-`init` is a construction-into-existing-storage operation. It should lower to an
-init helper call using the address of the target storage. In assignment form,
-the compiler rewrites:
+Selected construction lowers to an init helper call using the address of the
+target storage. In assignment form, the compiler rewrites:
 
 ```camp
-slot = init Widget(args);
+slot = Widget(args);
 ```
 
 into a call that constructs at `&slot`, with generated vtable assignment placed
-before or around the init call when the target type participates in virtual
+before or around the helper call when the target type participates in virtual
 dispatch.
 
-`init T[n]` style array construction is restricted in async and iterator bodies
-when the storage would be lifted across suspension/yield. Use fixed storage,
-ordinary allocation, or another explicit storage strategy in source code.
+Array allocation is not selected by constructor-shaped syntax. Source must use
+`new T[n]`, `stackalloc T[n]`, or `fixed T[n] name` according to storage intent.
+
+Old `init` syntax is rejected as a migration diagnostic. The compiler should
+explain the replacement storage choices rather than preserving compatibility.
 
 ## Initializer Lists
 
@@ -186,12 +190,12 @@ write storage directly. Property and indexer targets lower through their setter
 calls, so they inherit the accessor semantics described in
 [Core Expression, Statement, And Access Semantics](14-core-expression-statement-and-access-semantics.md).
 
-For `init`, the target storage is stack-like source storage with the lifetime
-of the current block unless a surrounding feature gives it a different storage
-duration. For `new`, the target is allocated storage, normally heap-like from
-the reader's point of view and allocator-defined from the compiler's point of
-view. In both cases, pointer-bearing initializer values contribute retained
-lifetime facts to the constructed aggregate.
+For selected construction, the target storage and lifetime come from the
+destination. For `stackalloc`, the target is activation-stack storage scoped to
+the current function activation. For `new`, the target is allocated storage,
+normally heap-like from the reader's point of view and allocator-defined from
+the compiler's point of view. In all cases, pointer-bearing initializer values
+contribute retained lifetime facts to the constructed aggregate.
 
 Trailing initializer lowering must not create an intermediate copied value for
 fixed structs or other non-copyable storage shapes. It should construct into
@@ -218,12 +222,31 @@ The `new` sequence is conceptually:
 The compiler should not pretend an extern class can be allocated with ordinary
 Camp layout unless an extern constructor or create method provides that surface.
 
+## `stackalloc`
+
+`stackalloc` explicitly selects dynamic activation-stack storage. It can
+allocate array element storage or storage for a constructed instance:
+
+```camp
+char[] scratch = stackalloc char[count];
+Widget* widget = stackalloc Widget(args);
+```
+
+The backing storage is not allocator-managed and cannot be freed early. A
+`delete` applied to a stackalloc-allocated instance may run the destructor, but
+must suppress allocator deallocation.
+
+Stackalloc-backed values cannot be returned, stored into longer-lived or
+escaped storage, retained by heap/escaped receivers, or used across suspension.
+The implementation may conservatively reject stackalloc in async/generator
+bodies rather than prove fine-grained post-suspension liveness.
+
 ### `(new)` Prepared Allocation
 
 Parenthesized `(new)` is the allocation modifier for a direct transformed prep
 call. It is not ordinary type construction. It retains the call's prepared
-array result and changes its backing storage from scoped `init`-like storage to
-the ordinary allocation path selected by `within`.
+array result and changes its backing storage from scoped stack storage to the
+ordinary allocation path selected by `within`.
 
 Its unary/cast-like operand must remain the direct transformed result. A member,
 component, method, index, or range appended to the call makes the `(new)` form
@@ -325,8 +348,8 @@ escaping through generated frames.
 
 Restrictions include:
 
-- init-array construction in async/iterator bodies where declaration-scope
-  storage would be lifted;
+- stackalloc-backed storage in async/iterator bodies where activation-stack
+  storage would cross suspension;
 - retention of scoped pointer-bearing values in async frames or iterator
   states;
 - allocator values retained across suspension without escaped/frame-safe
@@ -401,7 +424,7 @@ Important diagnostic categories include:
 - struct constructor definite-assignment failure;
 - invalid `within` default or missing explicit within context;
 - unsafe allocator/lifetime retention;
-- init-array construction in async or iterator body;
+- stackalloc-backed storage in async or iterator body;
 - invalid cleanup method or finally cleanup target.
 
 ## Test Surface
@@ -411,7 +434,8 @@ Lifecycle changes should cover:
 - constructor overload and missing-argument diagnostics;
 - generated and user constructors;
 - struct definite assignment;
-- `init` assignment lowering;
+- selected destination construction lowering;
+- `stackalloc` array, instance, prep, and interpolation lowering;
 - `new` allocation and constructor ordering;
 - `delete` destructor/free ordering;
 - extern class lifecycle failures;
@@ -431,8 +455,8 @@ Primary implementation points include:
   interface lifecycle rules;
 - `BindableNodeAnalyzer.MethodBody.cs` for construction/delete analysis;
 - `BindableNodeAnalyzer.Lowering.Expressions.cs` and
-  `BindableNodeAnalyzer.Lowering.Statements.cs` for `init`, `new`, `delete`,
-  and hidden argument insertion;
+  `BindableNodeAnalyzer.Lowering.Statements.cs` for selected construction,
+  `stackalloc`, `new`, `delete`, and hidden argument insertion;
 - `BindableNodeAnalyzer.Lowering.Exceptions.cs` for cleanup/finally lowering;
 - `BindableNodeAnalyzer.LifetimeFacts.cs` for retention and allocator lifetime;
 - lifecycle, extern, within, virtual destructor, async, iterator, and cleanup

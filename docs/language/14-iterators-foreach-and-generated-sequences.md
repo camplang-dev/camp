@@ -232,7 +232,7 @@ This does not work:
 ```camp
 struct iter const char[] badLocal()
 {
-	char[] scratch = init char[16];
+	char[] scratch = stackalloc char[16];
 	yield scratch; // ERROR: yielded view points at generator-local storage
 }
 ```
@@ -240,6 +240,17 @@ struct iter const char[] badLocal()
 The local array storage would be part of the iterator's state, but the yielded
 span would escape through the current-value slot in a way the signature does
 not promise.
+
+For erased generic value iteration, use explicit stack storage for the current
+item when the compiler cannot know the value's size at compile time:
+
+```camp
+struct iter T each<T: copyable>(T[] values, sizeof(T))
+{
+	foreach (stackalloc T item in values)
+		yield item;
+}
+```
 
 Use `yield break;` to end a generator early without producing another value:
 

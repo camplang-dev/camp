@@ -208,7 +208,8 @@ code. Ordinary Camp users should start with the language guide.
 - Fixed Structs And Copyability
 - Destructors
 - Base Initialization
-- `init`
+- selected destination construction
+- `stackalloc`
 - Initializer Lists
 - Trailing Construction Initializers
 - `new`

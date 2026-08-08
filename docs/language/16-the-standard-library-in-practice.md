@@ -377,7 +377,7 @@ arrays:
 
 ```camp
 nuint required = total.toString().length;
-char[] storage = init char[required];
+char[] storage = stackalloc char[required];
 total.toString(buffer: storage);
 ```
 

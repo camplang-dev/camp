@@ -302,8 +302,8 @@ Important diagnostic categories include:
 - missing, ambiguous, or incompatible `resumeAsync`;
 - invalid `@awaitwith` or `@noawait` placement;
 - `await` inside `@noawait`;
-- init-array construction inside async body when declaration-scope storage would
-  cross suspension;
+- stackalloc-backed values or dynamic stack allocation in async bodies where
+  storage would cross suspension;
 - resumer or allocator lifetime unsafe across suspension;
 - invalid postponed async slot handling.
 
@@ -338,7 +338,7 @@ Async changes should cover:
 - missing and ambiguous resumers;
 - postponed async calls;
 - async lambdas and escaped contexts;
-- init-array restrictions in async bodies;
+- stackalloc restrictions in async bodies;
 - C emission proving generated frames and continuation calls have the expected
   shape.
 

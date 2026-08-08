@@ -287,7 +287,7 @@ parameter makes this an ordinary call that returns the required length:
 
 ```camp
 nuint required = status.toString(buffer: default);
-char[] storage = init char[required];
+char[] storage = stackalloc char[required];
 status.toString(buffer: storage);
 ```
 

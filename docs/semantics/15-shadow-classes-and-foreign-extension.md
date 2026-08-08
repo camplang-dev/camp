@@ -43,7 +43,7 @@ Shadow classes:
 - may not be `sealed`;
 - may not declare destructors;
 - are treated as escaped class types for lifetime analysis;
-- may not be constructed with `init`.
+- may not be constructed directly with selected construction or `stackalloc`.
 
 When the direct base is not itself a shadow class, the visible base surface must
 be non-virtual and non-abstract. A shadow class cannot override hidden base
@@ -277,7 +277,7 @@ Diagnostics should point at the source token that explains the problem:
 - the base type name for incompatible visible base classes;
 - `@getshadow` or `@setshadow` for bad hook signatures or ambiguity;
 - the constructor call or argument token for invalid shadow construction;
-- `init` for invalid `init ShadowType(...)`;
+- the constructor type name for invalid direct shadow construction;
 - the `delete shadow` statement for invalid deletion scope;
 - the `shadow` token for a local-name collision warning;
 - the shadow field access after an obvious delete.
@@ -289,7 +289,7 @@ Important diagnostics include:
 - a shadow class cannot declare a destructor;
 - the first non-shadow base cannot be visibly virtual or abstract;
 - missing, ambiguous, or incompatible hooks;
-- `init` construction of a shadow class;
+- direct construction of a shadow class;
 - field access after an obvious `delete shadow`;
 - no reachable `delete shadow` warning;
 - default-allocator delete warning when a constructor accepted a `within`

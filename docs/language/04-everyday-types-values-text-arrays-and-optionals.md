@@ -348,18 +348,19 @@ int[] values = [1, 2, 3];
 const byte[] bytes = [(byte)'a', (byte)'b', (byte)'c'];
 ```
 
-`new T[count]` allocates element storage and returns an array view. `init
-T[count]` creates initialized storage in contexts where inline temporary
-storage is appropriate.
+`new T[count]` allocates element storage and returns an array view whose
+storage must later be cleaned up. `stackalloc T[count]` creates short-lived
+scratch storage for the current function activation.
 
 ```camp
-char[] heapBuffer = new char[128] finally delete;
-char[] localBuffer = init char[128];
+char[] heapBuffer = within(default) new char[128] finally delete;
+char[] scratchBuffer = stackalloc char[128];
 ```
 
 Allocation and cleanup rules get their own chapter. The everyday rule is this:
 an array view can describe allocated storage, literal storage, fixed storage,
-or borrowed storage. The API around the array says which one you have.
+stackalloc scratch storage, or borrowed storage. The API around the array says
+which one you have.
 
 ## Optional Values
 

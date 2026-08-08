@@ -57,8 +57,14 @@ High-impact distinctions:
 - Capturing callables require `delegate`, `once`, or an async-appropriate target,
   not plain `fn`.
 - Runtime `$"..."` eagerly produces text. With `auto`, the type is `string`.
-  Non-`new` interpolation uses scoped storage; use `within(...) new $"..."`
-  when heap lifetime is required.
+  Use `stackalloc $"..."` for explicit short-lived text storage and
+  `within(...) new $"..."` when heap lifetime is required.
+- Use `stackalloc T[count]` for short-lived dynamic scratch arrays that do not
+  escape and do not cross `await` or `yield`. Use `fixed T[N]` for small inline
+  fixed-size storage. Use `new T[count]` when the storage must outlive the
+  current activation or be retained by heap/escaped objects.
+- Constructor-shaped `Type(args)` constructs into storage already selected by
+  the destination. It does not allocate by itself.
 - Prefer return-position `prep` for caller-prepared array results, such as
   `prep char[] toString(...)`. Omitting the prep buffer produces scoped
   prepared storage; `(new)` directly before that call uses allocated storage
@@ -92,11 +98,13 @@ char[] chars = $"total: {total}";
 fixed char[16] storage = $"ready";
 ```
 
-Non-`new` interpolation uses scoped result storage, like initialized local array
-storage. Do not return or store that result where a scoped value cannot go. Use
-`new` plus an explicit `within` context for heap lifetime:
+Non-`new` interpolation uses scoped result storage. Use `stackalloc $"..."`
+when you want the dynamic stack storage choice to be explicit. Do not return or
+store that result where a scoped value cannot go. Use `new` plus an explicit
+`within` context for heap lifetime:
 
 ```camp
+char[] scratch = stackalloc $"total: {total}";
 string message = within(default) new $"total: {total}" finally delete;
 ```
 
@@ -559,8 +567,11 @@ Rules of thumb:
   often need `escaped` values.
 - Allocations that outlive the current function should be tied to an explicit
   `within` context or owning type.
-- Pair `new`, `init`, or native allocation with the corresponding `delete`,
+- Pair `new`, stackalloc instance construction, or native allocation with the corresponding `delete`,
   destructor, cleanup API, or `finally` block.
+- Treat old `init` source as pre-Proposal-016 code. Rewrite it to
+  constructor-shaped `Type(args)`, `stackalloc`, `new`, or `fixed` based on the
+  storage intent instead of preserving `init`.
 
 ```camp
 export Buffer* createBuffer(nuint capacity, within allocator)
@@ -641,7 +652,9 @@ Agent-facing rules:
 - Constructor binding is source-level. Do not infer constructor argument
   validity from lowered ABI parameters for delegates, `once`, strings, arrays,
   or other expanded values.
-- Shadow classes cannot declare destructors or be stack-constructed with `init`.
+- Shadow classes cannot declare destructors. Do not try to construct shadow
+  class storage directly; use the public `new` or create path that installs
+  shadow data.
 - Cleanup normally belongs in a base lifecycle callback or interface handler.
   Release owned fields first, then call `delete shadow`.
 - `delete shadow` deletes generated shadow data only. It does not delete the
