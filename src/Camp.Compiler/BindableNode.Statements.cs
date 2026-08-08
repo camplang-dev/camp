@@ -44,6 +44,7 @@ public class BufferCopyStatement : Statement
 public class DeclarationStatement : Statement
 {
 	public bool IsFixedStorage { get; set; }
+	public bool IsStackAllocStorage { get; set; }
 	public DeclarationTarget Target { get; } = new();
 	public Expression? InitialValue { get; set; }
 }

@@ -458,6 +458,7 @@ public class EmptyStatementSyntax : StatementSyntax
 public class DeclarationTargetSyntax : SyntaxNode
 {
 	public Token? FixedKeyword { get; set; }
+	public Token? StackAllocKeyword { get; set; }
 	public TypeSyntax? Type { get; set; }
 	public Token? Identifier { get; set; }
 
@@ -610,6 +611,7 @@ public class UnaryPrefixSyntax : SyntaxNode
 {
 	public TokenRange? OperatorOrKeyword { get; set; }
 	public Token? NewKeyword { get; set; }
+	public Token? StackAllocKeyword { get; set; }
 	public Token? OpenParenToken { get; set; }
 	public ExpressionSyntax? Expression { get; set; }
 	public Token? CloseParenToken { get; set; }
@@ -619,6 +621,7 @@ public class PostfixExpressionSyntax : ExpressionSyntax
 {
 	public ExpressionSyntax? Expression { get; set; }
 	public List<PostfixPartSyntax>? Parts { get; set; }
+	public InitializerListSyntax? InitializerList { get; set; }
 }
 
 public abstract class PostfixPartSyntax : SyntaxNode
@@ -681,6 +684,7 @@ public class InterpolatedStringExpressionSyntax : PrimaryExpressionSyntax
 	public ExpressionSyntax? AllocatorExpression { get; set; }
 	public Token? WithinCloseParenToken { get; set; }
 	public Token? NewKeyword { get; set; }
+	public Token? StackAllocKeyword { get; set; }
 	public Token? Literal { get; set; }
 	public List<InterpolatedStringSegmentSyntax> Segments { get; } = [];
 }

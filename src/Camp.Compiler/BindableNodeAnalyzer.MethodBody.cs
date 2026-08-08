@@ -2494,6 +2494,8 @@ public sealed partial class BindableNodeAnalyzer
 			AnalyzeType(construction.Type, typeScope);
 
 		string targetType = construction.Type?.ResolvedType ?? TargetType;
+		if (construction.Kind == ConstructionKind.Init)
+			Report(GetRange(construction.SourceSyntax), "`init` is no longer a Camp allocation keyword. Use stackalloc for dynamic stack storage, new for allocator-backed storage, fixed for fixed-size local storage, or Type(args) for construction into existing storage.");
 		if (construction.Kind == ConstructionKind.New)
 			RequireExplicitWithin(construction.SourceSyntax, scope, "new requires an explicit within context; use within(allocator) or within(default).");
 		if (construction.Kind == ConstructionKind.New
@@ -2571,7 +2573,7 @@ public sealed partial class BindableNodeAnalyzer
 			}
 			return $"{targetType}[]";
 		}
-		return construction.Kind == ConstructionKind.New ? $"{targetType}*" : targetType;
+		return construction.Kind is ConstructionKind.New or ConstructionKind.StackAlloc ? $"{targetType}*" : targetType;
 	}
 
 	string BodyAnalyzeWithinExpression(WithinExpression within, BodyScope scope, AnalysisScope typeScope, string? targetType)
@@ -3115,6 +3117,8 @@ public sealed partial class BindableNodeAnalyzer
 	string BodyAnalyzeCallExpression(CallExpression call, BodyScope scope, AnalysisScope typeScope, string? targetType)
 	{
 		NormalizeGenericCallSyntax(call);
+		if (call.Initializer is not null)
+			Report(GetRange(call.Initializer.SourceSyntax ?? call.SourceSyntax), "Initializer lists can only follow type construction.");
 		foreach (TypeReference argument in call.TypeArguments)
 			AnalyzeType(argument, typeScope);
 
@@ -4350,7 +4354,7 @@ public sealed partial class BindableNodeAnalyzer
 			BinaryExpression binary => GetExpressionDiagnosticSyntax(binary.Left) ?? GetExpressionDiagnosticSyntax(binary.Right),
 			ConditionalExpression conditional => GetExpressionDiagnosticSyntax(conditional.Condition) ?? GetExpressionDiagnosticSyntax(conditional.WhenTrue) ?? GetExpressionDiagnosticSyntax(conditional.WhenFalse),
 			RangeExpression range => GetExpressionDiagnosticSyntax(range.Start) ?? GetExpressionDiagnosticSyntax(range.End),
-			CallExpression call => GetExpressionDiagnosticSyntax(call.Target) ?? GetArgumentListDiagnosticSyntax(call.Arguments),
+			CallExpression call => GetExpressionDiagnosticSyntax(call.Target) ?? GetArgumentListDiagnosticSyntax(call.Arguments) ?? GetExpressionDiagnosticSyntax(call.Initializer),
 			IndexExpression index => GetExpressionDiagnosticSyntax(index.Target) ?? GetArgumentListDiagnosticSyntax(index.Arguments),
 			MemberExpression member => GetExpressionDiagnosticSyntax(member.Target),
 			MemberReferenceExpression member => GetExpressionDiagnosticSyntax(member.Target),
@@ -4987,6 +4991,8 @@ public sealed partial class BindableNodeAnalyzer
 					foreach (CallExpression child in EnumerateBaseConstructorCalls(argument))
 						yield return child;
 				}
+				foreach (CallExpression child in EnumerateBaseConstructorCalls(call.Initializer))
+					yield return child;
 				yield break;
 
 			case ArgumentExpression argument:
@@ -5200,6 +5206,13 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (target is MemberExpression member && TryAnalyzePropertyIndexer(member, arguments, scope, typeScope, out string propertyType))
 			return propertyType;
+		if (target is NamedExpression { Qualifiers.Count: 0 } namedTarget
+			&& arguments.Count == 1
+			&& (TryGetPrimitiveType(namedTarget.Name, out _) || typeDefinitions.ContainsKey(namedTarget.Name)))
+		{
+			Report(GetRange(target.SourceSyntax), $"Array allocation requires an explicit storage form; use stackalloc {namedTarget.Name}[count], new {namedTarget.Name}[count], or fixed {namedTarget.Name}[N].");
+			return ErrorType;
+		}
 
 		string targetType = BodyAnalyzeExpression(target, scope, typeScope);
 		if (targetType == ErrorType)

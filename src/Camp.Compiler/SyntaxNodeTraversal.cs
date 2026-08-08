@@ -257,6 +257,7 @@ public static class SyntaxNodeTraversal
 			case PostfixExpressionSyntax syntax:
 				if (syntax.Expression is not null) yield return syntax.Expression;
 				foreach (SyntaxNode child in syntax.Parts ?? []) yield return child;
+				if (syntax.InitializerList is not null) yield return syntax.InitializerList;
 				break;
 			case CallPostfixPartSyntax syntax:
 				if (syntax.ArgumentList is not null) yield return syntax.ArgumentList;
@@ -683,6 +684,7 @@ public static class SyntaxNodeTraversal
 				break;
 			case DeclarationTargetSyntax syntax:
 				foreach (Token token in Tokens(syntax.FixedKeyword)) yield return token;
+				foreach (Token token in Tokens(syntax.StackAllocKeyword)) yield return token;
 				if (syntax.Type is not null) foreach (Token token in Tokens(syntax.Type)) yield return token;
 				foreach (Token token in Tokens(syntax.Identifier)) yield return token;
 				foreach (Token token in Tokens(syntax.AutoKeyword)) yield return token;
@@ -786,6 +788,7 @@ public static class SyntaxNodeTraversal
 			case UnaryPrefixSyntax syntax:
 				foreach (Token token in Tokens(syntax.OperatorOrKeyword)) yield return token;
 				foreach (Token token in Tokens(syntax.NewKeyword)) yield return token;
+				foreach (Token token in Tokens(syntax.StackAllocKeyword)) yield return token;
 				foreach (Token token in Tokens(syntax.OpenParenToken)) yield return token;
 				if (syntax.Expression is not null) foreach (Token token in Tokens(syntax.Expression)) yield return token;
 				foreach (Token token in Tokens(syntax.CloseParenToken)) yield return token;
@@ -793,6 +796,7 @@ public static class SyntaxNodeTraversal
 			case PostfixExpressionSyntax syntax:
 				if (syntax.Expression is not null) foreach (Token token in Tokens(syntax.Expression)) yield return token;
 				foreach (SyntaxNode child in syntax.Parts ?? []) foreach (Token token in Tokens(child)) yield return token;
+				if (syntax.InitializerList is not null) foreach (Token token in Tokens(syntax.InitializerList)) yield return token;
 				break;
 			case CallPostfixPartSyntax syntax:
 				foreach (Token token in Tokens(syntax.OpenParenToken)) yield return token;
@@ -831,6 +835,7 @@ public static class SyntaxNodeTraversal
 				if (syntax.AllocatorExpression is not null) foreach (Token token in Tokens(syntax.AllocatorExpression)) yield return token;
 				foreach (Token token in Tokens(syntax.WithinCloseParenToken)) yield return token;
 				foreach (Token token in Tokens(syntax.NewKeyword)) yield return token;
+				foreach (Token token in Tokens(syntax.StackAllocKeyword)) yield return token;
 				foreach (Token token in Tokens(syntax.Literal)) yield return token;
 				break;
 			case QualifiedNameExpressionSyntax syntax:

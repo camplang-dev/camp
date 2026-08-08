@@ -1,0 +1,172 @@
+<?xml version="1.0" encoding="utf-16"?>
+<Module>
+  <Definitions>
+    <ClassDefinition Name="Widget" Symbol="Widget" Extern="">
+      <Functions>
+        <FunctionDefinition Modifier="Constructor" Name="Widget" Symbol="Widget" Extern="">
+          <Parameters>
+            <ParameterDefinition Name="value" Symbol="value">
+              <Type Type="Int" />
+            </ParameterDefinition>
+          </Parameters>
+        </FunctionDefinition>
+      </Functions>
+    </ClassDefinition>
+    <FunctionDefinition Name="render" Symbol="render" Extern="">
+      <ReturnType Type="NUInt" />
+      <Parameters>
+        <ParameterDefinition Name="value" Symbol="value">
+          <Type Type="Int" />
+        </ParameterDefinition>
+        <ParameterDefinition Modifier="Prep" Name="buffer" Symbol="buffer">
+          <Type Type="ArrayTypeReference">
+            <ElementType Type="Char" />
+          </Type>
+          <DefaultValue Type="DefaultExpression" />
+        </ParameterDefinition>
+      </Parameters>
+    </FunctionDefinition>
+    <FunctionDefinition Name="main" Symbol="main" Export="">
+      <ReturnType Type="Int" />
+      <Body Type="BlockStatement">
+        <Statements>
+          <DeclarationStatement>
+            <Target Type="DeclarationTarget">
+              <Type Type="NUInt" />
+              <Names>
+                <Value>count</Value>
+              </Names>
+            </Target>
+            <InitialValue Type="LiteralExpression" Kind="Number" Text="16" Value="16" />
+          </DeclarationStatement>
+          <DeclarationStatement>
+            <Target Type="DeclarationTarget">
+              <Type Type="ArrayTypeReference">
+                <ElementType Type="Char" />
+              </Type>
+              <Names>
+                <Value>scratch</Value>
+              </Names>
+            </Target>
+            <InitialValue Type="ConstructionExpression" Kind="StackAlloc">
+              <Type Type="Char" />
+              <ElementCount Type="NamedExpression" Name="count" />
+            </InitialValue>
+          </DeclarationStatement>
+          <DeclarationStatement>
+            <Target Type="DeclarationTarget">
+              <Type Type="PointerTypeReference">
+                <ElementType Type="NamedTypeReference" Name="Widget" />
+              </Type>
+              <Names>
+                <Value>widget</Value>
+              </Names>
+            </Target>
+            <InitialValue Type="ConstructionExpression" Kind="StackAlloc">
+              <Type Type="NamedTypeReference" Name="Widget" />
+              <Arguments>
+                <ArgumentExpression>
+                  <Value Type="LiteralExpression" Kind="Number" Text="42" Value="42" />
+                </ArgumentExpression>
+              </Arguments>
+            </InitialValue>
+          </DeclarationStatement>
+          <DeclarationStatement IsStackAllocStorage="True">
+            <Target Type="DeclarationTarget">
+              <Type Type="Int" />
+              <Names>
+                <Value>item</Value>
+              </Names>
+            </Target>
+            <InitialValue Type="LiteralExpression" Kind="Number" Text="7" Value="7" />
+          </DeclarationStatement>
+          <ForeachStatement>
+            <Target Type="DeclarationTarget">
+              <Type Type="Int" />
+              <Names>
+                <Value>current</Value>
+              </Names>
+            </Target>
+            <Source Type="NamedExpression" Name="scratch" />
+            <Body Type="BlockStatement">
+              <Statements>
+                <ExpressionStatement>
+                  <Expression Type="CastExpression" Kind="Type">
+                    <Type Type="Void" />
+                    <Expression Type="NamedExpression" Name="current" />
+                  </Expression>
+                </ExpressionStatement>
+              </Statements>
+            </Body>
+          </ForeachStatement>
+          <ExpressionStatement>
+            <Expression Type="CallExpression">
+              <Target Type="NamedExpression" Name="render" />
+              <Arguments>
+                <ArgumentExpression>
+                  <Value Type="LiteralExpression" Kind="Number" Text="11" Value="11" />
+                </ArgumentExpression>
+              </Arguments>
+              <Initializer Type="InitializerExpression">
+                <Items>
+                  <InitializerItem>
+                    <Target Type="InitializerTarget">
+                      <Parts>
+                        <InitializerTargetPart Name="length" />
+                      </Parts>
+                    </Target>
+                    <Expression Type="NamedExpression" Name="count" />
+                  </InitializerItem>
+                </Items>
+              </Initializer>
+            </Expression>
+          </ExpressionStatement>
+          <DeclarationStatement>
+            <Target Type="DeclarationTarget">
+              <Type Type="AutoTypeReference" />
+              <Names>
+                <Value>text</Value>
+              </Names>
+            </Target>
+            <InitialValue Type="PreparedBufferExpression" StackAllocated="True">
+              <Expression Type="CallExpression">
+                <Target Type="NamedExpression" Name="render" />
+                <Arguments>
+                  <ArgumentExpression>
+                    <Value Type="LiteralExpression" Kind="Number" Text="10" Value="10" />
+                  </ArgumentExpression>
+                </Arguments>
+              </Expression>
+            </InitialValue>
+          </DeclarationStatement>
+          <DeclarationStatement>
+            <Target Type="DeclarationTarget">
+              <Type Type="AutoTypeReference" />
+              <Names>
+                <Value>line</Value>
+              </Names>
+            </Target>
+            <InitialValue Type="InterpolatedStringExpression" StackAllocated="True">
+              <Segments>
+                <InterpolatedStringTextSegment Text="value: " />
+                <InterpolatedStringExpressionSegment>
+                  <Expression Type="NamedExpression" Name="text" />
+                </InterpolatedStringExpressionSegment>
+              </Segments>
+            </InitialValue>
+          </DeclarationStatement>
+          <ReturnStatement>
+            <Expression Type="ConditionalExpression">
+              <Condition Type="BinaryExpression" Operator="Equal">
+                <Left Type="NamedExpression" Name="widget" />
+                <Right Type="DefaultExpression" />
+              </Condition>
+              <WhenTrue Type="LiteralExpression" Kind="Number" Text="1" Value="1" />
+              <WhenFalse Type="LiteralExpression" Kind="Number" Text="0" Value="0" />
+            </Expression>
+          </ReturnStatement>
+        </Statements>
+      </Body>
+    </FunctionDefinition>
+  </Definitions>
+</Module>

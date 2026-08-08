@@ -1048,7 +1048,7 @@ public sealed class CampParser
 			"fixed", "float", "fn", "for", "foreach", "if", "implements", "in", "init", "int",
 			"interface", "internal", "iter", "long", "namespace", "new", "newtype", "nint", "null", "nuint", "once", "out",
 			"override", "params", "prep", "public", "return", "sbyte", "scoped", "sealed", "short", "sizeof",
-			"static", "string", "struct", "switch", "this", "thrown", "true", "try", "uchar", "uint",
+			"stackalloc", "static", "string", "struct", "switch", "this", "thrown", "true", "try", "uchar", "uint",
 			"ulong", "unscoped", "unsafe", "upon", "ushort", "untyped", "using", "virtual", "void", "volatile",
 			"vtableof", "wchar", "while", "within", "wstring", "yield", "typenameof");
 	}
@@ -1454,9 +1454,10 @@ public sealed class CampParser
 			Take();
 		}
 		Token? fixedKeyword = TakeIf("fixed");
+		Token? stackAllocKeyword = fixedKeyword is null ? TakeIf("stackalloc") : null;
 		if (Is("auto"))
 		{
-			DeclarationTargetSyntax syntax = new() { FixedKeyword = fixedKeyword, AutoKeyword = Take() };
+			DeclarationTargetSyntax syntax = new() { FixedKeyword = fixedKeyword, StackAllocKeyword = stackAllocKeyword, AutoKeyword = Take() };
 
 			if (Is("("))
 			{
@@ -1479,10 +1480,12 @@ public sealed class CampParser
 			index = start;
 			if (fixedKeyword is not null)
 				index = fixedKeyword.Value.Index;
+			if (stackAllocKeyword is not null)
+				index = stackAllocKeyword.Value.Index;
 			return null;
 		}
 
-		return new DeclarationTargetSyntax { FixedKeyword = fixedKeyword, Type = type, Identifier = TakeIdentifier() };
+		return new DeclarationTargetSyntax { FixedKeyword = fixedKeyword, StackAllocKeyword = stackAllocKeyword, Type = type, Identifier = TakeIdentifier() };
 	}
 
 	ExpressionSyntax? ParseExpression()
@@ -1691,14 +1694,15 @@ public sealed class CampParser
 
 	UnaryPrefixSyntax? TryParseUnaryPrefix()
 	{
-		if (Is("(") && PeekValue(1) == "new" && PeekValue(2) == ")")
+		if (Is("(") && (PeekValue(1) == "new" || PeekValue(1) == "stackalloc") && PeekValue(2) == ")")
 		{
 			Token? openParen = Take();
-			Token? newKeyword = Take();
+			Token? keyword = Take();
 			Token? closeParen = Take();
 			return new UnaryPrefixSyntax
 			{
-				NewKeyword = newKeyword,
+				NewKeyword = keyword?.Value == "new" ? keyword : null,
+				StackAllocKeyword = keyword?.Value == "stackalloc" ? keyword : null,
 				OpenParenToken = openParen,
 				CloseParenToken = closeParen
 			};
@@ -1737,7 +1741,10 @@ public sealed class CampParser
 		while (TryParsePostfixPart() is PostfixPartSyntax part)
 			syntax.Parts.Add(part);
 
-		if (syntax.Parts.Count == 0)
+		if (Is("{") && syntax.Parts.Count > 0)
+			syntax.InitializerList = ParseInitializerList();
+
+		if (syntax.Parts.Count == 0 && syntax.InitializerList is null)
 			return primary;
 
 		return syntax;
@@ -1841,7 +1848,7 @@ public sealed class CampParser
 		if (Is("symbolof"))
 			return ParseSymbolOfExpression();
 
-		if (Is("within") || Is("init") || Is("new"))
+		if (Is("within") || Is("init") || Is("new") || Is("stackalloc"))
 			return TryParseConstructionExpression();
 
 		if (Is("("))
@@ -1873,20 +1880,21 @@ public sealed class CampParser
 			withinCloseParen = Expect(")");
 		}
 
-		if (!Is("new") || Peek(1)?.Class != TokenClass.InterpolatedString)
+		if ((!Is("new") && !Is("stackalloc")) || Peek(1)?.Class != TokenClass.InterpolatedString)
 		{
 			index = start;
 			diagnostics.RemoveRange(diagnosticStart, diagnostics.Count - diagnosticStart);
 			return null;
 		}
 
-		Token newKeyword = Take()!.Value;
+		Token keyword = Take()!.Value;
 		InterpolatedStringExpressionSyntax syntax = ParseInterpolatedStringExpression();
 		syntax.WithinKeyword = withinKeyword;
 		syntax.WithinOpenParenToken = withinOpenParen;
 		syntax.AllocatorExpression = allocator;
 		syntax.WithinCloseParenToken = withinCloseParen;
-		syntax.NewKeyword = newKeyword;
+		syntax.NewKeyword = keyword.Value == "new" ? keyword : null;
+		syntax.StackAllocKeyword = keyword.Value == "stackalloc" ? keyword : null;
 		return syntax;
 	}
 
@@ -2350,13 +2358,15 @@ public sealed class CampParser
 			syntax.WithinCloseParenToken = Expect(")");
 		}
 
-		if (!Is("init") && !Is("new"))
+		if (!Is("init") && !Is("new") && !Is("stackalloc"))
 		{
 			index = start;
 			return null;
 		}
 
 		syntax.Keyword = Take();
+		if (syntax.Keyword?.Value == "init")
+			Report(syntax.Keyword, "`init` is no longer a Camp allocation keyword. Use stackalloc for dynamic stack storage, new for allocator-backed storage, fixed for fixed-size local storage, or Type(args) for construction into existing storage.");
 
 		if (!Is("("))
 			syntax.Type = ParseType(allowFixedArrayLength: false);

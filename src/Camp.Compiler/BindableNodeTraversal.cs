@@ -607,6 +607,8 @@ internal static class BindableNodeTraversal
 					yield return child;
 				foreach (ArgumentExpression child in call.Arguments)
 					yield return child;
+				if (call.Initializer is not null)
+					yield return call.Initializer;
 				break;
 			case IndexExpression index:
 				if (index.Target is not null)
@@ -903,6 +905,7 @@ internal static class BindableNodeTraversal
 			case CallExpression call:
 				call.Target = Expression(call.Target);
 				TypeList(call.TypeArguments);
+				call.Initializer = (InitializerExpression?)Expression(call.Initializer);
 				break;
 			case IndexExpression index:
 				index.Target = Expression(index.Target);

@@ -227,7 +227,8 @@ public sealed partial class BindableNodeBuilder
 		InterpolatedStringExpression expression = new()
 		{
 			SourceSyntax = syntax,
-			HeapAllocated = syntax.NewKeyword is not null
+			HeapAllocated = syntax.NewKeyword is not null,
+			StackAllocated = syntax.StackAllocKeyword is not null
 		};
 		foreach (InterpolatedStringSegmentSyntax segment in syntax.Segments)
 		{
@@ -386,7 +387,12 @@ public sealed partial class BindableNodeBuilder
 		ConstructionExpression construction = new()
 		{
 			SourceSyntax = syntax,
-			Kind = syntax.Keyword?.Value == "init" ? ConstructionKind.Init : ConstructionKind.New,
+			Kind = syntax.Keyword?.Value switch
+			{
+				"init" => ConstructionKind.Init,
+				"stackalloc" => ConstructionKind.StackAlloc,
+				_ => ConstructionKind.New
+			},
 			Type = syntax.Type is null ? null : BuildTypeReference(syntax.Type),
 			ElementCount = syntax.ElementCount is null ? null : BuildExpression(syntax.ElementCount, $"{context} construction element count"),
 			Initializer = syntax.InitializerList is null ? null : (InitializerExpression?)BuildInitializerExpression(syntax.InitializerList, $"{context} construction initializer")
@@ -535,6 +541,16 @@ public sealed partial class BindableNodeBuilder
 					HeapAllocated = true
 				};
 			}
+			else if (prefix.StackAllocKeyword is not null && prefix.OpenParenToken is not null)
+			{
+				expression = new PreparedBufferExpression
+				{
+					SourceSyntax = prefix,
+					Expression = expression,
+					HeapAllocated = false,
+					StackAllocated = true
+				};
+			}
 			else
 			{
 				expression = new UnaryExpression
@@ -570,6 +586,19 @@ public sealed partial class BindableNodeBuilder
 
 		foreach (PostfixPartSyntax part in syntax.Parts ?? [])
 			expression = BuildPostfixPart(expression, part, context);
+
+		if (syntax.InitializerList is not null)
+		{
+			InitializerExpression initializer = (InitializerExpression)BuildInitializerExpression(syntax.InitializerList, $"{context} postfix initializer");
+			if (expression is CallExpression call)
+			{
+				call.Initializer = initializer;
+			}
+			else
+			{
+				Report(syntax.InitializerList, "Initializer lists can only follow type construction.");
+			}
+		}
 
 		return expression ?? new LiteralExpression { SourceSyntax = syntax, Kind = LiteralKind.Null, Text = "null" };
 	}

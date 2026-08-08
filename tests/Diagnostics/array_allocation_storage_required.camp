@@ -1,0 +1,5 @@
+export int main()
+{
+	char[] missingStorage = char[16];
+	return 0;
+}

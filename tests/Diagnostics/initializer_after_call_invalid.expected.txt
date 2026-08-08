@@ -1,0 +1,1 @@
+tests/Diagnostics/initializer_after_call_invalid.camp(13,28): error: Initializer lists can only follow type construction.

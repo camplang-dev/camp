@@ -1176,6 +1176,8 @@ public sealed class BindableNodeCodeSerializer
 			case PreparedBufferExpression prepared:
 				if (prepared.HeapAllocated)
 					writer.Write("(new) ");
+				else if (prepared.StackAllocated)
+					writer.Write("(stackalloc) ");
 				WriteExpression(prepared.Expression, GetPrecedence(prepared));
 				break;
 
@@ -1227,6 +1229,11 @@ public sealed class BindableNodeCodeSerializer
 				if (call.TypeArguments.Count > 0)
 					WriteDelimited("<", ">", call.TypeArguments, WriteType);
 				WriteDelimited("(", ")", call.Arguments, WriteArgument);
+				if (call.Initializer is not null)
+				{
+					writer.Write(" ");
+					WriteInitializer(call.Initializer);
+				}
 				break;
 
 			case IndexExpression index:
@@ -1331,7 +1338,7 @@ public sealed class BindableNodeCodeSerializer
 
 	void WriteDeclarationInline(DeclarationStatement declaration)
 	{
-		WriteDeclarationTarget(declaration.Target, declaration.IsFixedStorage);
+		WriteDeclarationTarget(declaration.Target, declaration.IsFixedStorage, declaration.IsStackAllocStorage);
 		if (declaration.InitialValue is not null)
 		{
 			writer.Write(" = ");
@@ -1339,10 +1346,12 @@ public sealed class BindableNodeCodeSerializer
 		}
 	}
 
-	void WriteDeclarationTarget(DeclarationTarget target, bool isFixedStorage = false)
+	void WriteDeclarationTarget(DeclarationTarget target, bool isFixedStorage = false, bool isStackAllocStorage = false)
 	{
 		if (isFixedStorage)
 			writer.Write("fixed ");
+		if (isStackAllocStorage)
+			writer.Write("stackalloc ");
 		WriteTypeOrResolved(target.Type, target.ResolvedType);
 		writer.Write(" ");
 		for (int i = 0; i < target.Names.Count; i++)
@@ -2167,6 +2176,10 @@ public sealed class BindableNodeCodeSerializer
 
 	void WriteInterpolatedString(InterpolatedStringExpression interpolation)
 	{
+		if (interpolation.HeapAllocated)
+			writer.Write("new ");
+		else if (interpolation.StackAllocated)
+			writer.Write("stackalloc ");
 		writer.Write("$\"");
 		foreach (InterpolatedStringSegment segment in interpolation.Segments)
 		{
@@ -2273,7 +2286,12 @@ public sealed class BindableNodeCodeSerializer
 
 	void WriteConstructionExpression(ConstructionExpression construction)
 	{
-		writer.Write(construction.Kind == ConstructionKind.Init ? "init " : "new ");
+		writer.Write(construction.Kind switch
+		{
+			ConstructionKind.Init => "init ",
+			ConstructionKind.StackAlloc => "stackalloc ",
+			_ => "new "
+		});
 		WriteType(construction.Type);
 		if (construction.ElementCount is not null)
 		{

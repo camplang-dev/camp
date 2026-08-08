@@ -1,0 +1,1 @@
+tests/Diagnostics/array_allocation_storage_required.camp(3,26): error: Array allocation requires an explicit storage form; use stackalloc char[count], new char[count], or fixed char[N].

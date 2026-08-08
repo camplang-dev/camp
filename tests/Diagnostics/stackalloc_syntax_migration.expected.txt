@@ -1,0 +1,2 @@
+tests/Diagnostics/stackalloc_syntax_migration.camp(7,21): error: `init` is no longer a Camp allocation keyword. Use stackalloc for dynamic stack storage, new for allocator-backed storage, fixed for fixed-size local storage, or Type(args) for construction into existing storage.
+tests/Diagnostics/stackalloc_syntax_migration.camp(8,21): error: `init` is no longer a Camp allocation keyword. Use stackalloc for dynamic stack storage, new for allocator-backed storage, fixed for fixed-size local storage, or Type(args) for construction into existing storage.

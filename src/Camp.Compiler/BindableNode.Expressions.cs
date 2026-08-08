@@ -19,6 +19,7 @@ public class InterpolatedStringExpression : Expression
 	public List<InterpolatedStringSegment> Segments { get; } = [];
 	public string? FormatterType { get; set; }
 	public bool HeapAllocated { get; set; }
+	public bool StackAllocated { get; set; }
 	public bool NullTerminated { get; set; }
 }
 
@@ -164,6 +165,7 @@ public class PreparedBufferExpression : Expression
 {
 	public Expression? Expression { get; set; }
 	public bool HeapAllocated { get; set; }
+	public bool StackAllocated { get; set; }
 	public string? ConvertedResultType { get; set; }
 }
 
@@ -240,6 +242,7 @@ public class CallExpression : Expression
 	public Expression? Target { get; set; }
 	public List<TypeReference> TypeArguments { get; } = [];
 	public List<ArgumentExpression> Arguments { get; } = [];
+	public InitializerExpression? Initializer { get; set; }
 	public PreparedCallMode PreparedMode { get; set; }
 	public string? PreparedResultType { get; set; }
 	public string? PreparedConvertedResultType { get; set; }
@@ -356,7 +359,8 @@ public enum CastKind
 public enum ConstructionKind
 {
 	Init,
-	New
+	New,
+	StackAlloc
 }
 
 public enum UnaryOperator

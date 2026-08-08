@@ -1,0 +1,15 @@
+struct Point
+{
+	int x;
+}
+
+Point makePoint()
+{
+	return default;
+}
+
+export int main()
+{
+	Point point = makePoint() { .x = 1 };
+	return point.x;
+}

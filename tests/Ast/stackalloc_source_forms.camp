@@ -1,0 +1,22 @@
+extern class Widget
+{
+	extern Widget(int value);
+}
+
+extern prep char[] render(int value);
+
+export int main()
+{
+	nuint count = 16;
+	char[] scratch = stackalloc char[count];
+	Widget* widget = stackalloc Widget(42);
+	stackalloc int item = 7;
+	foreach (stackalloc int current in scratch)
+	{
+		(void)current;
+	}
+	render(11) { .length = count };
+	auto text = (stackalloc) render(10);
+	auto line = stackalloc $"value: {text}";
+	return widget == default ? 1 : 0;
+}

@@ -1,0 +1,11 @@
+struct Widget
+{
+}
+
+export int main()
+{
+	char[] oldBuffer = init char[16];
+	Widget oldWidget = init Widget();
+	char[] missingStorage = char[16];
+	return 0;
+}
