@@ -30,13 +30,18 @@ function Resolve-VscodeVsix {
     Get-ChildItem $extensionDir -Filter "vscode-camp-*.vsix" -File -ErrorAction SilentlyContinue | Remove-Item -Force
     Push-Location $extensionDir
     try {
-        npm ci 1>&2
-        if ($LASTEXITCODE -ne 0) {
-            exit $LASTEXITCODE
+        $npmCiOutput = & npm ci 2>&1
+        $npmCiExitCode = $LASTEXITCODE
+        $npmCiOutput | ForEach-Object { Write-Host $_ }
+        if ($npmCiExitCode -ne 0) {
+            exit $npmCiExitCode
         }
-        npm run package 1>&2
-        if ($LASTEXITCODE -ne 0) {
-            exit $LASTEXITCODE
+
+        $npmPackageOutput = & npm run package 2>&1
+        $npmPackageExitCode = $LASTEXITCODE
+        $npmPackageOutput | ForEach-Object { Write-Host $_ }
+        if ($npmPackageExitCode -ne 0) {
+            exit $npmPackageExitCode
         }
     }
     finally {
