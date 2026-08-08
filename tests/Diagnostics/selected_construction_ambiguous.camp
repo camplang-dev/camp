@@ -1,0 +1,17 @@
+struct Point
+{
+	Point()
+	{
+	}
+}
+
+Point Point()
+{
+	return default;
+}
+
+export int main()
+{
+	Point value = Point();
+	return 0;
+}

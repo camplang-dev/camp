@@ -1,0 +1,1 @@
+tests/Diagnostics/selected_construction_ambiguous.camp(8,7): error: Duplicate symbol name 'Point'.

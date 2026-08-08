@@ -376,7 +376,7 @@ public sealed partial class BindableNodeAnalyzer
 		expression = null;
 		if (assignment.Operator != AssignmentOperator.Assign
 			|| assignment.Target is null
-			|| assignment.Value is not ConstructionExpression { Kind: ConstructionKind.Init } construction)
+			|| assignment.Value is not ConstructionExpression { Kind: ConstructionKind.Init or ConstructionKind.Selected } construction)
 			return false;
 
 		for (int i = 0; i < construction.Arguments.Count; i++)

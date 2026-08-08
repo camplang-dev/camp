@@ -328,7 +328,7 @@ public sealed partial class BindableNodeAnalyzer
 		return construction.Kind switch
 		{
 			ConstructionKind.New => GetNewConstructionLifetimeFact(construction),
-			ConstructionKind.Init => GetInitConstructionLifetimeFact(construction, resolvedType, scope),
+			ConstructionKind.Init or ConstructionKind.Selected => GetInitConstructionLifetimeFact(construction, resolvedType, scope),
 			_ => null
 		};
 	}

@@ -2289,6 +2289,7 @@ public sealed class BindableNodeCodeSerializer
 		writer.Write(construction.Kind switch
 		{
 			ConstructionKind.Init => "init ",
+			ConstructionKind.Selected => "",
 			ConstructionKind.StackAlloc => "stackalloc ",
 			_ => "new "
 		});

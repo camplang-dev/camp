@@ -359,6 +359,7 @@ public enum CastKind
 public enum ConstructionKind
 {
 	Init,
+	Selected,
 	New,
 	StackAlloc
 }

@@ -1,0 +1,40 @@
+using Std;
+
+struct Point
+{
+	int x;
+	int y;
+
+	Point(int x, int y)
+	{
+		this.x = x;
+		this.y = y;
+	}
+}
+
+int sum(Point point)
+{
+	return point.x + point.y;
+}
+
+Point makePoint(int value)
+{
+	return Point(value, value + 1);
+}
+
+export int main()
+{
+	Point local = Point(1, 2);
+	local = Point(3, 4);
+	Point aggregate = Point(0, 0) { .x = 5, .y = 6 };
+	int total = sum(Point(7, 8));
+	Point returned = makePoint(9);
+	Console.writeLine(local.x);
+	Console.writeLine(local.y);
+	Console.writeLine(aggregate.x);
+	Console.writeLine(aggregate.y);
+	Console.writeLine(total);
+	Console.writeLine(returned.x);
+	Console.writeLine(returned.y);
+	return 0;
+}

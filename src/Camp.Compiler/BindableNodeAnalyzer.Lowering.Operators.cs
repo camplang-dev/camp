@@ -288,9 +288,34 @@ public sealed partial class BindableNodeAnalyzer
 		return construction.Kind switch
 		{
 			ConstructionKind.New => CreateNewExpression(definition, construction.Type, construction.Arguments, construction.SourceSyntax, construction.ResolvedType, constructorTarget, construction.Initializer),
+			ConstructionKind.Selected => CreateSelectedConstructionTemporary(definition, construction, constructorTarget),
 			ConstructionKind.Init => (Expression?)CreateInitCallForConstruction(construction, target: null, constructorTarget) ?? construction,
 			_ => construction
 		};
+	}
+
+	Expression CreateSelectedConstructionTemporary(TypeDefinition definition, ConstructionExpression construction, FunctionDefinition? constructorTarget)
+	{
+		string constructedType = construction.Type?.ResolvedType ?? construction.ResolvedType ?? definition.Name;
+		TypeReference typeReference = construction.Type ?? TypeReferenceFor(definition);
+		string localName = NewGeneratedLocalName("constructed");
+		DeclarationStatement localDeclaration = CreateGeneratedLocal(localName, constructedType, CloneType(typeReference) ?? TypeReferenceFor(definition), initialValue: null);
+		Expression localReference = CreateVariableReference(localDeclaration.Target, constructedType);
+
+		if (currentStatementPrefix is null)
+		{
+			Report(GetRange(construction.SourceSyntax), "Type construction requires destination storage in this expression position.");
+			return construction;
+		}
+
+		currentStatementPrefix.Add(localDeclaration);
+		if (CreateVirtualTableAssignment(localReference, definition) is Expression vtableAssignment)
+			currentStatementPrefix.Add(new ExpressionStatement { SourceSyntax = construction.SourceSyntax, Expression = vtableAssignment, ResolvedType = vtableAssignment.ResolvedType ?? "void" });
+		if (CreateInitCallForConstruction(construction, localReference, constructorTarget) is CallExpression initCall)
+			currentStatementPrefix.Add(new ExpressionStatement { SourceSyntax = construction.SourceSyntax, Expression = initCall, ResolvedType = "void" });
+		foreach (Expression assignment in CreateTrailingInitializerAssignments(localReference, construction.Initializer, definition, construction.SourceSyntax))
+			currentStatementPrefix.Add(new ExpressionStatement { SourceSyntax = assignment.SourceSyntax ?? construction.SourceSyntax, Expression = assignment, ResolvedType = assignment.ResolvedType ?? "void" });
+		return localReference;
 	}
 
 	Expression CreateNewExpression(TypeDefinition type, TypeReference? constructedType, List<ArgumentExpression> arguments, SyntaxNode? syntax, string? resolvedType, FunctionDefinition? constructorTarget = null, InitializerExpression? initializer = null)

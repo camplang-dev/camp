@@ -3117,10 +3117,14 @@ public sealed partial class BindableNodeAnalyzer
 	string BodyAnalyzeCallExpression(CallExpression call, BodyScope scope, AnalysisScope typeScope, string? targetType)
 	{
 		NormalizeGenericCallSyntax(call);
-		if (call.Initializer is not null)
-			Report(GetRange(call.Initializer.SourceSyntax ?? call.SourceSyntax), "Initializer lists can only follow type construction.");
 		foreach (TypeReference argument in call.TypeArguments)
 			AnalyzeType(argument, typeScope);
+
+		if (TryCreateSelectedConstructionExpression(call, scope, typeScope, targetType, out string constructionType))
+			return constructionType;
+
+		if (call.Initializer is not null)
+			Report(GetRange(call.Initializer.SourceSyntax ?? call.SourceSyntax), "Initializer lists can only follow type construction.");
 
 		FunctionDefinition? function = callTargets.TryGetValue(call, out FunctionDefinition? existingTarget)
 			? existingTarget
@@ -3232,6 +3236,63 @@ public sealed partial class BindableNodeAnalyzer
 		if (targetType is not null && (preparedResult is null || !TryApplyPreparedResultConversion(preparedResult, returnType, targetType)))
 			CheckAssignable(targetType, returnType, call, call.SourceSyntax, "Call result");
 		return returnType;
+	}
+
+	bool TryCreateSelectedConstructionExpression(CallExpression call, BodyScope scope, AnalysisScope typeScope, string? targetType, out string constructionType)
+	{
+		constructionType = ErrorType;
+		if (!TryGetConstructionCallTargetType(call, typeScope, out TypeReference? constructedType, out string displayName))
+			return false;
+
+		if (call.Target is NamedExpression named)
+		{
+			List<FunctionDefinition> functions = LookupFunctions(named, scope);
+			if (functions.Count > 0)
+			{
+				Report(GetRange(call.Target.SourceSyntax ?? call.SourceSyntax), $"`{displayName}(...)` is ambiguous because both a type constructor and a function named `{displayName}` are visible.");
+				constructionType = ErrorType;
+				return true;
+			}
+		}
+
+		ConstructionExpression construction = new()
+		{
+			SourceSyntax = call.SourceSyntax,
+			Kind = ConstructionKind.Selected,
+			Type = constructedType,
+			Initializer = call.Initializer
+		};
+		foreach (ArgumentExpression argument in call.Arguments)
+			construction.Arguments.Add(argument);
+
+		constructionType = BodyAnalyzeConstructionExpression(construction, scope, typeScope, targetType);
+		construction.ResolvedType = constructionType;
+		expressionRewrites[call] = construction;
+		return true;
+	}
+
+	bool TryGetConstructionCallTargetType(CallExpression call, AnalysisScope typeScope, out TypeReference? constructedType, out string displayName)
+	{
+		constructedType = null;
+		displayName = "";
+		if (call.Target is not NamedExpression named)
+			return false;
+
+		if (!TryGetNamedExpressionTypeDefinition(named, out TypeDefinition? definition) || definition is null)
+			return false;
+
+		NamedTypeReference reference = new()
+		{
+			SourceSyntax = named.SourceSyntax,
+			Name = named.Name
+		};
+		reference.Qualifiers.AddRange(named.Qualifiers);
+		foreach (TypeReference argument in call.TypeArguments)
+			reference.TypeArguments.Add(argument);
+		AnalyzeType(reference, typeScope);
+		constructedType = reference;
+		displayName = FormatNamedExpressionName(named);
+		return true;
 	}
 
 	static bool TryGetOmittedPrepParameter(CallArgumentBinding binding, out ParameterDefinition? prepParameter)

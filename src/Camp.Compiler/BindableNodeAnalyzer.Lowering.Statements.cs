@@ -1445,15 +1445,17 @@ public sealed partial class BindableNodeAnalyzer
 		statements = [];
 		bool finallyCleanup = false;
 		Expression? initialValue = declaration.InitialValue;
+		if (initialValue is not null && expressionRewrites.TryGetValue(initialValue, out Expression? rewrittenInitialValue))
+			initialValue = rewrittenInitialValue;
 		if (initialValue is FinallyCleanupExpression { Kind: FinallyCleanupKind.Delete, Expression: ConstructionExpression finallyCleanupConstruction } finallyCleanupExpression
-			&& finallyCleanupConstruction.Kind == ConstructionKind.Init)
+			&& finallyCleanupConstruction.Kind is ConstructionKind.Init or ConstructionKind.Selected)
 		{
 			finallyCleanup = true;
 			initialValue = finallyCleanupConstruction;
 			finallyCleanupExpression.Expression = finallyCleanupConstruction;
 		}
 
-		if (initialValue is not ConstructionExpression { Kind: ConstructionKind.Init } construction || declaration.Target.Names.Count != 1)
+		if (initialValue is not ConstructionExpression { Kind: ConstructionKind.Init or ConstructionKind.Selected } construction || declaration.Target.Names.Count != 1)
 			return false;
 
 		List<Statement>? previousPrefix = currentStatementPrefix;
@@ -1505,7 +1507,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (constructedDefinition is null
 			&& typeDefinitions.TryGetValue(BaseConstructedType(declaration.Target.Type?.ResolvedType), out TypeDefinition? targetTypeDefinition))
 			constructedDefinition = targetTypeDefinition;
-		declaration.InitialValue = construction.Initializer;
+		declaration.InitialValue = construction.Kind == ConstructionKind.Selected ? null : construction.Initializer;
 
 		if (initCall is null)
 			return false;
@@ -1526,6 +1528,18 @@ public sealed partial class BindableNodeAnalyzer
 			ResolvedType = "void",
 			Expression = initCall
 		});
+		if (construction.Kind == ConstructionKind.Selected && constructedDefinition is not null)
+		{
+			foreach (Expression assignment in CreateTrailingInitializerAssignments(target, construction.Initializer, constructedDefinition, construction.SourceSyntax))
+			{
+				statements.Add(new ExpressionStatement
+				{
+					SourceSyntax = assignment.SourceSyntax ?? construction.SourceSyntax,
+					ResolvedType = assignment.ResolvedType ?? "void",
+					Expression = assignment
+				});
+			}
+		}
 		if (finallyCleanup && currentCleanupScopes.Count > 0)
 		{
 			CleanupScope cleanupScope = currentCleanupScopes[^1];
