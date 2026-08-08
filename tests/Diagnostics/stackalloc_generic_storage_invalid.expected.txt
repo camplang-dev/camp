@@ -1,5 +1,5 @@
 tests/Diagnostics/stackalloc_generic_storage_invalid.camp(3,2): error: Erased generic type 'T' requires explicit stackalloc local storage; write 'stackalloc T name'.
 tests/Diagnostics/stackalloc_generic_storage_invalid.camp(1,1): (no line,column) error: Erased generic type 'T' requires explicit stackalloc local storage; write 'stackalloc T name'.
-tests/Diagnostics/stackalloc_generic_storage_invalid.camp(1,1): (no line,column) error: Foreach over erased generic values requires explicit stackalloc item storage; write 'foreach (stackalloc T item in ...)'.
+tests/Diagnostics/stackalloc_generic_storage_invalid.camp(1,1): (no line,column) error: Erased generic foreach requires 'stackalloc T value'.
 tests/Diagnostics/stackalloc_generic_storage_invalid.camp(20,13): error: stackalloc T requires sizeof(T) in scope.
 tests/Diagnostics/stackalloc_generic_storage_invalid.camp(20,23): error: Copying erased generic values requires sizeof(T).

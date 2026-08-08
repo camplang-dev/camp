@@ -1363,7 +1363,8 @@ public sealed partial class BindableNodeAnalyzer
 			return;
 		}
 
-		Report(GetRange(statement.Target.Type?.SourceSyntax ?? statement.Target.SourceSyntax ?? statement.SourceSyntax), $"Foreach over erased generic values requires explicit stackalloc item storage; write 'foreach (stackalloc {parameter.Name} item in ...)'.");
+		string targetName = statement.Target.Names.Count == 1 && statement.Target.Names[0] != "_" ? statement.Target.Names[0] : "item";
+		Report(GetRange(statement.Target.Type?.SourceSyntax ?? statement.Target.SourceSyntax ?? statement.SourceSyntax), $"Erased generic foreach requires 'stackalloc {parameter.Name} {targetName}'.");
 	}
 
 	void BodyAnalyzeSwitchStatement(SwitchStatement statement, BodyScope scope, AnalysisScope typeScope)
