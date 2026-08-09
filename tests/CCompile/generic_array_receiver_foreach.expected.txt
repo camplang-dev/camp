@@ -18,10 +18,10 @@ int Array_sumGeneric(void *this, uintptr_t this_length, int (* valueOf)(void *ar
 		void *_foreachElements0 = this;
 		uintptr_t _foreachLength1 = this_length;
 		uintptr_t _foreachIndex2 = 0;
-		uint8_t *item = __builtin_alloca(sizeof_T);
-		__builtin_memset(item, 0, sizeof_T);
 		while ((_foreachIndex2 < _foreachLength1))
 		{
+			uint8_t *item = __builtin_alloca(sizeof_T);
+			__builtin_memset(item, 0, sizeof_T);
 			__builtin_memmove(item, (void*)(((uint8_t*)_foreachElements0) + (_foreachIndex2 * sizeof_T)), sizeof_T);
 			total += valueOf(valueOf_context, item);
 __foreach_continue3: ;

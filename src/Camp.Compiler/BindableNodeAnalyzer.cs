@@ -136,6 +136,16 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			foreach (TypeDefinition candidate in allTypeDefinitions)
 			{
+				if (candidate.Name == named.Name
+					&& IsDefinitionInReferenceNamespace(candidate, named.SourceSyntax)
+					&& IsUnqualifiedDefinitionVisible(candidate, named.SourceSyntax))
+				{
+					definition = candidate;
+					return true;
+				}
+			}
+			foreach (TypeDefinition candidate in allTypeDefinitions)
+			{
 				if (candidate.Name == named.Name && IsUnqualifiedDefinitionVisible(candidate, named.SourceSyntax))
 				{
 					definition = candidate;
@@ -180,6 +190,16 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (named.Qualifiers.Count == 0)
 		{
+			foreach (StaticClassDefinition candidate in allStaticClassDefinitions)
+			{
+				if (candidate.Name == named.Name
+					&& IsDefinitionInReferenceNamespace(candidate, named.SourceSyntax)
+					&& IsUnqualifiedDefinitionVisible(candidate, named.SourceSyntax))
+				{
+					definition = candidate;
+					return true;
+				}
+			}
 			foreach (StaticClassDefinition candidate in allStaticClassDefinitions)
 			{
 				if (candidate.Name == named.Name && IsUnqualifiedDefinitionVisible(candidate, named.SourceSyntax))
@@ -312,6 +332,14 @@ public sealed partial class BindableNodeAnalyzer
 		TokenRange? referenceRange = GetRange(referenceSyntax);
 		return referenceRange is not TokenRange range
 			|| IsDefinitionImported(definition, range.Sequence, referenceSyntax);
+	}
+
+	bool IsDefinitionInReferenceNamespace(Definition definition, SyntaxNode? referenceSyntax)
+	{
+		TokenRange? referenceRange = GetRange(referenceSyntax);
+		if (referenceRange is not TokenRange range)
+			return false;
+		return StringEqualsNamespace(GetDefinitionNamespace(definition), GetReferenceNamespace(referenceSyntax, range.Sequence));
 	}
 
 	string? GetDefinitionNamespace(Definition definition)

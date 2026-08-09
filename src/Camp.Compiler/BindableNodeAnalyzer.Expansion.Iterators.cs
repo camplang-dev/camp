@@ -377,7 +377,9 @@ public sealed partial class BindableNodeAnalyzer
 		ClassDefinition state = generatedDeclarations.Class(GeneratedDeclarationCategory.Iterator, "iterator state type", function);
 		state.SourceSyntax = function.SourceSyntax;
 		state.Name = stateName;
-		state.Symbol = stateName;
+		state.Namespace = GetDefinitionNamespace(function);
+		state.NamespaceAssigned = true;
+		state.Symbol = SymbolNameService.DefaultTypeSymbol(state.Namespace, stateName);
 		state.Export = function.Export;
 		state.Public = function.Public;
 		state.Internal = function.Internal;
@@ -392,7 +394,9 @@ public sealed partial class BindableNodeAnalyzer
 		StructDefinition state = generatedDeclarations.Struct(GeneratedDeclarationCategory.Iterator, "iterator state type", function);
 		state.SourceSyntax = function.SourceSyntax;
 		state.Name = stateName;
-		state.Symbol = stateName;
+		state.Namespace = GetDefinitionNamespace(function);
+		state.NamespaceAssigned = true;
+		state.Symbol = SymbolNameService.DefaultTypeSymbol(state.Namespace, stateName);
 		state.Export = function.Export;
 		state.Public = function.Public;
 		state.Internal = function.Internal;

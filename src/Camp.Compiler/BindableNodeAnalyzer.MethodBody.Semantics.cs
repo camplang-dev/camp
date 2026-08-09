@@ -2026,15 +2026,23 @@ public sealed partial class BindableNodeAnalyzer
 			lookupName = alias!.ResolvedTargetName;
 
 		List<FunctionDefinition> functions = [];
+		List<FunctionDefinition> namespaceFunctions = [];
 		foreach (Definition definition in ActiveCurrentDefinitions())
 		{
 			if (definition is FunctionDefinition function
 				&& IsSourceLookupFunction(function)
 				&& IsCallableTopLevelFunctionNamed(function, lookupName)
 				&& IsFunctionNameVisible(function, name, scope.CurrentFunction.SourceSyntax))
-				AddFunctionCandidate(functions, function);
+			{
+				if (name.Qualifiers.Count == 0 && IsDefinitionInReferenceNamespace(function, name.SourceSyntax))
+					AddFunctionCandidate(namespaceFunctions, function);
+				else
+					AddFunctionCandidate(functions, function);
+			}
 		}
 
+		if (namespaceFunctions.Count > 0)
+			return namespaceFunctions;
 		return functions;
 	}
 
