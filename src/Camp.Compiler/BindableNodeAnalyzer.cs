@@ -259,6 +259,8 @@ public sealed partial class BindableNodeAnalyzer
 
 	bool IsDefinitionImported(Definition definition, TokenSequence referenceSource, SyntaxNode? referenceSyntax)
 	{
+		if (IsDefinitionInSameFile(definition, referenceSyntax))
+			return true;
 		string? namespaceName = GetDefinitionNamespace(definition);
 		if (string.IsNullOrWhiteSpace(namespaceName))
 			return true;
