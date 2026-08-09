@@ -25,9 +25,9 @@ export int main()
 	auto face = '😀'.toString();
 	if (letter.length != 1 || letter[0] != 'A')
 		return 9;
-	if (accent.length != 2 || accent.getChar(0) != (uchar)'é')
+	if (accent.length != 2 || accent.getUChar(0) != (uchar)'é')
 		return 10;
-	if (face.length != 4 || face.getChar(0) != (uchar)'😀')
+	if (face.length != 4 || face.getUChar(0) != (uchar)'😀')
 		return 11;
 
 	achar a = (achar)'A';

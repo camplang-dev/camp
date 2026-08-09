@@ -2,18 +2,13 @@ namespace Std;
 
 @category("Text");
 
-public escaped string copyString(const char[] this, within allocator)
-{
-	return (string)strconvCopyCharSpan(this.elements, this.length, allocator);
-}
-
-public escaped wstring copyWString(const char[] this, within allocator)
+/// Converts UTF-8 text to UTF-16 text.
+public prep wchar[] toWString(const char[] this)
 {
 	nuint length = strconvCharLogicalLength(this.elements, this.length);
 	nuint outputLength = strconvUtf8ToUtf16Length(this.elements, length);
-	wchar* buffer = strconvAllocateWChars(outputLength + 1, allocator);
-	if (buffer == null)
-		return null;
+	if (buffer.length < outputLength)
+		return outputLength;
 
 	nuint input = 0;
 	nuint output = 0;
@@ -21,19 +16,17 @@ public escaped wstring copyWString(const char[] this, within allocator)
 	{
 		nuint next = input;
 		uchar codepoint = strconvReadUtf8(this.elements, length, input, out next);
-		output = strconvWriteUtf16(buffer, output, codepoint);
+		output = strconvWriteUtf16(buffer.elements, output, codepoint);
 		input = next;
 	}
-	buffer[output] = (wchar)0;
-	return (wstring)buffer;
+	return outputLength;
 }
 
-public escaped astring copyAString(const char[] this, achar unrepresentable = '?', within allocator)
+/// Converts UTF-8 text to ASCII text.
+/// - unrepresentable: Replacement for scalar values outside ASCII.
+public prep achar[] toAString(const char[] this, achar unrepresentable = '?')
 {
 	nuint length = strconvCharLogicalLength(this.elements, this.length);
-	achar* buffer = strconvAllocateAChars(length + 1, allocator);
-	if (buffer == null)
-		return null;
 
 	nuint input = 0;
 	nuint output = 0;
@@ -41,21 +34,21 @@ public escaped astring copyAString(const char[] this, achar unrepresentable = '?
 	{
 		nuint next = input;
 		uchar codepoint = strconvReadUtf8(this.elements, length, input, out next);
-		buffer[output] = codepoint < 0x80 ? (achar)codepoint : unrepresentable;
+		if (output < buffer.length)
+			buffer[output] = codepoint < 0x80 ? (achar)codepoint : unrepresentable;
 		input = next;
 		output++;
 	}
-	buffer[output] = (achar)0;
-	return (astring)buffer;
+	return output;
 }
 
-public escaped string copyString(const wchar[] this, within allocator)
+/// Converts UTF-16 text to UTF-8 text.
+public prep char[] toString(const wchar[] this)
 {
 	nuint length = strconvWCharLogicalLength(this.elements, this.length);
 	nuint outputLength = strconvUtf16ToUtf8Length(this.elements, length);
-	char* buffer = strconvAllocateChars(outputLength + 1, allocator);
-	if (buffer == null)
-		return null;
+	if (buffer.length < outputLength)
+		return outputLength;
 
 	nuint input = 0;
 	nuint output = 0;
@@ -63,24 +56,27 @@ public escaped string copyString(const wchar[] this, within allocator)
 	{
 		nuint next = input;
 		uchar codepoint = strconvReadUtf16(this.elements, length, input, out next);
-		output = strconvWriteUtf8(buffer, output, codepoint);
+		output = strconvWriteUtf8(buffer.elements, output, codepoint);
 		input = next;
 	}
-	buffer[output] = 0;
-	return (string)buffer;
+	return outputLength;
 }
 
-public escaped wstring copyWString(const wchar[] this, within allocator)
-{
-	return (wstring)strconvCopyWCharSpan(this.elements, this.length, allocator);
-}
-
-public escaped astring copyAString(const wchar[] this, achar unrepresentable = '?', within allocator)
+/// Copies UTF-16 text.
+public prep wchar[] toWString(const wchar[] this)
 {
 	nuint length = strconvWCharLogicalLength(this.elements, this.length);
-	achar* buffer = strconvAllocateAChars(length + 1, allocator);
-	if (buffer == null)
-		return null;
+	nuint count = min(length, buffer.length);
+	for (nuint i = 0; i < count; i++)
+		buffer[i] = this[i];
+	return length;
+}
+
+/// Converts UTF-16 text to ASCII text.
+/// - unrepresentable: Replacement for scalar values outside ASCII.
+public prep achar[] toAString(const wchar[] this, achar unrepresentable = '?')
+{
+	nuint length = strconvWCharLogicalLength(this.elements, this.length);
 
 	nuint input = 0;
 	nuint output = 0;
@@ -88,87 +84,50 @@ public escaped astring copyAString(const wchar[] this, achar unrepresentable = '
 	{
 		nuint next = input;
 		uchar codepoint = strconvReadUtf16(this.elements, length, input, out next);
-		buffer[output] = codepoint < 0x80 ? (achar)codepoint : unrepresentable;
+		if (output < buffer.length)
+			buffer[output] = codepoint < 0x80 ? (achar)codepoint : unrepresentable;
 		input = next;
 		output++;
 	}
-	buffer[output] = (achar)0;
-	return (astring)buffer;
+	return output;
 }
 
-public escaped string copyString(const achar[] this, within allocator)
+/// Converts ASCII text to UTF-8 text.
+public prep char[] toString(const achar[] this)
 {
 	nuint length = strconvACharLogicalLength(this.elements, this.length);
 	nuint outputLength = 0;
 	for (nuint i = 0; i < length; i++)
 		outputLength += strconvUtf8LengthOf((uchar)this.elements[i]);
 
-	char* buffer = strconvAllocateChars(outputLength + 1, allocator);
-	if (buffer == null)
-		return null;
+	if (buffer.length < outputLength)
+		return outputLength;
 
 	nuint output = 0;
 	for (nuint j = 0; j < length; j++)
-		output = strconvWriteUtf8(buffer, output, (uchar)this.elements[j]);
-	buffer[output] = 0;
-	return (string)buffer;
+		output = strconvWriteUtf8(buffer.elements, output, (uchar)this.elements[j]);
+	return outputLength;
 }
 
-public escaped wstring copyWString(const achar[] this, within allocator)
+/// Converts ASCII text to UTF-16 text.
+public prep wchar[] toWString(const achar[] this)
 {
 	nuint length = strconvACharLogicalLength(this.elements, this.length);
-	wchar* buffer = strconvAllocateWChars(length + 1, allocator);
-	if (buffer == null)
-		return null;
 
-	for (nuint i = 0; i < length; i++)
+	nuint count = min(length, buffer.length);
+	for (nuint i = 0; i < count; i++)
 		buffer[i] = (wchar)this.elements[i];
-	buffer[length] = (wchar)0;
-	return (wstring)buffer;
+	return length;
 }
 
-public escaped astring copyAString(const achar[] this, achar unrepresentable = '?', within allocator)
+/// Copies ASCII text.
+public prep achar[] toAString(const achar[] this)
 {
-	return (astring)strconvCopyACharSpan(this.elements, this.length, allocator);
-}
-
-char* strconvCopyCharSpan(const char* value, nuint valueLength, Allocator* allocator)
-{
-	nuint length = strconvCharLogicalLength(value, valueLength);
-	char* buffer = strconvAllocateChars(length + 1, allocator);
-	if (buffer == null)
-		return null;
-
-	for (nuint i = 0; i < length; i++)
-		buffer[i] = value[i];
-	buffer[length] = (char)0;
-	return buffer;
-}
-
-wchar* strconvCopyWCharSpan(const wchar* value, nuint valueLength, Allocator* allocator)
-{
-	nuint length = strconvWCharLogicalLength(value, valueLength);
-	wchar* buffer = strconvAllocateWChars(length + 1, allocator);
-	if (buffer == null)
-		return null;
-
-	for (nuint i = 0; i < length; i++)
-		buffer[i] = value[i];
-	buffer[length] = (wchar)0;
-	return buffer;
-}
-
-achar* strconvCopyACharSpan(const achar* value, nuint valueLength, Allocator* allocator)
-{
-	nuint length = strconvACharLogicalLength(value, valueLength);
-	achar* buffer = strconvAllocateAChars(length + 1, allocator);
-	if (buffer == null)
-		return null;
-
-	for (nuint i = 0; i < length; i++)
-		buffer[i] = value[i];
-	buffer[length] = (achar)0;
-	return buffer;
+	nuint length = strconvACharLogicalLength(this.elements, this.length);
+	nuint count = min(length, buffer.length);
+	for (nuint i = 0; i < count; i++)
+		buffer[i] = this[i];
+	return length;
 }
 
 nuint strconvCharLogicalLength(const char* value, nuint valueLength)
@@ -193,27 +152,6 @@ nuint strconvACharLogicalLength(const achar* value, nuint valueLength)
 	while (length < valueLength && value[length] != (achar)0)
 		length++;
 	return length;
-}
-
-char* strconvAllocateChars(nuint count, Allocator* allocator)
-{
-	if (allocator != null)
-		return (char*)allocator.alloc(count * sizeof(char));
-	return (char*)malloc(count * sizeof(char));
-}
-
-wchar* strconvAllocateWChars(nuint count, Allocator* allocator)
-{
-	if (allocator != null)
-		return (wchar*)allocator.alloc(count * sizeof(wchar));
-	return (wchar*)malloc(count * sizeof(wchar));
-}
-
-achar* strconvAllocateAChars(nuint count, Allocator* allocator)
-{
-	if (allocator != null)
-		return (achar*)allocator.alloc(count * sizeof(achar));
-	return (achar*)malloc(count * sizeof(achar));
 }
 
 nuint strconvUtf8ToUtf16Length(const char* input, nuint inputLength)

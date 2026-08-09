@@ -135,7 +135,7 @@ export int main()
 	FileSystem.createDirectory(cwdTest, true, catch error);
 	if (error != default)
 		return 31;
-	string oldCwd = cwd.copyString() finally delete;
+	string oldCwd = (string)cwd.elements;
 	Env.setCurrentDirectory(cwdTest, catch error);
 	if (error != default)
 		return 32;

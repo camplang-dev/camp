@@ -12,39 +12,39 @@ export int main()
 		return 2;
 	if (span.lastIndexOf("lo") != 12)
 		return 3;
-	if (span.indexOfChar((uchar)'H') != 2)
+	if (span.indexOf((uchar)'H') != 2)
 		return 4;
-	if (text.indexOfChar('e') != 3)
+	if (text.indexOf((uchar)'e') != 3)
 		return 25;
-	if (text[..].indexOfChar('l') != 4)
+	if (text[..].indexOf((uchar)'l') != 4)
 		return 26;
-	if (span.lastIndexOfChar((uchar)'o') != 13)
+	if (span.lastIndexOf((uchar)'o') != 13)
 		return 5;
 
 	uchar[] any = [(uchar)'x', (uchar)'H'];
-	if (span.indexOfAnyChar(any) != 2)
+	if (span.indexOfAny(any) != 2)
 		return 6;
 	uchar[] anyLast = [(uchar)'!', (uchar)'x'];
-	if (span.lastIndexOfAnyChar(anyLast) != 14)
+	if (span.lastIndexOfAny(anyLast) != 14)
 		return 7;
 
 	if (!text.startsWith("  He"))
 		return 8;
-	if (!span.startsWithChar((uchar)' '))
+	if (!span.startsWith((uchar)' '))
 		return 9;
 	if (!span.endsWith("!  "))
 		return 10;
-	if (!span.endsWithChar((uchar)' '))
+	if (!span.endsWith((uchar)' '))
 		return 11;
 	if (text.compareTo("  Hello, hello!  ") != 0)
 		return 12;
 
 	string accent = "caf\xC3\xA9";
-	if (accent[..].countChars() != 4)
+	if (accent[..].countUChars() != 4)
 		return 13;
-	if (accent[..].getChar(3) != (uchar)233)
+	if (accent[..].getUChar(3) != (uchar)233)
 		return 14;
-	if (accent[..].getCharUnits(3) != 2)
+	if (accent[..].getUCharUnits(3) != 2)
 		return 15;
 
 	if (span.trim().length != 13)
@@ -54,19 +54,19 @@ export int main()
 	if (span.trimEnd().length != 15)
 		return 18;
 
-	Allocator* allocator = null;
-	string upper = null;
-	string lower = null;
+	string upper = span.toUppercase();
+	string lower = span.toLowercase();
 	string joined = null;
 	string concatenated = null;
 	string[] words = ["one", "two", "three"];
-	within (allocator)
-	{
-		upper = span.uppercaseCopy();
-		lower = span.lowercaseCopy();
-		concatenated = words.concatCopy();
-		joined = words.joinCopy(",");
-	}
+	concatenated = words.join();
+	joined = words.join(",");
+
+	fixed char[17] explicitUpper = default;
+	if (span.toUppercase(buffer: explicitUpper) != 17)
+		return 27;
+	if (explicitUpper[..].compareTo("  HELLO, HELLO!  ") != 0)
+		return 28;
 
 	if (upper[..].compareTo("  HELLO, HELLO!  ") != 0)
 		return 19;
@@ -80,7 +80,7 @@ export int main()
 	const char[] embeddedNull = ['a', 'b', '\0', 'x', 'y'];
 	if (embeddedNull.compareTo("ab") != 0)
 		return 23;
-	if (embeddedNull.countChars() != 2)
+	if (embeddedNull.countUChars() != 2)
 		return 24;
 
 	return 0;

@@ -659,7 +659,7 @@ void-returning lambda it may be the final statement; in a non-void lambda, use
 ```camp
 within (allocator)
 {
-	string copy = text.copyString();
+	char[] copy = (new) text.toString();
 	Buffer* buffer = new Buffer(1024) finally delete;
 }
 ```

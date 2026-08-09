@@ -396,7 +396,10 @@ struct(delegate void()) storedCallback;
 ```
 
 Do not guess standard-library string helpers. Use metadata for operations such as
-formatting, parsing, allocation, encoding, and comparison.
+formatting, parsing, allocation, encoding, and comparison. Current text helpers
+prefer prep-first names: use `text.toUppercase()`, `text.toLowercase()`,
+`values.join(", ")`, `text.toString()`, `text.toWString()`, or
+`text.toAString()` instead of allocation-first `*Copy` helper names.
 
 ## Optionals
 

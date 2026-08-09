@@ -4,47 +4,57 @@ export int main()
 {
 	wstring text = "  Hello, hello!  ";
 	const wchar[] span = text[..];
-
-	if (text.indexOf("Hello") != 2)
-		return 1;
+	const wchar[] hello = "Hello";
 	const wchar[] helloLower = "hello";
+	const wchar[] lo = "lo";
+	const wchar[] prefix = "  He";
+	const wchar[] suffix = "!  ";
+	const wchar[] original = "  Hello, hello!  ";
+	const wchar[] upperText = "  HELLO, HELLO!  ";
+	const wchar[] lowerText = "  hello, hello!  ";
+	const wchar[] joinedText = "one,two,three";
+	const wchar[] concatenatedText = "onetwothree";
+	const wchar[] comma = ",";
+
+	if (text.indexOf(hello) != 2)
+		return 1;
 	if (text.indexOf(helloLower, true) != 2)
 		return 2;
-	if (span.lastIndexOf("lo") != 12)
+	if (span.lastIndexOf(lo) != 12)
 		return 3;
-	if (span.indexOfChar((uchar)'H') != 2)
+	if (span.indexOf((uchar)'H') != 2)
 		return 4;
-	if (text.indexOfChar((uchar)'e') != 3)
+	if (text.indexOf((uchar)'e') != 3)
 		return 5;
-	if (text[..].indexOfChar((uchar)'l') != 4)
+	if (text[..].indexOf((uchar)'l') != 4)
 		return 6;
-	if (span.lastIndexOfChar((uchar)'o') != 13)
+	if (span.lastIndexOf((uchar)'o') != 13)
 		return 7;
 
 	uchar[] any = [(uchar)'x', (uchar)'H'];
-	if (span.indexOfAnyChar(any) != 2)
+	if (span.indexOfAny(any) != 2)
 		return 8;
 	uchar[] anyLast = [(uchar)'!', (uchar)'x'];
-	if (span.lastIndexOfAnyChar(anyLast) != 14)
+	if (span.lastIndexOfAny(anyLast) != 14)
 		return 9;
 
-	if (!text.startsWith("  He"))
+	if (!text.startsWith(prefix))
 		return 10;
-	if (!span.startsWithChar((uchar)' '))
+	if (!span.startsWith((uchar)' '))
 		return 11;
-	if (!span.endsWith("!  "))
+	if (!span.endsWith(suffix))
 		return 12;
-	if (!span.endsWithChar((uchar)' '))
+	if (!span.endsWith((uchar)' '))
 		return 13;
-	if (text.compareTo("  Hello, hello!  ") != 0)
+	if (text.compareTo(original) != 0)
 		return 14;
 
 	wstring face = "a\U0001F600b";
-	if (face[..].countChars() != 3)
+	if (face[..].countUChars() != 3)
 		return 15;
-	if (face[..].getChar(1) != (uchar)128512)
+	if (face[..].getUChar(1) != (uchar)128512)
 		return 16;
-	if (face[..].getCharUnits(1) != 2)
+	if (face[..].getUCharUnits(1) != 2)
 		return 17;
 
 	if (span.trim().length != 13)
@@ -54,37 +64,37 @@ export int main()
 	if (span.trimEnd().length != 15)
 		return 20;
 
-	Allocator* allocator = null;
-	wstring copied = null;
-	wstring upper = null;
-	wstring lower = null;
+	wstring copied = span.toWString();
+	wstring upper = span.toUppercase();
+	wstring lower = span.toLowercase();
 	wstring joined = null;
 	wstring concatenated = null;
 	wstring[] words = ["one", "two", "three"];
-	within (allocator)
-	{
-		copied = span.stringCopy();
-		upper = span.uppercaseCopy();
-		lower = span.lowercaseCopy();
-		concatenated = words.concatCopy();
-		joined = words.joinCopy(",");
-	}
+	concatenated = words.join();
+	joined = words.join(comma);
 
-	if (copied[..].compareTo("  Hello, hello!  ") != 0)
+	fixed wchar[17] explicitUpper = default;
+	if (span.toUppercase(buffer: explicitUpper) != 17)
+		return 28;
+	if (explicitUpper[..].compareTo(upperText) != 0)
+		return 29;
+
+	if (copied[..].compareTo(original) != 0)
 		return 21;
-	if (upper[..].compareTo("  HELLO, HELLO!  ") != 0)
+	if (upper[..].compareTo(upperText) != 0)
 		return 22;
-	if (lower[..].compareTo("  hello, hello!  ") != 0)
+	if (lower[..].compareTo(lowerText) != 0)
 		return 23;
-	if (concatenated[..].compareTo("onetwothree") != 0)
+	if (concatenated[..].compareTo(concatenatedText) != 0)
 		return 24;
-	if (joined[..].compareTo("one,two,three") != 0)
+	if (joined[..].compareTo(joinedText) != 0)
 		return 25;
 
 	const wchar[] embeddedNull = [(wchar)'a', (wchar)'b', (wchar)0, (wchar)'x', (wchar)'y'];
-	if (embeddedNull.compareTo("ab") != 0)
+	const wchar[] ab = "ab";
+	if (embeddedNull.compareTo(ab) != 0)
 		return 26;
-	if (embeddedNull.countChars() != 2)
+	if (embeddedNull.countUChars() != 2)
 		return 27;
 
 	return 0;

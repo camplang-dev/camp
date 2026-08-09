@@ -2,7 +2,10 @@ namespace Std;
 
 @category("Text");
 
-public nint indexOf(const achar[] this, const achar[] match, bool caseInsensitive = false)
+/// Finds the first matching ASCII span.
+/// - match: Text to find.
+/// - caseInsensitive: Uses ASCII case-insensitive comparison.
+public nint indexOf(const achar[] this, overload const achar[] match, bool caseInsensitive = false)
 {
 	nuint length = astringLogicalLength(this.elements, this.length);
 	nuint matchLength = astringLogicalLength(match.elements, match.length);
@@ -20,7 +23,10 @@ public nint indexOf(const achar[] this, const achar[] match, bool caseInsensitiv
 	return -1;
 }
 
-public nint indexOfChar(const achar[] this, achar match, bool caseInsensitive = false)
+/// Finds the first matching ASCII character.
+/// - match: Character to find.
+/// - caseInsensitive: Uses ASCII case-insensitive comparison.
+public nint indexOf(const achar[] this, overload achar match, bool caseInsensitive = false)
 {
 	nuint length = astringLogicalLength(this.elements, this.length);
 	achar normalized = caseInsensitive ? astringLowerUnit(match) : match;
@@ -33,24 +39,30 @@ public nint indexOfChar(const achar[] this, achar match, bool caseInsensitive = 
 	return -1;
 }
 
-public nint indexOfAnyChar(const achar[] this, const achar[] matches, bool caseInsensitive = false)
+/// Finds the first character contained in a set.
+/// - match: Characters to find.
+/// - caseInsensitive: Uses ASCII case-insensitive comparison.
+public nint indexOfAny(const achar[] this, overload const achar[] match, bool caseInsensitive = false)
 {
 	nuint length = astringLogicalLength(this.elements, this.length);
-	nuint matchLength = astringLogicalLength(matches.elements, matches.length);
+	nuint matchLength = astringLogicalLength(match.elements, match.length);
 	for (nuint i = 0; i < length; i++)
 	{
 		achar value = caseInsensitive ? astringLowerUnit(this.elements[i]) : this.elements[i];
 		for (nuint j = 0; j < matchLength; j++)
 		{
-			achar match = caseInsensitive ? astringLowerUnit(matches.elements[j]) : matches.elements[j];
-			if (value == match)
+			achar candidate = caseInsensitive ? astringLowerUnit(match.elements[j]) : match.elements[j];
+			if (value == candidate)
 				return (nint)i;
 		}
 	}
 	return -1;
 }
 
-public nint lastIndexOf(const achar[] this, const achar[] match, bool caseInsensitive = false)
+/// Finds the last matching ASCII span.
+/// - match: Text to find.
+/// - caseInsensitive: Uses ASCII case-insensitive comparison.
+public nint lastIndexOf(const achar[] this, overload const achar[] match, bool caseInsensitive = false)
 {
 	nuint length = astringLogicalLength(this.elements, this.length);
 	nuint matchLength = astringLogicalLength(match.elements, match.length);
@@ -69,7 +81,10 @@ public nint lastIndexOf(const achar[] this, const achar[] match, bool caseInsens
 	return result;
 }
 
-public nint lastIndexOfChar(const achar[] this, achar match, bool caseInsensitive = false)
+/// Finds the last matching ASCII character.
+/// - match: Character to find.
+/// - caseInsensitive: Uses ASCII case-insensitive comparison.
+public nint lastIndexOf(const achar[] this, overload achar match, bool caseInsensitive = false)
 {
 	nint result = -1;
 	nuint length = astringLogicalLength(this.elements, this.length);
@@ -83,25 +98,31 @@ public nint lastIndexOfChar(const achar[] this, achar match, bool caseInsensitiv
 	return result;
 }
 
-public nint lastIndexOfAnyChar(const achar[] this, const achar[] matches, bool caseInsensitive = false)
+/// Finds the last character contained in a set.
+/// - match: Characters to find.
+/// - caseInsensitive: Uses ASCII case-insensitive comparison.
+public nint lastIndexOfAny(const achar[] this, overload const achar[] match, bool caseInsensitive = false)
 {
 	nint result = -1;
 	nuint length = astringLogicalLength(this.elements, this.length);
-	nuint matchLength = astringLogicalLength(matches.elements, matches.length);
+	nuint matchLength = astringLogicalLength(match.elements, match.length);
 	for (nuint i = 0; i < length; i++)
 	{
 		achar value = caseInsensitive ? astringLowerUnit(this.elements[i]) : this.elements[i];
 		for (nuint j = 0; j < matchLength; j++)
 		{
-			achar match = caseInsensitive ? astringLowerUnit(matches.elements[j]) : matches.elements[j];
-			if (value == match)
+			achar candidate = caseInsensitive ? astringLowerUnit(match.elements[j]) : match.elements[j];
+			if (value == candidate)
 				result = (nint)i;
 		}
 	}
 	return result;
 }
 
-public bool startsWith(const achar[] this, const achar[] match, bool caseInsensitive = false)
+/// Returns true when the text starts with an ASCII span.
+/// - match: Prefix to test.
+/// - caseInsensitive: Uses ASCII case-insensitive comparison.
+public bool startsWith(const achar[] this, overload const achar[] match, bool caseInsensitive = false)
 {
 	nuint matchLength = astringLogicalLength(match.elements, match.length);
 	if (matchLength > astringLogicalLength(this.elements, this.length))
@@ -109,7 +130,10 @@ public bool startsWith(const achar[] this, const achar[] match, bool caseInsensi
 	return astringCompareUnits(this.elements, match.elements, matchLength, caseInsensitive) == 0;
 }
 
-public bool startsWithChar(const achar[] this, achar match, bool caseInsensitive = false)
+/// Returns true when the text starts with an ASCII character.
+/// - match: Prefix character to test.
+/// - caseInsensitive: Uses ASCII case-insensitive comparison.
+public bool startsWith(const achar[] this, overload achar match, bool caseInsensitive = false)
 {
 	nuint length = astringLogicalLength(this.elements, this.length);
 	if (length == 0)
@@ -119,7 +143,10 @@ public bool startsWithChar(const achar[] this, achar match, bool caseInsensitive
 	return value == normalized;
 }
 
-public bool endsWith(const achar[] this, const achar[] match, bool caseInsensitive = false)
+/// Returns true when the text ends with an ASCII span.
+/// - match: Suffix to test.
+/// - caseInsensitive: Uses ASCII case-insensitive comparison.
+public bool endsWith(const achar[] this, overload const achar[] match, bool caseInsensitive = false)
 {
 	nuint length = astringLogicalLength(this.elements, this.length);
 	nuint matchLength = astringLogicalLength(match.elements, match.length);
@@ -128,7 +155,10 @@ public bool endsWith(const achar[] this, const achar[] match, bool caseInsensiti
 	return astringCompareUnits(&this.elements[length - matchLength], match.elements, matchLength, caseInsensitive) == 0;
 }
 
-public bool endsWithChar(const achar[] this, achar match, bool caseInsensitive = false)
+/// Returns true when the text ends with an ASCII character.
+/// - match: Suffix character to test.
+/// - caseInsensitive: Uses ASCII case-insensitive comparison.
+public bool endsWith(const achar[] this, overload achar match, bool caseInsensitive = false)
 {
 	nuint length = astringLogicalLength(this.elements, this.length);
 	if (length == 0)
@@ -138,6 +168,10 @@ public bool endsWithChar(const achar[] this, achar match, bool caseInsensitive =
 	return value == normalized;
 }
 
+/// Compares two ASCII spans.
+/// - other: Text to compare with.
+/// - caseInsensitive: Uses ASCII case-insensitive comparison.
+/// @returns `-1`, `0`, or `1` for less-than, equal, or greater-than.
 public nint compareTo(const achar[] this, const achar[] other, bool caseInsensitive = false)
 {
 	nuint thisLength = astringLogicalLength(this.elements, this.length);
@@ -156,6 +190,7 @@ public nint compareTo(const achar[] this, const achar[] other, bool caseInsensit
 	return 0;
 }
 
+/// Returns a view with leading and trailing ASCII whitespace removed.
 public scoped const achar[] trim(const achar[] this)
 {
 	nuint start = astringTrimStartIndex(this.elements, this.length);
@@ -163,79 +198,65 @@ public scoped const achar[] trim(const achar[] this)
 	return { &this.elements[start], end - start };
 }
 
+/// Returns a view with leading ASCII whitespace removed.
 public scoped const achar[] trimStart(const achar[] this)
 {
 	nuint start = astringTrimStartIndex(this.elements, this.length);
 	return { &this.elements[start], astringLogicalLength(this.elements, this.length) - start };
 }
 
+/// Returns a view with trailing ASCII whitespace removed.
 public scoped const achar[] trimEnd(const achar[] this)
 {
 	nuint end = astringTrimEndIndex(this.elements, this.length, 0);
 	return { this.elements, end };
 }
 
-public astring stringCopy(const achar[] this, within allocator)
+/// Copies the text to uppercase ASCII text.
+public prep achar[] toUppercase(const achar[] this)
 {
-	return (astring)astringCopySpan(this.elements, this.length, allocator);
+	nuint length = astringLogicalLength(this.elements, this.length);
+	nuint count = astringMin(length, buffer.length);
+	for (nuint i = 0; i < count; i++)
+		buffer[i] = astringUpperUnit(this[i]);
+	return length;
 }
 
-public astring uppercaseCopy(const achar[] this, within allocator)
+/// Copies the text to lowercase ASCII text.
+public prep achar[] toLowercase(const achar[] this)
 {
-	achar* buffer = astringCopySpan(this.elements, this.length, allocator);
-	if (buffer == null)
-		return null;
-	astringUppercaseInPlace(buffer);
-	return (astring)buffer;
+	nuint length = astringLogicalLength(this.elements, this.length);
+	nuint count = astringMin(length, buffer.length);
+	for (nuint i = 0; i < count; i++)
+		buffer[i] = astringLowerUnit(this[i]);
+	return length;
 }
 
-public astring lowercaseCopy(const achar[] this, within allocator)
+/// Joins ASCII strings with an optional separator.
+/// - separator: Text written between values. The default writes no separator.
+public prep achar[] join(astring[] this, const achar[] separator = default)
 {
-	achar* buffer = astringCopySpan(this.elements, this.length, allocator);
-	if (buffer == null)
-		return null;
-	astringLowercaseInPlace(buffer);
-	return (astring)buffer;
-}
-
-public astring concatCopy(astring[] this, within allocator)
-{
-	nuint size = 1;
-	for (nuint i = 0; i < this.length; i++)
-		size += this[i].Length;
-
-	achar* buffer = astringAllocateString(size, allocator);
-	if (buffer == null)
-		return null;
-	buffer[0] = (achar)0;
-
-	for (nuint j = 0; j < this.length; j++)
-		astringAppendString(buffer, this[j]);
-	return (astring)buffer;
-}
-
-public astring joinCopy(astring[] this, const achar[] separator, within allocator)
-{
-	nuint size = 1;
+	nuint length = 0;
+	nuint separatorLength = astringLogicalLength(separator.elements, separator.length);
 	for (nuint i = 0; i < this.length; i++)
 	{
-		size += this[i].Length;
+		length += this[i].Length;
 		if (i > 0)
-			size += astringLogicalLength(separator.elements, separator.length);
+			length += separatorLength;
 	}
 
-	achar* buffer = astringAllocateString(size, allocator);
-	if (buffer == null)
-		return null;
-	buffer[0] = (achar)0;
+	if (buffer.length < length)
+		return length;
 
+	nuint offset = 0;
 	for (nuint j = 0; j < this.length; j++)
 	{
 		if (j > 0)
-			astringAppendSpan(buffer, separator);
-		astringAppendString(buffer, this[j]);
+			offset = astringWriteSpan(buffer, offset, separator);
+		const achar[] value = { (const achar*)this[j], this[j].Length };
+		offset = astringWriteSpan(buffer, offset, value);
 	}
-	return (astring)buffer;
+	return length;
 }
 
 public nuint getLength(astring this)
@@ -326,66 +347,10 @@ nuint astringMin(nuint left, nuint right)
 	return left < right ? left : right;
 }
 
-achar* astringAllocateString(nuint size, Allocator* allocator)
+nuint astringWriteSpan(achar[] buffer, nuint offset, const achar[] span)
 {
-	if (allocator != null)
-		return (achar*)allocator.alloc(size);
-	return (achar*)malloc(size);
-}
-
-achar* astringCopySpan(const achar* value, nuint valueLength, Allocator* allocator)
-{
-	nuint length = astringLogicalLength(value, valueLength);
-	achar* buffer = astringAllocateString(length + 1, allocator);
-	if (buffer == null)
-		return null;
-	for (nuint i = 0; i < length; i++)
-		buffer[i] = value[i];
-	buffer[length] = (achar)0;
-	return buffer;
-}
-
-void astringAppendString(achar* buffer, const achar* value)
-{
-	nuint offset = 0;
-	while (buffer[offset] != (achar)0)
-		offset++;
-	nuint i = 0;
-	while (value[i] != (achar)0)
-	{
-		buffer[offset + i] = value[i];
-		i++;
-	}
-	buffer[offset + i] = (achar)0;
-}
-
-void astringAppendSpan(achar* buffer, const achar[] span)
-{
-	nuint offset = 0;
 	nuint length = astringLogicalLength(span.elements, span.length);
-	while (buffer[offset] != (achar)0)
-		offset++;
 	for (nuint i = 0; i < length; i++)
 		buffer[offset + i] = span[i];
-	buffer[offset + length] = (achar)0;
-}
-
-void astringUppercaseInPlace(achar* value)
-{
-	nuint i = 0;
-	while (value[i] != (achar)0)
-	{
-		value[i] = astringUpperUnit(value[i]);
-		i++;
-	}
-}
-
-void astringLowercaseInPlace(achar* value)
-{
-	nuint i = 0;
-	while (value[i] != (achar)0)
-	{
-		value[i] = astringLowerUnit(value[i]);
-		i++;
-	}
+	return offset + length;
 }

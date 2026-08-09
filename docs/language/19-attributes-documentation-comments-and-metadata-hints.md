@@ -238,13 +238,13 @@ targets, doc commands, and `%s` placeholders are not parsed inside them.
 Use `@example` when a declaration benefits from a small call-site sketch.
 
 ````camp
-/// Copies counted text into a new zero-terminated string.
+/// Prepares counted text for display.
 ///
 /// @example
 /// ```camp
-/// string name = input.copyString(within allocator) finally delete;
+/// auto name = input.toString();
 /// ```
-export escaped string copyString(const char[] this, within allocator);
+export prep char[] toDisplayText(const char[] this);
 ````
 
 Examples should name the domain they are demonstrating. They do not need to be

@@ -2,8 +2,6 @@ using Std;
 
 export int main()
 {
-	Allocator* allocator = null;
-
 	const char[] cafeUtf8 = [(char)'c', (char)'a', (char)'f', (char)0xC3, (char)0xA9];
 	const wchar[] cafeUtf16 = "caf\U000000E9";
 	const achar[] plainAscii = "plain";
@@ -18,28 +16,33 @@ export int main()
 	wstring wideFromAscii = null;
 	astring copiedAscii = null;
 
-	within (allocator)
-	{
-		copiedUtf8 = cafeUtf8.copyString();
-		wideFromUtf8 = cafeUtf8.copyWString();
-		asciiFromUtf8 = cafeUtf8.copyAString();
+	copiedUtf8 = cafeUtf8.toString();
+	wideFromUtf8 = cafeUtf8.toWString();
+	asciiFromUtf8 = cafeUtf8.toAString();
 
-		utf8FromWide = cafeUtf16.copyString();
-		copiedWide = cafeUtf16.copyWString();
-		asciiFromWide = cafeUtf16.copyAString();
+	utf8FromWide = cafeUtf16.toString();
+	copiedWide = cafeUtf16.toWString();
+	asciiFromWide = cafeUtf16.toAString();
 
-		utf8FromAscii = plainAscii.copyString();
-		wideFromAscii = plainAscii.copyWString();
-		copiedAscii = plainAscii.copyAString();
-	}
+	utf8FromAscii = plainAscii.toString();
+	wideFromAscii = plainAscii.toWString();
+	copiedAscii = plainAscii.toAString();
+
+	if (cafeUtf16.toString(buffer: default) != 5)
+		return 15;
+	fixed char[5] exactUtf8 = default;
+	if (cafeUtf16.toString(buffer: exactUtf8) != 5)
+		return 16;
+	if (exactUtf8[..].compareTo(cafeUtf8) != 0)
+		return 17;
 
 	if (copiedUtf8[..].compareTo(cafeUtf8) != 0)
 		return 1;
 	if (wideFromUtf8[..].compareTo(cafeUtf16) != 0)
 		return 2;
-	if (wideFromUtf8[..].countChars() != 4)
+	if (wideFromUtf8[..].countUChars() != 4)
 		return 3;
-	if (wideFromUtf8[..].getChar(3) != (uchar)233)
+	if (wideFromUtf8[..].getUChar(3) != (uchar)233)
 		return 4;
 	if (asciiFromUtf8[..].compareTo("caf?") != 0)
 		return 5;
@@ -59,17 +62,15 @@ export int main()
 		return 11;
 
 	wstring faceWide = "a\U0001F600b";
+	const wchar[] faceSpan = { (const wchar*)faceWide, faceWide.Length };
 	string faceUtf8 = null;
 	astring faceAscii = null;
-	within (allocator)
-	{
-		faceUtf8 = faceWide[..].copyString();
-		faceAscii = faceWide[..].copyAString((achar)'?');
-	}
+	faceUtf8 = faceSpan.toString();
+	faceAscii = faceSpan.toAString((achar)'?');
 
-	if (faceUtf8[..].countChars() != 3)
+	if (faceUtf8[..].countUChars() != 3)
 		return 12;
-	if (faceUtf8[..].getChar(1) != (uchar)128512)
+	if (faceUtf8[..].getUChar(1) != (uchar)128512)
 		return 13;
 	if (faceAscii[..].compareTo("a?b") != 0)
 		return 14;

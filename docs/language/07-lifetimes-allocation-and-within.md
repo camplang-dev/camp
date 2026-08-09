@@ -281,16 +281,16 @@ Some APIs allocate as part of their work. When that allocation choice belongs
 to the caller, put `within allocator` in the signature:
 
 ```camp
-escaped string copyDisplayName(const char[] name, within allocator)
+escaped char[] copyDisplayName(const char[] name, within allocator)
 {
-	return name.copyString(within allocator);
+	return within (allocator) (new) name.toString();
 }
 ```
 
 The `within allocator` parameter is part of the callable contract. A caller can
 choose the allocation context for the returned string, and the nested
-`copyString` call uses the same context. The function does not need to name an
-allocator type in its public shape just to say "caller chooses where this
+prepared allocation uses the same context. The function does not need to name
+an allocator type in its public shape just to say "caller chooses where this
 allocation comes from."
 
 A caller can also choose an allocation context for a block:

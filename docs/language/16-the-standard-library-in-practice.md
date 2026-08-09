@@ -250,23 +250,23 @@ bool hasExtension(const char[] path)
 ```
 
 Borrowing helpers such as `trim`, `trimStart`, and `trimEnd` return views into
-the original text. Copy-producing helpers allocate new storage:
+the original text. Prepared helpers produce a fresh result at the call site:
 
 ```camp
-string makeUpperCopy(const char[] text, Allocator* allocator)
+void printUpper(const char[] text)
 {
-	within (allocator)
-		return text.uppercaseCopy();
+	auto upper = text.toUppercase();
+	Console.writeLine(upper);
 }
 ```
 
-The caller who receives an owned string should clean it up according to the API
-contract:
+Heap-allocated prepared results use `(new)` and should be cleaned up according
+to the API contract:
 
 ```camp
-void printUpper(const char[] text, Allocator* allocator)
+void printUpperLater(const char[] text)
 {
-	string upper = makeUpperCopy(text, allocator) finally delete;
+	char[] upper = (new) text.toUppercase() finally delete;
 	Console.writeLine(upper);
 }
 ```

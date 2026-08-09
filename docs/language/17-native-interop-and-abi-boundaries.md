@@ -24,12 +24,12 @@ The smallest interop surface is an `extern` function:
 
 ```camp
 @symbol("puts")
-extern int cPuts(string text);
+extern int cPuts(const char* text);
 
 void writeNativeLine(const char[] text)
 {
-	string terminated = text.copyString() finally delete;
-	cPuts(terminated);
+	char[] terminated = (new) text.toString() finally delete;
+	cPuts(terminated.elements);
 }
 ```
 

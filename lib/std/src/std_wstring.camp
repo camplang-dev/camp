@@ -16,16 +16,10 @@ extern nuint camp_utf16nsize_lazy(const wchar* src, nuint len);
 extern const wchar* utf16codepoint(const wchar* src, out uchar codepoint);
 @symbol("utf16codepointcalcsize")
 extern nuint utf16codepointcalcsize(const wchar* src);
-@symbol("camp_utf16ncpy")
-extern wchar* camp_utf16ncpy(wchar* dst, const wchar* src, nuint len);
-@symbol("camp_utf16cat")
-extern wchar* camp_utf16cat(wchar* dst, const wchar* src);
-@symbol("camp_utf16upr")
-extern void camp_utf16upr(wchar* src);
-@symbol("camp_utf16lwr")
-extern void camp_utf16lwr(wchar* src);
 @symbol("utf16lwrcodepoint")
 extern uchar utf16lwrcodepoint(uchar codepoint);
+@symbol("utf16uprcodepoint")
+extern uchar utf16uprcodepoint(uchar codepoint);
 
 @symbol("camp_utf16nstr")
 extern const wchar* camp_utf16nstr(const wchar* haystack, nuint haystackLen, const wchar* needle, nuint needleLen);
@@ -40,7 +34,10 @@ extern const wchar* camp_utf16npbrk_codepoints(const wchar* text, nuint len, con
 @symbol("camp_utf16nrpbrk_codepoints")
 extern const wchar* camp_utf16nrpbrk_codepoints(const wchar* text, nuint len, const uchar* codepoints, nuint codepointCount, int caseInsensitive);
 
-public nint indexOf(const wchar[] this, const wchar[] match, bool caseInsensitive = false)
+/// Finds the first matching UTF-16 span.
+/// - match: Text to find.
+/// - caseInsensitive: Uses the UTF-16 helper's case-insensitive comparison.
+public nint indexOf(const wchar[] this, overload const wchar[] match, bool caseInsensitive = false)
 {
 	const wchar* found = caseInsensitive
 		? camp_utf16ncasestr(this.elements, this.length, match.elements, match.length)
@@ -50,7 +47,10 @@ public nint indexOf(const wchar[] this, const wchar[] match, bool caseInsensitiv
 	return wstringOffsetOf(this.elements, found);
 }
 
-public nint indexOfChar(const wchar[] this, uchar match, bool caseInsensitive = false)
+/// Finds the first matching Unicode scalar value.
+/// - match: Scalar value to find.
+/// - caseInsensitive: Uses the UTF-16 helper's case-insensitive comparison.
+public nint indexOf(const wchar[] this, overload uchar match, bool caseInsensitive = false)
 {
 	const wchar* found = camp_utf16nchr(this.elements, this.length, match, caseInsensitive ? 1 : 0);
 	if (found == null)
@@ -58,15 +58,21 @@ public nint indexOfChar(const wchar[] this, uchar match, bool caseInsensitive = 
 	return wstringOffsetOf(this.elements, found);
 }
 
-public nint indexOfAnyChar(const wchar[] this, const uchar[] matches, bool caseInsensitive = false)
+/// Finds the first scalar value contained in a set.
+/// - match: Scalar values to find.
+/// - caseInsensitive: Uses the UTF-16 helper's case-insensitive comparison.
+public nint indexOfAny(const wchar[] this, overload const uchar[] match, bool caseInsensitive = false)
 {
-	const wchar* found = camp_utf16npbrk_codepoints(this.elements, this.length, matches.elements, matches.length, caseInsensitive ? 1 : 0);
+	const wchar* found = camp_utf16npbrk_codepoints(this.elements, this.length, match.elements, match.length, caseInsensitive ? 1 : 0);
 	if (found == null)
 		return -1;
 	return wstringOffsetOf(this.elements, found);
 }
 
-public nint lastIndexOf(const wchar[] this, const wchar[] match, bool caseInsensitive = false)
+/// Finds the last matching UTF-16 span.
+/// - match: Text to find.
+/// - caseInsensitive: Uses the UTF-16 helper's case-insensitive comparison.
+public nint lastIndexOf(const wchar[] this, overload const wchar[] match, bool caseInsensitive = false)
 {
 	nuint logical = wstringLogicalLength(this.elements, this.length);
 	if (match.length == 0)
@@ -87,7 +93,10 @@ public nint lastIndexOf(const wchar[] this, const wchar[] match, bool caseInsens
 	return result;
 }
 
-public nint lastIndexOfChar(const wchar[] this, uchar match, bool caseInsensitive = false)
+/// Finds the last matching Unicode scalar value.
+/// - match: Scalar value to find.
+/// - caseInsensitive: Uses the UTF-16 helper's case-insensitive comparison.
+public nint lastIndexOf(const wchar[] this, overload uchar match, bool caseInsensitive = false)
 {
 	const wchar* found = camp_utf16nrchr(this.elements, this.length, match, caseInsensitive ? 1 : 0);
 	if (found == null)
@@ -95,27 +104,39 @@ public nint lastIndexOfChar(const wchar[] this, uchar match, bool caseInsensitiv
 	return wstringOffsetOf(this.elements, found);
 }
 
-public nint lastIndexOfAnyChar(const wchar[] this, const uchar[] matches, bool caseInsensitive = false)
+/// Finds the last scalar value contained in a set.
+/// - match: Scalar values to find.
+/// - caseInsensitive: Uses the UTF-16 helper's case-insensitive comparison.
+public nint lastIndexOfAny(const wchar[] this, overload const uchar[] match, bool caseInsensitive = false)
 {
-	const wchar* found = camp_utf16nrpbrk_codepoints(this.elements, this.length, matches.elements, matches.length, caseInsensitive ? 1 : 0);
+	const wchar* found = camp_utf16nrpbrk_codepoints(this.elements, this.length, match.elements, match.length, caseInsensitive ? 1 : 0);
 	if (found == null)
 		return -1;
 	return wstringOffsetOf(this.elements, found);
 }
 
-public bool startsWith(const wchar[] this, const wchar[] match, bool caseInsensitive = false)
+/// Returns true when the text starts with a UTF-16 span.
+/// - match: Prefix to test.
+/// - caseInsensitive: Uses the UTF-16 helper's case-insensitive comparison.
+public bool startsWith(const wchar[] this, overload const wchar[] match, bool caseInsensitive = false)
 {
 	if (match.length > wstringLogicalLength(this.elements, this.length))
 		return false;
 	return (caseInsensitive ? utf16ncasecmp(this.elements, match.elements, match.length) : utf16ncmp(this.elements, match.elements, match.length)) == 0;
 }
 
-public bool startsWithChar(const wchar[] this, uchar match, bool caseInsensitive = false)
+/// Returns true when the text starts with a scalar value.
+/// - match: Prefix scalar to test.
+/// - caseInsensitive: Uses the UTF-16 helper's case-insensitive comparison.
+public bool startsWith(const wchar[] this, overload uchar match, bool caseInsensitive = false)
 {
 	return camp_utf16nchr(this.elements, this.length, match, caseInsensitive ? 1 : 0) == this.elements;
 }
 
-public bool endsWith(const wchar[] this, const wchar[] match, bool caseInsensitive = false)
+/// Returns true when the text ends with a UTF-16 span.
+/// - match: Suffix to test.
+/// - caseInsensitive: Uses the UTF-16 helper's case-insensitive comparison.
+public bool endsWith(const wchar[] this, overload const wchar[] match, bool caseInsensitive = false)
 {
 	nuint length = wstringLogicalLength(this.elements, this.length);
 	if (match.length > length)
@@ -123,7 +144,10 @@ public bool endsWith(const wchar[] this, const wchar[] match, bool caseInsensiti
 	return (caseInsensitive ? utf16ncasecmp(&this.elements[length - match.length], match.elements, match.length) : utf16ncmp(&this.elements[length - match.length], match.elements, match.length)) == 0;
 }
 
-public bool endsWithChar(const wchar[] this, uchar match, bool caseInsensitive = false)
+/// Returns true when the text ends with a scalar value.
+/// - match: Suffix scalar to test.
+/// - caseInsensitive: Uses the UTF-16 helper's case-insensitive comparison.
+public bool endsWith(const wchar[] this, overload uchar match, bool caseInsensitive = false)
 {
 	const wchar* found = camp_utf16nrchr(this.elements, this.length, match, caseInsensitive ? 1 : 0);
 	if (found == null)
@@ -132,6 +156,10 @@ public bool endsWithChar(const wchar[] this, uchar match, bool caseInsensitive =
 	return index + utf16codepointcalcsize(found) == wstringLogicalLength(this.elements, this.length);
 }
 
+/// Compares two UTF-16 spans.
+/// - other: Text to compare with.
+/// - caseInsensitive: Uses the UTF-16 helper's case-insensitive comparison.
+/// @returns `-1`, `0`, or `1` for less-than, equal, or greater-than.
 public nint compareTo(const wchar[] this, const wchar[] other, bool caseInsensitive = false)
 {
 	nuint thisLength = wstringLogicalLength(this.elements, this.length);
@@ -152,12 +180,15 @@ public nint compareTo(const wchar[] this, const wchar[] other, bool caseInsensit
 	return 0;
 }
 
-public nuint countChars(const wchar[] this)
+/// Counts Unicode scalar values in UTF-16 text.
+public nuint countUChars(const wchar[] this)
 {
 	return camp_utf16nlen(this.elements, this.length);
 }
 
-public uchar getChar(const wchar[] this, @index nuint unit)
+/// Gets the Unicode scalar value at a UTF-16 code-unit index.
+/// - unit: UTF-16 code-unit index.
+public uchar getUChar(const wchar[] this, @index nuint unit)
 {
 	uchar codepoint = 0;
 	if (unit >= wstringLogicalLength(this.elements, this.length))
@@ -166,13 +197,16 @@ public uchar getChar(const wchar[] this, @index nuint unit)
 	return codepoint;
 }
 
-public nuint getCharUnits(const wchar[] this, @index nuint unit)
+/// Gets the number of UTF-16 code units used by the scalar at an index.
+/// - unit: UTF-16 code-unit index.
+public nuint getUCharUnits(const wchar[] this, @index nuint unit)
 {
 	if (unit >= wstringLogicalLength(this.elements, this.length))
 		return 0;
 	return utf16codepointcalcsize(&this.elements[unit]);
 }
 
+/// Returns a view with leading and trailing ASCII whitespace removed.
 public scoped const wchar[] trim(const wchar[] this)
 {
 	nuint start = wstringTrimStartIndex(this.elements, this.length);
@@ -180,79 +214,57 @@ public scoped const wchar[] trim(const wchar[] this)
 	return { &this.elements[start], end - start };
 }
 
+/// Returns a view with leading ASCII whitespace removed.
 public scoped const wchar[] trimStart(const wchar[] this)
 {
 	nuint start = wstringTrimStartIndex(this.elements, this.length);
 	return { &this.elements[start], wstringLogicalLength(this.elements, this.length) - start };
 }
 
+/// Returns a view with trailing ASCII whitespace removed.
 public scoped const wchar[] trimEnd(const wchar[] this)
 {
 	nuint end = wstringTrimEndIndex(this.elements, this.length, 0);
 	return { this.elements, end };
 }
 
-public wstring stringCopy(const wchar[] this, within allocator)
+/// Copies the text to uppercase UTF-16 text.
+public prep wchar[] toUppercase(const wchar[] this)
 {
-	return (wstring)wstringCopySpan(this.elements, this.length, allocator);
+	return wstringTransformCodepoints(this, true, buffer);
 }
 
-public wstring uppercaseCopy(const wchar[] this, within allocator)
+/// Copies the text to lowercase UTF-16 text.
+public prep wchar[] toLowercase(const wchar[] this)
 {
-	wchar* buffer = wstringCopySpan(this.elements, this.length, allocator);
-	if (buffer == null)
-		return null;
-	camp_utf16upr(buffer);
-	return (wstring)buffer;
+	return wstringTransformCodepoints(this, false, buffer);
 }
 
-public wstring lowercaseCopy(const wchar[] this, within allocator)
+/// Joins UTF-16 strings with an optional separator.
+/// - separator: Text written between values. The default writes no separator.
+public prep wchar[] join(wstring[] this, const wchar[] separator = default)
 {
-	wchar* buffer = wstringCopySpan(this.elements, this.length, allocator);
-	if (buffer == null)
-		return null;
-	camp_utf16lwr(buffer);
-	return (wstring)buffer;
-}
-
-public wstring concatCopy(wstring[] this, within allocator)
-{
-	nuint size = 1;
-	for (nuint i = 0; i < this.length; i++)
-		size += this[i].Length;
-
-	wchar* buffer = wstringAllocateString(size, allocator);
-	if (buffer == null)
-		return null;
-	buffer[0] = (wchar)0;
-
-	for (nuint j = 0; j < this.length; j++)
-		camp_utf16cat(buffer, this[j]);
-	return (wstring)buffer;
-}
-
-public wstring joinCopy(wstring[] this, const wchar[] separator, within allocator)
-{
-	nuint size = 1;
+	nuint length = 0;
+	nuint separatorLength = wstringLogicalLength(separator.elements, separator.length);
 	for (nuint i = 0; i < this.length; i++)
 	{
-		size += this[i].Length;
+		length += this[i].Length;
 		if (i > 0)
-			size += wstringLogicalLength(separator.elements, separator.length);
+			length += separatorLength;
 	}
 
-	wchar* buffer = wstringAllocateString(size, allocator);
-	if (buffer == null)
-		return null;
-	buffer[0] = (wchar)0;
+	if (buffer.length < length)
+		return length;
 
+	nuint offset = 0;
 	for (nuint j = 0; j < this.length; j++)
 	{
 		if (j > 0)
-			wstringAppendSpan(buffer, separator);
-		camp_utf16cat(buffer, this[j]);
+			offset = wstringWriteSpan(buffer, offset, separator);
+		const wchar[] value = { (const wchar*)this[j], this[j].Length };
+		offset = wstringWriteSpan(buffer, offset, value);
 	}
-	return (wstring)buffer;
+	return length;
 }
 
 public nuint getLength(wstring this)
@@ -305,32 +317,59 @@ nuint wstringMin(nuint left, nuint right)
 	return left < right ? left : right;
 }
 
-wchar* wstringAllocateString(nuint size, Allocator* allocator)
+nuint wstringTransformCodepoints(const wchar[] text, bool uppercase, wchar[] buffer)
 {
-	nuint byteSize = size * sizeof(wchar);
-	if (allocator != null)
-		return (wchar*)allocator.alloc(byteSize);
-	return (wchar*)malloc(byteSize);
+	nuint inputLength = wstringLogicalLength(text.elements, text.length);
+	nuint required = wstringTransformedCodepointLength(text.elements, inputLength, uppercase);
+	if (buffer.length < required)
+		return required;
+
+	nuint input = 0;
+	nuint output = 0;
+	while (input < inputLength)
+	{
+		uchar codepoint = 0;
+		utf16codepoint(&text.elements[input], out codepoint);
+		uchar transformed = uppercase ? utf16uprcodepoint(codepoint) : utf16lwrcodepoint(codepoint);
+		output = wstringWriteCodepoint(buffer.elements, output, transformed);
+		input += utf16codepointcalcsize(&text.elements[input]);
+	}
+	return required;
 }
 
-wchar* wstringCopySpan(const wchar* value, nuint valueLength, Allocator* allocator)
+nuint wstringTransformedCodepointLength(const wchar* text, nuint textLength, bool uppercase)
 {
-	nuint length = wstringLogicalLength(value, valueLength);
-	wchar* buffer = wstringAllocateString(length + 1, allocator);
-	if (buffer == null)
-		return null;
-	camp_utf16ncpy(buffer, value, length);
-	buffer[length] = (wchar)0;
-	return buffer;
+	nuint input = 0;
+	nuint length = 0;
+	while (input < textLength)
+	{
+		uchar codepoint = 0;
+		utf16codepoint(&text[input], out codepoint);
+		uchar transformed = uppercase ? utf16uprcodepoint(codepoint) : utf16lwrcodepoint(codepoint);
+		length += transformed < 0x10000 ? 1 : 2;
+		input += utf16codepointcalcsize(&text[input]);
+	}
+	return length;
 }
 
-void wstringAppendSpan(wchar* buffer, const wchar[] span)
+nuint wstringWriteCodepoint(wchar* output, nuint index, uchar codepoint)
 {
-	nuint offset = 0;
+	if (codepoint < 0x10000)
+	{
+		output[index] = (wchar)codepoint;
+		return index + 1;
+	}
+
+	uchar adjusted = (uchar)(codepoint - 0x10000);
+	output[index] = (wchar)(0xD800 | (adjusted >> 10));
+	output[index + 1] = (wchar)(0xDC00 | (adjusted & 0x3FF));
+	return index + 2;
+}
+
+nuint wstringWriteSpan(wchar[] buffer, nuint offset, const wchar[] span)
+{
 	nuint length = wstringLogicalLength(span.elements, span.length);
-	while (buffer[offset] != (wchar)0)
-		offset++;
 	for (nuint i = 0; i < length; i++)
 		buffer[offset + i] = span[i];
-	buffer[offset + length] = (wchar)0;
+	return offset + length;
 }
