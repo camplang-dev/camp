@@ -1919,7 +1919,10 @@ public sealed class BindableNodeCodeSerializer
 		switch (type)
 		{
 			case NamedTypeReference named:
-				if (apiHeader && TryGetApiTypeName(named.ResolvedType ?? named.Name, out string? apiTypeName))
+				string formattedNamedType = apiHeader ? FormatResolvedTypeName(named.Name) : named.Name;
+				if (apiHeader && formattedNamedType != named.Name)
+					writer.Write(formattedNamedType);
+				else if (apiHeader && TryGetApiTypeName(named.ResolvedType ?? named.Name, out string? apiTypeName))
 					writer.Write(apiTypeName);
 				else
 					WriteQualifiedName(named.Qualifiers, named.Name);

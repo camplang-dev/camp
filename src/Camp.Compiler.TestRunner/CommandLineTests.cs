@@ -3685,6 +3685,43 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Shared_library_api_header_uses_source_type_names_in_delegate_parameters()
+	{
+		string source = CreateTempCase("shared_api_delegate_parameter/main.camp", """
+			namespace Win32::Forms;
+
+			export struct Message
+			{
+				int value;
+			}
+
+			export interface IControlHost
+			{
+				nint handleWndProc(const Message* message, delegate nint(const Message*) baseWndProc) = default;
+			}
+			""");
+		string outDir = TempPath("shared-api-delegate-parameter-out");
+
+		ProcessResult result = RunCampc(
+			"build",
+			source,
+			"--nostdlib",
+			"--artifact",
+			"shared",
+			"--target",
+			NativeTargetForHost(),
+			"--name",
+			"shared_api_delegate_parameter",
+			"--out-dir",
+			outDir);
+
+		AssertCommandSucceeded(result);
+		string apiHeader = File.ReadAllText(Path.Combine(outDir, ArtifactDirectoryForHost(NativeBuildKind.Shared), "shared_api_delegate_parameter_api.camp"));
+		Assert.Contains("delegate nint(const Message*) baseWndProc", apiHeader, StringComparison.Ordinal);
+		Assert.DoesNotContain("Win32FormsMessage", apiHeader, StringComparison.Ordinal);
+	}
+
+	[Fact]
 	public void Build_reports_missing_use_source_path_with_resolved_path()
 	{
 		string root = TempPath("missing-use-source-root");
