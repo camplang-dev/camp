@@ -1,0 +1,181 @@
+// file: namespace_nominal_signature_identity.c
+#include "namespace_nominal_signature_identity_private.h"
+
+/* Private file declarations. */
+void *Win32Forms_malloc(uintptr_t size);
+void Win32Forms_free(void *ptr);
+static void Win32FormsRefCounted_retain(Win32FormsRefCounted *this);
+static void Win32FormsControl_fillCreateParams(Win32FormsControl *this, Win32FormsCreateParams *cp);
+static intptr_t Win32FormsControl_wndProc(Win32FormsControl *this, const Win32FormsMessage *message);
+void Win32FormsControl__fillCreateParams(Win32FormsControl *this, Win32FormsCreateParams *cp);
+intptr_t Win32FormsControl__wndProc(Win32FormsControl *this, const Win32FormsMessage *message);
+static void Win32FormsForm_fillCreateParams(Win32FormsForm *this, Win32FormsCreateParams *cp);
+static intptr_t Win32FormsForm_wndProc(Win32FormsForm *this, const Win32FormsMessage *message);
+void Win32FormsForm__fillCreateParams(Win32FormsControl *ctx, Win32FormsCreateParams *cp);
+intptr_t Win32FormsForm__wndProc(Win32FormsControl *ctx, const Win32FormsMessage *message);
+static void Win32FormsPropertyBag_ensureEntryCapacity(Win32FormsPropertyBag *this, uintptr_t newLength);
+static void Win32FormsPropertyBag_ensureReleaseCapacity(Win32FormsPropertyBag *this, uintptr_t newLength);
+static int Win32Forms_main(void);
+
+Win32Forms__RefCounted Win32Forms__RefCounted__vt = { .retain = NULL };
+Win32Forms__Control Win32Forms__Control__vt = { .fillCreateParams = Win32FormsControl__fillCreateParams, .wndProc = Win32FormsControl__wndProc };
+Win32Forms__Form Win32Forms__Form__vt = { .Control = { .fillCreateParams = Win32FormsForm__fillCreateParams, .wndProc = Win32FormsForm__wndProc } };
+static void Win32FormsRefCounted_retain(Win32FormsRefCounted *this)
+{
+	this->_vt->retain(this);
+}
+
+static void Win32FormsControl_fillCreateParams(Win32FormsControl *this, Win32FormsCreateParams *cp)
+{
+	this->_vt->fillCreateParams(this, cp);
+}
+
+static intptr_t Win32FormsControl_wndProc(Win32FormsControl *this, const Win32FormsMessage *message)
+{
+	return this->_vt->wndProc(this, message);
+}
+
+void Win32FormsControl__fillCreateParams(Win32FormsControl *this, Win32FormsCreateParams *cp)
+{
+	cp->value = 1;
+}
+
+intptr_t Win32FormsControl__wndProc(Win32FormsControl *this, const Win32FormsMessage *message)
+{
+	return (intptr_t)(message->value);
+}
+
+void Win32FormsForm__fillCreateParams(Win32FormsControl *ctx, Win32FormsCreateParams *cp)
+{
+	Win32FormsForm *this = (Win32FormsForm *)(ctx);
+	(void)this;
+	cp->value = 2;
+}
+
+intptr_t Win32FormsForm__wndProc(Win32FormsControl *ctx, const Win32FormsMessage *message)
+{
+	Win32FormsForm *this = (Win32FormsForm *)(ctx);
+	(void)this;
+	return (Win32FormsControl__wndProc((Win32FormsControl *)(this), message) + 1);
+}
+
+static void Win32FormsPropertyBag_ensureEntryCapacity(Win32FormsPropertyBag *this, uintptr_t newLength)
+{
+	Win32FormsPropertyEntry *oldEntries = this->entries;
+	uintptr_t oldEntries_length = this->entries_length;
+	{
+		this->entries = (Win32FormsPropertyEntry *)(Win32Forms_malloc((sizeof(Win32FormsPropertyEntry) * newLength)));
+		this->entries_length = newLength;
+	}
+	Win32Forms_free((void *)(oldEntries));
+}
+
+static void Win32FormsPropertyBag_ensureReleaseCapacity(Win32FormsPropertyBag *this, uintptr_t newLength)
+{
+	void (* *oldFunctions)(Win32FormsRefCounted *arg0) = this->releaseFunctions;
+	uintptr_t oldFunctions_length = this->releaseFunctions_length;
+	{
+		this->releaseFunctions = (void (* *)(Win32FormsRefCounted *camp))(Win32Forms_malloc((sizeof(void (*)(Win32FormsRefCounted *arg0)) * newLength)));
+		this->releaseFunctions_length = newLength;
+	}
+	Win32Forms_free((void *)(oldFunctions));
+}
+
+static int Win32Forms_main(void)
+{
+	Win32FormsPropertyBag *bag = (Win32FormsPropertyBag *)(Win32Forms_malloc(sizeof(Win32FormsPropertyBag)));
+	if ((bag != NULL))
+	{
+		*bag = (Win32FormsPropertyBag){0};
+	}
+	Win32FormsPropertyBag_ensureEntryCapacity(bag, 1);
+	Win32FormsPropertyBag_ensureReleaseCapacity(bag, 1);
+	Win32Forms_free((void *)(bag));
+	return 0;
+}
+
+// file: namespace_nominal_signature_identity_private.h
+#ifndef NAMESPACE_NOMINAL_SIGNATURE_IDENTITY_PRIVATE_H_
+#define NAMESPACE_NOMINAL_SIGNATURE_IDENTITY_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct Win32FormsRefCounted Win32FormsRefCounted;
+typedef struct Win32FormsCreateParams Win32FormsCreateParams;
+typedef struct Win32FormsMessage Win32FormsMessage;
+typedef struct Win32FormsControl Win32FormsControl;
+typedef struct Win32FormsForm Win32FormsForm;
+typedef struct Win32FormsPropertyBag Win32FormsPropertyBag;
+typedef struct Win32FormsPropertyEntry Win32FormsPropertyEntry;
+typedef struct Win32Forms__RefCounted Win32Forms__RefCounted;
+typedef struct Win32Forms__Control Win32Forms__Control;
+typedef struct Win32Forms__Form Win32Forms__Form;
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Layouts. */
+struct Win32FormsCreateParams
+{
+	int value;
+};
+struct Win32FormsMessage
+{
+	int value;
+};
+struct Win32FormsPropertyEntry
+{
+	const char *key;
+};
+struct Win32Forms__RefCounted
+{
+	void (* retain)(Win32FormsRefCounted *ctx);
+};
+struct Win32Forms__Control
+{
+	void (* fillCreateParams)(Win32FormsControl *ctx, Win32FormsCreateParams *cp);
+	intptr_t (* wndProc)(Win32FormsControl *ctx, const Win32FormsMessage *message);
+};
+struct Win32Forms__Form
+{
+	Win32Forms__Control Control;
+};
+struct Win32FormsRefCounted
+{
+	Win32Forms__RefCounted *_vt;
+};
+struct Win32FormsControl
+{
+	Win32Forms__Control *_vt;
+};
+struct Win32FormsForm
+{
+	Win32Forms__Control *_vt;
+};
+struct Win32FormsPropertyBag
+{
+	Win32FormsPropertyEntry *entries;
+	uintptr_t entries_length;
+	void (* *releaseFunctions)(Win32FormsRefCounted *arg0);
+	uintptr_t releaseFunctions_length;
+};
+
+/* Function declarations. */
+void Win32FormsControl__fillCreateParams(Win32FormsControl *this, Win32FormsCreateParams *cp);
+intptr_t Win32FormsControl__wndProc(Win32FormsControl *this, const Win32FormsMessage *message);
+void Win32FormsForm__fillCreateParams(Win32FormsControl *ctx, Win32FormsCreateParams *cp);
+intptr_t Win32FormsForm__wndProc(Win32FormsControl *ctx, const Win32FormsMessage *message);
+
+/* Object declarations. */
+extern Win32Forms__RefCounted Win32Forms__RefCounted__vt;
+extern Win32Forms__Control Win32Forms__Control__vt;
+extern Win32Forms__Form Win32Forms__Form__vt;
+
+
+#endif
+// compile
+compiled: namespace_nominal_signature_identity.c

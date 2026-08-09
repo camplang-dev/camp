@@ -592,7 +592,7 @@ public sealed partial class BindableNodeAnalyzer
 		}
 	}
 
-	static MethodSignature BuildMethodSignature(FunctionDefinition function)
+	MethodSignature BuildMethodSignature(FunctionDefinition function)
 	{
 		List<string> parameterTypes = [];
 		string receiverContract = "";
@@ -612,10 +612,17 @@ public sealed partial class BindableNodeAnalyzer
 			if (isLifecycleMember && i == function.Parameters.Count - 1 && IsWithinParameter(parameter))
 				continue;
 
-			parameterTypes.Add($"{parameter.Modifier}:{(parameter.Type is null ? parameter.ResolvedType ?? ErrorType : FormatSignatureTypeReference(parameter.Type, anchors))}");
+			parameterTypes.Add($"{parameter.Modifier}:{GetSignatureParameterType(parameter, anchors)}");
 		}
 
 		return new MethodSignature(GetSignatureName(function), GetSignatureReturnType(function, anchors), receiverContract, parameterTypes);
+	}
+
+	string GetSignatureParameterType(ParameterDefinition parameter, Dictionary<string, string> anchors)
+	{
+		if (parameter.Type is not null)
+			return FormatSignatureTypeReference(parameter.Type, anchors);
+		return parameter.ResolvedType ?? ErrorType;
 	}
 
 	static string GetSignatureName(FunctionDefinition function)
@@ -632,12 +639,16 @@ public sealed partial class BindableNodeAnalyzer
 		return SymbolNameService.CallableName(function).Value;
 	}
 
-	static string GetSignatureReturnType(FunctionDefinition function, Dictionary<string, string> anchors)
+	string GetSignatureReturnType(FunctionDefinition function, Dictionary<string, string> anchors)
 	{
 		return function.Modifier switch
 		{
 			FunctionModifier.Constructor => "#INSTANCE",
-			_ => IsDestructorFunction(function) ? "void" : function.ReturnType is null ? function.ResolvedType ?? ErrorType : FormatSignatureTypeReference(function.ReturnType, anchors)
+			_ => IsDestructorFunction(function)
+				? "void"
+				: function.ReturnType is not null
+					? FormatSignatureTypeReference(function.ReturnType, anchors)
+					: function.ResolvedType ?? ErrorType
 		};
 	}
 
@@ -1025,7 +1036,7 @@ public sealed partial class BindableNodeAnalyzer
 		return type switch
 		{
 			null => ErrorType,
-			TypeDefinitionReference definition => AddTypeArguments(definition.Name, definition.TypeArguments),
+			TypeDefinitionReference definition => definition.ResolvedType ?? AddTypeArguments(definition.Name, definition.TypeArguments),
 			GenericParameterTypeReference genericParameter => genericParameter.Name,
 			AllocatorTypeReference => AllocatorType,
 			NamedTypeReference named => named.ResolvedType ?? BuildNamedTypeSourceName(named),

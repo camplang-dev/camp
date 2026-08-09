@@ -1227,7 +1227,7 @@ public sealed partial class BindableNodeAnalyzer
 		return signatures;
 	}
 
-	static List<MethodSignature> GetStructMethodSignatures(StructDefinition definition)
+	List<MethodSignature> GetStructMethodSignatures(StructDefinition definition)
 	{
 		List<MethodSignature> signatures = [];
 		foreach (FunctionDefinition function in definition.Functions)
@@ -1287,7 +1287,7 @@ public sealed partial class BindableNodeAnalyzer
 			: new CallableSlot(text[..separator], text[(separator + 1)..]);
 	}
 
-	static bool ContainsOverrideSignature(List<FunctionDefinition> functions, MethodSignature required)
+	bool ContainsOverrideSignature(List<FunctionDefinition> functions, MethodSignature required)
 	{
 		foreach (FunctionDefinition function in functions)
 		{

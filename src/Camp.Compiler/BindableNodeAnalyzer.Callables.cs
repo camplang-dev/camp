@@ -259,7 +259,7 @@ public sealed partial class BindableNodeAnalyzer
 		return anchors;
 	}
 
-	static string FormatSignatureParameter(ParameterDefinition parameter, Dictionary<string, string> anchors)
+	string FormatSignatureParameter(ParameterDefinition parameter, Dictionary<string, string> anchors)
 	{
 		string type = parameter.Type is null ? parameter.ResolvedType ?? ErrorType : FormatSignatureTypeReference(parameter.Type, anchors);
 		return parameter.Modifier switch
@@ -274,7 +274,7 @@ public sealed partial class BindableNodeAnalyzer
 		};
 	}
 
-	static List<string> GetSourceIteratorProtocolParameterTypes(IterTypeReference iter, Dictionary<string, string> anchors)
+	List<string> GetSourceIteratorProtocolParameterTypes(IterTypeReference iter, Dictionary<string, string> anchors)
 	{
 		List<string> parameters = [];
 		if (iter.Parameters.Count == 0)
@@ -294,11 +294,14 @@ public sealed partial class BindableNodeAnalyzer
 		return parameters;
 	}
 
-	static string FormatSignatureTypeReference(TypeReference? type, Dictionary<string, string> anchors)
+	string FormatSignatureTypeReference(TypeReference? type, Dictionary<string, string> anchors)
 	{
 		return type switch
 		{
 			null => ErrorType,
+			TypeDefinitionReference { Definition: not null } definition => AddTypeArguments(ResolvedNominalTypeName(definition.Definition), definition.TypeArguments),
+			TypeDefinitionReference definition => definition.ResolvedType ?? AddTypeArguments(definition.Name, definition.TypeArguments),
+			NamedTypeReference named when TryGetNamedTypeDefinition(named, out TypeDefinition? definition) && definition is not null => AddTypeArguments(ResolvedNominalTypeName(definition), named.TypeArguments),
 			ConstOfTypeReference constOf => FormatTypeDeclarator("constof(" + (anchors.TryGetValue(constOf.AnchorName, out string? mapped) ? mapped : constOf.AnchorName) + ")", constOf.Type is null ? null : new RawFormattedTypeReference(FormatSignatureTypeReference(constOf.Type, anchors))),
 			AttributedTypeReference attributed => FormatSignatureTypeReference(attributed.Type, anchors),
 			GenericTypeReference generic => generic.TypeArguments.Count == 0

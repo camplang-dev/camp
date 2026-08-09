@@ -200,6 +200,15 @@ public sealed partial class BindableNodeAnalyzer
 
 	ConversionClassification ClassifyConversion(string source, string target)
 	{
+		if (NominalAliasShapesMatch(source, target))
+		{
+			string normalizedNominalSource = NormalizeNominalTypeAliases(source);
+			string normalizedNominalTarget = NormalizeNominalTypeAliases(target);
+			if ((normalizedNominalSource != source || normalizedNominalTarget != target)
+				&& normalizedNominalSource == normalizedNominalTarget)
+				return new ConversionClassification(ConversionLevel.Implicit, ConversionReason.None);
+		}
+
 		if (TryClassifyConstructedTypeRewrite(source, target, out ConversionClassification constructedRewrite))
 			return constructedRewrite;
 

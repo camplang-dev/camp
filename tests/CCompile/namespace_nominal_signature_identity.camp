@@ -1,0 +1,79 @@
+namespace Win32::Forms;
+
+extern void* malloc(nuint size);
+extern void free(void* ptr);
+
+abstract class RefCounted
+{
+	abstract void retain();
+}
+
+struct CreateParams
+{
+	int value;
+}
+
+struct Message
+{
+	int value;
+}
+
+virtual class Control
+{
+	virtual void fillCreateParams(CreateParams* cp)
+	{
+		cp.value = 1;
+	}
+
+	virtual nint wndProc(const Message* message)
+	{
+		return (nint)message.value;
+	}
+}
+
+virtual class Form: Control
+{
+	override void fillCreateParams(CreateParams* cp)
+	{
+		cp.value = 2;
+	}
+
+	override nint wndProc(const Message* message)
+	{
+		return base.wndProc(message) + 1;
+	}
+}
+
+class PropertyBag
+{
+	PropertyEntry[] entries;
+	fn void(RefCounted*)[] releaseFunctions;
+
+	void ensureEntryCapacity(nuint newLength)
+	{
+		PropertyEntry[] oldEntries = this.entries;
+		this.entries = new PropertyEntry[newLength];
+		delete oldEntries;
+	}
+
+	void ensureReleaseCapacity(nuint newLength)
+	{
+		fn void(RefCounted*)[] oldFunctions = this.releaseFunctions;
+		this.releaseFunctions = new fn void(RefCounted*)[newLength];
+		delete oldFunctions;
+	}
+}
+
+struct PropertyEntry
+{
+	string key;
+}
+
+int main()
+{
+	PropertyBag* bag = new PropertyBag();
+	bag.ensureEntryCapacity(1);
+	bag.ensureReleaseCapacity(1);
+	delete bag;
+	return 0;
+}
