@@ -368,7 +368,12 @@ public sealed partial class BindableNodeAnalyzer
 			return GetDefinitionNamespace(currentAnalysisContainingType);
 		}
 		if (currentAnalysisDefinition is not null)
-			return GetDefinitionNamespace(currentAnalysisDefinition);
+		{
+			string? definitionNamespace = GetDefinitionNamespace(currentAnalysisDefinition);
+			if (currentAnalysisDefinition.NamespaceAssigned || !string.IsNullOrWhiteSpace(definitionNamespace) || currentAnalysisContainingType is null)
+				return definitionNamespace;
+			return GetDefinitionNamespace(currentAnalysisContainingType);
+		}
 		return currentModule is not null
 			&& currentModule.SourceNamespaces.TryGetValue(referenceSource, out string? referenceNamespace)
 			? referenceNamespace

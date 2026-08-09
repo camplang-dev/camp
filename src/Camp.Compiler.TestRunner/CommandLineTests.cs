@@ -3719,6 +3719,44 @@ public sealed class CommandLineTests
 		string apiHeader = File.ReadAllText(Path.Combine(outDir, ArtifactDirectoryForHost(NativeBuildKind.Shared), "shared_api_delegate_parameter_api.camp"));
 		Assert.Contains("delegate nint(const Message*) baseWndProc", apiHeader, StringComparison.Ordinal);
 		Assert.DoesNotContain("Win32FormsMessage", apiHeader, StringComparison.Ordinal);
+
+		string projectFile = TempPath("shared-api-delegate-parameter.campbuild");
+		File.WriteAllText(projectFile, $$"""
+			--nostdlib
+			--artifact shared
+			--name shared_api_delegate_parameter
+			{{source.Replace('\\', '/')}}
+			""");
+		string consumer = CreateTempCase("shared_api_delegate_parameter_consumer/main.camp", $$"""
+			#build --nostdlib
+			#build --artifact none
+			#build --project-reference "{{projectFile.Replace('\\', '/')}}"
+
+			using Win32::Forms;
+
+			class Host: IControlHost
+			{
+				nint handleWndProc(const Message* message, delegate nint(const Message*) baseWndProc): IControlHost
+				{
+					return baseWndProc(message);
+				}
+			}
+
+			export int main()
+			{
+				return 0;
+			}
+			""");
+
+		ProcessResult consumerResult = RunCampc(
+			"build",
+			consumer,
+			"--target",
+			NativeTargetForHost(),
+			"--out-dir",
+			TempPath("shared-api-delegate-parameter-consumer-out"));
+
+		AssertCommandSucceeded(consumerResult);
 	}
 
 	[Fact]
