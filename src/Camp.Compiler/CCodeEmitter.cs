@@ -142,7 +142,7 @@ public static class CCodeEmitter
 			{
 				if (file.IsApiHeader)
 				{
-					if (HasExportedDeclarations(compilation, file) && !TryCopyGeneratedApiHeader(file, options, result))
+					if (HasExportedDeclarations(compilation, file) && !TryUseGeneratedApiHeader(compilation, file, options, result))
 						EmitPublicHeader(compilation, options, file, result, declarations);
 					continue;
 				}
@@ -162,24 +162,59 @@ public static class CCodeEmitter
 		return result;
 	}
 
-	static bool TryCopyGeneratedApiHeader(SourceFile file, CEmissionOptions options, CEmissionResult result)
+	static bool TryUseGeneratedApiHeader(Compilation compilation, SourceFile file, CEmissionOptions options, CEmissionResult result)
 	{
-		if (!file.IsGeneratedApiHeader || file.SharedLibraryImport || string.IsNullOrWhiteSpace(file.FullPath))
+		if (!file.IsGeneratedApiHeader || string.IsNullOrWhiteSpace(file.FullPath))
 			return false;
+		string destinationHeader = Path.Combine(options.OutputDirectory, GetHeaderFilename(file));
+		if (file.SharedLibraryImport)
+		{
+			if (!GeneratedApiHeaderIsCurrent(destinationHeader, GetGeneratedApiHeaderInputs(compilation, file.FullPath)))
+				return false;
+			AddUnchangedGeneratedFile(result, destinationHeader);
+			return true;
+		}
 		string sourceHeader = Path.Combine(Path.GetDirectoryName(file.FullPath) ?? "", Path.GetFileNameWithoutExtension(file.FullPath) + ".h");
 		if (!File.Exists(sourceHeader))
 			return false;
-		string destinationHeader = Path.Combine(options.OutputDirectory, GetHeaderFilename(file));
 		if (string.Equals(Path.GetFullPath(sourceHeader), Path.GetFullPath(destinationHeader), StringComparison.OrdinalIgnoreCase))
 		{
-			result.GeneratedFiles.Add(destinationHeader);
-			result.FileStatuses[destinationHeader] = BuildFileWriteStatus.Unchanged;
+			AddUnchangedGeneratedFile(result, destinationHeader);
 			return true;
 		}
 		BuildFileWriteStatus status = BuildFileIO.CopyIfChanged(sourceHeader, destinationHeader);
 		result.GeneratedFiles.Add(destinationHeader);
 		result.FileStatuses[destinationHeader] = status;
 		return true;
+	}
+
+	static IEnumerable<string> GetGeneratedApiHeaderInputs(Compilation compilation, string apiHeaderPath)
+	{
+		yield return apiHeaderPath;
+		if (compilation.Target?.Path is string targetPath && File.Exists(targetPath))
+			yield return targetPath;
+		string compilerAssembly = typeof(CCodeEmitter).Assembly.Location;
+		if (!string.IsNullOrWhiteSpace(compilerAssembly) && File.Exists(compilerAssembly))
+			yield return compilerAssembly;
+	}
+
+	static bool GeneratedApiHeaderIsCurrent(string outputPath, IEnumerable<string> inputPaths)
+	{
+		if (!File.Exists(outputPath))
+			return false;
+		DateTime outputTime = File.GetLastWriteTimeUtc(outputPath);
+		foreach (string inputPath in inputPaths)
+		{
+			if (!File.Exists(inputPath) || outputTime < File.GetLastWriteTimeUtc(inputPath))
+				return false;
+		}
+		return true;
+	}
+
+	static void AddUnchangedGeneratedFile(CEmissionResult result, string path)
+	{
+		result.GeneratedFiles.Add(path);
+		result.FileStatuses[path] = BuildFileWriteStatus.Unchanged;
 	}
 
 	public static CEmissionResult EmitProjectApiHeader(Compilation compilation, CEmissionOptions options, string outputDirectory)
@@ -366,6 +401,11 @@ public static class CCodeEmitter
 	static void EmitPrivateHeader(Compilation compilation, CEmissionOptions options, CEmissionResult result, CDeclarationWriter declarations)
 	{
 		string filename = Path.Combine(options.OutputDirectory, options.ProjectName + "_private.h");
+		if (options.CoverageMapBuilder is null && GeneratedOutputIsCurrent(compilation, options, filename))
+		{
+			AddUnchangedGeneratedFile(result, filename);
+			return;
+		}
 		using StringWriter writer = new(CultureInfo.InvariantCulture);
 		string guard = BuildHeaderGuard(options.ProjectName + "_private_h");
 
@@ -395,12 +435,18 @@ public static class CCodeEmitter
 		}
 		writer.WriteLine();
 		writer.WriteLine("#endif");
-		AddGeneratedFile(result, filename, writer.ToString());
+		AddGeneratedFile(result, filename, writer.ToString(), compilation, options);
 	}
 
 	static void EmitSourceFile(Compilation compilation, CEmissionOptions options, SourceFile file, CEmissionResult result, CDeclarationWriter declarations)
 	{
 		string filename = Path.Combine(options.OutputDirectory, GetCSourceFilename(file));
+		if (options.CoverageMapBuilder is null && !options.EmitExecMainWrapper && GeneratedOutputIsCurrent(compilation, options, filename))
+		{
+			AddUnchangedGeneratedFile(result, filename);
+			result.GeneratedSourceFiles.Add(filename);
+			return;
+		}
 		using StringWriter stringWriter = new(CultureInfo.InvariantCulture);
 		using LineTrackingTextWriter writer = new(stringWriter, filename);
 		writer.WriteLine("#include \"" + options.ProjectName + "_private.h\"");
@@ -410,7 +456,7 @@ public static class CCodeEmitter
 		declarations.WriteSourceFileDefinitions(writer, file);
 		if (options.EmitExecMainWrapper && options.ExecEntryPoint is not null && IsFirstProjectSource(compilation, file))
 			declarations.WriteExecMainWrapper(writer, options.ExecEntryPoint);
-		AddGeneratedFile(result, filename, stringWriter.ToString());
+		AddGeneratedFile(result, filename, stringWriter.ToString(), compilation, options);
 		result.GeneratedSourceFiles.Add(filename);
 	}
 
@@ -422,6 +468,11 @@ public static class CCodeEmitter
 	static void EmitPublicHeader(Compilation compilation, CEmissionOptions options, SourceFile file, CEmissionResult result, CDeclarationWriter declarations)
 	{
 		string filename = Path.Combine(options.OutputDirectory, GetHeaderFilename(file));
+		if (GeneratedOutputIsCurrent(compilation, options, filename))
+		{
+			AddUnchangedGeneratedFile(result, filename);
+			return;
+		}
 		using StringWriter writer = new(CultureInfo.InvariantCulture);
 		string guard = BuildHeaderGuard(Path.GetFileNameWithoutExtension(GetHeaderFilename(file)) + "_h");
 
@@ -436,7 +487,7 @@ public static class CCodeEmitter
 		declarations.WritePublicHeaderDeclarations(writer, file);
 		writer.WriteLine();
 		writer.WriteLine("#endif");
-		AddGeneratedFile(result, filename, writer.ToString());
+		AddGeneratedFile(result, filename, writer.ToString(), compilation, options);
 	}
 
 	static void AddGeneratedFile(CEmissionResult result, string filename, string content)
@@ -444,6 +495,62 @@ public static class CCodeEmitter
 		BuildFileWriteStatus status = BuildFileIO.WriteTextIfChanged(filename, content, Utf8NoBom);
 		result.GeneratedFiles.Add(filename);
 		result.FileStatuses[filename] = status;
+	}
+
+	static void AddGeneratedFile(CEmissionResult result, string filename, string content, Compilation compilation, CEmissionOptions options)
+	{
+		AddGeneratedFile(result, filename, content);
+		WriteGeneratedOutputStamp(compilation, options, filename);
+	}
+
+	static bool GeneratedOutputIsCurrent(Compilation compilation, CEmissionOptions options, string outputPath)
+	{
+		if (!File.Exists(outputPath))
+			return false;
+		string stampPath = GetGeneratedOutputStampPath(outputPath);
+		return File.Exists(stampPath)
+			&& string.Equals(File.ReadAllText(stampPath), BuildGeneratedOutputStamp(compilation, options), StringComparison.Ordinal);
+	}
+
+	static void WriteGeneratedOutputStamp(Compilation compilation, CEmissionOptions options, string outputPath)
+	{
+		BuildFileIO.WriteTextIfChanged(GetGeneratedOutputStampPath(outputPath), BuildGeneratedOutputStamp(compilation, options), Utf8NoBom);
+	}
+
+	static string GetGeneratedOutputStampPath(string outputPath)
+	{
+		return outputPath + ".campstamp";
+	}
+
+	static string BuildGeneratedOutputStamp(Compilation compilation, CEmissionOptions options)
+	{
+		StringBuilder builder = new();
+		builder.AppendLine("camp generated output stamp v1");
+		builder.AppendLine("emit=" + options.EmitKind);
+		builder.AppendLine("build=" + options.BuildKind?.ToString());
+		builder.AppendLine("coverage=" + (options.CoverageMapBuilder is not null).ToString(CultureInfo.InvariantCulture));
+		builder.AppendLine("exec-wrapper=" + options.EmitExecMainWrapper.ToString(CultureInfo.InvariantCulture));
+		foreach (string input in GetGeneratedOutputInputs(compilation))
+			builder.AppendLine(input);
+		return builder.ToString();
+	}
+
+	static IEnumerable<string> GetGeneratedOutputInputs(Compilation compilation)
+	{
+		foreach (SourceFile file in compilation.Files)
+			if (!string.IsNullOrWhiteSpace(file.FullPath) && File.Exists(file.FullPath))
+				yield return FormatGeneratedOutputInput(file.FullPath);
+		if (compilation.Target?.Path is string targetPath && File.Exists(targetPath))
+			yield return FormatGeneratedOutputInput(targetPath);
+		string compilerAssembly = typeof(CCodeEmitter).Assembly.Location;
+		if (!string.IsNullOrWhiteSpace(compilerAssembly) && File.Exists(compilerAssembly))
+			yield return FormatGeneratedOutputInput(compilerAssembly);
+	}
+
+	static string FormatGeneratedOutputInput(string path)
+	{
+		FileInfo info = new(path);
+		return Path.GetFullPath(path) + "|" + info.Length.ToString(CultureInfo.InvariantCulture) + "|" + info.LastWriteTimeUtc.Ticks.ToString(CultureInfo.InvariantCulture);
 	}
 
 	static void WriteTargetPreamble(TextWriter writer, Compilation compilation)

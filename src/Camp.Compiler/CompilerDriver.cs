@@ -619,7 +619,8 @@ public static class CompilerDriver
 					return false;
 				if (!TryReadWithinAllocationPolicy(displayPath, text, out WithinAllocationPolicy? policy))
 					return false;
-				compilation.Files.Add(new SourceFile { Path = displayPath, FullPath = fullPath, Text = text, IsApiHeader = true, IsGeneratedApiHeader = IsGeneratedApiHeaderPath(fullPath ?? filename), SharedLibraryImport = IsSharedLibraryApiHeader(loadRequest, filename), WithinAllocationPolicyOverride = policy });
+				bool isGeneratedApiHeader = IsGeneratedApiHeaderPath(fullPath ?? filename);
+				compilation.Files.Add(new SourceFile { Path = displayPath, FullPath = fullPath, Text = text, IsApiHeader = true, IsGeneratedApiHeader = isGeneratedApiHeader, SharedLibraryImport = IsSharedLibraryApiHeader(loadRequest, filename), WithinAllocationPolicyOverride = policy });
 			}
 			return true;
 		}
