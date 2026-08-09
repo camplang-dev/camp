@@ -72,6 +72,8 @@ public sealed class CompilerRequest
 	public string? PackageSourceRoot { get; set; }
 	public string? PackageArtifactRoot { get; set; }
 	public string WorkingDirectory { get; set; } = Directory.GetCurrentDirectory();
+	public bool TimingEnabled { get; set; }
+	public string? TimingOutput { get; set; }
 }
 
 public sealed class CompilerResult
@@ -96,10 +98,20 @@ public static class CompilerDriver
 		readonly StringBuilder stdout = new();
 		readonly StringBuilder stderr = new();
 		readonly List<string> generatedFiles = [];
+		readonly Dictionary<string, BuildFileWriteStatus> generatedFileStatuses = new(StringComparer.OrdinalIgnoreCase);
+		readonly BuildTiming timing = BuildTiming.Create(
+			request.TimingEnabled || !string.IsNullOrWhiteSpace(request.TimingOutput),
+			request.CommandMode.ToString().ToLowerInvariant(),
+			string.IsNullOrWhiteSpace(request.ProjectName) ? "project" : request.ProjectName!,
+			request.TargetName,
+			request.BuildKind?.ToString().ToLowerInvariant() ?? (request.InferBuildKind ? "infer" : "none"),
+			request.ProfileName,
+			typeof(CompilerDriver).Assembly.GetName().Version?.ToString() ?? "unknown");
 
 		public CompilerResult Execute()
 		{
 			int exitCode = Run();
+			CompleteTiming(exitCode);
 			CompilerResult result = new()
 			{
 				ExitCode = exitCode,
@@ -108,6 +120,26 @@ public static class CompilerDriver
 			};
 			result.GeneratedFiles.AddRange(generatedFiles);
 			return result;
+		}
+
+		void CompleteTiming(int exitCode)
+		{
+			timing.Complete(exitCode == 0 ? "success" : "failed");
+			if (!timing.Enabled)
+				return;
+			stderr.Append(timing.FormatText());
+			if (!string.IsNullOrWhiteSpace(request.TimingOutput))
+			{
+				string timingPath = Path.GetFullPath(request.TimingOutput!, request.WorkingDirectory);
+				try
+				{
+					BuildFileIO.WriteTextIfChanged(timingPath, timing.FormatJson(), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+				}
+				catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
+				{
+					stderr.Append(timingPath).Append(": ").Append(ex.Message).Append('\n');
+				}
+			}
 		}
 
 		int Run()
@@ -131,8 +163,13 @@ public static class CompilerDriver
 			if (GetEffectiveMetadataVisibility() != MetadataVisibility.None && (request.Inspect is not null and not CompilerInspectMode.Metadata || request.InspectApi))
 				return Error("--metadata cannot be combined with non-metadata dump commands or --inspect-api.");
 
-			if (!TryCreateRuntimeContext(out RuntimeContext? context))
-				return 1;
+			RuntimeContext? context;
+			using (timing.Begin("runtime context", "setup"))
+			{
+				if (!TryCreateRuntimeContext(out RuntimeContext? createdContext))
+					return 1;
+				context = createdContext;
+			}
 			if (!ValidateFrameworks(context!.Target))
 				return 1;
 
@@ -141,6 +178,7 @@ public static class CompilerDriver
 			List<string> packageLibraries = [];
 			if (!request.NoStdLib)
 			{
+				using IDisposable _ = timing.Begin("package std" + (requireNativeLibraries ? ":static" : ":api"), "package");
 				if (!TryPreparePackage(context!, "std", requireNativeLibraries, out string? stdApiHeader, out string? stdLibrary))
 					return 1;
 				if (stdApiHeader is not null)
@@ -150,6 +188,7 @@ public static class CompilerDriver
 			}
 			foreach (string package in request.UsePackages)
 			{
+				using IDisposable _ = timing.Begin("package " + package, "package");
 				if (!TryPrepareInstalledPackage(context!, package, requireNativeLibraries, out string? packageApiHeader, out string? packageLibrary, out bool sharedDependency))
 					return 1;
 				if (packageApiHeader is not null)
@@ -163,8 +202,17 @@ public static class CompilerDriver
 			}
 
 			List<string> allApiFiles = [.. packageApiHeaders, .. request.ApiFiles];
-			if (!TryLoadCompilation(request.Files, allApiFiles, context!, out Compilation compilation))
-				return 1;
+			if (TryUseCurrentTopLevelArtifact(context!, allApiFiles, packageLibraries))
+				return 0;
+			Compilation compilation;
+			using (timing.Begin("load sources and APIs", "compiler-phase", new Dictionary<string, string>
+			{
+				["files"] = $"{request.Files.Count} source, {allApiFiles.Count} api"
+			}))
+			{
+				if (!TryLoadCompilation(request.Files, allApiFiles, context!, out compilation))
+					return 1;
+			}
 
 			if (request.InspectApi)
 				return PrintApi(compilation);
@@ -234,8 +282,7 @@ public static class CompilerDriver
 
 			foreach (string generated in result.GeneratedFiles)
 			{
-				generatedFiles.Add(generated);
-				OutGenerated(generated);
+				AddGeneratedFile(generated, result.FileStatuses.GetValueOrDefault(generated, BuildFileWriteStatus.Changed));
 			}
 
 			if (request.EmitDebugInfo && !TryEmitDebugArtifact(compilation, outputDirectory, projectName, result.DebugInfo))
@@ -263,6 +310,7 @@ public static class CompilerDriver
 				ProjectName = projectName,
 				Kind = NativeBuildKind.Exec,
 				SourceFiles = [.. result.GeneratedSourceFiles, .. coverageRuntimeSources, harnessSource!],
+				SourceFileStatuses = BuildSourceStatuses(result),
 				Libraries = packageLibraries.Concat(request.References.Select(reference => ResolveNativeReference(reference, compilation.Target!))).ToList(),
 				Frameworks = request.Frameworks
 			};
@@ -273,8 +321,7 @@ public static class CompilerDriver
 				return 1;
 			foreach (string generated in build.GeneratedFiles)
 			{
-				generatedFiles.Add(generated);
-				OutGenerated(generated);
+				AddGeneratedFile(generated, BuildFileWriteStatus.Changed);
 			}
 			if (!TryCopySharedRuntimeReferences(compilation.Target!, outputDirectory, packageLibraries.Concat(request.References.Select(reference => ResolveNativeReference(reference, compilation.Target!)))))
 				return 1;
@@ -316,7 +363,6 @@ public static class CompilerDriver
 					request.BuildKind = NativeBuildKind.Static;
 					return true;
 				}
-
 				try
 				{
 					string fullPath = Path.GetFullPath(filename, request.WorkingDirectory);
@@ -336,6 +382,93 @@ public static class CompilerDriver
 
 			request.BuildKind = NativeBuildKind.Static;
 			return true;
+		}
+
+		bool TryUseCurrentTopLevelArtifact(RuntimeContext context, IReadOnlyList<string> allApiFiles, IReadOnlyList<string> packageLibraries)
+		{
+			if (request.BuildKind is null
+				|| request.CommandMode is CompilerCommandMode.Test or CompilerCommandMode.Cover
+				|| request.EmitDebugInfo)
+				return false;
+			string projectName = GetRequestProjectName();
+			string outputDirectory = ResolveArtifactOutputDirectory(context.Target, request.BuildKind, context.ProfileName);
+			string buildDirectory = Path.Combine(outputDirectory, "build");
+			NativeBuildOptions buildOptions = new()
+			{
+				Target = context.Target,
+				ProfileName = context.ProfileName,
+				BuildDirectory = buildDirectory,
+				OutputDirectory = outputDirectory,
+				ProjectName = projectName,
+				Kind = request.BuildKind.Value,
+				SourceFiles = []
+			};
+			string artifact = NativeBuildDriver.GetArtifactPath(buildOptions);
+			List<string> outputs = [artifact];
+			if (request.BuildKind is NativeBuildKind.Static or NativeBuildKind.Shared)
+			{
+				outputs.Add(Path.Combine(outputDirectory, projectName + "_api.camp"));
+				outputs.Add(Path.Combine(outputDirectory, projectName + "_api.h"));
+				outputs.Add(Path.Combine(outputDirectory, projectName + "_api.json"));
+			}
+			List<string> inputs = [];
+			inputs.AddRange(ResolveInputPaths(request.Files));
+			inputs.AddRange(ResolveInputPaths(allApiFiles));
+			inputs.AddRange(packageLibraries);
+			inputs.AddRange(request.References.Select(reference => ResolveNativeReference(reference, context.Target)));
+			if (File.Exists(context.Target.Path))
+				inputs.Add(context.Target.Path);
+			if (!string.IsNullOrWhiteSpace(Environment.ProcessPath) && File.Exists(Environment.ProcessPath))
+				inputs.Add(Environment.ProcessPath);
+			if (!OutputsAreCurrent(outputs, inputs, out string? freshnessReason))
+			{
+				if (request.Verbose)
+					OutLine("top-level artifact: rebuilding because " + freshnessReason);
+				return false;
+			}
+			using IDisposable _ = timing.Begin("top-level artifact freshness", "freshness", "current");
+			foreach (string output in outputs)
+				AddGeneratedFile(output, BuildFileWriteStatus.Unchanged);
+			return true;
+		}
+
+		string GetRequestProjectName()
+		{
+			if (!string.IsNullOrWhiteSpace(request.ProjectName))
+				return request.ProjectName!;
+			string? firstSource = request.Files.FirstOrDefault(static file => file != "-");
+			return string.IsNullOrWhiteSpace(firstSource) ? "camp" : Path.GetFileNameWithoutExtension(firstSource);
+		}
+
+		string ResolveArtifactOutputDirectory(TargetDefinition target, NativeBuildKind? buildKind, string profileName)
+		{
+			string outputPrefix = string.IsNullOrWhiteSpace(request.OutDir)
+				? GetDefaultArtifactDirectoryFromRequest()
+				: request.OutDir!;
+			string outputRoot = Path.GetFullPath(outputPrefix, request.WorkingDirectory);
+			return Path.Combine(outputRoot, BuildArtifactLayout.GetArtifactDirectoryName(target, buildKind, profileName));
+		}
+
+		string GetDefaultArtifactDirectoryFromRequest()
+		{
+			string? firstSource = request.Files.FirstOrDefault(static file => file != "-");
+			if (string.IsNullOrWhiteSpace(firstSource))
+				return Path.Combine(request.WorkingDirectory, "bin");
+			string full = Path.GetFullPath(firstSource, request.WorkingDirectory);
+			string? directory = Path.GetDirectoryName(full);
+			return Path.Combine(string.IsNullOrWhiteSpace(directory) ? request.WorkingDirectory : directory, "bin");
+		}
+
+		IEnumerable<string> ResolveInputPaths(IEnumerable<string> inputs)
+		{
+			foreach (string input in inputs)
+			{
+				if (string.IsNullOrWhiteSpace(input) || input == "-")
+					continue;
+				string full = Path.GetFullPath(input, request.WorkingDirectory);
+				if (File.Exists(full) || Directory.Exists(full))
+					yield return full;
+			}
 		}
 
 		static WithinAllocationPolicy GetEffectiveWithinAllocationPolicy(CompilerRequest loadRequest)
@@ -918,7 +1051,7 @@ public static class CompilerDriver
 				return false;
 			DateTime outputTime = File.GetLastWriteTimeUtc(outputPath);
 			foreach (string sourceFile in sourceFiles)
-				if (outputTime <= File.GetLastWriteTimeUtc(sourceFile))
+				if (outputTime < File.GetLastWriteTimeUtc(sourceFile))
 					return false;
 			return true;
 		}
@@ -964,8 +1097,12 @@ public static class CompilerDriver
 			};
 			packageRequest.Files.AddRange(sourceFiles);
 			packageRequest.UseSourceRoots.AddRange(request.UseSourceRoots);
-			if (!TryLoadCompilation(packageRequest, packageRequest.Files, packageIncludes, context, out Compilation packageCompilation))
-				return false;
+			Compilation packageCompilation;
+			using (timing.Begin("package load " + packageName, "compiler-phase"))
+			{
+				if (!TryLoadCompilation(packageRequest, packageRequest.Files, packageIncludes, context, out packageCompilation))
+					return false;
+			}
 
 			if (!ExpandDeclarationsAndReport(packageCompilation))
 				return false;
@@ -975,18 +1112,22 @@ public static class CompilerDriver
 				return false;
 			packageCompilation.SharedModule = analysis.Module;
 
-			try
+			using (timing.Begin("package Camp API emission " + packageName, "emission"))
 			{
-				Directory.CreateDirectory(Path.GetDirectoryName(apiPath)!);
-				using StreamWriter writer = new(apiPath, append: false, Encoding.UTF8);
-				BindableNodeCodeSerializer.Serialize(BuildApiOutputModule(packageCompilation, apiSurface), writer, new BindableNodeCodeSerializerOptions { ApiHeader = true, ApiSurface = apiSurface, ApiDefinitionsAlreadyFiltered = true, ApiReferenceDefinitions = packageCompilation.SharedModule.Definitions });
-				if (metadataPath is not null && !TryEmitMetadataArtifact(packageCompilation, Path.GetDirectoryName(metadataPath)!, MetadataVisibility.Export, packageName))
+				try
+				{
+					Directory.CreateDirectory(Path.GetDirectoryName(apiPath)!);
+					using StringWriter writer = new(CultureInfo.InvariantCulture);
+					BindableNodeCodeSerializer.Serialize(BuildApiOutputModule(packageCompilation, apiSurface), writer, new BindableNodeCodeSerializerOptions { ApiHeader = true, ApiSurface = apiSurface, ApiDefinitionsAlreadyFiltered = true, ApiReferenceDefinitions = packageCompilation.SharedModule.Definitions });
+					AddGeneratedFile(apiPath, BuildFileIO.WriteTextIfChanged(apiPath, writer.ToString(), Encoding.UTF8));
+					if (metadataPath is not null && !TryEmitMetadataArtifact(packageCompilation, Path.GetDirectoryName(metadataPath)!, MetadataVisibility.Export, packageName))
+						return false;
+				}
+				catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
+				{
+					ErrorLine($"{apiPath}: {ex.Message}");
 					return false;
-			}
-			catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
-			{
-				ErrorLine($"{apiPath}: {ex.Message}");
-				return false;
+				}
 			}
 
 			string packageArtifactDirectory = Path.GetDirectoryName(cApiPath ?? nativeLibraryPath ?? apiPath)!;
@@ -1000,18 +1141,24 @@ public static class CompilerDriver
 
 				if (cApiPath is not null)
 				{
-					CEmissionResult apiHeader = CCodeEmitter.EmitProjectApiHeader(packageNativeCompilation, new CEmissionOptions
+					CEmissionResult apiHeader;
+					using (timing.Begin("package C API emission " + packageName, "emission"))
 					{
-						OutputDirectory = packageArtifactDirectory,
-						ProjectName = packageName,
-						EmitKind = request.EmitKind,
-						BuildKind = nativeBuildKind,
-						ApiSurface = apiSurface
-					}, packageArtifactDirectory);
+						apiHeader = CCodeEmitter.EmitProjectApiHeader(packageNativeCompilation, new CEmissionOptions
+						{
+							OutputDirectory = packageArtifactDirectory,
+							ProjectName = packageName,
+							EmitKind = request.EmitKind,
+							BuildKind = nativeBuildKind,
+							ApiSurface = apiSurface
+						}, packageArtifactDirectory);
+					}
 					foreach (string diagnostic in apiHeader.Diagnostics)
 						ErrorLine(diagnostic);
 					if (!apiHeader.Success)
 						return false;
+					foreach (string generated in apiHeader.GeneratedFiles)
+						AddGeneratedFile(generated, apiHeader.FileStatuses.GetValueOrDefault(generated, BuildFileWriteStatus.Changed));
 				}
 			}
 
@@ -1019,28 +1166,37 @@ public static class CompilerDriver
 				return true;
 
 			string packageBuildDirectory = Path.Combine(packageArtifactDirectory, "build");
-			CEmissionResult emission = CCodeEmitter.Emit(packageNativeCompilation!, new CEmissionOptions
+			CEmissionResult emission;
+			using (timing.Begin("package C emission " + packageName, "emission"))
 			{
-				OutputDirectory = packageBuildDirectory,
-				ProjectName = packageName,
-				EmitKind = "c99",
-				BuildKind = nativeBuildKind
-			});
+				emission = CCodeEmitter.Emit(packageNativeCompilation!, new CEmissionOptions
+				{
+					OutputDirectory = packageBuildDirectory,
+					ProjectName = packageName,
+					EmitKind = "c99",
+					BuildKind = nativeBuildKind
+				});
+			}
 			foreach (string diagnostic in emission.Diagnostics)
 				ErrorLine(diagnostic);
 			if (!emission.Success)
 				return false;
 
-			NativeBuildResult build = NativeBuildDriver.Build(new NativeBuildOptions
+			NativeBuildResult build;
+			using (timing.Begin("package native build " + packageName, "native"))
 			{
-				Target = context.Target,
-				ProfileName = context.ProfileName,
-				BuildDirectory = packageBuildDirectory,
-				OutputDirectory = Path.GetDirectoryName(nativeLibraryPath)!,
-				ProjectName = packageName,
-				Kind = nativeBuildKind ?? NativeBuildKind.Static,
-				SourceFiles = emission.GeneratedSourceFiles.Concat(nativeSourceFiles).ToList()
-			});
+				build = NativeBuildDriver.Build(new NativeBuildOptions
+				{
+					Target = context.Target,
+					ProfileName = context.ProfileName,
+					BuildDirectory = packageBuildDirectory,
+					OutputDirectory = Path.GetDirectoryName(nativeLibraryPath)!,
+					ProjectName = packageName,
+					Kind = nativeBuildKind ?? NativeBuildKind.Static,
+					SourceFiles = emission.GeneratedSourceFiles.Concat(nativeSourceFiles).ToList(),
+					SourceFileStatuses = BuildSourceStatuses(emission)
+				});
+			}
 			foreach (string diagnostic in build.Diagnostics)
 				ErrorLine(diagnostic);
 			return build.Success;
@@ -1061,17 +1217,21 @@ public static class CompilerDriver
 			CampCoverageMapBuilder? coverageMapBuilder = request.CoverageInstrumentationMode == CoverageInstrumentationMode.ProductionSubject
 				? new CampCoverageMapBuilder(compilation)
 				: null;
-			CEmissionResult result = CCodeEmitter.Emit(compilation, new CEmissionOptions
+			CEmissionResult result;
+			using (timing.Begin("C source/header emission", "emission"))
 			{
-				OutputDirectory = buildDirectory,
-				ProjectName = projectName,
-				EmitKind = request.EmitKind,
-				BuildKind = request.BuildKind,
-				EmitDebugInfo = request.EmitDebugInfo,
-				EmitExecMainWrapper = request.BuildKind is NativeBuildKind.Exec or NativeBuildKind.WinExe,
-				ExecEntryPoint = execEntryPoint,
-				CoverageMapBuilder = coverageMapBuilder
-			});
+				result = CCodeEmitter.Emit(compilation, new CEmissionOptions
+				{
+					OutputDirectory = buildDirectory,
+					ProjectName = projectName,
+					EmitKind = request.EmitKind,
+					BuildKind = request.BuildKind,
+					EmitDebugInfo = request.EmitDebugInfo,
+					EmitExecMainWrapper = request.BuildKind is NativeBuildKind.Exec or NativeBuildKind.WinExe,
+					ExecEntryPoint = execEntryPoint,
+					CoverageMapBuilder = coverageMapBuilder
+				});
+			}
 			foreach (string diagnostic in result.Diagnostics)
 				ErrorLine(diagnostic);
 			if (!result.Success)
@@ -1079,8 +1239,7 @@ public static class CompilerDriver
 
 			foreach (string generated in result.GeneratedFiles)
 			{
-				generatedFiles.Add(generated);
-				OutGenerated(generated);
+				AddGeneratedFile(generated, result.FileStatuses.GetValueOrDefault(generated, BuildFileWriteStatus.Changed));
 			}
 
 			List<string> coverageRuntimeSources = [];
@@ -1104,26 +1263,30 @@ public static class CompilerDriver
 			if (request.BuildKind is null)
 				return 0;
 
-			NativeBuildResult build = NativeBuildDriver.Build(new NativeBuildOptions
+			NativeBuildResult build;
+			using (timing.Begin("native build", "native"))
 			{
-				Target = compilation.Target!,
-				ProfileName = compilation.ProfileName,
-				BuildDirectory = buildDirectory,
-				OutputDirectory = outputDirectory,
-				ProjectName = projectName,
-				Kind = request.BuildKind.Value,
-				SourceFiles = [.. result.GeneratedSourceFiles, .. coverageRuntimeSources],
-				Libraries = packageLibraries.Concat(request.References.Select(reference => ResolveNativeReference(reference, compilation.Target!))).ToList(),
-				Frameworks = request.Frameworks
-			});
+				build = NativeBuildDriver.Build(new NativeBuildOptions
+				{
+					Target = compilation.Target!,
+					ProfileName = compilation.ProfileName,
+					BuildDirectory = buildDirectory,
+					OutputDirectory = outputDirectory,
+					ProjectName = projectName,
+					Kind = request.BuildKind.Value,
+					SourceFiles = [.. result.GeneratedSourceFiles, .. coverageRuntimeSources],
+					SourceFileStatuses = BuildSourceStatuses(result),
+					Libraries = packageLibraries.Concat(request.References.Select(reference => ResolveNativeReference(reference, compilation.Target!))).ToList(),
+					Frameworks = request.Frameworks
+				});
+			}
 			foreach (string diagnostic in build.Diagnostics)
 				ErrorLine(diagnostic);
 			if (!build.Success)
 				return 1;
 			foreach (string generated in build.GeneratedFiles)
 			{
-				generatedFiles.Add(generated);
-				OutGenerated(generated);
+				AddGeneratedFile(generated, BuildFileWriteStatus.Changed);
 			}
 			if (!TryCopySharedRuntimeReferences(compilation.Target!, outputDirectory, packageLibraries.Concat(request.References.Select(reference => ResolveNativeReference(reference, compilation.Target!)))))
 				return 1;
@@ -1192,15 +1355,14 @@ public static class CompilerDriver
 					continue;
 				try
 				{
-					File.Copy(runtimeReference, destination, overwrite: true);
+					BuildFileWriteStatus status = BuildFileIO.CopyIfChanged(runtimeReference, destination);
+					AddGeneratedFile(destination, status);
 				}
 				catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
 				{
 					ErrorLine($"{destination}: {ex.Message}");
 					return false;
 				}
-				generatedFiles.Add(destination);
-				OutGenerated(destination);
 			}
 			return true;
 		}
@@ -1316,7 +1478,7 @@ public static class CompilerDriver
 			try
 			{
 				Directory.CreateDirectory(outputDirectory);
-				File.WriteAllText(metadataPath, MetadataJsonSerializer.Serialize(compilation, visibility), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+				AddGeneratedFile(metadataPath, BuildFileIO.WriteTextIfChanged(metadataPath, MetadataJsonSerializer.Serialize(compilation, visibility), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false)));
 			}
 			catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
 			{
@@ -1324,8 +1486,6 @@ public static class CompilerDriver
 				return false;
 			}
 
-			generatedFiles.Add(metadataPath);
-			OutGenerated(metadataPath);
 			return true;
 		}
 
@@ -1335,7 +1495,7 @@ public static class CompilerDriver
 			try
 			{
 				Directory.CreateDirectory(outputDirectory);
-				File.WriteAllText(manifestPath, CampTestManifestJsonSerializer.Serialize(manifest), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+				AddGeneratedFile(manifestPath, BuildFileIO.WriteTextIfChanged(manifestPath, CampTestManifestJsonSerializer.Serialize(manifest), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false)));
 			}
 			catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
 			{
@@ -1343,8 +1503,6 @@ public static class CompilerDriver
 				return false;
 			}
 
-			generatedFiles.Add(manifestPath);
-			OutGenerated(manifestPath);
 			return true;
 		}
 
@@ -1354,7 +1512,7 @@ public static class CompilerDriver
 			try
 			{
 				Directory.CreateDirectory(outputDirectory);
-				File.WriteAllText(harnessSource, CampTestHarnessGenerator.Generate(projectName, tests), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+				AddGeneratedFile(harnessSource, BuildFileIO.WriteTextIfChanged(harnessSource, CampTestHarnessGenerator.Generate(projectName, tests), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false)));
 			}
 			catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
 			{
@@ -1363,8 +1521,6 @@ public static class CompilerDriver
 				return false;
 			}
 
-			generatedFiles.Add(harnessSource);
-			OutGenerated(harnessSource);
 			return true;
 		}
 
@@ -1374,7 +1530,7 @@ public static class CompilerDriver
 			try
 			{
 				Directory.CreateDirectory(outputDirectory);
-				File.WriteAllText(resultsPath, CampTestResultsJsonSerializer.Serialize(results), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+				AddGeneratedFile(resultsPath, BuildFileIO.WriteTextIfChanged(resultsPath, CampTestResultsJsonSerializer.Serialize(results), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false)));
 			}
 			catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
 			{
@@ -1382,8 +1538,6 @@ public static class CompilerDriver
 				return false;
 			}
 
-			generatedFiles.Add(resultsPath);
-			OutGenerated(resultsPath);
 			return true;
 		}
 
@@ -1395,8 +1549,10 @@ public static class CompilerDriver
 			{
 				Directory.CreateDirectory(coverageOutputDirectory);
 				Directory.CreateDirectory(buildDirectory);
-				File.WriteAllText(coverageMapPath, CampCoverageMapCsvSerializer.Serialize(builder.ToMap()), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
-				File.WriteAllText(coverageRuntimeSource, CampCoverageRuntimeSourceGenerator.Generate(projectName, builder.CounterCount), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+				BuildFileWriteStatus mapStatus = BuildFileIO.WriteTextIfChanged(coverageMapPath, CampCoverageMapCsvSerializer.Serialize(builder.ToMap()), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+				BuildFileWriteStatus runtimeStatus = BuildFileIO.WriteTextIfChanged(coverageRuntimeSource, CampCoverageRuntimeSourceGenerator.Generate(projectName, builder.CounterCount), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+				AddGeneratedFile(coverageMapPath, mapStatus);
+				AddGeneratedFile(coverageRuntimeSource, runtimeStatus);
 			}
 			catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
 			{
@@ -1406,10 +1562,6 @@ public static class CompilerDriver
 				return false;
 			}
 
-			generatedFiles.Add(coverageMapPath);
-			generatedFiles.Add(coverageRuntimeSource);
-			OutGenerated(coverageMapPath);
-			OutGenerated(coverageRuntimeSource);
 			return true;
 		}
 
@@ -1456,16 +1608,12 @@ public static class CompilerDriver
 				if (writeJson)
 				{
 					string jsonPath = Path.Combine(outputDirectory, projectName + ".camp-coverage-results.json");
-					File.WriteAllText(jsonPath, CampCoverageResultsJsonSerializer.Serialize(results), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
-					generatedFiles.Add(jsonPath);
-					OutGenerated(jsonPath);
+					AddGeneratedFile(jsonPath, BuildFileIO.WriteTextIfChanged(jsonPath, CampCoverageResultsJsonSerializer.Serialize(results), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false)));
 				}
 				if (writeLcov)
 				{
 					string lcovPath = Path.Combine(outputDirectory, "lcov.info");
-					File.WriteAllText(lcovPath, CampCoverageLcovSerializer.Serialize(maps, countSets), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
-					generatedFiles.Add(lcovPath);
-					OutGenerated(lcovPath);
+					AddGeneratedFile(lcovPath, BuildFileIO.WriteTextIfChanged(lcovPath, CampCoverageLcovSerializer.Serialize(maps, countSets), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false)));
 				}
 			}
 			catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
@@ -1656,7 +1804,7 @@ public static class CompilerDriver
 			try
 			{
 				Directory.CreateDirectory(outputDirectory);
-				File.WriteAllText(debugPath, CDebugMapSerializer.Serialize(compilation, projectName, outputDirectory, entries), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+				AddGeneratedFile(debugPath, BuildFileIO.WriteTextIfChanged(debugPath, CDebugMapSerializer.Serialize(compilation, projectName, outputDirectory, entries), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false)));
 			}
 			catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
 			{
@@ -1664,8 +1812,6 @@ public static class CompilerDriver
 				return false;
 			}
 
-			generatedFiles.Add(debugPath);
-			OutGenerated(debugPath);
 			return true;
 		}
 
@@ -1676,11 +1822,10 @@ public static class CompilerDriver
 			try
 			{
 				Directory.CreateDirectory(outputDirectory);
-				using StreamWriter writer = new(campApiPath, append: false, Encoding.UTF8);
+				using StringWriter writer = new(CultureInfo.InvariantCulture);
 				CampApiSurfaceKind apiSurface = request.BuildKind == NativeBuildKind.Static ? CampApiSurfaceKind.Public : CampApiSurfaceKind.Export;
 				BindableNodeCodeSerializer.Serialize(BuildApiOutputModule(compilation, apiSurface), writer, new BindableNodeCodeSerializerOptions { ApiHeader = true, ApiSurface = apiSurface, ApiDefinitionsAlreadyFiltered = true, ApiReferenceDefinitions = compilation.SharedModule!.Definitions });
-				generatedFiles.Add(campApiPath);
-				OutGenerated(campApiPath);
+				AddGeneratedFile(campApiPath, BuildFileIO.WriteTextIfChanged(campApiPath, writer.ToString(), Encoding.UTF8));
 			}
 			catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
 			{
@@ -1702,8 +1847,7 @@ public static class CompilerDriver
 				return false;
 			foreach (string generated in apiHeader.GeneratedFiles)
 			{
-				generatedFiles.Add(generated);
-				OutGenerated(generated);
+				AddGeneratedFile(generated, apiHeader.FileStatuses.GetValueOrDefault(generated, BuildFileWriteStatus.Changed));
 			}
 			return true;
 		}
@@ -1788,14 +1932,18 @@ public static class CompilerDriver
 
 		bool ExpandDeclarationsAndReport(Compilation compilation)
 		{
-			bool success = CompilationPipeline.ExpandDeclarations(compilation);
+			bool success;
+			using (timing.Begin("declaration expansion", "compiler-phase"))
+				success = CompilationPipeline.ExpandDeclarations(compilation);
 			PrintPipelineDiagnostics(compilation);
 			return success;
 		}
 
 		bool LowerAndReport(Compilation compilation)
 		{
-			bool success = CompilationPipeline.Lower(compilation);
+			bool success;
+			using (timing.Begin("analysis and lowering", "compiler-phase"))
+				success = CompilationPipeline.Lower(compilation);
 			PrintPipelineDiagnostics(compilation);
 			return success;
 		}
@@ -2157,10 +2305,29 @@ public static class CompilerDriver
 			stdout.Append(line).Append('\n');
 		}
 
-		void OutGenerated(string path)
+		void AddGeneratedFile(string path, BuildFileWriteStatus status)
+		{
+			if (!generatedFiles.Any(existing => string.Equals(existing, path, StringComparison.OrdinalIgnoreCase)))
+				generatedFiles.Add(path);
+			generatedFileStatuses[path] = status;
+			OutGenerated(path, status);
+		}
+
+		Dictionary<string, BuildFileWriteStatus> BuildSourceStatuses(CEmissionResult emission)
+		{
+			Dictionary<string, BuildFileWriteStatus> statuses = new(StringComparer.OrdinalIgnoreCase);
+			foreach ((string path, BuildFileWriteStatus status) in emission.FileStatuses)
+				statuses[path] = status;
+			foreach ((string path, BuildFileWriteStatus status) in generatedFileStatuses)
+				if (Path.GetExtension(path).Equals(".c", StringComparison.OrdinalIgnoreCase))
+					statuses[path] = status;
+			return statuses;
+		}
+
+		void OutGenerated(string path, BuildFileWriteStatus status)
 		{
 			if (request.Verbose)
-				OutLine("generated: " + Path.GetFileName(path));
+				OutLine((status == BuildFileWriteStatus.Changed ? "generated: " : "unchanged: ") + Path.GetFileName(path));
 		}
 
 		void ErrorLine(string line)
@@ -2171,6 +2338,42 @@ public static class CompilerDriver
 		static string Normalize(string text)
 		{
 			return text.Replace("\r\n", "\n", StringComparison.Ordinal).Replace("\r", "\n", StringComparison.Ordinal);
+		}
+
+		static bool OutputsAreCurrent(IReadOnlyList<string> outputs, IReadOnlyList<string> inputs, out string? reason)
+		{
+			reason = null;
+			if (outputs.Count == 0 || outputs.Any(static output => !File.Exists(output)))
+			{
+				reason = "an output is missing";
+				return false;
+			}
+			DateTime oldestOutput = outputs.Select(File.GetLastWriteTimeUtc).Min();
+			foreach (string input in inputs.Distinct(StringComparer.OrdinalIgnoreCase))
+			{
+				if (File.Exists(input))
+				{
+					if (oldestOutput < File.GetLastWriteTimeUtc(input))
+					{
+						reason = $"{input} is newer than the oldest output";
+						return false;
+					}
+				}
+				else if (Directory.Exists(input))
+				{
+					if (oldestOutput < Directory.GetLastWriteTimeUtc(input))
+					{
+						reason = $"{input} is newer than the oldest output";
+						return false;
+					}
+				}
+				else
+				{
+					reason = $"{input} is missing";
+					return false;
+				}
+			}
+			return true;
 		}
 	}
 

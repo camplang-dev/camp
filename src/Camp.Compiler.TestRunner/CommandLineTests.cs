@@ -93,6 +93,37 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Build_timing_option_prints_text_and_writes_json()
+	{
+		string source = CreateTempCase("timing_option.camp", """
+			export int main()
+			{
+				return 0;
+			}
+			""");
+		string timingOutput = Path.Combine(TempPath("timing-option-out"), "timing.json");
+
+		ProcessResult result = RunCampc(
+			"build",
+			source,
+			"--nostdlib",
+			"--artifact",
+			"none",
+			"--timing",
+			"--timing-output",
+			timingOutput,
+			"--out-dir",
+			TempPath("timing-option-build"));
+
+		AssertCommandSucceeded(result);
+		Assert.Contains("Timing: build project", result.StdErr, StringComparison.Ordinal);
+		Assert.True(File.Exists(timingOutput));
+		using JsonDocument document = JsonDocument.Parse(File.ReadAllText(timingOutput));
+		Assert.Equal("build", document.RootElement.GetProperty("metadata").GetProperty("command").GetString());
+		Assert.True(document.RootElement.GetProperty("elapsedMilliseconds").GetDouble() >= 0);
+	}
+
+	[Fact]
 	public void Version_command_prints_camp_version()
 	{
 		ProcessResult result = RunCampc("--version");
@@ -1361,7 +1392,7 @@ public sealed class CommandLineTests
 		ProcessResult result = RunCampc("build", temp, "--verbose", "--out-dir", TempPath("pragma-build"));
 
 		Assert.Equal(0, result.ExitCode);
-		Assert.Contains("generated: pragma_none.c", result.StdOut, StringComparison.Ordinal);
+		AssertGeneratedOrUnchanged(result.StdOut, "pragma_none.c");
 		Assert.DoesNotContain("_api.camp", result.StdOut, StringComparison.Ordinal);
 	}
 
@@ -1461,7 +1492,7 @@ public sealed class CommandLineTests
 		ProcessResult result = RunCampc("build", "@" + buildFile, "--verbose", "--out-dir", TempPath("response-file-build"));
 
 		Assert.Equal(0, result.ExitCode);
-		Assert.Contains("generated: main.c", result.StdOut, StringComparison.Ordinal);
+		AssertGeneratedOrUnchanged(result.StdOut, "main.c");
 		Assert.DoesNotContain("_api.camp", result.StdOut, StringComparison.Ordinal);
 	}
 
@@ -1488,7 +1519,7 @@ public sealed class CommandLineTests
 		ProcessResult result = RunCampc("build", "@" + Path.Combine(root, "sample"), "--verbose", "--out-dir", TempPath("response-file-extension-build"));
 
 		Assert.Equal(0, result.ExitCode);
-		Assert.Contains("generated: main.c", result.StdOut, StringComparison.Ordinal);
+		AssertGeneratedOrUnchanged(result.StdOut, "main.c");
 	}
 
 	[Fact]
@@ -1514,7 +1545,7 @@ public sealed class CommandLineTests
 		ProcessResult result = RunCampc("build", buildFile, "--verbose", "--out-dir", TempPath("bare-campbuild-file-build"));
 
 		Assert.Equal(0, result.ExitCode);
-		Assert.Contains("generated: main.c", result.StdOut, StringComparison.Ordinal);
+		AssertGeneratedOrUnchanged(result.StdOut, "main.c");
 	}
 
 	[Fact]
@@ -1540,7 +1571,7 @@ public sealed class CommandLineTests
 		ProcessResult result = RunCampc("build", Path.Combine(root, "sample"), "--verbose", "--out-dir", TempPath("bare-campbuild-extensionless-build"));
 
 		Assert.Equal(0, result.ExitCode);
-		Assert.Contains("generated: main.c", result.StdOut, StringComparison.Ordinal);
+		AssertGeneratedOrUnchanged(result.StdOut, "main.c");
 	}
 
 	[Fact]
@@ -1730,7 +1761,7 @@ public sealed class CommandLineTests
 			TempPath("project-reference-build"));
 
 		Assert.Equal(0, result.ExitCode);
-		Assert.Contains("generated: project_reference_app.c", result.StdOut, StringComparison.Ordinal);
+		AssertGeneratedOrUnchanged(result.StdOut, "project_reference_app.c");
 		Assert.True(File.Exists(Path.Combine(libraryRoot, "bin", ArtifactDirectoryForTarget("clang-macos-x64", NativeBuildKind.Static), "sample-lib_api.camp")));
 	}
 
@@ -2980,7 +3011,7 @@ public sealed class CommandLineTests
 			outDir);
 
 		AssertCommandSucceeded(result);
-		Assert.Contains("generated: interface-app", result.StdOut, StringComparison.Ordinal);
+		AssertGeneratedOrUnchanged(result.StdOut, "interface-app");
 		string api = File.ReadAllText(Path.Combine(libraryRoot, "bin", ArtifactDirectoryForTarget(target, NativeBuildKind.Static), "interfaces_api.camp"));
 		Assert.Contains("export extern class Counter : IValue", api, StringComparison.Ordinal);
 		Assert.Contains("export extern constof(this) IValue* getIValue();", api, StringComparison.Ordinal);
@@ -3255,7 +3286,7 @@ public sealed class CommandLineTests
 			Path.Combine(appRoot, "bin"));
 
 		AssertCommandSucceeded(result);
-		Assert.Contains("generated: sample-app.exe", result.StdOut, StringComparison.Ordinal);
+		AssertGeneratedOrUnchanged(result.StdOut, "sample-app.exe");
 		Assert.True(File.Exists(Path.Combine(libraryRoot, "bin", ArtifactDirectoryForTarget(target, NativeBuildKind.Static), "sample-lib.lib")));
 		Assert.True(File.Exists(Path.Combine(libraryRoot, "bin", ArtifactDirectoryForTarget(target, NativeBuildKind.Static), "sample-lib_api.camp")));
 		Assert.True(File.Exists(Path.Combine(appRoot, "bin", ArtifactDirectoryForHost(NativeBuildKind.Exec), "build", "sample_lib_api.h")));
@@ -3337,6 +3368,42 @@ public sealed class CommandLineTests
 
 		AssertCommandSucceeded(second);
 		Assert.DoesNotContain(libraryRoot + ": generated:", second.StdOut, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Shared_library_api_headers_are_rendered_in_import_context()
+	{
+		string root = TempPath("shared-import-api-header-context");
+		if (Directory.Exists(root))
+			Directory.Delete(root, recursive: true);
+		Directory.CreateDirectory(root);
+		string api = Path.Combine(root, "sample-lib_api.camp");
+		File.WriteAllText(api, "export extern int add(int left, int right);\n");
+		File.WriteAllText(Path.Combine(root, "sample-lib_api.h"), """
+			#ifndef SAMPLE_LIB_API_H
+			#define SAMPLE_LIB_API_H
+			__declspec(dllexport) int add(int left, int right);
+			#endif
+			""");
+		string app = Path.Combine(root, "app.camp");
+		File.WriteAllText(app, """
+			export int main()
+			{
+				return add(20, 22) - 42;
+			}
+			""");
+		string outDir = TempPath("shared-import-api-header-context-out");
+
+		ProcessResult result = BuildWithApiInProcess("shared-import-api-header-context-out", noStdLib: true, [app], [api], request =>
+		{
+			request.TargetName = "msvc-windows-x64";
+			request.SharedLibraryApiHeaders.Add(api);
+		});
+
+		AssertCommandSucceeded(result);
+		string header = File.ReadAllText(Path.Combine(outDir, ArtifactDirectoryForTarget("msvc-windows-x64", null), "build", "sample_lib_api.h"));
+		Assert.Contains("__declspec(dllimport) int32_t add", header, StringComparison.Ordinal);
+		Assert.DoesNotContain("__declspec(dllexport) int add", header, StringComparison.Ordinal);
 	}
 
 	[Fact]
@@ -3628,7 +3695,7 @@ public sealed class CommandLineTests
 			TempPath("project-reference-virtual-api-build"));
 
 		Assert.Equal(0, result.ExitCode);
-		Assert.Contains("generated: project_reference_virtual_api_app.c", result.StdOut, StringComparison.Ordinal);
+		AssertGeneratedOrUnchanged(result.StdOut, "project_reference_virtual_api_app.c");
 		string api = File.ReadAllText(Path.Combine(libraryRoot, "bin", ArtifactDirectoryForTarget("clang-macos-x64", NativeBuildKind.Static), "widgets_api.camp"));
 		Assert.Contains("export escaped extern class Control", api, StringComparison.Ordinal);
 		Assert.Contains("export escaped extern class Button : Control", api, StringComparison.Ordinal);
@@ -3673,7 +3740,7 @@ public sealed class CommandLineTests
 		ProcessResult first = RunCampc("build", app, "--verbose", "--out-dir", TempPath("live-use-source-build-1"));
 
 		Assert.Equal(0, first.ExitCode);
-		Assert.Contains("generated: live_use_source_app.c", first.StdOut, StringComparison.Ordinal);
+		AssertGeneratedOrUnchanged(first.StdOut, "live_use_source_app.c");
 		Assert.True(File.Exists(Path.Combine(cachedPackageRoot, "live", "bin", ArtifactDirectoryForHost(NativeBuildKind.Shared), "live-demo_api.camp")));
 		Assert.False(Directory.Exists(Path.Combine(sourceRoot, "live-demo", "bin")));
 		Assert.False(Directory.Exists(Path.Combine(sourceRoot, "live-demo", "build")));
@@ -3700,7 +3767,7 @@ public sealed class CommandLineTests
 		ProcessResult second = RunCampc("build", app, "--verbose", "--out-dir", TempPath("live-use-source-build-2"));
 
 		Assert.Equal(0, second.ExitCode);
-		Assert.Contains("generated: live_use_source_app.c", second.StdOut, StringComparison.Ordinal);
+		AssertGeneratedOrUnchanged(second.StdOut, "live_use_source_app.c");
 		Assert.True(File.Exists(Path.Combine(cachedPackageRoot, "live", "bin", ArtifactDirectoryForHost(NativeBuildKind.Shared), "live-demo_api.camp")));
 	}
 
@@ -4212,7 +4279,7 @@ public sealed class CommandLineTests
 		ProcessResult result = RunCampc("build", "@" + buildFile, "--verbose");
 
 		Assert.Equal(0, result.ExitCode);
-		Assert.Contains("generated: main.c", result.StdOut, StringComparison.Ordinal);
+		AssertGeneratedOrUnchanged(result.StdOut, "main.c");
 	}
 
 	[Fact]
@@ -4245,8 +4312,8 @@ public sealed class CommandLineTests
 		ProcessResult result = RunCampc("build", "@" + buildFile, "--verbose", "--out-dir", TempPath("recursive-glob-root-build"));
 
 		Assert.Equal(0, result.ExitCode);
-		Assert.Contains("generated: main.c", result.StdOut, StringComparison.Ordinal);
-		Assert.Contains("generated: helper.c", result.StdOut, StringComparison.Ordinal);
+		AssertGeneratedOrUnchanged(result.StdOut, "main.c");
+		AssertGeneratedOrUnchanged(result.StdOut, "helper.c");
 	}
 
 	[Fact]
@@ -4267,7 +4334,7 @@ public sealed class CommandLineTests
 		ProcessResult result = RunCampc("build", source, "--api", api, "--verbose", "--out-dir", TempPath("api-pragma-build"));
 
 		Assert.Equal(0, result.ExitCode);
-		Assert.Contains("generated: api_pragmas_main.c", result.StdOut, StringComparison.Ordinal);
+		AssertGeneratedOrUnchanged(result.StdOut, "api_pragmas_main.c");
 		Assert.DoesNotContain("api_pragmas_api.c", result.StdOut, StringComparison.Ordinal);
 		Assert.DoesNotContain("_api.camp", result.StdOut, StringComparison.Ordinal);
 	}
@@ -4718,7 +4785,7 @@ public sealed class CommandLineTests
 		ProcessResult result = RunCampc("build", temp, "--target", "gcc-linux-x64", "--verbose", "--out-dir", outDir);
 
 		AssertCommandSucceeded(result);
-		Assert.Contains("generated: gcc-linux-x64-smoke", result.StdOut, StringComparison.Ordinal);
+		AssertGeneratedOrUnchanged(result.StdOut, "gcc-linux-x64-smoke");
 		ProcessResult run = RunExecutable(Path.Combine(outDir, ArtifactDirectoryForTarget("gcc-linux-x64", NativeBuildKind.Exec), "gcc-linux-x64-smoke"));
 		Assert.Equal(0, run.ExitCode);
 	}
@@ -4746,7 +4813,7 @@ public sealed class CommandLineTests
 		ProcessResult result = RunCampc("build", temp, "--target", "gcc-linux-x86", "--verbose", "--out-dir", outDir);
 
 		AssertCommandSucceeded(result);
-		Assert.Contains("generated: gcc-linux-x86-smoke", result.StdOut, StringComparison.Ordinal);
+		AssertGeneratedOrUnchanged(result.StdOut, "gcc-linux-x86-smoke");
 		ProcessResult run = RunExecutable(Path.Combine(outDir, ArtifactDirectoryForTarget("gcc-linux-x86", NativeBuildKind.Exec), "gcc-linux-x86-smoke"));
 		Assert.Equal(0, run.ExitCode);
 	}
@@ -4972,6 +5039,13 @@ public sealed class CommandLineTests
 	static void AssertCommandSucceeded(ProcessResult result)
 	{
 		Assert.True(result.ExitCode == 0, $"Expected exit code 0 but got {result.ExitCode}.\nSTDOUT:\n{result.StdOut}\nSTDERR:\n{result.StdErr}");
+	}
+
+	static void AssertGeneratedOrUnchanged(string output, string filename)
+	{
+		Assert.True(
+			output.Contains("generated: " + filename, StringComparison.Ordinal) || output.Contains("unchanged: " + filename, StringComparison.Ordinal),
+			$"Expected verbose output to mention generated or unchanged artifact '{filename}'.\nSTDOUT:\n{output}");
 	}
 
 	static string NativeTargetForHost()

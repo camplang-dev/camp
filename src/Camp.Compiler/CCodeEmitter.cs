@@ -26,6 +26,7 @@ public sealed class CEmissionResult
 {
 	public List<string> GeneratedFiles { get; } = [];
 	public List<string> GeneratedSourceFiles { get; } = [];
+	public Dictionary<string, BuildFileWriteStatus> FileStatuses { get; } = new(StringComparer.OrdinalIgnoreCase);
 	public List<string> Diagnostics { get; } = [];
 	public List<CDebugMapEntry> DebugInfo { get; } = [];
 	public bool Success => Diagnostics.Count == 0;
@@ -141,7 +142,7 @@ public static class CCodeEmitter
 			{
 				if (file.IsApiHeader)
 				{
-					if (HasExportedDeclarations(compilation, file))
+					if (HasExportedDeclarations(compilation, file) && !TryCopyGeneratedApiHeader(file, options, result))
 						EmitPublicHeader(compilation, options, file, result, declarations);
 					continue;
 				}
@@ -161,6 +162,26 @@ public static class CCodeEmitter
 		return result;
 	}
 
+	static bool TryCopyGeneratedApiHeader(SourceFile file, CEmissionOptions options, CEmissionResult result)
+	{
+		if (!file.IsGeneratedApiHeader || file.SharedLibraryImport || string.IsNullOrWhiteSpace(file.FullPath))
+			return false;
+		string sourceHeader = Path.Combine(Path.GetDirectoryName(file.FullPath) ?? "", Path.GetFileNameWithoutExtension(file.FullPath) + ".h");
+		if (!File.Exists(sourceHeader))
+			return false;
+		string destinationHeader = Path.Combine(options.OutputDirectory, GetHeaderFilename(file));
+		if (string.Equals(Path.GetFullPath(sourceHeader), Path.GetFullPath(destinationHeader), StringComparison.OrdinalIgnoreCase))
+		{
+			result.GeneratedFiles.Add(destinationHeader);
+			result.FileStatuses[destinationHeader] = BuildFileWriteStatus.Unchanged;
+			return true;
+		}
+		BuildFileWriteStatus status = BuildFileIO.CopyIfChanged(sourceHeader, destinationHeader);
+		result.GeneratedFiles.Add(destinationHeader);
+		result.FileStatuses[destinationHeader] = status;
+		return true;
+	}
+
 	public static CEmissionResult EmitProjectApiHeader(Compilation compilation, CEmissionOptions options, string outputDirectory)
 	{
 		ArgumentNullException.ThrowIfNull(compilation);
@@ -177,7 +198,7 @@ public static class CCodeEmitter
 			Directory.CreateDirectory(outputDirectory);
 			CDeclarationWriter declarations = new(compilation, options, result);
 			string filename = Path.Combine(outputDirectory, options.ProjectName + "_api.h");
-			using StreamWriter writer = new(filename, append: false, Utf8NoBom);
+			using StringWriter writer = new(CultureInfo.InvariantCulture);
 			string guard = BuildHeaderGuard(options.ProjectName + "_api_h");
 			writer.WriteLine("#ifndef " + guard);
 			writer.WriteLine("#define " + guard);
@@ -187,7 +208,7 @@ public static class CCodeEmitter
 			declarations.WriteProjectApiHeaderDeclarations(writer);
 			writer.WriteLine();
 			writer.WriteLine("#endif");
-			result.GeneratedFiles.Add(filename);
+			AddGeneratedFile(result, filename, writer.ToString());
 		}
 		catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
 		{
@@ -345,7 +366,7 @@ public static class CCodeEmitter
 	static void EmitPrivateHeader(Compilation compilation, CEmissionOptions options, CEmissionResult result, CDeclarationWriter declarations)
 	{
 		string filename = Path.Combine(options.OutputDirectory, options.ProjectName + "_private.h");
-		using StreamWriter writer = new(filename, append: false, Utf8NoBom);
+		using StringWriter writer = new(CultureInfo.InvariantCulture);
 		string guard = BuildHeaderGuard(options.ProjectName + "_private_h");
 
 		writer.WriteLine("#ifndef " + guard);
@@ -374,14 +395,14 @@ public static class CCodeEmitter
 		}
 		writer.WriteLine();
 		writer.WriteLine("#endif");
-		result.GeneratedFiles.Add(filename);
+		AddGeneratedFile(result, filename, writer.ToString());
 	}
 
 	static void EmitSourceFile(Compilation compilation, CEmissionOptions options, SourceFile file, CEmissionResult result, CDeclarationWriter declarations)
 	{
 		string filename = Path.Combine(options.OutputDirectory, GetCSourceFilename(file));
-		using StreamWriter streamWriter = new(filename, append: false, Utf8NoBom);
-		using LineTrackingTextWriter writer = new(streamWriter, filename);
+		using StringWriter stringWriter = new(CultureInfo.InvariantCulture);
+		using LineTrackingTextWriter writer = new(stringWriter, filename);
 		writer.WriteLine("#include \"" + options.ProjectName + "_private.h\"");
 		writer.WriteLine();
 		declarations.WriteSourceFileForwardDeclarations(writer, file);
@@ -389,7 +410,7 @@ public static class CCodeEmitter
 		declarations.WriteSourceFileDefinitions(writer, file);
 		if (options.EmitExecMainWrapper && options.ExecEntryPoint is not null && IsFirstProjectSource(compilation, file))
 			declarations.WriteExecMainWrapper(writer, options.ExecEntryPoint);
-		result.GeneratedFiles.Add(filename);
+		AddGeneratedFile(result, filename, stringWriter.ToString());
 		result.GeneratedSourceFiles.Add(filename);
 	}
 
@@ -401,7 +422,7 @@ public static class CCodeEmitter
 	static void EmitPublicHeader(Compilation compilation, CEmissionOptions options, SourceFile file, CEmissionResult result, CDeclarationWriter declarations)
 	{
 		string filename = Path.Combine(options.OutputDirectory, GetHeaderFilename(file));
-		using StreamWriter writer = new(filename, append: false, Utf8NoBom);
+		using StringWriter writer = new(CultureInfo.InvariantCulture);
 		string guard = BuildHeaderGuard(Path.GetFileNameWithoutExtension(GetHeaderFilename(file)) + "_h");
 
 		writer.WriteLine("#ifndef " + guard);
@@ -415,7 +436,14 @@ public static class CCodeEmitter
 		declarations.WritePublicHeaderDeclarations(writer, file);
 		writer.WriteLine();
 		writer.WriteLine("#endif");
+		AddGeneratedFile(result, filename, writer.ToString());
+	}
+
+	static void AddGeneratedFile(CEmissionResult result, string filename, string content)
+	{
+		BuildFileWriteStatus status = BuildFileIO.WriteTextIfChanged(filename, content, Utf8NoBom);
 		result.GeneratedFiles.Add(filename);
+		result.FileStatuses[filename] = status;
 	}
 
 	static void WriteTargetPreamble(TextWriter writer, Compilation compilation)

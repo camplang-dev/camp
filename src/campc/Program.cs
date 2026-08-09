@@ -162,6 +162,8 @@ static void AddBuildOptions(Command command, bool buildOnly, bool testRunnerOpti
 		AllowMultipleArgumentsPerToken = true
 	});
 	command.Options.Add(new Option<bool>("--verbose", "-v") { Description = "Print generated artifact paths." });
+	command.Options.Add(new Option<bool>("--timing") { Description = "Print build timing information to stderr." });
+	command.Options.Add(new Option<string?>("--timing-output") { Description = "Write build timing information as JSON." });
 	command.Options.Add(new Option<List<string>>("--define", "-d")
 	{
 		Description = "Define conditional compilation symbols.",
@@ -524,6 +526,8 @@ sealed class CampCli
 			SourcefilePathMode = bag.SourcefilePathMode,
 			SourcefileDefaultRoot = sourcefileDefaultRoot,
 			Verbose = bag.Verbose,
+			TimingEnabled = bag.TimingEnabled,
+			TimingOutput = bag.TimingOutput,
 			ColorOutput = !Console.IsOutputRedirected,
 			ListTests = bag.ListTests,
 			TestOutputDir = bag.TestOutputDir,
@@ -668,6 +672,8 @@ sealed class CampCli
 				projectArgs.AddRange(["--variant", .. consumerRequest.Variants]);
 			if (consumerRequest.Verbose)
 				projectArgs.Add("--verbose");
+			if (consumerRequest.TimingEnabled)
+				projectArgs.Add("--timing");
 			projectArgs.AddRange(["--artifact", referenceBuildKind == NativeBuildKind.Shared ? "shared" : "static"]);
 			projectArgs.AddRange(["--out-dir", Path.Combine(projectOutputDirectory, ".")]);
 
@@ -684,6 +690,8 @@ sealed class CampCli
 
 			if (!instrumentForCoverage && target is not null && TryGetCurrentProjectReferenceArtifacts(projectRequest!, canonicalBuildFile, projectOutputDirectory, referenceBuildKind, target, environment.GlobalCampPath, requireLibrary, out string? currentApiHeader, out string? currentLibrary))
 			{
+				if (consumerRequest.Verbose)
+					Console.Out.WriteLine($"{projectReference}: project reference {ProjectReferenceOutputName(projectRequest!, canonicalBuildFile)}: current");
 				apiHeaders.Add(currentApiHeader);
 				if (effectiveLinkKind == DependencyLinkKind.Shared)
 					sharedApiHeaders.Add(currentApiHeader);
@@ -696,10 +704,13 @@ sealed class CampCli
 				}
 				continue;
 			}
+			if (consumerRequest.Verbose)
+				Console.Out.WriteLine($"{projectReference}: project reference {ProjectReferenceOutputName(projectRequest!, canonicalBuildFile)}: rebuilding");
 
 			CompilerResult result = CompilerDriver.Execute(projectRequest!);
 			WriteProjectReferenceOutput(projectReference, result.StdOut);
-			string? apiHeader = result.GeneratedFiles.FirstOrDefault(static path => path.EndsWith("_api.camp", StringComparison.OrdinalIgnoreCase));
+			string expectedApiHeader = Path.Combine(projectOutputDirectory, ProjectReferenceOutputName(projectRequest!, canonicalBuildFile) + "_api.camp");
+			string? apiHeader = result.GeneratedFiles.FirstOrDefault(path => string.Equals(Path.GetFullPath(path), Path.GetFullPath(expectedApiHeader), StringComparison.OrdinalIgnoreCase));
 			string? library = result.GeneratedFiles.FirstOrDefault(path => IsNativeLibrary(path, consumerRequest.TargetName, consumerRequest.RuntimeRoot, referenceBuildKind));
 			string? coverageMap = result.GeneratedFiles.FirstOrDefault(static path => path.EndsWith(".camp-coverage-map.csv", StringComparison.OrdinalIgnoreCase));
 			if (result.ExitCode != 0)
@@ -1455,6 +1466,8 @@ sealed class BuildOptionBag
 	public string? CoverageFormat => Get("coverage-format");
 	public bool ListTests => Get("list") == "true";
 	public bool Verbose => Get("verbose") == "true";
+	public bool TimingEnabled => Get("timing") == "true" || Environment.GetEnvironmentVariable("CAMP_TIMING") is string timing && timing is not "" and not "0" and not "false" and not "FALSE";
+	public string? TimingOutput => Get("timing-output");
 	public SourcefilePathMode SourcefilePathMode => Get("sourcefile-paths") switch
 	{
 		"absolute" => SourcefilePathMode.Absolute,
@@ -1467,7 +1480,7 @@ sealed class BuildOptionBag
 		_ => null
 	};
 	public bool DebugInfo => Get("debug-info") == "true";
-	public bool HasBuildOnlyOptions => Frameworks.Count > 0 || ProjectReferences.Count > 0 || ArtifactSpecified || Get("name") is not null || Get("subsystem") is not null || Get("out-dir") is not null || DebugInfo;
+	public bool HasBuildOnlyOptions => Frameworks.Count > 0 || ProjectReferences.Count > 0 || ArtifactSpecified || Get("name") is not null || Get("subsystem") is not null || Get("out-dir") is not null || DebugInfo || TimingEnabled || TimingOutput is not null;
 	public bool HasTestResultOptions => Get("test-output-dir") is not null || Get("test-result-format") is not null;
 	public bool HasCoverageOptions => Get("coverage-output-dir") is not null || Get("coverage-format") is not null || CoverageSubjects.Count > 0;
 
@@ -1621,6 +1634,12 @@ static class CommandLineOptionParser
 				case "--verbose":
 				case "-v":
 					AddSingle(result, "verbose", "true");
+					break;
+				case "--timing":
+					AddSingle(result, "timing", "true");
+					break;
+				case "--timing-output":
+					AddSingle(result, "timing-output", PathArguments.Normalize(RequiredValue(tokens, ref i, token, errors)));
 					break;
 				case "--emit":
 					AddSingle(result, "emit", RequiredValue(tokens, ref i, token, errors));

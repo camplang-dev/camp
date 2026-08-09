@@ -26,6 +26,7 @@ public sealed class NativeBuildOptions
 	public required string ProjectName { get; init; }
 	public required NativeBuildKind Kind { get; init; }
 	public required IReadOnlyList<string> SourceFiles { get; init; }
+	public IReadOnlyDictionary<string, BuildFileWriteStatus> SourceFileStatuses { get; init; } = new Dictionary<string, BuildFileWriteStatus>(StringComparer.OrdinalIgnoreCase);
 	public IReadOnlyList<string> Libraries { get; init; } = [];
 	public IReadOnlyList<string> Frameworks { get; init; } = [];
 }
@@ -58,6 +59,12 @@ public static class NativeBuildDriver
 		foreach (string source in options.SourceFiles)
 		{
 			string objectPath = Path.Combine(options.BuildDirectory, Path.GetFileNameWithoutExtension(source) + options.Target.Capabilities.GetArtifactValue("object_ext", ".o"));
+			if (CanReuseObject(options, source, objectPath))
+			{
+				objects.Add(objectPath);
+				result.GeneratedFiles.Add(objectPath);
+				continue;
+			}
 			if (!RunTemplate(options, "compile", result, toolchainEnvironment, new Dictionary<string, string>(StringComparer.Ordinal)
 			{
 				["source"] = Quote(source),
@@ -70,6 +77,28 @@ public static class NativeBuildDriver
 
 		string output = GetArtifactPath(options);
 		string? sharedImportLibrary = options.Kind == NativeBuildKind.Shared ? GetSharedImportLibraryPath(options) : null;
+		if (CanReuseNativeArtifact(options, output, sharedImportLibrary, objects))
+		{
+			result.GeneratedFiles.Add(output);
+			if (options.Kind == NativeBuildKind.Shared)
+			{
+				result.RuntimeFiles.Add(output);
+				if (!string.IsNullOrWhiteSpace(sharedImportLibrary) && File.Exists(sharedImportLibrary))
+				{
+					result.GeneratedFiles.Add(sharedImportLibrary);
+					result.LinkFiles.Add(sharedImportLibrary);
+				}
+				else
+				{
+					result.LinkFiles.Add(output);
+				}
+			}
+			else
+			{
+				result.LinkFiles.Add(output);
+			}
+			return result;
+		}
 		if (options.Kind == NativeBuildKind.Static)
 			DeleteExistingStaticArchive(output, result);
 		if (!result.Success)
@@ -103,6 +132,36 @@ public static class NativeBuildDriver
 			result.LinkFiles.Add(output);
 		}
 		return result;
+	}
+
+	static bool CanReuseObject(NativeBuildOptions options, string source, string objectPath)
+	{
+		if (!File.Exists(objectPath))
+			return false;
+		if (options.SourceFileStatuses.TryGetValue(source, out BuildFileWriteStatus status) && status == BuildFileWriteStatus.Changed)
+			return false;
+		DateTime objectTime = File.GetLastWriteTimeUtc(objectPath);
+		return File.Exists(source) && objectTime >= File.GetLastWriteTimeUtc(source);
+	}
+
+	static bool CanReuseNativeArtifact(NativeBuildOptions options, string output, string? sharedImportLibrary, IReadOnlyList<string> objects)
+	{
+		if (!File.Exists(output))
+			return false;
+		if (options.Kind == NativeBuildKind.Shared && !string.IsNullOrWhiteSpace(sharedImportLibrary) && !File.Exists(sharedImportLibrary))
+			return false;
+		DateTime outputTime = File.GetLastWriteTimeUtc(output);
+		foreach (string objectPath in objects)
+		{
+			if (!File.Exists(objectPath) || outputTime < File.GetLastWriteTimeUtc(objectPath))
+				return false;
+		}
+		foreach (string library in options.Libraries)
+		{
+			if (Path.IsPathRooted(library) && File.Exists(library) && outputTime < File.GetLastWriteTimeUtc(library))
+				return false;
+		}
+		return true;
 	}
 
 	public static bool IsValidFrameworkName(string name)
