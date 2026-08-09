@@ -1815,7 +1815,29 @@ public sealed class BindableNodeCodeSerializer
 		if (type is not null)
 			WriteType(type);
 		else
-			writer.Write(string.IsNullOrWhiteSpace(resolvedType) ? "auto" : SanitizeTypeName(resolvedType));
+			writer.Write(string.IsNullOrWhiteSpace(resolvedType) ? "auto" : FormatResolvedTypeName(resolvedType));
+	}
+
+	string FormatResolvedTypeName(string resolvedType)
+	{
+		string type = SanitizeTypeName(resolvedType);
+		if (!apiHeader || type == "auto" || currentModule is null)
+			return type;
+
+		foreach (Definition definition in currentModule.Definitions)
+		{
+			if (definition is not TypeDefinition typeDefinition)
+				continue;
+
+			string symbol = string.IsNullOrWhiteSpace(typeDefinition.Symbol)
+				? SymbolNameService.DefaultTypeSymbol(typeDefinition.Namespace, typeDefinition.Name)
+				: typeDefinition.Symbol;
+			if (symbol == typeDefinition.Name)
+				continue;
+
+			type = ReplaceTypeToken(type, symbol, GetApiTypeName(typeDefinition));
+		}
+		return type;
 	}
 
 	void WriteThisParameter(ThisParameterDefinition parameter)
@@ -2516,6 +2538,34 @@ public sealed class BindableNodeCodeSerializer
 	static string SanitizeTypeName(string? type)
 	{
 		return string.IsNullOrWhiteSpace(type) || type.StartsWith("#", StringComparison.Ordinal) ? "auto" : type;
+	}
+
+	static string ReplaceTypeToken(string text, string token, string replacement)
+	{
+		int index = 0;
+		while (index < text.Length)
+		{
+			int found = text.IndexOf(token, index, StringComparison.Ordinal);
+			if (found < 0)
+				break;
+			int end = found + token.Length;
+			bool leftOk = found == 0 || !IsTypeIdentifierChar(text[found - 1]);
+			bool rightOk = end == text.Length || !IsTypeIdentifierChar(text[end]);
+			if (!leftOk || !rightOk)
+			{
+				index = end;
+				continue;
+			}
+
+			text = text[..found] + replacement + text[end..];
+			index = found + replacement.Length;
+		}
+		return text;
+	}
+
+	static bool IsTypeIdentifierChar(char ch)
+	{
+		return char.IsLetterOrDigit(ch) || ch == '_';
 	}
 
 	static string GetPrimitiveName(PrimitiveType type)

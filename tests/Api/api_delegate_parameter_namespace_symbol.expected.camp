@@ -1,0 +1,11 @@
+namespace Win32::Forms;
+
+export struct Message
+{
+	int value;
+}
+
+export interface IControlHost
+{
+	nint handleWndProc(const Message* message, delegate nint(const Message* ) baseWndProc) = default;
+}
