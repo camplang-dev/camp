@@ -3687,8 +3687,15 @@ public sealed class CommandLineTests
 	[Fact]
 	public void Shared_library_api_header_uses_source_type_names_in_delegate_parameters()
 	{
+		string dependencyApi = CreateTempCase("shared_api_delegate_parameter/win32_api.camp", """
+			namespace Win32;
+
+			export newtype HDC : nint;
+			export newtype HFONT : nint;
+			""");
 		string source = CreateTempCase("shared_api_delegate_parameter/main.camp", """
 			namespace Win32::Forms;
+			using Win32;
 
 			export struct Message
 			{
@@ -3699,12 +3706,19 @@ public sealed class CommandLineTests
 			{
 				nint handleWndProc(const Message* message, delegate nint(const Message*) baseWndProc) = default;
 			}
+
+			export HFONT selectObject(HDC this, overload HFONT font)
+			{
+				return font;
+			}
 			""");
 		string outDir = TempPath("shared-api-delegate-parameter-out");
 
 		ProcessResult result = RunCampc(
 			"build",
 			source,
+			"--api",
+			dependencyApi,
 			"--nostdlib",
 			"--artifact",
 			"shared",
@@ -3719,19 +3733,25 @@ public sealed class CommandLineTests
 		string apiHeader = File.ReadAllText(Path.Combine(outDir, ArtifactDirectoryForHost(NativeBuildKind.Shared), "shared_api_delegate_parameter_api.camp"));
 		Assert.Contains("delegate nint(const Message*) baseWndProc", apiHeader, StringComparison.Ordinal);
 		Assert.DoesNotContain("Win32FormsMessage", apiHeader, StringComparison.Ordinal);
+		Assert.Contains("selectObject(Win32::HDC this, overload Win32::HFONT font)", apiHeader, StringComparison.Ordinal);
+		Assert.DoesNotContain("global::HDC", apiHeader, StringComparison.Ordinal);
+		Assert.DoesNotContain("global::HFONT", apiHeader, StringComparison.Ordinal);
 
 		string projectFile = TempPath("shared-api-delegate-parameter.campbuild");
 		File.WriteAllText(projectFile, $$"""
 			--nostdlib
 			--artifact shared
 			--name shared_api_delegate_parameter
+			--api {{dependencyApi.Replace('\\', '/')}}
 			{{source.Replace('\\', '/')}}
 			""");
 		string consumer = CreateTempCase("shared_api_delegate_parameter_consumer/main.camp", $$"""
 			#build --nostdlib
 			#build --artifact none
+			#build --api {{dependencyApi.Replace('\\', '/')}}
 			#build --project-reference "{{projectFile.Replace('\\', '/')}}"
 
+			using Win32;
 			using Win32::Forms;
 
 			class Host: IControlHost
@@ -3744,7 +3764,9 @@ public sealed class CommandLineTests
 
 			export int main()
 			{
-				return 0;
+				HDC hdc = (HDC)0;
+				HFONT font = (HFONT)1;
+				return (int)(nint)hdc.selectObject(font);
 			}
 			""");
 

@@ -13,6 +13,7 @@ public sealed class BindableNodeCodeSerializerOptions
 	public bool ApiHeader { get; set; }
 	public CampApiSurfaceKind ApiSurface { get; set; } = CampApiSurfaceKind.Export;
 	public bool ApiDefinitionsAlreadyFiltered { get; set; }
+	public IReadOnlyList<Definition> ApiReferenceDefinitions { get; set; } = [];
 }
 
 public enum CampApiSurfaceKind
@@ -28,6 +29,7 @@ public sealed class BindableNodeCodeSerializer
 	readonly bool apiHeader;
 	readonly CampApiSurfaceKind apiSurface;
 	readonly bool apiDefinitionsAlreadyFiltered;
+	readonly IReadOnlyList<Definition> apiReferenceDefinitions;
 	readonly Dictionary<BindableNode, string> generatedNames = new();
 	Module? currentModule;
 	string? currentOutputNamespace;
@@ -43,6 +45,7 @@ public sealed class BindableNodeCodeSerializer
 		apiHeader = options?.ApiHeader ?? false;
 		apiSurface = options?.ApiSurface ?? CampApiSurfaceKind.Export;
 		apiDefinitionsAlreadyFiltered = options?.ApiDefinitionsAlreadyFiltered ?? false;
+		apiReferenceDefinitions = options?.ApiReferenceDefinitions ?? [];
 	}
 
 	public static void Serialize(BindableNode node, TextWriter writer, BindableNodeCodeSerializerOptions? options = null)
@@ -1824,11 +1827,8 @@ public sealed class BindableNodeCodeSerializer
 		if (!apiHeader || type == "auto" || currentModule is null)
 			return type;
 
-		foreach (Definition definition in currentModule.Definitions)
+		foreach (TypeDefinition typeDefinition in ApiTypeDefinitions())
 		{
-			if (definition is not TypeDefinition typeDefinition)
-				continue;
-
 			string symbol = string.IsNullOrWhiteSpace(typeDefinition.Symbol)
 				? SymbolNameService.DefaultTypeSymbol(typeDefinition.Namespace, typeDefinition.Name)
 				: typeDefinition.Symbol;
@@ -2098,10 +2098,8 @@ public sealed class BindableNodeCodeSerializer
 			return false;
 
 		string baseName = BaseTypeName(resolvedName);
-		foreach (Definition definition in currentModule.Definitions)
+		foreach (TypeDefinition typeDefinition in ApiTypeDefinitions())
 		{
-			if (definition is not TypeDefinition typeDefinition)
-				continue;
 			if (typeDefinition.Name != baseName
 				&& typeDefinition.Symbol != baseName
 				&& SymbolNameService.DefaultTypeSymbol(typeDefinition.Namespace, typeDefinition.Name) != baseName)
@@ -2111,6 +2109,17 @@ public sealed class BindableNodeCodeSerializer
 			return true;
 		}
 		return false;
+	}
+
+	IEnumerable<TypeDefinition> ApiTypeDefinitions()
+	{
+		HashSet<TypeDefinition> seen = new(ReferenceEqualityComparer.Instance);
+		foreach (Definition definition in currentModule?.Definitions ?? [])
+			if (definition is TypeDefinition typeDefinition && seen.Add(typeDefinition))
+				yield return typeDefinition;
+		foreach (Definition definition in apiReferenceDefinitions)
+			if (definition is TypeDefinition typeDefinition && seen.Add(typeDefinition))
+				yield return typeDefinition;
 	}
 
 	bool ApiNameIsAmbiguous(string name, TypeDefinition definition)

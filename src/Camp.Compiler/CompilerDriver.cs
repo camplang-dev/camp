@@ -979,7 +979,7 @@ public static class CompilerDriver
 			{
 				Directory.CreateDirectory(Path.GetDirectoryName(apiPath)!);
 				using StreamWriter writer = new(apiPath, append: false, Encoding.UTF8);
-				BindableNodeCodeSerializer.Serialize(BuildApiOutputModule(packageCompilation, apiSurface), writer, new BindableNodeCodeSerializerOptions { ApiHeader = true, ApiSurface = apiSurface, ApiDefinitionsAlreadyFiltered = true });
+				BindableNodeCodeSerializer.Serialize(BuildApiOutputModule(packageCompilation, apiSurface), writer, new BindableNodeCodeSerializerOptions { ApiHeader = true, ApiSurface = apiSurface, ApiDefinitionsAlreadyFiltered = true, ApiReferenceDefinitions = packageCompilation.SharedModule.Definitions });
 				if (metadataPath is not null && !TryEmitMetadataArtifact(packageCompilation, Path.GetDirectoryName(metadataPath)!, MetadataVisibility.Export, packageName))
 					return false;
 			}
@@ -1678,7 +1678,7 @@ public static class CompilerDriver
 				Directory.CreateDirectory(outputDirectory);
 				using StreamWriter writer = new(campApiPath, append: false, Encoding.UTF8);
 				CampApiSurfaceKind apiSurface = request.BuildKind == NativeBuildKind.Static ? CampApiSurfaceKind.Public : CampApiSurfaceKind.Export;
-				BindableNodeCodeSerializer.Serialize(BuildApiOutputModule(compilation, apiSurface), writer, new BindableNodeCodeSerializerOptions { ApiHeader = true, ApiSurface = apiSurface, ApiDefinitionsAlreadyFiltered = true });
+				BindableNodeCodeSerializer.Serialize(BuildApiOutputModule(compilation, apiSurface), writer, new BindableNodeCodeSerializerOptions { ApiHeader = true, ApiSurface = apiSurface, ApiDefinitionsAlreadyFiltered = true, ApiReferenceDefinitions = compilation.SharedModule!.Definitions });
 				generatedFiles.Add(campApiPath);
 				OutGenerated(campApiPath);
 			}
@@ -1745,7 +1745,7 @@ public static class CompilerDriver
 				return 1;
 			compilation.SharedModule = analysis.Module;
 			using StringWriter writer = new(stdout, CultureInfo.InvariantCulture);
-			BindableNodeCodeSerializer.Serialize(BuildApiOutputModule(compilation, CampApiSurfaceKind.Export), writer, new BindableNodeCodeSerializerOptions { ApiHeader = true, ApiDefinitionsAlreadyFiltered = true });
+			BindableNodeCodeSerializer.Serialize(BuildApiOutputModule(compilation, CampApiSurfaceKind.Export), writer, new BindableNodeCodeSerializerOptions { ApiHeader = true, ApiDefinitionsAlreadyFiltered = true, ApiReferenceDefinitions = compilation.SharedModule.Definitions });
 			return 0;
 		}
 
