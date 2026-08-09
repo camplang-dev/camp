@@ -209,6 +209,11 @@ workflow has to be rerun after the tag has been created, rerun failed jobs
 against the same commit and tag. Do not move a published tag unless the
 maintainer explicitly approves that repair.
 
+After the GitHub publish workflow has created the canonical release tag, sync
+that tag into the local development `origin` used by local and remote test
+clones. Fetch the tag from `github`, then push that existing tag to `origin`.
+Do not invent, recreate, or move the tag locally.
+
 ## Targeted Test Workflow
 
 When the test assembly is already built, prefer targeted `dotnet vstest` runs:

@@ -3633,6 +3633,58 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Build_accepts_imported_alias_types_in_member_calls()
+	{
+		string root = TempPath("imported-alias-member-call");
+		string sourceRoot = Path.Combine(root, "package-source");
+		string packageRoot = Path.Combine(sourceRoot, "alias-projection", "src");
+		Directory.CreateDirectory(packageRoot);
+		File.WriteAllText(Path.Combine(packageRoot, "api.camp"), """
+			namespace AliasProjection;
+
+			export alias WPARAM = nuint;
+			export alias LPARAM = nint;
+
+			export extern void useNative(WPARAM w, LPARAM l);
+			""");
+
+		string sourceRootArgument = sourceRoot.Replace('\\', '/');
+		string app = CreateTempCase("imported_alias_member_call.camp", $$"""
+			#build --nostdlib
+			#build --artifact none
+			#build --use-source local "{{sourceRootArgument}}"
+			#build --use alias-projection:api
+
+			using AliasProjection;
+
+			extern void* malloc(nuint size);
+			extern void free(void* ptr);
+
+			virtual class Control
+			{
+				virtual bool reflect(WPARAM w, LPARAM l)
+				{
+					return w != 0 || l != 0;
+				}
+			}
+
+			export int main()
+			{
+				Control* child = new Control();
+				WPARAM wParam = 1;
+				LPARAM lParam = 2;
+				bool ok = child.reflect(wParam, lParam);
+				delete child;
+				return ok ? 0 : 1;
+			}
+			""");
+
+		ProcessResult result = RunCampc("build", app, "--out-dir", TempPath("imported-alias-member-call-out"));
+
+		AssertCommandSucceeded(result);
+	}
+
+	[Fact]
 	public void Build_reports_missing_use_source_path_with_resolved_path()
 	{
 		string root = TempPath("missing-use-source-root");

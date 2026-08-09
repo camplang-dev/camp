@@ -1,0 +1,45 @@
+// file: namespace_overload_full_callable_name.c
+#include "namespace_overload_full_callable_name_private.h"
+
+/* Private file declarations. */
+static Win32FormsHBRUSH Win32FormsHBRUSH_fromSysColor(Win32FormsSysColor color);
+static int Win32Forms_main(void);
+
+static Win32FormsHBRUSH Win32FormsHBRUSH_fromSysColor(Win32FormsSysColor color)
+{
+	return (Win32FormsHBRUSH)((intptr_t)((uint8_t)(color)));
+}
+
+static int Win32Forms_main(void)
+{
+	Win32FormsHBRUSH brush = Win32FormsHBRUSH_fromSysColor(Win32FormsSysColor_ButtonFace);
+	return (((intptr_t)(brush) == 15) ? 0 : 1);
+}
+
+// file: namespace_overload_full_callable_name_private.h
+#ifndef NAMESPACE_OVERLOAD_FULL_CALLABLE_NAME_PRIVATE_H_
+#define NAMESPACE_OVERLOAD_FULL_CALLABLE_NAME_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+
+/* Enums. */
+typedef uint8_t Win32FormsSysColor;
+#define Win32FormsSysColor_ButtonFace ((Win32FormsSysColor)15)
+
+/* Newtypes. */
+typedef intptr_t Win32FormsHBRUSH;
+
+/* Layouts. */
+
+/* Function declarations. */
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: namespace_overload_full_callable_name.c

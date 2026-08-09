@@ -88,8 +88,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (selector?.Type is null)
 			return;
 
-		string? typeName = GetTypeReferenceName(selector.Type);
-		string fragment = typeName is null ? "" : BuildFlattenedTypeFragment(typeName, function);
+		string fragment = BuildOverloadSelectorTypeFragment(selector, function);
 		if (string.IsNullOrWhiteSpace(fragment))
 			return;
 
@@ -134,7 +133,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (selector.DefaultValue is not null)
 			Report(GetNameRange(selector), "An overload selector may not declare a default value.");
 
-		string fragment = BuildFlattenedTypeFragment(selector.ResolvedType ?? ErrorType, function);
+		string fragment = BuildOverloadSelectorTypeFragment(selector, function);
 		if (string.IsNullOrWhiteSpace(fragment))
 			Report(GetNameRange(selector), $"`overload {selector.Name}` is invalid because '{selector.ResolvedType ?? ErrorType}' does not contribute a method-symbol type fragment.");
 
@@ -374,7 +373,7 @@ public sealed partial class BindableNodeAnalyzer
 			return null;
 		}
 
-		string fragment = BuildFlattenedTypeFragment(selectorType);
+		string fragment = BuildOverloadSelectorTypeFragment(selectorType);
 		if (string.IsNullOrWhiteSpace(fragment))
 		{
 			Report(GetRange(selectorSyntax), $"Cannot select overload `{invokerName}` because selector type '{selectorType}' does not contribute a method-symbol type fragment.");
@@ -466,12 +465,47 @@ public sealed partial class BindableNodeAnalyzer
 		if (!IsPrimitiveStringType(selectorType))
 			return false;
 
-		string fragment = BuildFlattenedTypeFragment(PrimitiveStringConstArrayType(selectorType));
+		string fragment = BuildOverloadSelectorTypeFragment(PrimitiveStringConstArrayType(selectorType));
 		if (string.IsNullOrWhiteSpace(fragment))
 			return false;
 
 		fullName = invokerName + fragment;
 		return true;
+	}
+
+	string BuildOverloadSelectorTypeFragment(ParameterDefinition selector, FunctionDefinition function)
+	{
+		string? sourceTypeName = GetTypeReferenceName(selector.Type);
+		return BuildOverloadSelectorTypeFragment(sourceTypeName ?? selector.ResolvedType ?? ErrorType, function);
+	}
+
+	string BuildOverloadSelectorTypeFragment(string type, FunctionDefinition? function = null)
+	{
+		string normalized = NormalizeOverloadSelectorTypeName(type);
+		return BuildFlattenedTypeFragment(normalized, function);
+	}
+
+	string NormalizeOverloadSelectorTypeName(string type)
+	{
+		if (!new TypeShapeParser(type).TryParse(out TypeShape shape))
+			return type;
+
+		return TypeShapeParser.Format(NormalizeOverloadSelectorTypeShape(shape));
+	}
+
+	TypeShape NormalizeOverloadSelectorTypeShape(TypeShape shape)
+	{
+		TypeShape? element = shape.Element is null ? null : NormalizeOverloadSelectorTypeShape(shape.Element);
+		if (shape.Kind != TypeShapeKind.Named)
+			return shape with { Element = element };
+
+		string name = BaseTypeName(shape.Name);
+		if (TryResolveAlias(name, AliasTargetKind.Type, null, out AliasDefinition? alias))
+			name = alias!.ResolvedTargetName;
+		else if (TryGetTypeDefinitionByResolvedName(name, out TypeDefinition? definition) && definition is not null)
+			name = definition.Name;
+
+		return shape with { Name = name, Element = element };
 	}
 
 	static int GetCallableOverloadSelectorIndex(FunctionDefinition function)

@@ -1,0 +1,19 @@
+namespace Win32::Forms;
+
+enum SysColor: byte
+{
+	ButtonFace = 15,
+}
+
+newtype HBRUSH: nint;
+
+static HBRUSH HBRUSH.from(overload SysColor color)
+{
+	return (HBRUSH)(nint)(byte)color;
+}
+
+int main()
+{
+	HBRUSH brush = HBRUSH.fromSysColor(SysColor.ButtonFace);
+	return (nint)brush == 15 ? 0 : 1;
+}

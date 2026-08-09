@@ -466,6 +466,12 @@ public sealed partial class BindableNodeAnalyzer
 
 	string NormalizeNominalTypeAliases(string type)
 	{
+		foreach (AliasDefinition alias in aliasDefinitions.Values)
+		{
+			if (alias.TargetKind == AliasTargetKind.Type && !string.IsNullOrWhiteSpace(alias.ResolvedTargetName))
+				type = ReplaceTypeToken(type, alias.Name, alias.ResolvedTargetName);
+		}
+
 		foreach (TypeDefinition definition in allTypeDefinitions)
 		{
 			string symbol = ResolvedNominalTypeName(definition);
