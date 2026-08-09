@@ -500,6 +500,8 @@ public sealed partial class BindableNodeAnalyzer
 			return shape with { Element = element };
 
 		string name = BaseTypeName(shape.Name);
+		if (name.StartsWith("global::", StringComparison.Ordinal))
+			name = name["global::".Length..];
 		if (TryResolveAlias(name, AliasTargetKind.Type, null, out AliasDefinition? alias))
 			name = alias!.ResolvedTargetName;
 		else if (TryGetTypeDefinitionByResolvedName(name, out TypeDefinition? definition) && definition is not null)

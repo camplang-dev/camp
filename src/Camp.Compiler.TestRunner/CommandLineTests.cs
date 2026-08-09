@@ -3782,6 +3782,83 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Shared_library_api_header_global_selector_overloads_are_consumable()
+	{
+		string dependencyApi = CreateTempCase("shared_api_global_selector_overloads/handles.camp", """
+			export newtype HDC : nint;
+			export newtype HBRUSH : nint;
+			export newtype HFONT : nint;
+			""");
+		string source = CreateTempCase("shared_api_global_selector_overloads/lib.camp", """
+			namespace Win32::Forms;
+
+			export HBRUSH selectObject(HDC this, overload HBRUSH brush)
+			{
+				return brush;
+			}
+
+			export HFONT selectObject(HDC this, overload HFONT font)
+			{
+				return font;
+			}
+			""");
+		string outDir = TempPath("shared-api-global-selector-overloads-out");
+
+		ProcessResult result = RunCampc(
+			"build",
+			source,
+			"--api",
+			dependencyApi,
+			"--nostdlib",
+			"--artifact",
+			"shared",
+			"--target",
+			NativeTargetForHost(),
+			"--name",
+			"shared_api_global_selector_overloads",
+			"--out-dir",
+			outDir);
+
+		AssertCommandSucceeded(result);
+		string apiHeader = File.ReadAllText(Path.Combine(outDir, ArtifactDirectoryForHost(NativeBuildKind.Shared), "shared_api_global_selector_overloads_api.camp"));
+		Assert.Contains("selectObject(global::HDC this, overload global::HFONT font)", apiHeader, StringComparison.Ordinal);
+
+		string projectFile = TempPath("shared-api-global-selector-overloads.campbuild");
+		File.WriteAllText(projectFile, $$"""
+			--nostdlib
+			--artifact shared
+			--name shared_api_global_selector_overloads
+			--api {{dependencyApi.Replace('\\', '/')}}
+			{{source.Replace('\\', '/')}}
+			""");
+		string consumer = CreateTempCase("shared_api_global_selector_overloads_consumer/main.camp", $$"""
+			#build --nostdlib
+			#build --artifact none
+			#build --api {{dependencyApi.Replace('\\', '/')}}
+			#build --project-reference "{{projectFile.Replace('\\', '/')}}"
+
+			using Win32::Forms;
+
+			export int main()
+			{
+				HDC hdc = (HDC)0;
+				HFONT font = (HFONT)1;
+				return (int)(nint)hdc.selectObject(font);
+			}
+			""");
+
+		ProcessResult consumerResult = RunCampc(
+			"build",
+			consumer,
+			"--target",
+			NativeTargetForHost(),
+			"--out-dir",
+			TempPath("shared-api-global-selector-overloads-consumer-out"));
+
+		AssertCommandSucceeded(consumerResult);
+	}
+
+	[Fact]
 	public void Build_reports_missing_use_source_path_with_resolved_path()
 	{
 		string root = TempPath("missing-use-source-root");
