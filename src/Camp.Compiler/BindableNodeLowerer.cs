@@ -15,7 +15,12 @@ public static class BindableNodeLowerer
 {
 	public static LoweringResult Lower(DeclarationExpansionResult expansion)
 	{
+		return Lower(expansion, measure: null);
+	}
+
+	public static LoweringResult Lower(DeclarationExpansionResult expansion, Action<string, Action>? measure)
+	{
 		ArgumentNullException.ThrowIfNull(expansion);
-		return BindableNodeAnalyzer.LowerExpanded(expansion);
+		return BindableNodeAnalyzer.LowerExpanded(expansion, measure);
 	}
 }

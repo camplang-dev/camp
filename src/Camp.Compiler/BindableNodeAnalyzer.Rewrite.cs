@@ -75,45 +75,72 @@ public sealed partial class BindableNodeAnalyzer
 		return new AnalysisResult(lowering.Module, lowering.Diagnostics);
 	}
 
-	internal static LoweringResult LowerExpanded(DeclarationExpansionResult expansion)
+	internal static LoweringResult LowerExpanded(DeclarationExpansionResult expansion, Action<string, Action>? measure = null)
 	{
 		ArgumentNullException.ThrowIfNull(expansion);
 		BindableNodeAnalyzer analyzer = expansion.Analyzer;
-		analyzer.RunAnalyzerPass(AnalyzerPass.DeclarationAnalysis, expansion.Module);
+		RunMeasured(measure, "declaration analysis", () => analyzer.RunAnalyzerPass(AnalyzerPass.DeclarationAnalysis, expansion.Module));
 		if (!analyzer.diagnostics.Any(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error))
 		{
-			analyzer.RunAnalyzerPass(AnalyzerPass.MethodBodyAnalysis, expansion.Module);
+			RunMeasured(measure, "method body analysis", () => analyzer.RunAnalyzerPass(AnalyzerPass.MethodBodyAnalysis, expansion.Module));
 			if (!analyzer.diagnostics.Any(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error))
-				analyzer.ValidateProductionDeclarationDependencies(expansion.Module);
+				RunMeasured(measure, "production dependency validation", () => analyzer.ValidateProductionDeclarationDependencies(expansion.Module));
 		}
-		analyzer.RunAnalyzerPass(AnalyzerPass.NodeRewriteApplication, expansion.Module);
-		analyzer.FillMissingResolvedTypes(expansion.Module);
+		RunMeasured(measure, "node rewrite application", () => analyzer.RunAnalyzerPass(AnalyzerPass.NodeRewriteApplication, expansion.Module));
+		RunMeasured(measure, "fill resolved types", () => analyzer.FillMissingResolvedTypes(expansion.Module));
 		AnalysisResult analysis = new(expansion.Module, analyzer.diagnostics);
 		if (analysis.Diagnostics.Any(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error))
 			return new LoweringResult(analysis.Module, analysis.Diagnostics);
 
 		analyzer.allocatorSurfaceValidationEnabled = true;
-		analyzer.RunAnalyzerPass(AnalyzerPass.LoweringRewrite, expansion.Module);
-		analyzer.FillMissingResolvedTypes(expansion.Module);
+		RunMeasured(measure, "lowering rewrite", () =>
+		{
+			analyzer.phaseMeasure = measure;
+			try
+			{
+				analyzer.RunAnalyzerPass(AnalyzerPass.LoweringRewrite, expansion.Module);
+			}
+			finally
+			{
+				analyzer.phaseMeasure = null;
+			}
+		});
+		RunMeasured(measure, "fill lowered resolved types", () => analyzer.FillMissingResolvedTypes(expansion.Module));
 		return new LoweringResult(expansion.Module, analyzer.diagnostics);
+	}
+
+	static void RunMeasured(Action<string, Action>? measure, string name, Action action)
+	{
+		if (measure is null)
+		{
+			action();
+			return;
+		}
+		measure(name, action);
 	}
 
 	void RewriteModule(Module module)
 	{
 		generatedLambdaContextDefinitions.Clear();
 		generatedLambdaDefinitions.Clear();
-		CompleteInterfaceDeclarations(module);
-		LowerSourceInterfaceTypes(module);
-		ExpandParamsDeclarations(module);
-		CompleteImplicitDestroyBodies(module);
-		foreach (Definition definition in ActiveDefinitions(module))
-			RewriteDefinition(definition);
-		foreach (StructDefinition context in generatedLambdaContextDefinitions)
-			module.Definitions.Add(context);
-		foreach (FunctionDefinition lambda in generatedLambdaDefinitions)
-			module.Definitions.Add(lambda);
-		RefreshLoweredResolvedTypes(module);
-		LowerInterfaceDefinitions(module);
+		RunMeasured(phaseMeasure, "complete interface declarations", () => CompleteInterfaceDeclarations(module));
+		RunMeasured(phaseMeasure, "lower source interface types", () => LowerSourceInterfaceTypes(module));
+		RunMeasured(phaseMeasure, "expand params declarations", () => ExpandParamsDeclarations(module));
+		RunMeasured(phaseMeasure, "complete implicit destroy bodies", () => CompleteImplicitDestroyBodies(module));
+		RunMeasured(phaseMeasure, "rewrite definitions", () =>
+		{
+			foreach (Definition definition in ActiveDefinitions(module))
+				RewriteDefinition(definition);
+		});
+		RunMeasured(phaseMeasure, "append generated lambdas", () =>
+		{
+			foreach (StructDefinition context in generatedLambdaContextDefinitions)
+				module.Definitions.Add(context);
+			foreach (FunctionDefinition lambda in generatedLambdaDefinitions)
+				module.Definitions.Add(lambda);
+		});
+		RunMeasured(phaseMeasure, "refresh lowered resolved types", () => RefreshLoweredResolvedTypes(module));
+		RunMeasured(phaseMeasure, "lower interface definitions", () => LowerInterfaceDefinitions(module));
 	}
 
 	void CompleteImplicitDestroyBodies(Module module)

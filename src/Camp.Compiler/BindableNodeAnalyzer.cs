@@ -85,6 +85,7 @@ public sealed partial class BindableNodeAnalyzer
 	readonly TargetDefinition? selectedTarget;
 	Module? currentModule;
 	Definition? currentAnalysisDefinition;
+	Action<string, Action>? phaseMeasure;
 
 	BindableNodeAnalyzer(TargetDefinition? selectedTarget = null)
 	{

@@ -1942,9 +1942,34 @@ public static class CompilerDriver
 
 		bool LowerAndReport(Compilation compilation)
 		{
-			bool success;
+			bool success = true;
 			using (timing.Begin("analysis and lowering", "compiler-phase"))
-				success = CompilationPipeline.Lower(compilation);
+			{
+				bool buildSuccess;
+				using (timing.Begin("parse and AST binding", "compiler-phase"))
+					buildSuccess = CompilationPipeline.BuildAst(compilation);
+				success &= buildSuccess;
+				if (buildSuccess)
+				{
+					bool expansionSuccess;
+					using (timing.Begin("declaration expansion", "compiler-phase"))
+						expansionSuccess = CompilationPipeline.ExpandDeclarationsFromBuiltAst(compilation);
+					success &= expansionSuccess;
+					if (expansionSuccess)
+					{
+						bool lowerSuccess;
+						using (timing.Begin("lowering", "compiler-phase"))
+						{
+							lowerSuccess = CompilationPipeline.LowerFromExpandedDeclarations(compilation, (name, action) =>
+							{
+								using IDisposable _ = timing.Begin(name, "compiler-phase");
+								action();
+							});
+						}
+						success &= lowerSuccess;
+					}
+				}
+			}
 			PrintPipelineDiagnostics(compilation);
 			return success;
 		}

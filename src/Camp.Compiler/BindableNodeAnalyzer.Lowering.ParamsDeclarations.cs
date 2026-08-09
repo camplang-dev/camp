@@ -6,9 +6,10 @@ public sealed partial class BindableNodeAnalyzer
 {
 	void ExpandParamsDeclarations(Module module)
 	{
+		DeclarationParticipation participation = new(module);
 		for (int i = 0; i < module.Definitions.Count; i++)
 		{
-			if (!DeclarationParticipation.Includes(module.Definitions[i], module))
+			if (!participation.Includes(module.Definitions[i], module.DeclarationParticipationMode))
 				continue;
 			switch (module.Definitions[i])
 			{

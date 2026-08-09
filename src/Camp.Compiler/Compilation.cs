@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -143,6 +144,11 @@ public static class CompilationPipeline
 		if (!buildSuccess)
 			return false;
 
+		return ExpandDeclarationsFromBuiltAst(compilation);
+	}
+
+	public static bool ExpandDeclarationsFromBuiltAst(Compilation compilation)
+	{
 		compilation.DeclarationExpansion = BindableNodeExpander.Expand(compilation.SharedModule!, compilation.Target);
 		compilation.SharedModule = compilation.DeclarationExpansion.Module;
 		AssignGeneratedDefinitionOwners(compilation);
@@ -155,7 +161,17 @@ public static class CompilationPipeline
 		if (!expansionSuccess)
 			return false;
 
-		compilation.Lowering = BindableNodeLowerer.Lower(compilation.DeclarationExpansion!);
+		return LowerFromExpandedDeclarations(compilation);
+	}
+
+	public static bool LowerFromExpandedDeclarations(Compilation compilation)
+	{
+		return LowerFromExpandedDeclarations(compilation, measure: null);
+	}
+
+	public static bool LowerFromExpandedDeclarations(Compilation compilation, Action<string, Action>? measure)
+	{
+		compilation.Lowering = BindableNodeLowerer.Lower(compilation.DeclarationExpansion!, measure);
 		compilation.SharedModule = compilation.Lowering.Module;
 		AssignGeneratedDefinitionOwners(compilation);
 		return compilation.Lowering.Success;
