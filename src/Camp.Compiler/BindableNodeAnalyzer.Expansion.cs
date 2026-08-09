@@ -1966,15 +1966,6 @@ public sealed partial class BindableNodeAnalyzer
 		}
 		else if (type is ClassDefinition)
 			guardBody.Statements.Add(CreateZeroAllocatedInstanceStatement(CreateVariableReference(local.Target, $"{type.Name}*"), typeReference, type.Name, method.SourceSyntax));
-		if (type is not ClassDefinition { IsShadow: true }
-			&& CreateVirtualTableAssignment(CreateVariableReference(local.Target, $"{type.Name}*"), type) is Expression vtableAssignment)
-		{
-			guardBody.Statements.Add(new ExpressionStatement
-			{
-				ResolvedType = "void",
-				Expression = vtableAssignment
-			});
-		}
 		if (type is not ClassDefinition { IsShadow: true })
 		{
 			guardBody.Statements.Add(new ExpressionStatement

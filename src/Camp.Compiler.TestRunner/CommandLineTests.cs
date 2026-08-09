@@ -3005,9 +3005,12 @@ public sealed class CommandLineTests
 		string appRoot = Path.Combine(root, "app");
 		Directory.CreateDirectory(librarySource);
 		Directory.CreateDirectory(appRoot);
+		File.WriteAllText(Path.Combine(librarySource, "alloc.camp"), """
+			export extern void* malloc(nuint size);
+			export extern void free(void* pointer);
+			""");
 		File.WriteAllText(Path.Combine(librarySource, "widgets.camp"), """
-			extern void* malloc(nuint size);
-			extern void free(void* pointer);
+			namespace Win32Forms;
 
 			export virtual escaped class Control
 			{
@@ -3034,6 +3037,7 @@ public sealed class CommandLineTests
 		File.WriteAllText(app, """
 			#build --nostdlib
 			#build --name virtual-create-app
+			using Win32Forms;
 
 			export int main()
 			{
@@ -3057,8 +3061,8 @@ public sealed class CommandLineTests
 		AssertCommandSucceeded(result);
 		string artifactDir = Path.Combine(outDir, ArtifactDirectoryForHost(NativeBuildKind.Exec));
 		string libraryC = File.ReadAllText(Path.Combine(libraryRoot, "bin", ArtifactDirectoryForTarget(target, NativeBuildKind.Static), "build", "widgets.c"));
-		Assert.Contains("Form_create(void)", libraryC, StringComparison.Ordinal);
-		Assert.Contains("->_vt = &_Form__vt.Control", libraryC, StringComparison.Ordinal);
+		Assert.Contains("Win32FormsForm_create(void)", libraryC, StringComparison.Ordinal);
+		Assert.Contains("->_vt = &Win32Forms__Form__vt.Control", libraryC, StringComparison.Ordinal);
 		ProcessResult run = RunExecutable(Path.Combine(artifactDir, "virtual-create-app" + ExecutableExtensionForHost()));
 		Assert.Equal(0, run.ExitCode);
 		Assert.Equal("", run.StdErr);

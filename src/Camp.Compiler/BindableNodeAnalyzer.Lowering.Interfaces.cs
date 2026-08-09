@@ -875,13 +875,15 @@ public sealed partial class BindableNodeAnalyzer
 			|| !NeedsVirtualTableAssignment(classDefinition))
 			return;
 
+		DeclarationTarget? returnedTarget = FindReturnedCreateTarget(function);
 		DeclarationStatement? createdLocal = null;
 		BlockStatement? guardBody = null;
 		foreach (Statement statement in function.Body.Statements)
 		{
 			if (createdLocal is null
 				&& statement is DeclarationStatement { Target.Names.Count: 1 } declaration
-				&& declaration.Target.ResolvedType == $"{classDefinition.Name}*")
+				&& (ReferenceEquals(declaration.Target, returnedTarget)
+					|| returnedTarget is null && IsCreateResultLocal(declaration, classDefinition)))
 			{
 				createdLocal = declaration;
 				continue;
@@ -903,7 +905,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (createdLocal is null || guardBody is null)
 			return;
 
-		Expression target = CreateVariableReference(createdLocal.Target, $"{classDefinition.Name}*");
+		Expression target = CreateVariableReference(createdLocal.Target, createdLocal.Target.ResolvedType ?? $"{classDefinition.Name}*");
 		if (CreateVirtualTableAssignment(target, classDefinition) is not Expression assignment)
 			return;
 
@@ -917,6 +919,29 @@ public sealed partial class BindableNodeAnalyzer
 			ResolvedType = "void",
 			Expression = assignment
 		});
+	}
+
+	static DeclarationTarget? FindReturnedCreateTarget(FunctionDefinition function)
+	{
+		if (function.Body is null)
+			return null;
+
+		for (int i = function.Body.Statements.Count - 1; i >= 0; i--)
+		{
+			if (function.Body.Statements[i] is ReturnStatement
+				{
+					Expression: VariableReferenceExpression { Variable: DeclarationTarget target }
+				})
+				return target;
+		}
+		return null;
+	}
+
+	static bool IsCreateResultLocal(DeclarationStatement declaration, ClassDefinition classDefinition)
+	{
+		string? resolvedType = declaration.Target.ResolvedType;
+		return resolvedType == $"{classDefinition.Name}*"
+			|| resolvedType == $"{EffectiveTypeSymbol(classDefinition)}*";
 	}
 
 	static bool IsZeroAllocatedInstanceStatement(Statement statement)
@@ -940,7 +965,13 @@ public sealed partial class BindableNodeAnalyzer
 
 	Expression CreateVirtualTablePointer(VirtualClassLowering target, VirtualClassLowering root)
 	{
-		Expression expression = new NamedExpression
+		Expression expression = target.VTable is not null
+			? new VariableReferenceExpression
+			{
+				Variable = target.VTable,
+				ResolvedType = target.VTable.ResolvedType ?? target.VTableType.Name
+			}
+			: new NamedExpression
 		{
 			Name = target.VTable?.Name ?? VirtualTableVariableName(target.Class),
 			ResolvedType = target.VTableType.Name
