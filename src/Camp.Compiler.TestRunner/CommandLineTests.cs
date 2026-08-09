@@ -2997,6 +2997,74 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Project_reference_virtual_create_initializes_vtable_before_initnew()
+	{
+		string root = TempPath("project-reference-virtual-create-vtable");
+		string libraryRoot = Path.Combine(root, "library");
+		string librarySource = Path.Combine(libraryRoot, "src");
+		string appRoot = Path.Combine(root, "app");
+		Directory.CreateDirectory(librarySource);
+		Directory.CreateDirectory(appRoot);
+		File.WriteAllText(Path.Combine(librarySource, "widgets.camp"), """
+			extern void* malloc(nuint size);
+			extern void free(void* pointer);
+
+			export virtual escaped class Control
+			{
+				export virtual int createControl()
+				{
+					return 1;
+				}
+			}
+
+			export sealed escaped class Form: Control
+			{
+				export override int createControl()
+				{
+					return 7;
+				}
+			}
+			""");
+		File.WriteAllText(Path.Combine(libraryRoot, "widgets.campbuild"), """
+			--nostdlib
+			--name widgets
+			src/*.camp
+			""");
+		string app = Path.Combine(appRoot, "app.camp");
+		File.WriteAllText(app, """
+			#build --nostdlib
+			#build --name virtual-create-app
+
+			export int main()
+			{
+				auto form = new Form();
+				return form.createControl() == 7 ? 0 : 1;
+			}
+			""");
+		string outDir = Path.Combine(appRoot, "bin");
+		string target = NativeTargetForHost();
+
+		ProcessResult result = RunCampc(
+			"build",
+			app,
+			"--target",
+			target,
+			"--project-reference",
+			libraryRoot + ":static",
+			"--out-dir",
+			outDir);
+
+		AssertCommandSucceeded(result);
+		string artifactDir = Path.Combine(outDir, ArtifactDirectoryForHost(NativeBuildKind.Exec));
+		string libraryC = File.ReadAllText(Path.Combine(libraryRoot, "bin", ArtifactDirectoryForTarget(target, NativeBuildKind.Static), "build", "widgets.c"));
+		Assert.Contains("Form_create(void)", libraryC, StringComparison.Ordinal);
+		Assert.Contains("->_vt = &_Form__vt.Control", libraryC, StringComparison.Ordinal);
+		ProcessResult run = RunExecutable(Path.Combine(artifactDir, "virtual-create-app" + ExecutableExtensionForHost()));
+		Assert.Equal(0, run.ExitCode);
+		Assert.Equal("", run.StdErr);
+	}
+
+	[Fact]
 	[Trait("Category", "MsvcCompile")]
 	public void Default_windows_target_follows_visual_studio_environment()
 	{
