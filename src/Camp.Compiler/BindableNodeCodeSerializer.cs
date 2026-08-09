@@ -1919,7 +1919,10 @@ public sealed class BindableNodeCodeSerializer
 		switch (type)
 		{
 			case NamedTypeReference named:
-				WriteQualifiedName(named.Qualifiers, named.Name);
+				if (apiHeader && TryGetApiTypeName(named.ResolvedType ?? named.Name, out string? apiTypeName))
+					writer.Write(apiTypeName);
+				else
+					WriteQualifiedName(named.Qualifiers, named.Name);
 				if (named.TypeArguments.Count > 0)
 					WriteDelimited("<", ">", named.TypeArguments, WriteType);
 				break;
@@ -2080,6 +2083,28 @@ public sealed class BindableNodeCodeSerializer
 		if (string.IsNullOrEmpty(definitionNamespace))
 			return "global::" + definition.Name;
 		return definitionNamespace + "::" + definition.Name;
+	}
+
+	bool TryGetApiTypeName(string? resolvedName, out string apiTypeName)
+	{
+		apiTypeName = "";
+		if (string.IsNullOrWhiteSpace(resolvedName) || currentModule is null)
+			return false;
+
+		string baseName = BaseTypeName(resolvedName);
+		foreach (Definition definition in currentModule.Definitions)
+		{
+			if (definition is not TypeDefinition typeDefinition)
+				continue;
+			if (typeDefinition.Name != baseName
+				&& typeDefinition.Symbol != baseName
+				&& SymbolNameService.DefaultTypeSymbol(typeDefinition.Namespace, typeDefinition.Name) != baseName)
+				continue;
+
+			apiTypeName = GetApiTypeName(typeDefinition);
+			return true;
+		}
+		return false;
 	}
 
 	bool ApiNameIsAmbiguous(string name, TypeDefinition definition)
