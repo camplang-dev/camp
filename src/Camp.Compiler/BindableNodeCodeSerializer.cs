@@ -1931,10 +1931,12 @@ public sealed class BindableNodeCodeSerializer
 				break;
 
 			case TypeDefinitionReference definition:
-				if (apiHeader && TryGetApiTypeName(definition.ResolvedType ?? definition.Name, out string? resolvedApiTypeName))
+				if (apiHeader && definition.Definition is not null)
+					writer.Write(apiHeader ? GetApiTypeName(definition) : definition.Name);
+				else if (apiHeader && TryGetApiTypeName(definition.ResolvedType ?? definition.Name, out string? resolvedApiTypeName))
 					writer.Write(resolvedApiTypeName);
 				else
-					writer.Write(apiHeader ? GetApiTypeName(definition) : definition.Name);
+					writer.Write(definition.Name);
 				if (definition.TypeArguments.Count > 0)
 					WriteDelimited("<", ">", definition.TypeArguments, WriteType);
 				break;
