@@ -34,6 +34,7 @@ public prep char[] toString(in uchar this)
 	return length;
 }
 
+/// Copies UTF-8 text.
 public prep char[] toString(const char[] this)
 {
 	nuint length = 0;
@@ -44,12 +45,6 @@ public prep char[] toString(const char[] this)
 	for (nuint i = 0; i < count; i++)
 		buffer[i] = this[i];
 	return length;
-}
-
-public prep char[] toString(in string this)
-{
-	const char[] text = { (const char*)this, this.Length };
-	return text.toString(buffer);
 }
 
 public prep char[] toString(in bool this)
