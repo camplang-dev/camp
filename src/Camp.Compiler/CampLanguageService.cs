@@ -173,6 +173,7 @@ public static class CampLanguageService
 			EmitDebugInfo = source.EmitDebugInfo,
 			EmitMetadata = source.EmitMetadata,
 			OutDir = source.OutDir,
+			OutDirIsDirect = source.OutDirIsDirect,
 			ProjectName = source.ProjectName,
 			SubsystemName = source.SubsystemName,
 			NoStdLib = source.NoStdLib,

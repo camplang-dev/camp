@@ -180,6 +180,7 @@ public static class CampProjectLoader
 			EmitDebugInfo = bag.DebugInfo,
 			EmitMetadata = bag.MetadataVisibility,
 			OutDir = bag.OutDir ?? defaultOutDir,
+			OutDirIsDirect = bag.OutDir is not null && IsDirectProjectOutputPath(bag.OutDir),
 			ProjectName = bag.ProjectName,
 			SubsystemName = bag.SubsystemName,
 			NoStdLib = bag.NoStdLib,
@@ -277,6 +278,12 @@ public static class CampProjectLoader
 				return Path.Combine(Path.GetDirectoryName(fullPath)!, "bin");
 		}
 		return null;
+	}
+
+	static bool IsDirectProjectOutputPath(string value)
+	{
+		string normalized = value.Replace('\\', '/');
+		return normalized == "." || normalized.EndsWith("/.", StringComparison.Ordinal);
 	}
 
 	static string? TryGetDefaultSourcefileRootFromBuildFile(IReadOnlyList<string> args, string workingDirectory)

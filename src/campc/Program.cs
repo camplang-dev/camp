@@ -322,23 +322,43 @@ sealed class CampCli
 
 	static int RunBuild(string[] args, CliEnvironment environment)
 	{
+		Stopwatch total = Stopwatch.StartNew();
+		Stopwatch requestPreparation = Stopwatch.StartNew();
 		if (!TryBuildRequest(args, environment, CommandKind.Build, out CompilerRequest? request, out List<string> errors))
 			return PrintErrors(errors);
+		requestPreparation.Stop();
 
+		Stopwatch compilerBuild = Stopwatch.StartNew();
 		CompilerResult result = CompilerDriver.Execute(request!);
+		compilerBuild.Stop();
+		total.Stop();
 		Console.Out.Write(result.StdOut);
 		Console.Error.Write(result.StdErr);
+		WriteCliTiming(request!, CommandKind.Build, total.Elapsed, result.ExitCode, [
+			new("request and project references", requestPreparation.Elapsed),
+			new("compiler build", compilerBuild.Elapsed)
+		]);
 		return result.ExitCode;
 	}
 
 	static int RunBuildLike(string[] args, CliEnvironment environment, CommandKind command)
 	{
+		Stopwatch total = Stopwatch.StartNew();
+		Stopwatch requestPreparation = Stopwatch.StartNew();
 		if (!TryBuildRequest(args, environment, command, out CompilerRequest? request, out List<string> errors))
 			return PrintErrors(errors);
+		requestPreparation.Stop();
 
+		Stopwatch compilerBuild = Stopwatch.StartNew();
 		CompilerResult result = CompilerDriver.Execute(request!);
+		compilerBuild.Stop();
+		total.Stop();
 		Console.Out.Write(result.StdOut);
 		Console.Error.Write(result.StdErr);
+		WriteCliTiming(request!, command, total.Elapsed, result.ExitCode, [
+			new("request and project references", requestPreparation.Elapsed),
+			new("compiler build", compilerBuild.Elapsed)
+		]);
 		return result.ExitCode;
 	}
 
@@ -348,23 +368,43 @@ sealed class CampCli
 		string[] buildArgs = separator >= 0 ? args[..separator] : args;
 		string[] programArgs = separator >= 0 ? args[(separator + 1)..] : [];
 
+		Stopwatch total = Stopwatch.StartNew();
+		Stopwatch requestPreparation = Stopwatch.StartNew();
 		if (!TryBuildRequest(buildArgs, environment, CommandKind.Run, out CompilerRequest? request, out List<string> errors))
 			return PrintErrors(errors);
+		requestPreparation.Stop();
 
 		if (request!.BuildKind is not (NativeBuildKind.Exec or NativeBuildKind.WinExe))
 			return Error("run requires --artifact exec.");
 
+		Stopwatch compilerBuild = Stopwatch.StartNew();
 		CompilerResult result = CompilerDriver.Execute(request);
+		compilerBuild.Stop();
 		Console.Error.Write(result.StdErr);
 		if (result.ExitCode != 0)
 		{
+			total.Stop();
 			Console.Out.Write(result.StdOut);
+			WriteCliTiming(request, CommandKind.Run, total.Elapsed, result.ExitCode, [
+				new("request and project references", requestPreparation.Elapsed),
+				new("compiler build", compilerBuild.Elapsed)
+			]);
 			return result.ExitCode;
 		}
 
+		Stopwatch executableResolution = Stopwatch.StartNew();
 		string? executable = TryGetRunExecutable(request, environment, out string? executableError);
+		executableResolution.Stop();
 		if (executable is null)
+		{
+			total.Stop();
+			WriteCliTiming(request, CommandKind.Run, total.Elapsed, exitCode: 1, [
+				new("request and project references", requestPreparation.Elapsed),
+				new("compiler build", compilerBuild.Elapsed),
+				new("resolve executable", executableResolution.Elapsed)
+			]);
 			return Error(executableError ?? "run could not find the generated executable.");
+		}
 
 		string extension = Path.GetExtension(executable);
 		ProcessStartInfo info = new()
@@ -379,17 +419,55 @@ sealed class CampCli
 			info.ArgumentList.Add(argument);
 
 		using Process process = new() { StartInfo = info };
+		Stopwatch executableRun = Stopwatch.StartNew();
 		try
 		{
 			process.Start();
 			process.WaitForExit();
+			executableRun.Stop();
+			total.Stop();
+			WriteCliTiming(request, CommandKind.Run, total.Elapsed, process.ExitCode, [
+				new("request and project references", requestPreparation.Elapsed),
+				new("compiler build", compilerBuild.Elapsed),
+				new("resolve executable", executableResolution.Elapsed),
+				new("run executable", executableRun.Elapsed)
+			]);
 			return process.ExitCode;
 		}
 		catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
 		{
+			executableRun.Stop();
+			total.Stop();
+			WriteCliTiming(request, CommandKind.Run, total.Elapsed, exitCode: 1, [
+				new("request and project references", requestPreparation.Elapsed),
+				new("compiler build", compilerBuild.Elapsed),
+				new("resolve executable", executableResolution.Elapsed),
+				new("run executable", executableRun.Elapsed)
+			]);
 			return Error(ex.Message);
 		}
 	}
+
+	static void WriteCliTiming(CompilerRequest request, CommandKind command, TimeSpan total, int exitCode, IReadOnlyList<CliTimingPhase> phases)
+	{
+		if (!request.TimingEnabled)
+			return;
+		string commandName = command.ToString().ToLowerInvariant();
+		string projectName = string.IsNullOrWhiteSpace(request.ProjectName)
+			? GetDefaultProjectNameFromRequest(request)
+			: request.ProjectName!;
+		string status = exitCode == 0 ? "success" : "failed";
+		Console.Error.WriteLine($"Timing: cli {commandName} {projectName} {FormatTimingSeconds(total)} {status}");
+		foreach (CliTimingPhase phase in phases)
+			Console.Error.WriteLine($"  {phase.Name} {FormatTimingSeconds(phase.Elapsed)}");
+	}
+
+	static string FormatTimingSeconds(TimeSpan elapsed)
+	{
+		return (elapsed.TotalMilliseconds / 1000.0).ToString("0.000", CultureInfo.InvariantCulture) + "s";
+	}
+
+	readonly record struct CliTimingPhase(string Name, TimeSpan Elapsed);
 
 	static string? TryGetRunExecutable(CompilerRequest request, CliEnvironment environment, out string? error)
 	{
@@ -406,7 +484,7 @@ sealed class CampCli
 			? GetDefaultArtifactDirectoryFromRequest(request)
 			: request.OutDir!;
 		string outputRoot = Path.GetFullPath(outputPrefix, request.WorkingDirectory);
-		string outputDirectory = IsDirectRunOutputPath(outputPrefix)
+		string outputDirectory = request.OutDirIsDirect || IsDirectRunOutputPath(outputPrefix)
 			? outputRoot
 			: Path.Combine(outputRoot, BuildArtifactLayout.GetArtifactDirectoryName(target, request.BuildKind, request.ProfileName));
 		string projectName = string.IsNullOrWhiteSpace(request.ProjectName)
@@ -586,6 +664,7 @@ sealed class CampCli
 			EmitDebugInfo = bag.DebugInfo,
 			EmitMetadata = bag.MetadataVisibility,
 			OutDir = bag.OutDir ?? defaultOutDir,
+			OutDirIsDirect = bag.OutDir is not null && IsDirectRunOutputPath(bag.OutDir),
 			ProjectName = bag.ProjectName,
 			SubsystemName = bag.SubsystemName,
 			NoStdLib = bag.NoStdLib,
@@ -751,20 +830,22 @@ sealed class CampCli
 					errors.Add($"{projectReference}: {projectError}");
 				continue;
 			}
+			projectRequest!.OutDir = projectOutputDirectory;
+			projectRequest.OutDirIsDirect = true;
 
 			if (instrumentForCoverage)
-				projectRequest!.CoverageInstrumentationMode = CoverageInstrumentationMode.ProductionSubject;
+				projectRequest.CoverageInstrumentationMode = CoverageInstrumentationMode.ProductionSubject;
 
-			if (!instrumentForCoverage && target is not null && TryGetCurrentProjectReferenceArtifacts(projectRequest!, canonicalBuildFile, projectOutputDirectory, referenceBuildKind, target, environment.GlobalCampPath, requireLibrary, out string? currentApiHeader, out string? currentLibrary))
+			if (!instrumentForCoverage && target is not null && TryGetCurrentProjectReferenceArtifacts(projectRequest, canonicalBuildFile, projectOutputDirectory, referenceBuildKind, target, environment.GlobalCampPath, requireLibrary, out string? currentApiHeader, out string? currentLibrary))
 			{
 				if (consumerRequest.Verbose)
-					Console.Out.WriteLine($"{projectReference}: project reference {ProjectReferenceOutputName(projectRequest!, canonicalBuildFile)}: current");
+					Console.Out.WriteLine($"{projectReference}: project reference {ProjectReferenceOutputName(projectRequest, canonicalBuildFile)}: current");
 				apiHeaders.Add(currentApiHeader);
 				if (effectiveLinkKind == DependencyLinkKind.Shared)
 					sharedApiHeaders.Add(currentApiHeader);
 				if (currentLibrary is not null)
 					AddUniquePath(libraries, currentLibrary);
-				foreach (string reference in projectRequest!.References)
+				foreach (string reference in projectRequest.References)
 				{
 					if (referenceBuildKind == NativeBuildKind.Static || IsSharedDependencyReference(reference, target))
 						AddUniquePath(libraries, reference);
@@ -772,11 +853,11 @@ sealed class CampCli
 				continue;
 			}
 			if (consumerRequest.Verbose)
-				Console.Out.WriteLine($"{projectReference}: project reference {ProjectReferenceOutputName(projectRequest!, canonicalBuildFile)}: rebuilding");
+				Console.Out.WriteLine($"{projectReference}: project reference {ProjectReferenceOutputName(projectRequest, canonicalBuildFile)}: rebuilding");
 
-			CompilerResult result = CompilerDriver.Execute(projectRequest!);
+			CompilerResult result = CompilerDriver.Execute(projectRequest);
 			WriteProjectReferenceOutput(projectReference, result.StdOut);
-			string expectedApiHeader = Path.Combine(projectOutputDirectory, ProjectReferenceOutputName(projectRequest!, canonicalBuildFile) + "_api.camp");
+			string expectedApiHeader = Path.Combine(projectOutputDirectory, ProjectReferenceOutputName(projectRequest, canonicalBuildFile) + "_api.camp");
 			string? apiHeader = result.GeneratedFiles.FirstOrDefault(path => string.Equals(Path.GetFullPath(path), Path.GetFullPath(expectedApiHeader), StringComparison.OrdinalIgnoreCase));
 			string? library = result.GeneratedFiles.FirstOrDefault(path => IsNativeLibrary(path, consumerRequest.TargetName, consumerRequest.RuntimeRoot, referenceBuildKind));
 			string? coverageMap = result.GeneratedFiles.FirstOrDefault(static path => path.EndsWith(".camp-coverage-map.csv", StringComparison.OrdinalIgnoreCase));
@@ -816,7 +897,7 @@ sealed class CampCli
 				sharedApiHeaders.Add(apiHeader);
 			if (library is not null)
 				AddUniquePath(libraries, library);
-			foreach (string reference in projectRequest!.References)
+			foreach (string reference in projectRequest.References)
 			{
 				if (referenceBuildKind == NativeBuildKind.Static || target is not null && IsSharedDependencyReference(reference, target))
 					AddUniquePath(libraries, reference);

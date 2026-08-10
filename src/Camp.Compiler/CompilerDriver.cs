@@ -45,6 +45,7 @@ public sealed class CompilerRequest
 	public bool EmitDebugInfo { get; set; }
 	public MetadataVisibility? EmitMetadata { get; set; }
 	public string? OutDir { get; set; }
+	public bool OutDirIsDirect { get; set; }
 	public string? ProjectName { get; set; }
 	public string? SubsystemName { get; set; }
 	public bool NoStdLib { get; set; }
@@ -415,7 +416,7 @@ public static class CompilerDriver
 			inputs.AddRange(ResolveInputPaths(request.Files));
 			inputs.AddRange(ResolveInputPaths(allApiFiles));
 			inputs.AddRange(packageLibraries);
-			inputs.AddRange(request.References.Select(reference => ResolveNativeReference(reference, context.Target)));
+			inputs.AddRange(ResolveNativeReferenceInputs(request.References, context.Target));
 			if (File.Exists(context.Target.Path))
 				inputs.Add(context.Target.Path);
 			if (!string.IsNullOrWhiteSpace(Environment.ProcessPath) && File.Exists(Environment.ProcessPath))
@@ -446,7 +447,9 @@ public static class CompilerDriver
 				? GetDefaultArtifactDirectoryFromRequest()
 				: request.OutDir!;
 			string outputRoot = Path.GetFullPath(outputPrefix, request.WorkingDirectory);
-			return Path.Combine(outputRoot, BuildArtifactLayout.GetArtifactDirectoryName(target, buildKind, profileName));
+			return request.OutDirIsDirect || IsDirectOutputDirectory(request.OutDir)
+				? outputRoot
+				: Path.Combine(outputRoot, BuildArtifactLayout.GetArtifactDirectoryName(target, buildKind, profileName));
 		}
 
 		string GetDefaultArtifactDirectoryFromRequest()
@@ -1331,7 +1334,7 @@ public static class CompilerDriver
 				? CCodeEmitter.GetDefaultArtifactDirectory(compilation.Files)
 				: request.OutDir!;
 			string outputRoot = Path.GetFullPath(outputPrefix, request.WorkingDirectory);
-			if (IsDirectOutputDirectory(request.OutDir))
+			if (request.OutDirIsDirect || IsDirectOutputDirectory(request.OutDir))
 				return outputRoot;
 			return Path.Combine(outputRoot, BuildArtifactLayout.GetArtifactDirectoryName(compilation.Target!, request.BuildKind, compilation.ProfileName));
 		}
@@ -1360,6 +1363,27 @@ public static class CompilerDriver
 			if (staticExtension.Equals(".lib", StringComparison.OrdinalIgnoreCase))
 				return reference + ".lib";
 			return "-l" + reference;
+		}
+
+		IEnumerable<string> ResolveNativeReferenceInputs(IEnumerable<string> references, TargetDefinition target)
+		{
+			foreach (string reference in references)
+			{
+				string resolved = ResolveNativeReference(reference, target);
+				if (ShouldTrackNativeReferenceInput(reference, resolved))
+					yield return resolved;
+			}
+		}
+
+		bool ShouldTrackNativeReferenceInput(string reference, string resolved)
+		{
+			if (Path.IsPathRooted(resolved) || resolved.Contains(Path.DirectorySeparatorChar) || resolved.Contains(Path.AltDirectorySeparatorChar))
+				return true;
+			if (Path.IsPathRooted(reference) || reference.Contains(Path.DirectorySeparatorChar) || reference.Contains(Path.AltDirectorySeparatorChar))
+				return true;
+
+			string localPath = Path.GetFullPath(resolved, request.WorkingDirectory);
+			return File.Exists(localPath) || Directory.Exists(localPath);
 		}
 
 		bool TryCopySharedRuntimeReferences(TargetDefinition target, string outputDirectory, IEnumerable<string> references)
@@ -2400,10 +2424,18 @@ public static class CompilerDriver
 		static bool OutputsAreCurrent(IReadOnlyList<string> outputs, IReadOnlyList<string> inputs, out string? reason)
 		{
 			reason = null;
-			if (outputs.Count == 0 || outputs.Any(static output => !File.Exists(output)))
+			if (outputs.Count == 0)
 			{
 				reason = "an output is missing";
 				return false;
+			}
+			foreach (string output in outputs)
+			{
+				if (!File.Exists(output))
+				{
+					reason = $"{output} is missing";
+					return false;
+				}
 			}
 			DateTime oldestOutput = outputs.Select(File.GetLastWriteTimeUtc).Min();
 			foreach (string input in inputs.Distinct(StringComparer.OrdinalIgnoreCase))
