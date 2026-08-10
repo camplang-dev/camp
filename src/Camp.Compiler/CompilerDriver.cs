@@ -781,7 +781,7 @@ public static class CompilerDriver
 				return true;
 			}
 
-			if (!TryBuildPackage(packageName, sourceFiles, nativeSourceFiles, apiPath, requireNativeLibrary ? cApiPath : null, requireNativeLibrary ? metadataPath : null, requireNativeLibrary ? staticLibraryPath : null, requireNativeLibrary ? NativeBuildKind.Static : null, context, CampApiSurfaceKind.Public))
+			if (!TryBuildPackage(packageName, sourceFiles, nativeSourceFiles, cacheSourceFiles, apiPath, requireNativeLibrary ? cApiPath : null, requireNativeLibrary ? metadataPath : null, requireNativeLibrary ? staticLibraryPath : null, requireNativeLibrary ? NativeBuildKind.Static : null, context, CampApiSurfaceKind.Public, refreshCacheOutputs: canUseCache))
 				return false;
 
 			apiHeaderPath = apiPath;
@@ -854,7 +854,7 @@ public static class CompilerDriver
 			}
 
 			CampApiSurfaceKind apiSurface = effectiveLinkKind == DependencyLinkKind.Shared ? CampApiSurfaceKind.Export : CampApiSurfaceKind.Public;
-			if (!TryBuildPackage(packageName, sourceFiles, nativeSourceFiles, apiPath, requireNativeApiArtifacts ? cApiPath : null, requireNativeApiArtifacts ? metadataPath : null, nativeLibraryPath, packageBuildKind, context, apiSurface))
+			if (!TryBuildPackage(packageName, sourceFiles, nativeSourceFiles, cacheSourceFiles, apiPath, requireNativeApiArtifacts ? cApiPath : null, requireNativeApiArtifacts ? metadataPath : null, nativeLibraryPath, packageBuildKind, context, apiSurface, refreshCacheOutputs: canUseCache))
 				return false;
 
 			apiHeaderPath = apiPath;
@@ -1057,6 +1057,35 @@ public static class CompilerDriver
 			return true;
 		}
 
+		bool TryRefreshPackageCacheOutputs(IEnumerable<string?> outputPaths, IReadOnlyList<string> sourceFiles)
+		{
+			DateTime newestSourceTime = DateTime.MinValue;
+			foreach (string sourceFile in sourceFiles)
+			{
+				DateTime sourceTime = File.GetLastWriteTimeUtc(sourceFile);
+				if (sourceTime > newestSourceTime)
+					newestSourceTime = sourceTime;
+			}
+
+			DateTime refreshTime = DateTime.UtcNow;
+			foreach (string? outputPath in outputPaths)
+			{
+				if (string.IsNullOrWhiteSpace(outputPath) || !File.Exists(outputPath))
+					continue;
+				try
+				{
+					if (File.GetLastWriteTimeUtc(outputPath) < newestSourceTime)
+						File.SetLastWriteTimeUtc(outputPath, refreshTime);
+				}
+				catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
+				{
+					ErrorLine($"{outputPath}: {ex.Message}");
+					return false;
+				}
+			}
+			return true;
+		}
+
 		static IEnumerable<string> GetCompilerCacheInputs(RuntimeContext context)
 		{
 			if (!string.IsNullOrWhiteSpace(Environment.ProcessPath) && File.Exists(Environment.ProcessPath))
@@ -1069,7 +1098,7 @@ public static class CompilerDriver
 			}
 		}
 
-		bool TryBuildPackage(string packageName, IReadOnlyList<string> sourceFiles, IReadOnlyList<string> nativeSourceFiles, string apiPath, string? cApiPath, string? metadataPath, string? nativeLibraryPath, NativeBuildKind? nativeBuildKind, RuntimeContext context, CampApiSurfaceKind apiSurface)
+		bool TryBuildPackage(string packageName, IReadOnlyList<string> sourceFiles, IReadOnlyList<string> nativeSourceFiles, IReadOnlyList<string> cacheSourceFiles, string apiPath, string? cApiPath, string? metadataPath, string? nativeLibraryPath, NativeBuildKind? nativeBuildKind, RuntimeContext context, CampApiSurfaceKind apiSurface, bool refreshCacheOutputs)
 		{
 			if (!TryGetPackageNoStdLib(sourceFiles, out bool sourceNoStdLib))
 				return false;
@@ -1164,7 +1193,7 @@ public static class CompilerDriver
 			}
 
 			if (nativeLibraryPath is null)
-				return true;
+				return !refreshCacheOutputs || TryRefreshPackageCacheOutputs([apiPath, cApiPath, metadataPath], cacheSourceFiles);
 
 			string packageBuildDirectory = Path.Combine(packageArtifactDirectory, "build");
 			CEmissionResult emission;
@@ -1200,7 +1229,9 @@ public static class CompilerDriver
 			}
 			foreach (string diagnostic in build.Diagnostics)
 				ErrorLine(diagnostic);
-			return build.Success;
+			if (!build.Success)
+				return false;
+			return !refreshCacheOutputs || TryRefreshPackageCacheOutputs([apiPath, cApiPath, metadataPath, nativeLibraryPath], cacheSourceFiles);
 		}
 
 		int EmitDefaultOutput(Compilation compilation, IReadOnlyList<string> packageLibraries)
