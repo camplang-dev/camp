@@ -939,7 +939,7 @@ sealed class CampCli
 			if (library is not null && !File.Exists(library))
 				return false;
 			outputs.Add(nativeArtifact);
-			if (buildKind == NativeBuildKind.Static && !string.Equals(nativeArtifact, library, StringComparison.OrdinalIgnoreCase))
+			if (library is not null && !string.Equals(nativeArtifact, library, StringComparison.OrdinalIgnoreCase))
 				outputs.Add(library!);
 		}
 

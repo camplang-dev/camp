@@ -1237,6 +1237,26 @@ public static class CompilerDriver
 			return !refreshCacheOutputs || TryRefreshPackageCacheOutputs([apiPath, cApiPath, metadataPath, nativeLibraryPath], cacheSourceFiles);
 		}
 
+		bool TryRefreshGeneratedOutputs(IEnumerable<string?> outputPaths)
+		{
+			DateTime refreshTime = DateTime.UtcNow;
+			foreach (string? outputPath in outputPaths)
+			{
+				if (string.IsNullOrWhiteSpace(outputPath) || !File.Exists(outputPath))
+					continue;
+				try
+				{
+					File.SetLastWriteTimeUtc(outputPath, refreshTime);
+				}
+				catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
+				{
+					ErrorLine($"{outputPath}: {ex.Message}");
+					return false;
+				}
+			}
+			return true;
+		}
+
 		int EmitDefaultOutput(Compilation compilation, IReadOnlyList<string> packageLibraries)
 		{
 			if (!LowerAndReport(compilation))
@@ -1298,22 +1318,23 @@ public static class CompilerDriver
 			if (request.BuildKind is null)
 				return 0;
 
+			NativeBuildOptions buildOptions = new()
+			{
+				Target = compilation.Target!,
+				ProfileName = compilation.ProfileName,
+				BuildDirectory = buildDirectory,
+				OutputDirectory = outputDirectory,
+				ProjectName = projectName,
+				Kind = request.BuildKind.Value,
+				SourceFiles = [.. result.GeneratedSourceFiles, .. coverageRuntimeSources],
+				SourceFileStatuses = BuildSourceStatuses(result),
+				Libraries = packageLibraries.Concat(request.References.Select(reference => ResolveNativeReference(reference, compilation.Target!))).ToList(),
+				Frameworks = request.Frameworks
+			};
 			NativeBuildResult build;
 			using (timing.Begin("native build", "native"))
 			{
-				build = NativeBuildDriver.Build(new NativeBuildOptions
-				{
-					Target = compilation.Target!,
-					ProfileName = compilation.ProfileName,
-					BuildDirectory = buildDirectory,
-					OutputDirectory = outputDirectory,
-					ProjectName = projectName,
-					Kind = request.BuildKind.Value,
-					SourceFiles = [.. result.GeneratedSourceFiles, .. coverageRuntimeSources],
-					SourceFileStatuses = BuildSourceStatuses(result),
-					Libraries = packageLibraries.Concat(request.References.Select(reference => ResolveNativeReference(reference, compilation.Target!))).ToList(),
-					Frameworks = request.Frameworks
-				});
+				build = NativeBuildDriver.Build(buildOptions);
 			}
 			foreach (string diagnostic in build.Diagnostics)
 				ErrorLine(diagnostic);
@@ -1325,7 +1346,22 @@ public static class CompilerDriver
 			}
 			if (!TryCopySharedRuntimeReferences(compilation.Target!, outputDirectory, packageLibraries.Concat(request.References.Select(reference => ResolveNativeReference(reference, compilation.Target!)))))
 				return 1;
+			if (!TryRefreshGeneratedOutputs(GetTopLevelFreshnessOutputs(buildOptions)))
+				return 1;
 			return 0;
+		}
+
+		static IEnumerable<string?> GetTopLevelFreshnessOutputs(NativeBuildOptions buildOptions)
+		{
+			yield return NativeBuildDriver.GetArtifactPath(buildOptions);
+			if (buildOptions.Kind == NativeBuildKind.Shared)
+				yield return NativeBuildDriver.GetSharedImportLibraryPath(buildOptions);
+			if (buildOptions.Kind is NativeBuildKind.Static or NativeBuildKind.Shared)
+			{
+				yield return Path.Combine(buildOptions.OutputDirectory, buildOptions.ProjectName + "_api.camp");
+				yield return Path.Combine(buildOptions.OutputDirectory, buildOptions.ProjectName + "_api.h");
+				yield return Path.Combine(buildOptions.OutputDirectory, buildOptions.ProjectName + "_api.json");
+			}
 		}
 
 		string ResolveArtifactOutputDirectory(Compilation compilation)
