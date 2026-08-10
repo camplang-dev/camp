@@ -1721,6 +1721,49 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Run_uses_executable_artifact_when_shared_project_reference_is_copied()
+	{
+		string root = TempPath("run-shared-project-reference");
+		string libraryRoot = Path.Combine(root, "library");
+		string librarySource = Path.Combine(libraryRoot, "src");
+		string appRoot = Path.Combine(root, "app");
+		Directory.CreateDirectory(librarySource);
+		Directory.CreateDirectory(appRoot);
+		File.WriteAllText(Path.Combine(librarySource, "library.camp"), """
+			export int answer()
+			{
+				return 42;
+			}
+			""");
+		File.WriteAllText(Path.Combine(libraryRoot, "library.campbuild"), """
+			--nostdlib
+			--name run_shared_reference_lib
+			src/*.camp
+			""");
+		string app = Path.Combine(appRoot, "main.camp");
+		File.WriteAllText(app, """
+			#build --nostdlib
+
+			export int main()
+			{
+				return answer() - 42;
+			}
+			""");
+
+		ProcessResult result = RunCampc(
+			"run",
+			app,
+			"--target",
+			NativeTargetForHost(),
+			"--project-reference",
+			libraryRoot + ":shared",
+			"--out-dir",
+			Path.Combine(appRoot, "bin"));
+
+		AssertCommandSucceeded(result);
+	}
+
+	[Fact]
 	public void Project_reference_builds_static_library_and_includes_api()
 	{
 		string root = TempPath("project-reference");

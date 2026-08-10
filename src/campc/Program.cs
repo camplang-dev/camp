@@ -362,13 +362,9 @@ sealed class CampCli
 			return result.ExitCode;
 		}
 
-		string? executable = result.GeneratedFiles
-			.Where(File.Exists)
-			.Where(static path => Path.GetExtension(path) is not ".c" and not ".h" and not ".o" and not ".obj" and not ".a" and not ".lib" and not ".camp" and not ".json")
-			.OrderByDescending(File.GetLastWriteTimeUtc)
-			.FirstOrDefault();
+		string? executable = TryGetRunExecutable(request, environment, out string? executableError);
 		if (executable is null)
-			return Error("run could not find the generated executable.");
+			return Error(executableError ?? "run could not find the generated executable.");
 
 		string extension = Path.GetExtension(executable);
 		ProcessStartInfo info = new()
@@ -393,6 +389,77 @@ sealed class CampCli
 		{
 			return Error(ex.Message);
 		}
+	}
+
+	static string? TryGetRunExecutable(CompilerRequest request, CliEnvironment environment, out string? error)
+	{
+		error = null;
+		List<string> errors = [];
+		TargetDefinition? target = TryGetTargetDefinition(request, environment, errors);
+		if (target is null)
+		{
+			error = string.Join(Environment.NewLine, errors);
+			return null;
+		}
+
+		string outputPrefix = string.IsNullOrWhiteSpace(request.OutDir)
+			? GetDefaultArtifactDirectoryFromRequest(request)
+			: request.OutDir!;
+		string outputRoot = Path.GetFullPath(outputPrefix, request.WorkingDirectory);
+		string outputDirectory = IsDirectRunOutputPath(outputPrefix)
+			? outputRoot
+			: Path.Combine(outputRoot, BuildArtifactLayout.GetArtifactDirectoryName(target, request.BuildKind, request.ProfileName));
+		string projectName = string.IsNullOrWhiteSpace(request.ProjectName)
+			? GetDefaultProjectNameFromRequest(request)
+			: request.ProjectName!;
+		string executable = NativeBuildDriver.GetArtifactPath(new NativeBuildOptions
+		{
+			Target = target,
+			ProfileName = request.ProfileName,
+			BuildDirectory = Path.Combine(outputDirectory, "build"),
+			OutputDirectory = outputDirectory,
+			ProjectName = projectName,
+			Kind = request.BuildKind!.Value,
+			SourceFiles = []
+		});
+		if (!File.Exists(executable))
+		{
+			error = $"run could not find the generated executable: {executable}";
+			return null;
+		}
+		return executable;
+	}
+
+	static string GetDefaultArtifactDirectoryFromRequest(CompilerRequest request)
+	{
+		string? firstSource = request.Files.FirstOrDefault(static file => file != "-");
+		if (string.IsNullOrWhiteSpace(firstSource))
+			return Path.Combine(request.WorkingDirectory, "bin");
+		string full = Path.GetFullPath(firstSource, request.WorkingDirectory);
+		string? directory = Path.GetDirectoryName(full);
+		return Path.Combine(string.IsNullOrWhiteSpace(directory) ? request.WorkingDirectory : directory, "bin");
+	}
+
+	static string GetDefaultProjectNameFromRequest(CompilerRequest request)
+	{
+		string? firstSource = request.Files.FirstOrDefault(static file => file != "-");
+		return string.IsNullOrWhiteSpace(firstSource)
+			? "stdin"
+			: SanitizeIdentifier(Path.GetFileNameWithoutExtension(firstSource));
+	}
+
+	static string SanitizeIdentifier(string value)
+	{
+		StringBuilder builder = new();
+		foreach (char ch in value)
+			builder.Append(char.IsLetterOrDigit(ch) ? ch : '_');
+		return builder.ToString();
+	}
+
+	static bool IsDirectRunOutputPath(string value)
+	{
+		string normalized = value.Replace('\\', '/');
+		return normalized == "." || normalized.EndsWith("/.", StringComparison.Ordinal);
 	}
 
 	static int RunDump(string[] args, CliEnvironment environment)
