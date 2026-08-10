@@ -137,15 +137,20 @@ When the maintainer asks for a release, do not immediately tag or publish.
 Prepare the release in two explicit steps.
 
 First, inspect the repository state and recent history since the previous
-release tag. Recommend a version number using the user-facing change set:
+release tag. Recommend a version number using the user-facing significance of
+the change set. During the `v0` preview stage, do not choose the version number
+based on whether a change is breaking. The language and standard library are
+expected to make breaking changes before `v1`; version numbers communicate the
+scale and importance of the user-facing change instead.
 
-- use a new minor version, such as `v0.2.0-preview.1`, for substantial language,
-  standard-library, compiler, tooling, or installer features;
-- use another preview on the same version, such as `v0.1.0-preview.2`, only when
-  stabilizing the same release line with packaging fixes, bug fixes, or small
-  polish;
-- use a patch version for bug-fix-only releases after the corresponding feature
-  line already exists.
+- Use a new minor version, such as `v0.10.0-preview.1`, for significant language
+  changes, such as a substantial new language feature, a redesign of an existing
+  feature, or a significant standard-library addition.
+- Use a patch version, such as `v0.9.2-preview.1`, for smaller user-facing
+  changes and important bug fixes.
+- Use another preview on the same version, such as `v0.9.1-preview.2`, for small
+  bug fixes, packaging fixes, backend fixes, or internal polish that is not
+  meaningfully user-facing.
 
 Then present the maintainer with:
 
