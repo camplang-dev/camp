@@ -2,8 +2,7 @@ using Std;
 
 export int main()
 {
-	auto value = new Derived();
-	delete value;
+	auto value = new Derived() finally delete;
 	return 0;
 }
 

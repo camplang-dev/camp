@@ -107,6 +107,9 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (type is ClassDefinition classDefinition)
 		{
+			if (FindVirtualDeleteDispatchMethod(classDefinition) is FunctionDefinition virtualDelete)
+				return virtualDelete;
+
 			foreach (ClassDefinition candidateClass in EnumerateClassAndBases(classDefinition))
 				foreach (FunctionDefinition candidateFunction in candidateClass.Functions)
 					if (candidateFunction.Name == DeleteMethodName)
@@ -136,6 +139,21 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		return null;
+	}
+
+	FunctionDefinition? FindVirtualDeleteDispatchMethod(ClassDefinition classDefinition)
+	{
+		FunctionDefinition? dispatch = null;
+		foreach (ClassDefinition candidateClass in EnumerateClassAndBases(classDefinition))
+		{
+			foreach (FunctionDefinition candidateFunction in candidateClass.Functions)
+			{
+				if (candidateFunction.Name == DeleteMethodName
+					&& candidateFunction.Modifier is FunctionModifier.Virtual or FunctionModifier.Abstract)
+					dispatch = candidateFunction;
+			}
+		}
+		return dispatch;
 	}
 
 	static bool IsIteratorStateDefinition(TypeDefinition type)

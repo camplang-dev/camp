@@ -1161,9 +1161,10 @@ public sealed partial class BindableNodeAnalyzer
 
 	CallExpression CreateDestructorCall(Expression target, FunctionDefinition opDelete, Expression? allocatorArgument = null)
 	{
+		Expression receiver = CastDestructorReceiverToOwner(target, opDelete);
 		MemberReferenceExpression targetReference = new()
 		{
-			Target = target,
+			Target = receiver,
 			Name = opDelete.Name,
 			Member = opDelete,
 			ResolvedType = "void"
@@ -1179,8 +1180,30 @@ public sealed partial class BindableNodeAnalyzer
 			call.Arguments.Add(new ArgumentExpression { Value = allocator ?? NullLiteral(opDelete.SourceSyntax), ResolvedType = allocator?.ResolvedType ?? "#NULL" });
 		}
 		if (ShouldEmitFlattenedInstanceCalls())
-			RewriteInstanceInvocation(call, targetReference, target, opDelete);
+			RewriteInstanceInvocation(call, targetReference, receiver, opDelete);
 		return call;
+	}
+
+	Expression CastDestructorReceiverToOwner(Expression target, FunctionDefinition opDelete)
+	{
+		if (opDelete.Modifier is not FunctionModifier.Virtual and not FunctionModifier.Abstract)
+			return target;
+
+		if (FindContainingType(opDelete) is not ClassDefinition owner)
+			return target;
+
+		string ownerType = $"{owner.Name}*";
+		if (target.ResolvedType == ownerType)
+			return target;
+
+		return new CastExpression
+		{
+			SourceSyntax = target.SourceSyntax,
+			Kind = CastKind.Type,
+			Type = TypeReferenceForResolvedType(ownerType),
+			Expression = target,
+			ResolvedType = ownerType
+		};
 	}
 
 	Expression CreateFreeCall(Expression target)
