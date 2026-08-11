@@ -1,0 +1,2 @@
+tests/Diagnostics/static_storage_initializer_invalid.camp(24,36): error: Static field initializer for 'Active' must be a compile-time constant expression.
+tests/Diagnostics/static_storage_initializer_invalid.camp(16,33): error: Global initializer for 'ActiveService' must be a compile-time constant expression.

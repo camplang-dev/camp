@@ -46,8 +46,8 @@ public sealed partial class BindableNodeAnalyzer
 		ValidateTestAttributePlacements(module);
 		ValidateDocAttributePlacements(module);
 		ValidateTopLevelOverloadFamilies(module);
-		AnalyzeGlobalInitializers(module);
 		AnalyzeInlineConstantsAndEnumValues(module);
+		AnalyzeGlobalInitializers(module);
 		AnalyzeInheritance();
 		ValidateShadowClasses();
 		AnalyzeExportProjections(module);
@@ -939,6 +939,8 @@ public sealed partial class BindableNodeAnalyzer
 				if (ContainsConstOfTypeReference(variable.Type))
 					CheckConstOfProducedResult(variable.Type, variable.InitialValue, variable.InitialValue.SourceSyntax ?? variable.SourceSyntax, "Global initializer");
 			}
+			if (!variable.IsInline)
+				ValidateStaticStorageInitializer(variable.InitialValue, variable.Name, "Global initializer");
 		}
 	}
 
@@ -1003,11 +1005,92 @@ public sealed partial class BindableNodeAnalyzer
 				if (ContainsConstOfTypeReference(definition.Type))
 					CheckConstOfProducedResult(definition.Type, definition.InitialValue, definition.InitialValue.SourceSyntax ?? definition.SourceSyntax, "Static field initializer");
 			}
+			if (!definition.IsInline)
+				ValidateStaticStorageInitializer(definition.InitialValue, definition.Name, "Static field initializer");
 		}
 		else
 		{
 			AnalyzeOptionalExpression(definition.InitialValue, scope);
 		}
+	}
+
+	void ValidateStaticStorageInitializer(Expression expression, string ownerName, string context)
+	{
+		if (IsStaticStorageInitializer(expression))
+			return;
+		Report(GetRange(expression.SourceSyntax), $"{context} for '{ownerName}' must be a compile-time constant expression.");
+	}
+
+	bool IsStaticStorageInitializer(Expression? expression)
+	{
+		if (expression is null)
+			return true;
+		if (expressionRewrites.TryGetValue(expression, out Expression? rewrite))
+			return IsStaticStorageInitializer(rewrite);
+
+		return expression switch
+		{
+			LiteralExpression => true,
+			DefaultExpression => true,
+			SizeOfExpression => true,
+			NameOfExpression => true,
+			VTableOfExpression => true,
+			ParenthesizedExpression parenthesized => IsStaticStorageInitializer(parenthesized.Expression),
+			CastExpression cast => IsStaticStorageInitializer(cast.Expression),
+			ArrayExpression array => array.Elements.All(IsStaticStorageInitializer),
+			InitializerExpression initializer => initializer.Items.All(item => IsStaticStorageInitializer(item.Expression)),
+			UnaryExpression { Operator: UnaryOperator.AddressOf } addressOf => IsStaticStorageAddressExpression(addressOf.Operand),
+			UnaryExpression unary => IsStaticStorageInitializer(unary.Operand),
+			BinaryExpression binary => IsStaticStorageInitializer(binary.Left) && IsStaticStorageInitializer(binary.Right),
+			ConditionalExpression conditional => IsStaticStorageInitializer(conditional.Condition) && IsStaticStorageInitializer(conditional.WhenTrue) && IsStaticStorageInitializer(conditional.WhenFalse),
+			VariableReferenceExpression variable => IsStaticStorageInitializerReference(variable.Variable),
+			MethodReferenceExpression method => method.Candidates.Count > 0,
+			MemberReferenceExpression member => IsStaticStorageInitializerReference(member.Member),
+			NamedExpression => IsConstant(expression),
+			MemberExpression => IsConstant(expression),
+			_ => false
+		};
+	}
+
+	bool IsStaticStorageAddressExpression(Expression? expression)
+	{
+		if (expression is null)
+			return false;
+		if (expressionRewrites.TryGetValue(expression, out Expression? rewrite))
+			return IsStaticStorageAddressExpression(rewrite);
+
+		return expression switch
+		{
+			ParenthesizedExpression parenthesized => IsStaticStorageAddressExpression(parenthesized.Expression),
+			CastExpression cast => IsStaticStorageAddressExpression(cast.Expression),
+			VariableReferenceExpression variable => IsStaticStorageAddressReference(variable.Variable),
+			MemberReferenceExpression member => IsStaticStorageAddressReference(member.Member),
+			IndexExpression index => IsStaticStorageAddressExpression(index.Target) && index.Arguments.All(argument => IsStaticStorageInitializer(argument.Value)),
+			MemberExpression member => IsStaticStorageAddressExpression(member.Target),
+			_ => false
+		};
+	}
+
+	bool IsStaticStorageInitializerReference(BindableNode? node)
+	{
+		return node switch
+		{
+			FunctionDefinition => true,
+			VariableDefinition variable => variable.IsInline || variable.ConstantValue is not null || IsStaticScalarConstReference(variable.Type, variable.ResolvedType),
+			FieldDefinition field => field.IsInline || field.ConstantValue is not null || IsStaticScalarConstReference(field.Type, field.ResolvedType),
+			_ => false
+		};
+	}
+
+	bool IsStaticScalarConstReference(TypeReference? type, string? resolvedType)
+	{
+		return (IsConstType(type) || IsConstQualified(resolvedType))
+			&& IsAllowedInlineScalarType(StripTopLevelValueQualifiers(resolvedType ?? type?.ResolvedType ?? ""));
+	}
+
+	static bool IsStaticStorageAddressReference(BindableNode? node)
+	{
+		return node is VariableDefinition or FieldDefinition or FunctionDefinition;
 	}
 
 	void ValidateFieldLifetimeAnnotation(FieldDefinition definition, AnalysisScope scope, TypeDefinition? containingType)
