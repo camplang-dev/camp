@@ -1439,7 +1439,14 @@ public sealed partial class BindableNodeAnalyzer
 		if (parameter is not { Type: TypeReference type } || parameter is ThisParameterDefinition or SizeOfParameterDefinition or NameOfParameterDefinition or VTableOfParameterDefinition)
 			return;
 
-		if (parameter.Modifier is ParameterModifier.In or ParameterModifier.Out or ParameterModifier.Thrown or ParameterModifier.Within)
+		if (parameter.Modifier == ParameterModifier.In)
+		{
+			if (!IsAnyOrAnyConstrainedGeneric(type, scope) && !IsCopyableTypeArgument(type, scope, []))
+				Report(GetNameRange(parameter), $"Parameter '{parameter.Name}' cannot use 'in' with non-copyable type '{parameter.ResolvedType ?? FormatTypeReference(type)}'. Pass it explicitly by pointer instead.");
+			return;
+		}
+
+		if (parameter.Modifier is ParameterModifier.Out or ParameterModifier.Thrown or ParameterModifier.Within)
 			return;
 
 		if (IsAnyOrAnyConstrainedGeneric(type, scope))

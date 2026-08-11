@@ -1,0 +1,2 @@
+tests/Diagnostics/in_noncopyable_parameter_invalid.camp(11,28): error: Parameter 'value' cannot use 'in' with non-copyable type 'Buffer'. Pass it explicitly by pointer instead.
+tests/Diagnostics/in_noncopyable_parameter_invalid.camp(15,30): error: Parameter 'value' cannot use 'in' with non-copyable type 'Widget'. Pass it explicitly by pointer instead.

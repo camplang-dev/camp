@@ -1,0 +1,29 @@
+fixed struct Buffer
+{
+	char[] items;
+	nuint length;
+}
+
+class Widget
+{
+}
+
+void fixedStruct(in Buffer value)
+{
+}
+
+void classInstance(in Widget value)
+{
+}
+
+void genericTransport<T: any>(in T value, sizeof(T))
+{
+}
+
+export int main()
+{
+	Buffer* buffer = new Buffer() finally delete;
+	Widget* widget = new Widget() finally delete;
+	genericTransport(*buffer);
+	return 0;
+}
