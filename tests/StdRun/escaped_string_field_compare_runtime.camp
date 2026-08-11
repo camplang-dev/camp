@@ -1,0 +1,22 @@
+escaped class Holder
+{
+	escaped char[] storage;
+	escaped string text;
+
+	public Holder()
+	{
+		this.storage = new char[3];
+		this.storage[0] = 'h';
+		this.storage[1] = 'i';
+		this.storage[2] = '\0';
+		this.text = (escaped string)this.storage.elements;
+	}
+}
+
+export int main()
+{
+	auto holder = new Holder() finally delete;
+	if (holder.text[0] != 'h' || holder.text[1] != 'i' || holder.text[2] != '\0')
+		return 1;
+	return holder.text.compareTo("hi") == 0 ? 0 : 2;
+}

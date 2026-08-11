@@ -5950,7 +5950,7 @@ public static class CCodeEmitter
 		{
 			return expression is CastExpression
 				|| IsExpandedArrayParameterReference(expression)
-				|| IsPrimitiveStringResolvedName(resolvedType);
+				|| IsPrimitiveStringResolvedName(StripTypeDecorators(resolvedType));
 		}
 
 		bool ContainsGenericParameterTypeName(string type)
