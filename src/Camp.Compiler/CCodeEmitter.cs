@@ -4290,9 +4290,10 @@ public static class CCodeEmitter
 				return;
 
 			string elementType = FormatResolvedType(copy.ElementType, "").Declaration.Trim();
+			int elementCount = StringLiteralEncoding.GetElementCount(copy.Text, copy.ElementType);
 			string source = copy.ExactAppend && copy.ElementType == "char"
 				? FormatCStringLiteral(copy.Text)
-				: "(" + elementType + "[" + copy.Text.Length.ToString(CultureInfo.InvariantCulture) + "]){" + string.Join(", ", copy.Text.Select(FormatCCharacterLiteral)) + "}";
+				: "(" + elementType + "[" + elementCount.ToString(CultureInfo.InvariantCulture) + "]){" + FormatStringLiteralElements(copy.Text, copy.ElementType) + "}";
 			if (copy.ExactAppend)
 			{
 				string exactBuffer = FormatExpression(copy.Buffer);
@@ -4323,6 +4324,16 @@ public static class CCodeEmitter
 
 			WriteIndent(writer, indent);
 			writer.WriteLine(FormatMemoryCall("memcpy", "(void*)(" + destination + ")", "(const void*)(" + source + ")", length + " * sizeof(" + elementType + ")") + ";");
+		}
+
+		static string FormatStringLiteralElements(string value, string elementType)
+		{
+			elementType = StripTypeQualifiers(elementType);
+			if (elementType == "wchar")
+				return string.Join(", ", StringLiteralEncoding.GetUtf16Units(value).Select(static unit => "0x" + unit.ToString("X4", CultureInfo.InvariantCulture)));
+			if (elementType is "char" or "achar")
+				return string.Join(", ", StringLiteralEncoding.GetBytes(value, elementType).Select(static unit => "0x" + unit.ToString("X2", CultureInfo.InvariantCulture)));
+			return string.Join(", ", value.Select(FormatCCharacterLiteral));
 		}
 
 		void WriteBufferCopyStatement(TextWriter writer, BufferCopyStatement copy, int indent)

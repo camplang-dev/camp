@@ -137,7 +137,7 @@ public sealed partial class BindableNodeAnalyzer
 		long constantLength = 0;
 		foreach (InterpolationPart part in parts)
 			if (part is LiteralTextPart text)
-				constantLength += text.Text.Length;
+				constantLength += StringLiteralEncoding.GetElementCount(text.Text, elementType);
 
 		DeclarationStatement required = CreateGeneratedLocal(NewGeneratedLocalName("interpolatedRequired"), lengthType, TypeReferenceForResolvedName(lengthType), NumberLiteral(constantLength.ToString(CultureInfo.InvariantCulture), lengthType));
 		currentStatementPrefix!.Add(required);
@@ -544,6 +544,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (text.Length == 0)
 			return;
 
+		int elementCount = StringLiteralEncoding.GetElementCount(text, elementType);
 		if (exactAppend)
 		{
 			statements.Add(new LiteralCopyStatement
@@ -552,13 +553,13 @@ public sealed partial class BindableNodeAnalyzer
 				ResolvedType = "void",
 				Buffer = bufferElements(),
 				Offset = offset(),
-				Count = LengthLiteral(text.Length, lengthType),
+				Count = LengthLiteral(elementCount, lengthType),
 				ElementType = elementType,
 				LengthType = lengthType,
 				Text = text,
 				ExactAppend = true
 			});
-			statements.Add(Assign(offset(), Add(offset(), LengthLiteral(text.Length, lengthType), lengthType), lengthType, syntax));
+			statements.Add(Assign(offset(), Add(offset(), LengthLiteral(elementCount, lengthType), lengthType), lengthType, syntax));
 			return;
 		}
 
@@ -574,7 +575,7 @@ public sealed partial class BindableNodeAnalyzer
 			NewGeneratedLocalName("interpolatedCopyCount"),
 			lengthType,
 			TypeReferenceForResolvedName(lengthType),
-			MinLength(LengthLiteral(text.Length, lengthType), remaining, lengthType, syntax));
+			MinLength(LengthLiteral(elementCount, lengthType), remaining, lengthType, syntax));
 		statements.Add(count);
 
 		BlockStatement copyBody = CreateBlock([
@@ -597,7 +598,7 @@ public sealed partial class BindableNodeAnalyzer
 			Condition = GreaterThan(CreateVariableReference(count.Target, lengthType), NumberLiteral("0", lengthType), syntax),
 			Body = copyBody
 		});
-		statements.Add(Assign(offset(), Add(offset(), LengthLiteral(text.Length, lengthType), lengthType), lengthType, syntax));
+		statements.Add(Assign(offset(), Add(offset(), LengthLiteral(elementCount, lengthType), lengthType), lengthType, syntax));
 	}
 
 	DeclarationStatement AddClampedOffsetLocal(List<Statement> statements, Func<Expression> bufferLength, Func<Expression> offset, string lengthType, SyntaxNode? syntax)

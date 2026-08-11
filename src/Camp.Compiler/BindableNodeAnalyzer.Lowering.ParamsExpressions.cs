@@ -2500,7 +2500,7 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		components = [];
 		string resolvedType = literal.ResolvedType ?? "";
-		if (!IsStringLiteralArrayType(resolvedType, out string pointerType, out string lengthType))
+		if (!IsStringLiteralArrayType(resolvedType, out string pointerType, out string lengthType, out string elementType))
 			return false;
 
 		components.Add(new LiteralExpression
@@ -2511,15 +2511,16 @@ public sealed partial class BindableNodeAnalyzer
 			Value = literal.Value,
 			ResolvedType = pointerType
 		});
-		components.Add(NumberLiteral(GetStringLiteralLength(literal).ToString(System.Globalization.CultureInfo.InvariantCulture), lengthType));
+		components.Add(NumberLiteral(GetStringLiteralLength(literal, elementType).ToString(System.Globalization.CultureInfo.InvariantCulture), lengthType));
 		return true;
 	}
 
-	static bool IsStringLiteralArrayType(string type, out string pointerType, out string lengthType)
+	static bool IsStringLiteralArrayType(string type, out string pointerType, out string lengthType, out string elementType)
 	{
 		pointerType = "";
 		lengthType = "";
-		if (!TryParseStringLiteralArrayType(type, out string elementType, out bool isConst))
+		elementType = "";
+		if (!TryParseStringLiteralArrayType(type, out elementType, out bool isConst))
 			return false;
 
 		pointerType = AddPointer(elementType);
@@ -2765,10 +2766,10 @@ public sealed partial class BindableNodeAnalyzer
 		};
 	}
 
-	static int GetStringLiteralLength(LiteralExpression literal)
+	static int GetStringLiteralLength(LiteralExpression literal, string elementType)
 	{
 		if (literal.Value is string value)
-			return value.Length;
+			return StringLiteralEncoding.GetElementCount(value, elementType);
 
 		string text = literal.Text;
 		if (text.Length >= 2 && (text[0] == '"' || text[0] == '\'') && text[^1] == text[0])

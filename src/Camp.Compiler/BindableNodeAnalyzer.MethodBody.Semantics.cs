@@ -4025,11 +4025,11 @@ public sealed partial class BindableNodeAnalyzer
 
 	void ValidateFixedCharacterArrayStringLiteral(LiteralExpression literal, string targetType)
 	{
-		if (!TryGetFixedArrayShape(targetType, out _, out long length))
+		if (!TryGetFixedArrayShape(targetType, out string elementType, out long length))
 			return;
 
 		string value = literal.Value as string ?? "";
-		if (value.Length > length)
+		if (StringLiteralEncoding.GetElementCount(value, elementType) > length)
 			Report(GetRange(literal.SourceSyntax), $"String literal contains too many code units for {targetType}.");
 	}
 

@@ -1,0 +1,34 @@
+using Std;
+
+export int main()
+{
+	const char[] box = "┌";
+	if (box.length != 3)
+		return 1;
+	if (box.compareTo("\xE2\x94\x8C") != 0)
+		return 2;
+
+	const char[] mixed = "A┌é";
+	if (mixed.length != 6)
+		return 3;
+	if (mixed.compareTo("A\xE2\x94\x8C\xC3\xA9") != 0)
+		return 4;
+
+	fixed char[3] interpolatedBox = $"┌";
+	if (interpolatedBox[..].compareTo("\xE2\x94\x8C") != 0)
+		return 5;
+
+	const wchar[] wide = "Aé\U0001F600";
+	if (wide.length != 4)
+		return 6;
+	if (wide[0] != (wchar)'A' || wide[1] != (wchar)0x00E9 || wide[2] != (wchar)0xD83D || wide[3] != (wchar)0xDE00)
+		return 7;
+
+	const achar[] ascii = "ABC";
+	if (ascii.length != 3)
+		return 8;
+	if (ascii[0] != (achar)'A' || ascii[1] != (achar)'B' || ascii[2] != (achar)'C')
+		return 9;
+
+	return 0;
+}
