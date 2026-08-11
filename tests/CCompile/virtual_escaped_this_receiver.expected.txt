@@ -1,0 +1,93 @@
+// file: virtual_escaped_this_receiver.c
+#include "virtual_escaped_this_receiver_private.h"
+
+/* Private file declarations. */
+void *malloc(uintptr_t size);
+static void Derived_destroy(Derived *this);
+void Derived__destroy(Base *ctx);
+static int main(void);
+
+_Base _Base__vt = { .destroy = Base__destroy };
+_Derived _Derived__vt = { .Base = { .destroy = Derived__destroy } };
+void Base_destroy(Base *this)
+{
+	this->_vt->destroy(this);
+}
+
+void Base__destroy(Base *this)
+{
+	this->destroyed = 1;
+}
+
+void Derived__destroy(Base *ctx)
+{
+	Derived *this = (Derived *)(ctx);
+	(void)this;
+	Base *root = (Base *)(this);
+	root->destroyed = 2;
+}
+
+static int main(void)
+{
+	Derived *value = (Derived *)(malloc(sizeof(Derived)));
+	if ((value != NULL))
+	{
+		*value = (Derived){0};
+		value->_vt = &_Derived__vt.Base;
+	}
+	Base *root = (Base *)(value);
+	Base_destroy((Base *)(root));
+	return ((root->destroyed == 2) ? 0 : 1);
+}
+
+// file: virtual_escaped_this_receiver_private.h
+#ifndef VIRTUAL_ESCAPED_THIS_RECEIVER_PRIVATE_H_
+#define VIRTUAL_ESCAPED_THIS_RECEIVER_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct Base Base;
+typedef struct Derived Derived;
+typedef struct _Base _Base;
+typedef struct _Derived _Derived;
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Layouts. */
+struct _Base
+{
+	void (* destroy)(Base *ctx);
+};
+struct _Derived
+{
+	_Base Base;
+};
+struct Base
+{
+	_Base *_vt;
+	int destroyed;
+};
+struct Derived
+{
+	_Base *_vt;
+	int destroyed;
+};
+
+/* Function declarations. */
+void Base_destroy(Base *this);
+void Base__destroy(Base *this);
+void Derived__destroy(Base *ctx);
+
+/* Object declarations. */
+extern _Base _Base__vt;
+extern _Derived _Derived__vt;
+
+
+#endif
+// compile
+compiled: virtual_escaped_this_receiver.c

@@ -1,0 +1,28 @@
+extern void* malloc(nuint size);
+
+escaped abstract class Base
+{
+	int destroyed;
+
+	public virtual void destroy(escaped this)
+	{
+		this.destroyed = 1;
+	}
+}
+
+escaped sealed class Derived: Base
+{
+	override void destroy(escaped this)
+	{
+		Base* root = (Base*)this;
+		root.destroyed = 2;
+	}
+}
+
+int main()
+{
+	Derived* value = new Derived();
+	Base* root = (Base*)value;
+	root.destroy();
+	return root.destroyed == 2 ? 0 : 1;
+}

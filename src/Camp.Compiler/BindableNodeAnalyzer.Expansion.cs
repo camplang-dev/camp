@@ -138,6 +138,11 @@ public sealed partial class BindableNodeAnalyzer
 		implementation.ResolvedType = source.ResolvedType;
 		implementation.Body = source.Body;
 		CopyParameters(source.Parameters, implementation.Parameters);
+		if (GetExplicitThisParameter(source) is not null
+			&& implementation.Parameters.FirstOrDefault() is ThisParameterDefinition)
+		{
+			implementation.Parameters.RemoveAt(0);
+		}
 		ApplyVirtualImplementationThisTypes(implementation, owner, abiOwner ?? owner, source);
 		return implementation;
 	}
@@ -1626,7 +1631,7 @@ public sealed partial class BindableNodeAnalyzer
 		string receiverType = owner is NewtypeDefinition ? owner.Name : $"{owner.Name}*";
 		ThisParameterDefinition? explicitThis = GetExplicitThisParameter(function) ?? function.EffectiveThisParameter;
 		if (explicitThis is not null)
-			return ApplyThisDeclarators(receiverType, explicitThis);
+			return StripLifetimeQualifiers(ApplyThisDeclarators(receiverType, explicitThis));
 		return IsPropertyGetterFunction(function) ? AddConstToReceiverInstance(receiverType) : receiverType;
 	}
 
