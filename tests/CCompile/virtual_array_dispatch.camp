@@ -1,0 +1,32 @@
+extern void* malloc(nuint size);
+extern void free(void* ptr);
+
+abstract class ArraySink
+{
+	abstract void write(const char[] value);
+}
+
+sealed class CountingSink: ArraySink
+{
+	nuint total;
+
+	override void write(const char[] value)
+	{
+		this.total += value.length;
+	}
+}
+
+void writeSlice(ArraySink* sink, char[] value, nuint length)
+{
+	sink.write(value[..length]);
+}
+
+int main()
+{
+	CountingSink* sink = new CountingSink();
+	fixed char[4] text = "abcd";
+	writeSlice(sink, text[..], 3);
+	int result = sink.total == 3 ? 0 : 1;
+	delete sink;
+	return result;
+}

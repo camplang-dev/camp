@@ -2,43 +2,6 @@
 
 Next bug number: BUG-071.
 
-## BUG-068: Virtual methods with array parameters can produce duplicate hidden-length arguments
-
-Status: open
-
-Observed while implementing a terminal base class with an internal virtual method
-that accepted `const char[]`. Source-only package builds failed during lowering
-with a no-line diagnostic similar to:
-
-```text
-Argument 'text_length' was already supplied.
-```
-
-General repro shape:
-
-```camp
-abstract class Base
-{
-	virtual void writeRaw(const char[] text) { }
-}
-
-sealed class Derived: Base
-{
-	override void writeRaw(const char[] text) { }
-}
-
-void use(Base* target, char[] buffer, nuint length)
-{
-	target.writeRaw(buffer[..length]);
-}
-```
-
-Expected behavior: array hidden ABI components should be supplied exactly once
-for virtual dispatch, including calls with slices.
-
-Workaround used: make the internal virtual method accept explicit pointer and
-length parameters instead of an array parameter.
-
 ## BUG-069: `catch _` with enum thrown slots can leave unresolved argument types
 
 Status: open

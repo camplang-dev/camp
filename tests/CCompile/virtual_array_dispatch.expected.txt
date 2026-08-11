@@ -1,0 +1,94 @@
+// file: virtual_array_dispatch.c
+#include "virtual_array_dispatch_private.h"
+
+/* Private file declarations. */
+void *malloc(uintptr_t size);
+void free(void *ptr);
+static void ArraySink_write(ArraySink *this, const char *value, uintptr_t value_length);
+static void CountingSink_write(CountingSink *this, const char *value, uintptr_t value_length);
+void CountingSink__write(ArraySink *ctx, const char *value, uintptr_t value_length);
+static void writeSlice(ArraySink *sink, char *value, uintptr_t value_length, uintptr_t length);
+static int main(void);
+
+_ArraySink _ArraySink__vt = { .write = NULL };
+_CountingSink _CountingSink__vt = { .ArraySink = { .write = CountingSink__write } };
+static void ArraySink_write(ArraySink *this, const char *value, uintptr_t value_length)
+{
+	this->_vt->write(this, value, value_length);
+}
+
+void CountingSink__write(ArraySink *ctx, const char *value, uintptr_t value_length)
+{
+	CountingSink *this = (CountingSink *)(ctx);
+	(void)this;
+	this->total += value_length;
+}
+
+static void writeSlice(ArraySink *sink, char *value, uintptr_t value_length, uintptr_t length)
+{
+	ArraySink_write(sink, (value + 0), ((length > value_length) ? value_length : ((length < 0) ? 0 : length)));
+}
+
+static int main(void)
+{
+	CountingSink *sink = (CountingSink *)(malloc(sizeof(CountingSink)));
+	if ((sink != NULL))
+	{
+		*sink = (CountingSink){0};
+		sink->_vt = &_CountingSink__vt.ArraySink;
+	}
+	char text[4] = "abcd";
+	writeSlice((ArraySink *)sink, ((char *)(text) + 0), 4, 3);
+	int result = ((sink->total == 3) ? 0 : 1);
+	free((void *)(sink));
+	return result;
+}
+
+// file: virtual_array_dispatch_private.h
+#ifndef VIRTUAL_ARRAY_DISPATCH_PRIVATE_H_
+#define VIRTUAL_ARRAY_DISPATCH_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct ArraySink ArraySink;
+typedef struct CountingSink CountingSink;
+typedef struct _ArraySink _ArraySink;
+typedef struct _CountingSink _CountingSink;
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Layouts. */
+struct _ArraySink
+{
+	void (* write)(ArraySink *ctx, const char *value, uintptr_t value_length);
+};
+struct _CountingSink
+{
+	_ArraySink ArraySink;
+};
+struct ArraySink
+{
+	_ArraySink *_vt;
+};
+struct CountingSink
+{
+	_ArraySink *_vt;
+	uintptr_t total;
+};
+
+/* Function declarations. */
+void CountingSink__write(ArraySink *ctx, const char *value, uintptr_t value_length);
+
+/* Object declarations. */
+extern _ArraySink _ArraySink__vt;
+extern _CountingSink _CountingSink__vt;
+
+
+#endif
+// compile
+compiled: virtual_array_dispatch.c
