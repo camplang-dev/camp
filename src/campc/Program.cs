@@ -876,6 +876,12 @@ sealed class CampCli
 				continue;
 			}
 
+			if (apiHeader is null && File.Exists(expectedApiHeader))
+				apiHeader = expectedApiHeader;
+			if (library is null && requireLibrary && Directory.Exists(projectOutputDirectory))
+				library = Directory.EnumerateFiles(projectOutputDirectory)
+					.FirstOrDefault(path => IsNativeLibrary(path, consumerRequest.TargetName, consumerRequest.RuntimeRoot, referenceBuildKind));
+
 			if (apiHeader is null || requireLibrary && library is null)
 			{
 				errors.Add(requireLibrary
