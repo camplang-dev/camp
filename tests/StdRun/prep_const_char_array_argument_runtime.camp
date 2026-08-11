@@ -1,0 +1,16 @@
+static class Builder
+{
+	public static nuint wrap(const char[] text, prep char[] buffer = default)
+	{
+		auto need = "[".toString(buffer);
+		need += text.toString(buffer[need..]);
+		need += "]".toString(buffer[need..]);
+		return need;
+	}
+}
+
+export int main(string[] args)
+{
+	auto text = Builder.wrap("value");
+	return text.compareTo("[value]") == 0 ? 0 : 1;
+}
