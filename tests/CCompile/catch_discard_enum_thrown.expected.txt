@@ -1,0 +1,61 @@
+// file: catch_discard_enum_thrown.c
+#include "catch_discard_enum_thrown_private.h"
+
+/* Private file declarations. */
+static bool canFail(ErrorCode *error);
+static int valueOrThrow(ErrorCode *error);
+static int main(void);
+
+static bool canFail(ErrorCode *error)
+{
+	{
+		(*error) = ErrorCode_FAILED;
+		return 0;
+	}
+}
+
+static int valueOrThrow(ErrorCode *error)
+{
+	{
+		(*error) = 0;
+		return 42;
+	}
+}
+
+static int main(void)
+{
+	ErrorCode __discard1;
+	bool __discard2;
+	__discard2 = canFail(&__discard1);
+	ErrorCode __discard3;
+	int value = valueOrThrow(&__discard3);
+	return ((value == 42) ? 0 : 1);
+}
+
+// file: catch_discard_enum_thrown_private.h
+#ifndef CATCH_DISCARD_ENUM_THROWN_PRIVATE_H_
+#define CATCH_DISCARD_ENUM_THROWN_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+
+/* Enums. */
+typedef uint8_t ErrorCode;
+#define ErrorCode_OK ((ErrorCode)0)
+#define ErrorCode_FAILED ((ErrorCode)1)
+
+/* Newtypes. */
+
+/* Layouts. */
+
+/* Function declarations. */
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: catch_discard_enum_thrown.c

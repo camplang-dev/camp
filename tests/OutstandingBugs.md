@@ -2,43 +2,6 @@
 
 Next bug number: BUG-071.
 
-## BUG-069: `catch _` with enum thrown slots can leave unresolved argument types
-
-Status: open
-
-Observed while testing methods declared with an enum thrown slot. The package
-compiled, but test execution aborted during C emission with:
-
-```text
-C emission aborted because ArgumentExpression ... has unresolved type '#ERROR'.
-```
-
-General repro shape:
-
-```camp
-enum ErrorCode: byte
-{
-	OK,
-	FAILED,
-}
-
-bool canFail(thrown ErrorCode error)
-{
-	return true;
-}
-
-void caller()
-{
-	_ = canFail(catch _);
-}
-```
-
-Expected behavior: `catch _` should create typed discard storage for the thrown
-slot, as it does for other catch/out discard uses, or produce a normal
-diagnostic if the form is invalid.
-
-Workaround used: declare a typed local error value and write `catch error`.
-
 ## BUG-070: Virtual methods with `escaped this` receivers emit inconsistent C receiver shapes
 
 Status: open

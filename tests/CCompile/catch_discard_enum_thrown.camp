@@ -1,0 +1,22 @@
+enum ErrorCode: byte
+{
+	OK,
+	FAILED,
+}
+
+bool canFail(thrown ErrorCode error)
+{
+	throw FAILED;
+}
+
+int valueOrThrow(thrown ErrorCode error)
+{
+	return 42;
+}
+
+int main()
+{
+	_ = canFail(catch _);
+	int value = valueOrThrow(catch _);
+	return value == 42 ? 0 : 1;
+}
