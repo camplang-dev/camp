@@ -187,8 +187,7 @@ public sealed partial class BindableNodeAnalyzer
 
 			case TargetTypeSpecTypeReference targetSpec:
 				AnalyzeOptionalType(targetSpec.Type, scope);
-				ValidateTargetTypeSpec(targetSpec);
-				type.ResolvedType = FormatTypeReference(type);
+				type.ResolvedType = ValidateTargetTypeSpec(targetSpec) ? FormatTypeReference(type) : ErrorType;
 				break;
 
 			case RawFunctionPointerTypeReference:
@@ -850,15 +849,15 @@ public sealed partial class BindableNodeAnalyzer
 		return GetNameRange(parameter) ?? GetRange(parameter.SourceSyntax);
 	}
 
-	void ValidateTargetTypeSpec(TargetTypeSpecTypeReference typeSpec)
+	bool ValidateTargetTypeSpec(TargetTypeSpecTypeReference typeSpec)
 	{
 		if (string.IsNullOrWhiteSpace(typeSpec.Specifier))
-			return;
+			return true;
 
 		if (typeSpec.Type is PrimitiveTypeReference { Type: PrimitiveType.Untyped })
 		{
 			Report(GetRange(typeSpec.SourceSyntax), "Raw carrier 'untyped' cannot have target specifiers.");
-			return;
+			return false;
 		}
 
 		if (selectedTarget?.Capabilities.HasCallSpec(typeSpec.Specifier) == true)
@@ -866,34 +865,35 @@ public sealed partial class BindableNodeAnalyzer
 			if (typeSpec.Type is RawFunctionPointerTypeReference)
 			{
 				Report(GetRange(typeSpec.SourceSyntax), $"Callspec '{typeSpec.Specifier}' cannot be applied to 'fn*'; use a concrete fn type.");
-				return;
+				return false;
 			}
 			Report(GetRange(typeSpec.SourceSyntax), $"Callspec '{typeSpec.Specifier}' cannot be applied to data-pointer or integer carrier type.");
-			return;
+			return false;
 		}
 
 		typeSpec.Specifier = ResolveTypeSpecAlias(typeSpec.Specifier, typeSpec.SourceSyntax);
 		if (selectedTarget is null || !selectedTarget.Capabilities.HasTypeSpec(typeSpec.Specifier))
 		{
 			Report(GetRange(typeSpec.SourceSyntax), $"Typespec '{typeSpec.Specifier}' is not defined by target '{selectedTarget?.Name ?? "#NONE"}'.");
-			return;
+			return false;
 		}
 
 		if (typeSpec.IsPrefix)
 		{
 			Report(GetRange(typeSpec.SourceSyntax), $"Typespec '{typeSpec.Specifier}' must appear after the type form it modifies.");
-			return;
+			return false;
 		}
 
 		TypeReference? inner = typeSpec.Type;
 		if (inner is PrimitiveTypeReference { Type: PrimitiveType.NInt or PrimitiveType.NUInt or PrimitiveType.String or PrimitiveType.WString or PrimitiveType.AString })
-			return;
+			return true;
 
 		inner = UnwrapTypeDeclarators(inner ?? typeSpec);
 		if (inner is PointerTypeReference or ArrayTypeReference or OptionalTypeReference or CallableTypeReference or RawFunctionPointerTypeReference or GenericTypeReference)
-			return;
+			return true;
 
 		Report(GetRange(typeSpec.SourceSyntax), $"Typespec '{typeSpec.Specifier}' cannot be applied to type '{FormatTypeReference(typeSpec.Type)}'.");
+		return false;
 	}
 
 	string ResolveNamedType(NamedTypeReference named, AnalysisScope scope)

@@ -6,6 +6,27 @@ namespace Camp.Compiler;
 
 public sealed record ParseDiagnostic(TokenRange? Range, string Message, string? Code = null, DiagnosticSeverity Severity = DiagnosticSeverity.Error);
 
+public sealed class CampParserOptions
+{
+	public static CampParserOptions Empty { get; } = new([], []);
+
+	public CampParserOptions(IEnumerable<string> typeSpecs, IEnumerable<string> callSpecs)
+	{
+		TypeSpecs = new HashSet<string>(typeSpecs, StringComparer.Ordinal);
+		CallSpecs = new HashSet<string>(callSpecs, StringComparer.Ordinal);
+	}
+
+	public IReadOnlySet<string> TypeSpecs { get; }
+	public IReadOnlySet<string> CallSpecs { get; }
+
+	public static CampParserOptions FromTarget(TargetDefinition? target)
+	{
+		return target is null
+			? Empty
+			: new CampParserOptions(target.TypeSpecs.Keys, target.CallSpecs.Keys);
+	}
+}
+
 public sealed class CampParser
 {
 	static readonly string[] TypeDeclarationKeywords = ["struct", "class", "interface", "params", "enum", "newtype"];
@@ -16,21 +37,23 @@ public sealed class CampParser
 	static readonly string[] StatementKeywords = ["if", "do", "while", "for", "else", "yield", "return", "continue", "break", "switch", "within", "try", "catch", "finally", "foreach", "delete", "goto", "throw"];
 
 	readonly TokenSequence tokens;
+	readonly CampParserOptions options;
 	readonly List<ParseDiagnostic> diagnostics = [];
 	int index;
 	bool seenNonPreludeCompilationUnitItem;
 	int namespaceBlockDepth;
 
-	public CampParser(TokenSequence tokens)
+	public CampParser(TokenSequence tokens, CampParserOptions? options = null)
 	{
 		this.tokens = tokens;
+		this.options = options ?? CampParserOptions.Empty;
 	}
 
 	public IReadOnlyList<ParseDiagnostic> Diagnostics => diagnostics;
 
-	public static CompilationUnitSyntax Parse(TokenSequence tokens, out IReadOnlyList<ParseDiagnostic> diagnostics)
+	public static CompilationUnitSyntax Parse(TokenSequence tokens, out IReadOnlyList<ParseDiagnostic> diagnostics, CampParserOptions? options = null)
 	{
-		CampParser parser = new(tokens);
+		CampParser parser = new(tokens, options);
 		CompilationUnitSyntax syntax = parser.ParseCompilationUnit();
 		diagnostics = parser.Diagnostics;
 		return syntax;
@@ -441,7 +464,7 @@ public sealed class CampParser
 			TypeSyntax? callable = ParseType();
 			if (callable is CallableTypeSyntax callableType)
 			{
-				while (IsPossibleTargetSpecIdentifier())
+				while (IsPossibleTrailingCallableSpecIdentifier(requireFollowingIdentifier: true))
 				{
 					if (callableType.CallSpec is null)
 						callableType.CallSpec = Take();
@@ -846,9 +869,9 @@ public sealed class CampParser
 			{
 				CallableKeyword = Take(),
 			};
-			if (IsPossibleLeadingCallSpecIdentifier())
+			if (IsPossibleCallableSpecIdentifier())
 				callable.CallSpec = Take();
-			if (IsPossibleTargetSpecIdentifier())
+			if (IsPossibleCallableSpecIdentifier())
 				callable.TargetSpec = Take();
 			callable.ReturnType = Is("prep") ? ParsePrepReturnType() : ParseType();
 			callable.ParameterList = Is("(") ? ParseParameterList() : null;
@@ -894,7 +917,7 @@ public sealed class CampParser
 		if (Is("this"))
 			return new ThisTypeSyntax { ThisKeyword = Take() };
 
-		if (IsPossibleTargetSpecIdentifier())
+		if (IsKnownTargetTypeSpecIdentifier())
 			return new TargetTypeSpecTypeSyntax { Specifier = Take(), Type = ParseTypePrefix(), IsPrefix = true };
 
 		return ParseQualifiedNameType();
@@ -1014,22 +1037,56 @@ public sealed class CampParser
 		return syntax;
 	}
 
-	bool IsPossibleTargetSpecIdentifier()
+	bool IsKnownTargetTypeSpecIdentifier()
 	{
-		return IsIdentifier() && Current?.Value.StartsWith("_", StringComparison.Ordinal) == true;
+		return IsIdentifier() && Current?.Value is string value && options.TypeSpecs.Contains(value);
+	}
+
+	bool IsKnownTargetCallSpecIdentifier()
+	{
+		return IsIdentifier() && Current?.Value is string value && options.CallSpecs.Contains(value);
+	}
+
+	bool IsUnknownUnderscoreIdentifier()
+	{
+		return IsIdentifier()
+			&& Current?.Value is string value
+			&& value.StartsWith("_", StringComparison.Ordinal)
+			&& !options.TypeSpecs.Contains(value)
+			&& !options.CallSpecs.Contains(value);
 	}
 
 	bool IsPossiblePostfixTargetSpecIdentifier()
 	{
-		return IsPossibleTargetSpecIdentifier();
+		return IsKnownTargetTypeSpecIdentifier() || IsKnownTargetCallSpecIdentifier() || IsUnknownUnderscoreIdentifier();
+	}
+
+	bool IsPossibleCallableSpecIdentifier()
+	{
+		if (IsKnownTargetTypeSpecIdentifier() || IsKnownTargetCallSpecIdentifier())
+			return true;
+		if (IsUnknownUnderscoreIdentifier())
+			return IsObviousTypeStart(PeekValue(1));
+		if (IsReservedLeadingCallSpecToken(Current?.Value))
+			return false;
+		return IsIdentifier() && IsObviousTypeStart(PeekValue(1));
+	}
+
+	bool IsPossibleTrailingCallableSpecIdentifier(bool requireFollowingIdentifier)
+	{
+		if (!IsPossibleCallableSpecIdentifier())
+			return false;
+		return !requireFollowingIdentifier || Peek(1)?.Class == TokenClass.Identifier;
 	}
 
 	bool IsPossibleLeadingCallSpecIdentifier()
 	{
 		if (!IsIdentifier())
 			return false;
-		if (Current?.Value.StartsWith("_", StringComparison.Ordinal) == true)
+		if (IsKnownTargetCallSpecIdentifier())
 			return true;
+		if (IsUnknownUnderscoreIdentifier())
+			return IsObviousTypeStart(PeekValue(1));
 		if (IsReservedLeadingCallSpecToken(Current?.Value))
 			return false;
 
@@ -1037,6 +1094,16 @@ public sealed class CampParser
 			"void", "bool", "string", "wstring", "astring", "byte", "sbyte", "ushort", "short",
 			"uint", "int", "ulong", "long", "nuint", "nint", "float", "double", "char",
 			"wchar", "achar", "uchar", "untyped", "fn", "delegate", "once", "async", "iter");
+	}
+
+	static bool IsObviousTypeStart(string? value)
+	{
+		return ValueIsAny(value,
+			"void", "bool", "string", "wstring", "astring", "byte", "sbyte", "ushort", "short",
+			"uint", "int", "ulong", "long", "nuint", "nint", "float", "double", "char",
+			"wchar", "achar", "uchar", "untyped", "fn", "delegate", "once", "async", "iter",
+			"prep", "const", "constof", "volatile", "escaped", "scoped", "unscoped", "this",
+			"struct", "class", "params", "thrown");
 	}
 
 	static bool IsReservedLeadingCallSpecToken(string? value)

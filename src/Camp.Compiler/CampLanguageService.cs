@@ -528,7 +528,7 @@ public static class CampLanguageService
 
 		string text = File.ReadAllText(fullPath);
 		WithinAllocationPolicy? policy = ReadWithinAllocationPolicy(text);
-		if (parseCache.TryGet(fullPath, text, compilation.PreprocessorSymbols, compilation.TargetOwnedPreprocessorSymbols, out ParsedSourceCacheEntry? cached) && cached is not null)
+		if (parseCache.TryGet(fullPath, text, compilation.PreprocessorSymbols, compilation.TargetOwnedPreprocessorSymbols, compilation.Target, out ParsedSourceCacheEntry? cached) && cached is not null)
 		{
 			return new SourceFile
 			{
@@ -548,9 +548,9 @@ public static class CampLanguageService
 		TokenSequence rawTokens = new(CampTokenizer.Tokenize(text));
 		PreprocessResult preprocess = CampPreprocessor.Process(rawTokens, compilation.PreprocessorSymbols, compilation.TargetOwnedPreprocessorSymbols);
 		TokenSequence tokens = new(preprocess.Tokens);
-		CompilationUnitSyntax syntax = CampParser.Parse(tokens, out IReadOnlyList<ParseDiagnostic> parseDiagnostics);
+		CompilationUnitSyntax syntax = CampParser.Parse(tokens, out IReadOnlyList<ParseDiagnostic> parseDiagnostics, CampParserOptions.FromTarget(compilation.Target));
 		IReadOnlyList<ParseDiagnostic> diagnostics = [.. preprocess.Diagnostics, .. parseDiagnostics];
-		parseCache.Add(fullPath, text, compilation.PreprocessorSymbols, compilation.TargetOwnedPreprocessorSymbols, tokens, preprocess.Diagnostics, syntax, diagnostics);
+		parseCache.Add(fullPath, text, compilation.PreprocessorSymbols, compilation.TargetOwnedPreprocessorSymbols, compilation.Target, tokens, preprocess.Diagnostics, syntax, diagnostics);
 		return new SourceFile
 		{
 			Path = fullPath,
@@ -715,9 +715,10 @@ public static class CampLanguageService
 			string text,
 			IReadOnlySet<string> preprocessorSymbols,
 			IReadOnlySet<string> targetOwnedPreprocessorSymbols,
+			TargetDefinition? target,
 			out ParsedSourceCacheEntry? entry)
 		{
-			string key = CreateKey(path, text, preprocessorSymbols, targetOwnedPreprocessorSymbols);
+			string key = CreateKey(path, text, preprocessorSymbols, targetOwnedPreprocessorSymbols, target);
 			lock (gate)
 				return entries.TryGetValue(key, out entry);
 		}
@@ -727,12 +728,13 @@ public static class CampLanguageService
 			string text,
 			IReadOnlySet<string> preprocessorSymbols,
 			IReadOnlySet<string> targetOwnedPreprocessorSymbols,
+			TargetDefinition? target,
 			TokenSequence tokens,
 			IReadOnlyList<ParseDiagnostic> preprocessDiagnostics,
 			CompilationUnitSyntax syntaxTree,
 			IReadOnlyList<ParseDiagnostic> parseDiagnostics)
 		{
-			string key = CreateKey(path, text, preprocessorSymbols, targetOwnedPreprocessorSymbols);
+			string key = CreateKey(path, text, preprocessorSymbols, targetOwnedPreprocessorSymbols, target);
 			lock (gate)
 			{
 				if (!entries.ContainsKey(key))
@@ -747,10 +749,17 @@ public static class CampLanguageService
 			string path,
 			string text,
 			IReadOnlySet<string> preprocessorSymbols,
-			IReadOnlySet<string> targetOwnedPreprocessorSymbols)
+			IReadOnlySet<string> targetOwnedPreprocessorSymbols,
+			TargetDefinition? target)
 		{
 			StringBuilder builder = new();
 			builder.Append(Path.GetFullPath(path));
+			builder.Append('\n');
+			builder.Append(target?.Name ?? "");
+			builder.Append('\n');
+			AppendSet(builder, target?.TypeSpecs.Keys ?? []);
+			builder.Append('\n');
+			AppendSet(builder, target?.CallSpecs.Keys ?? []);
 			builder.Append('\n');
 			AppendSet(builder, preprocessorSymbols);
 			builder.Append('\n');
@@ -761,7 +770,7 @@ public static class CampLanguageService
 			return builder.ToString();
 		}
 
-		static void AppendSet(StringBuilder builder, IReadOnlySet<string> values)
+		static void AppendSet(StringBuilder builder, IEnumerable<string> values)
 		{
 			foreach (string value in values.Order(StringComparer.Ordinal))
 			{

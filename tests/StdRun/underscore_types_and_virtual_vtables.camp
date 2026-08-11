@@ -1,0 +1,33 @@
+struct _Thing
+{
+	int value;
+}
+
+virtual class Base
+{
+	virtual int value()
+	{
+		return 7;
+	}
+}
+
+virtual class Derived: Base
+{
+	override int value()
+	{
+		return 11;
+	}
+}
+
+export int main()
+{
+	_Thing thing = { .value = 3 };
+	_Thing* thingPointer = &thing;
+	const _Thing* constThingPointer = thingPointer;
+	Derived* derived = new Derived() finally delete;
+	Base* base = (Base*)derived;
+	_Base* vt = base._vt;
+	fn int(Base*) value = vt.value;
+	Console.writeLine(constThingPointer.value + value(base));
+	return 0;
+}

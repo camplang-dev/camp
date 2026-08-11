@@ -1,0 +1,1 @@
+tests/Diagnostics/nonunderscore_malformed_declaration.camp(3,13): error: Expected ';'.

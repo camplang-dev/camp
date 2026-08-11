@@ -1,0 +1,12 @@
+// @ target test-abi-slot-compatible
+
+extern callme int nativeCount();
+
+export int useSpecs(
+	byte* last data,
+	nuint Item count,
+	fn* Item callback,
+	fn Item callme int() typedCallback)
+{
+	return nativeCount() + (int)count;
+}

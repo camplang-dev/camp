@@ -75,7 +75,7 @@ public static class CompilationPipeline
 					success = false;
 				continue;
 			}
-			file.SyntaxTree = CampParser.Parse(file.Tokens!, out IReadOnlyList<ParseDiagnostic> diagnostics);
+			file.SyntaxTree = CampParser.Parse(file.Tokens!, out IReadOnlyList<ParseDiagnostic> diagnostics, CampParserOptions.FromTarget(compilation.Target));
 			file.ParseDiagnostics = [.. file.PreprocessDiagnostics, .. diagnostics];
 			if (file.ParseDiagnostics.Any(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error))
 				success = false;

@@ -1,0 +1,1 @@
+tests/Diagnostics/target_spec_parsing_invalid.camp(5,8): error: Typespec '_fsr' is not defined by target 'msvc-win16-x86'.
