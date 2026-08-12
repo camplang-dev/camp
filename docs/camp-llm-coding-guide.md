@@ -100,13 +100,18 @@ fixed char[16] storage = $"ready";
 
 Non-`new` interpolation uses scoped result storage. Use `stackalloc $"..."`
 when you want the dynamic stack storage choice to be explicit. Do not return or
-store that result where a scoped value cannot go. Use `new` plus an explicit
-`within` context for heap lifetime:
+store that result where a scoped value cannot go. Use `new` for heap lifetime in
+ordinary console/app code:
 
 ```camp
 char[] scratch = stackalloc $"total: {total}";
-string message = within(default) new $"total: {total}" finally delete;
+string message = new $"total: {total}" finally delete;
 ```
+
+Do not add `within(default)` boilerplate to normal console-app examples. Use an
+explicit `within(...)` only when the file is in an explicit allocation context,
+the API requires a particular allocator, or the example is specifically teaching
+allocator selection.
 
 Do not invent C#-style formatting suffixes. Camp interpolation holes contain
 ordinary Camp expressions, so `{value:format}` and `{value,10}` are not special
@@ -172,7 +177,7 @@ allocated lifetime is needed, `(new)` must own the direct prepared result and
 that result must be cleaned up:
 
 ```camp
-char[] owned = within(default) (new) thing.toString();
+char[] owned = (new) thing.toString();
 // ...
 delete owned.elements;
 ```
@@ -727,6 +732,23 @@ export enum LogLevel: uint
 }
 ```
 
+When the target enum type is known, write the enum value name directly. Do not
+qualify enum values just because they belong to an enum type:
+
+```camp
+LogLevel level = Warning;
+options.level = Debug;
+
+switch (level)
+{
+    case Error:
+        return 1;
+}
+```
+
+Use qualification only when it is needed to disambiguate an otherwise ambiguous
+name or when the surrounding expression has no target enum type.
+
 Use value newtypes for domain-specific values with the same representation as an
 underlying type:
 
@@ -984,6 +1006,8 @@ Stable agent habits:
 | Hand-building interface tables in source code | Use interface implementation syntax and compiler lowering |
 | Modeling async as a manually written callback frame | Write source-level `async` and valid resume annotations |
 | Hiding failure in sentinel values | Use `thrown`, or an intentional `tryX` API shape |
+| Adding `within(default)` to ordinary console-app allocation | Use plain `new` or `(new)` unless allocator selection matters |
+| Qualifying target-typed enum values such as `Command.BUILD` | Use `BUILD` when the target enum type is known |
 | Adding absolute paths or local setup to committed docs | Keep local-only details out of committed docs |
 
 ## Documentation Metadata
