@@ -1,0 +1,60 @@
+// file: inline_out_const_char_array.c
+#include "inline_out_const_char_array_private.h"
+
+/* Private file declarations. */
+static bool tryGet(const char **value, uintptr_t *value_length);
+
+static bool tryGet(const char **value, uintptr_t *value_length)
+{
+	{
+		(*value) = "hello";
+		(*value_length) = 5;
+	}
+	return true;
+}
+
+int main(void)
+{
+	const char *value;
+	uintptr_t value_length;
+	if (tryGet(&value, &value_length))
+	{
+		return ((value_length == 5) ? 0 : 1);
+	}
+	return 2;
+}
+
+// file: inline_out_const_char_array.h
+#ifndef INLINE_OUT_CONST_CHAR_ARRAY_H_
+#define INLINE_OUT_CONST_CHAR_ARRAY_H_
+
+#include "inline_out_const_char_array_private.h"
+
+int main(void);
+
+#endif
+// file: inline_out_const_char_array_private.h
+#ifndef INLINE_OUT_CONST_CHAR_ARRAY_PRIVATE_H_
+#define INLINE_OUT_CONST_CHAR_ARRAY_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Layouts. */
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: inline_out_const_char_array.c

@@ -20,6 +20,35 @@ public sealed partial class BindableNodeAnalyzer
 			return;
 		}
 
+		if (TryGetParamsComponentShape(target.Type, target.ResolvedType, target.Names.Count == 1 ? target.Names[0] : "value", out ParamsComponentShape shape)
+			&& shape.Components.Count > 1)
+		{
+			DeclarationStatement sourceDeclaration = CreateArgumentDeclarationStatement(target);
+			List<DeclarationTarget> targets = [];
+			for (int componentIndex = 0; componentIndex < shape.Components.Count; componentIndex++)
+			{
+				DeclarationStatement componentDeclaration = CreateExpandedDeclaration(sourceDeclaration, shape.Components[componentIndex], null);
+				currentStatementPrefix.Add(componentDeclaration);
+				targets.Add(componentDeclaration.Target);
+			}
+			RegisterParamsExpansion(target, shape, targets);
+			argument.Target = null;
+			argument.Type = null;
+			argument.Value = CreateVariableReference(target, target.ResolvedType ?? argument.ResolvedType ?? ErrorType);
+			argument.ResolvedType = argument.Value.ResolvedType;
+			return;
+		}
+
+		DeclarationStatement declaration = CreateArgumentDeclarationStatement(target);
+		currentStatementPrefix.Add(declaration);
+		argument.Target = null;
+		argument.Type = null;
+		argument.Value = CreateVariableReference(declaration.Target, declaration.Target.ResolvedType ?? argument.ResolvedType ?? ErrorType);
+		argument.ResolvedType = argument.Value.ResolvedType;
+	}
+
+	DeclarationStatement CreateArgumentDeclarationStatement(DeclarationTarget target)
+	{
 		DeclarationStatement declaration = new()
 		{
 			SourceSyntax = target.SourceSyntax,
@@ -30,12 +59,7 @@ public sealed partial class BindableNodeAnalyzer
 		declaration.Target.SourceSyntax = target.SourceSyntax;
 		foreach (string name in target.Names)
 			declaration.Target.Names.Add(name);
-
-		currentStatementPrefix.Add(declaration);
-		argument.Target = null;
-		argument.Type = null;
-		argument.Value = CreateVariableReference(declaration.Target, declaration.Target.ResolvedType ?? argument.ResolvedType ?? ErrorType);
-		argument.ResolvedType = argument.Value.ResolvedType;
+		return declaration;
 	}
 
 	VariableReferenceExpression CreateDiscardReference(string type, SyntaxNode? syntax)

@@ -1,0 +1,13 @@
+bool tryGet(out const char[] value)
+{
+	value = "hello";
+	return true;
+}
+
+export int main()
+{
+	if (tryGet(out const char[] value))
+		return value.length == 5 ? 0 : 1;
+
+	return 2;
+}
