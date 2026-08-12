@@ -1,0 +1,26 @@
+struct Step
+{
+	bool match(out bool value)
+	{
+		value = true;
+		return true;
+	}
+}
+
+void run(delegate void(Step* step) body)
+{
+	Step step = default;
+	body(&step);
+}
+
+export int main()
+{
+	bool observed = false;
+
+	run(step => {
+		if (step.match(out bool value))
+			observed = value;
+	});
+
+	return observed ? 0 : 1;
+}

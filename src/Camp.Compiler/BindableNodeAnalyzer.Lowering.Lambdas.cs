@@ -982,6 +982,8 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (expression is null)
 			return;
+		if (expression is ArgumentExpression { Target: not null } argument)
+			localNodes.Add(argument.Target);
 		foreach (Expression child in LambdaExpressionChildren(expression))
 			CollectLambdaLocalNodes(child, localNodes);
 	}
@@ -1283,15 +1285,13 @@ public sealed partial class BindableNodeAnalyzer
 				if (call.Target is not null)
 					yield return call.Target;
 				foreach (ArgumentExpression argument in call.Arguments)
-					if (argument.Value is not null)
-						yield return argument.Value;
+					yield return argument;
 				break;
 			case IndexExpression index:
 				if (index.Target is not null)
 					yield return index.Target;
 				foreach (ArgumentExpression argument in index.Arguments)
-					if (argument.Value is not null)
-						yield return argument.Value;
+					yield return argument;
 				break;
 			case MemberExpression member when member.Target is not null:
 				yield return member.Target;
@@ -1303,8 +1303,7 @@ public sealed partial class BindableNodeAnalyzer
 				if (indexer.Target is not null)
 					yield return indexer.Target;
 				foreach (ArgumentExpression argument in indexer.Arguments)
-					if (argument.Value is not null)
-						yield return argument.Value;
+					yield return argument;
 				break;
 			case RangeExpression range:
 				if (range.Start is not null)
@@ -1332,14 +1331,12 @@ public sealed partial class BindableNodeAnalyzer
 				if (construction.Initializer is not null)
 					yield return construction.Initializer;
 				foreach (ArgumentExpression argument in construction.Arguments)
-					if (argument.Value is not null)
-						yield return argument.Value;
+					yield return argument;
 				break;
 			case FinallyCleanupExpression finallyCleanup when finallyCleanup.Expression is not null:
 				yield return finallyCleanup.Expression;
 				foreach (ArgumentExpression argument in finallyCleanup.Arguments)
-					if (argument.Value is not null)
-						yield return argument.Value;
+					yield return argument;
 				break;
 			case ArgumentExpression argument when argument.Value is not null:
 				yield return argument.Value;

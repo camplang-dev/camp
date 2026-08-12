@@ -1,0 +1,83 @@
+// file: inline_out_declaration_in_lambda.c
+#include "inline_out_declaration_in_lambda_private.h"
+
+/* Private file declarations. */
+static bool Step_match(Step *this, bool *value);
+static void run(void (* body)(void *arg0, Step *arg1), void *body_context);
+static void main_lambda0(void *_context, Step *step);
+
+static bool Step_match(Step *this, bool *value)
+{
+	(*value) = true;
+	return true;
+}
+
+static void run(void (* body)(void *arg0, Step *arg1), void *body_context)
+{
+	Step step = (Step){0};
+	body(body_context, &step);
+}
+
+int main(void)
+{
+	bool observed = false;
+	main_lambdaContext0 _lambdaContext0;
+	_lambdaContext0.capture0_observed = &observed;
+	run((void (*)(void *arg0, Step *arg1))main_lambda0, &_lambdaContext0);
+	return (observed ? 0 : 1);
+}
+
+static void main_lambda0(void *_context, Step *step)
+{
+	main_lambdaContext0 *lambdaContext = (main_lambdaContext0 *)(_context);
+	bool value;
+	if (Step_match(step, &value))
+	{
+		(*lambdaContext->capture0_observed) = value;
+	}
+}
+
+// file: inline_out_declaration_in_lambda.h
+#ifndef INLINE_OUT_DECLARATION_IN_LAMBDA_H_
+#define INLINE_OUT_DECLARATION_IN_LAMBDA_H_
+
+#include "inline_out_declaration_in_lambda_private.h"
+
+int main(void);
+
+#endif
+// file: inline_out_declaration_in_lambda_private.h
+#ifndef INLINE_OUT_DECLARATION_IN_LAMBDA_PRIVATE_H_
+#define INLINE_OUT_DECLARATION_IN_LAMBDA_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct Step Step;
+typedef struct main_lambdaContext0 main_lambdaContext0;
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Layouts. */
+struct Step
+{
+	char _camp_empty;
+};
+struct main_lambdaContext0
+{
+	bool *capture0_observed;
+};
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: inline_out_declaration_in_lambda.c
