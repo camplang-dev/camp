@@ -6,6 +6,9 @@ int main()
 {
 	int[] arr = [1, 2, 3];
 	int* arrptr = [1, 2, 3];
+	int[] emptyInts = [];
+	string[] emptyStrings = [];
+	const char** emptyStringPtr = [];
 	auto strs = ["one", "two", "three"];
 	processArray([1, 2, 3]);
 	return arr[0] + arrptr[1];

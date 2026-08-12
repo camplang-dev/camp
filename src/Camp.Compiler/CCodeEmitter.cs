@@ -5773,6 +5773,9 @@ public static class CCodeEmitter
 				return "/* unsupported array literal */ 0";
 			}
 
+			if (array.Elements.Count == 0)
+				return "NULL";
+
 			string cArrayType = FormatResolvedType(elementType, "[]").Declaration.Trim();
 			return "(" + cArrayType + "){" + string.Join(", ", array.Elements.Select(FormatExpression)) + "}";
 		}

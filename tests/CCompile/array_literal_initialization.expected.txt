@@ -14,6 +14,11 @@ static int main(void)
 	int *arr = (int []){1, 2, 3};
 	uintptr_t arr_length = 3;
 	int *arrptr = (int []){1, 2, 3};
+	int *emptyInts = NULL;
+	uintptr_t emptyInts_length = 0;
+	const char **emptyStrings = NULL;
+	uintptr_t emptyStrings_length = 0;
+	const char **emptyStringPtr = NULL;
 	const char **strs = (const char *[]){"one", "two", "three"};
 	uintptr_t strs_length = 3;
 	processArray((int []){1, 2, 3}, 3);
