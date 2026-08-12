@@ -295,11 +295,11 @@ public sealed partial class BindableNodeAnalyzer
 
 	Statement WithPendingCleanups(Statement transfer)
 	{
-		if (transfer is BreakStatement && TryGetCurrentBreakLabel(out string? breakLabel))
-			return CreateCleanupGotoTransfer(breakLabel, includeContinueCleanups: true);
+		if (transfer is BreakStatement && TryGetCurrentBreakTarget(out string? breakLabel, out int breakCleanupScopeStart))
+			return CreateCleanupGotoTransfer(breakLabel, includeContinueCleanups: true, breakCleanupScopeStart);
 
-		if (transfer is ContinueStatement && TryGetCurrentContinueLabel(out string? continueLabel))
-			return CreateCleanupGotoTransfer(continueLabel, includeContinueCleanups: false);
+		if (transfer is ContinueStatement && TryGetCurrentContinueTarget(out string? continueLabel, out int continueCleanupScopeStart))
+			return CreateCleanupGotoTransfer(continueLabel, includeContinueCleanups: false, continueCleanupScopeStart);
 
 		CleanupScope? exitScope = GetCleanupExitScope();
 		if (exitScope is null || transfer is GotoStatement)
@@ -315,36 +315,40 @@ public sealed partial class BindableNodeAnalyzer
 		return transfer;
 	}
 
-	Statement CreateCleanupGotoTransfer(string targetLabel, bool includeContinueCleanups)
+	Statement CreateCleanupGotoTransfer(string targetLabel, bool includeContinueCleanups, int cleanupScopeStart)
 	{
-		List<Statement> statements = GetPendingCleanups(includeCatchExitCleanups: true, includeContinueCleanups);
+		List<Statement> statements = GetPendingCleanups(includeCatchExitCleanups: true, includeContinueCleanups, cleanupScopeStart);
 		statements.Add(new GotoStatement { TargetName = targetLabel, ResolvedType = "void" });
 		return statements.Count == 1 ? statements[0] : CreateBlock(statements);
 	}
 
-	bool TryGetCurrentBreakLabel(out string label)
+	bool TryGetCurrentBreakTarget(out string label, out int cleanupScopeStart)
 	{
 		for (int i = currentLoopTransferTargets.Count - 1; i >= 0; i--)
 			if (currentLoopTransferTargets[i].BreakLabelName is string breakLabel)
 			{
 				label = breakLabel;
+				cleanupScopeStart = currentLoopTransferTargets[i].CleanupScopeStart;
 				return true;
 			}
 
 		label = "";
+		cleanupScopeStart = 0;
 		return false;
 	}
 
-	bool TryGetCurrentContinueLabel(out string label)
+	bool TryGetCurrentContinueTarget(out string label, out int cleanupScopeStart)
 	{
 		for (int i = currentLoopTransferTargets.Count - 1; i >= 0; i--)
 			if (currentLoopTransferTargets[i].ContinueLabelName is string continueLabel)
 			{
 				label = continueLabel;
+				cleanupScopeStart = currentLoopTransferTargets[i].CleanupScopeStart;
 				return true;
 			}
 
 		label = "";
+		cleanupScopeStart = 0;
 		return false;
 	}
 
@@ -437,8 +441,14 @@ public sealed partial class BindableNodeAnalyzer
 
 	List<Statement> GetPendingCleanups(bool includeCatchExitCleanups, bool includeContinueCleanups)
 	{
+		return GetPendingCleanups(includeCatchExitCleanups, includeContinueCleanups, cleanupScopeStart: 0);
+	}
+
+	List<Statement> GetPendingCleanups(bool includeCatchExitCleanups, bool includeContinueCleanups, int cleanupScopeStart)
+	{
 		List<Statement> cleanups = [];
-		for (int i = currentCleanupScopes.Count - 1; i >= 0; i--)
+		int start = Math.Clamp(cleanupScopeStart, 0, currentCleanupScopes.Count);
+		for (int i = currentCleanupScopes.Count - 1; i >= start; i--)
 		{
 			CleanupScope cleanupScope = currentCleanupScopes[i];
 			if (!includeCatchExitCleanups && !cleanupScope.RunBeforeCatch)

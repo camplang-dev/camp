@@ -940,7 +940,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	sealed record ThrowHandler(string ErrorType, DeclarationTarget ErrorTarget, string LabelName);
 
-	sealed record LoopTransferTarget(string? BreakLabelName, string? ContinueLabelName);
+	sealed record LoopTransferTarget(string? BreakLabelName, string? ContinueLabelName, int CleanupScopeStart);
 
 	sealed record CleanupScope(List<Statement> Statements, bool RunBeforeCatch)
 	{

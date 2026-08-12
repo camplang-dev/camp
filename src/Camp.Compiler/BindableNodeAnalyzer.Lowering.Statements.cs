@@ -568,7 +568,7 @@ public sealed partial class BindableNodeAnalyzer
 			currentStatementPrefix?.Add(returnLocal);
 		}
 		currentCleanupScopes.Add(iteratorCleanupScope);
-		currentLoopTransferTargets.Add(new LoopTransferTarget(breakLabel, continueLabel));
+		currentLoopTransferTargets.Add(new LoopTransferTarget(breakLabel, continueLabel, currentCleanupScopes.Count - 1));
 		List<Statement> bodyStatements = [.. loopValueStatements];
 		if (foreachStatement.Body is not null)
 			bodyStatements.Add(foreachStatement.Body);
@@ -872,7 +872,7 @@ public sealed partial class BindableNodeAnalyzer
 		string continueLabel = NewGeneratedLabelName("foreach_continue");
 		string breakLabel = NewGeneratedLabelName("foreach_break");
 		BlockStatement loopBody = new() { SourceSyntax = foreachStatement.Body?.SourceSyntax ?? foreachStatement.SourceSyntax, ResolvedType = "void" };
-		currentLoopTransferTargets.Add(new LoopTransferTarget(breakLabel, continueLabel));
+		currentLoopTransferTargets.Add(new LoopTransferTarget(breakLabel, continueLabel, currentCleanupScopes.Count));
 		List<Statement> bodyStatements = [.. loopValueStatements];
 		if (foreachStatement.Body is not null)
 			bodyStatements.Add(foreachStatement.Body);
@@ -1056,7 +1056,7 @@ public sealed partial class BindableNodeAnalyzer
 			iteratorCleanupScope.ReturnType = currentFunctionReturnType;
 		}
 		currentCleanupScopes.Add(iteratorCleanupScope);
-		currentLoopTransferTargets.Add(new LoopTransferTarget(breakLabel, continueLabel));
+		currentLoopTransferTargets.Add(new LoopTransferTarget(breakLabel, continueLabel, currentCleanupScopes.Count - 1));
 		List<Statement> bodyStatements = [.. loopValueStatements];
 		if (foreachStatement.Body is not null)
 			bodyStatements.Add(foreachStatement.Body);
@@ -1175,7 +1175,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	Statement RewriteLoopBody(Statement body, string continueLabel, string breakLabel)
 	{
-		currentLoopTransferTargets.Add(new LoopTransferTarget(breakLabel, continueLabel));
+		currentLoopTransferTargets.Add(new LoopTransferTarget(breakLabel, continueLabel, currentCleanupScopes.Count));
 		BlockStatement block = body as BlockStatement ?? CreateBlock([body]);
 		RewriteStatementList(block.Statements);
 		currentLoopTransferTargets.RemoveAt(currentLoopTransferTargets.Count - 1);
@@ -1191,7 +1191,7 @@ public sealed partial class BindableNodeAnalyzer
 	Statement RewriteSwitchStatementWithBreakLabel(SwitchStatement switchStatement)
 	{
 		string breakLabel = NewGeneratedLabelName("switch_break");
-		currentLoopTransferTargets.Add(new LoopTransferTarget(breakLabel, null));
+		currentLoopTransferTargets.Add(new LoopTransferTarget(breakLabel, null, currentCleanupScopes.Count));
 		RewriteStatementList(switchStatement.Statements);
 		currentLoopTransferTargets.RemoveAt(currentLoopTransferTargets.Count - 1);
 		return CreateBlock([switchStatement, new LabelStatement { Name = breakLabel, ResolvedType = "void" }]);

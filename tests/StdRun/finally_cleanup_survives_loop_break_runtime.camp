@@ -1,0 +1,15 @@
+export int main()
+{
+	auto values = new List<int>() finally delete;
+
+	while (true)
+	{
+		break;
+	}
+
+	values.add(42);
+	if (values.Length != 1)
+		return 1;
+
+	return 0;
+}
