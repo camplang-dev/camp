@@ -7073,12 +7073,13 @@ public static class CCodeEmitter
 			List<string> items = [];
 			foreach (InitializerItem item in initializer.Items)
 			{
+				string? targetType = item.TargetStorageResolvedType ?? item.TargetResolvedType ?? item.ResolvedType;
 				string value = item.Expression switch
 				{
 					null => "0",
-					ArrayExpression array => FormatFixedArrayInitializer(array),
+					ArrayExpression array when TryGetFixedArrayElementType(targetType ?? "", out _) => FormatFixedArrayInitializer(array),
 					InitializerExpression nested => FormatInitializer(nested, includeType: false),
-					_ => FormatAssignmentValueForTarget(item.TargetStorageResolvedType ?? item.TargetResolvedType ?? item.ResolvedType, item.Expression, item.TargetStorageGenericNames)
+					_ => FormatAssignmentValueForTarget(targetType, item.Expression, item.TargetStorageGenericNames)
 				};
 				string? target = FormatInitializerTarget(item.Target);
 				items.Add(target is null ? value : "." + target + " = " + value);

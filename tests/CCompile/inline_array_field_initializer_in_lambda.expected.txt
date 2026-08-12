@@ -1,0 +1,70 @@
+// file: inline_array_field_initializer_in_lambda.c
+#include "inline_array_field_initializer_in_lambda_private.h"
+
+/* Private file declarations. */
+static void accept(const Descriptor *descriptor);
+static void apply(void (* body)(void *arg0), void *body_context);
+static void main_lambda0(void *_context);
+
+static void accept(const Descriptor *descriptor)
+{
+}
+
+static void apply(void (* body)(void *arg0), void *body_context)
+{
+	body(body_context);
+}
+
+int main(void)
+{
+	apply((void (*)(void *arg0))main_lambda0, NULL);
+	return 0;
+}
+
+static void main_lambda0(void *_context)
+{
+	const Descriptor _initializer0 = { .modes = (const char *[]){"build"}, .modes_length = 1, .required = true };
+	accept(&_initializer0);
+}
+
+// file: inline_array_field_initializer_in_lambda.h
+#ifndef INLINE_ARRAY_FIELD_INITIALIZER_IN_LAMBDA_H_
+#define INLINE_ARRAY_FIELD_INITIALIZER_IN_LAMBDA_H_
+
+#include "inline_array_field_initializer_in_lambda_private.h"
+
+int main(void);
+
+#endif
+// file: inline_array_field_initializer_in_lambda_private.h
+#ifndef INLINE_ARRAY_FIELD_INITIALIZER_IN_LAMBDA_PRIVATE_H_
+#define INLINE_ARRAY_FIELD_INITIALIZER_IN_LAMBDA_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct Descriptor Descriptor;
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Layouts. */
+struct Descriptor
+{
+	const char **modes;
+	uintptr_t modes_length;
+	bool required;
+};
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: inline_array_field_initializer_in_lambda.c

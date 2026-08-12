@@ -4191,7 +4191,7 @@ public sealed partial class BindableNodeAnalyzer
 							CheckCallArgumentAssignable(structuralExpected, actual, arguments[i].Value, argumentSyntax, "Argument", function, genericSubstitutions, genericParameterNames);
 						if (CanLiftToOptional(actual, expected))
 							arguments[i].ResolvedType = expected;
-						AnalyzeAggregateInitializerPointerArgument(arguments[i], analysisParameter, expected, fallbackSyntax);
+						AnalyzeAggregateInitializerPointerArgument(arguments[i], analysisParameter, expected, scope, typeScope, fallbackSyntax);
 					}
 					analyzedLifetimeArguments.Add((arguments[i], lifetimeParameter));
 					analyzedConstOfArguments.Add((arguments[i], analysisParameter));
@@ -4219,14 +4219,15 @@ public sealed partial class BindableNodeAnalyzer
 		return constOfAnchors;
 	}
 
-	void AnalyzeAggregateInitializerPointerArgument(ArgumentExpression argument, ParameterDefinition parameter, string expected, SyntaxNode? fallbackSyntax)
+	void AnalyzeAggregateInitializerPointerArgument(ArgumentExpression argument, ParameterDefinition parameter, string expected, BodyScope scope, AnalysisScope typeScope, SyntaxNode? fallbackSyntax)
 	{
-		if (argument.Value is not InitializerExpression)
+		if (argument.Value is not InitializerExpression initializer)
 			return;
 		if (parameter.Modifier == ParameterModifier.In)
 		{
-			if (!TryGetAggregateInitializerFields(expected, argument.Value.SourceSyntax, out _))
+			if (!TryGetAggregateInitializerFields(expected, initializer.SourceSyntax, out _))
 				return;
+			BodyAnalyzeInitializerExpression(initializer, scope, typeScope, expected);
 			argument.MaterializedInitializerAddressType = expected;
 			argument.MaterializedInitializerAddressResultType = AddPointer(expected);
 			return;
@@ -4239,6 +4240,7 @@ public sealed partial class BindableNodeAnalyzer
 		string elementType = TypeShapeParser.Format(expectedShape.Element);
 		if (IsConstQualified(elementType))
 		{
+			BodyAnalyzeInitializerExpression(initializer, scope, typeScope, elementType);
 			argument.MaterializedInitializerAddressType = elementType;
 			argument.MaterializedInitializerAddressResultType = expected;
 			return;

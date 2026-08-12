@@ -1,0 +1,22 @@
+struct Descriptor
+{
+	string[] modes;
+	bool required;
+}
+
+void accept(const Descriptor* descriptor)
+{
+}
+
+void apply(delegate void() body)
+{
+	body();
+}
+
+export int main()
+{
+	apply(() => {
+		accept({ .modes = ["build"], .required = true });
+	});
+	return 0;
+}

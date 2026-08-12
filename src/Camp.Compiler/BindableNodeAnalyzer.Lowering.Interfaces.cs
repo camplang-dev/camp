@@ -1083,6 +1083,7 @@ public sealed partial class BindableNodeAnalyzer
 
 		string localType = argument.MaterializedInitializerAddressType!;
 		initializer.PlainDeclarationInitializer = true;
+		initializer = LowerExpression(initializer) as InitializerExpression ?? initializer;
 		DeclarationStatement local = CreateGeneratedLocal(NewGeneratedLocalName("initializer"), localType, TypeReferenceForResolvedName(localType), initializer);
 		currentStatementPrefix.Add(local);
 		argument.Value = new UnaryExpression
