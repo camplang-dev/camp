@@ -13,6 +13,16 @@ const char[] middle(const char[] value)
 	return value[1..4];
 }
 
+struct SliceSource
+{
+	const char[] value;
+
+	const char[] middle()
+	{
+		return this.value[1..4];
+	}
+}
+
 void writeSeparator(CharWriter writer, bool compact)
 {
 	writer.write(compact ? ":" : ": ");
@@ -49,11 +59,16 @@ export int main()
 	if (chainedReceiver.compareTo("hel") != 0)
 		return 6;
 
+	SliceSource source = { " world " };
+	char[] chainedInstanceReceiver = source.middle().toString();
+	if (chainedInstanceReceiver.compareTo("wor") != 0)
+		return 7;
+
 	auto writerBuffer = new List<char>() finally delete;
 	writeSeparator(writerBuffer.CharWriter, false);
 	char[] separator = writerBuffer.copyArray() finally delete;
 	if (separator.compareTo(": ") != 0)
-		return 7;
+		return 8;
 
 	return 0;
 }

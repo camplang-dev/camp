@@ -432,6 +432,18 @@ public sealed partial class BindableNodeAnalyzer
 			AddImplicitNameOfArguments(call);
 			AddImplicitWithinArgument(call);
 			AddImplicitVTableOfArguments(call);
+			if (call.Target is MemberReferenceExpression { Target: Expression receiver } member
+				&& IsInstanceInvocationFunction(function)
+				&& !IsPropertyGetterReference(member)
+				&& !IsPropertySetterReference(member)
+				&& FindContainingType(function) is not InterfaceDefinition)
+			{
+				RewriteInstanceInvocation(call, member, receiver, function);
+			}
+			else
+			{
+				TryRewriteGroupedMethodInvocation(call, function);
+			}
 			((DeclarationStatement)declarations[componentDeclarationStart]).InitialValue = null;
 			for (int i = 1; i < targets.Count; i++)
 			{

@@ -57,6 +57,33 @@ public sealed partial class BindableNodeAnalyzer
 		call.Arguments.InsertRange(0, CreateReceiverArguments(receiver, function));
 	}
 
+	bool TryRewriteGroupedMethodInvocation(CallExpression call, FunctionDefinition function)
+	{
+		if (call.Target is not GroupedExpression grouped
+			|| grouped.Items.Count == 0
+			|| grouped.Items[0].Expression is not MethodReferenceExpression method
+			|| method.Candidates.Count != 1
+			|| !ReferenceEquals(method.Candidates[0], function))
+		{
+			return false;
+		}
+
+		call.Target = method;
+		for (int i = 1; i < grouped.Items.Count; i++)
+		{
+			Expression? expression = grouped.Items[i].Expression;
+			if (expression is null)
+				return false;
+			call.Arguments.Insert(i - 1, new ArgumentExpression
+			{
+				SourceSyntax = expression.SourceSyntax,
+				Value = expression,
+				ResolvedType = expression.ResolvedType
+			});
+		}
+		return true;
+	}
+
 	Expression RewriteInstanceMethodDelegate(MemberReferenceExpression member)
 	{
 		GroupedExpression grouped = new()
