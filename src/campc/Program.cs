@@ -658,6 +658,8 @@ sealed class CampCli
 			EmitKind = bag.EmitKind ?? "c99",
 			BuildKind = bag.ArtifactKind,
 			InferBuildKind = command == CommandKind.Build && !bag.ArtifactSpecified,
+			WithinPolicyBuildKind = bag.ArtifactKind,
+			InferWithinPolicyBuildKind = command is CommandKind.Test or CommandKind.Cover && !bag.ArtifactSpecified,
 			CommandMode = GetCompilerCommandMode(command),
 			DeclarationParticipationMode = command is CommandKind.Test or CommandKind.Cover ? DeclarationParticipationMode.TestModule : DeclarationParticipationMode.Production,
 			CoverageInstrumentationMode = CoverageInstrumentationMode.Disabled,

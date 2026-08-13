@@ -100,7 +100,7 @@ public static class CampLanguageService
 				diagnostics.Add(new CampSourceDiagnostic(
 					path,
 					range,
-					$"Test '{test.Id}' has invalid built-in runner signature; expected void name(thrown TYPE*) where TYPE contains message, sourcefile, and sourceline fields.",
+					$"Test '{test.Id}' has invalid built-in runner signature; expected void name(thrown TYPE*) or void name(within Allocator* allocator, thrown TYPE*) where TYPE contains message, sourcefile, and sourceline fields.",
 					"CAMPTEST001",
 					DiagnosticSeverity.Warning));
 			}
@@ -122,8 +122,7 @@ public static class CampLanguageService
 			CommandMode = request.CommandMode,
 			DeclarationParticipationMode = request.DeclarationParticipationMode,
 			CoverageInstrumentationMode = request.CoverageInstrumentationMode,
-			DefaultWithinAllocationPolicy = request.WithinAllocationPolicy
-				?? (request.BuildKind is NativeBuildKind.Static or NativeBuildKind.Shared ? WithinAllocationPolicy.Explicit : WithinAllocationPolicy.Implicit),
+			DefaultWithinAllocationPolicy = GetEffectiveWithinAllocationPolicy(request, overlays),
 			SourcefilePathMode = request.SourcefilePathMode,
 			SourcefileDefaultRoot = Path.GetFullPath(string.IsNullOrWhiteSpace(request.SourcefileDefaultRoot) ? request.WorkingDirectory : request.SourcefileDefaultRoot)
 		};
@@ -154,6 +153,47 @@ public static class CampLanguageService
 		return compilation;
 	}
 
+	static WithinAllocationPolicy GetEffectiveWithinAllocationPolicy(CompilerRequest request, IReadOnlyList<CampSourceOverlay> overlays)
+	{
+		if (request.WithinAllocationPolicy is WithinAllocationPolicy policy)
+			return policy;
+		NativeBuildKind? buildKind = request.WithinPolicyBuildKind ?? request.BuildKind;
+		if (buildKind is null && (request.InferWithinPolicyBuildKind || request.InferBuildKind))
+			buildKind = InferWithinPolicyBuildKind(request, overlays);
+		return CompilerRequestPolicy.GetDefaultWithinAllocationPolicy(buildKind);
+	}
+
+	static NativeBuildKind InferWithinPolicyBuildKind(CompilerRequest request, IReadOnlyList<CampSourceOverlay> overlays)
+	{
+		Dictionary<string, CampSourceOverlay> overlayByPath = overlays.ToDictionary(
+			overlay => Path.GetFullPath(overlay.Path, request.WorkingDirectory),
+			StringComparer.OrdinalIgnoreCase);
+		foreach (string filename in request.Files)
+		{
+			if (filename == "-")
+				return NativeBuildKind.Static;
+			string fullPath = Path.GetFullPath(filename, request.WorkingDirectory);
+			string? text = overlayByPath.TryGetValue(fullPath, out CampSourceOverlay? overlay)
+				? overlay.Text
+				: TryReadText(fullPath);
+			if (text is not null && CompilerRequestPolicy.HasPublicOrExportedMain(text))
+				return NativeBuildKind.Exec;
+		}
+		return NativeBuildKind.Static;
+	}
+
+	static string? TryReadText(string path)
+	{
+		try
+		{
+			return File.ReadAllText(path);
+		}
+		catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
+		{
+			return null;
+		}
+	}
+
 	static CompilerRequest CloneForTestDiscovery(CompilerRequest source)
 	{
 		CompilerRequest clone = new()
@@ -167,6 +207,8 @@ public static class CampLanguageService
 			InspectApi = source.InspectApi,
 			BuildKind = source.BuildKind,
 			InferBuildKind = source.InferBuildKind,
+			WithinPolicyBuildKind = source.WithinPolicyBuildKind,
+			InferWithinPolicyBuildKind = source.InferWithinPolicyBuildKind,
 			CommandMode = CompilerCommandMode.Test,
 			DeclarationParticipationMode = DeclarationParticipationMode.TestModule,
 			CoverageInstrumentationMode = CoverageInstrumentationMode.Disabled,

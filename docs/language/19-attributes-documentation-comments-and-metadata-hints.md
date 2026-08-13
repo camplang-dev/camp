@@ -309,6 +309,23 @@ void divideRejectsZero(thrown Assertion*)
 The thrown slot may have an explicit parameter name when a function needs to
 refer to it directly. Most tests do not need one.
 
+Tests that allocate in an explicit-`within` context, which is common when
+testing libraries, may ask the built-in runner for the default allocator:
+
+```camp
+@test
+void bufferCreatesStorage(within allocator, thrown Assertion*)
+{
+	Buffer* buffer = new Buffer(32);
+	delete buffer;
+}
+```
+
+The allocator slot must appear before the thrown slot. It may use the implicit
+form `within allocator`, or the explicit form `within Allocator* name` when the
+project provides an accessible `Allocator` type. The runner supplies the same
+default allocator representation used by `within(default)`.
+
 Run the tests in a project with:
 
 ```sh
@@ -404,7 +421,7 @@ symbol links, or deprecation messages.
 | `@deprecated("message")` | Declarations and declaration children | Marks a source API as deprecated for tooling; does not remove it from lookup or ABI output |
 | `@overload("text")` | One function or method in an overload family | Summary for the whole overload group in generated documentation |
 | `@category("name")` | Top-level declarations, or standalone near the top of a file as `@category("name");` | Category label for documentation generators |
-| `@test` | Top-level functions with no visibility modifier | Marks a function as a discovered test; the built-in runner invokes only `void name(thrown Assertion*)` tests |
+| `@test` | Top-level functions with no visibility modifier | Marks a function as a discovered test; the built-in runner invokes `void name(thrown Assertion*)` and `void name(within Allocator* allocator, thrown Assertion*)` tests |
 | `@testonly` | Private or `internal` top-level declarations | Includes a helper only in test and coverage builds; top-level types make their whole body test-only |
 | `@skip("reason")` | Declarations also marked `@test` | Discovers the test but reports it as skipped without invoking it |
 

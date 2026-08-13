@@ -201,11 +201,20 @@ public static class CampTestHarnessGenerator
 		string index = tableIndex.ToString(CultureInfo.InvariantCulture);
 		string typeName = CTypeName(shape.Type);
 		string functionName = CName(test.Function!);
-		builder.AppendLine("void " + functionName + "(" + typeName + " **failure);");
+		if (test.AllocatorShape is TestAllocatorShape allocatorShape)
+		{
+			string allocatorTypeName = CTypeName(allocatorShape.Type);
+			builder.AppendLine("void " + functionName + "(" + allocatorTypeName + " *allocator, " + typeName + " **failure);");
+		}
+		else
+			builder.AppendLine("void " + functionName + "(" + typeName + " **failure);");
 		builder.AppendLine("static void camp_test_run_" + index + "(void **failure)");
 		builder.AppendLine("{");
 		builder.AppendLine("\t" + typeName + " *typed_failure = 0;");
-		builder.AppendLine("\t" + functionName + "(&typed_failure);");
+		if (test.AllocatorShape is not null)
+			builder.AppendLine("\t" + functionName + "(NULL, &typed_failure);");
+		else
+			builder.AppendLine("\t" + functionName + "(&typed_failure);");
 		builder.AppendLine("\t*failure = typed_failure;");
 		builder.AppendLine("}");
 		builder.AppendLine("static const char *camp_test_message_" + index + "(void *failure)");

@@ -26,9 +26,27 @@ public sealed class CampTestDiscoveryTests
 				string text;
 			}
 
+			struct Allocator
+			{
+			}
+
+			struct LocalAllocator
+			{
+			}
+
 			/// Adds two values.
 			/// @test
 			void addReturnsSum(thrown Assertion* assertion)
+			{
+			}
+
+			@test
+			void allocatorImplicit(within allocator, thrown Assertion* assertion)
+			{
+			}
+
+			@test
+			void allocatorExplicit(within Allocator* arena, thrown Assertion* assertion)
 			{
 			}
 
@@ -49,6 +67,16 @@ public sealed class CampTestDiscoveryTests
 			void invalidThrownShape(thrown NotAssertion* assertion)
 			{
 			}
+
+			@test
+			void invalidAllocatorType(within LocalAllocator* arena, thrown Assertion* assertion)
+			{
+			}
+
+			@test
+			void invalidAllocatorOrder(thrown Assertion* assertion, within allocator)
+			{
+			}
 			"""));
 		SemanticCompiler.AssertNoDiagnostics(compilation);
 
@@ -56,7 +84,7 @@ public sealed class CampTestDiscoveryTests
 
 		Assert.Empty(result.Diagnostics);
 		Assert.Equal(CampTestManifestMode.InModule, result.Manifest.Mode);
-		Assert.Equal(4, result.Manifest.Tests.Count);
+		Assert.Equal(8, result.Manifest.Tests.Count);
 
 		CampTestManifestEntry add = result.Manifest.Tests.Single(static test => test.Name == "addReturnsSum");
 		Assert.Equal("MathTests::addReturnsSum", add.Id);
@@ -66,6 +94,12 @@ public sealed class CampTestDiscoveryTests
 		Assert.False(add.Skipped);
 		Assert.Null(add.SkipReason);
 		Assert.Equal("valid", add.RunnerSignature);
+
+		CampTestManifestEntry allocatorImplicit = result.Manifest.Tests.Single(static test => test.Name == "allocatorImplicit");
+		Assert.Equal("valid", allocatorImplicit.RunnerSignature);
+
+		CampTestManifestEntry allocatorExplicit = result.Manifest.Tests.Single(static test => test.Name == "allocatorExplicit");
+		Assert.Equal("valid", allocatorExplicit.RunnerSignature);
 
 		CampTestManifestEntry skipped = result.Manifest.Tests.Single(static test => test.Name == "skippedCase");
 		Assert.True(skipped.Skipped);
@@ -80,10 +114,16 @@ public sealed class CampTestDiscoveryTests
 		CampTestManifestEntry invalidThrown = result.Manifest.Tests.Single(static test => test.Name == "invalidThrownShape");
 		Assert.Equal("invalid", invalidThrown.RunnerSignature);
 
+		CampTestManifestEntry invalidAllocatorType = result.Manifest.Tests.Single(static test => test.Name == "invalidAllocatorType");
+		Assert.Equal("invalid", invalidAllocatorType.RunnerSignature);
+
+		CampTestManifestEntry invalidAllocatorOrder = result.Manifest.Tests.Single(static test => test.Name == "invalidAllocatorOrder");
+		Assert.Equal("invalid", invalidAllocatorOrder.RunnerSignature);
+
 		using JsonDocument json = JsonDocument.Parse(CampTestManifestJsonSerializer.Serialize(result.Manifest));
 		Assert.Equal("camp.test-manifest", json.RootElement.GetProperty("format").GetString());
 		Assert.Equal("in-module", json.RootElement.GetProperty("mode").GetString());
-		Assert.Equal(4, json.RootElement.GetProperty("tests").GetArrayLength());
+		Assert.Equal(8, json.RootElement.GetProperty("tests").GetArrayLength());
 	}
 
 	[Fact]

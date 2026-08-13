@@ -219,6 +219,7 @@ public sealed class LanguageServiceTests
 		Assert.Equal(Path.GetFullPath(source), diagnostic.Path);
 		Assert.Equal(invalid.Range.Start.Line, diagnostic.Range?.Start.Line);
 		Assert.Equal(DiagnosticSeverity.Warning, diagnostic.Severity);
+		Assert.Contains("void name(thrown TYPE*) or void name(within Allocator* allocator, thrown TYPE*)", diagnostic.Message, StringComparison.Ordinal);
 	}
 
 	[Fact]

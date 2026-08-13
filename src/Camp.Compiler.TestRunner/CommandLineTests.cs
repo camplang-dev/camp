@@ -455,6 +455,76 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Generated_harness_passes_default_allocator_to_allocator_aware_tests()
+	{
+		string source = CreateTempCase("test_harness_allocator/main.camp", """
+			#within explicit
+
+			namespace HarnessAllocatorCli;
+
+			@symbol("malloc")
+			export extern void* malloc(nuint size);
+			@symbol("free")
+			export extern void free(void* ptr);
+
+			class Allocator
+			{
+				void* alloc(nuint size)
+				{
+					return malloc(size);
+				}
+
+				void free(void* ptr)
+				{
+					free(ptr);
+				}
+			}
+
+			struct Assertion
+			{
+				escaped string message;
+				escaped string sourcefile;
+				uint sourceline;
+			}
+
+			@test
+			void implicitAllocator(within allocator, thrown Assertion* assertion)
+			{
+				auto bytes = new byte[4];
+				delete bytes;
+			}
+
+			@test
+			void explicitAllocator(within Allocator* arena, thrown Assertion* assertion)
+			{
+				auto bytes = new byte[2];
+				delete bytes;
+			}
+			""");
+		string outDir = TempPath("test-harness-allocator-out");
+
+		ProcessResult result = RunCampc(
+			"test",
+			source,
+			"--nostdlib",
+			"--target",
+			NativeTargetForHost(),
+			"--out-dir",
+			outDir,
+			"--name",
+			"harness_allocator");
+
+		AssertCommandSucceeded(result);
+		Assert.Contains("passed: HarnessAllocatorCli::implicitAllocator", result.StdOut, StringComparison.Ordinal);
+		Assert.Contains("passed: HarnessAllocatorCli::explicitAllocator", result.StdOut, StringComparison.Ordinal);
+
+		string harnessSource = Path.Combine(outDir, ArtifactDirectoryForHost(null), "build", "harness_allocator_test_harness.c");
+		Assert.True(File.Exists(harnessSource), harnessSource);
+		string harness = File.ReadAllText(harnessSource);
+		Assert.Contains("(NULL, &typed_failure)", harness, StringComparison.Ordinal);
+	}
+
+	[Fact]
 	public void Test_command_applies_filters_and_result_format_options()
 	{
 		string source = CreateTempCase("test_runner_filters/main.camp", """
@@ -1467,6 +1537,52 @@ public sealed class CommandLineTests
 		AssertCommandSucceeded(fileImplicit);
 		Assert.NotEqual(0, fileExplicit.ExitCode);
 		Assert.Contains("new requires an explicit within context", fileExplicit.StdErr, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Test_and_cover_use_build_artifact_shape_for_default_within_policy()
+	{
+		string root = TempPath("within-policy-test-command");
+		ResetDirectory(root);
+		string librarySourceDirectory = Path.Combine(root, "library", "src");
+		string executableSourceDirectory = Path.Combine(root, "executable", "src");
+		Directory.CreateDirectory(librarySourceDirectory);
+		Directory.CreateDirectory(executableSourceDirectory);
+		File.WriteAllText(Path.Combine(librarySourceDirectory, "tests.camp"), WithinPolicyTestSource(includeMain: false));
+		File.WriteAllText(Path.Combine(executableSourceDirectory, "tests.camp"), WithinPolicyTestSource(includeMain: true));
+		string libraryBuildFile = Path.Combine(root, "library", "library.campbuild");
+		string executableBuildFile = Path.Combine(root, "executable", "executable.campbuild");
+		File.WriteAllText(libraryBuildFile, """
+			--nostdlib
+			src/*.camp
+			""");
+		File.WriteAllText(executableBuildFile, """
+			--nostdlib
+			src/*.camp
+			""");
+
+		ProcessResult inferredLibraryTest = RunCampcIn(root, "test", libraryBuildFile, "--list", "--out-dir", Path.Combine(root, "library-test-out"), "--name", "library_policy");
+		ProcessResult inferredLibraryCover = RunCampcIn(root, "cover", libraryBuildFile, "--list", "--out-dir", Path.Combine(root, "library-cover-out"), "--name", "library_policy_cover");
+		ProcessResult inferredExecutableTest = RunCampcIn(root, "test", executableBuildFile, "--list", "--out-dir", Path.Combine(root, "executable-test-out"), "--name", "executable_policy");
+		ProcessResult explicitStaticTest = RunCampcIn(root, "test", libraryBuildFile, "--artifact", "static", "--list", "--out-dir", Path.Combine(root, "static-test-out"), "--name", "static_policy");
+		ProcessResult explicitSharedTest = RunCampcIn(root, "test", libraryBuildFile, "--artifact", "shared", "--list", "--out-dir", Path.Combine(root, "shared-test-out"), "--name", "shared_policy");
+		ProcessResult explicitExecTest = RunCampcIn(root, "test", libraryBuildFile, "--artifact", "exec", "--list", "--out-dir", Path.Combine(root, "exec-test-out"), "--name", "exec_policy");
+		ProcessResult overrideImplicitTest = RunCampcIn(root, "test", libraryBuildFile, "--implicit-within", "--list", "--out-dir", Path.Combine(root, "override-test-out"), "--name", "override_policy");
+
+		Assert.NotEqual(0, inferredLibraryTest.ExitCode);
+		Assert.Contains("new requires an explicit within context", inferredLibraryTest.StdErr, StringComparison.Ordinal);
+		Assert.NotEqual(0, inferredLibraryCover.ExitCode);
+		Assert.Contains("new requires an explicit within context", inferredLibraryCover.StdErr, StringComparison.Ordinal);
+		AssertCommandSucceeded(inferredExecutableTest);
+		Assert.Contains("WithinPolicyTests::allocates", inferredExecutableTest.StdOut, StringComparison.Ordinal);
+		Assert.NotEqual(0, explicitStaticTest.ExitCode);
+		Assert.Contains("new requires an explicit within context", explicitStaticTest.StdErr, StringComparison.Ordinal);
+		Assert.NotEqual(0, explicitSharedTest.ExitCode);
+		Assert.Contains("new requires an explicit within context", explicitSharedTest.StdErr, StringComparison.Ordinal);
+		AssertCommandSucceeded(explicitExecTest);
+		Assert.Contains("WithinPolicyTests::allocates", explicitExecTest.StdOut, StringComparison.Ordinal);
+		AssertCommandSucceeded(overrideImplicitTest);
+		Assert.Contains("WithinPolicyTests::allocates", overrideImplicitTest.StdOut, StringComparison.Ordinal);
 	}
 
 	[Fact]
@@ -4911,6 +5027,36 @@ public sealed class CommandLineTests
 	static ProcessResult RunCampc(params string[] arguments)
 	{
 		return RunCampc(null, arguments);
+	}
+
+	static string WithinPolicyTestSource(bool includeMain)
+	{
+		return """
+			namespace WithinPolicyTests;
+
+			export extern void* malloc(nuint size);
+			export extern void free(void* ptr);
+
+			struct TestFailure
+			{
+				escaped string message;
+				escaped string sourcefile;
+				uint sourceline;
+			}
+
+			@test
+			void allocates(thrown TestFailure* failure)
+			{
+				auto bytes = new byte[1];
+				delete bytes;
+			}
+			""" + (includeMain ? """
+
+			export int main()
+			{
+				return 0;
+			}
+			""" : "");
 	}
 
 	static ProcessResult BuildInProcess(string outputName, bool noStdLib, params string[] files)

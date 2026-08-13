@@ -39,6 +39,8 @@ public sealed class CompilerRequest
 	public string EmitKind { get; set; } = "c99";
 	public NativeBuildKind? BuildKind { get; set; }
 	public bool InferBuildKind { get; set; }
+	public NativeBuildKind? WithinPolicyBuildKind { get; set; }
+	public bool InferWithinPolicyBuildKind { get; set; }
 	public CompilerCommandMode CommandMode { get; set; } = CompilerCommandMode.Build;
 	public DeclarationParticipationMode DeclarationParticipationMode { get; set; } = DeclarationParticipationMode.Production;
 	public CoverageInstrumentationMode CoverageInstrumentationMode { get; set; } = CoverageInstrumentationMode.Disabled;
@@ -152,7 +154,7 @@ public static class CompilerDriver
 				return Error("Standard input may only be used by itself and cannot be combined with API headers.");
 			if (request.ApiFiles.Contains("-"))
 				return Error("API headers must be read from files, not standard input.");
-			if (request.InferBuildKind && !TryInferBuildKind())
+			if ((request.InferBuildKind || request.InferWithinPolicyBuildKind) && !TryInferRequestedBuildKinds())
 				return 1;
 			ApplySubsystem();
 			if (request.InspectApi && request.Inspect is not null)
@@ -355,33 +357,45 @@ public static class CompilerDriver
 				request.BuildKind = NativeBuildKind.WinExe;
 		}
 
-		bool TryInferBuildKind()
+		bool TryInferRequestedBuildKinds()
+		{
+			if (!TryInferBuildKindFromSources(out NativeBuildKind buildKind))
+				return false;
+			if (request.InferBuildKind)
+				request.BuildKind = buildKind;
+			if (request.InferWithinPolicyBuildKind)
+				request.WithinPolicyBuildKind = buildKind;
+			return true;
+		}
+
+		bool TryInferBuildKindFromSources(out NativeBuildKind buildKind)
 		{
 			foreach (string filename in request.Files)
 			{
 				if (filename == "-")
 				{
-					request.BuildKind = NativeBuildKind.Static;
+					buildKind = NativeBuildKind.Static;
 					return true;
 				}
 				try
 				{
 					string fullPath = Path.GetFullPath(filename, request.WorkingDirectory);
 					string text = File.ReadAllText(fullPath);
-					if (HasPublicOrExportedMain(text))
+					if (CompilerRequestPolicy.HasPublicOrExportedMain(text))
 					{
-						request.BuildKind = NativeBuildKind.Exec;
+						buildKind = NativeBuildKind.Exec;
 						return true;
 					}
 				}
 				catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
 				{
 					ErrorLine($"{filename}: {ex.Message}");
+					buildKind = default;
 					return false;
 				}
 			}
 
-			request.BuildKind = NativeBuildKind.Static;
+			buildKind = NativeBuildKind.Static;
 			return true;
 		}
 
@@ -472,43 +486,6 @@ public static class CompilerDriver
 				if (File.Exists(full) || Directory.Exists(full))
 					yield return full;
 			}
-		}
-
-		static WithinAllocationPolicy GetEffectiveWithinAllocationPolicy(CompilerRequest loadRequest)
-		{
-			if (loadRequest.WithinAllocationPolicy is WithinAllocationPolicy policy)
-				return policy;
-			return loadRequest.BuildKind is NativeBuildKind.Static or NativeBuildKind.Shared
-				? WithinAllocationPolicy.Explicit
-				: WithinAllocationPolicy.Implicit;
-		}
-
-		static bool HasPublicOrExportedMain(string text)
-		{
-			for (int i = 0; i < text.Length;)
-			{
-				int found = text.IndexOf("main", i, StringComparison.Ordinal);
-				if (found < 0)
-					return false;
-				i = found + 4;
-				if (!IsIdentifierBoundary(text, found - 1) || !IsIdentifierBoundary(text, found + 4))
-					continue;
-				int j = found + 4;
-				while (j < text.Length && char.IsWhiteSpace(text[j]))
-					j++;
-				if (j >= text.Length || text[j] != '(')
-					continue;
-				string prefix = text[..found];
-				int visibilityIndex = Math.Max(prefix.LastIndexOf("export", StringComparison.Ordinal), prefix.LastIndexOf("internal", StringComparison.Ordinal));
-				if (visibilityIndex >= 0 && found - visibilityIndex < 256 && IsIdentifierBoundary(text, visibilityIndex - 1))
-					return true;
-			}
-			return false;
-		}
-
-		static bool IsIdentifierBoundary(string text, int index)
-		{
-			return index < 0 || index >= text.Length || !(char.IsLetterOrDigit(text[index]) || text[index] == '_');
 		}
 
 		int Error(string message)
@@ -602,7 +579,7 @@ public static class CompilerDriver
 				CommandMode = loadRequest.CommandMode,
 				DeclarationParticipationMode = loadRequest.DeclarationParticipationMode,
 				CoverageInstrumentationMode = loadRequest.CoverageInstrumentationMode,
-				DefaultWithinAllocationPolicy = GetEffectiveWithinAllocationPolicy(loadRequest),
+				DefaultWithinAllocationPolicy = CompilerRequestPolicy.GetEffectiveWithinAllocationPolicy(loadRequest),
 				SourcefilePathMode = loadRequest.SourcefilePathMode,
 				SourcefileDefaultRoot = Path.GetFullPath(string.IsNullOrWhiteSpace(loadRequest.SourcefileDefaultRoot) ? loadRequest.WorkingDirectory : loadRequest.SourcefileDefaultRoot)
 			};

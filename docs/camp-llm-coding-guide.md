@@ -995,7 +995,7 @@ ordinary environment and filesystem work:
 
 Built-in Camp tests are top-level functions marked `@test`. Do not write tests
 as static methods, instance methods, local functions, lambdas, or declarations
-inside a `@testonly` type. The built-in runner invokes only this shape:
+inside a `@testonly` type. The ordinary built-in runner shape is:
 
 ```camp
 @test
@@ -1007,6 +1007,23 @@ void addReturnsSum(thrown Assertion*)
 
 Omit the thrown parameter name unless the function body needs to reference the
 slot directly.
+
+When a test needs the active allocation context, especially in a library-shaped
+project where `#within` defaults to explicit, put a `within` parameter before
+the thrown slot:
+
+```camp
+@test
+void bufferAllocates(within allocator, thrown Assertion*)
+{
+	auto buffer = new Buffer(16);
+	delete buffer;
+}
+```
+
+The allocator slot may be implicit (`within allocator`) or explicitly typed as
+`within Allocator* name`. Do not reverse the order; `thrown` remains the final
+failure channel.
 
 Use `assert(condition)` for ordinary checks and `fail(message)` for an explicit
 failure. These functions capture expression text, source file, and source line

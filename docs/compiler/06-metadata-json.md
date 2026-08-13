@@ -327,12 +327,14 @@ For a function marked `@test`, a test-module metadata view may include:
 }
 ```
 
-`runnerSignature` is `valid` only for the built-in runner shape
-`void name(thrown Assertion*)`; other discovered test functions are reported as
-`invalid` so tools can show them without treating the declaration as a compiler
-error. The dedicated `camp.test-manifest` JSON is the canonical discovery
-artifact for `campc test`, `campc cover`, LSP CodeLens, and debugger test
-selection.
+`runnerSignature` is `valid` only for built-in runner shapes:
+`void name(thrown Assertion*)` and
+`void name(within Allocator* allocator, thrown Assertion*)`. The allocator slot
+may also be written with the implicit source form `within allocator`. Other
+discovered test functions are reported as `invalid` so tools can show them
+without treating the declaration as a compiler error. The dedicated
+`camp.test-manifest` JSON is the canonical discovery artifact for `campc test`,
+`campc cover`, LSP CodeLens, and debugger test selection.
 
 Async metadata describes awaitability. It reports `async: true` for declarations
 written with `async`, and also for declarations whose visible name ends in

@@ -1163,6 +1163,8 @@ public sealed class CampLspWorkspace
 			InspectApi = source.InspectApi,
 			BuildKind = source.BuildKind,
 			InferBuildKind = source.InferBuildKind,
+			WithinPolicyBuildKind = source.WithinPolicyBuildKind,
+			InferWithinPolicyBuildKind = source.InferWithinPolicyBuildKind,
 			CommandMode = source.CommandMode,
 			DeclarationParticipationMode = source.DeclarationParticipationMode,
 			CoverageInstrumentationMode = source.CoverageInstrumentationMode,

@@ -104,16 +104,73 @@ public sealed class ProjectLoaderTests
 		Assert.Equal(CompilerCommandMode.Test, test.Request.CommandMode);
 		Assert.Equal(DeclarationParticipationMode.TestModule, test.Request.DeclarationParticipationMode);
 		Assert.Equal(CoverageInstrumentationMode.Disabled, test.Request.CoverageInstrumentationMode);
+		Assert.False(test.Request.InferWithinPolicyBuildKind);
+		Assert.Null(test.Request.WithinPolicyBuildKind);
 
 		Assert.True(cover.Success, string.Join(Environment.NewLine, cover.Diagnostics));
 		Assert.Equal(CompilerCommandMode.Cover, cover.Request.CommandMode);
 		Assert.Equal(DeclarationParticipationMode.TestModule, cover.Request.DeclarationParticipationMode);
 		Assert.Equal(CoverageInstrumentationMode.ProductionSubject, cover.Request.CoverageInstrumentationMode);
+		Assert.False(cover.Request.InferWithinPolicyBuildKind);
+		Assert.Null(cover.Request.WithinPolicyBuildKind);
 
 		Assert.True(build.Success, string.Join(Environment.NewLine, build.Diagnostics));
 		Assert.Equal(CompilerCommandMode.Build, build.Request.CommandMode);
 		Assert.Equal(DeclarationParticipationMode.Production, build.Request.DeclarationParticipationMode);
 		Assert.Equal(CoverageInstrumentationMode.Disabled, build.Request.CoverageInstrumentationMode);
+	}
+
+	[Fact]
+	public void Project_loader_sets_within_policy_inference_for_test_cover_and_language_service()
+	{
+		string root = CreateTempDirectory("project-loader-within-policy");
+		string sourceDirectory = Path.Combine(root, "src");
+		Directory.CreateDirectory(sourceDirectory);
+		File.WriteAllText(Path.Combine(sourceDirectory, "library.camp"), "void helper() {}");
+		string inferredBuildFile = Path.Combine(root, "library.campbuild");
+		File.WriteAllText(inferredBuildFile, """
+			--nostdlib
+			src/*.camp
+			""");
+		string staticBuildFile = Path.Combine(root, "static-library.campbuild");
+		File.WriteAllText(staticBuildFile, """
+			--nostdlib
+			--artifact static
+			src/*.camp
+			""");
+		string execBuildFile = Path.Combine(root, "exec-app.campbuild");
+		File.WriteAllText(execBuildFile, """
+			--nostdlib
+			--artifact exec
+			src/*.camp
+			""");
+
+		CampProjectLoadResult inferredTest = CampProjectLoader.LoadBuildFile(inferredBuildFile, CreateEnvironment(root), CampProjectCommandKind.Test);
+		CampProjectLoadResult inferredCover = CampProjectLoader.LoadBuildFile(inferredBuildFile, CreateEnvironment(root), CampProjectCommandKind.Cover);
+		CampProjectLoadResult inferredLanguageService = CampProjectLoader.LoadBuildFile(inferredBuildFile, CreateEnvironment(root), CampProjectCommandKind.LanguageService);
+		CampProjectLoadResult staticTest = CampProjectLoader.LoadBuildFile(staticBuildFile, CreateEnvironment(root), CampProjectCommandKind.Test);
+		CampProjectLoadResult execTest = CampProjectLoader.LoadBuildFile(execBuildFile, CreateEnvironment(root), CampProjectCommandKind.Test);
+
+		Assert.True(inferredTest.Success, string.Join(Environment.NewLine, inferredTest.Diagnostics));
+		Assert.Null(inferredTest.Request.BuildKind);
+		Assert.True(inferredTest.Request.InferWithinPolicyBuildKind);
+		Assert.Null(inferredTest.Request.WithinPolicyBuildKind);
+
+		Assert.True(inferredCover.Success, string.Join(Environment.NewLine, inferredCover.Diagnostics));
+		Assert.True(inferredCover.Request.InferWithinPolicyBuildKind);
+		Assert.Null(inferredCover.Request.WithinPolicyBuildKind);
+
+		Assert.True(inferredLanguageService.Success, string.Join(Environment.NewLine, inferredLanguageService.Diagnostics));
+		Assert.True(inferredLanguageService.Request.InferWithinPolicyBuildKind);
+		Assert.Null(inferredLanguageService.Request.WithinPolicyBuildKind);
+
+		Assert.True(staticTest.Success, string.Join(Environment.NewLine, staticTest.Diagnostics));
+		Assert.False(staticTest.Request.InferWithinPolicyBuildKind);
+		Assert.Equal(NativeBuildKind.Static, staticTest.Request.WithinPolicyBuildKind);
+
+		Assert.True(execTest.Success, string.Join(Environment.NewLine, execTest.Diagnostics));
+		Assert.False(execTest.Request.InferWithinPolicyBuildKind);
+		Assert.Equal(NativeBuildKind.Exec, execTest.Request.WithinPolicyBuildKind);
 	}
 
 	[Fact]

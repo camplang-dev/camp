@@ -192,9 +192,11 @@ must ask the shared declaration participation service for the active view.
 marks the function as test-only and as a test-discovery candidate. The built-in
 runner signature is intentionally not a compiler-stopping validation rule.
 Discovery classifies the signature later. A test is runnable by the built-in
-runner when it has the shape `void name(thrown TYPE*)`, and `TYPE` has
-instance fields named `message`, `sourcefile`, and `sourceline`. The string
-fields may be `string` or `escaped string`; `sourceline` is `uint`.
+runner when it has the shape `void name(thrown TYPE*)` or
+`void name(within Allocator* allocator, thrown TYPE*)`. The allocator slot may
+also be written as `within allocator`; it must appear before the thrown slot.
+`TYPE` has instance fields named `message`, `sourcefile`, and `sourceline`.
+The string fields may be `string` or `escaped string`; `sourceline` is `uint`.
 
 `@testonly` is valid only on top-level declarations that are private or
 `internal`. On a top-level class, struct, interface, enum, newtype, or callable

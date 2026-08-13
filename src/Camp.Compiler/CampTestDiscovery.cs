@@ -28,11 +28,13 @@ public sealed record CampTestManifestEntry(
 {
 	internal FunctionDefinition? Function { get; init; }
 	internal TestFailureShape? FailureShape { get; init; }
+	internal TestAllocatorShape? AllocatorShape { get; init; }
 }
 
 public sealed record CampTestDiscoveryResult(CampTestManifest Manifest, IReadOnlyList<AnalysisDiagnostic> Diagnostics);
 
 internal sealed record TestFailureShape(TypeDefinition Type, string MessageField, string SourcefileField, string SourcelineField);
+internal sealed record TestAllocatorShape(TypeDefinition Type);
 
 public static class CampTestDiscovery
 {
@@ -61,10 +63,11 @@ public static class CampTestDiscovery
 				GetAttributeStringContent(function.Attributes, "summary") ?? "",
 				skipped,
 				skipped ? skipReason : null,
-				TryGetBuiltInRunnerSignature(module, function, out TestFailureShape? failureShape) ? "valid" : "invalid")
+				TryGetBuiltInRunnerSignature(module, function, out TestFailureShape? failureShape, out TestAllocatorShape? allocatorShape) ? "valid" : "invalid")
 			{
 				Function = function,
-				FailureShape = failureShape
+				FailureShape = failureShape,
+				AllocatorShape = allocatorShape
 			});
 		}
 
@@ -146,18 +149,33 @@ public static class CampTestDiscovery
 
 	internal static bool TryGetBuiltInRunnerSignature(Module module, FunctionDefinition function, out TestFailureShape? failureShape)
 	{
+		return TryGetBuiltInRunnerSignature(module, function, out failureShape, out _);
+	}
+
+	internal static bool TryGetBuiltInRunnerSignature(Module module, FunctionDefinition function, out TestFailureShape? failureShape, out TestAllocatorShape? allocatorShape)
+	{
 		failureShape = null;
+		allocatorShape = null;
 		if (!(function.Body is not null
 			&& function.Extern is null
 			&& !function.IsAsync
 			&& function.IteratorKind == IteratorKind.None
 			&& function.GenericParameters.Count == 0
-			&& FormatType(function.ReturnType, function.ResolvedType) == "void"
-			&& function.Parameters.Count == 1
-			&& function.Parameters[0].Modifier == ParameterModifier.Thrown))
+			&& FormatType(function.ReturnType, function.ResolvedType) == "void"))
 			return false;
 
-		if (function.Parameters[0].Type is not PointerTypeReference pointer)
+		ParameterDefinition thrownParameter;
+		if (function.Parameters.Count == 1)
+			thrownParameter = function.Parameters[0];
+		else if (function.Parameters.Count == 2
+			&& TryGetTestAllocatorShape(module, function.Parameters[0], out allocatorShape))
+			thrownParameter = function.Parameters[1];
+		else
+			return false;
+
+		if (thrownParameter.Modifier != ParameterModifier.Thrown)
+			return false;
+		if (thrownParameter.Type is not PointerTypeReference pointer)
 			return false;
 		TypeDefinition? failureType = GetFailureTypeDefinition(module, pointer.ElementType);
 		if (failureType is null)
@@ -176,6 +194,20 @@ public static class CampTestDiscovery
 			|| FormatType(sourcelineField.Type, sourcelineField.ResolvedType) != "uint")
 			return false;
 		failureShape = new TestFailureShape(failureType, EffectiveFieldSymbol(messageField), EffectiveFieldSymbol(sourcefileField), EffectiveFieldSymbol(sourcelineField));
+		return true;
+	}
+
+	static bool TryGetTestAllocatorShape(Module module, ParameterDefinition parameter, out TestAllocatorShape? allocatorShape)
+	{
+		allocatorShape = null;
+		if (parameter.Modifier != ParameterModifier.Within && parameter is not WithinParameterDefinition)
+			return false;
+		if (parameter.Type is not PointerTypeReference pointer)
+			return false;
+		TypeDefinition? allocatorType = GetAllocatorTypeDefinition(module, pointer.ElementType);
+		if (allocatorType is null)
+			return false;
+		allocatorShape = new TestAllocatorShape(allocatorType);
 		return true;
 	}
 
@@ -200,6 +232,21 @@ public static class CampTestDiscovery
 			AttributedTypeReference attributed => GetFailureTypeDefinition(module, attributed.Type),
 			_ => null
 		};
+	}
+
+	static TypeDefinition? GetAllocatorTypeDefinition(Module module, TypeReference? type)
+	{
+		TypeDefinition? definition = type switch
+		{
+			TypeDefinitionReference reference => reference.Definition,
+			NamedTypeReference { ResolvedType: string resolved } => FindTypeByResolvedName(module, resolved),
+			ClassTypeReference classType => classType.Definition,
+			AttributedTypeReference attributed => GetAllocatorTypeDefinition(module, attributed.Type),
+			_ => null
+		};
+		return definition is not null && string.Equals(definition.Name, "Allocator", StringComparison.Ordinal)
+			? definition
+			: null;
 	}
 
 	static TypeDefinition? FindTypeByResolvedName(Module module, string resolved)

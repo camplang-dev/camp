@@ -174,6 +174,8 @@ public static class CampProjectLoader
 			EmitKind = bag.EmitKind ?? "c99",
 			BuildKind = bag.ArtifactKind,
 			InferBuildKind = command == CampProjectCommandKind.Build && !bag.ArtifactSpecified,
+			WithinPolicyBuildKind = bag.ArtifactKind,
+			InferWithinPolicyBuildKind = command is CampProjectCommandKind.Test or CampProjectCommandKind.Cover or CampProjectCommandKind.LanguageService && !bag.ArtifactSpecified,
 			CommandMode = GetCompilerCommandMode(command),
 			DeclarationParticipationMode = command is CampProjectCommandKind.Test or CampProjectCommandKind.Cover ? DeclarationParticipationMode.TestModule : DeclarationParticipationMode.Production,
 			CoverageInstrumentationMode = command == CampProjectCommandKind.Cover ? CoverageInstrumentationMode.ProductionSubject : CoverageInstrumentationMode.Disabled,
