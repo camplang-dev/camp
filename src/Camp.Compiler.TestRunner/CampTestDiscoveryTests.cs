@@ -127,6 +127,37 @@ public sealed class CampTestDiscoveryTests
 	}
 
 	[Fact]
+	public void Discovery_accepts_interface_allocator_within_test_signature()
+	{
+		SemanticCompilation compilation = SemanticCompiler.CompileLoweredTestModule(("tests/interface_allocator_test_manifest.camp", """
+			namespace InterfaceAllocatorTests;
+
+			struct Assertion
+			{
+				escaped string message;
+				escaped string sourcefile;
+				uint sourceline;
+			}
+
+			interface Allocator
+			{
+			}
+
+			@test
+			void allocatorExplicit(within Allocator* allocator, thrown Assertion* assertion)
+			{
+			}
+			"""));
+		SemanticCompiler.AssertNoDiagnostics(compilation);
+
+		CampTestDiscoveryResult result = CampTestDiscovery.Discover(compilation.Compilation, CampTestManifestMode.InModule);
+
+		Assert.Empty(result.Diagnostics);
+		CampTestManifestEntry allocatorExplicit = result.Manifest.Tests.Single(static test => test.Name == "allocatorExplicit");
+		Assert.Equal("valid", allocatorExplicit.RunnerSignature);
+	}
+
+	[Fact]
 	public void Filter_patterns_are_exact_without_wildcards_and_support_simple_wildcards()
 	{
 		CampTestManifestEntry test = new(

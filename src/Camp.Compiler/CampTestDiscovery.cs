@@ -205,6 +205,10 @@ public static class CampTestDiscovery
 		if (parameter.Type is not PointerTypeReference pointer)
 			return false;
 		TypeDefinition? allocatorType = GetAllocatorTypeDefinition(module, pointer.ElementType);
+		if (allocatorType is null
+			&& pointer.ElementType is PointerTypeReference interfacePointer
+			&& GetAllocatorTypeDefinition(module, interfacePointer.ElementType) is InterfaceDefinition interfaceAllocator)
+			allocatorType = interfaceAllocator;
 		if (allocatorType is null)
 			return false;
 		allocatorShape = new TestAllocatorShape(allocatorType);
