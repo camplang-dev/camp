@@ -309,6 +309,11 @@ public sealed partial class BindableNodeAnalyzer
 			TypeReferenceForResolvedName(type, value.SourceSyntax),
 			value);
 		local.SourceSyntax = value.SourceSyntax;
+		if (TryExpandParamsLocalDeclaration(local, out List<Statement> declarations) && declarations.Count > 0)
+		{
+			currentStatementPrefix!.AddRange(declarations);
+			return CreateVariableReference(local.Target, type, value.SourceSyntax);
+		}
 		currentStatementPrefix!.Add(local);
 		return CreateVariableReference(local.Target, type, value.SourceSyntax);
 	}

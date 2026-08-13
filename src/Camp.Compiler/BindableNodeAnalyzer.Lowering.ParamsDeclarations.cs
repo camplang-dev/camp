@@ -365,6 +365,12 @@ public sealed partial class BindableNodeAnalyzer
 		bool materializedGenericReturnInitializer = initialValue is CallExpression initialCall
 			&& callTargets.TryGetValue(initialCall, out FunctionDefinition? initialFunction)
 			&& IsMaterializedGenericReturnFunction(initialFunction);
+		bool expandedReturnInitializer = !materializedGenericReturnInitializer
+			&& initialValue is CallExpression expandedReturnCall
+			&& callTargets.TryGetValue(expandedReturnCall, out FunctionDefinition? expandedReturnFunction)
+			&& (TryGetExpandedReturnShape(expandedReturnCall, expandedReturnFunction, out ParamsComponentShape? expandedReturnShape)
+				|| TryUseTargetShapeForGenericExpandedReturn(expandedReturnFunction, shape, out expandedReturnShape))
+			&& expandedReturnShape.Components.Count == shape.Components.Count;
 		if (!materializedGenericReturnInitializer)
 			CaptureParamsArrayConstructionLength(initialValue, shape, declarations);
 		if (initialValue is LambdaExpression lambda)
@@ -397,11 +403,12 @@ public sealed partial class BindableNodeAnalyzer
 		}
 		List<Expression?> initialValues = TryCreateIteratorFactoryProtocolInitialValues(initialValue, shape, declarations, declaration.SourceSyntax, out List<Expression?>? iteratorProtocolInitialValues)
 			? iteratorProtocolInitialValues!
-			: materializedGenericReturnInitializer
+			: materializedGenericReturnInitializer || expandedReturnInitializer
 			? CreateNullInitialValues(shape)
 			: TryCreateTargetTypedExpandedReceiverInitialValues(initialValue, shape, declarations, out List<Expression?>? expandedReceiverInitialValues)
 			? expandedReceiverInitialValues!
 			: GetParamsComponentInitialValues(initialValue, shape, deferCurrentAllocator: true, declarations);
+		int componentDeclarationStart = declarations.Count;
 		List<DeclarationTarget> targets = [];
 		for (int componentIndex = 0; componentIndex < shape.Components.Count; componentIndex++)
 		{
@@ -425,7 +432,7 @@ public sealed partial class BindableNodeAnalyzer
 			AddImplicitNameOfArguments(call);
 			AddImplicitWithinArgument(call);
 			AddImplicitVTableOfArguments(call);
-			((DeclarationStatement)declarations[0]).InitialValue = null;
+			((DeclarationStatement)declarations[componentDeclarationStart]).InitialValue = null;
 			for (int i = 1; i < targets.Count; i++)
 			{
 				call.Arguments.Add(new ArgumentExpression
@@ -456,7 +463,7 @@ public sealed partial class BindableNodeAnalyzer
 			&& callableReturnShape.Components.Count == shape.Components.Count)
 		{
 			ExpandParamsArguments(callableCall);
-			((DeclarationStatement)declarations[0]).InitialValue = null;
+			((DeclarationStatement)declarations[componentDeclarationStart]).InitialValue = null;
 			for (int i = 1; i < targets.Count; i++)
 			{
 				callableCall.Arguments.Add(new ArgumentExpression

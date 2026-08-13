@@ -8,6 +8,11 @@ public nuint escapedLength(const char[] this, prep char[] buffer = default)
 	return this.length;
 }
 
+const char[] middle(const char[] value)
+{
+	return value[1..4];
+}
+
 export int main()
 {
 	char[] copied = "abc".escapedLength();
@@ -34,6 +39,10 @@ export int main()
 	required = "xy".escapedLength(shortSpan);
 	if (required != 2 || shortBuffer[0] != 'x')
 		return 5;
+
+	char[] chainedReceiver = middle(" hello ").toString();
+	if (chainedReceiver.compareTo("hel") != 0)
+		return 6;
 
 	return 0;
 }
