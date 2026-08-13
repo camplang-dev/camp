@@ -460,6 +460,14 @@ tests with invalid built-in runner signatures are recorded without invocation.
 Valid tests are invoked with their declared thrown pointer type. When a
 non-null thrown value is produced, the harness reads its `message`,
 `sourcefile`, and `sourceline` fields and records the result as a failed test.
+Allocator-aware tests using the standard interface-shaped `Allocator*` receive
+a harness-owned tracking allocator. The tracker observes only allocations made
+through that runner-supplied allocator slot; explicit `within(default)`, direct
+custom allocator instances, foreign allocation APIs, and non-interface
+allocator shapes are outside this built-in leak detector. A live tracked
+allocation at test return is a `memory-leak` failure unless `--ignore-leaks`
+was supplied. Invalid tracked allocator operations, such as freeing the same
+pointer twice, are failures even with `--ignore-leaks`.
 
 Private in-module tests remain private source declarations. C emission may
 expose private generated names to the compiler-owned harness, but this does not
@@ -477,6 +485,10 @@ defaults to `self`. External coverage instruments selected shared-library
 project-reference subjects in production participation mode and links the
 harness against the instrumented shared library. If more than one shared
 project reference could be the subject, the command line must name the subject.
+For in-module coverage, generated coverage checkpoints expose the current
+mapped file and line to the test harness. The tracking allocator captures that
+checkpoint for each allocation so leak failures can point at the allocation
+line instead of only the test declaration.
 
 ## Provenance And Diagnostics
 

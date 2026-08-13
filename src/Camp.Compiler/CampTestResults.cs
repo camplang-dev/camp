@@ -21,11 +21,14 @@ public sealed record CampTestResultEntry(
 	string Summary,
 	string Outcome,
 	double DurationMs,
-	CampTestFailure? Failure);
+	CampTestFailure? Failure,
+	CampTestMemoryReport? Memory = null);
 
 public sealed record CampTestFailure(string Kind, string Message, string Sourcefile, int Sourceline);
+public sealed record CampTestMemoryReport(bool LeaksIgnored, IReadOnlyList<CampTestLeakReport> Leaks);
+public sealed record CampTestLeakReport(ulong Bytes, int Count, string Message, string Sourcefile, int Sourceline);
 
-internal sealed record CampTestHarnessEvent(int Index, string Outcome, double DurationMs, CampTestFailure? Failure);
+internal sealed record CampTestHarnessEvent(int Index, string Outcome, double DurationMs, CampTestFailure? Failure, CampTestMemoryReport? Memory = null);
 
 public static class CampTestResultsFactory
 {
@@ -51,17 +54,18 @@ public static class CampTestResultsFactory
 			results.Add(harnessEvent.Outcome switch
 			{
 				"passed" => CreateResult(test, "passed", harnessEvent.DurationMs, failure: null),
+				"passed-leaked" => CreateResult(test, "passed", harnessEvent.DurationMs, failure: null, harnessEvent.Memory),
 				"skipped" => CreateResult(test, "skipped", harnessEvent.DurationMs, failure: null),
 				"invalid" => CreateResult(test, "invalid", harnessEvent.DurationMs, new CampTestFailure(
 					"invalid-test-signature",
-					"built-in tests must have the signature void name(thrown TYPE*) where TYPE contains message, sourcefile, and sourceline fields",
+					"built-in tests must have the signature void name(thrown TYPE*) or void name(within Allocator* allocator, thrown TYPE*) where TYPE contains message, sourcefile, and sourceline fields",
 					test.Sourcefile,
 					test.Sourceline)),
-				"failed" => CreateResult(test, "failed", harnessEvent.DurationMs, harnessEvent.Failure ?? new CampTestFailure(
+				"failed" => CreateResult(test, "failed", harnessEvent.DurationMs, NormalizeFailure(test, harnessEvent.Failure ?? new CampTestFailure(
 					"assertion",
 					"",
 					test.Sourcefile,
-					test.Sourceline)),
+					test.Sourceline))),
 				_ => CreateErrorResult(test, "test harness reported unknown outcome '" + harnessEvent.Outcome + "'")
 			});
 		}
@@ -77,7 +81,7 @@ public static class CampTestResultsFactory
 		return new CampTestResults(CreateSummary(results), results);
 	}
 
-	static CampTestResultEntry CreateResult(CampTestManifestEntry test, string outcome, double durationMs, CampTestFailure? failure)
+	static CampTestResultEntry CreateResult(CampTestManifestEntry test, string outcome, double durationMs, CampTestFailure? failure, CampTestMemoryReport? memory = null)
 	{
 		return new CampTestResultEntry(
 			test.Id,
@@ -88,7 +92,29 @@ public static class CampTestResultsFactory
 			test.Summary,
 			outcome,
 			durationMs,
-			failure);
+			failure,
+			NormalizeMemory(test, memory));
+	}
+
+	static CampTestFailure NormalizeFailure(CampTestManifestEntry test, CampTestFailure failure)
+	{
+		string sourcefile = string.IsNullOrWhiteSpace(failure.Sourcefile) ? test.Sourcefile : failure.Sourcefile;
+		int sourceline = failure.Sourceline == 0 ? test.Sourceline : failure.Sourceline;
+		return failure with { Sourcefile = sourcefile, Sourceline = sourceline };
+	}
+
+	static CampTestMemoryReport? NormalizeMemory(CampTestManifestEntry test, CampTestMemoryReport? memory)
+	{
+		if (memory is null)
+			return null;
+		return memory with
+		{
+			Leaks = memory.Leaks.Select(leak => leak with
+			{
+				Sourcefile = string.IsNullOrWhiteSpace(leak.Sourcefile) ? test.Sourcefile : leak.Sourcefile,
+				Sourceline = leak.Sourceline == 0 ? test.Sourceline : leak.Sourceline
+			}).ToList()
+		};
 	}
 
 	static CampTestResultEntry CreateErrorResult(CampTestManifestEntry test, string message)
@@ -152,6 +178,28 @@ public static class CampTestResultsJsonSerializer
 					json.WriteNumber("sourceline", test.Failure.Sourceline);
 					json.WriteEndObject();
 				}
+				if (test.Memory is null)
+				{
+					json.WriteNull("memory");
+				}
+				else
+				{
+					json.WriteStartObject("memory");
+					json.WriteBoolean("leaksIgnored", test.Memory.LeaksIgnored);
+					json.WriteStartArray("leaks");
+					foreach (CampTestLeakReport leak in test.Memory.Leaks)
+					{
+						json.WriteStartObject();
+						json.WriteNumber("bytes", leak.Bytes);
+						json.WriteNumber("count", leak.Count);
+						json.WriteString("message", leak.Message);
+						json.WriteString("sourcefile", leak.Sourcefile);
+						json.WriteNumber("sourceline", leak.Sourceline);
+						json.WriteEndObject();
+					}
+					json.WriteEndArray();
+					json.WriteEndObject();
+				}
 				json.WriteEndObject();
 			}
 			json.WriteEndArray();
@@ -187,6 +235,24 @@ public static class CampTestResultsJsonSerializer
 							GetString(failureElement, "sourcefile"),
 							GetInt(failureElement, "sourceline"));
 					}
+					CampTestMemoryReport? memory = null;
+					if (test.TryGetProperty("memory", out JsonElement memoryElement) && memoryElement.ValueKind == JsonValueKind.Object)
+					{
+						List<CampTestLeakReport> leaks = [];
+						if (memoryElement.TryGetProperty("leaks", out JsonElement leaksElement) && leaksElement.ValueKind == JsonValueKind.Array)
+						{
+							foreach (JsonElement leak in leaksElement.EnumerateArray())
+							{
+								leaks.Add(new CampTestLeakReport(
+									GetUInt64(leak, "bytes"),
+									GetInt(leak, "count"),
+									GetString(leak, "message"),
+									GetString(leak, "sourcefile"),
+									GetInt(leak, "sourceline")));
+							}
+						}
+						memory = new CampTestMemoryReport(GetBool(memoryElement, "leaksIgnored"), leaks);
+					}
 					tests.Add(new CampTestResultEntry(
 						GetString(test, "id"),
 						GetString(test, "name"),
@@ -196,7 +262,8 @@ public static class CampTestResultsJsonSerializer
 						GetString(test, "summary"),
 						GetString(test, "outcome"),
 						GetDouble(test, "durationMs"),
-						failure));
+						failure,
+						memory));
 				}
 			}
 			else
@@ -236,6 +303,16 @@ public static class CampTestResultsJsonSerializer
 	static double GetDouble(JsonElement element, string name)
 	{
 		return element.TryGetProperty(name, out JsonElement property) && property.TryGetDouble(out double value) ? value : 0;
+	}
+
+	static bool GetBool(JsonElement element, string name)
+	{
+		return element.TryGetProperty(name, out JsonElement property) && property.ValueKind is JsonValueKind.True or JsonValueKind.False && property.GetBoolean();
+	}
+
+	static ulong GetUInt64(JsonElement element, string name)
+	{
+		return element.TryGetProperty(name, out JsonElement property) && property.TryGetUInt64(out ulong value) ? value : 0;
 	}
 }
 
@@ -312,6 +389,21 @@ public static class CampTestResultsTextFormatter
 						builder.Append(test.Failure.Message);
 					}
 					builder.AppendLine();
+				}
+				if (test.Memory is not null)
+				{
+					foreach (CampTestLeakReport leak in test.Memory.Leaks)
+					{
+						builder.Append("  leak: ");
+						if (!string.IsNullOrWhiteSpace(leak.Sourcefile) || leak.Sourceline != 0)
+						{
+							builder.Append(leak.Sourcefile);
+							builder.Append(':');
+							builder.Append(leak.Sourceline.ToString(CultureInfo.InvariantCulture));
+							builder.Append(' ');
+						}
+						builder.AppendLine(leak.Message);
+					}
 				}
 			}
 		}
@@ -407,21 +499,41 @@ internal static class CampTestHarnessEventParser
 				continue;
 			}
 			CampTestFailure? failure = null;
+			CampTestMemoryReport? memory = null;
 			if (parts[0] == "failed")
 			{
-				if (parts.Length != 6 || !int.TryParse(parts[5], NumberStyles.None, CultureInfo.InvariantCulture, out int sourceline))
+				if (parts.Length == 6 && int.TryParse(parts[5], NumberStyles.None, CultureInfo.InvariantCulture, out int assertionLine))
+				{
+					failure = new CampTestFailure("assertion", Unescape(parts[3]), Unescape(parts[4]), assertionLine);
+				}
+				else if (parts.Length == 7 && int.TryParse(parts[6], NumberStyles.None, CultureInfo.InvariantCulture, out int typedLine))
+				{
+					failure = new CampTestFailure(Unescape(parts[3]), Unescape(parts[4]), Unescape(parts[5]), typedLine);
+				}
+				else
 				{
 					diagnostics.Add($"{path}({lineNumber}): invalid failed test harness event row.");
 					continue;
 				}
-				failure = new CampTestFailure("assertion", Unescape(parts[3]), Unescape(parts[4]), sourceline);
+			}
+			else if (parts[0] == "passed-leaked")
+			{
+				if (parts.Length != 8
+					|| !int.TryParse(parts[5], NumberStyles.None, CultureInfo.InvariantCulture, out int sourceline)
+					|| !ulong.TryParse(parts[6], NumberStyles.None, CultureInfo.InvariantCulture, out ulong bytes)
+					|| !int.TryParse(parts[7], NumberStyles.None, CultureInfo.InvariantCulture, out int count))
+				{
+					diagnostics.Add($"{path}({lineNumber}): invalid ignored leak test harness event row.");
+					continue;
+				}
+				memory = new CampTestMemoryReport(true, [new CampTestLeakReport(bytes, count, Unescape(parts[3]), Unescape(parts[4]), sourceline)]);
 			}
 			else if (parts.Length != 3)
 			{
 				diagnostics.Add($"{path}({lineNumber}): invalid test harness event row.");
 				continue;
 			}
-			events.Add(new CampTestHarnessEvent(index, parts[0], durationMs, failure));
+			events.Add(new CampTestHarnessEvent(index, parts[0], durationMs, failure, memory));
 		}
 		return diagnostics.Count == 0;
 	}

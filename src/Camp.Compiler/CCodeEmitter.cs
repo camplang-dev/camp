@@ -432,6 +432,9 @@ public static class CCodeEmitter
 			writer.WriteLine();
 			writer.WriteLine("extern uint64_t " + CampCoverageRuntimeSourceGenerator.CounterSymbol(options.ProjectName) + "[];");
 			writer.WriteLine("void " + CampCoverageRuntimeSourceGenerator.TouchSymbol(options.ProjectName) + "(void);");
+			writer.WriteLine("void " + CampCoverageRuntimeSourceGenerator.CheckpointSymbol(options.ProjectName) + "(unsigned int counter);");
+			writer.WriteLine("const char *" + CampCoverageRuntimeSourceGenerator.CurrentFileSymbol(options.ProjectName) + "(void);");
+			writer.WriteLine("unsigned int " + CampCoverageRuntimeSourceGenerator.CurrentLineSymbol(options.ProjectName) + "(void);");
 		}
 		writer.WriteLine();
 		writer.WriteLine("#endif");
@@ -3968,8 +3971,10 @@ public static class CCodeEmitter
 			// Coverage is inserted only at the C statement boundary so Camp expression
 			// evaluation, cleanup, lifetimes, and allocation behavior stay unchanged.
 			WriteIndent(writer, indent);
-			writer.Write(CampCoverageRuntimeSourceGenerator.TouchSymbol(options.ProjectName));
-			writer.WriteLine("();");
+			writer.Write(CampCoverageRuntimeSourceGenerator.CheckpointSymbol(options.ProjectName));
+			writer.Write("(");
+			writer.Write(counterId.ToString(CultureInfo.InvariantCulture));
+			writer.WriteLine("u);");
 			WriteIndent(writer, indent);
 			writer.Write(CampCoverageRuntimeSourceGenerator.CounterSymbol(options.ProjectName));
 			writer.Write("[");

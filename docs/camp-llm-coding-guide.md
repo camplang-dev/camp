@@ -1025,6 +1025,15 @@ The allocator slot may be implicit (`within allocator`) or explicitly typed as
 `within Allocator* name`. Do not reverse the order; `thrown` remains the final
 failure channel.
 
+When the allocator slot uses the standard interface-shaped `Allocator*`, the
+built-in runner passes a tracking allocator. Memory allocated through that
+parameter must be released before the test returns, or the test fails with a
+memory-leak result. `campc cover` can point the leak at the allocation
+checkpoint; plain `campc test` falls back to the test location. Allocate
+intentional process-lifetime state with `within(default)` so it is outside the
+built-in test leak detector. `--ignore-leaks` is allowed only for `campc test`
+and `campc cover`; it reports leaks but does not make leak-only tests fail.
+
 Use `assert(condition)` for ordinary checks and `fail(message)` for an explicit
 failure. These functions capture expression text, source file, and source line
 with default source-capture intrinsics, so wrappers should forward `message`,

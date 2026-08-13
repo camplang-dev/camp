@@ -89,6 +89,7 @@ public sealed class CommandLineTests
 		Assert.Equal(0, test.ExitCode);
 		Assert.Contains("--list", test.StdOut, StringComparison.Ordinal);
 		Assert.Contains("--filter", test.StdOut, StringComparison.Ordinal);
+		Assert.Contains("--ignore-leaks", test.StdOut, StringComparison.Ordinal);
 		Assert.Contains("--test-output-dir", test.StdOut, StringComparison.Ordinal);
 	}
 
@@ -522,6 +523,370 @@ public sealed class CommandLineTests
 		Assert.True(File.Exists(harnessSource), harnessSource);
 		string harness = File.ReadAllText(harnessSource);
 		Assert.Contains("(NULL, &typed_failure)", harness, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Generated_harness_tracks_interface_allocator_leaks_and_invalid_frees()
+	{
+		string source = CreateTempCase("test_harness_leak_tracking/main.camp", """
+			namespace HarnessLeakCli;
+
+			@symbol("malloc")
+			export extern void* malloc(nuint size);
+			@symbol("free")
+			export extern void free(void* ptr);
+
+			interface Allocator
+			{
+				void* alloc(nuint size);
+				void free(void* ptr);
+			}
+
+			struct Assertion
+			{
+				escaped string message;
+				escaped string sourcefile;
+				uint sourceline;
+			}
+
+			class Box
+			{
+				int value;
+
+				Box(int value)
+				{
+					this.value = value;
+				}
+			}
+
+			@test
+			void cleansUp(within allocator, thrown Assertion* assertion)
+			{
+				auto box = new Box(1);
+				delete box;
+			}
+
+			@test
+			void leaks(within allocator, thrown Assertion* assertion)
+			{
+				auto box = new Box(2);
+			}
+
+			@test
+			void arrayLeaks(within allocator, thrown Assertion* assertion)
+			{
+				auto bytes = new byte[4];
+			}
+
+			@test
+			void manualLeaks(within allocator, thrown Assertion* assertion)
+			{
+				void* memory = allocator.alloc(8);
+			}
+
+			@test
+			void defaultAllocationBypassesTracking(within allocator, thrown Assertion* assertion)
+			{
+				auto bytes = within(default) new byte[4];
+			}
+
+			@test
+			void doubleFree(within allocator, thrown Assertion* assertion)
+			{
+				void* memory = allocator.alloc(4);
+				allocator.free(memory);
+				allocator.free(memory);
+			}
+			""");
+
+		string passOut = TempPath("test-harness-leak-pass-out");
+		ProcessResult pass = RunCampc(
+			"test",
+			source,
+			"--nostdlib",
+			"--target",
+			NativeTargetForHost(),
+			"--out-dir",
+			passOut,
+			"--name",
+			"harness_leak_pass",
+			"--filter",
+			"HarnessLeakCli::cleansUp");
+
+		AssertCommandSucceeded(pass);
+		Assert.Contains("passed: HarnessLeakCli::cleansUp", pass.StdOut, StringComparison.Ordinal);
+
+		string leakOut = TempPath("test-harness-leak-fail-out");
+		ProcessResult leak = RunCampc(
+			"test",
+			source,
+			"--nostdlib",
+			"--target",
+			NativeTargetForHost(),
+			"--out-dir",
+			leakOut,
+			"--name",
+			"harness_leak_fail",
+			"--filter",
+			"HarnessLeakCli::leaks");
+
+		Assert.NotEqual(0, leak.ExitCode);
+		Assert.Contains("failed: HarnessLeakCli::leaks", leak.StdOut, StringComparison.Ordinal);
+		Assert.Contains("memory leak: 1 allocation still live", leak.StdOut, StringComparison.Ordinal);
+		using JsonDocument leakResults = JsonDocument.Parse(File.ReadAllText(TestResultsPath(leakOut, "harness_leak_fail")));
+		JsonElement leakTest = Assert.Single(leakResults.RootElement.GetProperty("tests").EnumerateArray());
+		Assert.Equal("failed", leakTest.GetProperty("outcome").GetString());
+		Assert.Equal("memory-leak", leakTest.GetProperty("failure").GetProperty("kind").GetString());
+
+		string arrayLeakOut = TempPath("test-harness-array-leak-fail-out");
+		ProcessResult arrayLeak = RunCampc(
+			"test",
+			source,
+			"--nostdlib",
+			"--target",
+			NativeTargetForHost(),
+			"--out-dir",
+			arrayLeakOut,
+			"--name",
+			"harness_array_leak_fail",
+			"--filter",
+			"HarnessLeakCli::arrayLeaks");
+
+		Assert.NotEqual(0, arrayLeak.ExitCode);
+		Assert.Contains("failed: HarnessLeakCli::arrayLeaks", arrayLeak.StdOut, StringComparison.Ordinal);
+		Assert.Contains("memory leak: 1 allocation still live", arrayLeak.StdOut, StringComparison.Ordinal);
+
+		string manualLeakOut = TempPath("test-harness-manual-leak-fail-out");
+		ProcessResult manualLeak = RunCampc(
+			"test",
+			source,
+			"--nostdlib",
+			"--target",
+			NativeTargetForHost(),
+			"--out-dir",
+			manualLeakOut,
+			"--name",
+			"harness_manual_leak_fail",
+			"--filter",
+			"HarnessLeakCli::manualLeaks");
+
+		Assert.NotEqual(0, manualLeak.ExitCode);
+		Assert.Contains("failed: HarnessLeakCli::manualLeaks", manualLeak.StdOut, StringComparison.Ordinal);
+		Assert.Contains("memory leak: 1 allocation still live", manualLeak.StdOut, StringComparison.Ordinal);
+
+		string defaultOut = TempPath("test-harness-default-allocation-out");
+		ProcessResult defaultAllocation = RunCampc(
+			"test",
+			source,
+			"--nostdlib",
+			"--target",
+			NativeTargetForHost(),
+			"--out-dir",
+			defaultOut,
+			"--name",
+			"harness_default_allocation",
+			"--filter",
+			"HarnessLeakCli::defaultAllocationBypassesTracking");
+
+		AssertCommandSucceeded(defaultAllocation);
+		Assert.Contains("passed: HarnessLeakCli::defaultAllocationBypassesTracking", defaultAllocation.StdOut, StringComparison.Ordinal);
+		Assert.DoesNotContain("memory leak", defaultAllocation.StdOut, StringComparison.Ordinal);
+
+		string invalidOut = TempPath("test-harness-invalid-free-out");
+		ProcessResult invalid = RunCampc(
+			"test",
+			source,
+			"--nostdlib",
+			"--target",
+			NativeTargetForHost(),
+			"--out-dir",
+			invalidOut,
+			"--name",
+			"harness_invalid_free",
+			"--filter",
+			"HarnessLeakCli::doubleFree",
+			"--ignore-leaks");
+
+		Assert.NotEqual(0, invalid.ExitCode);
+		Assert.Contains("failed: HarnessLeakCli::doubleFree", invalid.StdOut, StringComparison.Ordinal);
+		Assert.Contains("invalid allocator free: pointer was already freed", invalid.StdOut, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Generated_harness_treats_nonstandard_interface_allocator_as_untracked()
+	{
+		string source = CreateTempCase("test_harness_nonstandard_allocator/main.camp", """
+			namespace HarnessNonstandardAllocatorCli;
+
+			interface Allocator
+			{
+				int alloc();
+				void free(int value);
+			}
+
+			struct Assertion
+			{
+				escaped string message;
+				escaped string sourcefile;
+				uint sourceline;
+			}
+
+			@test
+			void validButUntracked(within Allocator* arena, thrown Assertion* assertion)
+			{
+			}
+			""");
+		string outDir = TempPath("test-harness-nonstandard-allocator-out");
+
+		ProcessResult result = RunCampc(
+			"test",
+			source,
+			"--nostdlib",
+			"--target",
+			NativeTargetForHost(),
+			"--out-dir",
+			outDir,
+			"--name",
+			"harness_nonstandard_allocator");
+
+		AssertCommandSucceeded(result);
+		Assert.Contains("passed: HarnessNonstandardAllocatorCli::validButUntracked", result.StdOut, StringComparison.Ordinal);
+		string harnessSource = Path.Combine(outDir, ArtifactDirectoryForHost(null), "build", "harness_nonstandard_allocator_test_harness.c");
+		string harness = File.ReadAllText(harnessSource);
+		Assert.Contains("(NULL, &typed_failure)", harness, StringComparison.Ordinal);
+		Assert.DoesNotContain("camp_test_allocator_storage", harness, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Ignore_leaks_reports_leaks_without_failing_leak_only_tests()
+	{
+		string source = CreateTempCase("test_harness_ignore_leaks/main.camp", """
+			namespace HarnessIgnoreLeakCli;
+
+			@symbol("malloc")
+			export extern void* malloc(nuint size);
+			@symbol("free")
+			export extern void free(void* ptr);
+
+			interface Allocator
+			{
+				void* alloc(nuint size);
+				void free(void* ptr);
+			}
+
+			struct Assertion
+			{
+				escaped string message;
+				escaped string sourcefile;
+				uint sourceline;
+			}
+
+			class Box
+			{
+			}
+
+			@test
+			void leaks(within allocator, thrown Assertion* assertion)
+			{
+				auto box = new Box();
+			}
+			""");
+		string outDir = TempPath("test-harness-ignore-leaks-out");
+
+		ProcessResult result = RunCampc(
+			"test",
+			source,
+			"--nostdlib",
+			"--target",
+			NativeTargetForHost(),
+			"--out-dir",
+			outDir,
+			"--name",
+			"harness_ignore_leaks",
+			"--ignore-leaks");
+
+		AssertCommandSucceeded(result);
+		Assert.Contains("passed: HarnessIgnoreLeakCli::leaks", result.StdOut, StringComparison.Ordinal);
+		Assert.Contains("leak:", result.StdOut, StringComparison.Ordinal);
+		using JsonDocument results = JsonDocument.Parse(File.ReadAllText(TestResultsPath(outDir, "harness_ignore_leaks")));
+		JsonElement test = Assert.Single(results.RootElement.GetProperty("tests").EnumerateArray());
+		Assert.Equal("passed", test.GetProperty("outcome").GetString());
+		Assert.Equal(JsonValueKind.Null, test.GetProperty("failure").ValueKind);
+		JsonElement memory = test.GetProperty("memory");
+		Assert.True(memory.GetProperty("leaksIgnored").GetBoolean());
+		Assert.Single(memory.GetProperty("leaks").EnumerateArray());
+	}
+
+	[Fact]
+	public void Cover_reports_harness_allocator_leaks_at_allocation_line()
+	{
+		string source = CreateTempCase("coverage_harness_leaks/main.camp", """
+			namespace CoverageHarnessLeaks;
+
+			@symbol("malloc")
+			export extern void* malloc(nuint size);
+			@symbol("free")
+			export extern void free(void* ptr);
+
+			interface Allocator
+			{
+				void* alloc(nuint size);
+				void free(void* ptr);
+			}
+
+			struct Assertion
+			{
+				escaped string message;
+				escaped string sourcefile;
+				uint sourceline;
+			}
+
+			class Box
+			{
+				int value;
+
+				Box(int value)
+				{
+					this.value = value;
+				}
+			}
+
+			void createLeakedBox(within allocator)
+			{
+				auto box = new Box(42);
+			}
+
+			@test
+			void leaksFromCoveredCode(within allocator, thrown Assertion* assertion)
+			{
+				createLeakedBox(within allocator);
+			}
+			""");
+		string outDir = TempPath("coverage-harness-leaks-out");
+		string coverageDir = TempPath("coverage-harness-leaks-results");
+		int allocationLine = FindLine(source, "auto box = new Box(42);");
+
+		ProcessResult result = RunCampc(
+			"cover",
+			source,
+			"--nostdlib",
+			"--target",
+			NativeTargetForHost(),
+			"--out-dir",
+			outDir,
+			"--coverage-output-dir",
+			coverageDir,
+			"--name",
+			"coverage_harness_leaks");
+
+		Assert.NotEqual(0, result.ExitCode);
+		Assert.Contains("failed: CoverageHarnessLeaks::leaksFromCoveredCode", result.StdOut, StringComparison.Ordinal);
+		Assert.Contains("memory leak: 1 allocation still live", result.StdOut, StringComparison.Ordinal);
+		Assert.Contains($":{allocationLine} ", result.StdOut, StringComparison.Ordinal);
+		using JsonDocument results = JsonDocument.Parse(File.ReadAllText(TestResultsPath(outDir, "coverage_harness_leaks")));
+		JsonElement test = Assert.Single(results.RootElement.GetProperty("tests").EnumerateArray());
+		Assert.Equal(RelativeSourcePath(source), test.GetProperty("failure").GetProperty("sourcefile").GetString());
+		Assert.Equal(allocationLine, test.GetProperty("failure").GetProperty("sourceline").GetInt32());
 	}
 
 	[Fact]

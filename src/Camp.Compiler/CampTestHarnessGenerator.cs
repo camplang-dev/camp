@@ -8,7 +8,7 @@ namespace Camp.Compiler;
 
 public static class CampTestHarnessGenerator
 {
-	public static string Generate(string projectName, IReadOnlyList<CampTestManifestEntry> tests)
+	public static string Generate(string projectName, IReadOnlyList<CampTestManifestEntry> tests, bool ignoreLeaks = false, CampCoverageMap? coverageMap = null)
 	{
 		StringBuilder builder = new();
 		builder.AppendLine("#include <stdio.h>");
@@ -21,6 +21,11 @@ public static class CampTestHarnessGenerator
 		builder.AppendLine("\treturn malloc(size);");
 		builder.AppendLine("}");
 		builder.AppendLine();
+		TestAllocatorShape? trackingAllocator = tests
+			.Where(IsRunnable)
+			.Select(static test => test.AllocatorShape)
+			.FirstOrDefault(static shape => shape is { Trackable: true });
+		WriteMemoryTracker(builder, projectName, trackingAllocator, coverageMap is not null);
 		builder.AppendLine("typedef void (*CampTestFunction)(void **failure);");
 		builder.AppendLine("typedef const char *(*CampTestStringField)(void *failure);");
 		builder.AppendLine("typedef unsigned int (*CampTestLineField)(void *failure);");
@@ -31,6 +36,7 @@ public static class CampTestHarnessGenerator
 		builder.AppendLine("\tconst char *skip_reason;");
 		builder.AppendLine("\tint skipped;");
 		builder.AppendLine("\tint valid;");
+		builder.AppendLine("\tint tracks_memory;");
 		builder.AppendLine("\tCampTestFunction function;");
 		builder.AppendLine("\tCampTestStringField message;");
 		builder.AppendLine("\tCampTestStringField sourcefile;");
@@ -51,7 +57,7 @@ public static class CampTestHarnessGenerator
 		builder.AppendLine("static const CampTestCase camp_tests[] =");
 		builder.AppendLine("{");
 		if (tests.Count == 0)
-			builder.AppendLine("\t{ 0, 0, 0, 0, 0, 0, 0, 0 },");
+			builder.AppendLine("\t{ 0, 0, 0, 0, 0, 0, 0, 0, 0 },");
 		else
 			foreach (CampTestManifestEntry test in tests)
 				WriteTestTableEntry(builder, test, wrapperIndexes);
@@ -101,6 +107,45 @@ public static class CampTestHarnessGenerator
 		builder.AppendLine("\tprintf(\"  at %s:%u %s\\n\", sourcefile == 0 ? \"\" : sourcefile, sourceline, message == 0 ? \"\" : message);");
 		builder.AppendLine("}");
 		builder.AppendLine();
+		builder.AppendLine("static void camp_record_memory_failure(FILE *file, const CampTestCase *test, int index, double duration_ms, const CampTestMemorySummary *memory)");
+		builder.AppendLine("{");
+		builder.AppendLine("\tconst char *kind = memory->kind == 0 ? \"memory-leak\" : memory->kind;");
+		builder.AppendLine("\tconst char *message = memory->message == 0 ? \"\" : memory->message;");
+		builder.AppendLine("\tconst char *sourcefile = memory->sourcefile == 0 ? \"\" : memory->sourcefile;");
+		builder.AppendLine("\tunsigned int sourceline = memory->sourceline;");
+		builder.AppendLine("\tif (file != 0)");
+		builder.AppendLine("\t{");
+		builder.AppendLine("\t\tfprintf(file, \"failed\\t%d\\t%.3f\\t\", index, duration_ms);");
+		builder.AppendLine("\t\tcamp_write_event_string(file, kind);");
+		builder.AppendLine("\t\tfputc('\\t', file);");
+		builder.AppendLine("\t\tcamp_write_event_string(file, message);");
+		builder.AppendLine("\t\tfputc('\\t', file);");
+		builder.AppendLine("\t\tcamp_write_event_string(file, sourcefile);");
+		builder.AppendLine("\t\tfprintf(file, \"\\t%u\\n\", sourceline);");
+		builder.AppendLine("\t\treturn;");
+		builder.AppendLine("\t}");
+		builder.AppendLine("\tprintf(\"failed: %s\\n\", test->id);");
+		builder.AppendLine("\tprintf(\"  at %s:%u %s\\n\", sourcefile, sourceline, message);");
+		builder.AppendLine("}");
+		builder.AppendLine();
+		builder.AppendLine("static void camp_record_ignored_leak(FILE *file, const CampTestCase *test, int index, double duration_ms, const CampTestMemorySummary *memory)");
+		builder.AppendLine("{");
+		builder.AppendLine("\tconst char *message = memory->message == 0 ? \"\" : memory->message;");
+		builder.AppendLine("\tconst char *sourcefile = memory->sourcefile == 0 ? \"\" : memory->sourcefile;");
+		builder.AppendLine("\tunsigned int sourceline = memory->sourceline;");
+		builder.AppendLine("\tif (file != 0)");
+		builder.AppendLine("\t{");
+		builder.AppendLine("\t\tfprintf(file, \"passed-leaked\\t%d\\t%.3f\\t\", index, duration_ms);");
+		builder.AppendLine("\t\tcamp_write_event_string(file, message);");
+		builder.AppendLine("\t\tfputc('\\t', file);");
+		builder.AppendLine("\t\tcamp_write_event_string(file, sourcefile);");
+		builder.AppendLine("\t\tfprintf(file, \"\\t%u\\t%llu\\t%d\\n\", sourceline, (unsigned long long)memory->live_bytes, memory->live_count);");
+		builder.AppendLine("\t\treturn;");
+		builder.AppendLine("\t}");
+		builder.AppendLine("\tprintf(\"passed: %s\\n\", test->id);");
+		builder.AppendLine("\tprintf(\"  leak: %s:%u %s\\n\", sourcefile, sourceline, message);");
+		builder.AppendLine("}");
+		builder.AppendLine();
 		builder.AppendLine("static double camp_elapsed_ms(clock_t start)");
 		builder.AppendLine("{");
 		builder.AppendLine("\treturn ((double)(clock() - start) * 1000.0) / (double)CLOCKS_PER_SEC;");
@@ -137,12 +182,31 @@ public static class CampTestHarnessGenerator
 		builder.AppendLine("\t\t\tcontinue;");
 		builder.AppendLine("\t\t}");
 		builder.AppendLine("\t\tvoid *failure = 0;");
+		builder.AppendLine("\t\tcamp_test_memory_reset();");
 		builder.AppendLine("\t\ttest->function(&failure);");
+		builder.AppendLine("\t\tCampTestMemorySummary memory = camp_test_memory_finish();");
 		builder.AppendLine("\t\tdouble duration_ms = camp_elapsed_ms(start);");
 		builder.AppendLine("\t\tif (failure != 0)");
 		builder.AppendLine("\t\t{");
 		builder.AppendLine("\t\t\tcamp_record_failure(camp_events, test, i, duration_ms, failure);");
 		builder.AppendLine("\t\t\tfailed++;");
+		builder.AppendLine("\t\t\tcontinue;");
+		builder.AppendLine("\t\t}");
+		builder.AppendLine("\t\tif (memory.has_error)");
+		builder.AppendLine("\t\t{");
+		builder.AppendLine("\t\t\tcamp_record_memory_failure(camp_events, test, i, duration_ms, &memory);");
+		builder.AppendLine("\t\t\tfailed++;");
+		builder.AppendLine("\t\t\tcontinue;");
+		builder.AppendLine("\t\t}");
+		builder.AppendLine("\t\tif (memory.has_leak)");
+		builder.AppendLine("\t\t{");
+		if (ignoreLeaks)
+			builder.AppendLine("\t\t\tcamp_record_ignored_leak(camp_events, test, i, duration_ms, &memory);");
+		else
+		{
+			builder.AppendLine("\t\t\tcamp_record_memory_failure(camp_events, test, i, duration_ms, &memory);");
+			builder.AppendLine("\t\t\tfailed++;");
+		}
 		builder.AppendLine("\t\t\tcontinue;");
 		builder.AppendLine("\t\t}");
 		builder.AppendLine("\t\tcamp_record_simple(camp_events, test, i, \"passed\", duration_ms);");
@@ -173,6 +237,8 @@ public static class CampTestHarnessGenerator
 		builder.Append(", ");
 		builder.Append(valid ? "1" : "0");
 		builder.Append(", ");
+		builder.Append(test.AllocatorShape is { Trackable: true } ? "1" : "0");
+		builder.Append(", ");
 		if (valid)
 		{
 			int index = wrapperIndexes[test];
@@ -195,6 +261,207 @@ public static class CampTestHarnessGenerator
 		return !test.Skipped && test.RunnerSignature == "valid" && test.Function is not null && test.FailureShape is not null;
 	}
 
+	static void WriteMemoryTracker(StringBuilder builder, string projectName, TestAllocatorShape? allocator, bool captureCoverageSource)
+	{
+		builder.AppendLine("typedef struct CampTestAllocation CampTestAllocation;");
+		builder.AppendLine("struct CampTestAllocation");
+		builder.AppendLine("{");
+		builder.AppendLine("\tvoid *ptr;");
+		builder.AppendLine("\tuintptr_t size;");
+		builder.AppendLine("\tconst char *sourcefile;");
+		builder.AppendLine("\tunsigned int sourceline;");
+		builder.AppendLine("\tint live;");
+		builder.AppendLine("\tCampTestAllocation *next;");
+		builder.AppendLine("};");
+		builder.AppendLine("typedef struct CampTestMemorySummary CampTestMemorySummary;");
+		builder.AppendLine("struct CampTestMemorySummary");
+		builder.AppendLine("{");
+		builder.AppendLine("\tint has_leak;");
+		builder.AppendLine("\tint has_error;");
+		builder.AppendLine("\tint live_count;");
+		builder.AppendLine("\tuintptr_t live_bytes;");
+		builder.AppendLine("\tconst char *kind;");
+		builder.AppendLine("\tconst char *message;");
+		builder.AppendLine("\tconst char *sourcefile;");
+		builder.AppendLine("\tunsigned int sourceline;");
+		builder.AppendLine("};");
+		if (captureCoverageSource)
+		{
+			builder.AppendLine("extern const char *" + CampCoverageRuntimeSourceGenerator.CurrentFileSymbol(projectName) + "(void);");
+			builder.AppendLine("extern unsigned int " + CampCoverageRuntimeSourceGenerator.CurrentLineSymbol(projectName) + "(void);");
+		}
+		builder.AppendLine("static CampTestAllocation *camp_test_allocations = 0;");
+		builder.AppendLine("static int camp_test_memory_error = 0;");
+		builder.AppendLine("static const char *camp_test_memory_error_kind = 0;");
+		builder.AppendLine("static char camp_test_memory_message[256];");
+		builder.AppendLine();
+		builder.AppendLine("static CampTestAllocation *camp_test_memory_find(void *ptr)");
+		builder.AppendLine("{");
+		builder.AppendLine("\tfor (CampTestAllocation *current = camp_test_allocations; current != 0; current = current->next)");
+		builder.AppendLine("\t\tif (current->ptr == ptr)");
+		builder.AppendLine("\t\t\treturn current;");
+		builder.AppendLine("\treturn 0;");
+		builder.AppendLine("}");
+		builder.AppendLine();
+		builder.AppendLine("static void camp_test_memory_set_error(const char *kind, const char *message)");
+		builder.AppendLine("{");
+		builder.AppendLine("\tif (camp_test_memory_error)");
+		builder.AppendLine("\t\treturn;");
+		builder.AppendLine("\tcamp_test_memory_error = 1;");
+		builder.AppendLine("\tcamp_test_memory_error_kind = kind;");
+		builder.AppendLine("\tsnprintf(camp_test_memory_message, sizeof(camp_test_memory_message), \"%s\", message);");
+		builder.AppendLine("}");
+		builder.AppendLine();
+		builder.AppendLine("static void camp_test_memory_track(void *ptr, uintptr_t size)");
+		builder.AppendLine("{");
+		builder.AppendLine("\tif (ptr == 0)");
+		builder.AppendLine("\t\treturn;");
+		builder.AppendLine("\tCampTestAllocation *record = (CampTestAllocation *)malloc(sizeof(CampTestAllocation));");
+		builder.AppendLine("\tif (record == 0)");
+		builder.AppendLine("\t\treturn;");
+		builder.AppendLine("\trecord->ptr = ptr;");
+		builder.AppendLine("\trecord->size = size;");
+		if (captureCoverageSource)
+		{
+			builder.AppendLine("\trecord->sourcefile = " + CampCoverageRuntimeSourceGenerator.CurrentFileSymbol(projectName) + "();");
+			builder.AppendLine("\trecord->sourceline = " + CampCoverageRuntimeSourceGenerator.CurrentLineSymbol(projectName) + "();");
+		}
+		else
+		{
+			builder.AppendLine("\trecord->sourcefile = \"\";");
+			builder.AppendLine("\trecord->sourceline = 0;");
+		}
+		builder.AppendLine("\trecord->live = 1;");
+		builder.AppendLine("\trecord->next = camp_test_allocations;");
+		builder.AppendLine("\tcamp_test_allocations = record;");
+		builder.AppendLine("}");
+		builder.AppendLine();
+		builder.AppendLine("static void camp_test_memory_reset(void)");
+		builder.AppendLine("{");
+		builder.AppendLine("\tCampTestAllocation *current = camp_test_allocations;");
+		builder.AppendLine("\twhile (current != 0)");
+		builder.AppendLine("\t{");
+		builder.AppendLine("\t\tCampTestAllocation *next = current->next;");
+		builder.AppendLine("\t\tfree(current);");
+		builder.AppendLine("\t\tcurrent = next;");
+		builder.AppendLine("\t}");
+		builder.AppendLine("\tcamp_test_allocations = 0;");
+		builder.AppendLine("\tcamp_test_memory_error = 0;");
+		builder.AppendLine("\tcamp_test_memory_error_kind = 0;");
+		builder.AppendLine("\tcamp_test_memory_message[0] = 0;");
+		builder.AppendLine("}");
+		builder.AppendLine();
+		builder.AppendLine("static CampTestMemorySummary camp_test_memory_finish(void)");
+		builder.AppendLine("{");
+		builder.AppendLine("\tCampTestMemorySummary summary = {0, 0, 0, 0, 0, 0, 0, 0};");
+		builder.AppendLine("\tif (camp_test_memory_error)");
+		builder.AppendLine("\t{");
+		builder.AppendLine("\t\tsummary.has_error = 1;");
+		builder.AppendLine("\t\tsummary.kind = camp_test_memory_error_kind;");
+		builder.AppendLine("\t\tsummary.message = camp_test_memory_message;");
+		builder.AppendLine("\t\treturn summary;");
+		builder.AppendLine("\t}");
+		builder.AppendLine("\tfor (CampTestAllocation *current = camp_test_allocations; current != 0; current = current->next)");
+		builder.AppendLine("\t{");
+		builder.AppendLine("\t\tif (!current->live)");
+		builder.AppendLine("\t\t\tcontinue;");
+		builder.AppendLine("\t\tsummary.live_count++;");
+		builder.AppendLine("\t\tsummary.live_bytes += current->size;");
+		builder.AppendLine("\t\tif (summary.sourcefile == 0 || summary.sourcefile[0] == 0)");
+		builder.AppendLine("\t\t{");
+		builder.AppendLine("\t\t\tsummary.sourcefile = current->sourcefile;");
+		builder.AppendLine("\t\t\tsummary.sourceline = current->sourceline;");
+		builder.AppendLine("\t\t}");
+		builder.AppendLine("\t}");
+		builder.AppendLine("\tif (summary.live_count > 0)");
+		builder.AppendLine("\t{");
+		builder.AppendLine("\t\tsummary.has_leak = 1;");
+		builder.AppendLine("\t\tsummary.kind = \"memory-leak\";");
+		if (captureCoverageSource)
+			builder.AppendLine("\t\tsnprintf(camp_test_memory_message, sizeof(camp_test_memory_message), \"memory leak: %d allocation%s still live (%llu bytes)\", summary.live_count, summary.live_count == 1 ? \"\" : \"s\", (unsigned long long)summary.live_bytes);");
+		else
+			builder.AppendLine("\t\tsnprintf(camp_test_memory_message, sizeof(camp_test_memory_message), \"memory leak: %d allocation%s still live (%llu bytes). Run campc cover for allocation source locations.\", summary.live_count, summary.live_count == 1 ? \"\" : \"s\", (unsigned long long)summary.live_bytes);");
+		builder.AppendLine("\t\tsummary.message = camp_test_memory_message;");
+		builder.AppendLine("\t}");
+		builder.AppendLine("\treturn summary;");
+		builder.AppendLine("}");
+		builder.AppendLine();
+		if (allocator is null)
+		{
+			builder.AppendLine("static void *camp_test_allocator(void)");
+			builder.AppendLine("{");
+			builder.AppendLine("\treturn 0;");
+			builder.AppendLine("}");
+			builder.AppendLine();
+			return;
+		}
+		string allocatorType = CTypeName(allocator.Type);
+		builder.AppendLine("static void *camp_test_allocator_alloc(" + allocatorType + " **ctx, uintptr_t size)");
+		builder.AppendLine("{");
+		builder.AppendLine("\t(void)ctx;");
+		builder.AppendLine("\tvoid *ptr = malloc(size);");
+		builder.AppendLine("\tcamp_test_memory_track(ptr, size);");
+		builder.AppendLine("\treturn ptr;");
+		builder.AppendLine("}");
+		builder.AppendLine();
+		if (allocator.ReallocField is not null)
+		{
+			builder.AppendLine("static void *camp_test_allocator_realloc(" + allocatorType + " **ctx, void *ptr, uintptr_t new_size)");
+			builder.AppendLine("{");
+			builder.AppendLine("\t(void)ctx;");
+			builder.AppendLine("\tif (ptr == 0)");
+			builder.AppendLine("\t\treturn camp_test_allocator_alloc(ctx, new_size);");
+			builder.AppendLine("\tCampTestAllocation *record = camp_test_memory_find(ptr);");
+			builder.AppendLine("\tif (record == 0 || !record->live)");
+			builder.AppendLine("\t{");
+			builder.AppendLine("\t\tcamp_test_memory_set_error(\"memory-invalid-realloc\", record == 0 ? \"invalid allocator realloc: pointer was not allocated by the test allocator\" : \"invalid allocator realloc: pointer was already freed\");");
+			builder.AppendLine("\t\treturn 0;");
+			builder.AppendLine("\t}");
+			builder.AppendLine("\tif (new_size == 0)");
+			builder.AppendLine("\t{");
+			builder.AppendLine("\t\tfree(ptr);");
+			builder.AppendLine("\t\trecord->live = 0;");
+			builder.AppendLine("\t\treturn 0;");
+			builder.AppendLine("\t}");
+			builder.AppendLine("\tvoid *new_ptr = realloc(ptr, new_size);");
+			builder.AppendLine("\tif (new_ptr != 0)");
+			builder.AppendLine("\t{");
+			builder.AppendLine("\t\trecord->ptr = new_ptr;");
+			builder.AppendLine("\t\trecord->size = new_size;");
+			builder.AppendLine("\t}");
+			builder.AppendLine("\treturn new_ptr;");
+			builder.AppendLine("}");
+			builder.AppendLine();
+		}
+		builder.AppendLine("static void camp_test_allocator_free(" + allocatorType + " **ctx, void *ptr)");
+		builder.AppendLine("{");
+		builder.AppendLine("\t(void)ctx;");
+		builder.AppendLine("\tif (ptr == 0)");
+		builder.AppendLine("\t\treturn;");
+		builder.AppendLine("\tCampTestAllocation *record = camp_test_memory_find(ptr);");
+		builder.AppendLine("\tif (record == 0 || !record->live)");
+		builder.AppendLine("\t{");
+		builder.AppendLine("\t\tcamp_test_memory_set_error(\"memory-invalid-free\", record == 0 ? \"invalid allocator free: pointer was not allocated by the test allocator\" : \"invalid allocator free: pointer was already freed\");");
+		builder.AppendLine("\t\treturn;");
+		builder.AppendLine("\t}");
+		builder.AppendLine("\trecord->live = 0;");
+		builder.AppendLine("\tfree(ptr);");
+		builder.AppendLine("}");
+		builder.AppendLine();
+		builder.AppendLine("static " + allocatorType + " camp_test_allocator_storage = {");
+		builder.AppendLine("\t." + CFieldName(allocator.AllocField!) + " = camp_test_allocator_alloc,");
+		if (allocator.ReallocField is not null)
+			builder.AppendLine("\t." + CFieldName(allocator.ReallocField) + " = camp_test_allocator_realloc,");
+		builder.AppendLine("\t." + CFieldName(allocator.FreeField!) + " = camp_test_allocator_free");
+		builder.AppendLine("};");
+		builder.AppendLine("static " + allocatorType + " *camp_test_allocator_pointer = &camp_test_allocator_storage;");
+		builder.AppendLine("static " + allocatorType + " **camp_test_allocator(void)");
+		builder.AppendLine("{");
+		builder.AppendLine("\treturn &camp_test_allocator_pointer;");
+		builder.AppendLine("}");
+		builder.AppendLine();
+	}
+
 	static void WriteTestWrapper(StringBuilder builder, CampTestManifestEntry test, int tableIndex)
 	{
 		TestFailureShape shape = test.FailureShape!;
@@ -203,15 +470,16 @@ public static class CampTestHarnessGenerator
 		string functionName = CName(test.Function!);
 		if (test.AllocatorShape is TestAllocatorShape allocatorShape)
 		{
-			string allocatorTypeName = CTypeName(allocatorShape.Type);
-			builder.AppendLine("void " + functionName + "(" + allocatorTypeName + " *allocator, " + typeName + " **failure);");
+			builder.AppendLine("void " + functionName + "(" + CAllocatorParameterType(allocatorShape) + "allocator, " + typeName + " **failure);");
 		}
 		else
 			builder.AppendLine("void " + functionName + "(" + typeName + " **failure);");
 		builder.AppendLine("static void camp_test_run_" + index + "(void **failure)");
 		builder.AppendLine("{");
 		builder.AppendLine("\t" + typeName + " *typed_failure = 0;");
-		if (test.AllocatorShape is not null)
+		if (test.AllocatorShape is { Trackable: true })
+			builder.AppendLine("\t" + functionName + "(camp_test_allocator(), &typed_failure);");
+		else if (test.AllocatorShape is not null)
 			builder.AppendLine("\t" + functionName + "(NULL, &typed_failure);");
 		else
 			builder.AppendLine("\t" + functionName + "(&typed_failure);");
@@ -243,6 +511,11 @@ public static class CampTestHarnessGenerator
 	static string CTypeName(TypeDefinition type)
 	{
 		return SanitizeIdentifier(BindableNodeAnalyzer.EffectiveTypeSymbol(type));
+	}
+
+	static string CAllocatorParameterType(TestAllocatorShape shape)
+	{
+		return CTypeName(shape.Type) + (shape.Type is InterfaceDefinition ? " **" : " *");
 	}
 
 	static string CFieldName(string name)

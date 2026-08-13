@@ -222,6 +222,7 @@ public static class CampLanguageService
 			WithinAllocationPolicy = source.WithinAllocationPolicy,
 			SourcefilePathMode = source.SourcefilePathMode,
 			SourcefileDefaultRoot = source.SourcefileDefaultRoot,
+			IgnoreLeaks = source.IgnoreLeaks,
 			TestOutputDir = source.TestOutputDir,
 			TestResultFormat = source.TestResultFormat,
 			CoverageOutputDir = source.CoverageOutputDir,

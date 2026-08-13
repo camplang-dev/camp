@@ -185,6 +185,7 @@ public sealed class ProjectLoaderTests
 			--nostdlib
 			--artifact none
 			--list
+			--ignore-leaks
 			--filter MathTests::*
 			--filter parse^alue
 			--test-output-dir results
@@ -197,12 +198,14 @@ public sealed class ProjectLoaderTests
 
 		Assert.True(test.Success, string.Join(Environment.NewLine, test.Diagnostics));
 		Assert.True(test.Request.ListTests);
+		Assert.True(test.Request.IgnoreLeaks);
 		Assert.Equal(["MathTests::*", "parse^alue"], test.Request.TestFilters);
 		Assert.Equal(Path.GetFullPath(Path.Combine(root, "results")), Path.GetFullPath(test.Request.TestOutputDir!));
 		Assert.Equal("text,json", test.Request.TestResultFormat);
 
 		Assert.False(build.Success);
 		Assert.Contains(build.Diagnostics, static diagnostic => diagnostic.Contains("--list can only be used with test or cover", StringComparison.Ordinal));
+		Assert.Contains(build.Diagnostics, static diagnostic => diagnostic.Contains("--ignore-leaks can only be used with test or cover", StringComparison.Ordinal));
 		Assert.Contains(build.Diagnostics, static diagnostic => diagnostic.Contains("--filter can only be used with test or cover", StringComparison.Ordinal));
 	}
 

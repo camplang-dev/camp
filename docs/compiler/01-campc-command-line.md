@@ -84,6 +84,7 @@ writes test result artifacts:
 campc test @app.campbuild
 campc test @app.campbuild --filter MathTests::addReturnsSum
 campc test @app.campbuild --test-result-format json
+campc test @app.campbuild --ignore-leaks
 campc test @app.campbuild --list
 ```
 
@@ -109,6 +110,15 @@ when every selected test passed or was skipped. Failed, invalid, error, compile,
 native-build, and infrastructure results are command failures after any
 available result artifacts are written.
 
+If a runnable `@test` declares a runner-supplied `within allocator` slot and
+that slot has the standard interface-shaped `Allocator*` contract, the harness
+passes a tracking allocator. Allocations made through that allocator must be
+freed before the test returns. A remaining live allocation fails the test as a
+`memory-leak` failure. Invalid allocator operations, such as double-freeing a
+tracked pointer, fail as memory errors. Allocations made through `within
+(default)`, direct allocator instances, custom non-interface allocators, or
+foreign allocation APIs are not tracked by this built-in detector.
+
 ## `cover`
 
 `cover` runs the same test pipeline with Camp source coverage enabled:
@@ -117,6 +127,7 @@ available result artifacts are written.
 campc cover @app.campbuild
 campc cover @app.campbuild --coverage-format json,lcov
 campc cover @tests.campbuild --coverage-subject mathlib
+campc cover @app.campbuild --ignore-leaks
 ```
 
 Coverage is measured against Camp source sequence points, not generated C. The
@@ -126,6 +137,11 @@ For in-module coverage, the default coverage subject is `self`: the production
 declarations in the current project are compiled with production semantics plus
 coverage counters. `@test` declarations, `@testonly` declarations, generated
 helpers, and the harness are excluded from the coverage denominator.
+When an in-module coverage run reports a harness-allocator leak, the reported
+location is the most recent coverage checkpoint captured at allocation time.
+This usually points at the source line that performed the allocation. Plain
+`campc test` reports the owning test location when no coverage checkpoint is
+available.
 
 For external coverage, the test project runs in test mode and a selected shared
 project-reference dependency is rebuilt as an instrumented production shared
@@ -307,6 +323,7 @@ These options are accepted by `test` and `cover` only:
 |---|---|
 | `--list` | List selected test manifest IDs and stop after discovery. |
 | `--filter` | Select tests by exact name or wildcard pattern. May be repeated. |
+| `--ignore-leaks` | Report harness-allocator leaks without making leak-only tests fail. Invalid allocator operations still fail. |
 
 These options are accepted by `build`, `run`, `test`, and `cover`:
 

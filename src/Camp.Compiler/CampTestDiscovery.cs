@@ -34,7 +34,7 @@ public sealed record CampTestManifestEntry(
 public sealed record CampTestDiscoveryResult(CampTestManifest Manifest, IReadOnlyList<AnalysisDiagnostic> Diagnostics);
 
 internal sealed record TestFailureShape(TypeDefinition Type, string MessageField, string SourcefileField, string SourcelineField);
-internal sealed record TestAllocatorShape(TypeDefinition Type);
+internal sealed record TestAllocatorShape(TypeDefinition Type, bool Trackable, string? AllocField, string? ReallocField, string? FreeField);
 
 public static class CampTestDiscovery
 {
@@ -211,8 +211,50 @@ public static class CampTestDiscovery
 			allocatorType = interfaceAllocator;
 		if (allocatorType is null)
 			return false;
-		allocatorShape = new TestAllocatorShape(allocatorType);
+		FunctionDefinition? alloc = null;
+		FunctionDefinition? free = null;
+		bool trackable = allocatorType is InterfaceDefinition interfaceDefinition
+			&& TryFindFunction(interfaceDefinition, "alloc", out alloc)
+			&& TryFindFunction(interfaceDefinition, "free", out free)
+			&& IsAllocatorAllocFunction(alloc!)
+			&& IsAllocatorFreeFunction(free!);
+		string? allocField = trackable ? alloc!.Name : null;
+		string? freeField = trackable ? free!.Name : null;
+		string? reallocField = trackable
+			&& TryFindFunction((InterfaceDefinition)allocatorType, "realloc", out FunctionDefinition? realloc)
+			&& IsAllocatorReallocFunction(realloc!)
+			? realloc!.Name
+			: null;
+		allocatorShape = new TestAllocatorShape(allocatorType, trackable, allocField, reallocField, freeField);
 		return true;
+	}
+
+	static bool TryFindFunction(InterfaceDefinition type, string name, out FunctionDefinition? function)
+	{
+		function = type.Functions.FirstOrDefault(function => string.Equals(function.Name, name, StringComparison.Ordinal));
+		return function is not null;
+	}
+
+	static bool IsAllocatorAllocFunction(FunctionDefinition function)
+	{
+		return FormatType(function.ReturnType, function.ResolvedType) == "void*"
+			&& function.Parameters.Count == 1
+			&& FormatType(function.Parameters[0].Type, function.Parameters[0].ResolvedType) == "nuint";
+	}
+
+	static bool IsAllocatorFreeFunction(FunctionDefinition function)
+	{
+		return FormatType(function.ReturnType, function.ResolvedType) == "void"
+			&& function.Parameters.Count == 1
+			&& FormatType(function.Parameters[0].Type, function.Parameters[0].ResolvedType) == "void*";
+	}
+
+	static bool IsAllocatorReallocFunction(FunctionDefinition function)
+	{
+		return FormatType(function.ReturnType, function.ResolvedType) == "void*"
+			&& function.Parameters.Count == 2
+			&& FormatType(function.Parameters[0].Type, function.Parameters[0].ResolvedType) == "void*"
+			&& FormatType(function.Parameters[1].Type, function.Parameters[1].ResolvedType) == "nuint";
 	}
 
 	static string EffectiveFieldSymbol(FieldDefinition field)

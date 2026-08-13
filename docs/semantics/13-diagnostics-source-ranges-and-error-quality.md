@@ -275,7 +275,10 @@ test-only declaration and name the test-only dependency.
 Assertion failures are runtime test results, not compiler diagnostics. When a
 tool imports `camp.test-results` JSON, it may surface assertion and invalid-test
 failures as editor diagnostics using the captured `sourcefile` and `sourceline`
-from the result. Import failures for test results, coverage results, or coverage
+from the result. Harness-allocator leak failures follow the same rule: in
+coverage mode the result may point at the allocation checkpoint; otherwise it
+falls back to the owning test location. Import failures for test results,
+coverage results, or coverage
 map CSV should be reported as tooling diagnostics that name the unreadable or
 malformed artifact.
 

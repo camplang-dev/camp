@@ -529,6 +529,37 @@ not emitted in full:
 Consumers should use stubs to resolve links and references, not as complete
 declaration records.
 
+## Test Results JSON
+
+`campc test` and `campc cover` write `camp.test-results` JSON beside the test
+manifest when JSON results are requested. Each test result includes `outcome`,
+`durationMs`, a nullable `failure`, and a nullable `memory` object.
+
+The `failure` object contains `kind`, `message`, `sourcefile`, and `sourceline`.
+Harness-allocator leaks use `kind: "memory-leak"` when they fail the test.
+
+The `memory` object is present when a passed test still reported ignored leaks,
+which happens with `--ignore-leaks`. It has this shape:
+
+```json
+{
+  "leaksIgnored": true,
+  "leaks": [
+    {
+      "bytes": 32,
+      "count": 1,
+      "message": "memory leak: 1 allocation still live (32 bytes)",
+      "sourcefile": "tests/buffer.camp",
+      "sourceline": 42
+    }
+  ]
+}
+```
+
+`sourcefile` and `sourceline` identify the allocation checkpoint when
+`campc cover` can provide one; otherwise they fall back to the owning test
+location.
+
 ## Consumer Guidance
 
 Metadata consumers should:

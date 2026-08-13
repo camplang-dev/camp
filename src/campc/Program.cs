@@ -216,6 +216,7 @@ static void AddBuildOptions(Command command, bool buildOnly, bool testRunnerOpti
 	if (testRunnerOptions)
 	{
 		command.Options.Add(new Option<bool>("--list") { Description = "List discovered tests and stop." });
+		command.Options.Add(new Option<bool>("--ignore-leaks") { Description = "Report tracked leaks without failing leak-only tests." });
 		command.Options.Add(new Option<List<string>>("--filter")
 		{
 			Description = "Select tests by exact name or wildcard pattern.",
@@ -635,6 +636,8 @@ sealed class CampCli
 			errors.Add("--list can only be used with test or cover.");
 		if (command is not (CommandKind.Test or CommandKind.Cover) && bag.TestFilters.Count > 0)
 			errors.Add("--filter can only be used with test or cover.");
+		if (command is not (CommandKind.Test or CommandKind.Cover) && bag.IgnoreLeaks)
+			errors.Add("--ignore-leaks can only be used with test or cover.");
 		if (bag.SubsystemName is not null && bag.SubsystemName != "windows")
 			errors.Add($"Subsystem '{bag.SubsystemName}' is not valid. Expected windows.");
 		if (bag.SubsystemName is not null && bag.ArtifactSpecified && bag.ArtifactKind is not NativeBuildKind.Exec)
@@ -678,6 +681,7 @@ sealed class CampCli
 			TimingOutput = bag.TimingOutput,
 			ColorOutput = !Console.IsOutputRedirected,
 			ListTests = bag.ListTests,
+			IgnoreLeaks = bag.IgnoreLeaks,
 			TestOutputDir = bag.TestOutputDir,
 			TestResultFormat = bag.TestResultFormat,
 			CoverageOutputDir = bag.CoverageOutputDir,
@@ -1621,6 +1625,7 @@ sealed class BuildOptionBag
 	public string? CoverageOutputDir => Get("coverage-output-dir");
 	public string? CoverageFormat => Get("coverage-format");
 	public bool ListTests => Get("list") == "true";
+	public bool IgnoreLeaks => Get("ignore-leaks") == "true";
 	public bool Verbose => Get("verbose") == "true";
 	public bool TimingEnabled => Get("timing") == "true" || Environment.GetEnvironmentVariable("CAMP_TIMING") is string timing && timing is not "" and not "0" and not "false" and not "FALSE";
 	public string? TimingOutput => Get("timing-output");
@@ -1877,6 +1882,9 @@ static class CommandLineOptionParser
 					break;
 				case "--list":
 					AddSingle(result, "list", "true");
+					break;
+				case "--ignore-leaks":
+					AddSingle(result, "ignore-leaks", "true");
 					break;
 				case "--filter":
 					result.TestFilters.AddRange(RequiredValues(tokens, ref i, token, errors));

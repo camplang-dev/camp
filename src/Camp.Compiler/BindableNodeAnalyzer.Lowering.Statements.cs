@@ -1400,7 +1400,7 @@ public sealed partial class BindableNodeAnalyzer
 		statements = [];
 		if (declaration.Target.Names.Count != 1
 			|| TryGetPointerElementType(declaration.Target.ResolvedType ?? declaration.Target.Type?.ResolvedType) is null
-			|| !TryUnwrapArrayNewDeclarationValue(declaration.InitialValue, out ConstructionExpression? construction, out Expression? allocator, out bool finallyCleanup))
+			|| !TryUnwrapArrayNewDeclarationValue(declaration.InitialValue, out ConstructionExpression? construction, out Expression? allocator, out bool defaultAllocator, out bool finallyCleanup))
 			return false;
 
 		for (int i = 0; i < construction.Arguments.Count; i++)
@@ -1421,7 +1421,7 @@ public sealed partial class BindableNodeAnalyzer
 				allocationAllocator = CreateVariableReference(allocatorLocal.Target, allocatorLocal.Target.ResolvedType ?? loweredAllocator.ResolvedType ?? ErrorType);
 			}
 		}
-		else
+		else if (!defaultAllocator)
 		{
 			allocationAllocator = CurrentAllocator();
 		}
@@ -1449,9 +1449,10 @@ public sealed partial class BindableNodeAnalyzer
 		return true;
 	}
 
-	static bool TryUnwrapArrayNewDeclarationValue(Expression? value, out ConstructionExpression construction, out Expression? allocator, out bool finallyCleanup)
+	static bool TryUnwrapArrayNewDeclarationValue(Expression? value, out ConstructionExpression construction, out Expression? allocator, out bool defaultAllocator, out bool finallyCleanup)
 	{
 		allocator = null;
+		defaultAllocator = false;
 		finallyCleanup = false;
 		if (value is FinallyCleanupExpression { Kind: FinallyCleanupKind.Delete, Expression: not null } finallyCleanupExpression)
 		{
@@ -1460,7 +1461,8 @@ public sealed partial class BindableNodeAnalyzer
 		}
 		if (value is WithinExpression { Expression: not null } within)
 		{
-			allocator = within.Context;
+			defaultAllocator = within.Context is DefaultWithinContextExpression;
+			allocator = defaultAllocator ? null : within.Context;
 			value = within.Expression;
 		}
 		if (value is ConstructionExpression { Kind: ConstructionKind.New, ElementCount: not null, Type: not null } arrayConstruction)

@@ -326,6 +326,15 @@ form `within allocator`, or the explicit form `within Allocator* name` when the
 project provides an accessible `Allocator` type. The runner supplies the same
 default allocator representation used by `within(default)`.
 
+For the standard interface-shaped `Allocator*`, the runner-supplied allocator
+also tracks allocations made through that parameter. If a tracked allocation is
+still live when the test returns, the test fails with a memory-leak result.
+`campc cover` can report the coverage checkpoint captured at allocation time;
+plain `campc test` reports the owning test location. Use `within(default)` for
+intentional process-lifetime allocations that should not be tracked by the
+built-in test leak detector. `campc test --ignore-leaks` and `campc cover
+--ignore-leaks` still report leaks but do not make leak-only tests fail.
+
 Run the tests in a project with:
 
 ```sh

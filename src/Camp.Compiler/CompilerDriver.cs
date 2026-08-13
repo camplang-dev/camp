@@ -58,6 +58,7 @@ public sealed class CompilerRequest
 	public bool Verbose { get; set; }
 	public bool ColorOutput { get; set; }
 	public bool ListTests { get; set; }
+	public bool IgnoreLeaks { get; set; }
 	public List<string> TestFilters { get; } = [];
 	public string? TestOutputDir { get; set; }
 	public string? TestResultFormat { get; set; }
@@ -301,7 +302,8 @@ public static class CompilerDriver
 				coverageRuntimeSources.Add(coverageRuntimeSource!);
 			}
 
-			if (!TryEmitTestHarnessSource(buildDirectory, projectName, selectedTests, out string? harnessSource))
+			CampCoverageMap? coverageMap = coverageMapBuilder?.ToMap();
+			if (!TryEmitTestHarnessSource(buildDirectory, projectName, selectedTests, coverageMap, out string? harnessSource))
 				return 1;
 
 			NativeBuildOptions buildOptions = new()
@@ -1575,13 +1577,13 @@ public static class CompilerDriver
 			return true;
 		}
 
-		bool TryEmitTestHarnessSource(string outputDirectory, string projectName, IReadOnlyList<CampTestManifestEntry> tests, out string? harnessSource)
+		bool TryEmitTestHarnessSource(string outputDirectory, string projectName, IReadOnlyList<CampTestManifestEntry> tests, CampCoverageMap? coverageMap, out string? harnessSource)
 		{
 			harnessSource = Path.Combine(outputDirectory, projectName + "_test_harness.c");
 			try
 			{
 				Directory.CreateDirectory(outputDirectory);
-				AddGeneratedFile(harnessSource, BuildFileIO.WriteTextIfChanged(harnessSource, CampTestHarnessGenerator.Generate(projectName, tests), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false)));
+				AddGeneratedFile(harnessSource, BuildFileIO.WriteTextIfChanged(harnessSource, CampTestHarnessGenerator.Generate(projectName, tests, request.IgnoreLeaks, coverageMap), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false)));
 			}
 			catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
 			{
@@ -1618,8 +1620,9 @@ public static class CompilerDriver
 			{
 				Directory.CreateDirectory(coverageOutputDirectory);
 				Directory.CreateDirectory(buildDirectory);
-				BuildFileWriteStatus mapStatus = BuildFileIO.WriteTextIfChanged(coverageMapPath, CampCoverageMapCsvSerializer.Serialize(builder.ToMap()), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
-				BuildFileWriteStatus runtimeStatus = BuildFileIO.WriteTextIfChanged(coverageRuntimeSource, CampCoverageRuntimeSourceGenerator.Generate(projectName, builder.CounterCount), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+				CampCoverageMap map = builder.ToMap();
+				BuildFileWriteStatus mapStatus = BuildFileIO.WriteTextIfChanged(coverageMapPath, CampCoverageMapCsvSerializer.Serialize(map), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+				BuildFileWriteStatus runtimeStatus = BuildFileIO.WriteTextIfChanged(coverageRuntimeSource, CampCoverageRuntimeSourceGenerator.Generate(projectName, map), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
 				AddGeneratedFile(coverageMapPath, mapStatus);
 				AddGeneratedFile(coverageRuntimeSource, runtimeStatus);
 			}

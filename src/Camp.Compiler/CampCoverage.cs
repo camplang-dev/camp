@@ -494,14 +494,23 @@ public static class CampCoverageRuntimeSourceGenerator
 
 	public static string CounterSymbol(string projectName) => "__camp_coverage_" + SanitizeForC(projectName) + "_counters";
 	public static string TouchSymbol(string projectName) => "__camp_coverage_" + SanitizeForC(projectName) + "_touch";
+	public static string CheckpointSymbol(string projectName) => "__camp_coverage_" + SanitizeForC(projectName) + "_checkpoint";
+	public static string CurrentFileSymbol(string projectName) => "__camp_coverage_" + SanitizeForC(projectName) + "_current_file";
+	public static string CurrentLineSymbol(string projectName) => "__camp_coverage_" + SanitizeForC(projectName) + "_current_line";
 
-	public static string Generate(string projectName, int counterCount)
+	public static string Generate(string projectName, CampCoverageMap map)
 	{
 		string counterSymbol = CounterSymbol(projectName);
 		string touchSymbol = TouchSymbol(projectName);
+		string checkpointSymbol = CheckpointSymbol(projectName);
+		string currentFileSymbol = CurrentFileSymbol(projectName);
+		string currentLineSymbol = CurrentLineSymbol(projectName);
 		string envName = EnvironmentVariableName(projectName);
+		int counterCount = map.Counters.Count;
 		string count = Math.Max(1, counterCount).ToString(CultureInfo.InvariantCulture);
 		string exposedCount = counterCount.ToString(CultureInfo.InvariantCulture);
+		string sourceFiles = BuildSourceFileArray(map, counterCount);
+		string sourceLines = BuildSourceLineArray(map, counterCount);
 		return $$"""
 #include <stdint.h>
 #include <stdio.h>
@@ -509,6 +518,9 @@ public static class CampCoverageRuntimeSourceGenerator
 
 uint64_t {{counterSymbol}}[{{count}}] = {0};
 static const unsigned int __camp_coverage_counter_count = {{exposedCount}}u;
+static unsigned int __camp_coverage_current_counter = {{exposedCount}}u;
+static const char *__camp_coverage_source_files[{{count}}] = { {{sourceFiles}} };
+static const unsigned int __camp_coverage_source_lines[{{count}}] = { {{sourceLines}} };
 
 static void __camp_coverage_write_file(const char *path)
 {
@@ -537,7 +549,72 @@ void {{touchSymbol}}(void)
 		atexit(__camp_coverage_write_at_exit);
 	}
 }
+
+void {{checkpointSymbol}}(unsigned int counter)
+{
+	{{touchSymbol}}();
+	if (counter < __camp_coverage_counter_count)
+		__camp_coverage_current_counter = counter;
+}
+
+const char *{{currentFileSymbol}}(void)
+{
+	if (__camp_coverage_current_counter >= __camp_coverage_counter_count)
+		return "";
+	return __camp_coverage_source_files[__camp_coverage_current_counter];
+}
+
+unsigned int {{currentLineSymbol}}(void)
+{
+	if (__camp_coverage_current_counter >= __camp_coverage_counter_count)
+		return 0;
+	return __camp_coverage_source_lines[__camp_coverage_current_counter];
+}
 """.Replace("\r\n", "\n", StringComparison.Ordinal);
+	}
+
+	static string BuildSourceFileArray(CampCoverageMap map, int counterCount)
+	{
+		if (counterCount == 0)
+			return "\"\"";
+		string[] files = new string[counterCount];
+		Array.Fill(files, "\"\"");
+		foreach (CampCoverageCounter counter in map.Counters)
+		{
+			string path = map.Files.TryGetValue(counter.FileId, out string? file) ? file : "";
+			files[counter.Id] = "\"" + EscapeCString(path) + "\"";
+		}
+		return string.Join(", ", files);
+	}
+
+	static string BuildSourceLineArray(CampCoverageMap map, int counterCount)
+	{
+		if (counterCount == 0)
+			return "0";
+		string[] lines = new string[counterCount];
+		foreach (CampCoverageCounter counter in map.Counters)
+			lines[counter.Id] = counter.Line.ToString(CultureInfo.InvariantCulture);
+		for (int i = 0; i < lines.Length; i++)
+			lines[i] ??= "0";
+		return string.Join(", ", lines);
+	}
+
+	static string EscapeCString(string value)
+	{
+		StringBuilder builder = new();
+		foreach (char c in value)
+		{
+			builder.Append(c switch
+			{
+				'\\' => "\\\\",
+				'"' => "\\\"",
+				'\n' => "\\n",
+				'\r' => "\\r",
+				'\t' => "\\t",
+				_ => c
+			});
+		}
+		return builder.ToString();
 	}
 
 	static string SanitizeForC(string value)

@@ -920,12 +920,14 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		List<Expression?> values = [];
 		Expression? allocator = null;
+		bool defaultAllocator = false;
 		Expression? arrayInitialValue = initialValue;
 		if (arrayInitialValue is FinallyCleanupExpression { Kind: FinallyCleanupKind.Delete, Expression: not null } finallyCleanup)
 			arrayInitialValue = finallyCleanup.Expression;
 		if (arrayInitialValue is WithinExpression { Expression: not null } within)
 		{
-			allocator = within.Context is DefaultWithinContextExpression ? null : within.Context;
+			defaultAllocator = within.Context is DefaultWithinContextExpression;
+			allocator = defaultAllocator ? null : within.Context;
 			arrayInitialValue = within.Expression;
 		}
 		if (arrayInitialValue is ConstructionExpression { ElementCount: not null, Type: not null } construction
@@ -936,7 +938,7 @@ public sealed partial class BindableNodeAnalyzer
 				? CreateStackAllocCall(construction.Type, construction.SourceSyntax, construction.ElementCount)
 				: CreateAllocCall(
 					construction.Type,
-					allocator ?? (deferCurrentAllocator ? new CurrentAllocatorExpression { SourceSyntax = construction.SourceSyntax, ResolvedType = "Allocator*" } : null),
+					allocator ?? (!defaultAllocator && deferCurrentAllocator ? new CurrentAllocatorExpression { SourceSyntax = construction.SourceSyntax, ResolvedType = "Allocator*" } : null),
 					construction.SourceSyntax,
 					construction.ElementCount));
 			values.Add(construction.ElementCount);
