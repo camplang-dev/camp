@@ -190,7 +190,6 @@ package. Use `#build` only for command-line-style build pragmas, `#within` only
 for the file's allocation policy, and `namespace` for the exported namespace.
 
 ```camp
-#build --artifact exec
 #within explicit
 
 namespace Samples::App;
@@ -207,6 +206,14 @@ locations, and local build choices. Use source `#build` pragmas for facts that
 belong to the source surface, such as required API files. Do not add package
 pragmas to normal examples or application code; package commands and layouts are
 experimental compiler-development infrastructure.
+
+Use the `--artifact` command-line/build-file parameter only when the desired
+artifact kind must be stated explicitly. `campc build` infers an executable when
+a root source contains a public or exported `main`, and `campc run` defaults to
+an executable build. Do not add `--artifact exec` as boilerplate to ordinary app
+examples. Use explicit artifact kinds for non-default outputs such as static
+libraries, shared libraries, or `--artifact none` analysis/emission workflows.
+
 `#within explicit` and `#within implicit` select whether allocation and deletion
 must spell their allocation context in that file. Do not add absolute local paths
 or private machine information to committed source.
@@ -232,15 +239,19 @@ Top-level declarations include functions, types, newtypes, interfaces, enums,
 constants, extern declarations, target blocks, and overload families. Keep
 declarations at the narrowest visibility that works:
 
-- `internal` exposes a declaration to other Camp source in the current project.
-- `public` exposes a declaration to statically linked Camp modules in the final
-  artifact without making it external ABI.
-- `export` exposes a declaration directly across the external API/ABI boundary.
+- No modifier is the right default for declarations used only inside the same
+  source file. Do not write `internal` as a synonym for "not public"; it means
+  another file needs source-level access.
+- `internal` exposes a declaration to other Camp source files in the current
+  project or package, but does not make it part of the public package/library
+  surface.
+- `public` exposes a declaration to Camp consumers that reference the package or
+  statically linked module. It is the normal modifier for a static-library API.
+- `export` exposes a declaration directly across the external API/ABI boundary,
+  such as an executable entry point or a shared-library/native entry point.
 - Export projections (`export Type { ... } as ExternalName;`) expose a selected
   external view of a `public` declaration. Use them when designing a shared
   library API that should differ from the internal Camp shape.
-- Unmarked declarations are package- or namespace-local according to the language
-  rules.
 - `extern` declares a symbol implemented outside Camp.
 - `@symbol("name")` controls native ABI spelling for symbol-bearing declarations:
   functions, methods, exported globals, static fields, inline constants,
@@ -248,11 +259,45 @@ declarations at the narrowest visibility that works:
   declarations. It does not change Camp source lookup.
 
 Do not combine visibility modifiers unless the docs or nearby code show that the
-combination is valid for that declaration kind. In ordinary application and
-static-library code, prefer `public` for declarations other modules need. Use
-direct `export` for true external entry points such as `main`, native interop
-surfaces, or declarations intentionally owned by the current shared-library ABI.
-For example:
+combination is valid for that declaration kind.
+
+Artifact-specific guidance:
+
+- Executables: use `export int main(...)` for the program entry point. Most
+  helper declarations should have no modifier. Use `internal` only for helpers
+  intentionally shared across multiple source files in the executable.
+- Static libraries/packages: use `public` for the Camp API that consumers should
+  call. Use `internal` for implementation declarations shared between files.
+  Leave file-local helpers unmarked. Avoid `export` unless the package is also
+  intentionally defining an external ABI entry point.
+- Shared libraries/native-facing artifacts: use `export` only for declarations
+  that are meant to cross the external ABI directly. For curated shared-library
+  APIs, prefer a `public` implementation surface plus export projections so the
+  external shape can differ from the Camp source shape.
+
+Examples:
+
+```camp
+// Executable entry point.
+export int main(string[] args)
+{
+	return 0;
+}
+
+// File-local helper: no modifier.
+bool hasConfigFlag(const char[] text)
+{
+	return text.compareTo("--config") == 0;
+}
+
+// Cross-file implementation helper in the same package/project.
+internal void writeDiagnostic(const char[] message)
+{
+	Console.writeLine(message);
+}
+```
+
+Direct `export` is for true ABI entry points:
 
 ```camp
 export int countWords(const char[] text)
@@ -364,6 +409,32 @@ because the native representation is compatible. When a value's lifetime,
 constness, or representation changes, make the conversion visible and prefer an
 API that expresses the intent.
 
+A stack-local struct is ordinary scoped storage. It is valid to copy scoped
+pointer-bearing parameters into fields of that local struct when the target
+storage cannot outlive the source value. For ordinary function-scope parser or
+state locals, this means scoped parameters can be copied into fields as long as
+the local aggregate itself does not escape the function:
+
+```camp
+struct ParseContext
+{
+    string[] args;
+}
+
+void parse(string[] args)
+{
+    ParseContext context = default;
+    context.args = args; // OK: both are scoped to this function activation.
+}
+```
+
+Do not mark fields or locals `escaped` merely to silence a lifetime diagnostic.
+Use an explicit `(escaped)` cast only as a narrow escape hatch after confirming
+that every use through the target remains within the source value's real
+lifetime, or that the source value truly is escaped. If the local aggregate is
+assigned to global, escaped, static, retained callback, or retained heap object
+storage, its pointer-bearing fields must satisfy that longer lifetime.
+
 ## Arrays And Text
 
 `T[]` is a pair-like view of elements and count, not a container that owns memory.
@@ -466,6 +537,16 @@ Aggregate initializer arguments are allowed only when the parameter supplies a
 safe storage rule. Passing `{ ... }` to `in T` or `const T*` is fine; the
 compiler materializes a temporary and passes its address. Do not pass `{ ... }`
 to a mutable `T*` parameter. Initialize a local and pass `&local` instead.
+Inline aggregate descriptors can include array-view fields using normal array
+literal syntax when the parameter target type is known:
+
+```camp
+register({ .modes = ["build"], .name = "file", .multiple = true });
+```
+
+Do not pre-lower array fields into hidden component names such as `modes_length`
+in source-level Camp. The compiler expands array-view storage components where
+needed.
 
 ## Functions And Parameters
 
@@ -571,6 +652,11 @@ Rules of thumb:
 
 - Values passed as ordinary parameters are scoped unless the declaration says
   otherwise.
+- Scoped means “valid for the current function activation,” not “uncopyable.”
+  A scoped pointer-bearing value may be copied into another storage location
+  with the same function-frame lifetime, such as a stack-local struct field.
+  It may not be copied into unscoped or escaped storage unless the source value
+  actually satisfies that longer lifetime.
 - Stored callbacks, retained array views, async continuations, and object fields
   often need `escaped` values.
 - Allocations that outlive the current function should be tied to an explicit
@@ -980,7 +1066,8 @@ and error behavior.
 Stable agent habits:
 
 - Import only the namespaces the file needs.
-- Use `internal` for project-only helpers, `public` for static-module API, and
+- Leave file-local helpers unmarked; use `internal` only for helpers shared
+  across project/package source files, `public` for static-module API, and
   export projections for curated shared-library API.
 - Prefer project helper functions over inventing new standard-library calls.
 - Use `Console.writeLine` only where nearby code or metadata confirms it is
