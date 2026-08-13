@@ -1346,6 +1346,9 @@ public sealed partial class BindableNodeAnalyzer
 			case CallExpression call when TryCreateExpandedReturnCallComponents(call, out components):
 				return true;
 
+			case ConditionalExpression conditional when TryCreateConditionalParamsComponentExpressions(conditional, out components):
+				return true;
+
 			case GroupedExpression grouped:
 				foreach (GroupedExpressionItem item in grouped.Items)
 				{
@@ -1410,6 +1413,37 @@ public sealed partial class BindableNodeAnalyzer
 			default:
 				return false;
 		}
+	}
+
+	bool TryCreateConditionalParamsComponentExpressions(ConditionalExpression conditional, out List<Expression> components)
+	{
+		components = [];
+		if (!TryCreateParamsComponentExpressions(conditional.WhenTrue, out List<Expression> trueComponents)
+			|| !TryCreateParamsComponentExpressions(conditional.WhenFalse, out List<Expression> falseComponents)
+			|| trueComponents.Count == 0
+			|| trueComponents.Count != falseComponents.Count)
+		{
+			return false;
+		}
+
+		if (conditional.Condition is null)
+			return false;
+		Expression condition = LowerExpression(conditional.Condition) ?? conditional.Condition;
+		if (trueComponents.Count > 1 && currentStatementPrefix is not null)
+			condition = CaptureRepeatedParamsSourceExpression(condition, "condition");
+
+		for (int i = 0; i < trueComponents.Count; i++)
+		{
+			components.Add(new ConditionalExpression
+			{
+				SourceSyntax = conditional.SourceSyntax,
+				Condition = i == 0 ? condition : CloneParamsExpansionExpression(condition) ?? condition,
+				WhenTrue = trueComponents[i],
+				WhenFalse = falseComponents[i],
+				ResolvedType = trueComponents[i].ResolvedType ?? falseComponents[i].ResolvedType
+			});
+		}
+		return true;
 	}
 
 	bool TryCreateCastParamsComponentExpressions(CastExpression cast, out List<Expression> components)

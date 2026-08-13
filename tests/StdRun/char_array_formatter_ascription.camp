@@ -13,6 +13,11 @@ const char[] middle(const char[] value)
 	return value[1..4];
 }
 
+void writeSeparator(CharWriter writer, bool compact)
+{
+	writer.write(compact ? ":" : ": ");
+}
+
 export int main()
 {
 	char[] copied = "abc".escapedLength();
@@ -43,6 +48,12 @@ export int main()
 	char[] chainedReceiver = middle(" hello ").toString();
 	if (chainedReceiver.compareTo("hel") != 0)
 		return 6;
+
+	auto writerBuffer = new List<char>() finally delete;
+	writeSeparator(writerBuffer.CharWriter, false);
+	char[] separator = writerBuffer.copyArray() finally delete;
+	if (separator.compareTo(": ") != 0)
+		return 7;
 
 	return 0;
 }
