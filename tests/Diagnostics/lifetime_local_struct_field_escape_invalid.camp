@@ -1,0 +1,13 @@
+struct Context
+{
+	string[] args;
+}
+
+Context globalContext;
+
+void parse(string[] args)
+{
+	Context context = default;
+	context.args = args;
+	globalContext = context;
+}

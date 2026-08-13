@@ -1030,6 +1030,10 @@ public sealed partial class BindableNodeAnalyzer
 			return;
 		}
 
+		if (!TryParseLifetimeFact(valueFact, out LifetimeFact parsedValueFact)
+			|| parsedValueFact.Kind is "escaped" or "unknown" or "default" or "null")
+			return;
+
 		if (!TryGetAggregateComponentLifetimeTarget(target, out Expression? aggregate, out string? componentType) || aggregate is null)
 			return;
 		if (!IsPointerBearingResolvedType(componentType))
@@ -1046,6 +1050,13 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			aggregate = referenceTarget;
 			componentType = member.ResolvedType ?? member.Member?.ResolvedType;
+			return true;
+		}
+
+		if (target is MemberReferenceExpression { Target: Expression fieldTarget, Member: FieldDefinition } fieldMember)
+		{
+			aggregate = fieldTarget;
+			componentType = fieldMember.ResolvedType ?? fieldMember.Member?.ResolvedType;
 			return true;
 		}
 
@@ -1298,7 +1309,7 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (target is MemberReferenceExpression { Target: not null, Member: FieldDefinition { Modifier: not FieldModifier.Static } } member)
 		{
-			if (TryParseLifetimeFact(GetExpressionLifetimeFact(member.Target), out LifetimeFact targetFact)
+			if (TryParseLifetimeFact(GetStorageLifetimeFact(member.Target) ?? GetExpressionLifetimeFact(member.Target), out LifetimeFact targetFact)
 				&& targetFact.Anchors.Count == 1)
 			{
 				anchor = targetFact.Anchors[0];
@@ -1317,6 +1328,24 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		return false;
+	}
+
+	string? GetStorageLifetimeFact(Expression? expression)
+	{
+		if (expression is null)
+			return null;
+		if (expressionRewrites.TryGetValue(expression, out Expression? rewritten) && !ReferenceEquals(rewritten, expression))
+			return GetStorageLifetimeFact(rewritten);
+		if (TryGetStorageNode(expression, out BindableNode? storage) && storage is not null)
+			return storage.SlotLifetimeFact ?? storage.ValueLifetimeFact;
+		return expression switch
+		{
+			ParenthesizedExpression parenthesized => GetStorageLifetimeFact(parenthesized.Expression),
+			MemberReferenceExpression { Target: not null } member => GetStorageLifetimeFact(member.Target),
+			MemberExpression { Target: not null } member => GetStorageLifetimeFact(member.Target),
+			IndexExpression { Target: not null } index => GetStorageLifetimeFact(index.Target),
+			_ => null
+		};
 	}
 
 	static bool ValueOutlivesAnchor(LifetimeFact valueFact, string anchor)

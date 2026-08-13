@@ -1,0 +1,1 @@
+tests/Diagnostics/lifetime_local_struct_field_escape_invalid.camp(12,18): error: Assignment cannot store a non-escaped pointer-bearing value in escaped storage.

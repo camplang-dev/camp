@@ -1,0 +1,18 @@
+struct Context
+{
+	string[] args;
+	const char[] current;
+}
+
+void parse(string[] args, const char[] current)
+{
+	Context context = default;
+	context.args = args;
+	context.current = current;
+}
+
+int run(string[] args)
+{
+	parse(args, "current");
+	return 0;
+}

@@ -1,0 +1,58 @@
+// file: lifetime_local_struct_field_assignment.c
+#include "lifetime_local_struct_field_assignment_private.h"
+
+/* Private file declarations. */
+static void parse(const char **args, uintptr_t args_length, const char *current, uintptr_t current_length);
+static int run(const char **args, uintptr_t args_length);
+
+static void parse(const char **args, uintptr_t args_length, const char *current, uintptr_t current_length)
+{
+	Context context = (Context){0};
+	{
+		context.args = args;
+		context.args_length = args_length;
+	}
+	{
+		context.current = current;
+		context.current_length = current_length;
+	}
+}
+
+static int run(const char **args, uintptr_t args_length)
+{
+	parse(args, args_length, "current", 7);
+	return 0;
+}
+
+// file: lifetime_local_struct_field_assignment_private.h
+#ifndef LIFETIME_LOCAL_STRUCT_FIELD_ASSIGNMENT_PRIVATE_H_
+#define LIFETIME_LOCAL_STRUCT_FIELD_ASSIGNMENT_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct Context Context;
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Layouts. */
+struct Context
+{
+	const char **args;
+	uintptr_t args_length;
+	const char *current;
+	uintptr_t current_length;
+};
+
+/* Function declarations. */
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: lifetime_local_struct_field_assignment.c
