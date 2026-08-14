@@ -930,6 +930,51 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Cover_reports_test_allocations_at_test_source_line()
+	{
+		string source = CreateTempCase("coverage_test_allocation_source/main.camp", """
+			namespace CoverageTestAllocationSource;
+
+			void coveredLibraryCode(within allocator)
+			{
+				auto temporary = new byte[1];
+				delete temporary;
+			}
+
+			@test
+			void leaksFromTestBody(within allocator, thrown Assertion* assertion)
+			{
+				coveredLibraryCode(within allocator);
+				auto leaked = new byte[8];
+			}
+			""");
+		string outDir = TempPath("coverage-test-allocation-source-out");
+		string coverageDir = TempPath("coverage-test-allocation-source-results");
+		int allocationLine = FindLine(source, "auto leaked = new byte[8];");
+
+		ProcessResult result = RunCampc(
+			"cover",
+			source,
+			"--target",
+			NativeTargetForHost(),
+			"--out-dir",
+			outDir,
+			"--coverage-output-dir",
+			coverageDir,
+			"--name",
+			"coverage_test_allocation_source");
+
+		Assert.NotEqual(0, result.ExitCode);
+		Assert.Contains("failed: CoverageTestAllocationSource::leaksFromTestBody", result.StdOut, StringComparison.Ordinal);
+		Assert.Contains("memory leak: 1 allocation still live", result.StdOut, StringComparison.Ordinal);
+		Assert.Contains($":{allocationLine} ", result.StdOut, StringComparison.Ordinal);
+		using JsonDocument results = JsonDocument.Parse(File.ReadAllText(TestResultsPath(outDir, "coverage_test_allocation_source")));
+		JsonElement test = Assert.Single(results.RootElement.GetProperty("tests").EnumerateArray());
+		Assert.Equal(RelativeSourcePath(source), test.GetProperty("failure").GetProperty("sourcefile").GetString());
+		Assert.Equal(allocationLine, test.GetProperty("failure").GetProperty("sourceline").GetInt32());
+	}
+
+	[Fact]
 	public void Test_command_applies_filters_and_result_format_options()
 	{
 		string source = CreateTempCase("test_runner_filters/main.camp", """
@@ -1178,8 +1223,8 @@ public sealed class CommandLineTests
 		Assert.StartsWith("v,1\n", map, StringComparison.Ordinal);
 		Assert.Contains("CoverageCli::add", map, StringComparison.Ordinal);
 		Assert.Contains("CoverageCli::unused", map, StringComparison.Ordinal);
-		Assert.DoesNotContain("CoverageCli::addWorks", map, StringComparison.Ordinal);
-		Assert.DoesNotContain("testHelper", map, StringComparison.Ordinal);
+		Assert.Contains("CoverageCli::addWorks", map, StringComparison.Ordinal);
+		Assert.Contains("testHelper", map, StringComparison.Ordinal);
 		Assert.DoesNotContain("$camp_test_support", map, StringComparison.Ordinal);
 
 		string resultsPath = Path.Combine(coverageDir, "coverage_basic.camp-coverage-results.json");

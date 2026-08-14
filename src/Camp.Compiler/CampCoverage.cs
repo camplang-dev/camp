@@ -11,7 +11,8 @@ namespace Camp.Compiler;
 public enum CampCoverageCounterKind
 {
 	Line,
-	Function
+	Function,
+	Checkpoint
 }
 
 public sealed record CampCoverageCounter(int Id, CampCoverageCounterKind Kind, int FileId, int Line, int NameId);
@@ -53,6 +54,8 @@ public sealed class CampCoverageMapBuilder
 	readonly Dictionary<LineCounterKey, int> lineCounters = [];
 	readonly HashSet<FunctionDefinition> instrumentableFunctions = new(ReferenceEqualityComparer.Instance);
 	readonly HashSet<FunctionDefinition> nonInstrumentableFunctions = new(ReferenceEqualityComparer.Instance);
+	readonly HashSet<FunctionDefinition> checkpointOnlyFunctions = new(ReferenceEqualityComparer.Instance);
+	readonly HashSet<FunctionDefinition> nonCheckpointOnlyFunctions = new(ReferenceEqualityComparer.Instance);
 
 	public CampCoverageMapBuilder(Compilation compilation)
 	{
@@ -94,7 +97,7 @@ public sealed class CampCoverageMapBuilder
 			diagnostic = null;
 			return false;
 		}
-		if (!IsInstrumentableLineFunction(function, out FunctionDefinition coverageFunction, out diagnostic))
+		if (!TryGetLineInstrumentation(function, out FunctionDefinition coverageFunction, out CampCoverageCounterKind counterKind, out diagnostic))
 			return false;
 		if (!CCodeEmitter.TryGetNodeSourceRange(statement, out TokenRange range))
 		{
@@ -111,22 +114,32 @@ public sealed class CampCoverageMapBuilder
 		if (fileId == 0)
 			return false;
 		int nameId = GetNameId(GetQualifiedFunctionName(coverageFunction));
-		LineCounterKey key = new(coverageFunction, fileId, range.StartLineNumber, nameId);
+		LineCounterKey key = new(coverageFunction, fileId, range.StartLineNumber, nameId, counterKind);
 		if (lineCounters.TryGetValue(key, out counterId))
 			return true;
 
 		counterId = counters.Count;
-		counters.Add(new CampCoverageCounter(counterId, CampCoverageCounterKind.Line, fileId, range.StartLineNumber, nameId));
+		counters.Add(new CampCoverageCounter(counterId, counterKind, fileId, range.StartLineNumber, nameId));
 		lineCounters[key] = counterId;
 		diagnostic = null;
 		return true;
 	}
 
-	bool IsInstrumentableLineFunction(FunctionDefinition function, out FunctionDefinition coverageFunction, out string? diagnostic)
+	bool TryGetLineInstrumentation(FunctionDefinition function, out FunctionDefinition coverageFunction, out CampCoverageCounterKind counterKind, out string? diagnostic)
 	{
 		coverageFunction = GetCoverageSourceFunction(function);
+		counterKind = CampCoverageCounterKind.Line;
 		if (ReferenceEquals(coverageFunction, function))
-			return IsInstrumentableFunction(function, out _, out _, out diagnostic);
+		{
+			if (IsInstrumentableFunction(function, out _, out _, out diagnostic))
+				return true;
+			if (IsCheckpointOnlyFunction(function, out diagnostic))
+			{
+				counterKind = CampCoverageCounterKind.Checkpoint;
+				return true;
+			}
+			return false;
+		}
 
 		diagnostic = null;
 		if (compilation.CoverageInstrumentationMode == CoverageInstrumentationMode.Disabled
@@ -137,6 +150,11 @@ public sealed class CampCoverageMapBuilder
 			|| UnsupportedAvailability.IsUnsupported(coverageFunction))
 		{
 			return false;
+		}
+		if (participation.IsTestOnly(coverageFunction))
+		{
+			counterKind = CampCoverageCounterKind.Checkpoint;
+			return true;
 		}
 		return true;
 	}
@@ -184,6 +202,38 @@ public sealed class CampCoverageMapBuilder
 		}
 
 		instrumentableFunctions.Add(function);
+		return true;
+	}
+
+	bool IsCheckpointOnlyFunction(FunctionDefinition function, out string? diagnostic)
+	{
+		diagnostic = null;
+		if (checkpointOnlyFunctions.Contains(function))
+			return true;
+		if (nonCheckpointOnlyFunctions.Contains(function))
+			return false;
+
+		if (compilation.CoverageInstrumentationMode == CoverageInstrumentationMode.Disabled
+			|| function.Body is null
+			|| function.Extern is not null
+			|| function.Modifier is FunctionModifier.Constructor or FunctionModifier.Destructor
+			|| function.Name.StartsWith("~", StringComparison.Ordinal)
+			|| function.IsAsync
+			|| function.IteratorKind != IteratorKind.None
+			|| function.GeneratedInfo is not null
+			|| function.Provenance?.Category is GeneratedDeclarationCategory category && category != GeneratedDeclarationCategory.None
+			|| !participation.IsTestOnly(function)
+			|| UnsupportedAvailability.IsUnsupported(function)
+			|| !CCodeEmitter.TryGetNodeSourceRange(function, out TokenRange range)
+			|| !TryGetSourceFile(range, out SourceFile? file)
+			|| file!.IsApiHeader
+			|| IsGeneratedSource(file))
+		{
+			nonCheckpointOnlyFunctions.Add(function);
+			return false;
+		}
+
+		checkpointOnlyFunctions.Add(function);
 		return true;
 	}
 
@@ -324,7 +374,7 @@ public sealed class CampCoverageMapBuilder
 		};
 	}
 
-	readonly record struct LineCounterKey(FunctionDefinition Function, int FileId, int Line, int NameId);
+	readonly record struct LineCounterKey(FunctionDefinition Function, int FileId, int Line, int NameId, CampCoverageCounterKind Kind);
 }
 
 public static class CampCoverageMapCsvSerializer
@@ -342,7 +392,12 @@ public static class CampCoverageMapCsvSerializer
 				builder,
 				"c",
 				counter.Id.ToString(CultureInfo.InvariantCulture),
-				counter.Kind == CampCoverageCounterKind.Function ? "f" : "l",
+				counter.Kind switch
+				{
+					CampCoverageCounterKind.Function => "f",
+					CampCoverageCounterKind.Checkpoint => "p",
+					_ => "l"
+				},
 				counter.FileId.ToString(CultureInfo.InvariantCulture),
 				counter.Line.ToString(CultureInfo.InvariantCulture),
 				counter.NameId.ToString(CultureInfo.InvariantCulture));
@@ -390,7 +445,7 @@ public static class CampCoverageMapCsvSerializer
 				case "c":
 					if (row.Count != 6
 						|| !TryParseNonNegative(row[1], out int counterId)
-						|| row[2] is not ("l" or "f")
+						|| row[2] is not ("l" or "f" or "p")
 						|| !TryParseNonNegative(row[3], out int counterFileId)
 						|| !TryParseNonNegative(row[4], out int sourceLine)
 						|| !TryParseNonNegative(row[5], out int counterNameId))
@@ -398,7 +453,13 @@ public static class CampCoverageMapCsvSerializer
 						diagnostics.Add($"coverage map line {lineNumber}: invalid counter row.");
 						break;
 					}
-					counters.Add(new CampCoverageCounter(counterId, row[2] == "f" ? CampCoverageCounterKind.Function : CampCoverageCounterKind.Line, counterFileId, sourceLine, counterNameId));
+					CampCoverageCounterKind kind = row[2] switch
+					{
+						"f" => CampCoverageCounterKind.Function,
+						"p" => CampCoverageCounterKind.Checkpoint,
+						_ => CampCoverageCounterKind.Line
+					};
+					counters.Add(new CampCoverageCounter(counterId, kind, counterFileId, sourceLine, counterNameId));
 					break;
 				default:
 					diagnostics.Add($"coverage map line {lineNumber}: unknown row kind '{row[0]}'.");
