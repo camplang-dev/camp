@@ -526,6 +526,46 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Generated_harness_tracks_prep_new_allocations_within_test_allocator()
+	{
+		string source = CreateTempCase("test_harness_prep_new_allocator/main.camp", """
+			namespace HarnessPrepNewAllocatorCli;
+
+			@testonly
+			prep char[] renderValue()
+			{
+				if (buffer.length > 0)
+					buffer[0] = 'x';
+				return 1;
+			}
+
+			@test
+			void prepNewUsesTestAllocator(within Allocator* allocator, thrown Assertion* assertion)
+			{
+				char[] text = (new) renderValue();
+				assert(text.length == 1);
+				assert(text[0] == 'x');
+				delete text;
+			}
+			""");
+		string outDir = TempPath("test-harness-prep-new-allocator-out");
+
+		ProcessResult result = RunCampc(
+			"test",
+			source,
+			"--target",
+			NativeTargetForHost(),
+			"--out-dir",
+			outDir,
+			"--name",
+			"harness_prep_new_allocator");
+
+		AssertCommandSucceeded(result);
+		Assert.Contains("passed: HarnessPrepNewAllocatorCli::prepNewUsesTestAllocator", result.StdOut, StringComparison.Ordinal);
+		Assert.DoesNotContain("invalid allocator free", result.StdOut, StringComparison.Ordinal);
+	}
+
+	[Fact]
 	public void Generated_harness_tracks_interface_allocator_leaks_and_invalid_frees()
 	{
 		string source = CreateTempCase("test_harness_leak_tracking/main.camp", """

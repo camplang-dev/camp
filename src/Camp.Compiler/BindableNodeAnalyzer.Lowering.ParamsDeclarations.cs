@@ -75,14 +75,20 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			FunctionDefinition? previousFunction = currentRewriteFunction;
 			TypeDefinition? previousType = currentRewriteContainingType;
+			Expression? previousWithinContext = currentWithinContext;
+			int previousDefaultWithinContextDepth = currentDefaultWithinContextDepth;
 			Dictionary<SyntaxNode, Expression> previousPreparedBufferLoweringRewrites = new(preparedBufferLoweringRewrites);
 			currentRewriteFunction = function;
 			currentRewriteContainingType = FindContainingType(function);
+			currentWithinContext = GetFunctionWithinContext(function);
+			currentDefaultWithinContextDepth = 0;
 			preparedBufferLoweringRewrites.Clear();
 			ExpandParamsLocalDeclarations(function.Body.Statements);
 			preparedBufferLoweringRewrites.Clear();
 			foreach (KeyValuePair<SyntaxNode, Expression> rewrite in previousPreparedBufferLoweringRewrites)
 				preparedBufferLoweringRewrites[rewrite.Key] = rewrite.Value;
+			currentWithinContext = previousWithinContext;
+			currentDefaultWithinContextDepth = previousDefaultWithinContextDepth;
 			currentRewriteFunction = previousFunction;
 			currentRewriteContainingType = previousType;
 		}
