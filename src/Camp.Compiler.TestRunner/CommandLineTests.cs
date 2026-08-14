@@ -1369,18 +1369,18 @@ public sealed class CommandLineTests
 				}, 4);
 			}
 
-			int constructedValue()
+			int constructedValue(within Allocator* allocator)
 			{
 				auto counter = new Counter(4) finally delete;
 				return counter.getValue();
 			}
 
 			@test
-			void loweredCoverageWorks(thrown Assertion* assertion)
+			void loweredCoverageWorks(within Allocator* allocator, thrown Assertion* assertion)
 			{
 				assert(sumGenerated() == 6);
 				assert(lambdaValue() == 10);
-				assert(constructedValue() == 5);
+				assert(constructedValue(within allocator) == 5);
 			}
 			""");
 		string outDir = TempPath("coverage-lowered-bodies-out");
