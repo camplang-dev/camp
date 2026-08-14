@@ -25,7 +25,14 @@ public sealed record CampTestResultEntry(
 	CampTestMemoryReport? Memory = null);
 
 public sealed record CampTestFailure(string Kind, string Message, string Sourcefile, int Sourceline);
-public sealed record CampTestMemoryReport(bool LeaksIgnored, IReadOnlyList<CampTestLeakReport> Leaks);
+public sealed record CampTestMemoryReport(
+	bool LeaksIgnored,
+	int TotalAllocations,
+	ulong TotalAllocatedBytes,
+	int TotalFrees,
+	int LiveAllocations,
+	ulong LiveBytes,
+	IReadOnlyList<CampTestLeakReport> Leaks);
 public sealed record CampTestLeakReport(ulong Bytes, int Count, string Message, string Sourcefile, int Sourceline);
 
 internal sealed record CampTestHarnessEvent(int Index, string Outcome, double DurationMs, CampTestFailure? Failure, CampTestMemoryReport? Memory = null);
@@ -54,6 +61,7 @@ public static class CampTestResultsFactory
 			results.Add(harnessEvent.Outcome switch
 			{
 				"passed" => CreateResult(test, "passed", harnessEvent.DurationMs, failure: null),
+				"passed-memory" => CreateResult(test, "passed", harnessEvent.DurationMs, failure: null, harnessEvent.Memory),
 				"passed-leaked" => CreateResult(test, "passed", harnessEvent.DurationMs, failure: null, harnessEvent.Memory),
 				"skipped" => CreateResult(test, "skipped", harnessEvent.DurationMs, failure: null),
 				"invalid" => CreateResult(test, "invalid", harnessEvent.DurationMs, new CampTestFailure(
@@ -66,6 +74,11 @@ public static class CampTestResultsFactory
 					"",
 					test.Sourcefile,
 					test.Sourceline))),
+				"failed-memory" => CreateResult(test, "failed", harnessEvent.DurationMs, NormalizeFailure(test, harnessEvent.Failure ?? new CampTestFailure(
+					"memory",
+					"",
+					test.Sourcefile,
+					test.Sourceline)), harnessEvent.Memory),
 				_ => CreateErrorResult(test, "test harness reported unknown outcome '" + harnessEvent.Outcome + "'")
 			});
 		}
@@ -186,6 +199,11 @@ public static class CampTestResultsJsonSerializer
 				{
 					json.WriteStartObject("memory");
 					json.WriteBoolean("leaksIgnored", test.Memory.LeaksIgnored);
+					json.WriteNumber("totalAllocations", test.Memory.TotalAllocations);
+					json.WriteNumber("totalAllocatedBytes", test.Memory.TotalAllocatedBytes);
+					json.WriteNumber("totalFrees", test.Memory.TotalFrees);
+					json.WriteNumber("liveAllocations", test.Memory.LiveAllocations);
+					json.WriteNumber("liveBytes", test.Memory.LiveBytes);
 					json.WriteStartArray("leaks");
 					foreach (CampTestLeakReport leak in test.Memory.Leaks)
 					{
@@ -251,7 +269,14 @@ public static class CampTestResultsJsonSerializer
 									GetInt(leak, "sourceline")));
 							}
 						}
-						memory = new CampTestMemoryReport(GetBool(memoryElement, "leaksIgnored"), leaks);
+						memory = new CampTestMemoryReport(
+							GetBool(memoryElement, "leaksIgnored"),
+							GetInt(memoryElement, "totalAllocations"),
+							GetUInt64(memoryElement, "totalAllocatedBytes"),
+							GetInt(memoryElement, "totalFrees"),
+							GetInt(memoryElement, "liveAllocations"),
+							GetUInt64(memoryElement, "liveBytes"),
+							leaks);
 					}
 					tests.Add(new CampTestResultEntry(
 						GetString(test, "id"),
@@ -390,7 +415,7 @@ public static class CampTestResultsTextFormatter
 					}
 					builder.AppendLine();
 				}
-				if (test.Memory is not null)
+				if (test.Memory is not null && (test.Failure is null || test.Memory.LeaksIgnored))
 				{
 					foreach (CampTestLeakReport leak in test.Memory.Leaks)
 					{
@@ -516,17 +541,53 @@ internal static class CampTestHarnessEventParser
 					continue;
 				}
 			}
-			else if (parts[0] == "passed-leaked")
+			else if (parts[0] == "failed-memory")
+			{
+				if (parts.Length != 12
+					|| !int.TryParse(parts[6], NumberStyles.None, CultureInfo.InvariantCulture, out int sourceline)
+					|| !int.TryParse(parts[7], NumberStyles.None, CultureInfo.InvariantCulture, out int totalAllocations)
+					|| !ulong.TryParse(parts[8], NumberStyles.None, CultureInfo.InvariantCulture, out ulong totalAllocatedBytes)
+					|| !int.TryParse(parts[9], NumberStyles.None, CultureInfo.InvariantCulture, out int totalFrees)
+					|| !int.TryParse(parts[10], NumberStyles.None, CultureInfo.InvariantCulture, out int liveAllocations)
+					|| !ulong.TryParse(parts[11], NumberStyles.None, CultureInfo.InvariantCulture, out ulong liveBytes))
+				{
+					diagnostics.Add($"{path}({lineNumber}): invalid memory failure test harness event row.");
+					continue;
+				}
+				failure = new CampTestFailure(Unescape(parts[3]), Unescape(parts[4]), Unescape(parts[5]), sourceline);
+				IReadOnlyList<CampTestLeakReport> leaks = failure.Kind == "memory-leak"
+					? [new CampTestLeakReport(liveBytes, liveAllocations, failure.Message, failure.Sourcefile, failure.Sourceline)]
+					: [];
+				memory = new CampTestMemoryReport(false, totalAllocations, totalAllocatedBytes, totalFrees, liveAllocations, liveBytes, leaks);
+			}
+			else if (parts[0] == "passed-memory")
 			{
 				if (parts.Length != 8
+					|| !int.TryParse(parts[3], NumberStyles.None, CultureInfo.InvariantCulture, out int totalAllocations)
+					|| !ulong.TryParse(parts[4], NumberStyles.None, CultureInfo.InvariantCulture, out ulong totalAllocatedBytes)
+					|| !int.TryParse(parts[5], NumberStyles.None, CultureInfo.InvariantCulture, out int totalFrees)
+					|| !int.TryParse(parts[6], NumberStyles.None, CultureInfo.InvariantCulture, out int liveAllocations)
+					|| !ulong.TryParse(parts[7], NumberStyles.None, CultureInfo.InvariantCulture, out ulong liveBytes))
+				{
+					diagnostics.Add($"{path}({lineNumber}): invalid passed memory test harness event row.");
+					continue;
+				}
+				memory = new CampTestMemoryReport(false, totalAllocations, totalAllocatedBytes, totalFrees, liveAllocations, liveBytes, []);
+			}
+			else if (parts[0] == "passed-leaked")
+			{
+				if (parts.Length != 11
 					|| !int.TryParse(parts[5], NumberStyles.None, CultureInfo.InvariantCulture, out int sourceline)
-					|| !ulong.TryParse(parts[6], NumberStyles.None, CultureInfo.InvariantCulture, out ulong bytes)
-					|| !int.TryParse(parts[7], NumberStyles.None, CultureInfo.InvariantCulture, out int count))
+					|| !int.TryParse(parts[6], NumberStyles.None, CultureInfo.InvariantCulture, out int totalAllocations)
+					|| !ulong.TryParse(parts[7], NumberStyles.None, CultureInfo.InvariantCulture, out ulong totalAllocatedBytes)
+					|| !int.TryParse(parts[8], NumberStyles.None, CultureInfo.InvariantCulture, out int totalFrees)
+					|| !int.TryParse(parts[9], NumberStyles.None, CultureInfo.InvariantCulture, out int liveAllocations)
+					|| !ulong.TryParse(parts[10], NumberStyles.None, CultureInfo.InvariantCulture, out ulong liveBytes))
 				{
 					diagnostics.Add($"{path}({lineNumber}): invalid ignored leak test harness event row.");
 					continue;
 				}
-				memory = new CampTestMemoryReport(true, [new CampTestLeakReport(bytes, count, Unescape(parts[3]), Unescape(parts[4]), sourceline)]);
+				memory = new CampTestMemoryReport(true, totalAllocations, totalAllocatedBytes, totalFrees, liveAllocations, liveBytes, [new CampTestLeakReport(liveBytes, liveAllocations, Unescape(parts[3]), Unescape(parts[4]), sourceline)]);
 			}
 			else if (parts.Length != 3)
 			{

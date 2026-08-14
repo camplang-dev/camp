@@ -677,6 +677,11 @@ public sealed class CommandLineTests
 		JsonElement leakTest = Assert.Single(leakResults.RootElement.GetProperty("tests").EnumerateArray());
 		Assert.Equal("failed", leakTest.GetProperty("outcome").GetString());
 		Assert.Equal("memory-leak", leakTest.GetProperty("failure").GetProperty("kind").GetString());
+		JsonElement leakMemory = leakTest.GetProperty("memory");
+		Assert.False(leakMemory.GetProperty("leaksIgnored").GetBoolean());
+		Assert.Equal(1, leakMemory.GetProperty("totalAllocations").GetInt32());
+		Assert.Equal(1, leakMemory.GetProperty("liveAllocations").GetInt32());
+		Assert.Equal(1, leakMemory.GetProperty("leaks").GetArrayLength());
 
 		string arrayLeakOut = TempPath("test-harness-array-leak-fail-out");
 		ProcessResult arrayLeak = RunCampc(
@@ -731,6 +736,32 @@ public sealed class CommandLineTests
 		AssertCommandSucceeded(defaultAllocation);
 		Assert.Contains("passed: HarnessLeakCli::defaultAllocationBypassesTracking", defaultAllocation.StdOut, StringComparison.Ordinal);
 		Assert.DoesNotContain("memory leak", defaultAllocation.StdOut, StringComparison.Ordinal);
+
+		string cleanOut = TempPath("test-harness-clean-memory-out");
+		ProcessResult clean = RunCampc(
+			"test",
+			source,
+			"--nostdlib",
+			"--target",
+			NativeTargetForHost(),
+			"--out-dir",
+			cleanOut,
+			"--name",
+			"harness_clean_memory",
+			"--filter",
+			"HarnessLeakCli::cleansUp");
+
+		AssertCommandSucceeded(clean);
+		using (JsonDocument cleanResults = JsonDocument.Parse(File.ReadAllText(TestResultsPath(cleanOut, "harness_clean_memory"))))
+		{
+			JsonElement cleanTest = Assert.Single(cleanResults.RootElement.GetProperty("tests").EnumerateArray());
+			JsonElement memory = cleanTest.GetProperty("memory");
+			Assert.Equal(1, memory.GetProperty("totalAllocations").GetInt32());
+			Assert.Equal(1, memory.GetProperty("totalFrees").GetInt32());
+			Assert.Equal(0, memory.GetProperty("liveAllocations").GetInt32());
+			Assert.Equal(0UL, memory.GetProperty("liveBytes").GetUInt64());
+			Assert.Empty(memory.GetProperty("leaks").EnumerateArray());
+		}
 
 		string invalidOut = TempPath("test-harness-invalid-free-out");
 		ProcessResult invalid = RunCampc(
@@ -854,7 +885,46 @@ public sealed class CommandLineTests
 		Assert.Equal(JsonValueKind.Null, test.GetProperty("failure").ValueKind);
 		JsonElement memory = test.GetProperty("memory");
 		Assert.True(memory.GetProperty("leaksIgnored").GetBoolean());
+		Assert.Equal(1, memory.GetProperty("totalAllocations").GetInt32());
+		Assert.Equal(0, memory.GetProperty("totalFrees").GetInt32());
+		Assert.Equal(1, memory.GetProperty("liveAllocations").GetInt32());
 		Assert.Single(memory.GetProperty("leaks").EnumerateArray());
+	}
+
+	[Fact]
+	public void Generated_harness_does_not_report_leaks_when_assertion_fails()
+	{
+		string source = CreateTempCase("test_harness_assertion_failure_leak/main.camp", """
+			namespace HarnessAssertionFailureLeakCli;
+
+			@test
+			void assertionFailsAfterAllocating(within allocator, thrown Assertion* assertion)
+			{
+				auto bytes = new byte[4];
+				assert(false);
+			}
+			""");
+		string outDir = TempPath("test-harness-assertion-failure-leak-out");
+
+		ProcessResult result = RunCampc(
+			"test",
+			source,
+			"--target",
+			NativeTargetForHost(),
+			"--out-dir",
+			outDir,
+			"--name",
+			"harness_assertion_failure_leak");
+
+		Assert.NotEqual(0, result.ExitCode);
+		Assert.Contains("failed: HarnessAssertionFailureLeakCli::assertionFailsAfterAllocating", result.StdOut, StringComparison.Ordinal);
+		Assert.Contains("assertion", result.StdOut, StringComparison.Ordinal);
+		Assert.DoesNotContain("memory leak", result.StdOut, StringComparison.Ordinal);
+		Assert.DoesNotContain("leak:", result.StdOut, StringComparison.Ordinal);
+		using JsonDocument results = JsonDocument.Parse(File.ReadAllText(TestResultsPath(outDir, "harness_assertion_failure_leak")));
+		JsonElement test = Assert.Single(results.RootElement.GetProperty("tests").EnumerateArray());
+		Assert.Equal("assertion", test.GetProperty("failure").GetProperty("kind").GetString());
+		Assert.Equal(JsonValueKind.Null, test.GetProperty("memory").ValueKind);
 	}
 
 	[Fact]
