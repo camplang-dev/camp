@@ -1,14 +1,15 @@
-// file: retained_allocator_field.c
-#include "retained_allocator_field_private.h"
+// file: retained_allocator_create_destroy.c
+#include "retained_allocator_create_destroy_private.h"
 
 /* Private file declarations. */
 void *malloc(uintptr_t size);
 void free(void *ptr);
 static void *Allocator_alloc(Allocator *this, uintptr_t size);
 static void Allocator_free(Allocator *this, void *ptr);
-static int Retained_getValue(const Retained *this);
 static void Retained_op_initnew(Retained *this, Allocator *allocator);
 static Retained *Retained_create(Allocator *allocator);
+static void Retained_op_delete(Retained *this);
+static void Retained_destroy(Retained *this);
 static int main(void);
 
 static void *Allocator_alloc(Allocator *this, uintptr_t size)
@@ -19,11 +20,6 @@ static void *Allocator_alloc(Allocator *this, uintptr_t size)
 static void Allocator_free(Allocator *this, void *ptr)
 {
 	free(ptr);
-}
-
-static int Retained_getValue(const Retained *this)
-{
-	return this->value;
 }
 
 static void Retained_op_initnew(Retained *this, Allocator *allocator)
@@ -45,28 +41,34 @@ static Retained *Retained_create(Allocator *allocator)
 	return _created0;
 }
 
+static void Retained_op_delete(Retained *this)
+{
+	this->value = 0;
+}
+
+static void Retained_destroy(Retained *this)
+{
+	Retained_op_delete(this);
+	Allocator *resolvedAllocator = this->allocator;
+	((resolvedAllocator != NULL) ? Allocator_free(resolvedAllocator, (void *)(this)) : free((void *)(this)));
+}
+
 static int main(void)
 {
 	Allocator *allocator = NULL;
 	{
 		Allocator *_allocator1 = allocator;
 		{
-			Retained *retained = (Retained *)(((_allocator1 != NULL) ? Allocator_alloc(_allocator1, sizeof(Retained)) : malloc(sizeof(Retained))));
-			if ((retained != NULL))
-			{
-				*retained = (Retained){0};
-				Retained_op_initnew(retained, _allocator1);
-			}
-			int result = Retained_getValue((const Retained *)(retained));
-			((_allocator1 != NULL) ? Allocator_free(_allocator1, (void *)(retained)) : free((void *)(retained)));
-			return (result - 7);
+			Retained *retained = Retained_create(_allocator1);
+			Retained_destroy(retained);
 		}
 	}
+	return 0;
 }
 
-// file: retained_allocator_field_private.h
-#ifndef RETAINED_ALLOCATOR_FIELD_PRIVATE_H_
-#define RETAINED_ALLOCATOR_FIELD_PRIVATE_H_
+// file: retained_allocator_create_destroy_private.h
+#ifndef RETAINED_ALLOCATOR_CREATE_DESTROY_PRIVATE_H_
+#define RETAINED_ALLOCATOR_CREATE_DESTROY_PRIVATE_H_
 
 #include <stddef.h>
 #include <stdint.h>
@@ -98,4 +100,4 @@ struct Retained
 
 #endif
 // compile
-compiled: retained_allocator_field.c
+compiled: retained_allocator_create_destroy.c

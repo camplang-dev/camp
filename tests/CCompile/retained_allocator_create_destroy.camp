@@ -1,0 +1,41 @@
+extern void* malloc(nuint size);
+extern void free(void* ptr);
+
+class Allocator
+{
+	void* alloc(nuint size)
+	{
+		return malloc(size);
+	}
+
+	void free(void* ptr)
+	{
+		free(ptr);
+	}
+}
+
+class Retained
+{
+	Retained(within this.allocator)
+	{
+		this.value = 7;
+	}
+
+	~Retained()
+	{
+		this.value = 0;
+	}
+
+	int value;
+}
+
+int main()
+{
+	Allocator* allocator = null;
+	within (allocator)
+	{
+		Retained* retained = Retained.create();
+		retained.destroy();
+	}
+	return 0;
+}

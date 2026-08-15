@@ -298,6 +298,19 @@ public sealed partial class BindableNodeAnalyzer
 		TypeReference type = allocator?.Type is null || allocator.Type is AllocatorTypeReference
 			? TypeReferenceForResolvedType(allocatorType)
 			: CloneType(allocator.Type) ?? new NamedTypeReference { Name = allocatorType, ResolvedType = allocatorType };
+		return CreateResolvedAllocatorLocal(source, allocatorType, type);
+	}
+
+	DeclarationStatement CreateResolvedAllocatorLocal(Expression allocator)
+	{
+		string allocatorType = allocator.ResolvedType ?? "Allocator*";
+		if (allocatorType == AllocatorType)
+			allocatorType = "Allocator*";
+		return CreateResolvedAllocatorLocal(allocator, allocatorType, TypeReferenceForResolvedType(allocatorType));
+	}
+
+	DeclarationStatement CreateResolvedAllocatorLocal(Expression source, string allocatorType, TypeReference type)
+	{
 		DeclarationStatement declaration = CreateGeneratedLocal("resolvedAllocator", allocatorType, type, source);
 		declaration.Target.Names.Clear();
 		declaration.Target.Names.Add("resolvedAllocator");

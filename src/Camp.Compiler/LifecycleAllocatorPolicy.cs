@@ -42,6 +42,31 @@ internal static class LifecycleAllocatorPolicy
 				|| EffectiveWithinPolicy(module, type) == WithinAllocationPolicy.Explicit);
 	}
 
+	public static bool RetainsAllocator(IReadOnlyList<FunctionDefinition> functions)
+	{
+		return GetRetainedAllocatorParameter(functions) is not null;
+	}
+
+	public static ParameterDefinition? GetRetainedAllocatorParameter(IReadOnlyList<FunctionDefinition> functions)
+	{
+		foreach (FunctionDefinition function in functions)
+		{
+			if (function.Modifier != FunctionModifier.Constructor)
+				continue;
+			if (GetRetainedAllocatorParameter(function) is ParameterDefinition parameter)
+				return parameter;
+		}
+		return null;
+	}
+
+	public static ParameterDefinition? GetRetainedAllocatorParameter(FunctionDefinition function)
+	{
+		foreach (ParameterDefinition parameter in function.Parameters)
+			if (parameter.RetainsAllocator)
+				return parameter;
+		return null;
+	}
+
 	public static WithinAllocationPolicy EffectiveWithinPolicy(Module? module, Definition definition)
 	{
 		if (module is not null

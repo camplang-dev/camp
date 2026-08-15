@@ -1,0 +1,1 @@
+tests/Diagnostics/retained_allocator_destructor_within.camp(11,19): error: Retained allocator classes may not declare destructor within parameters.

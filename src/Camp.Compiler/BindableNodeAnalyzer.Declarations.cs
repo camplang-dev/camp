@@ -110,8 +110,20 @@ public sealed partial class BindableNodeAnalyzer
 				retained = parameter;
 
 				string fieldName = parameter.RetainedAllocatorFieldName ?? parameter.Name;
-				if (classDefinition.Fields.Any(field => field.Name == fieldName))
+				if (parameter.RetainedAllocatorField is FieldDefinition existingRetainedField)
 				{
+					if (!classDefinition.Fields.Contains(existingRetainedField))
+						classDefinition.Fields.Add(existingRetainedField);
+					continue;
+				}
+				FieldDefinition? existingField = classDefinition.Fields.FirstOrDefault(field => field.Name == fieldName);
+				if (existingField is not null)
+				{
+					if (existingField.GeneratedInfo?.Source == parameter)
+					{
+						parameter.RetainedAllocatorField = existingField;
+						continue;
+					}
 					Report(GetRange(parameter.SourceSyntax), $"Retained allocator field '{fieldName}' conflicts with an existing field.");
 					continue;
 				}
@@ -147,8 +159,12 @@ public sealed partial class BindableNodeAnalyzer
 
 	void ValidateClassRetainedAllocatorParameters(ClassDefinition definition)
 	{
+		bool retainsAllocator = LifecycleAllocatorPolicy.RetainsAllocator(definition.Functions);
 		foreach (FunctionDefinition function in definition.Functions)
 		{
+			if (retainsAllocator && IsDestructorFunction(function) && HasWithinParameter(function))
+				Report(GetRange(GetWithinParameter(function)?.SourceSyntax ?? function.SourceSyntax), "Retained allocator classes may not declare destructor within parameters.");
+
 			foreach (ParameterDefinition parameter in GetRetainedAllocatorParameters(function))
 			{
 				if (parameter.Modifier != ParameterModifier.Within && parameter is not WithinParameterDefinition)

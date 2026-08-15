@@ -1,0 +1,14 @@
+class Allocator
+{
+}
+
+class Retained
+{
+	Retained(within this.allocator)
+	{
+	}
+
+	~Retained(within allocator)
+	{
+	}
+}

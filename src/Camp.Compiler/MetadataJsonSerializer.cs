@@ -963,26 +963,28 @@ public static class MetadataJsonSerializer
 
 		void WriteSyntheticConstructor(Utf8JsonWriter json, ClassDefinition definition, IReadOnlyList<FunctionDefinition> functions)
 		{
+			bool retainsAllocator = LifecycleAllocatorPolicy.RetainsAllocator(functions);
 			json.WriteStartObject();
 			json.WriteString("id", GetId(definition) + "/function:" + definition.Name);
 			json.WriteString("name", definition.Name);
 			json.WriteString("visibility", "export");
 			json.WriteBoolean("extern", true);
 			json.WriteString("modifier", "constructor");
-			if (LifecycleAllocatorPolicy.SyntheticConstructorUsesAllocator(module, definition, functions))
+			if (LifecycleAllocatorPolicy.SyntheticConstructorUsesAllocator(module, definition, functions, retainsAllocator))
 				WriteSyntheticWithinAllocatorParameter(json, GetId(definition) + "/function:" + definition.Name);
 			json.WriteEndObject();
 		}
 
 		void WriteSyntheticDestructor(Utf8JsonWriter json, ClassDefinition definition, IReadOnlyList<FunctionDefinition> functions)
 		{
+			bool retainsAllocator = LifecycleAllocatorPolicy.RetainsAllocator(functions);
 			json.WriteStartObject();
 			json.WriteString("id", GetId(definition) + "/function:~" + definition.Name);
 			json.WriteString("name", "~" + definition.Name);
 			json.WriteString("visibility", "export");
 			json.WriteBoolean("extern", true);
 			json.WriteString("modifier", "destructor");
-			if (LifecycleAllocatorPolicy.SyntheticDestructorUsesAllocator(module, definition, functions))
+			if (LifecycleAllocatorPolicy.SyntheticDestructorUsesAllocator(module, definition, functions, retainsAllocator))
 				WriteSyntheticWithinAllocatorParameter(json, GetId(definition) + "/function:~" + definition.Name);
 			json.WriteEndObject();
 		}

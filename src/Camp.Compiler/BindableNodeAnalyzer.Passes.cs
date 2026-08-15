@@ -64,6 +64,7 @@ public sealed partial class BindableNodeAnalyzer
 		AnalyzeExportProjections(module);
 		CollectTypeNames(module);
 		PrecomputeOverloadCallableNames(module);
+		AddRetainedAllocatorFields(module);
 		GenerateIteratorDeclarations(module);
 		GenerateLifecycleMethods(module);
 		GenerateVirtualDeclarations(module);

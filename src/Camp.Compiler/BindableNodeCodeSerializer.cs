@@ -542,11 +542,12 @@ public sealed class BindableNodeCodeSerializer
 			writer.WriteLine();
 		if (hasSyntheticConstructor)
 		{
+			bool retainsAllocator = LifecycleAllocatorPolicy.RetainsAllocator(functions);
 			WriteIndent();
 			WriteApiVisibilityPrefix(definition!);
 			writer.Write("extern ");
 			writer.Write(definition!.Name);
-			if (LifecycleAllocatorPolicy.SyntheticConstructorUsesAllocator(currentModule, definition, functions))
+			if (LifecycleAllocatorPolicy.SyntheticConstructorUsesAllocator(currentModule, definition, functions, retainsAllocator))
 				writer.WriteLine("(within allocator);");
 			else
 				writer.WriteLine("();");
@@ -554,13 +555,14 @@ public sealed class BindableNodeCodeSerializer
 		}
 		if (hasSyntheticDelete)
 		{
+			bool retainsAllocator = LifecycleAllocatorPolicy.RetainsAllocator(functions);
 			if (wrote)
 				writer.WriteLine();
 			WriteIndent();
 			WriteApiVisibilityPrefix(definition!);
 			writer.Write("extern ~");
 			writer.Write(definition!.Name);
-			if (LifecycleAllocatorPolicy.SyntheticDestructorUsesAllocator(currentModule, definition, functions))
+			if (LifecycleAllocatorPolicy.SyntheticDestructorUsesAllocator(currentModule, definition, functions, retainsAllocator))
 				writer.WriteLine("(within allocator);");
 			else
 				writer.WriteLine("();");

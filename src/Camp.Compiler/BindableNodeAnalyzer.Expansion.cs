@@ -1911,8 +1911,14 @@ public sealed partial class BindableNodeAnalyzer
 		method.Body = constructor.Body;
 		CopyLifecycleParameters(constructor.Parameters, method.Parameters);
 		lifecycleSourceConstructors[method] = constructor;
-		if (HasWithinParameter(method) && method.Body is BlockStatement block)
-			block.Statements.Insert(0, CreateResolvedAllocatorLocal(GetWithinParameter(method)));
+		if (method.Body is BlockStatement block)
+		{
+			int insertIndex = 0;
+			if (type is ClassDefinition && CreateRetainedAllocatorAssignment(type, constructor, method) is ExpressionStatement retainedAllocatorAssignment)
+				block.Statements.Insert(insertIndex++, retainedAllocatorAssignment);
+			if (HasWithinParameter(method))
+				block.Statements.Insert(insertIndex, CreateResolvedAllocatorLocal(GetWithinParameter(method)));
+		}
 		return method;
 	}
 
@@ -1931,7 +1937,8 @@ public sealed partial class BindableNodeAnalyzer
 		method.ReturnType = PointerTo(CloneType(typeReference)!);
 		method.ResolvedType = $"{type.Name}*";
 		CopyLifecycleParameters(constructor.Parameters, method.Parameters);
-		bool createHelperUsesAllocator = LifecycleAllocatorPolicy.CreateHelperUsesAllocator(currentModule, type, constructor);
+		bool retainsAllocator = LifecycleAllocatorPolicy.GetRetainedAllocatorParameter(constructor) is not null;
+		bool createHelperUsesAllocator = LifecycleAllocatorPolicy.CreateHelperUsesAllocator(currentModule, type, constructor, retainsAllocator);
 		if (createHelperUsesAllocator && !HasWithinParameter(method))
 			method.Parameters.Add(CreateAllocatorParameter());
 		if (method.Extern is not null)
@@ -2045,7 +2052,8 @@ public sealed partial class BindableNodeAnalyzer
 		method.Internal = type.Internal;
 		method.ReturnType = VoidType();
 		method.ResolvedType = "void";
-		if (LifecycleAllocatorPolicy.ImplicitDestroyHelperUsesAllocator(currentModule, type, functions))
+		bool retainsAllocator = LifecycleAllocatorPolicy.RetainsAllocator(functions);
+		if (LifecycleAllocatorPolicy.ImplicitDestroyHelperUsesAllocator(currentModule, type, functions, retainsAllocator))
 			method.Parameters.Add(CreateAllocatorParameter());
 		return method;
 	}
@@ -2072,7 +2080,9 @@ public sealed partial class BindableNodeAnalyzer
 		method.Extern = destructor.Extern;
 		method.ReturnType = VoidType();
 		method.ResolvedType = "void";
-		bool destroyHelperUsesAllocator = LifecycleAllocatorPolicy.DestroyHelperUsesAllocator(currentModule, type, destructor, functions);
+		ParameterDefinition? retainedAllocator = LifecycleAllocatorPolicy.GetRetainedAllocatorParameter(functions);
+		bool retainsAllocator = retainedAllocator is not null;
+		bool destroyHelperUsesAllocator = LifecycleAllocatorPolicy.DestroyHelperUsesAllocator(currentModule, type, destructor, functions, retainsAllocator);
 		if (destroyHelperUsesAllocator)
 			method.Parameters.Add(CreateAllocatorParameter());
 		if (method.Extern is not null)
@@ -2088,10 +2098,15 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			SourceSyntax = destructor.SourceSyntax,
 			ResolvedType = "void",
-			Expression = CreateDestructorCall(target, opDelete, GetAllocatorParameter(method) is ParameterDefinition allocatorParameter ? CreateVariableReference(allocatorParameter, allocatorParameter.ResolvedType ?? "Allocator*") : null)
+			Expression = CreateDestructorCall(target, opDelete, !retainsAllocator && GetAllocatorParameter(method) is ParameterDefinition allocatorParameter ? CreateVariableReference(allocatorParameter, allocatorParameter.ResolvedType ?? "Allocator*") : null)
 		});
 		DeclarationStatement? resolvedAllocatorLocal = null;
-		if (destroyHelperUsesAllocator)
+		if (retainsAllocator && type is ClassDefinition retainedClass && TryGetRetainedAllocatorField(retainedClass, retainedAllocator, out FieldDefinition? retainedField))
+		{
+			resolvedAllocatorLocal = CreateResolvedAllocatorLocal(CreateRetainedAllocatorFieldReference(retainedClass, retainedField, destructor.SourceSyntax));
+			body.Statements.Add(resolvedAllocatorLocal);
+		}
+		else if (destroyHelperUsesAllocator)
 		{
 			resolvedAllocatorLocal = CreateResolvedAllocatorLocal(GetAllocatorParameter(method));
 			body.Statements.Add(resolvedAllocatorLocal);
@@ -2105,5 +2120,70 @@ public sealed partial class BindableNodeAnalyzer
 				resolvedAllocatorLocal is null ? null : CreateVariableReference(resolvedAllocatorLocal.Target, resolvedAllocatorLocal.Target.ResolvedType ?? GetAllocatorParameter(method)?.ResolvedType ?? "Allocator*"))
 		});
 		return method;
+	}
+
+	ExpressionStatement? CreateRetainedAllocatorAssignment(TypeDefinition type, FunctionDefinition constructor, FunctionDefinition initNew)
+	{
+		ParameterDefinition? sourceParameter = LifecycleAllocatorPolicy.GetRetainedAllocatorParameter(constructor);
+		if (type is not ClassDefinition classDefinition || !TryGetRetainedAllocatorField(classDefinition, sourceParameter, out FieldDefinition? field))
+			return null;
+		ParameterDefinition? initNewParameter = initNew.Parameters.FirstOrDefault(parameter => parameter.Name == sourceParameter?.Name);
+		if (initNewParameter is null)
+			return null;
+
+		return new ExpressionStatement
+		{
+			SourceSyntax = constructor.SourceSyntax,
+			ResolvedType = "void",
+			Expression = new AssignmentExpression
+			{
+				SourceSyntax = constructor.SourceSyntax,
+				Target = CreateRetainedAllocatorFieldReference(type, field, constructor.SourceSyntax),
+				Operator = AssignmentOperator.Assign,
+				Value = CreateVariableReference(initNewParameter, initNewParameter.ResolvedType ?? field.ResolvedType ?? "Allocator*"),
+				ResolvedType = field.ResolvedType ?? initNewParameter.ResolvedType ?? "Allocator*"
+			}
+		};
+	}
+
+	static MemberReferenceExpression CreateRetainedAllocatorFieldReference(TypeDefinition type, FieldDefinition field, SyntaxNode? syntax)
+	{
+		return new MemberReferenceExpression
+		{
+			SourceSyntax = syntax,
+			Target = new ThisExpression
+			{
+				SourceSyntax = syntax,
+				ResolvedType = $"{type.Name}*"
+			},
+			Name = field.Name,
+			Member = field,
+			ResolvedType = field.ResolvedType
+		};
+	}
+
+	static bool TryGetRetainedAllocatorField(ClassDefinition type, ParameterDefinition? parameter, out FieldDefinition field)
+	{
+		if (parameter?.RetainedAllocatorField is FieldDefinition retainedField)
+		{
+			field = retainedField;
+			return true;
+		}
+
+		string? fieldName = parameter?.RetainedAllocatorFieldName ?? parameter?.Name;
+		if (!string.IsNullOrWhiteSpace(fieldName))
+		{
+			foreach (FieldDefinition candidate in type.Fields)
+			{
+				if (candidate.Name == fieldName)
+				{
+					field = candidate;
+					return true;
+				}
+			}
+		}
+
+		field = null!;
+		return false;
 	}
 }
