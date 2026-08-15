@@ -14,11 +14,28 @@ class Allocator
 	}
 }
 
+class Inner
+{
+	Inner()
+	{
+		this.value = 3;
+	}
+
+	~Inner()
+	{
+		this.value = 0;
+	}
+
+	int value;
+}
+
 class Retained
 {
 	Retained(within this.allocator)
 	{
 		this.value = 7;
+		Inner* inner = new Inner();
+		delete inner;
 	}
 
 	~Retained()

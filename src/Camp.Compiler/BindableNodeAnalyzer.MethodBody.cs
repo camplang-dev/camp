@@ -1965,6 +1965,12 @@ public sealed partial class BindableNodeAnalyzer
 		if (TryResolveTargetTypedEnumValue(named, targetType, out string enumType))
 			return enumType;
 
+		if (named.Qualifiers.Count == 0 && TryGetCurrentRetainedAllocatorParameter(scope, out ParameterDefinition? retainedParameter) && named.Name == retainedParameter.Name)
+		{
+			Report(GetRange(named.SourceSyntax), $"Retained allocator parameter '{retainedParameter.Name}' must be accessed as 'this.{retainedParameter.RetainedAllocatorFieldName ?? retainedParameter.Name}'.");
+			return ErrorType;
+		}
+
 		if (named.Qualifiers.Count == 0 && scope.TryLookup(named.Name, out BodySymbol symbol))
 		{
 			named.ResolvedType = symbol.Type;
@@ -2324,7 +2330,7 @@ public sealed partial class BindableNodeAnalyzer
 		return targetType ?? TargetType;
 	}
 
-	readonly record struct AggregateInitializerField(string Name, string Type, string StorageType, List<string> StorageGenericNames);
+	readonly record struct AggregateInitializerField(string Name, string Type, string StorageType, List<string> StorageGenericNames, FieldDefinition? Field);
 
 	bool TryGetAggregateInitializerFields(string? targetType, SyntaxNode? syntax, out List<AggregateInitializerField> fields)
 	{
@@ -2351,7 +2357,7 @@ public sealed partial class BindableNodeAnalyzer
 				continue;
 			if (TryGetFlattenedArrayFieldPair(sourceFieldList, i, definition, syntax, substitutions, out string? sourceArrayType, out string? storageArrayType))
 			{
-				fields.Add(new AggregateInitializerField(field.Name, sourceArrayType, storageArrayType, storageGenericNames));
+			fields.Add(new AggregateInitializerField(field.Name, sourceArrayType, storageArrayType, storageGenericNames, field));
 				i++;
 				continue;
 			}
@@ -2360,7 +2366,7 @@ public sealed partial class BindableNodeAnalyzer
 			string fieldType = field.ResolvedType ?? ErrorType;
 			if (substitutions.Count > 0)
 				fieldType = SubstituteGenericType(fieldType, substitutions);
-			fields.Add(new AggregateInitializerField(field.Name, fieldType, storageType, storageGenericNames));
+			fields.Add(new AggregateInitializerField(field.Name, fieldType, storageType, storageGenericNames, field));
 		}
 		return fields.Count > 0;
 	}
@@ -2389,6 +2395,7 @@ public sealed partial class BindableNodeAnalyzer
 				}
 
 				AggregateInitializerField field = fields[positionalIndex++];
+				WarnIfRetainedAllocatorFieldWrite(field.Field, item.Expression?.SourceSyntax ?? item.SourceSyntax);
 				item.TargetFieldName = field.Name;
 				item.TargetResolvedType = field.Type;
 				item.TargetStorageResolvedType = field.StorageType;
@@ -2415,6 +2422,7 @@ public sealed partial class BindableNodeAnalyzer
 			}
 
 			BodyAnalyzeInitializerTarget(item.Target!, scope, typeScope);
+			WarnIfRetainedAllocatorFieldWrite(namedField.Field, GetInitializerItemDiagnosticSyntax(item));
 			item.TargetFieldName = namedField.Name;
 			item.TargetResolvedType = namedField.Type;
 			item.TargetStorageResolvedType = namedField.StorageType;
@@ -6365,6 +6373,7 @@ public sealed partial class BindableNodeAnalyzer
 			return valueType;
 		}
 		RequireMutableWriteTarget(assignment.Target, targetType, assignment.Target?.SourceSyntax, "Assignment target", scope);
+		WarnIfRetainedAllocatorFieldAssignment(assignment);
 		if (assignment.Operator == AssignmentOperator.Add
 			&& (IsTextualCompositionAnchor(assignment.Target, targetType) || IsTextualCompositionAnchor(assignment.Value, valueType)))
 		{
@@ -6399,6 +6408,46 @@ public sealed partial class BindableNodeAnalyzer
 		}
 		UpdateAssignmentLifetimeFact(assignment.Target, GetExpressionLifetimeFact(assignment.Value));
 		return targetType;
+	}
+
+	bool TryGetCurrentRetainedAllocatorParameter(BodyScope scope, out ParameterDefinition parameter)
+	{
+		if (LifecycleAllocatorPolicy.GetRetainedAllocatorParameter(scope.CurrentFunction) is ParameterDefinition currentRetained)
+		{
+			parameter = currentRetained;
+			return true;
+		}
+		if (lifecycleSourceConstructors.TryGetValue(scope.CurrentFunction, out FunctionDefinition? sourceConstructor)
+			&& LifecycleAllocatorPolicy.GetRetainedAllocatorParameter(sourceConstructor) is ParameterDefinition sourceRetained)
+		{
+			parameter = sourceRetained;
+			return true;
+		}
+
+		parameter = null!;
+		return false;
+	}
+
+	void WarnIfRetainedAllocatorFieldAssignment(AssignmentExpression assignment)
+	{
+		if (generatedRetainedAllocatorAssignments.Contains(assignment))
+			return;
+		Expression? target = assignment.Target;
+		if (target is not null && expressionRewrites.TryGetValue(target, out Expression? rewrite))
+			target = rewrite;
+		if (target is MemberReferenceExpression { Member: FieldDefinition field })
+			WarnIfRetainedAllocatorFieldWrite(field, assignment.Target?.SourceSyntax ?? assignment.SourceSyntax);
+	}
+
+	void WarnIfRetainedAllocatorFieldWrite(FieldDefinition? field, SyntaxNode? syntax)
+	{
+		if (IsRetainedAllocatorField(field))
+			Warn(syntax, $"Retained allocator field '{field!.Name}' should not be assigned directly; it is initialized by the constructor.");
+	}
+
+	static bool IsRetainedAllocatorField(FieldDefinition? field)
+	{
+		return field?.GeneratedInfo?.Source is ParameterDefinition { RetainsAllocator: true };
 	}
 
 	bool TryGetAssignmentTargetConstOfType(Expression? target, out TypeReference? type)

@@ -2131,18 +2131,20 @@ public sealed partial class BindableNodeAnalyzer
 		if (initNewParameter is null)
 			return null;
 
+		AssignmentExpression assignment = new()
+		{
+			SourceSyntax = constructor.SourceSyntax,
+			Target = CreateRetainedAllocatorFieldReference(type, field, constructor.SourceSyntax),
+			Operator = AssignmentOperator.Assign,
+			Value = CreateVariableReference(initNewParameter, initNewParameter.ResolvedType ?? field.ResolvedType ?? "Allocator*"),
+			ResolvedType = field.ResolvedType ?? initNewParameter.ResolvedType ?? "Allocator*"
+		};
+		generatedRetainedAllocatorAssignments.Add(assignment);
 		return new ExpressionStatement
 		{
 			SourceSyntax = constructor.SourceSyntax,
 			ResolvedType = "void",
-			Expression = new AssignmentExpression
-			{
-				SourceSyntax = constructor.SourceSyntax,
-				Target = CreateRetainedAllocatorFieldReference(type, field, constructor.SourceSyntax),
-				Operator = AssignmentOperator.Assign,
-				Value = CreateVariableReference(initNewParameter, initNewParameter.ResolvedType ?? field.ResolvedType ?? "Allocator*"),
-				ResolvedType = field.ResolvedType ?? initNewParameter.ResolvedType ?? "Allocator*"
-			}
+			Expression = assignment
 		};
 	}
 

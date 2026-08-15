@@ -6,6 +6,10 @@ void *malloc(uintptr_t size);
 void free(void *ptr);
 static void *Allocator_alloc(Allocator *this, uintptr_t size);
 static void Allocator_free(Allocator *this, void *ptr);
+static void Inner_op_initnew(Inner *this);
+static Inner *Inner_create(void);
+static void Inner_op_delete(Inner *this);
+static void Inner_destroy(Inner *this);
 static void Retained_op_initnew(Retained *this, Allocator *allocator);
 static Retained *Retained_create(Allocator *allocator);
 static void Retained_op_delete(Retained *this);
@@ -22,23 +26,57 @@ static void Allocator_free(Allocator *this, void *ptr)
 	free(ptr);
 }
 
+static void Inner_op_initnew(Inner *this)
+{
+	this->value = 3;
+}
+
+static Inner *Inner_create(void)
+{
+	Inner *_created0 = (Inner *)(malloc(sizeof(Inner)));
+	if ((_created0 != NULL))
+	{
+		*_created0 = (Inner){0};
+		Inner_op_initnew(_created0);
+	}
+	return _created0;
+}
+
+static void Inner_op_delete(Inner *this)
+{
+	this->value = 0;
+}
+
+static void Inner_destroy(Inner *this)
+{
+	Inner_op_delete(this);
+	free((void *)(this));
+}
+
 static void Retained_op_initnew(Retained *this, Allocator *allocator)
 {
 	this->allocator = allocator;
 	Allocator *resolvedAllocator = allocator;
 	this->value = 7;
+	Inner *inner = (Inner *)(((resolvedAllocator != NULL) ? Allocator_alloc(resolvedAllocator, sizeof(Inner)) : malloc(sizeof(Inner))));
+	if ((inner != NULL))
+	{
+		*inner = (Inner){0};
+		Inner_op_initnew(inner);
+	}
+	(Inner_op_delete(inner), ((resolvedAllocator != NULL) ? Allocator_free(resolvedAllocator, (void *)(inner)) : free((void *)(inner))));
 }
 
 static Retained *Retained_create(Allocator *allocator)
 {
 	Allocator *resolvedAllocator = allocator;
-	Retained *_created0 = (Retained *)(((resolvedAllocator != NULL) ? Allocator_alloc(resolvedAllocator, sizeof(Retained)) : malloc(sizeof(Retained))));
-	if ((_created0 != NULL))
+	Retained *_created1 = (Retained *)(((resolvedAllocator != NULL) ? Allocator_alloc(resolvedAllocator, sizeof(Retained)) : malloc(sizeof(Retained))));
+	if ((_created1 != NULL))
 	{
-		*_created0 = (Retained){0};
-		Retained_op_initnew(_created0, allocator);
+		*_created1 = (Retained){0};
+		Retained_op_initnew(_created1, allocator);
 	}
-	return _created0;
+	return _created1;
 }
 
 static void Retained_op_delete(Retained *this)
@@ -57,9 +95,9 @@ static int main(void)
 {
 	Allocator *allocator = NULL;
 	{
-		Allocator *_allocator1 = allocator;
+		Allocator *_allocator2 = allocator;
 		{
-			Retained *retained = Retained_create(_allocator1);
+			Retained *retained = Retained_create(_allocator2);
 			Retained_destroy(retained);
 		}
 	}
@@ -76,6 +114,7 @@ static int main(void)
 
 /* Forward declarations. */
 typedef struct Allocator Allocator;
+typedef struct Inner Inner;
 typedef struct Retained Retained;
 
 /* Enums. */
@@ -86,6 +125,10 @@ typedef struct Retained Retained;
 struct Allocator
 {
 	char _camp_empty;
+};
+struct Inner
+{
+	int value;
 };
 struct Retained
 {

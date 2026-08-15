@@ -329,9 +329,35 @@ public sealed partial class BindableNodeAnalyzer
 
 	Expression? GetFunctionWithinContext(FunctionDefinition function)
 	{
+		if (TryGetResolvedAllocatorLocal(function, out DeclarationStatement? declaration))
+		{
+			return CreateVariableReference(declaration.Target, declaration.Target.ResolvedType ?? "Allocator*");
+		}
 		if (GetWithinParameter(function) is ParameterDefinition allocator)
-			return CreateVariableReference(allocator, allocator.ResolvedType ?? "Allocator*");
+		{
+			string resolvedType = allocator.Type?.ResolvedType ?? allocator.ResolvedType ?? "Allocator*";
+			if (resolvedType == AllocatorType)
+				resolvedType = "Allocator*";
+			return CreateVariableReference(allocator, resolvedType);
+		}
 		return null;
+	}
+
+	static bool TryGetResolvedAllocatorLocal(FunctionDefinition function, out DeclarationStatement declaration)
+	{
+		foreach (Statement statement in function.Body?.Statements ?? [])
+		{
+			if (statement is DeclarationStatement { Target.Names: var names } candidate
+				&& names.Count == 1
+				&& names[0] == "resolvedAllocator")
+			{
+				declaration = candidate;
+				return true;
+			}
+		}
+
+		declaration = null!;
+		return false;
 	}
 
 	Expression? CaptureWithinContext(Expression? allocator, SyntaxNode? syntax)
@@ -625,6 +651,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	CallExpression CreateAllocatorAllocCall(Expression allocator, Expression size, SyntaxNode? syntax)
 	{
+		allocator = NormalizeAllocatorPatternExpression(allocator);
 		FunctionDefinition? alloc = FindAllocatorPatternMethod(allocator.ResolvedType, "alloc", IsSingleIntegerValueParameter, syntax);
 		if (alloc is null && allocatorSurfaceValidationEnabled)
 			Report(syntax, $"Allocator type '{allocator.ResolvedType ?? ErrorType}' must provide an accessible method named 'alloc' that takes a single integer parameter.");
@@ -645,6 +672,8 @@ public sealed partial class BindableNodeAnalyzer
 			Target = target
 		};
 		call.Arguments.Add(new ArgumentExpression { SourceSyntax = syntax, Value = size, ResolvedType = size.ResolvedType });
+		if (alloc is not null && TryRewriteAllocatorClassPatternInvocation(call, allocator, alloc))
+			return call;
 		if (alloc is not null && !TryRewriteAllocatorInterfaceInvocation(call))
 			RewriteInstanceInvocation(call, target, allocator, alloc);
 		return call;
@@ -678,6 +707,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	CallExpression CreateAllocatorFreeCall(Expression allocator, Expression pointer, SyntaxNode? syntax)
 	{
+		allocator = NormalizeAllocatorPatternExpression(allocator);
 		FunctionDefinition? free = FindAllocatorPatternMethod(allocator.ResolvedType, "free", IsSingleVoidPointerValueParameter, syntax);
 		if (free is null && allocatorSurfaceValidationEnabled)
 			Report(syntax, $"Allocator type '{allocator.ResolvedType ?? ErrorType}' must provide an accessible method named 'free' that takes a single void* parameter.");
@@ -698,9 +728,34 @@ public sealed partial class BindableNodeAnalyzer
 			Target = target
 		};
 		call.Arguments.Add(new ArgumentExpression { SourceSyntax = syntax, Value = pointer, ResolvedType = pointer.ResolvedType });
+		if (free is not null && TryRewriteAllocatorClassPatternInvocation(call, allocator, free))
+			return call;
 		if (free is not null && !TryRewriteAllocatorInterfaceInvocation(call))
 			RewriteInstanceInvocation(call, target, allocator, free);
 		return call;
+	}
+
+	bool TryRewriteAllocatorClassPatternInvocation(CallExpression call, Expression allocator, FunctionDefinition function)
+	{
+		string receiverType = AllocatorPatternReceiverType(allocator.ResolvedType);
+		if (GetTypeDefinition(receiverType) is not ClassDefinition)
+			return false;
+		EnsureFlattenedFunctionSymbol(function);
+		call.Target = CreateMethodReference(function, BuildFunctionValueType(function, isInstance: false), call.SourceSyntax);
+		call.Arguments.Insert(0, new ArgumentExpression
+		{
+			SourceSyntax = allocator.SourceSyntax,
+			Value = allocator,
+			ResolvedType = allocator.ResolvedType
+		});
+		return true;
+	}
+
+	static Expression NormalizeAllocatorPatternExpression(Expression allocator)
+	{
+		if (allocator.ResolvedType == AllocatorType)
+			allocator.ResolvedType = "Allocator*";
+		return allocator;
 	}
 
 	bool TryRewriteAllocatorInterfaceInvocation(CallExpression call)

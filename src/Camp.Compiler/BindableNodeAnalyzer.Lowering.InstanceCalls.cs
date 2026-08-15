@@ -331,8 +331,16 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		Expression value = receiver;
 		string receiverValueType = GetReceiverValueType(receiver);
-		string flattenedReceiverType = BuildFlattenedReceiverType(function, receiver.ResolvedType ?? receiverValueType);
-		string addressDecisionType = receiver.ResolvedType ?? receiverValueType;
+		string flattenedReceiverType = BuildFlattenedReceiverType(function, receiverValueType);
+		string addressDecisionType = receiverValueType;
+		if (receiver is VariableReferenceExpression { Variable: ParameterDefinition parameter }
+			&& (parameter.Modifier == ParameterModifier.Within || parameter is WithinParameterDefinition)
+			&& TryGetPointerElementType(flattenedReceiverType) == receiverValueType)
+		{
+			receiver.ResolvedType = flattenedReceiverType;
+			receiverValueType = flattenedReceiverType;
+			addressDecisionType = flattenedReceiverType;
+		}
 		if (GetExplicitThisParameter(function)?.Modifier == ParameterModifier.In && TryGetPointerElementType(addressDecisionType) is null)
 		{
 			if (!CanTakeReceiverAddress(receiver) && currentStatementPrefix is not null)
@@ -433,6 +441,7 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			VariableReferenceExpression { Variable: DeclarationTarget { Type.ResolvedType: string declarationType } } => declarationType,
 			VariableReferenceExpression { Variable: VariableDefinition { Type.ResolvedType: string variableType } } => variableType,
+			VariableReferenceExpression { Variable: ParameterDefinition { Type.ResolvedType: string parameterType } } => parameterType,
 			VariableReferenceExpression { Variable.ResolvedType: string variableType } => variableType,
 			MemberReferenceExpression { Member: FieldDefinition { Type.ResolvedType: string fieldType } } => fieldType,
 			MemberReferenceExpression { Member.ResolvedType: string memberType } => memberType,

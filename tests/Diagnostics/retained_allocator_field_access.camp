@@ -1,0 +1,32 @@
+extern escaped void* malloc(nuint size);
+extern void free(escaped void* ptr);
+
+class Allocator
+{
+}
+
+class Retained
+{
+	Retained(within this.allocator)
+	{
+		Allocator* copy = this.allocator;
+		this.allocator = this.allocator;
+		copy = allocator;
+	}
+
+	void reset(escaped Allocator* allocator)
+	{
+		this.allocator = allocator;
+	}
+
+	int value;
+}
+
+void run(escaped Allocator* allocator)
+{
+	within (allocator)
+	{
+		Retained* retained = new Retained() { .allocator = allocator };
+		delete retained;
+	}
+}

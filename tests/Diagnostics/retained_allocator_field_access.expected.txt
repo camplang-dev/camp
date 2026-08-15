@@ -1,0 +1,4 @@
+tests/Diagnostics/retained_allocator_field_access.camp(19,8): warning: Retained allocator field 'allocator' should not be assigned directly; it is initialized by the constructor.
+tests/Diagnostics/retained_allocator_field_access.camp(13,8): warning: Retained allocator field 'allocator' should not be assigned directly; it is initialized by the constructor.
+tests/Diagnostics/retained_allocator_field_access.camp(14,10): error: Retained allocator parameter 'allocator' must be accessed as 'this.allocator'.
+tests/Diagnostics/retained_allocator_field_access.camp(29,54): warning: Retained allocator field 'allocator' should not be assigned directly; it is initialized by the constructor.

@@ -78,6 +78,7 @@ public sealed partial class BindableNodeAnalyzer
 	readonly Dictionary<string, AliasDefinition> aliasDefinitions = new(StringComparer.Ordinal);
 	readonly Dictionary<TypeDefinition, TypeAnalysisInfo> typeInfos = [];
 	readonly Dictionary<Expression, Expression> expressionRewrites = [];
+	readonly HashSet<AssignmentExpression> generatedRetainedAllocatorAssignments = [];
 	readonly Dictionary<TypeReference, TypeReference> typeRewrites = [];
 	readonly Dictionary<FunctionDefinition, ParameterDefinition> materializedGenericReturnParameters = [];
 	readonly HashSet<NewtypeDefinition> analyzedNewtypeSignatures = [];
