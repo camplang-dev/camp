@@ -1,0 +1,63 @@
+class Allocator
+{
+}
+
+class Base
+{
+}
+
+class Derived : Base
+{
+	Derived(within this.allocator)
+	{
+	}
+}
+
+class MethodHolder
+{
+	void retain(within this.allocator)
+	{
+	}
+}
+
+class FieldConflict
+{
+	int allocator;
+
+	FieldConflict(within this.allocator)
+	{
+	}
+}
+
+class DuplicateRetained
+{
+	DuplicateRetained(within this.allocator, within this.otherAllocator)
+	{
+	}
+}
+
+class ExplicitLifetime
+{
+	ExplicitLifetime(within scoped this.allocator)
+	{
+	}
+}
+
+extern class NativeRetained
+{
+	extern NativeRetained(within this.allocator);
+}
+
+struct StructRetained
+{
+	StructRetained(within this.allocator)
+	{
+	}
+}
+
+static class StaticRetained
+{
+	static void run(within this.allocator)
+	{
+	}
+}

@@ -1185,6 +1185,8 @@ public sealed class CampParser
 		if (within is not null)
 		{
 			Token? lifetime = ValueIsAny(PeekValue(0), "scoped", "unscoped", "escaped") ? Take() : null;
+			if (Is("this") && PeekValue(1) == "." && Peek(2)?.Class == TokenClass.Identifier)
+				return new WithinParameterSyntax { WithinKeyword = within, LifetimeKeyword = lifetime, ThisKeyword = Take(), DotToken = Expect("."), Identifier = TakeIdentifier() };
 			if (IsIdentifier() && ValueIsAny(PeekValue(1), ",", ")"))
 				return new WithinParameterSyntax { WithinKeyword = within, LifetimeKeyword = lifetime, Identifier = TakeIdentifier() };
 		}

@@ -1,0 +1,42 @@
+extern void* malloc(nuint size);
+extern void free(void* ptr);
+
+class Allocator
+{
+	void* alloc(nuint size)
+	{
+		return malloc(size);
+	}
+
+	void free(void* ptr)
+	{
+		free(ptr);
+	}
+}
+
+class Retained
+{
+	Retained(within this.allocator)
+	{
+		this.value = 7;
+	}
+
+	int getValue()
+	{
+		return this.value;
+	}
+
+	int value;
+}
+
+int main()
+{
+	Allocator* allocator = null;
+	within (allocator)
+	{
+		Retained* retained = new Retained();
+		int result = retained.Value;
+		delete retained;
+		return result - 7;
+	}
+}

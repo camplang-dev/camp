@@ -1,0 +1,8 @@
+tests/Diagnostics/retained_allocator_parameters.camp(18,26): error: Only class constructors may retain allocator parameters.
+tests/Diagnostics/retained_allocator_parameters.camp(27,28): error: Retained allocator field 'allocator' conflicts with an existing field.
+tests/Diagnostics/retained_allocator_parameters.camp(34,55): error: A class may declare only one retained allocator parameter.
+tests/Diagnostics/retained_allocator_parameters.camp(48,36): error: Extern class constructors may not retain allocator parameters.
+tests/Diagnostics/retained_allocator_parameters.camp(53,29): error: Struct constructors may not retain allocator parameters.
+tests/Diagnostics/retained_allocator_parameters.camp(60,30): error: Static class declarations may not retain allocator parameters.
+tests/Diagnostics/retained_allocator_parameters.camp(11,22): error: Derived class constructors may not retain allocator parameters.
+tests/Diagnostics/retained_allocator_parameters.camp(41,38): error: Retained allocator parameters may not declare an explicit lifetime.

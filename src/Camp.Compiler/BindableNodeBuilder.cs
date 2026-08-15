@@ -2047,6 +2047,8 @@ public sealed partial class BindableNodeBuilder
 					Name = within.Identifier?.Value ?? "",
 					Symbol = within.Identifier?.Value ?? "",
 					Modifier = ParameterModifier.Within,
+					RetainsAllocator = within.ThisKeyword is not null,
+					RetainedAllocatorFieldName = within.ThisKeyword is null ? null : within.Identifier?.Value,
 					LifetimeBinding = within.LifetimeKeyword is null
 						? null
 						: within.LifetimeKeyword.Value.Value + ":explicit within"

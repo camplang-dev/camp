@@ -1,0 +1,10 @@
+export class Allocator
+{
+}
+
+export class Retained
+{
+	export Retained(within this.allocator)
+	{
+	}
+}

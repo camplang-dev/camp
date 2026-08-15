@@ -33,6 +33,7 @@ public sealed partial class BindableNodeAnalyzer
 		CollectAliasNames(module);
 		ResolveAliases();
 		AnalyzeNewtypeSignatures(module);
+		AddRetainedAllocatorFields(module);
 
 		foreach (UsingDeclaration usingDeclaration in module.Usings)
 		{
@@ -55,6 +56,109 @@ public sealed partial class BindableNodeAnalyzer
 		AnalyzeInterfaceSlotInitializers(module);
 		AnalyzeImplementations();
 		AnalyzeExportVisibility(module);
+	}
+
+	void AddRetainedAllocatorFields(Module module)
+	{
+		foreach (Definition definition in ActiveDefinitions(module))
+		{
+			switch (definition)
+			{
+				case ClassDefinition classDefinition:
+					AddRetainedAllocatorFields(classDefinition);
+					break;
+				case StructDefinition structDefinition:
+					ValidateNonClassRetainedAllocatorParameters(structDefinition.Functions, "Struct constructors may not retain allocator parameters.");
+					break;
+				case InterfaceDefinition interfaceDefinition:
+					ValidateNonClassRetainedAllocatorParameters(interfaceDefinition.Functions, "Interface constructors may not retain allocator parameters.");
+					break;
+				case StaticClassDefinition staticClassDefinition:
+					ValidateNonClassRetainedAllocatorParameters(staticClassDefinition.Functions, "Static class declarations may not retain allocator parameters.");
+					break;
+			}
+		}
+	}
+
+	void AddRetainedAllocatorFields(ClassDefinition classDefinition)
+	{
+		ParameterDefinition? retained = null;
+		foreach (FunctionDefinition function in classDefinition.Functions)
+		{
+			foreach (ParameterDefinition parameter in GetRetainedAllocatorParameters(function))
+			{
+				if (function.Modifier != FunctionModifier.Constructor)
+				{
+					Report(GetRange(parameter.SourceSyntax), "Only class constructors may retain allocator parameters.");
+					continue;
+				}
+				if (classDefinition.Extern is not null)
+				{
+					Report(GetRange(parameter.SourceSyntax), "Extern class constructors may not retain allocator parameters.");
+					continue;
+				}
+				if (classDefinition.IsShadow)
+				{
+					Report(GetRange(parameter.SourceSyntax), "Shadow class constructors may not retain allocator parameters.");
+					continue;
+				}
+				if (retained is not null)
+				{
+					Report(GetRange(parameter.SourceSyntax), "A class may declare only one retained allocator parameter.");
+					continue;
+				}
+				retained = parameter;
+
+				string fieldName = parameter.RetainedAllocatorFieldName ?? parameter.Name;
+				if (classDefinition.Fields.Any(field => field.Name == fieldName))
+				{
+					Report(GetRange(parameter.SourceSyntax), $"Retained allocator field '{fieldName}' conflicts with an existing field.");
+					continue;
+				}
+
+				FieldDefinition field = new()
+				{
+					SourceSyntax = parameter.SourceSyntax,
+					Name = fieldName,
+					Symbol = fieldName,
+					Type = new AllocatorTypeReference { ResolvedType = AllocatorType },
+					ResolvedType = AllocatorType,
+					GeneratedInfo = new GeneratedDeclarationInfo(GeneratedDeclarationCategory.Lifecycle, "retained allocator field", parameter)
+				};
+				parameter.RetainedAllocatorField = field;
+				classDefinition.Fields.Add(field);
+			}
+		}
+	}
+
+	static IEnumerable<ParameterDefinition> GetRetainedAllocatorParameters(FunctionDefinition function)
+	{
+		foreach (ParameterDefinition parameter in function.Parameters)
+			if (parameter.RetainsAllocator)
+				yield return parameter;
+	}
+
+	void ValidateNonClassRetainedAllocatorParameters(IEnumerable<FunctionDefinition> functions, string message)
+	{
+		foreach (FunctionDefinition function in functions)
+			foreach (ParameterDefinition parameter in GetRetainedAllocatorParameters(function))
+				Report(GetRange(parameter.SourceSyntax), message);
+	}
+
+	void ValidateClassRetainedAllocatorParameters(ClassDefinition definition)
+	{
+		foreach (FunctionDefinition function in definition.Functions)
+		{
+			foreach (ParameterDefinition parameter in GetRetainedAllocatorParameters(function))
+			{
+				if (parameter.Modifier != ParameterModifier.Within && parameter is not WithinParameterDefinition)
+					Report(GetRange(parameter.SourceSyntax), "Retained allocator parameters must be within parameters.");
+				if (parameter.SourceSyntax is WithinParameterSyntax { LifetimeKeyword: not null })
+					Report(GetRange(parameter.SourceSyntax), "Retained allocator parameters may not declare an explicit lifetime.");
+				if (GetDirectBaseClass(definition) is not null)
+					Report(GetRange(parameter.SourceSyntax), "Derived class constructors may not retain allocator parameters.");
+			}
+		}
 	}
 
 	void CollectTypeNames(Module module)
@@ -370,6 +474,7 @@ public sealed partial class BindableNodeAnalyzer
 
 		foreach (FunctionDefinition function in definition.Functions)
 			AnalyzeFunctionDefinition(function, FunctionUsesStaticMemberScope(function) ? CreateStaticMemberScope(definition, parentScope) : scope, definition.Name);
+		ValidateClassRetainedAllocatorParameters(definition);
 		ValidateDuplicateMethodNames(definition.Functions);
 		if (definition.Extern is null)
 		{

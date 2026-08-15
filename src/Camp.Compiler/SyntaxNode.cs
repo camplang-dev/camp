@@ -205,6 +205,8 @@ public class WithinParameterSyntax : ParameterSyntax
 {
 	public Token? WithinKeyword { get; set; }
 	public Token? LifetimeKeyword { get; set; }
+	public Token? ThisKeyword { get; set; }
+	public Token? DotToken { get; set; }
 	public Token? Identifier { get; set; }
 }
 

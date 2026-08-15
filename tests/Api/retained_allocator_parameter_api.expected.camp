@@ -1,0 +1,13 @@
+export extern class Allocator
+{
+	export extern Allocator();
+
+	export extern ~Allocator();
+}
+
+export extern class Retained
+{
+	export extern ~Retained(within allocator);
+
+	export extern Retained(within allocator);
+}

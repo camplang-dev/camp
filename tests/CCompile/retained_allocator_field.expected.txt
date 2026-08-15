@@ -1,0 +1,100 @@
+// file: retained_allocator_field.c
+#include "retained_allocator_field_private.h"
+
+/* Private file declarations. */
+void *malloc(uintptr_t size);
+void free(void *ptr);
+static void *Allocator_alloc(Allocator *this, uintptr_t size);
+static void Allocator_free(Allocator *this, void *ptr);
+static int Retained_getValue(const Retained *this);
+static void Retained_op_initnew(Retained *this, Allocator *allocator);
+static Retained *Retained_create(Allocator *allocator);
+static int main(void);
+
+static void *Allocator_alloc(Allocator *this, uintptr_t size)
+{
+	return malloc(size);
+}
+
+static void Allocator_free(Allocator *this, void *ptr)
+{
+	free(ptr);
+}
+
+static int Retained_getValue(const Retained *this)
+{
+	return this->value;
+}
+
+static void Retained_op_initnew(Retained *this, Allocator *allocator)
+{
+	Allocator *resolvedAllocator = allocator;
+	this->value = 7;
+}
+
+static Retained *Retained_create(Allocator *allocator)
+{
+	Allocator *resolvedAllocator = allocator;
+	Retained *_created0 = (Retained *)(((resolvedAllocator != NULL) ? Allocator_alloc(resolvedAllocator, sizeof(Retained)) : malloc(sizeof(Retained))));
+	if ((_created0 != NULL))
+	{
+		*_created0 = (Retained){0};
+		Retained_op_initnew(_created0, allocator);
+	}
+	return _created0;
+}
+
+static int main(void)
+{
+	Allocator *allocator = NULL;
+	{
+		Allocator *_allocator1 = allocator;
+		{
+			Retained *retained = (Retained *)(((_allocator1 != NULL) ? Allocator_alloc(_allocator1, sizeof(Retained)) : malloc(sizeof(Retained))));
+			if ((retained != NULL))
+			{
+				*retained = (Retained){0};
+				Retained_op_initnew(retained, _allocator1);
+			}
+			int result = Retained_getValue((const Retained *)(retained));
+			((_allocator1 != NULL) ? Allocator_free(_allocator1, (void *)(retained)) : free((void *)(retained)));
+			return (result - 7);
+		}
+	}
+}
+
+// file: retained_allocator_field_private.h
+#ifndef RETAINED_ALLOCATOR_FIELD_PRIVATE_H_
+#define RETAINED_ALLOCATOR_FIELD_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct Allocator Allocator;
+typedef struct Retained Retained;
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Layouts. */
+struct Allocator
+{
+	char _camp_empty;
+};
+struct Retained
+{
+	int value;
+	Allocator *allocator;
+};
+
+/* Function declarations. */
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: retained_allocator_field.c

@@ -265,6 +265,9 @@ public class ParameterDefinition : Definition
 	public ParameterModifier Modifier { get; set; }
 	public bool IsOverloadSelector { get; set; }
 	public bool IsAwaitWith { get; set; }
+	public bool RetainsAllocator { get; set; }
+	public string? RetainedAllocatorFieldName { get; set; }
+	public FieldDefinition? RetainedAllocatorField { get; set; }
 	public string? LifetimeBinding { get; set; }
 	public TypeReference? Type { get; set; }
 	public Expression? DefaultValue { get; set; }
