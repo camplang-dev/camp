@@ -360,6 +360,14 @@ Constructor and destructor allocator shapes must remain coherent:
 - an interface lifecycle destructor slot with `within` and one without
   `within` are different exact contracts.
 
+When a generated lifecycle helper would receive an allocator parameter only
+because of explicit `within` policy, the source compilation must have a visible
+`Allocator` type to name that parameter in source API and metadata. If no
+source `Allocator` type is available, the compiler must not synthesize an
+impossible helper signature. Explicit source constructor/destructor `within`
+parameters are still part of the source contract and must use visible,
+serializable types.
+
 Imported API headers and metadata expose the callable constructor/destructor
 shape required by consumers. A retained allocator constructor is serialized as
 an extern constructor with a `within allocator` parameter. The generated

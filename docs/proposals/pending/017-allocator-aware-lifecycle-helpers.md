@@ -102,6 +102,14 @@ The effective policy does not need to be exported as a separate API or metadata
 fact. Generated helper signatures are the ABI contract, and imported API
 consumers should use the serialized signatures.
 
+When a lifecycle helper would gain an allocator parameter only because of the
+effective `within` policy, the compiler must be able to name the source
+allocator type. If the source surface does not define or import `Allocator`,
+such as in a `--nostdlib` API-only source that has no allocator declaration,
+the compiler must not synthesize an impossible allocator parameter. Explicit
+source lifecycle shapes still require their declared types to be visible and
+serializable.
+
 Generated allocator parameters on lifecycle helpers behave as lifecycle
 `within` slots, even if the emitted C ABI is an ordinary `Allocator*`
 parameter. They participate in the same lowering and diagnostics as other
