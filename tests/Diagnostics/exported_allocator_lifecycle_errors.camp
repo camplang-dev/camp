@@ -1,0 +1,20 @@
+extern void* malloc(nuint size);
+extern void free(void* ptr);
+
+class Allocator
+{
+}
+
+export class ConstructorWithin
+{
+	export ConstructorWithin(within allocator)
+	{
+	}
+}
+
+export class RetainedWithin
+{
+	export RetainedWithin(within this.allocator)
+	{
+	}
+}

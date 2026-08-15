@@ -179,6 +179,9 @@ public sealed partial class BindableNodeAnalyzer
 
 	void ValidateClassAllocatorLifecycleShape(ClassDefinition definition)
 	{
+		if (definition.Extern is not null)
+			return;
+
 		bool retainsAllocator = LifecycleAllocatorPolicy.RetainsAllocator(definition.Functions);
 		List<FunctionDefinition> sourceConstructors = [.. definition.Functions.Where(static function => function.Modifier == FunctionModifier.Constructor && function.GeneratedInfo is null)];
 		List<FunctionDefinition> sourceDestructors = [.. definition.Functions.Where(function => IsDestructorFunction(function) && function.GeneratedInfo is null)];

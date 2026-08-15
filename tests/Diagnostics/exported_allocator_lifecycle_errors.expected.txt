@@ -1,0 +1,2 @@
+tests/Diagnostics/exported_allocator_lifecycle_errors.camp(10,34): error: Exported declaration 'ConstructorWithin' exposes non-exported type 'Allocator'.
+tests/Diagnostics/exported_allocator_lifecycle_errors.camp(17,36): error: Exported declaration 'RetainedWithin' exposes non-exported type 'Allocator'.

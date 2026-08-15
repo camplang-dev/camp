@@ -2060,6 +2060,42 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Imported_retained_allocator_lifecycle_uses_serialized_api_shape()
+	{
+		string api = CreateTempCase("retained_allocator_import/lib_api.camp", """
+			export extern class Allocator
+			{
+				export extern Allocator();
+
+				export extern ~Allocator();
+			}
+
+			export extern class Retained
+			{
+				export extern ~Retained();
+
+				export extern Retained(within allocator);
+			}
+			""");
+		string source = CreateTempCase("retained_allocator_import/app.camp", """
+			export int main(string[] args)
+			{
+				Allocator* allocator = null;
+				within (allocator)
+				{
+					Retained* retained = new Retained();
+					retained.destroy();
+				}
+				return 0;
+			}
+			""");
+
+		ProcessResult result = BuildWithApiInProcess("retained-allocator-import", noStdLib: true, [source], [api]);
+
+		AssertCommandSucceeded(result);
+	}
+
+	[Fact]
 	public void Test_and_cover_use_build_artifact_shape_for_default_within_policy()
 	{
 		string root = TempPath("within-policy-test-command");
