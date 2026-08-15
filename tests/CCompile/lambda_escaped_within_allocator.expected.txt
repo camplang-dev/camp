@@ -25,7 +25,7 @@ static void Arena_free(Arena *this, void *ptr)
 static int (* make(Arena *arena, int value, void **result_context))(void *arg0)
 {
 	Arena *_allocator0 = arena;
-	make_lambdaContext0 *_lambdaContext1 = (make_lambdaContext0 *)(((_allocator0 != NULL) ? Arena_alloc((Arena *)(_allocator0), sizeof(make_lambdaContext0)) : malloc(sizeof(make_lambdaContext0))));
+	make_lambdaContext0 *_lambdaContext1 = (make_lambdaContext0 *)(((_allocator0 != NULL) ? Arena_alloc(_allocator0, sizeof(make_lambdaContext0)) : malloc(sizeof(make_lambdaContext0))));
 	_lambdaContext1->_allocator = _allocator0;
 	_lambdaContext1->capture0_value = value;
 	{
@@ -37,7 +37,7 @@ static int (* make(Arena *arena, int value, void **result_context))(void *arg0)
 static int (* makeWithBodyAllocation(Arena *arena, int value, void **result_context))(void *arg0)
 {
 	Arena *_allocator3 = arena;
-	makeWithBodyAllocation_lambdaContext1 *_lambdaContext4 = (makeWithBodyAllocation_lambdaContext1 *)(((_allocator3 != NULL) ? Arena_alloc((Arena *)(_allocator3), sizeof(makeWithBodyAllocation_lambdaContext1)) : malloc(sizeof(makeWithBodyAllocation_lambdaContext1))));
+	makeWithBodyAllocation_lambdaContext1 *_lambdaContext4 = (makeWithBodyAllocation_lambdaContext1 *)(((_allocator3 != NULL) ? Arena_alloc(_allocator3, sizeof(makeWithBodyAllocation_lambdaContext1)) : malloc(sizeof(makeWithBodyAllocation_lambdaContext1))));
 	_lambdaContext4->_allocator = _allocator3;
 	_lambdaContext4->capture0_value = value;
 	{
@@ -63,7 +63,7 @@ static int make_lambda0(void *_context)
 	make_lambdaContext0 *lambdaContext = (make_lambdaContext0 *)(_context);
 	int result = lambdaContext->capture0_value;
 	Arena *_allocator2 = lambdaContext->_allocator;
-	((_allocator2 != NULL) ? Arena_free((Arena *)(_allocator2), (void *)(lambdaContext)) : free((void *)(lambdaContext)));
+	((_allocator2 != NULL) ? Arena_free(_allocator2, (void *)(lambdaContext)) : free((void *)(lambdaContext)));
 	return result;
 }
 
@@ -73,16 +73,16 @@ static int makeWithBodyAllocation_lambda1(void *_context)
 	{
 		Arena *_allocator5 = lambdaContext->_allocator;
 		{
-			Box *copied = (Box *)(((_allocator5 != NULL) ? Arena_alloc((Arena *)(_allocator5), sizeof(Box)) : malloc(sizeof(Box))));
+			Box *copied = (Box *)(((_allocator5 != NULL) ? Arena_alloc(_allocator5, sizeof(Box)) : malloc(sizeof(Box))));
 			if ((copied != NULL))
 			{
 				*copied = (Box){0};
 			}
 			copied->value = lambdaContext->capture0_value;
 			int result = copied->value;
-			((_allocator5 != NULL) ? Arena_free((Arena *)(_allocator5), (void *)(copied)) : free((void *)(copied)));
+			((_allocator5 != NULL) ? Arena_free(_allocator5, (void *)(copied)) : free((void *)(copied)));
 			Arena *_allocator6 = lambdaContext->_allocator;
-			((_allocator6 != NULL) ? Arena_free((Arena *)(_allocator6), (void *)(lambdaContext)) : free((void *)(lambdaContext)));
+			((_allocator6 != NULL) ? Arena_free(_allocator6, (void *)(lambdaContext)) : free((void *)(lambdaContext)));
 			return result;
 		}
 	}

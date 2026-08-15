@@ -102,6 +102,10 @@ public sealed partial class BindableNodeAnalyzer
 					Report(GetRange(parameter.SourceSyntax), "Shadow class constructors may not retain allocator parameters.");
 					continue;
 				}
+				if (parameter.SourceSyntax is WithinParameterSyntax { LifetimeKeyword: not null })
+					Report(GetRange(parameter.SourceSyntax), "Retained allocator parameters may not declare an explicit lifetime.");
+				if (HasDirectClassBase(classDefinition))
+					Report(GetRange(parameter.SourceSyntax), "Derived class constructors may not retain allocator parameters.");
 				if (retained is not null)
 				{
 					Report(GetRange(parameter.SourceSyntax), "A class may declare only one retained allocator parameter.");
@@ -133,8 +137,8 @@ public sealed partial class BindableNodeAnalyzer
 					SourceSyntax = parameter.SourceSyntax,
 					Name = fieldName,
 					Symbol = fieldName,
-					Type = TypeReferenceForResolvedType("Allocator*"),
-					ResolvedType = "Allocator*",
+					Type = new AllocatorTypeReference { ResolvedType = AllocatorType },
+					ResolvedType = AllocatorType,
 					GeneratedInfo = new GeneratedDeclarationInfo(GeneratedDeclarationCategory.Lifecycle, "retained allocator field", parameter)
 				};
 				parameter.RetainedAllocatorField = field;
@@ -148,6 +152,14 @@ public sealed partial class BindableNodeAnalyzer
 		foreach (ParameterDefinition parameter in function.Parameters)
 			if (parameter.RetainsAllocator)
 				yield return parameter;
+	}
+
+	bool HasDirectClassBase(ClassDefinition definition)
+	{
+		foreach (TypeReference baseType in definition.BaseTypes)
+			if (TryGetNamedTypeDefinition(baseType, out TypeDefinition? baseDefinition) && baseDefinition is ClassDefinition)
+				return true;
+		return false;
 	}
 
 	void ValidateNonClassRetainedAllocatorParameters(IEnumerable<FunctionDefinition> functions, string message)

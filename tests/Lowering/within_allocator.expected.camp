@@ -27,7 +27,7 @@ class Object
 	{
 		Allocator* resolvedAllocator = allocator;
 		{
-			this.buffer = (int*)(allocator != null ? Allocator_alloc(allocator, sizeof(int) * 4) : malloc(sizeof(int) * 4));
+			this.buffer = (int*)(resolvedAllocator != null ? Allocator_alloc(resolvedAllocator, sizeof(int) * 4) : malloc(sizeof(int) * 4));
 			this.buffer_length = 4;
 		}
 	}
@@ -49,7 +49,7 @@ class Object
 		allocator != null ? Allocator_free(allocator, (void*)this.buffer) : free((void*)this.buffer);
 	}
 
-	void destroy(Allocator* allocator)
+	void destroy(within allocator)
 	{
 		Object_op_delete(this, allocator);
 		Allocator* resolvedAllocator = allocator;

@@ -721,6 +721,32 @@ explicit and follow existing project patterns for constructor and destructor
 names. For `extern class`, do not assume Camp owns layout or lifecycle unless the
 declaration says so; call the documented native create/destroy operations.
 
+For a class that owns buffers allocated from the same allocator as the object,
+prefer retained allocator syntax on the lifecycle root constructor:
+
+```camp
+class Buffer
+{
+	byte[] data;
+
+	Buffer(nuint length, within this.allocator)
+	{
+		this.data = new byte[length];
+	}
+
+	~Buffer()
+	{
+		within (this.allocator) delete this.data;
+	}
+}
+```
+
+Do not add a manual `Allocator* allocator` field and do not assign
+`this.allocator` yourself when using `within this.allocator`; the compiler
+creates and initializes that field. Derived constructors pass the allocator to
+`base(...)` as an ordinary argument. Do not write a `within` modifier at the
+base-call site.
+
 Value newtypes wrap values and should remain value-like. Do not add destructor
 behavior to a value newtype unless the language docs and surrounding code show
 that the wrapped representation owns a resource.
@@ -792,6 +818,10 @@ Agent-facing rules:
   when the interface defines them. Optional methods must be checked before use.
 - Interface constructors and destructors are vtable entries for construction and
   cleanup contracts. They do not make the interface directly instantiable.
+- Interface lifecycle shapes are exact. A parameterless destructor and a
+  `within` destructor are different contracts. Retained-allocator classes
+  usually expose a constructor with `within allocator` and a parameterless
+  destructor.
 - Do not manually construct vtables or interface wrapper structs in source-level
   code.
 - Generic code that needs an interface implementation must state the capability

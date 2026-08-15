@@ -313,6 +313,60 @@ Async bodies have a special hazard: a within allocator used for frame
 deallocation may be needed after suspension. An unscoped allocator that cannot
 be retained must be rejected for await-capable async code.
 
+## Retained Allocator Lifecycle
+
+A class constructor parameter may be written `within this.allocator`. This is a
+source-level retained allocator declaration. It is valid only on a `within`
+parameter of a constructor declared by the lifecycle root class. It is invalid
+on ordinary methods, destructors, non-class constructors, shadow classes, extern
+class constructors, derived classes, non-`within` parameters, or more than one
+parameter in the same class.
+
+The retained allocator declaration synthesizes a generated instance field named
+`allocator` unless that field would duplicate an existing source field. The
+field type is `Allocator*`. It is generated lifecycle storage, not ordinary
+public API. Source may read it as `this.allocator`; unqualified `allocator`
+inside the constructor refers to the parameter only if an ordinary parameter
+with that name is actually in scope. A retained allocator field must not be
+assigned by source code. The compiler may diagnose or warn about such
+assignments because the field records allocation provenance.
+
+The generated `_op_initnew` helper assigns the retained allocator field from
+the constructor parameter before running the user constructor body. The
+assignment belongs to `_op_initnew`, not to `create()`, so selected
+construction, `stackalloc`, `new`, and generated `create()` all initialize the
+same retained field through the same construction helper.
+
+The generated `_op_delete` helper destroys object state but does not free the
+object's own storage. It is storage-neutral and is used by stack/fixed,
+ordinary `delete`, virtual destructor dispatch, and generated `destroy()` paths.
+For retained allocator classes, the generated `destroy()`/owning delete path
+must call `_op_delete` and then free the complete object pointer through the
+retained allocator field. The free must use the topmost object pointer owned by
+the lifecycle root, not a derived subobject pointer.
+
+If a lifecycle root uses `within this.allocator`, derived constructors must
+accept and forward a `within` allocation context to the base constructor. The
+derived class must not declare a second retained allocator field. In source,
+the base call is written with ordinary base-call syntax; the `within` modifier
+belongs to the parameter declaration, not to the base-call argument.
+
+Constructor and destructor allocator shapes must remain coherent:
+
+- a retained allocator constructor pairs with a parameterless destructor;
+- an ordinary constructor `within` lifecycle pairs with a destructor `within`
+  lifecycle when generated allocation/deallocation helpers need the active
+  allocation context;
+- an interface lifecycle destructor slot with `within` and one without
+  `within` are different exact contracts.
+
+Imported API headers and metadata expose the callable constructor/destructor
+shape required by consumers. A retained allocator constructor is serialized as
+an extern constructor with a `within allocator` parameter. The generated
+retained allocator field is hidden. A retained allocator destructor is
+serialized as a parameterless destructor unless the source/API contract
+explicitly declares a `within` destructor.
+
 ## Generated Cleanup And `finally`
 
 `finally` lowering creates cleanup scopes, active flags, generated locals, and
@@ -386,6 +440,12 @@ Interface constructor/destructor slots are lifecycle contracts and must be
 validated with interface conformance. Constructor-bearing interfaces may be
 implemented only by structs or sealed classes.
 
+Interface lifecycle conformance uses exact helper shapes. A destructor declared
+as `~T()` does not implement `~I(within allocator)`, and `~T(within allocator)`
+does not implement `~I()`. Retained allocator classes therefore implement
+parameterless destructor contracts when their cleanup uses the retained
+allocator field instead of a call-site allocator.
+
 Virtual class lifecycle interacts with vtable assignment:
 
 - create/init helpers must assign the correct vtable pointer;
@@ -398,10 +458,10 @@ See [Interface VTables And Dynamic Dispatch](09-interface-vtables-and-dynamic-di
 
 ## Metadata And API
 
-Metadata should expose source constructors, destructors, lifecycle attributes,
+Metadata should expose source constructors, destructors, lifecycle shape,
 extern status, visibility, parameters, and return information. Generated create,
-init-new, delete, vtable assignment, cleanup, and helper functions should be
-omitted unless they are part of exported source API.
+init-new, delete, retained allocator fields, vtable assignment, cleanup, and
+helper functions should be omitted unless they are part of exported source API.
 
 API headers must expose enough lifecycle declarations for downstream Camp code
 to type-check construction/destruction. C emission may include generated helper
@@ -424,6 +484,8 @@ Important diagnostic categories include:
 - struct constructor definite-assignment failure;
 - invalid `within` default or missing explicit within context;
 - unsafe allocator/lifetime retention;
+- invalid retained allocator declaration shape;
+- invalid retained allocator field access or assignment;
 - stackalloc-backed storage in async or iterator body;
 - invalid cleanup method or finally cleanup target.
 
@@ -438,6 +500,8 @@ Lifecycle changes should cover:
 - `stackalloc` array, instance, prep, and interpolation lowering;
 - `new` allocation and constructor ordering;
 - `delete` destructor/free ordering;
+- retained allocator construction, destruction, API, metadata, diagnostics, and
+  inheritance forwarding;
 - extern class lifecycle failures;
 - virtual destructor rules;
 - interface constructor/destructor conformance;

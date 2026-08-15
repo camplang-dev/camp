@@ -320,7 +320,8 @@ interface Managed
 ```
 
 The implementing type writes ordinary constructors and destructors with the
-matching lifecycle shape:
+matching lifecycle shape. For example, when the interface says cleanup receives
+an allocation context, the implementation does too:
 
 ```camp
 sealed class ManagedBuffer: Managed
@@ -338,6 +339,32 @@ sealed class ManagedBuffer: Managed
 The `within allocator` parameter is part of the lifecycle contract. Code that
 constructs or deletes a `Managed` implementation can pass the allocation
 context through the same way it would for any other constructor or destructor.
+
+Some classes retain their allocator in the constructor instead:
+
+```camp
+interface RetainedManaged
+{
+	RetainedManaged(within allocator);
+	~RetainedManaged();
+}
+
+sealed class RetainedBuffer: RetainedManaged
+{
+	RetainedBuffer(within this.allocator)
+	{
+	}
+
+	~RetainedBuffer()
+	{
+	}
+}
+```
+
+In that shape, construction still accepts an allocation context, but cleanup
+does not need a `within` parameter because the object already remembers its
+allocator. Interface lifecycle contracts are exact: a parameterless destructor
+slot and a `within` destructor slot are different contracts.
 
 Structs can implement constructor and destructor contracts. Classes can do so
 when they are sealed. An unsealed class has derived construction and deletion

@@ -466,6 +466,14 @@ public sealed partial class BindableNodeAnalyzer
 		return false;
 	}
 
+	bool SourceAllocatorTypeAvailable()
+	{
+		foreach (TypeDefinition candidate in allTypeDefinitions)
+			if (candidate.Name == "Allocator")
+				return true;
+		return false;
+	}
+
 	bool IsNamespaceExplicitlyImported(string namespaceName, TokenSequence source)
 	{
 		foreach (UsingDeclaration usingDeclaration in GetUsingsForSource(source))

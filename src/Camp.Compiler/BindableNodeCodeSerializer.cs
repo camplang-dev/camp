@@ -547,7 +547,7 @@ public sealed class BindableNodeCodeSerializer
 			WriteApiVisibilityPrefix(definition!);
 			writer.Write("extern ");
 			writer.Write(definition!.Name);
-			if (LifecycleAllocatorPolicy.SyntheticConstructorUsesAllocator(currentModule, definition, functions, retainsAllocator))
+			if (LifecycleAllocatorPolicy.SyntheticConstructorUsesAllocator(currentModule, definition, functions, retainsAllocator, ApiAllocatorTypeAvailable()))
 				writer.WriteLine("(within allocator);");
 			else
 				writer.WriteLine("();");
@@ -562,7 +562,7 @@ public sealed class BindableNodeCodeSerializer
 			WriteApiVisibilityPrefix(definition!);
 			writer.Write("extern ~");
 			writer.Write(definition!.Name);
-			if (LifecycleAllocatorPolicy.SyntheticDestructorUsesAllocator(currentModule, definition, functions, retainsAllocator))
+			if (LifecycleAllocatorPolicy.SyntheticDestructorUsesAllocator(currentModule, definition, functions, retainsAllocator, ApiAllocatorTypeAvailable()))
 				writer.WriteLine("(within allocator);");
 			else
 				writer.WriteLine("();");
@@ -2130,6 +2130,14 @@ public sealed class BindableNodeCodeSerializer
 		foreach (Definition definition in apiReferenceDefinitions)
 			if (definition is TypeDefinition typeDefinition && seen.Add(typeDefinition))
 				yield return typeDefinition;
+	}
+
+	bool ApiAllocatorTypeAvailable()
+	{
+		foreach (TypeDefinition typeDefinition in ApiTypeDefinitions())
+			if (typeDefinition.Name == "Allocator")
+				return true;
+		return false;
 	}
 
 	bool ApiNameIsAmbiguous(string name, TypeDefinition definition)

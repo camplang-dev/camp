@@ -970,7 +970,7 @@ public static class MetadataJsonSerializer
 			json.WriteString("visibility", "export");
 			json.WriteBoolean("extern", true);
 			json.WriteString("modifier", "constructor");
-			if (LifecycleAllocatorPolicy.SyntheticConstructorUsesAllocator(module, definition, functions, retainsAllocator))
+			if (LifecycleAllocatorPolicy.SyntheticConstructorUsesAllocator(module, definition, functions, retainsAllocator, MetadataAllocatorTypeAvailable()))
 				WriteSyntheticWithinAllocatorParameter(json, GetId(definition) + "/function:" + definition.Name);
 			json.WriteEndObject();
 		}
@@ -984,7 +984,7 @@ public static class MetadataJsonSerializer
 			json.WriteString("visibility", "export");
 			json.WriteBoolean("extern", true);
 			json.WriteString("modifier", "destructor");
-			if (LifecycleAllocatorPolicy.SyntheticDestructorUsesAllocator(module, definition, functions, retainsAllocator))
+			if (LifecycleAllocatorPolicy.SyntheticDestructorUsesAllocator(module, definition, functions, retainsAllocator, MetadataAllocatorTypeAvailable()))
 				WriteSyntheticWithinAllocatorParameter(json, GetId(definition) + "/function:~" + definition.Name);
 			json.WriteEndObject();
 		}
@@ -2107,6 +2107,14 @@ public static class MetadataJsonSerializer
 		IEnumerable<Definition> ActiveDefinitions()
 		{
 			return DeclarationParticipation.ActiveTopLevelDefinitions(module);
+		}
+
+		bool MetadataAllocatorTypeAvailable()
+		{
+			foreach (Definition definition in ActiveDefinitions())
+				if (definition is TypeDefinition { Name: "Allocator" })
+					return true;
+			return false;
 		}
 
 		bool TryGetSourceLocation(Definition definition, out string? sourcefile, out int sourceline)

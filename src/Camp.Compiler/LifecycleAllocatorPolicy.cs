@@ -4,42 +4,42 @@ namespace Camp.Compiler;
 
 internal static class LifecycleAllocatorPolicy
 {
-	public static bool CreateHelperUsesAllocator(Module? module, TypeDefinition type, FunctionDefinition constructor, bool retainsAllocator = false)
+	public static bool CreateHelperUsesAllocator(Module? module, TypeDefinition type, FunctionDefinition constructor, bool retainsAllocator = false, bool policyAllocatorAvailable = true)
 	{
 		return retainsAllocator
 			|| HasWithinParameter(constructor)
-			|| EffectiveWithinPolicy(module, type) == WithinAllocationPolicy.Explicit;
+			|| (policyAllocatorAvailable && EffectiveWithinPolicy(module, type) == WithinAllocationPolicy.Explicit);
 	}
 
-	public static bool DestroyHelperUsesAllocator(Module? module, TypeDefinition type, FunctionDefinition destructor, IReadOnlyList<FunctionDefinition> functions, bool retainsAllocator = false)
+	public static bool DestroyHelperUsesAllocator(Module? module, TypeDefinition type, FunctionDefinition destructor, IReadOnlyList<FunctionDefinition> functions, bool retainsAllocator = false, bool policyAllocatorAvailable = true)
 	{
 		return !retainsAllocator
 			&& (HasWithinParameter(destructor)
 				|| AnyConstructorHasWithin(functions)
-				|| EffectiveWithinPolicy(module, type) == WithinAllocationPolicy.Explicit);
+				|| (policyAllocatorAvailable && EffectiveWithinPolicy(module, type) == WithinAllocationPolicy.Explicit));
 	}
 
-	public static bool ImplicitDestroyHelperUsesAllocator(Module? module, ClassDefinition type, IReadOnlyList<FunctionDefinition> functions, bool retainsAllocator = false)
+	public static bool ImplicitDestroyHelperUsesAllocator(Module? module, ClassDefinition type, IReadOnlyList<FunctionDefinition> functions, bool retainsAllocator = false, bool policyAllocatorAvailable = true)
 	{
 		return !retainsAllocator
 			&& (AnyConstructorHasWithin(functions)
 				|| AnyDestructorHasWithin(functions)
-				|| EffectiveWithinPolicy(module, type) == WithinAllocationPolicy.Explicit);
+				|| (policyAllocatorAvailable && EffectiveWithinPolicy(module, type) == WithinAllocationPolicy.Explicit));
 	}
 
-	public static bool SyntheticConstructorUsesAllocator(Module? module, ClassDefinition type, IReadOnlyList<FunctionDefinition> functions, bool retainsAllocator = false)
+	public static bool SyntheticConstructorUsesAllocator(Module? module, ClassDefinition type, IReadOnlyList<FunctionDefinition> functions, bool retainsAllocator = false, bool policyAllocatorAvailable = true)
 	{
 		return retainsAllocator
 			|| AnyDestructorHasWithin(functions)
-			|| EffectiveWithinPolicy(module, type) == WithinAllocationPolicy.Explicit;
+			|| (policyAllocatorAvailable && EffectiveWithinPolicy(module, type) == WithinAllocationPolicy.Explicit);
 	}
 
-	public static bool SyntheticDestructorUsesAllocator(Module? module, ClassDefinition type, IReadOnlyList<FunctionDefinition> functions, bool retainsAllocator = false)
+	public static bool SyntheticDestructorUsesAllocator(Module? module, ClassDefinition type, IReadOnlyList<FunctionDefinition> functions, bool retainsAllocator = false, bool policyAllocatorAvailable = true)
 	{
 		return !retainsAllocator
 			&& (AnyConstructorHasWithin(functions)
 				|| AnyDestructorHasWithin(functions)
-				|| EffectiveWithinPolicy(module, type) == WithinAllocationPolicy.Explicit);
+				|| (policyAllocatorAvailable && EffectiveWithinPolicy(module, type) == WithinAllocationPolicy.Explicit));
 	}
 
 	public static bool RetainsAllocator(IReadOnlyList<FunctionDefinition> functions)

@@ -8081,6 +8081,8 @@ public static class CCodeEmitter
 		CType FormatResolvedType(string resolvedType, string declarator, bool normalizeInterfacePointer = true)
 		{
 			string type = resolvedType.Trim();
+			if (type == "#ALLOCATOR")
+				type = AllocatorCTypeName();
 			if (type == "fn*")
 				return new CType(FormatInlineResolvedFunctionPointer("void", new List<string>(), declarator, GetDefaultTargetTypeSpec(functionPointer: true), null));
 			if (type.StartsWith("fn* ", StringComparison.Ordinal))
@@ -8663,9 +8665,19 @@ public static class CCodeEmitter
 				return SanitizeIdentifier(symbol);
 			return resolvedType switch
 			{
+				"#ALLOCATOR" => AllocatorCTypeName(),
 				"any" or "copyable" or "auto" or "#TARGET" => "void*",
 				_ => SanitizeIdentifier(RemoveTypeDecorators(resolvedType))
 			};
+		}
+
+		string AllocatorCTypeName()
+		{
+			string symbol = typeSymbols.TryGetValue("Allocator", out string? found) && !string.IsNullOrWhiteSpace(found)
+				? found
+				: "Allocator";
+			bool isInterface = interfaceNames.Contains("Allocator") || interfaceNames.Contains(symbol);
+			return symbol + (isInterface ? "**" : "*");
 		}
 
 		string EraseGenericParametersForCName(string resolvedType)

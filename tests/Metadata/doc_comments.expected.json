@@ -312,20 +312,18 @@
       ],
       "functions": [
         {
+          "id": "class:Docs::Button/function:Button",
+          "name": "Button",
+          "visibility": "export",
+          "extern": true,
+          "modifier": "constructor"
+        },
+        {
           "id": "class:Docs::Button/function:~Button",
           "name": "~Button",
           "visibility": "export",
           "extern": true,
           "modifier": "destructor"
-        },
-        {
-          "id": "class:Docs::Button/function:Button",
-          "name": "Button",
-          "symbol": "DocsButton_Button",
-          "visibility": "export",
-          "extern": true,
-          "modifier": "constructor",
-          "returnType": "Button"
         }
       ],
       "metadata": [

@@ -398,8 +398,9 @@ availability without trying the call.
 
 Attributes such as `@awaitwith`, `@noawait`, and generated lifecycle markers
 should be represented with first-class metadata fields when possible. Internal
-generation aids such as allocator-aware create helpers should not be treated as
-general source attributes unless the language surface explicitly exposes them.
+generation aids such as allocator-aware lifecycle helpers should not be treated
+as general source attributes unless the language surface explicitly exposes
+them.
 
 ### Test Attributes
 
@@ -496,6 +497,8 @@ The serializer should preserve:
 
 Generated fields such as virtual vtable pointers or stored `vtableof` fields
 should be hidden unless the source API explicitly exposes them.
+Generated retained allocator fields from `within this.allocator` are lifecycle
+storage and must also be hidden from API metadata.
 
 Static class metadata uses `kind: "staticClass"` and IDs rooted as
 `staticClass:Name`. It may contain static fields, inline constants, properties
@@ -528,6 +531,14 @@ The serializer should preserve:
 Parameter order is source API. Overload selectors are parameter facts, not a
 separate overload table, and metadata consumers must not assume the selector is
 the first callable parameter.
+
+Lifecycle constructor/destructor signatures must be serialized in the shape
+that downstream Camp consumers need to type-check. A retained allocator source
+constructor written with `within this.allocator` is serialized as a constructor
+with a `within allocator` parameter of type `Allocator*`; the generated retained
+field is not serialized. A retained allocator destructor is serialized as
+parameterless unless the actual lifecycle contract declares a `within`
+destructor. Interface destructor metadata preserves this exact distinction.
 
 `prep` declarations are source API. Source may spell a canonical prep method
 with `prep` in return position, but API headers and metadata serialize the

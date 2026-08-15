@@ -43,20 +43,18 @@
       ],
       "functions": [
         {
+          "id": "class:DirectWidget/function:DirectWidget",
+          "name": "DirectWidget",
+          "visibility": "export",
+          "extern": true,
+          "modifier": "constructor"
+        },
+        {
           "id": "class:DirectWidget/function:~DirectWidget",
           "name": "~DirectWidget",
           "visibility": "export",
           "extern": true,
           "modifier": "destructor"
-        },
-        {
-          "id": "class:DirectWidget/function:DirectWidget",
-          "name": "DirectWidget",
-          "symbol": "DirectWidget_DirectWidget",
-          "visibility": "export",
-          "extern": true,
-          "modifier": "constructor",
-          "returnType": "DirectWidget"
         }
       ]
     }

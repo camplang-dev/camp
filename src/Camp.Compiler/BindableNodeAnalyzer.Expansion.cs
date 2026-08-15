@@ -1955,7 +1955,7 @@ public sealed partial class BindableNodeAnalyzer
 		method.ResolvedType = $"{type.Name}*";
 		CopyLifecycleParameters(constructor.Parameters, method.Parameters);
 		bool retainsAllocator = LifecycleAllocatorPolicy.GetRetainedAllocatorParameter(constructor) is not null;
-		bool createHelperUsesAllocator = LifecycleAllocatorPolicy.CreateHelperUsesAllocator(currentModule, type, constructor, retainsAllocator);
+		bool createHelperUsesAllocator = LifecycleAllocatorPolicy.CreateHelperUsesAllocator(currentModule, type, constructor, retainsAllocator, SourceAllocatorTypeAvailable());
 		if (createHelperUsesAllocator && !HasWithinParameter(method))
 			method.Parameters.Add(CreateAllocatorParameter());
 		if (method.Extern is not null)
@@ -2070,7 +2070,7 @@ public sealed partial class BindableNodeAnalyzer
 		method.ReturnType = VoidType();
 		method.ResolvedType = "void";
 		bool retainsAllocator = LifecycleAllocatorPolicy.RetainsAllocator(functions);
-		if (LifecycleAllocatorPolicy.ImplicitDestroyHelperUsesAllocator(currentModule, type, functions, retainsAllocator))
+		if (LifecycleAllocatorPolicy.ImplicitDestroyHelperUsesAllocator(currentModule, type, functions, retainsAllocator, SourceAllocatorTypeAvailable()))
 			method.Parameters.Add(CreateAllocatorParameter());
 		return method;
 	}
@@ -2099,7 +2099,7 @@ public sealed partial class BindableNodeAnalyzer
 		method.ResolvedType = "void";
 		ParameterDefinition? retainedAllocator = LifecycleAllocatorPolicy.GetRetainedAllocatorParameter(functions);
 		bool retainsAllocator = retainedAllocator is not null;
-		bool destroyHelperUsesAllocator = LifecycleAllocatorPolicy.DestroyHelperUsesAllocator(currentModule, type, destructor, functions, retainsAllocator);
+		bool destroyHelperUsesAllocator = LifecycleAllocatorPolicy.DestroyHelperUsesAllocator(currentModule, type, destructor, functions, retainsAllocator, SourceAllocatorTypeAvailable());
 		if (destroyHelperUsesAllocator)
 			method.Parameters.Add(CreateAllocatorParameter());
 		if (method.Extern is not null)

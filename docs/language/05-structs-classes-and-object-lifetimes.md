@@ -538,6 +538,32 @@ The active allocation context controls allocation and matching deallocation.
 When a type captures an allocator for later cleanup, that allocator must itself
 be safe to retain.
 
+Allocator-owning classes can make that pattern explicit by retaining the
+constructor's allocation context:
+
+```camp
+class ByteBuffer
+{
+	byte[] data;
+
+	ByteBuffer(nuint length, within this.allocator)
+	{
+		this.data = new byte[length];
+	}
+
+	~ByteBuffer()
+	{
+		within (this.allocator) delete this.data;
+	}
+}
+```
+
+The `within this.allocator` parameter says "remember the allocator used to
+construct this object." The compiler supplies the backing field and makes
+ordinary `delete` use the same allocator for the object itself. Inside the
+type, use `within (this.allocator)` when allocating or freeing owned buffers
+that must follow the object's allocator.
+
 ## Virtual, Abstract, Override, And Sealed
 
 Virtual dispatch follows the class hierarchy. Interface dispatch follows an

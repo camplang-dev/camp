@@ -43,6 +43,13 @@
       ],
       "functions": [
         {
+          "id": "class:Widget/function:Widget",
+          "name": "Widget",
+          "visibility": "export",
+          "extern": true,
+          "modifier": "constructor"
+        },
+        {
           "id": "class:Widget/function:~Widget",
           "name": "~Widget",
           "visibility": "export",
@@ -63,15 +70,6 @@
             "slotRef": "interface:IShown/function:getValue"
           },
           "propertyName": "Value"
-        },
-        {
-          "id": "class:Widget/function:Widget",
-          "name": "Widget",
-          "symbol": "Widget_Widget",
-          "visibility": "export",
-          "extern": true,
-          "modifier": "constructor",
-          "returnType": "Widget"
         }
       ]
     }

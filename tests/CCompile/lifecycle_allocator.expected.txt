@@ -58,7 +58,7 @@ static void Buffer_destroy(Buffer *this, Allocator *allocator)
 static void Holder_op_initnew(Holder *this, Allocator *allocator)
 {
 	Allocator *resolvedAllocator = allocator;
-	Buffer_op_initnew(&this->buffer, 4, allocator);
+	Buffer_op_initnew(&this->buffer, 4, resolvedAllocator);
 }
 
 static Holder *Holder_create(Allocator *allocator)

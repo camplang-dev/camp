@@ -1,13 +1,13 @@
 export extern class ExplicitDefault
 {
-	export extern ExplicitDefault(within allocator);
+	export extern ExplicitDefault();
 
-	export extern ~ExplicitDefault(within allocator);
+	export extern ~ExplicitDefault();
 }
 
 export extern class ExplicitConstructorOnly
 {
-	export extern ~ExplicitConstructorOnly(within allocator);
+	export extern ~ExplicitConstructorOnly();
 
 	export extern ExplicitConstructorOnly();
 }
