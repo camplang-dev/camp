@@ -36,7 +36,6 @@ public static class DocCommentTranslator
 		"index",
 		"symbol",
 		"nosuffix",
-		"createWithAllocator",
 		"getshadow",
 		"setshadow"
 	};

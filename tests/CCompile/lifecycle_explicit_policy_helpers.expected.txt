@@ -1,0 +1,145 @@
+// file: lifecycle_explicit_policy_helpers.c
+#include "lifecycle_explicit_policy_helpers_private.h"
+
+/* Private file declarations. */
+static void *Allocator_alloc(Allocator *this, uintptr_t size);
+static void Allocator_free(Allocator *this, void *ptr);
+static int run(Allocator *allocator);
+
+static void *Allocator_alloc(Allocator *this, uintptr_t size)
+{
+	return malloc(size);
+}
+
+static void Allocator_free(Allocator *this, void *ptr)
+{
+	free(ptr);
+}
+
+void Allocator_op_initnew(Allocator *this)
+{
+}
+
+Allocator *Allocator_create(Allocator *allocator)
+{
+	Allocator *resolvedAllocator = allocator;
+	Allocator *_created0 = (Allocator *)(((resolvedAllocator != NULL) ? Allocator_alloc(resolvedAllocator, sizeof(Allocator)) : malloc(sizeof(Allocator))));
+	if ((_created0 != NULL))
+	{
+		*_created0 = (Allocator){0};
+		Allocator_op_initnew(_created0);
+	}
+	return _created0;
+}
+
+void Allocator_destroy(Allocator *this, Allocator *allocator)
+{
+	Allocator *resolvedAllocator = allocator;
+	((resolvedAllocator != NULL) ? Allocator_free(resolvedAllocator, (void *)(this)) : free((void *)(this)));
+}
+
+void Widget_op_initnew(Widget *this)
+{
+}
+
+Widget *Widget_create(Allocator *allocator)
+{
+	Allocator *resolvedAllocator = allocator;
+	Widget *_created1 = (Widget *)(((resolvedAllocator != NULL) ? Allocator_alloc(resolvedAllocator, sizeof(Widget)) : malloc(sizeof(Widget))));
+	if ((_created1 != NULL))
+	{
+		*_created1 = (Widget){0};
+		Widget_op_initnew(_created1);
+	}
+	return _created1;
+}
+
+void Widget_destroy(Widget *this, Allocator *allocator)
+{
+	Allocator *resolvedAllocator = allocator;
+	((resolvedAllocator != NULL) ? Allocator_free(resolvedAllocator, (void *)(this)) : free((void *)(this)));
+}
+
+static int run(Allocator *allocator)
+{
+	Allocator *_allocator2 = allocator;
+	Widget *_created3;
+	_created3 = (Widget *)(((_allocator2 != NULL) ? Allocator_alloc(_allocator2, sizeof(Widget)) : malloc(sizeof(Widget))));
+	if ((_created3 != NULL))
+	{
+		*_created3 = (Widget){0};
+		Widget_op_initnew(_created3);
+	}
+	Widget *widget = _created3;
+	{
+		Allocator *_allocator4 = allocator;
+		((_allocator4 != NULL) ? Allocator_free(_allocator4, (void *)(widget)) : free((void *)(widget)));
+	}
+	return 0;
+}
+
+int main(void)
+{
+	return run(NULL);
+}
+
+// file: lifecycle_explicit_policy_helpers.h
+#ifndef LIFECYCLE_EXPLICIT_POLICY_HELPERS_H_
+#define LIFECYCLE_EXPLICIT_POLICY_HELPERS_H_
+
+#include "lifecycle_explicit_policy_helpers_private.h"
+
+void *malloc(uintptr_t size);
+void free(void *ptr);
+void Allocator_op_initnew(Allocator *this);
+Allocator *Allocator_create(Allocator *allocator);
+void Allocator_destroy(Allocator *this, Allocator *allocator);
+void Widget_op_initnew(Widget *this);
+Widget *Widget_create(Allocator *allocator);
+void Widget_destroy(Widget *this, Allocator *allocator);
+int main(void);
+
+#endif
+// file: lifecycle_explicit_policy_helpers_private.h
+#ifndef LIFECYCLE_EXPLICIT_POLICY_HELPERS_PRIVATE_H_
+#define LIFECYCLE_EXPLICIT_POLICY_HELPERS_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct Allocator Allocator;
+typedef struct Widget Widget;
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Layouts. */
+struct Allocator
+{
+	char _camp_empty;
+};
+struct Widget
+{
+	int value;
+};
+
+/* Function declarations. */
+void *malloc(uintptr_t size);
+void free(void *ptr);
+void Allocator_op_initnew(Allocator *this);
+Allocator *Allocator_create(Allocator *allocator);
+void Allocator_destroy(Allocator *this, Allocator *allocator);
+void Widget_op_initnew(Widget *this);
+Widget *Widget_create(Allocator *allocator);
+void Widget_destroy(Widget *this, Allocator *allocator);
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: lifecycle_explicit_policy_helpers.c

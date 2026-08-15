@@ -1,2 +1,5 @@
 /// @banana Unknown metadata.
 export int Value;
+
+/// @createWithAllocator Removed lifecycle hook.
+export int OtherValue;

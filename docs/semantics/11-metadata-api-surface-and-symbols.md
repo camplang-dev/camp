@@ -401,14 +401,6 @@ should be represented with first-class metadata fields when possible. Internal
 generation aids such as allocator-aware create helpers should not be treated as
 general source attributes unless the language surface explicitly exposes them.
 
-The compiler recognizes `@createWithAllocator` on type declarations during
-generated class create-helper construction. When present, the generated create
-path carries an allocator parameter even if the constructor surface did not
-otherwise declare a `within` parameter. This is a lifecycle generation hook, not
-a general metadata attribute for ordinary API authors. Metadata and API output
-should not encourage consumers to depend on it unless a future source feature
-makes that dependency explicit.
-
 ### Test Attributes
 
 `@test`, `@testonly`, and `@skip` are source attributes, not visibility

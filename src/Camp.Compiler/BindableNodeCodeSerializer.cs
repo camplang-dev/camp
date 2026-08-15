@@ -546,7 +546,10 @@ public sealed class BindableNodeCodeSerializer
 			WriteApiVisibilityPrefix(definition!);
 			writer.Write("extern ");
 			writer.Write(definition!.Name);
-			writer.WriteLine("();");
+			if (LifecycleAllocatorPolicy.SyntheticConstructorUsesAllocator(currentModule, definition, functions))
+				writer.WriteLine("(within allocator);");
+			else
+				writer.WriteLine("();");
 			wrote = true;
 		}
 		if (hasSyntheticDelete)
@@ -557,7 +560,10 @@ public sealed class BindableNodeCodeSerializer
 			WriteApiVisibilityPrefix(definition!);
 			writer.Write("extern ~");
 			writer.Write(definition!.Name);
-			writer.WriteLine("();");
+			if (LifecycleAllocatorPolicy.SyntheticDestructorUsesAllocator(currentModule, definition, functions))
+				writer.WriteLine("(within allocator);");
+			else
+				writer.WriteLine("();");
 			wrote = true;
 		}
 		foreach (InterfaceDefinition interfaceDefinition in interfaceAccessors)

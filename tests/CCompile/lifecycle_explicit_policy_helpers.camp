@@ -1,0 +1,34 @@
+#within explicit
+
+export extern void* malloc(nuint size);
+export extern void free(void* ptr);
+
+export class Allocator
+{
+	void* alloc(nuint size)
+	{
+		return malloc(size);
+	}
+
+	void free(void* ptr)
+	{
+		free(ptr);
+	}
+}
+
+export class Widget
+{
+	int value;
+}
+
+int run(within Allocator* allocator)
+{
+	Widget* widget = within(allocator) new Widget();
+	within(allocator) delete widget;
+	return 0;
+}
+
+export int main()
+{
+	return within(default) run();
+}

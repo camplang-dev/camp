@@ -1832,7 +1832,7 @@ public sealed partial class BindableNodeAnalyzer
 				if (type is not ClassDefinition { Extern: not null }
 					&& function.Modifier is not FunctionModifier.Override and not FunctionModifier.Sealed)
 				{
-					FunctionDefinition destroy = CreateDestroyMethod(type, function, opDelete);
+					FunctionDefinition destroy = CreateDestroyMethod(type, function, opDelete, functions);
 					generated.Add(destroy);
 				}
 				function.Body = null;
@@ -1847,7 +1847,7 @@ public sealed partial class BindableNodeAnalyzer
 			&& !HasDestroyMethod(functions)
 			&& !HasDestroyMethod(generated))
 		{
-			generated.Add(CreateImplicitExportedDestroyMethod(exportedClass));
+			generated.Add(CreateImplicitExportedDestroyMethod(exportedClass, functions));
 		}
 
 		functions.AddRange(generated);
@@ -1931,8 +1931,8 @@ public sealed partial class BindableNodeAnalyzer
 		method.ReturnType = PointerTo(CloneType(typeReference)!);
 		method.ResolvedType = $"{type.Name}*";
 		CopyLifecycleParameters(constructor.Parameters, method.Parameters);
-		bool createWithAllocator = HasWithinParameter(method) || HasCreateWithAllocatorAttribute(type);
-		if (createWithAllocator && !HasWithinParameter(method))
+		bool createHelperUsesAllocator = LifecycleAllocatorPolicy.CreateHelperUsesAllocator(currentModule, type, constructor);
+		if (createHelperUsesAllocator && !HasWithinParameter(method))
 			method.Parameters.Add(CreateAllocatorParameter());
 		if (method.Extern is not null)
 			return method;
@@ -1944,7 +1944,7 @@ public sealed partial class BindableNodeAnalyzer
 		BlockStatement body = method.Body;
 		ParameterDefinition? allocatorParameter = GetAllocatorParameter(method);
 		DeclarationStatement? resolvedAllocatorLocal = null;
-		if (createWithAllocator)
+		if (createHelperUsesAllocator)
 		{
 			resolvedAllocatorLocal = CreateResolvedAllocatorLocal(allocatorParameter);
 			body.Statements.Add(resolvedAllocatorLocal);
@@ -2035,7 +2035,7 @@ public sealed partial class BindableNodeAnalyzer
 		return method;
 	}
 
-	FunctionDefinition CreateImplicitExportedDestroyMethod(ClassDefinition type)
+	FunctionDefinition CreateImplicitExportedDestroyMethod(ClassDefinition type, IReadOnlyList<FunctionDefinition> functions)
 	{
 		FunctionDefinition method = generatedDeclarations.Function(GeneratedDeclarationCategory.Lifecycle, "implicit exported destroy helper", type);
 		method.Name = DestroyMethodName;
@@ -2045,6 +2045,8 @@ public sealed partial class BindableNodeAnalyzer
 		method.Internal = type.Internal;
 		method.ReturnType = VoidType();
 		method.ResolvedType = "void";
+		if (LifecycleAllocatorPolicy.ImplicitDestroyHelperUsesAllocator(currentModule, type, functions))
+			method.Parameters.Add(CreateAllocatorParameter());
 		return method;
 	}
 
@@ -2058,7 +2060,7 @@ public sealed partial class BindableNodeAnalyzer
 			: FunctionModifier.None;
 	}
 
-	FunctionDefinition CreateDestroyMethod(TypeDefinition type, FunctionDefinition destructor, FunctionDefinition opDelete)
+	FunctionDefinition CreateDestroyMethod(TypeDefinition type, FunctionDefinition destructor, FunctionDefinition opDelete, IReadOnlyList<FunctionDefinition> functions)
 	{
 		FunctionDefinition method = generatedDeclarations.Function(GeneratedDeclarationCategory.Lifecycle, "destructor destroy helper", destructor);
 		method.SourceSyntax = destructor.SourceSyntax;
@@ -2070,8 +2072,8 @@ public sealed partial class BindableNodeAnalyzer
 		method.Extern = destructor.Extern;
 		method.ReturnType = VoidType();
 		method.ResolvedType = "void";
-		bool destroyWithAllocator = HasWithinParameter(destructor) || HasCreateWithAllocatorAttribute(type);
-		if (destroyWithAllocator)
+		bool destroyHelperUsesAllocator = LifecycleAllocatorPolicy.DestroyHelperUsesAllocator(currentModule, type, destructor, functions);
+		if (destroyHelperUsesAllocator)
 			method.Parameters.Add(CreateAllocatorParameter());
 		if (method.Extern is not null)
 			return method;
@@ -2089,7 +2091,7 @@ public sealed partial class BindableNodeAnalyzer
 			Expression = CreateDestructorCall(target, opDelete, GetAllocatorParameter(method) is ParameterDefinition allocatorParameter ? CreateVariableReference(allocatorParameter, allocatorParameter.ResolvedType ?? "Allocator*") : null)
 		});
 		DeclarationStatement? resolvedAllocatorLocal = null;
-		if (destroyWithAllocator)
+		if (destroyHelperUsesAllocator)
 		{
 			resolvedAllocatorLocal = CreateResolvedAllocatorLocal(GetAllocatorParameter(method));
 			body.Statements.Add(resolvedAllocatorLocal);

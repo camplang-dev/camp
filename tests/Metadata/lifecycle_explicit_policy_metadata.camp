@@ -1,0 +1,29 @@
+#within explicit
+
+extern void* malloc(nuint size);
+extern void free(void* ptr);
+
+class Allocator
+{
+	void* alloc(nuint size)
+	{
+		return malloc(size);
+	}
+
+	void free(void* ptr)
+	{
+		free(ptr);
+	}
+}
+
+export class ExplicitDefault
+{
+	int value;
+}
+
+export class ExplicitConstructorOnly
+{
+	export ExplicitConstructorOnly()
+	{
+	}
+}

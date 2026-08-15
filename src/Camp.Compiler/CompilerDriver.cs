@@ -2073,6 +2073,11 @@ public static class CompilerDriver
 		static Module BuildApiOutputModule(Compilation compilation, CampApiSurfaceKind apiSurface)
 		{
 			Module output = new() { ResolvedType = compilation.SharedModule?.ResolvedType };
+			if (compilation.SharedModule is not null)
+			{
+				foreach (KeyValuePair<TokenSequence, WithinAllocationPolicy> policy in compilation.SharedModule.SourceWithinAllocationPolicies)
+					output.SourceWithinAllocationPolicies[policy.Key] = policy.Value;
+			}
 			HashSet<Definition> definitions = [];
 			foreach (SourceFile file in compilation.Files)
 			{

@@ -276,25 +276,14 @@ public sealed partial class BindableNodeAnalyzer
 		return null;
 	}
 
-	static bool HasCreateWithAllocatorAttribute(TypeDefinition type)
-	{
-		foreach (AttributeConstructor attribute in type.Attributes)
-		{
-			if (attribute.Name.TrimStart('@') == "createWithAllocator")
-				return true;
-		}
-
-		return false;
-	}
-
 	static ParameterDefinition CreateAllocatorParameter()
 	{
-		return new ParameterDefinition
+		return new WithinParameterDefinition
 		{
 			Name = "allocator",
 			Symbol = "allocator",
-			Type = AllocatorPointerType(),
-			ResolvedType = "Allocator*"
+			Type = new AllocatorTypeReference { ResolvedType = AllocatorType },
+			ResolvedType = AllocatorType
 		};
 	}
 

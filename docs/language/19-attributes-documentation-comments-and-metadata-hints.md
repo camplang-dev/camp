@@ -434,11 +434,6 @@ symbol links, or deprecation messages.
 | `@testonly` | Private or `internal` top-level declarations | Includes a helper only in test and coverage builds; top-level types make their whole body test-only |
 | `@skip("reason")` | Declarations also marked `@test` | Discovers the test but reports it as skipped without invoking it |
 
-One additional attribute name, `@createWithAllocator`, is recognized by current
-compiler support code for specialized generated or expanded forms. It is not an
-ordinary API-authoring tool; treat it as compiler/semantic-supplement territory
-unless a future user-facing feature documents it directly.
-
 ## Where To Look Back
 
 For the feature-specific attributes already introduced:

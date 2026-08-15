@@ -938,7 +938,7 @@ public static class MetadataJsonSerializer
 		void WriteFunctionArray(Utf8JsonWriter json, string propertyName, ClassDefinition? classDefinition, IReadOnlyList<FunctionDefinition> functions)
 		{
 			List<FunctionDefinition> filtered = functions
-				.Where(function => !IsGeneratedDefinition(function) && ShouldEmitFunctionMember(function))
+				.Where(function => !IsGeneratedDefinition(function) && !IsGeneratedLifecycleDefinition(function) && ShouldEmitFunctionMember(function))
 				.ToList();
 			List<InterfaceDefinition> interfaceAccessors = IsExportApiView && classDefinition is not null ? GetApiInterfaceAccessors(classDefinition) : [];
 			bool syntheticConstructor = IsExportApiView && classDefinition is not null && ShouldWriteSyntheticApiConstructor(classDefinition, functions);
@@ -948,9 +948,9 @@ public static class MetadataJsonSerializer
 
 			json.WriteStartArray(propertyName);
 			if (syntheticConstructor)
-				WriteSyntheticConstructor(json, classDefinition!);
+				WriteSyntheticConstructor(json, classDefinition!, functions);
 			if (syntheticDestructor)
-				WriteSyntheticDestructor(json, classDefinition!);
+				WriteSyntheticDestructor(json, classDefinition!, functions);
 			foreach (InterfaceDefinition interfaceDefinition in interfaceAccessors)
 				WriteSyntheticInterfaceAccessor(json, classDefinition!, interfaceDefinition);
 			foreach (FunctionDefinition function in filtered)
@@ -961,7 +961,7 @@ public static class MetadataJsonSerializer
 			json.WriteEndArray();
 		}
 
-		void WriteSyntheticConstructor(Utf8JsonWriter json, ClassDefinition definition)
+		void WriteSyntheticConstructor(Utf8JsonWriter json, ClassDefinition definition, IReadOnlyList<FunctionDefinition> functions)
 		{
 			json.WriteStartObject();
 			json.WriteString("id", GetId(definition) + "/function:" + definition.Name);
@@ -969,10 +969,12 @@ public static class MetadataJsonSerializer
 			json.WriteString("visibility", "export");
 			json.WriteBoolean("extern", true);
 			json.WriteString("modifier", "constructor");
+			if (LifecycleAllocatorPolicy.SyntheticConstructorUsesAllocator(module, definition, functions))
+				WriteSyntheticWithinAllocatorParameter(json, GetId(definition) + "/function:" + definition.Name);
 			json.WriteEndObject();
 		}
 
-		void WriteSyntheticDestructor(Utf8JsonWriter json, ClassDefinition definition)
+		void WriteSyntheticDestructor(Utf8JsonWriter json, ClassDefinition definition, IReadOnlyList<FunctionDefinition> functions)
 		{
 			json.WriteStartObject();
 			json.WriteString("id", GetId(definition) + "/function:~" + definition.Name);
@@ -980,7 +982,21 @@ public static class MetadataJsonSerializer
 			json.WriteString("visibility", "export");
 			json.WriteBoolean("extern", true);
 			json.WriteString("modifier", "destructor");
+			if (LifecycleAllocatorPolicy.SyntheticDestructorUsesAllocator(module, definition, functions))
+				WriteSyntheticWithinAllocatorParameter(json, GetId(definition) + "/function:~" + definition.Name);
 			json.WriteEndObject();
+		}
+
+		static void WriteSyntheticWithinAllocatorParameter(Utf8JsonWriter json, string functionId)
+		{
+			json.WriteStartArray("parameters");
+			json.WriteStartObject();
+			json.WriteString("id", functionId + "/parameter:allocator");
+			json.WriteString("name", "allocator");
+			json.WriteString("modifier", "within");
+			json.WriteString("type", "Allocator*");
+			json.WriteEndObject();
+			json.WriteEndArray();
 		}
 
 		void WriteSyntheticInterfaceAccessor(Utf8JsonWriter json, ClassDefinition classDefinition, InterfaceDefinition interfaceDefinition)
@@ -1441,6 +1457,8 @@ public static class MetadataJsonSerializer
 				return true;
 			if (function.Export is null)
 				return false;
+			if (IsGeneratedLifecycleDefinition(function))
+				return false;
 			if (IsGeneratedApiImplementationDetail(function))
 				return false;
 			if (IsOverriddenApiMethod(function))
@@ -1462,6 +1480,12 @@ public static class MetadataJsonSerializer
 				|| function.GeneratedInfo?.Category == GeneratedDeclarationCategory.VirtualDispatch
 				|| IsGeneratedConstructorLifecycleFunction(function)
 				|| IsGeneratedVirtualImplementationFunction(function);
+		}
+
+		static bool IsGeneratedLifecycleDefinition(FunctionDefinition function)
+		{
+			return function.GeneratedInfo?.Category == GeneratedDeclarationCategory.Lifecycle
+				|| function.Provenance?.Category == GeneratedDeclarationCategory.Lifecycle;
 		}
 
 		static bool IsGeneratedConstructorLifecycleFunction(FunctionDefinition function)
@@ -1493,7 +1517,7 @@ public static class MetadataJsonSerializer
 
 			foreach (FunctionDefinition function in functions)
 			{
-				if (function.Modifier == FunctionModifier.Constructor && function.Export is not null)
+				if (!IsGeneratedLifecycleDefinition(function) && function.Modifier == FunctionModifier.Constructor && function.Export is not null)
 					return false;
 			}
 
@@ -1511,7 +1535,7 @@ public static class MetadataJsonSerializer
 
 			foreach (FunctionDefinition function in functions)
 			{
-				if (function.Modifier == FunctionModifier.Destructor && function.Export is not null)
+				if (!IsGeneratedLifecycleDefinition(function) && function.Modifier == FunctionModifier.Destructor && function.Export is not null)
 					return false;
 			}
 

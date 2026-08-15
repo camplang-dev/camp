@@ -159,19 +159,38 @@ public sealed partial class BindableNodeAnalyzer
 					continue;
 				}
 
-				ThisExpression target = new() { ResolvedType = $"{classDefinition.Name}*" };
-				CastExpression pointer = new()
-				{
-					Kind = CastKind.Type,
-					Type = PointerTo(VoidType()),
-					Expression = target,
-					ResolvedType = "void*"
-				};
 				function.Body = new BlockStatement { ResolvedType = "void" };
+				ParameterDefinition? allocatorParameter = GetAllocatorParameter(function);
+				DeclarationStatement? resolvedAllocatorLocal = null;
+				if (allocatorParameter is not null)
+				{
+					resolvedAllocatorLocal = CreateResolvedAllocatorLocal(allocatorParameter);
+					function.Body.Statements.Add(resolvedAllocatorLocal);
+				}
+
+				Expression freeCall;
+				if (resolvedAllocatorLocal is null)
+				{
+					CastExpression pointer = new()
+					{
+						Kind = CastKind.Type,
+						Type = PointerTo(VoidType()),
+						Expression = new ThisExpression { ResolvedType = $"{classDefinition.Name}*" },
+						ResolvedType = "void*"
+					};
+					freeCall = CreateUncheckedGlobalFreeCall(pointer);
+				}
+				else
+				{
+					freeCall = CreateFreeCall(
+						new ThisExpression { ResolvedType = $"{classDefinition.Name}*" },
+						CreateVariableReference(resolvedAllocatorLocal.Target, resolvedAllocatorLocal.Target.ResolvedType ?? allocatorParameter?.ResolvedType ?? "Allocator*"));
+				}
+
 				function.Body.Statements.Add(new ExpressionStatement
 				{
 					ResolvedType = "void",
-					Expression = CreateUncheckedGlobalFreeCall(pointer)
+					Expression = freeCall
 				});
 			}
 		}

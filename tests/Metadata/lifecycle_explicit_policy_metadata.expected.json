@@ -1,0 +1,86 @@
+{
+  "format": "camp.metadata",
+  "version": 1,
+  "module": {
+    "name": "lifecycle_explicit_policy_metadata"
+  },
+  "view": {
+    "visibility": "export",
+    "level": "api",
+    "generated": false
+  },
+  "declarations": [
+    {
+      "id": "class:ExplicitDefault",
+      "kind": "class",
+      "name": "ExplicitDefault",
+      "visibility": "export",
+      "extern": true,
+      "functions": [
+        {
+          "id": "class:ExplicitDefault/function:ExplicitDefault",
+          "name": "ExplicitDefault",
+          "visibility": "export",
+          "extern": true,
+          "modifier": "constructor",
+          "parameters": [
+            {
+              "id": "class:ExplicitDefault/function:ExplicitDefault/parameter:allocator",
+              "name": "allocator",
+              "modifier": "within",
+              "type": "Allocator*"
+            }
+          ]
+        },
+        {
+          "id": "class:ExplicitDefault/function:~ExplicitDefault",
+          "name": "~ExplicitDefault",
+          "visibility": "export",
+          "extern": true,
+          "modifier": "destructor",
+          "parameters": [
+            {
+              "id": "class:ExplicitDefault/function:~ExplicitDefault/parameter:allocator",
+              "name": "allocator",
+              "modifier": "within",
+              "type": "Allocator*"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "class:ExplicitConstructorOnly",
+      "kind": "class",
+      "name": "ExplicitConstructorOnly",
+      "visibility": "export",
+      "extern": true,
+      "functions": [
+        {
+          "id": "class:ExplicitConstructorOnly/function:~ExplicitConstructorOnly",
+          "name": "~ExplicitConstructorOnly",
+          "visibility": "export",
+          "extern": true,
+          "modifier": "destructor",
+          "parameters": [
+            {
+              "id": "class:ExplicitConstructorOnly/function:~ExplicitConstructorOnly/parameter:allocator",
+              "name": "allocator",
+              "modifier": "within",
+              "type": "Allocator*"
+            }
+          ]
+        },
+        {
+          "id": "class:ExplicitConstructorOnly/function:ExplicitConstructorOnly",
+          "name": "ExplicitConstructorOnly",
+          "symbol": "ExplicitConstructorOnly_ExplicitConstructorOnly",
+          "visibility": "export",
+          "extern": true,
+          "modifier": "constructor",
+          "returnType": "ExplicitConstructorOnly"
+        }
+      ]
+    }
+  ]
+}
