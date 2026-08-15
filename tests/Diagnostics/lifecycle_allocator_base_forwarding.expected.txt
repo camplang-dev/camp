@@ -1,0 +1,1 @@
+tests/Diagnostics/lifecycle_allocator_base_forwarding.camp(28,18): error: base(...) must be the first constructor action and may not be conditional or delayed.

@@ -1,0 +1,30 @@
+extern void* malloc(nuint size);
+extern void free(void* ptr);
+
+class Allocator
+{
+	void* alloc(nuint size)
+	{
+		return malloc(size);
+	}
+
+	void free(void* ptr)
+	{
+		free(ptr);
+	}
+}
+
+class BaseWithin
+{
+	BaseWithin(within allocator)
+	{
+	}
+}
+
+class DerivedWrongForwarding : BaseWithin
+{
+	DerivedWrongForwarding(within allocator, Allocator* other)
+	{
+		within (other) base();
+	}
+}

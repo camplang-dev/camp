@@ -2691,6 +2691,12 @@ public sealed partial class BindableNodeAnalyzer
 			: BodyAnalyzeExpression(within.Context, scope, typeScope, targetType);
 		if (within.Expression is null)
 			return contextType;
+		if (scope.CurrentFunction.Modifier == FunctionModifier.Constructor
+			&& within.Context is not DefaultWithinContextExpression
+			&& EnumerateBaseConstructorCalls(within.Expression).Any())
+		{
+			Report(GetRange(within.SourceSyntax), "Base constructor calls forward the constructor allocator automatically; do not wrap base() in a different within context.");
+		}
 		BodyScope withinScope = new(scope, scope.CurrentFunction, scope.ContainingType)
 		{
 			CurrentFunctionReturnType = scope.CurrentFunctionReturnType,
@@ -4935,18 +4941,35 @@ public sealed partial class BindableNodeAnalyzer
 		FunctionDefinition? baseInitNew = FindGeneratedInitNewMethod(baseClass);
 		if (baseInitNew is not null)
 		{
-			InsertImplicitBaseConstructorCall(function.Body, containingClass, baseClass, baseInitNew);
+			InsertImplicitBaseConstructorCall(function, function.Body, containingClass, baseClass, baseInitNew);
 			return;
 		}
 
 		if (TryGetAccessibleParameterlessConstructor(baseClass, out FunctionDefinition? parameterlessConstructor))
 		{
 			if (parameterlessConstructor is not null)
-				InsertImplicitBaseConstructorCall(function.Body, containingClass, baseClass, parameterlessConstructor);
+				InsertImplicitBaseConstructorCall(function, function.Body, containingClass, baseClass, parameterlessConstructor);
 			return;
 		}
 
 		Report(GetRange(function.Body.SourceSyntax ?? function.SourceSyntax), $"Constructor for class '{containingClass.Name}' must invoke a base constructor because base class '{baseClass.Name}' has no accessible parameterless constructor.");
+	}
+
+	void EnsureGeneratedConstructorAllocatorParameter(FunctionDefinition function, FunctionDefinition baseConstructor)
+	{
+		EnsureGeneratedConstructorAllocatorParameter(function, HasWithinParameter(baseConstructor));
+	}
+
+	void EnsureGeneratedConstructorAllocatorParameter(FunctionDefinition function, bool baseConstructorRequiresAllocator)
+	{
+		if (!baseConstructorRequiresAllocator || HasWithinParameter(function) || function.Body is null)
+		{
+			return;
+		}
+
+		ParameterDefinition allocator = CreateAllocatorParameter();
+		function.Parameters.Add(allocator);
+		function.Body.Statements.Insert(GetConstructorActionInsertIndex(function.Body), CreateResolvedAllocatorLocal(allocator));
 	}
 
 	bool IsGeneratedBaseInitCall(Expression? expression, ClassDefinition baseClass)
@@ -4956,9 +4979,10 @@ public sealed partial class BindableNodeAnalyzer
 			&& ReferenceEquals(FindContainingType(member), baseClass);
 	}
 
-	void InsertImplicitBaseConstructorCall(BlockStatement body, ClassDefinition containingClass, ClassDefinition baseClass, FunctionDefinition constructor)
+	void InsertImplicitBaseConstructorCall(FunctionDefinition function, BlockStatement body, ClassDefinition containingClass, ClassDefinition baseClass, FunctionDefinition constructor)
 	{
 		FunctionDefinition? initNew = FindGeneratedInitNewMethod(FindContainingType(constructor));
+		EnsureGeneratedConstructorAllocatorParameter(function, BaseConstructorsRequireWithin(baseClass) || HasWithinParameter(initNew ?? constructor));
 		CallExpression call = new()
 		{
 			Target = CreateBaseInitNewReference(constructor, initNew, containingClass, baseClass),
@@ -4967,11 +4991,30 @@ public sealed partial class BindableNodeAnalyzer
 		if (initNew is not null)
 			callTargets[call] = initNew;
 
-		body.Statements.Insert(0, new ExpressionStatement
+		body.Statements.Insert(GetConstructorActionInsertIndex(body), new ExpressionStatement
 		{
 			ResolvedType = "void",
 			Expression = call
 		});
+	}
+
+	int GetConstructorActionInsertIndex(BlockStatement body)
+	{
+		for (int i = 0; i < body.Statements.Count; i++)
+		{
+			Statement statement = body.Statements[i];
+			if (statement is EmptyStatement)
+				continue;
+			if (statement is DeclarationStatement { Target.Names: var names }
+				&& names.Count == 1
+				&& names[0] == "resolvedAllocator")
+				continue;
+			if (statement is ExpressionStatement { Expression: AssignmentExpression assignment }
+				&& generatedRetainedAllocatorAssignments.Contains(assignment))
+				continue;
+			return i;
+		}
+		return body.Statements.Count;
 	}
 
 	MemberReferenceExpression CreateBaseInitNewReference(FunctionDefinition constructor, FunctionDefinition? initNew, ClassDefinition containingClass, ClassDefinition baseClass)
@@ -5005,6 +5048,10 @@ public sealed partial class BindableNodeAnalyzer
 		foreach (Statement statement in body.Statements)
 		{
 			if (statement is EmptyStatement)
+				continue;
+			if (statement is DeclarationStatement { Target.Names: var names }
+				&& names.Count == 1
+				&& names[0] == "resolvedAllocator")
 				continue;
 
 			return statement is ExpressionStatement expressionStatement ? expressionStatement.Expression : null;

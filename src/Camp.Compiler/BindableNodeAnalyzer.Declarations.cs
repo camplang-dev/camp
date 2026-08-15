@@ -177,6 +177,48 @@ public sealed partial class BindableNodeAnalyzer
 		}
 	}
 
+	void ValidateClassAllocatorLifecycleShape(ClassDefinition definition)
+	{
+		bool retainsAllocator = LifecycleAllocatorPolicy.RetainsAllocator(definition.Functions);
+		List<FunctionDefinition> sourceConstructors = [.. definition.Functions.Where(static function => function.Modifier == FunctionModifier.Constructor && function.GeneratedInfo is null)];
+		List<FunctionDefinition> sourceDestructors = [.. definition.Functions.Where(function => IsDestructorFunction(function) && function.GeneratedInfo is null)];
+
+		if (!retainsAllocator)
+		{
+			bool anyConstructorWithin = sourceConstructors.Any(HasWithinParameter);
+			bool anyDestructorWithin = sourceDestructors.Any(HasWithinParameter);
+			foreach (FunctionDefinition destructor in sourceDestructors)
+			{
+				if (anyConstructorWithin && !HasWithinParameter(destructor))
+					Report(GetRange(destructor.SourceSyntax), "Destructor must declare a within allocator because an explicit constructor declares within.");
+			}
+			if (anyDestructorWithin)
+			{
+				foreach (FunctionDefinition constructor in sourceConstructors)
+					if (!HasWithinParameter(constructor))
+						Report(GetRange(constructor.SourceSyntax), "Constructor must declare a within allocator because the explicit destructor declares within.");
+			}
+		}
+
+		ClassDefinition? baseClass = GetDirectBaseClass(definition);
+		if (baseClass is null || !BaseConstructorsRequireWithin(baseClass))
+			return;
+
+		foreach (FunctionDefinition constructor in sourceConstructors)
+		{
+			if (!HasWithinParameter(constructor))
+				Report(GetRange(constructor.SourceSyntax), $"Constructor for derived class '{definition.Name}' must declare within because base class '{baseClass.Name}' has a within constructor.");
+		}
+	}
+
+	static bool BaseConstructorsRequireWithin(ClassDefinition baseClass)
+	{
+		foreach (FunctionDefinition function in baseClass.Functions)
+			if (function.Modifier == FunctionModifier.Constructor && HasWithinParameter(function))
+				return true;
+		return false;
+	}
+
 	void CollectTypeNames(Module module)
 	{
 		foreach (Definition definition in ActiveDefinitions(module))
@@ -491,6 +533,7 @@ public sealed partial class BindableNodeAnalyzer
 		foreach (FunctionDefinition function in definition.Functions)
 			AnalyzeFunctionDefinition(function, FunctionUsesStaticMemberScope(function) ? CreateStaticMemberScope(definition, parentScope) : scope, definition.Name);
 		ValidateClassRetainedAllocatorParameters(definition);
+		ValidateClassAllocatorLifecycleShape(definition);
 		ValidateDuplicateMethodNames(definition.Functions);
 		if (definition.Extern is null)
 		{

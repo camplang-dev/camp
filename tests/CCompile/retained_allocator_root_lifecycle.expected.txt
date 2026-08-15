@@ -1,0 +1,132 @@
+// file: retained_allocator_root_lifecycle.c
+#include "retained_allocator_root_lifecycle_private.h"
+
+/* Private file declarations. */
+void *malloc(uintptr_t size);
+void free(void *ptr);
+static void *Allocator_alloc(Allocator *this, uintptr_t size);
+static void Allocator_free(Allocator *this, void *ptr);
+static void Root_op_initnew(Root *this, Allocator *allocator);
+static Root *Root_create(Allocator *allocator);
+static void Root_op_delete(Root *this);
+static void Root_destroy(Root *this);
+static void Child_op_initnew(Child *this, Allocator *allocator);
+static Child *Child_create(Allocator *allocator);
+static int main(void);
+
+static void *Allocator_alloc(Allocator *this, uintptr_t size)
+{
+	return malloc(size);
+}
+
+static void Allocator_free(Allocator *this, void *ptr)
+{
+	free(ptr);
+}
+
+static void Root_op_initnew(Root *this, Allocator *allocator)
+{
+	this->allocator = allocator;
+	Allocator *resolvedAllocator = allocator;
+	this->value = 1;
+}
+
+static Root *Root_create(Allocator *allocator)
+{
+	Allocator *resolvedAllocator = allocator;
+	Root *_created0 = (Root *)(((resolvedAllocator != NULL) ? Allocator_alloc(resolvedAllocator, sizeof(Root)) : malloc(sizeof(Root))));
+	if ((_created0 != NULL))
+	{
+		*_created0 = (Root){0};
+		Root_op_initnew(_created0, allocator);
+	}
+	return _created0;
+}
+
+static void Root_op_delete(Root *this)
+{
+	this->value = 0;
+}
+
+static void Root_destroy(Root *this)
+{
+	Root_op_delete(this);
+	Allocator *resolvedAllocator = this->allocator;
+	((resolvedAllocator != NULL) ? Allocator_free(resolvedAllocator, (void *)(this)) : free((void *)(this)));
+}
+
+static void Child_op_initnew(Child *this, Allocator *allocator)
+{
+	Allocator *resolvedAllocator = allocator;
+	Root_op_initnew((Root *)(this), resolvedAllocator);
+	this->other = 2;
+}
+
+static Child *Child_create(Allocator *allocator)
+{
+	Allocator *resolvedAllocator = allocator;
+	Child *_created1 = (Child *)(((resolvedAllocator != NULL) ? Allocator_alloc(resolvedAllocator, sizeof(Child)) : malloc(sizeof(Child))));
+	if ((_created1 != NULL))
+	{
+		*_created1 = (Child){0};
+		Child_op_initnew(_created1, allocator);
+	}
+	return _created1;
+}
+
+static int main(void)
+{
+	Allocator *allocator = NULL;
+	{
+		Allocator *_allocator2 = allocator;
+		{
+			Child *child = Child_create(_allocator2);
+			Root *root = (Root *)(child);
+			Root_destroy(root);
+		}
+	}
+	return 0;
+}
+
+// file: retained_allocator_root_lifecycle_private.h
+#ifndef RETAINED_ALLOCATOR_ROOT_LIFECYCLE_PRIVATE_H_
+#define RETAINED_ALLOCATOR_ROOT_LIFECYCLE_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct Allocator Allocator;
+typedef struct Root Root;
+typedef struct Child Child;
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Layouts. */
+struct Allocator
+{
+	char _camp_empty;
+};
+struct Root
+{
+	int value;
+	Allocator *allocator;
+};
+struct Child
+{
+	int value;
+	Allocator *allocator;
+	int other;
+};
+
+/* Function declarations. */
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: retained_allocator_root_lifecycle.c

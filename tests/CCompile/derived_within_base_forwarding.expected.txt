@@ -1,0 +1,173 @@
+// file: derived_within_base_forwarding.c
+#include "derived_within_base_forwarding_private.h"
+
+/* Private file declarations. */
+void *malloc(uintptr_t size);
+void free(void *ptr);
+static void *Allocator_alloc(Allocator *this, uintptr_t size);
+static void Allocator_free(Allocator *this, void *ptr);
+static void Base_op_initnew(Base *this, Allocator *allocator);
+static Base *Base_create(Allocator *allocator);
+static void ImplicitDerived_op_initnew(ImplicitDerived *this, Allocator *allocator);
+static ImplicitDerived *ImplicitDerived_create(Allocator *allocator);
+static void ExplicitDerived_op_initnew(ExplicitDerived *this, Allocator *allocator);
+static ExplicitDerived *ExplicitDerived_create(Allocator *allocator);
+static void GeneratedDerived_op_initnew(GeneratedDerived *this, Allocator *allocator);
+static int main(void);
+
+static void *Allocator_alloc(Allocator *this, uintptr_t size)
+{
+	return malloc(size);
+}
+
+static void Allocator_free(Allocator *this, void *ptr)
+{
+	free(ptr);
+}
+
+static void Base_op_initnew(Base *this, Allocator *allocator)
+{
+	Allocator *resolvedAllocator = allocator;
+	this->value = 1;
+}
+
+static Base *Base_create(Allocator *allocator)
+{
+	Allocator *resolvedAllocator = allocator;
+	Base *_created0 = (Base *)(((resolvedAllocator != NULL) ? Allocator_alloc(resolvedAllocator, sizeof(Base)) : malloc(sizeof(Base))));
+	if ((_created0 != NULL))
+	{
+		*_created0 = (Base){0};
+		Base_op_initnew(_created0, allocator);
+	}
+	return _created0;
+}
+
+static void ImplicitDerived_op_initnew(ImplicitDerived *this, Allocator *allocator)
+{
+	Allocator *resolvedAllocator = allocator;
+	Base_op_initnew((Base *)(this), resolvedAllocator);
+	this->other = 2;
+}
+
+static ImplicitDerived *ImplicitDerived_create(Allocator *allocator)
+{
+	Allocator *resolvedAllocator = allocator;
+	ImplicitDerived *_created1 = (ImplicitDerived *)(((resolvedAllocator != NULL) ? Allocator_alloc(resolvedAllocator, sizeof(ImplicitDerived)) : malloc(sizeof(ImplicitDerived))));
+	if ((_created1 != NULL))
+	{
+		*_created1 = (ImplicitDerived){0};
+		ImplicitDerived_op_initnew(_created1, allocator);
+	}
+	return _created1;
+}
+
+static void ExplicitDerived_op_initnew(ExplicitDerived *this, Allocator *allocator)
+{
+	Allocator *resolvedAllocator = allocator;
+	Base_op_initnew((Base *)(this), resolvedAllocator);
+	this->other = 3;
+}
+
+static ExplicitDerived *ExplicitDerived_create(Allocator *allocator)
+{
+	Allocator *resolvedAllocator = allocator;
+	ExplicitDerived *_created2 = (ExplicitDerived *)(((resolvedAllocator != NULL) ? Allocator_alloc(resolvedAllocator, sizeof(ExplicitDerived)) : malloc(sizeof(ExplicitDerived))));
+	if ((_created2 != NULL))
+	{
+		*_created2 = (ExplicitDerived){0};
+		ExplicitDerived_op_initnew(_created2, allocator);
+	}
+	return _created2;
+}
+
+static void GeneratedDerived_op_initnew(GeneratedDerived *this, Allocator *allocator)
+{
+	Allocator *resolvedAllocator = allocator;
+	Base_op_initnew((Base *)(this), resolvedAllocator);
+}
+
+static int main(void)
+{
+	Allocator *allocator = NULL;
+	{
+		Allocator *_allocator3 = allocator;
+		{
+			ImplicitDerived *implicitDerived = (ImplicitDerived *)(((_allocator3 != NULL) ? Allocator_alloc(_allocator3, sizeof(ImplicitDerived)) : malloc(sizeof(ImplicitDerived))));
+			if ((implicitDerived != NULL))
+			{
+				*implicitDerived = (ImplicitDerived){0};
+				ImplicitDerived_op_initnew(implicitDerived, _allocator3);
+			}
+			ExplicitDerived *explicitDerived = (ExplicitDerived *)(((_allocator3 != NULL) ? Allocator_alloc(_allocator3, sizeof(ExplicitDerived)) : malloc(sizeof(ExplicitDerived))));
+			if ((explicitDerived != NULL))
+			{
+				*explicitDerived = (ExplicitDerived){0};
+				ExplicitDerived_op_initnew(explicitDerived, _allocator3);
+			}
+			GeneratedDerived *generatedDerived = (GeneratedDerived *)(((_allocator3 != NULL) ? Allocator_alloc(_allocator3, sizeof(GeneratedDerived)) : malloc(sizeof(GeneratedDerived))));
+			if ((generatedDerived != NULL))
+			{
+				*generatedDerived = (GeneratedDerived){0};
+				GeneratedDerived_op_initnew(generatedDerived, _allocator3);
+			}
+			((_allocator3 != NULL) ? Allocator_free(_allocator3, (void *)(implicitDerived)) : free((void *)(implicitDerived)));
+			((_allocator3 != NULL) ? Allocator_free(_allocator3, (void *)(explicitDerived)) : free((void *)(explicitDerived)));
+			((_allocator3 != NULL) ? Allocator_free(_allocator3, (void *)(generatedDerived)) : free((void *)(generatedDerived)));
+		}
+	}
+	return 0;
+}
+
+// file: derived_within_base_forwarding_private.h
+#ifndef DERIVED_WITHIN_BASE_FORWARDING_PRIVATE_H_
+#define DERIVED_WITHIN_BASE_FORWARDING_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct Allocator Allocator;
+typedef struct Base Base;
+typedef struct ImplicitDerived ImplicitDerived;
+typedef struct ExplicitDerived ExplicitDerived;
+typedef struct GeneratedDerived GeneratedDerived;
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Layouts. */
+struct Allocator
+{
+	char _camp_empty;
+};
+struct Base
+{
+	int value;
+};
+struct ImplicitDerived
+{
+	int value;
+	int other;
+};
+struct ExplicitDerived
+{
+	int value;
+	int other;
+};
+struct GeneratedDerived
+{
+	int value;
+	int other;
+};
+
+/* Function declarations. */
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: derived_within_base_forwarding.c

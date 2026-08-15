@@ -1,0 +1,39 @@
+class Allocator
+{
+}
+
+class ConstructorWithinDestructorWithout
+{
+	ConstructorWithinDestructorWithout(within allocator)
+	{
+	}
+
+	~ConstructorWithinDestructorWithout()
+	{
+	}
+}
+
+class DestructorWithinConstructorWithout
+{
+	DestructorWithinConstructorWithout()
+	{
+	}
+
+	~DestructorWithinConstructorWithout(within allocator)
+	{
+	}
+}
+
+class BaseWithin
+{
+	BaseWithin(within allocator)
+	{
+	}
+}
+
+class DerivedMissingWithin : BaseWithin
+{
+	DerivedMissingWithin()
+	{
+	}
+}

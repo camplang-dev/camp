@@ -1,0 +1,53 @@
+extern void* malloc(nuint size);
+extern void free(void* ptr);
+
+class Allocator
+{
+	void* alloc(nuint size)
+	{
+		return malloc(size);
+	}
+
+	void free(void* ptr)
+	{
+		free(ptr);
+	}
+}
+
+escaped class Root
+{
+	Root(within this.allocator)
+	{
+		this.value = 1;
+	}
+
+	~Root()
+	{
+		this.value = 0;
+	}
+
+	int value;
+}
+
+escaped class Child : Root
+{
+	Child(within allocator)
+	{
+		base();
+		this.other = 2;
+	}
+
+	int other;
+}
+
+int main()
+{
+	Allocator* allocator = null;
+	within (allocator)
+	{
+		Child* child = Child.create();
+		Root* root = (Root*)child;
+		root.destroy();
+	}
+	return 0;
+}

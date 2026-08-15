@@ -546,6 +546,12 @@ public sealed partial class BindableNodeAnalyzer
 		FunctionDefinition? initNew = FindGeneratedInitNewMethod(classDefinition);
 		if (initNew?.Body is null || initNew.Body.Statements.Count > 0)
 			return;
+		if (HasWithinParameter(baseInitNew) && !HasWithinParameter(initNew))
+		{
+			ParameterDefinition allocator = CreateAllocatorParameter();
+			initNew.Parameters.Add(allocator);
+			initNew.Body.Statements.Add(CreateResolvedAllocatorLocal(allocator));
+		}
 
 		CallExpression call = new()
 		{
@@ -1893,6 +1899,11 @@ public sealed partial class BindableNodeAnalyzer
 			SourceSyntax = classDefinition.SourceSyntax,
 			ResolvedType = "void"
 		};
+		if (GetDirectBaseClass(classDefinition) is ClassDefinition baseClass
+			&& BaseConstructorsRequireWithin(baseClass))
+		{
+			method.Parameters.Add(CreateAllocatorParameter());
+		}
 		return method;
 	}
 

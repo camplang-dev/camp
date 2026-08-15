@@ -1,0 +1,66 @@
+extern void* malloc(nuint size);
+extern void free(void* ptr);
+
+class Allocator
+{
+	void* alloc(nuint size)
+	{
+		return malloc(size);
+	}
+
+	void free(void* ptr)
+	{
+		free(ptr);
+	}
+}
+
+class Base
+{
+	Base(within allocator)
+	{
+		this.value = 1;
+	}
+
+	int value;
+}
+
+class ImplicitDerived : Base
+{
+	ImplicitDerived(within allocator)
+	{
+		this.other = 2;
+	}
+
+	int other;
+}
+
+class ExplicitDerived : Base
+{
+	ExplicitDerived(within allocator)
+	{
+		base();
+		this.other = 3;
+	}
+
+	int other;
+}
+
+class GeneratedDerived : Base
+{
+	int other;
+}
+
+int main()
+{
+	Allocator* allocator = null;
+	within (allocator)
+	{
+		ImplicitDerived* implicitDerived = new ImplicitDerived();
+		ExplicitDerived* explicitDerived = new ExplicitDerived();
+		GeneratedDerived* generatedDerived = new GeneratedDerived();
+		delete implicitDerived;
+		delete explicitDerived;
+		delete generatedDerived;
+	}
+	return 0;
+}
