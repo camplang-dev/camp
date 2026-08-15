@@ -1473,7 +1473,7 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		foreach (FunctionDefinition function in GetFunctions(type))
 		{
-			if (IsInterfaceLifecycleMember(interfaceMember) && BuildMethodSignature(function).Equals(BuildMethodSignature(interfaceMember)))
+			if (IsInterfaceLifecycleMember(interfaceMember) && BuildMethodSignature(function, includeLifecycleWithin: true).Equals(BuildMethodSignature(interfaceMember, includeLifecycleWithin: true)))
 				return function;
 
 			if (IsMarkedInterfaceImplementation(function, interfaceMember))
@@ -1489,7 +1489,10 @@ public sealed partial class BindableNodeAnalyzer
 			if (function.InterfaceImplementationMember == interfaceMember)
 				return true;
 			return GetCallableName(function.InterfaceImplementationMember) == GetCallableName(interfaceMember)
-				&& MethodSignatureCompatibleWithConstOfVariance(BuildMethodSignature(function.InterfaceImplementationMember), BuildMethodSignature(interfaceMember), compareName: function.InterfaceImplementationSlotName is null);
+				&& MethodSignatureCompatibleWithConstOfVariance(
+					BuildMethodSignature(function.InterfaceImplementationMember, includeLifecycleWithin: IsInterfaceLifecycleMember(interfaceMember)),
+					BuildMethodSignature(interfaceMember, includeLifecycleWithin: IsInterfaceLifecycleMember(interfaceMember)),
+					compareName: function.InterfaceImplementationSlotName is null);
 		}
 
 		if (function.CallableAscriptionType is null || FindContainingType(interfaceMember) is not InterfaceDefinition interfaceDefinition)
@@ -1499,7 +1502,10 @@ public sealed partial class BindableNodeAnalyzer
 			return false;
 		string slotName = function.InterfaceImplementationSlotName ?? GetCallableName(function);
 		return slotName == GetCallableName(interfaceMember)
-			&& MethodSignatureCompatibleWithConstOfVariance(BuildMethodSignature(function), BuildMethodSignature(interfaceMember), compareName: function.InterfaceImplementationSlotName is null);
+			&& MethodSignatureCompatibleWithConstOfVariance(
+				BuildMethodSignature(function, includeLifecycleWithin: IsInterfaceLifecycleMember(interfaceMember)),
+				BuildMethodSignature(interfaceMember, includeLifecycleWithin: IsInterfaceLifecycleMember(interfaceMember)),
+				compareName: function.InterfaceImplementationSlotName is null);
 	}
 
 	static void EnsureImplementationMethodSymbol(TypeDefinition type, FunctionDefinition function)

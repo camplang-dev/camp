@@ -1,0 +1,2 @@
+tests/Diagnostics/interface_lifecycle_destructor_shape.camp(15,7): error: Type 'PlainNeedsNoWithin' does not implement interface member 'IPlainDestroy.#DESTROY()'.
+tests/Diagnostics/interface_lifecycle_destructor_shape.camp(22,7): error: Type 'AllocatorNeedsWithin' does not implement interface member 'IAllocatorDestroy.#DESTROY(Within:Allocator*)'.

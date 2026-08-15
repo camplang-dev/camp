@@ -1121,12 +1121,7 @@ public sealed partial class BindableNodeBuilder
 		}
 
 		if (definition.Parameters.Count == 0)
-		{
-			if (isInterface)
-				Report((SyntaxNode?)syntax.ParameterList ?? syntax, "Interface destructors must declare a within parameter.");
-
 			return;
-		}
 
 		if (!IsWithinParameter(definition.Parameters[0]))
 			Report(definition.Parameters[0].SourceSyntax ?? syntax, "Destructor parameter must be a within parameter.");

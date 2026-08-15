@@ -1,0 +1,79 @@
+{
+  "format": "camp.metadata",
+  "version": 1,
+  "module": {
+    "name": "interface_lifecycle_destructor_shapes"
+  },
+  "view": {
+    "visibility": "export",
+    "level": "api",
+    "generated": false
+  },
+  "declarations": [
+    {
+      "id": "class:Allocator",
+      "kind": "class",
+      "name": "Allocator",
+      "visibility": "export",
+      "extern": true,
+      "functions": [
+        {
+          "id": "class:Allocator/function:Allocator",
+          "name": "Allocator",
+          "visibility": "export",
+          "extern": true,
+          "modifier": "constructor"
+        },
+        {
+          "id": "class:Allocator/function:~Allocator",
+          "name": "~Allocator",
+          "visibility": "export",
+          "extern": true,
+          "modifier": "destructor"
+        }
+      ]
+    },
+    {
+      "id": "interface:IPlainDestroy",
+      "kind": "interface",
+      "name": "IPlainDestroy",
+      "visibility": "export",
+      "functions": [
+        {
+          "id": "interface:IPlainDestroy/function:~IPlainDestroy",
+          "name": "~IPlainDestroy",
+          "symbol": "IPlainDestroy_IPlainDestroy",
+          "visibility": "export",
+          "extern": true,
+          "modifier": "destructor",
+          "returnType": "void"
+        }
+      ]
+    },
+    {
+      "id": "interface:IAllocatorDestroy",
+      "kind": "interface",
+      "name": "IAllocatorDestroy",
+      "visibility": "export",
+      "functions": [
+        {
+          "id": "interface:IAllocatorDestroy/function:~IAllocatorDestroy",
+          "name": "~IAllocatorDestroy",
+          "symbol": "IAllocatorDestroy_IAllocatorDestroy",
+          "visibility": "export",
+          "extern": true,
+          "modifier": "destructor",
+          "returnType": "void",
+          "parameters": [
+            {
+              "id": "interface:IAllocatorDestroy/function:~IAllocatorDestroy/parameter:allocator",
+              "name": "allocator",
+              "modifier": "within",
+              "type": "Allocator*"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

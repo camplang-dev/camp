@@ -629,7 +629,7 @@ public sealed partial class BindableNodeAnalyzer
 		}
 	}
 
-	MethodSignature BuildMethodSignature(FunctionDefinition function)
+	MethodSignature BuildMethodSignature(FunctionDefinition function, bool includeLifecycleWithin = false)
 	{
 		List<string> parameterTypes = [];
 		string receiverContract = "";
@@ -646,7 +646,7 @@ public sealed partial class BindableNodeAnalyzer
 				continue;
 			}
 
-			if (isLifecycleMember && i == function.Parameters.Count - 1 && IsWithinParameter(parameter))
+			if (!includeLifecycleWithin && isLifecycleMember && i == function.Parameters.Count - 1 && IsWithinParameter(parameter))
 				continue;
 
 			parameterTypes.Add($"{parameter.Modifier}:{GetSignatureParameterType(parameter, anchors)}");

@@ -1,0 +1,16 @@
+export extern class Allocator
+{
+	export extern Allocator();
+
+	export extern ~Allocator();
+}
+
+export interface IPlainDestroy
+{
+	export ~IPlainDestroy();
+}
+
+export interface IAllocatorDestroy
+{
+	export ~IAllocatorDestroy(within allocator);
+}

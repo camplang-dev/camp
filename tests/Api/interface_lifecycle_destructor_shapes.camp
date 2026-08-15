@@ -1,0 +1,16 @@
+extern void* malloc(nuint size);
+extern void free(void* ptr);
+
+export class Allocator
+{
+}
+
+export interface IPlainDestroy
+{
+	export ~IPlainDestroy();
+}
+
+export interface IAllocatorDestroy
+{
+	export ~IAllocatorDestroy(within allocator);
+}

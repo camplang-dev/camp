@@ -514,7 +514,7 @@ public sealed partial class BindableNodeAnalyzer
 			if (member.InterfaceSlotInitializer is not null)
 				continue;
 
-			MethodSignature required = BuildMethodSignature(member);
+			MethodSignature required = BuildMethodSignature(member, includeLifecycleWithin: IsInterfaceLifecycleMember(member));
 			if (FindInterfaceImplementation(implementation, member) is null)
 			{
 				if (FindUnmarkedSameNameInterfaceCandidate(implementation, member) is FunctionDefinition candidate)
@@ -565,8 +565,8 @@ public sealed partial class BindableNodeAnalyzer
 
 			FunctionDefinition member = slots[0];
 			function.InterfaceImplementationMember = member;
-			MethodSignature declared = BuildMethodSignature(function);
-			MethodSignature required = BuildMethodSignature(member);
+			MethodSignature declared = BuildMethodSignature(function, includeLifecycleWithin: IsInterfaceLifecycleMember(member));
+			MethodSignature required = BuildMethodSignature(member, includeLifecycleWithin: IsInterfaceLifecycleMember(member));
 			if (!MethodSignatureCompatibleWithConstOfVariance(declared, required, compareName: function.InterfaceImplementationSlotName is null))
 			{
 				Report(GetNameRange(function), $"Method '{declared.DisplayName}' is not compatible with interface member '{interfaceDefinition.Name}.{required.DisplayName}'.");
@@ -628,10 +628,10 @@ public sealed partial class BindableNodeAnalyzer
 
 	FunctionDefinition? FindLifecycleInterfaceImplementation(TypeDefinition implementation, FunctionDefinition member)
 	{
-		MethodSignature required = BuildMethodSignature(member);
+		MethodSignature required = BuildMethodSignature(member, includeLifecycleWithin: IsInterfaceLifecycleMember(member));
 		foreach (FunctionDefinition function in GetFunctions(implementation))
 		{
-			if (BuildMethodSignature(function).Equals(required))
+			if (BuildMethodSignature(function, includeLifecycleWithin: IsInterfaceLifecycleMember(member)).Equals(required))
 				return function;
 		}
 
@@ -639,7 +639,7 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			foreach (FunctionDefinition function in GetInheritedClassMethods(classDefinition))
 			{
-				if (BuildMethodSignature(function).Equals(required))
+				if (BuildMethodSignature(function, includeLifecycleWithin: IsInterfaceLifecycleMember(member)).Equals(required))
 					return function;
 			}
 		}
@@ -1016,7 +1016,7 @@ public sealed partial class BindableNodeAnalyzer
 	void ValidateDerivedOptionalInterfaceMethods(ClassDefinition definition)
 	{
 		List<MethodSignature> inheritedClassSignatures = GetInheritedClassMethods(definition)
-			.Select(BuildMethodSignature)
+			.Select(function => BuildMethodSignature(function))
 			.ToList();
 		HashSet<string> reported = [];
 

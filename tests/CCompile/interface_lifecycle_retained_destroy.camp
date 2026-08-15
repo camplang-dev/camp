@@ -1,0 +1,47 @@
+extern void* malloc(nuint size);
+extern void free(void* ptr);
+
+class Allocator
+{
+	void* alloc(nuint size)
+	{
+		return malloc(size);
+	}
+
+	void free(void* ptr)
+	{
+		free(ptr);
+	}
+}
+
+interface IRetainedDestroy
+{
+	~IRetainedDestroy();
+}
+
+class Retained: IRetainedDestroy
+{
+	Retained(within this.allocator)
+	{
+		this.value = 1;
+	}
+
+	~Retained()
+	{
+		this.value = 0;
+	}
+
+	int value;
+}
+
+int main()
+{
+	Allocator* allocator = null;
+	within (allocator)
+	{
+		Retained* retained = Retained.create();
+		IRetainedDestroy* iface = retained;
+		retained.destroy();
+	}
+	return 0;
+}

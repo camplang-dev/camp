@@ -1,0 +1,121 @@
+// file: interface_lifecycle_retained_destroy.c
+#include "interface_lifecycle_retained_destroy_private.h"
+
+/* Private file declarations. */
+void *malloc(uintptr_t size);
+void free(void *ptr);
+static void *Allocator_alloc(Allocator *this, uintptr_t size);
+static void Allocator_free(Allocator *this, void *ptr);
+static void Retained_op_initnew(Retained *this, Allocator *allocator);
+static Retained *Retained_create(Allocator *allocator);
+static void Retained_op_delete(Retained *this);
+static void Retained_destroy(Retained *this);
+static IRetainedDestroy **Retained_getIRetainedDestroy(const Retained *this);
+static int main(void);
+static const IRetainedDestroy Retained_IRetainedDestroy__storage;
+static const IRetainedDestroy *Retained_IRetainedDestroy;
+
+static const IRetainedDestroy Retained_IRetainedDestroy__storage = { .destroy = (void (*)(IRetainedDestroy **arg0))Retained_destroy };
+static const IRetainedDestroy *Retained_IRetainedDestroy = &Retained_IRetainedDestroy__storage;
+static void *Allocator_alloc(Allocator *this, uintptr_t size)
+{
+	return malloc(size);
+}
+
+static void Allocator_free(Allocator *this, void *ptr)
+{
+	free(ptr);
+}
+
+static void Retained_op_initnew(Retained *this, Allocator *allocator)
+{
+	this->_vt_IRetainedDestroy = Retained_IRetainedDestroy;
+	this->allocator = allocator;
+	Allocator *resolvedAllocator = allocator;
+	this->value = 1;
+}
+
+static Retained *Retained_create(Allocator *allocator)
+{
+	Allocator *resolvedAllocator = allocator;
+	Retained *_created0 = (Retained *)(((resolvedAllocator != NULL) ? Allocator_alloc(resolvedAllocator, sizeof(Retained)) : malloc(sizeof(Retained))));
+	if ((_created0 != NULL))
+	{
+		*_created0 = (Retained){0};
+		Retained_op_initnew(_created0, allocator);
+	}
+	return _created0;
+}
+
+static void Retained_op_delete(Retained *this)
+{
+	this->value = 0;
+}
+
+static void Retained_destroy(Retained *this)
+{
+	Retained_op_delete(this);
+	Allocator *resolvedAllocator = this->allocator;
+	((resolvedAllocator != NULL) ? Allocator_free(resolvedAllocator, (void *)(this)) : free((void *)(this)));
+}
+
+static IRetainedDestroy **Retained_getIRetainedDestroy(const Retained *this)
+{
+	return (IRetainedDestroy **)(&this->_vt_IRetainedDestroy);
+}
+
+static int main(void)
+{
+	Allocator *allocator = NULL;
+	{
+		Allocator *_allocator1 = allocator;
+		{
+			Retained *retained = Retained_create(_allocator1);
+			IRetainedDestroy **iface = Retained_getIRetainedDestroy(retained);
+			Retained_destroy(retained);
+		}
+	}
+	return 0;
+}
+
+// file: interface_lifecycle_retained_destroy_private.h
+#ifndef INTERFACE_LIFECYCLE_RETAINED_DESTROY_PRIVATE_H_
+#define INTERFACE_LIFECYCLE_RETAINED_DESTROY_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct Allocator Allocator;
+typedef struct IRetainedDestroy IRetainedDestroy;
+typedef struct Retained Retained;
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Layouts. */
+struct IRetainedDestroy
+{
+	void (* destroy)(IRetainedDestroy **ctx);
+};
+struct Allocator
+{
+	char _camp_empty;
+};
+struct Retained
+{
+	const IRetainedDestroy *_vt_IRetainedDestroy;
+	int value;
+	Allocator *allocator;
+};
+
+/* Function declarations. */
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: interface_lifecycle_retained_destroy.c
