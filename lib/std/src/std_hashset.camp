@@ -18,13 +18,11 @@ public class HashSet<K: copyable>
 	nuint length;
 	nuint used;
 	nuint firstFree;
-	Allocator* allocator;
 
 	/// Initializes an empty set with a hash policy and remembers the allocator used for storage.
-	public HashSet(HashPolicy<K> policy, within allocator, sizeof(K))
+	public HashSet(HashPolicy<K> policy, within this.allocator, sizeof(K))
 	{
 		this.policy = policy;
-		this.allocator = (unscoped(this))allocator;
 	}
 
 	/// Releases all allocated storage.

@@ -133,8 +133,8 @@ public sealed partial class BindableNodeAnalyzer
 					SourceSyntax = parameter.SourceSyntax,
 					Name = fieldName,
 					Symbol = fieldName,
-					Type = new AllocatorTypeReference { ResolvedType = AllocatorType },
-					ResolvedType = AllocatorType,
+					Type = TypeReferenceForResolvedType("Allocator*"),
+					ResolvedType = "Allocator*",
 					GeneratedInfo = new GeneratedDeclarationInfo(GeneratedDeclarationCategory.Lifecycle, "retained allocator field", parameter)
 				};
 				parameter.RetainedAllocatorField = field;

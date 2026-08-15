@@ -11,14 +11,12 @@ public class List<T: copyable>
 {
 	T[] items;
 	nuint length;
-	Allocator* allocator;
 
 	/// Initializes an empty list and remembers the allocator used for storage.
-	public List(within allocator, sizeof(T))
+	public List(within this.allocator, sizeof(T))
 	{
 		this.items = default;
 		this.length = 0;
-		this.allocator = allocator;
 	}
 
 	/// Releases the allocated element buffer, if any.
@@ -120,7 +118,7 @@ public class List<T: copyable>
 	/// Allocates a new list and copies a range of items into it.
 	public escaped List<T>* copyList(@range nuint startAt = 0, nuint count = ^0)
 	{
-		auto copy = within (this.allocator) new List<T>();
+		List<T>* copy = within (this.allocator) new List<T>();
 		if (copy == null)
 			return null;
 

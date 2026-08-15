@@ -1,0 +1,94 @@
+using Std;
+
+int outstandingAllocations = 0;
+int allocCalls = 0;
+int reallocCalls = 0;
+int freeCalls = 0;
+
+void resetTracking()
+{
+	outstandingAllocations = 0;
+	allocCalls = 0;
+	reallocCalls = 0;
+	freeCalls = 0;
+}
+
+void* trackingAlloc(Allocator* allocator, nuint size)
+{
+	allocCalls++;
+	if (size != 0)
+		outstandingAllocations++;
+
+	return malloc(size);
+}
+
+void* trackingRealloc(Allocator* allocator, void* ptr, nuint newSize)
+{
+	reallocCalls++;
+	if (ptr == null && newSize != 0)
+		outstandingAllocations++;
+	else if (ptr != null && newSize == 0)
+		outstandingAllocations--;
+
+	return realloc(ptr, newSize);
+}
+
+void trackingFree(Allocator* allocator, void* ptr)
+{
+	freeCalls++;
+	if (ptr != null)
+		outstandingAllocations--;
+
+	free(ptr);
+}
+
+Allocator TrackingAllocator =
+{
+	.alloc = trackingAlloc,
+	.realloc = trackingRealloc,
+	.free = trackingFree
+};
+
+export int main()
+{
+	resetTracking();
+
+	Allocator* allocator = &TrackingAllocator;
+	within (allocator)
+	{
+		auto list = new List<int>();
+		for (int i = 0; i < 12; i++)
+			list.add(i);
+		auto copy = list.copyList();
+		if (copy == null || copy.Length != list.Length)
+			return 1;
+		delete copy;
+		delete list;
+
+		auto map = new HashMap<int, int>(int.HASH_POLICY);
+		for (int j = 0; j < 20; j++)
+			map.Item[j] = j * 10;
+		int seven = 7;
+		if (map.Length != 20 || map.Item[seven] != 70)
+			return 2;
+		delete map;
+
+		auto set = new HashSet<int>(int.HASH_POLICY);
+		for (int k = 0; k < 20; k++)
+			set.add(k);
+		if (set.Length != 20 || !set.contains(11))
+			return 3;
+		delete set;
+	}
+
+	if (allocCalls < 4)
+		return 4;
+	if (reallocCalls < 3)
+		return 5;
+	if (freeCalls < 4)
+		return 6;
+	if (outstandingAllocations != 0)
+		return 7;
+
+	return 0;
+}

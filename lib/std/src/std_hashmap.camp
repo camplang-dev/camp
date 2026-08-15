@@ -19,13 +19,11 @@ public class HashMap<K: copyable, V: copyable>
 	nuint length;
 	nuint used;
 	nuint firstFree;
-	Allocator* allocator;
 
 	/// Initializes an empty map with a key hash policy and remembers the allocator used for storage.
-	public HashMap(HashPolicy<K> policy, within allocator, sizeof(K), sizeof(V))
+	public HashMap(HashPolicy<K> policy, within this.allocator, sizeof(K), sizeof(V))
 	{
 		this.policy = policy;
-		this.allocator = (unscoped(this))allocator;
 	}
 
 	/// Releases all allocated storage.

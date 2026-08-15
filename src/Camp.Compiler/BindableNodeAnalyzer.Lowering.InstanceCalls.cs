@@ -439,8 +439,12 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		return receiver switch
 		{
+			{ ResolvedType: string resolvedReceiverType } => resolvedReceiverType,
+			VariableReferenceExpression { Variable: DeclarationTarget { ResolvedType: string resolvedDeclarationType } } => resolvedDeclarationType,
 			VariableReferenceExpression { Variable: DeclarationTarget { Type.ResolvedType: string declarationType } } => declarationType,
+			VariableReferenceExpression { Variable: VariableDefinition { ResolvedType: string resolvedVariableType } } => resolvedVariableType,
 			VariableReferenceExpression { Variable: VariableDefinition { Type.ResolvedType: string variableType } } => variableType,
+			VariableReferenceExpression { Variable: ParameterDefinition { ResolvedType: string resolvedParameterType } } => resolvedParameterType,
 			VariableReferenceExpression { Variable: ParameterDefinition { Type.ResolvedType: string parameterType } } => parameterType,
 			VariableReferenceExpression { Variable.ResolvedType: string variableType } => variableType,
 			MemberReferenceExpression { Member: FieldDefinition { Type.ResolvedType: string fieldType } } => fieldType,
