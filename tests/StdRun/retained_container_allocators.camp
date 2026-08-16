@@ -68,8 +68,7 @@ export int main()
 		auto map = new HashMap<int, int>(int.HASH_POLICY);
 		for (int j = 0; j < 20; j++)
 			map.Item[j] = j * 10;
-		int seven = 7;
-		if (map.Length != 20 || map.Item[seven] != 70)
+		if (map.Length != 20 || map.Item[7] != 70)
 			return 2;
 		delete map;
 

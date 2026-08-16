@@ -6247,7 +6247,7 @@ public static class CCodeEmitter
 			{
 				string? receiverType = call.Target is MemberReferenceExpression member
 					? member.Target?.ResolvedType
-					: RequiresImplicitThisParameter(function) && call.Arguments.Count > 0
+					: FunctionUsesThisArgument(function) && call.Arguments.Count > 0
 						? call.Arguments[0].Value?.ResolvedType
 						: null;
 				if (receiverType is not null)
@@ -6260,6 +6260,13 @@ public static class CCodeEmitter
 			}
 
 			return substitutions;
+		}
+
+		bool FunctionUsesThisArgument(FunctionDefinition function)
+		{
+			if (RequiresImplicitThisParameter(function))
+				return true;
+			return function.Parameters.Count > 0 && function.Parameters[0].Symbol == "this";
 		}
 
 		void AddCallArgumentGenericSubstitutions(CallExpression call, FunctionDefinition function, Dictionary<string, string> substitutions)
