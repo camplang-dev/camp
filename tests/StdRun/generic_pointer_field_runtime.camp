@@ -1,0 +1,15 @@
+using Std;
+
+struct Holder<T: copyable>
+{
+	T* value;
+}
+
+export int main()
+{
+	int source = 42;
+	Holder<int> holder = { .value = &source };
+	int observed = *holder.value;
+	Console.writeLine(observed);
+	return observed == 42 ? 0 : 1;
+}

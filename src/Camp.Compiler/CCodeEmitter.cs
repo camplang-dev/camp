@@ -7170,6 +7170,9 @@ public static class CCodeEmitter
 			}
 
 			string operand = FormatExpression(unary.Operand);
+			if (unary.Operator == UnaryOperator.PointerDereference
+				&& TryFormatSubstitutedGenericFieldPointerTarget(unary.Operand, operand, out string castedOperand))
+				operand = castedOperand;
 			return unary.Operator switch
 			{
 				UnaryOperator.Plus => "+" + operand,
