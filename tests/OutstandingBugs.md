@@ -32,30 +32,3 @@ native C error.
 Current workaround: do not retain addresses of `in T` parameters. Require an
 explicit pointer-bearing parameter whose lifetime is valid for the target
 storage.
-
-## BUG-080: Iterator lowering collides locals with the same source name in disjoint block scopes
-
-Status: open
-
-Observed while smoke-testing bytecode decoder iterators. Same-named local
-variables declared in separate `if`/`else` block scopes are valid in ordinary
-functions, but the same pattern inside a `struct iter` can fail during iterator
-lowering because both locals are lifted to an iterator state field with the same
-name.
-
-General repro:
-
-1. Define a `struct iter int values(bool choose)`.
-2. In the `if` branch, declare `int value = 1; yield value;`.
-3. In the `else` branch, declare `int value = 2; yield value;`.
-4. Iterate over `values(false)` from `main`.
-
-Expected behavior: the iterator should compile and preserve the source lexical
-block scopes. Lowering may lift locals into state, but generated storage names
-must remain unique when source locals belong to distinct scopes.
-
-Current behavior: analysis/lowering reports `Iterator state field 'value' is
-already declared.`
-
-Current workaround: give iterator locals unique source names across the whole
-iterator body, even when they are in disjoint block scopes.

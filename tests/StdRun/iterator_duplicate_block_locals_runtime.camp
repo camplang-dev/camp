@@ -1,0 +1,25 @@
+using Std;
+
+struct iter int values(bool choose)
+{
+	if (choose)
+	{
+		int value = 1;
+		yield value;
+	}
+	else
+	{
+		int value = 2;
+		yield value;
+	}
+}
+
+export int main()
+{
+	int total = 0;
+	foreach (int value in values(false))
+		total += value;
+
+	Console.writeLine(total);
+	return total == 2 ? 0 : 1;
+}

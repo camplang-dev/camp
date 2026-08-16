@@ -13,6 +13,8 @@ public sealed partial class BindableNodeAnalyzer
 	readonly Dictionary<ForeachStatement, IteratorForeachStateFields> iteratorForeachStates = [];
 	readonly Dictionary<string, Dictionary<string, FieldDefinition>> iteratorStateFields = new(StringComparer.Ordinal);
 	readonly Dictionary<string, Dictionary<string, FieldDefinition>> iteratorStateFieldsBySourceName = new(StringComparer.Ordinal);
+	readonly Dictionary<DeclarationTarget, Dictionary<string, FieldDefinition>> iteratorStateFieldsByDeclaration = [];
+	Dictionary<string, FieldDefinition>? currentIteratorRewriteFields;
 
 	void GenerateIteratorDeclarations(Module module)
 	{
@@ -621,11 +623,7 @@ public sealed partial class BindableNodeAnalyzer
 			{
 				if (name == "_")
 					continue;
-				if (!names.Add(name))
-				{
-					Report(GetDeclarationTargetNameRange(declaration.Target.SourceSyntax ?? declaration.SourceSyntax, name), $"Iterator state field '{name}' is already declared.");
-					continue;
-				}
+				string fieldName = UniqueIteratorStateFieldName(names, name);
 				TypeReference? inferredType = null;
 				string? inferredResolvedType = null;
 				if (declaration.Target.Type is AutoTypeReference && !TryInferIteratorLiftedLocalType(declaration, typeScope, out inferredType, out inferredResolvedType))
@@ -639,15 +637,17 @@ public sealed partial class BindableNodeAnalyzer
 					declaration.Target.ResolvedType = inferredResolvedType;
 				}
 
-				AddIteratorField(state, new FieldDefinition
+				FieldDefinition field = new()
 				{
 					SourceSyntax = declaration.SourceSyntax,
-					Name = name,
-					Symbol = name,
+					Name = fieldName,
+					Symbol = fieldName,
 					IsFixedStorage = declaration.IsFixedStorage,
 					Type = CloneType(declaration.Target.Type),
 					ResolvedType = declaration.Target.ResolvedType ?? declaration.Target.Type?.ResolvedType ?? FormatTypeReference(declaration.Target.Type)
-				});
+				};
+				AddIteratorField(state, field, name);
+				AddIteratorDeclarationField(declaration.Target, name, field);
 			}
 		}
 
@@ -704,6 +704,18 @@ public sealed partial class BindableNodeAnalyzer
 				Type = TypeReferenceForResolvedName(fields.ElementType, foreachStatement.Target.SourceSyntax ?? foreachStatement.SourceSyntax),
 				ResolvedType = fields.ElementType
 			});
+		}
+	}
+
+	static string UniqueIteratorStateFieldName(HashSet<string> names, string sourceName)
+	{
+		if (names.Add(sourceName))
+			return sourceName;
+		for (int index = 1; ; index++)
+		{
+			string candidate = sourceName + "__" + index.ToString(System.Globalization.CultureInfo.InvariantCulture);
+			if (names.Add(candidate))
+				return candidate;
 		}
 	}
 
@@ -1497,13 +1509,22 @@ public sealed partial class BindableNodeAnalyzer
 		if (body is null)
 			return statements;
 
-		foreach (Statement statement in body.Statements)
+		Dictionary<string, FieldDefinition>? previous = currentIteratorRewriteFields;
+		currentIteratorRewriteFields = [];
+		try
 		{
-			if (statement is FinallyStatement)
-				continue;
-			statements.AddRange(RewriteIteratorStatement(statement, lowering));
+			foreach (Statement statement in body.Statements)
+			{
+				if (statement is FinallyStatement)
+					continue;
+				statements.AddRange(RewriteIteratorStatement(statement, lowering));
+			}
+			return statements;
 		}
-		return statements;
+		finally
+		{
+			currentIteratorRewriteFields = previous;
+		}
 	}
 
 	List<Statement> RewriteIteratorStatement(Statement statement, IteratorBodyLowering lowering)
@@ -1529,13 +1550,22 @@ public sealed partial class BindableNodeAnalyzer
 			case BlockStatement block:
 			{
 				BlockStatement rewritten = new() { SourceSyntax = block.SourceSyntax, ResolvedType = "void" };
-				foreach (Statement child in block.Statements)
+				Dictionary<string, FieldDefinition>? previous = currentIteratorRewriteFields;
+				currentIteratorRewriteFields = previous is null ? [] : new Dictionary<string, FieldDefinition>(previous, StringComparer.Ordinal);
+				try
 				{
-					if (child is FinallyStatement)
-						continue;
-					rewritten.Statements.AddRange(RewriteIteratorStatement(child, lowering));
+					foreach (Statement child in block.Statements)
+					{
+						if (child is FinallyStatement)
+							continue;
+						rewritten.Statements.AddRange(RewriteIteratorStatement(child, lowering));
+					}
+					return [rewritten];
 				}
-				return [rewritten];
+				finally
+				{
+					currentIteratorRewriteFields = previous;
+				}
 			}
 
 			case IfStatement ifStatement:
@@ -1747,6 +1777,7 @@ public sealed partial class BindableNodeAnalyzer
 			Expression? value = RewriteIteratorExpression(declaration.InitialValue, lowering);
 			string type = declaration.Target.ResolvedType ?? declaration.Target.Type?.ResolvedType ?? FormatTypeReference(declaration.Target.Type);
 			value ??= new DefaultExpression { ResolvedType = type };
+			TryGetIteratorStateField(declaration.Target, name, out FieldDefinition? field);
 
 			statements.Add(new ExpressionStatement
 			{
@@ -1755,12 +1786,16 @@ public sealed partial class BindableNodeAnalyzer
 				Expression = new AssignmentExpression
 				{
 					SourceSyntax = declaration.SourceSyntax,
-					Target = ThisMemberReference(name, type),
+					Target = field is not null
+						? IteratorStateFieldReference(field, type, declaration.SourceSyntax)
+						: ThisMemberReference(name, type),
 					Operator = AssignmentOperator.Assign,
 					Value = value,
 					ResolvedType = type
 				}
 			});
+			if (field is not null && currentIteratorRewriteFields is not null)
+				currentIteratorRewriteFields[name] = field;
 		}
 		return statements;
 	}
@@ -1789,6 +1824,9 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (expression is NamedExpression named && named.Qualifiers.Count == 0)
 		{
+			if (currentIteratorRewriteFields is not null
+				&& currentIteratorRewriteFields.TryGetValue(named.Name, out FieldDefinition? scopedField))
+				return IteratorStateFieldReference(scopedField, scopedField.ResolvedType ?? lowering.GetLiftedType(named.Name), named.SourceSyntax);
 			if (lowering.IsLiftedName(named.Name))
 				return IteratorStateSourceMemberReference(named.Name, lowering.GetLiftedType(named.Name), named.SourceSyntax);
 		}
@@ -1796,6 +1834,11 @@ public sealed partial class BindableNodeAnalyzer
 		if (expression is VariableReferenceExpression variable)
 		{
 			string? name = GetReferenceName(variable.Variable);
+			if (!string.IsNullOrWhiteSpace(name)
+				&& variable.Variable is DeclarationTarget target
+				&& TryGetIteratorStateField(target, name, out FieldDefinition? declarationField)
+				&& declarationField is not null)
+				return IteratorStateFieldReference(declarationField, declarationField.ResolvedType ?? lowering.GetLiftedType(name), variable.SourceSyntax);
 			if (!string.IsNullOrWhiteSpace(name) && lowering.IsLiftedName(name))
 				return IteratorStateSourceMemberReference(name, lowering.GetLiftedType(name), variable.SourceSyntax);
 		}
@@ -1886,6 +1929,18 @@ public sealed partial class BindableNodeAnalyzer
 		MemberReferenceExpression reference = ThisMemberReference(sourceName, resolvedType);
 		reference.SourceSyntax = syntax;
 		return reference;
+	}
+
+	MemberReferenceExpression IteratorStateFieldReference(FieldDefinition field, string resolvedType, SyntaxNode? syntax)
+	{
+		return new MemberReferenceExpression
+		{
+			SourceSyntax = syntax,
+			Target = new ThisExpression { ResolvedType = currentIteratorStateThisType },
+			Name = field.Name,
+			Member = field,
+			ResolvedType = resolvedType
+		};
 	}
 
 	void RewriteIteratorLambdaBody(BlockStatement? body, IteratorBodyLowering lowering)
@@ -2211,7 +2266,24 @@ public sealed partial class BindableNodeAnalyzer
 			iteratorStateFieldsBySourceName[type.Name] = sourceFields;
 		}
 		if (!string.IsNullOrWhiteSpace(sourceName))
-			sourceFields[sourceName] = field;
+			sourceFields.TryAdd(sourceName, field);
+	}
+
+	void AddIteratorDeclarationField(DeclarationTarget target, string sourceName, FieldDefinition field)
+	{
+		if (!iteratorStateFieldsByDeclaration.TryGetValue(target, out Dictionary<string, FieldDefinition>? fields))
+		{
+			fields = new Dictionary<string, FieldDefinition>(StringComparer.Ordinal);
+			iteratorStateFieldsByDeclaration[target] = fields;
+		}
+		fields[sourceName] = field;
+	}
+
+	bool TryGetIteratorStateField(DeclarationTarget target, string sourceName, out FieldDefinition? field)
+	{
+		field = null;
+		return iteratorStateFieldsByDeclaration.TryGetValue(target, out Dictionary<string, FieldDefinition>? fields)
+			&& fields.TryGetValue(sourceName, out field);
 	}
 
 	static void AddIteratorFunction(TypeDefinition type, FunctionDefinition function)
