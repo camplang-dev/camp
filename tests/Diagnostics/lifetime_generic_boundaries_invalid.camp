@@ -6,6 +6,16 @@ T* badInTransportEscape<T: any>(in T value)
 	return &value;
 }
 
+struct Holder<T: copyable>
+{
+	T* value;
+}
+
+void badInTransportRetain<T: copyable>(Holder<T>* holder, in T value, sizeof(T))
+{
+	holder.value = &value;
+}
+
 void choose<T: copyable>(T value, out T result, sizeof(T))
 {
 	result = value;

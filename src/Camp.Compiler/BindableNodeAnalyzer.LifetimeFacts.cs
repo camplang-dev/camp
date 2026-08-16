@@ -1102,8 +1102,6 @@ public sealed partial class BindableNodeAnalyzer
 			return;
 		if (value is LambdaExpression)
 			return;
-		if (IsInsideGenericBody(scope))
-			return;
 		if (IsGeneratedShadowLifecycleRewrite())
 			return;
 		if (ReferencesGeneratedShadowStorage(target) || ReferencesGeneratedShadowStorage(value))
@@ -1115,6 +1113,8 @@ public sealed partial class BindableNodeAnalyzer
 
 		string? valueFactText = GetExpressionLifetimeFact(value);
 		if (!TryParseLifetimeFact(valueFactText, out LifetimeFact valueFact))
+			return;
+		if (IsInsideGenericBody(scope) && !IsInParameterTransportFact(valueFact, scope))
 			return;
 
 		if (valueFact.Kind == "escaped")
@@ -1137,6 +1137,11 @@ public sealed partial class BindableNodeAnalyzer
 			if (!ValueOutlivesAnchor(valueFact, anchor) && !IsExplicitScopedWithinAllocatorFact(valueFact))
 				Report(GetRange(syntax), $"{context} cannot store a scoped pointer-bearing value in storage tied to '{anchor}'.");
 		}
+	}
+
+	bool IsInParameterTransportFact(LifetimeFact fact, BodyScope scope)
+	{
+		return fact.Anchors.Any(anchor => IsInParameterLifetimeAnchor(anchor, scope));
 	}
 
 	bool IsGeneratedShadowDataExpression(Expression? expression)

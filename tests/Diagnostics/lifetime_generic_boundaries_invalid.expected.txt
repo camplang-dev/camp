@@ -1,3 +1,4 @@
 tests/Diagnostics/lifetime_generic_boundaries_invalid.camp(6,9): error: Return expression cannot return a pointer-bearing value tied to in-parameter transport 'value'.
-tests/Diagnostics/lifetime_generic_boundaries_invalid.camp(17,38): error: Out argument cannot store a non-escaped pointer-bearing value in escaped storage.
-tests/Diagnostics/lifetime_generic_boundaries_invalid.camp(24,47): error: Out argument cannot store a non-escaped pointer-bearing value in escaped storage.
+tests/Diagnostics/lifetime_generic_boundaries_invalid.camp(16,17): error: Assignment cannot store a scoped pointer-bearing value in storage tied to 'this'.
+tests/Diagnostics/lifetime_generic_boundaries_invalid.camp(27,38): error: Out argument cannot store a non-escaped pointer-bearing value in escaped storage.
+tests/Diagnostics/lifetime_generic_boundaries_invalid.camp(34,47): error: Out argument cannot store a non-escaped pointer-bearing value in escaped storage.
