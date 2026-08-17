@@ -1289,11 +1289,14 @@ public sealed partial class BindableNodeAnalyzer
 
 	void RegisterBodySymbol(BodyScope scope, string name, string type, BindableNode node, TypeReference? sourceType, string? resolvedType, SyntaxNode? syntax = null)
 	{
+		TokenRange? nameRange = GetDeclarationTargetNameRange(syntax ?? node.SourceSyntax, name);
 		if (scope.TryLookupComponent(name, out string? componentOwner))
-			Report(GetDeclarationTargetNameRange(syntax ?? node.SourceSyntax, name), $"Symbol '{name}' is already declared in this scope as a component of '{componentOwner}'.");
+			Report(nameRange, $"Symbol '{name}' is already declared in this scope as a component of '{componentOwner}'.");
 
 		if (scope.Symbols.ContainsKey(name))
-			Report(GetDeclarationTargetNameRange(syntax ?? node.SourceSyntax, name), $"Symbol '{name}' is already declared in this scope.");
+			Report(nameRange, $"Symbol '{name}' is already declared in this scope.");
+		else if (scope.TryLookup(name, out BodySymbol existing) && IsImplicitThrownErrorSymbol(existing))
+			Report(nameRange, "Local declaration 'error' conflicts with an unnamed thrown parameter, which is implicitly named 'error'. Rename the local or explicitly name the thrown parameter.");
 		else
 			scope.Symbols[name] = new BodySymbol(name, type, node);
 
@@ -1302,6 +1305,16 @@ public sealed partial class BindableNodeAnalyzer
 
 		foreach (ParamsComponent component in componentShape.Components)
 			RegisterComponentBodySymbol(scope, name, component.ExpandedName, component.ExpandedName, component.Type, node, syntax);
+	}
+
+	static bool IsImplicitThrownErrorSymbol(BodySymbol symbol)
+	{
+		return symbol.Node is ParameterDefinition
+		{
+			Modifier: ParameterModifier.Thrown,
+			Name: "error",
+			SourceSyntax: ValueParameterSyntax { Identifier: null }
+		};
 	}
 
 	void RegisterComponentBodySymbol(BodyScope scope, string ownerName, string componentName, string expandedName, string componentType, BindableNode node, SyntaxNode? syntax)

@@ -1,0 +1,1 @@
+tests/Diagnostics/implicit_thrown_error_local_collision.camp(11,10): error: Local declaration 'error' conflicts with an unnamed thrown parameter, which is implicitly named 'error'. Rename the local or explicitly name the thrown parameter.

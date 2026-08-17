@@ -1,0 +1,12 @@
+class Assertion
+{
+}
+
+struct IoError
+{
+}
+
+void repro(thrown Assertion*)
+{
+	IoError error = default;
+}
