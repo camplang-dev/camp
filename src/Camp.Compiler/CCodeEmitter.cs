@@ -5255,12 +5255,13 @@ public static class CCodeEmitter
 				: GetCallableParametersForExpression(call.Target);
 			List<string> arguments = [];
 			int parameterIndex = 0;
-			for (int i = 0; i < call.Arguments.Count; i++)
+			List<ArgumentExpression> orderedCallArguments = GetCallArgumentsInAbiOrder(call, function);
+			for (int i = 0; i < orderedCallArguments.Count; i++)
 			{
-				if (function?.IsAsync == true && call.Arguments[i].Modifier == ArgumentModifier.Catch)
+				if (function?.IsAsync == true && orderedCallArguments[i].Modifier == ArgumentModifier.Catch)
 					continue;
 				if (ParametersLookLikeDelegateCallContextPair(parameters, parameterIndex)
-					&& TryFormatExpandedDelegateArgument(call.Arguments[i], parameters, parameterIndex, genericSubstitutions, out string? callArgument, out string? contextArgument))
+					&& TryFormatExpandedDelegateArgument(orderedCallArguments[i], parameters, parameterIndex, genericSubstitutions, out string? callArgument, out string? contextArgument))
 				{
 					arguments.Add(callArgument);
 					arguments.Add(contextArgument);
@@ -5268,7 +5269,7 @@ public static class CCodeEmitter
 					continue;
 				}
 				ParameterDefinition? parameter = parameterIndex < parameters.Count ? parameters[parameterIndex] : null;
-				arguments.Add(FormatArgumentValue(call.Arguments[i], parameter, genericSubstitutions));
+				arguments.Add(FormatArgumentValue(orderedCallArguments[i], parameter, genericSubstitutions));
 				parameterIndex++;
 			}
 			if (TryRepairFormattedInterfaceSlotCallTarget(call, target, out string repairedTarget))
@@ -5285,6 +5286,34 @@ public static class CCodeEmitter
 			if (TryGetCallResultCastType(call, function, genericSubstitutions, out string? castType))
 				return "(" + FormatResolvedType(castType!, "").Declaration.Trim() + ")(" + text + ")";
 			return text;
+		}
+
+		List<ArgumentExpression> GetCallArgumentsInAbiOrder(CallExpression call, FunctionDefinition? function)
+		{
+			if (function is null
+				|| !TryGetFunctionReturnStorageComponentsForC(function, out List<(string Name, string Type)> returnComponents)
+				|| returnComponents.Count <= 1)
+				return call.Arguments;
+
+			int expandedReturnArgumentCount = returnComponents.Count - 1;
+			int catchIndex = call.Arguments.FindIndex(static argument => argument.Modifier == ArgumentModifier.Catch);
+			if (catchIndex < expandedReturnArgumentCount)
+				return call.Arguments;
+			for (int i = catchIndex - expandedReturnArgumentCount; i < catchIndex; i++)
+			{
+				if (call.Arguments[i].Modifier != ArgumentModifier.Out)
+					return call.Arguments;
+			}
+
+			int insertIndex = catchIndex - expandedReturnArgumentCount;
+			if (insertIndex < 0)
+				return call.Arguments;
+
+			List<ArgumentExpression> ordered = [.. call.Arguments];
+			ArgumentExpression catchArgument = ordered[catchIndex];
+			ordered.RemoveAt(catchIndex);
+			ordered.Insert(insertIndex, catchArgument);
+			return ordered;
 		}
 
 		static void RepairDuplicateInterfaceSlotContextArgument(string target, List<string> arguments)

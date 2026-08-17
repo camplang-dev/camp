@@ -1,0 +1,30 @@
+using Std;
+
+namespace ExpandedReturnThrownRuntime;
+
+enum ReadError: int
+{
+	OK = 0,
+	FAILED = 1,
+}
+
+byte[] readBytes(thrown ReadError error)
+{
+	byte[] bytes = new byte[1];
+	bytes[0] = 42;
+	return bytes;
+}
+
+export int main()
+{
+	ReadError error = default;
+	byte[] bytes = readBytes(catch error);
+	if (error != default)
+		return 1;
+	if (bytes.length != 1)
+		return 2;
+	if (bytes[0] != 42)
+		return 3;
+	delete bytes;
+	return 0;
+}

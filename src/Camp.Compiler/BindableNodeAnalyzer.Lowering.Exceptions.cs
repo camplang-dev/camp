@@ -729,7 +729,7 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			if (!usesThrownReturn)
 			{
-				call.Arguments.Add(new ArgumentExpression
+				InsertImplicitCatchArgument(call, function, new ArgumentExpression
 				{
 					SourceSyntax = call.SourceSyntax,
 					Modifier = ArgumentModifier.Catch,
@@ -779,7 +779,7 @@ public sealed partial class BindableNodeAnalyzer
 		}
 		else
 		{
-			call.Arguments.Add(new ArgumentExpression
+			InsertImplicitCatchArgument(call, function, new ArgumentExpression
 			{
 				SourceSyntax = call.SourceSyntax,
 				Modifier = ArgumentModifier.Catch,
@@ -789,6 +789,18 @@ public sealed partial class BindableNodeAnalyzer
 		}
 		currentStatementSuffix.AddRange(CreateThrowCheck(errorTarget, errorTarget.ResolvedType ?? ErrorType));
 		return result;
+	}
+
+	void InsertImplicitCatchArgument(CallExpression call, FunctionDefinition? function, ArgumentExpression argument)
+	{
+		int insertIndex = call.Arguments.Count;
+		if (function is not null
+			&& TryGetExpandedReturnShape(call, function, out ParamsComponentShape shape)
+			&& shape.Components.Count > 1)
+		{
+			insertIndex = System.Math.Max(0, insertIndex - (shape.Components.Count - 1));
+		}
+		call.Arguments.Insert(insertIndex, argument);
 	}
 
 	DeclarationStatement CreateErrorLocal(string errorType)
