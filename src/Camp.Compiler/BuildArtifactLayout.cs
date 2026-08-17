@@ -5,7 +5,7 @@ namespace Camp.Compiler;
 
 public static class BuildArtifactLayout
 {
-	public static string GetArtifactDirectoryName(TargetDefinition target, NativeBuildKind? buildKind, string profileName)
+	public static string GetArtifactDirectoryName(TargetDefinition target, NativeBuildKind? buildKind, string profileName, CompilerCommandMode commandMode = CompilerCommandMode.Build)
 	{
 		ArgumentNullException.ThrowIfNull(target);
 		string normalizedProfile = string.IsNullOrWhiteSpace(profileName) ? "DEBUG" : profileName.Trim().ToUpperInvariant();
@@ -13,6 +13,8 @@ public static class BuildArtifactLayout
 		if (buildKind is NativeBuildKind.Static or NativeBuildKind.Shared)
 			parts.Add(buildKind == NativeBuildKind.Static ? "static" : "shared");
 		parts.Add(normalizedProfile);
+		if (commandMode is CompilerCommandMode.Test or CompilerCommandMode.Cover)
+			parts.Add(commandMode == CompilerCommandMode.Test ? "TEST" : "COVER");
 		return string.Join("_", parts);
 	}
 

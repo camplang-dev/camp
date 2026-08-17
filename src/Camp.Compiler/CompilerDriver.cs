@@ -465,7 +465,7 @@ public static class CompilerDriver
 			string outputRoot = Path.GetFullPath(outputPrefix, request.WorkingDirectory);
 			return request.OutDirIsDirect || IsDirectOutputDirectory(request.OutDir)
 				? outputRoot
-				: Path.Combine(outputRoot, BuildArtifactLayout.GetArtifactDirectoryName(target, buildKind, profileName));
+				: Path.Combine(outputRoot, BuildArtifactLayout.GetArtifactDirectoryName(target, buildKind, profileName, request.CommandMode));
 		}
 
 		string GetDefaultArtifactDirectoryFromRequest()
@@ -1351,7 +1351,7 @@ public static class CompilerDriver
 			string outputRoot = Path.GetFullPath(outputPrefix, request.WorkingDirectory);
 			if (request.OutDirIsDirect || IsDirectOutputDirectory(request.OutDir))
 				return outputRoot;
-			return Path.Combine(outputRoot, BuildArtifactLayout.GetArtifactDirectoryName(compilation.Target!, request.BuildKind, compilation.ProfileName));
+			return Path.Combine(outputRoot, BuildArtifactLayout.GetArtifactDirectoryName(compilation.Target!, request.BuildKind, compilation.ProfileName, request.CommandMode));
 		}
 
 		static bool IsDirectOutputDirectory(string? value)

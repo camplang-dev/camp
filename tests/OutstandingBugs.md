@@ -2,45 +2,6 @@
 
 Next bug number: BUG-084.
 
-## BUG-082: `campc cover` mishandles layered package source roots and output directories
-
-Status: open
-
-Observed while running coverage for a layered package build where the response file includes source files from sibling package directories.
-
-For example, a package build file may include:
-
-```text
-../package-core/src/*.camp
-../package-read/src/*.camp
-src/*.camp
-tests/*.camp
-```
-
-`campc test @package-write.campbuild` works correctly, but `campc cover @package-write.campbuild` fails unless an explicit shared source root is supplied:
-
-```text
-Source file '<project-root>/src/package-core/src/core.camp' is outside every --sourcefile-root.
-```
-
-This appears inconsistent with the documented behavior in `dev/docs/compiler/01-campc-command-line.md` and `dev/docs/proposals/accepted/008-first-class-testing-and-coverage.md`, where `test` and `cover` use the same source pattern/build-file model, and build-file source roots should participate in source-capture paths.
-
-Workaround:
-
-```sh
-campc cover @package-write.campbuild \
-  --sourcefile-root <project-root>/src \
-  --out-dir <project-root>/src/package-write/bin/coverage-write \
-  --coverage-output-dir <project-root>/src/package-write/bin/coverage-write
-```
-
-A second issue appears when multiple layered packages are covered without explicit `--out-dir` / `--coverage-output-dir`: derived artifact paths collapse under an unexpected dependency source directory such as `package-core/src/bin/...`, causing different package coverage runs to overwrite each other. In one run this also produced a stale-link failure where the generated harness referenced tests from another package.
-
-Impact:
-
-- Coverage is usable, but each layered package coverage run currently needs explicit `--sourcefile-root`, `--out-dir`, and `--coverage-output-dir`.
-- No source workaround is required beyond using those command-line flags in coverage runs.
-
 ## BUG-083: Diagnostic should explain that unnamed `thrown` parameters are implicitly named `error`
 
 Status: open

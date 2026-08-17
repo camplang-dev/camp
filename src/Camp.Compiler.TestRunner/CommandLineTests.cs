@@ -301,7 +301,7 @@ public sealed class CommandLineTests
 		Assert.Contains("CliTests::parseValue", result.StdOut, StringComparison.Ordinal);
 		Assert.DoesNotContain("CliTests::addReturnsSum", result.StdOut, StringComparison.Ordinal);
 
-		string manifestPath = Path.Combine(outDir, ArtifactDirectoryForHost(null), "test_manifest_cli.camp-test-manifest.json");
+		string manifestPath = Path.Combine(outDir, ArtifactDirectoryForHost(null, CompilerCommandMode.Test), "test_manifest_cli.camp-test-manifest.json");
 		Assert.True(File.Exists(manifestPath), manifestPath);
 		using JsonDocument manifest = JsonDocument.Parse(File.ReadAllText(manifestPath));
 		Assert.Equal("camp.test-manifest", manifest.RootElement.GetProperty("format").GetString());
@@ -368,7 +368,7 @@ public sealed class CommandLineTests
 			"harness_entry");
 
 		AssertCommandSucceeded(result);
-		string artifactDirectory = Path.Combine(outDir, ArtifactDirectoryForHost(null));
+		string artifactDirectory = Path.Combine(outDir, ArtifactDirectoryForHost(null, CompilerCommandMode.Test));
 		Assert.True(File.Exists(Path.Combine(artifactDirectory, "build", "harness_entry_test_harness.c")));
 		string generatedSource = File.ReadAllText(Path.Combine(artifactDirectory, "build", "main.c"));
 		Assert.Contains("campmain(void)", generatedSource, StringComparison.Ordinal);
@@ -519,7 +519,7 @@ public sealed class CommandLineTests
 		Assert.Contains("passed: HarnessAllocatorCli::implicitAllocator", result.StdOut, StringComparison.Ordinal);
 		Assert.Contains("passed: HarnessAllocatorCli::explicitAllocator", result.StdOut, StringComparison.Ordinal);
 
-		string harnessSource = Path.Combine(outDir, ArtifactDirectoryForHost(null), "build", "harness_allocator_test_harness.c");
+		string harnessSource = Path.Combine(outDir, ArtifactDirectoryForHost(null, CompilerCommandMode.Test), "build", "harness_allocator_test_harness.c");
 		Assert.True(File.Exists(harnessSource), harnessSource);
 		string harness = File.ReadAllText(harnessSource);
 		Assert.Contains("(NULL, &typed_failure)", harness, StringComparison.Ordinal);
@@ -822,7 +822,7 @@ public sealed class CommandLineTests
 
 		AssertCommandSucceeded(result);
 		Assert.Contains("passed: HarnessNonstandardAllocatorCli::validButUntracked", result.StdOut, StringComparison.Ordinal);
-		string harnessSource = Path.Combine(outDir, ArtifactDirectoryForHost(null), "build", "harness_nonstandard_allocator_test_harness.c");
+		string harnessSource = Path.Combine(outDir, ArtifactDirectoryForHost(null, CompilerCommandMode.Test), "build", "harness_nonstandard_allocator_test_harness.c");
 		string harness = File.ReadAllText(harnessSource);
 		Assert.Contains("(NULL, &typed_failure)", harness, StringComparison.Ordinal);
 		Assert.DoesNotContain("camp_test_allocator_storage", harness, StringComparison.Ordinal);
@@ -993,7 +993,7 @@ public sealed class CommandLineTests
 		Assert.Contains("failed: CoverageHarnessLeaks::leaksFromCoveredCode", result.StdOut, StringComparison.Ordinal);
 		Assert.Contains("memory leak: 1 allocation still live", result.StdOut, StringComparison.Ordinal);
 		Assert.Contains($":{allocationLine} ", result.StdOut, StringComparison.Ordinal);
-		using JsonDocument results = JsonDocument.Parse(File.ReadAllText(TestResultsPath(outDir, "coverage_harness_leaks")));
+		using JsonDocument results = JsonDocument.Parse(File.ReadAllText(TestResultsPath(outDir, "coverage_harness_leaks", CompilerCommandMode.Cover)));
 		JsonElement test = Assert.Single(results.RootElement.GetProperty("tests").EnumerateArray());
 		Assert.Equal(RelativeSourcePath(source), test.GetProperty("failure").GetProperty("sourcefile").GetString());
 		Assert.Equal(allocationLine, test.GetProperty("failure").GetProperty("sourceline").GetInt32());
@@ -1038,7 +1038,7 @@ public sealed class CommandLineTests
 		Assert.Contains("failed: CoverageTestAllocationSource::leaksFromTestBody", result.StdOut, StringComparison.Ordinal);
 		Assert.Contains("memory leak: 1 allocation still live", result.StdOut, StringComparison.Ordinal);
 		Assert.Contains($":{allocationLine} ", result.StdOut, StringComparison.Ordinal);
-		using JsonDocument results = JsonDocument.Parse(File.ReadAllText(TestResultsPath(outDir, "coverage_test_allocation_source")));
+		using JsonDocument results = JsonDocument.Parse(File.ReadAllText(TestResultsPath(outDir, "coverage_test_allocation_source", CompilerCommandMode.Cover)));
 		JsonElement test = Assert.Single(results.RootElement.GetProperty("tests").EnumerateArray());
 		Assert.Equal(RelativeSourcePath(source), test.GetProperty("failure").GetProperty("sourcefile").GetString());
 		Assert.Equal(allocationLine, test.GetProperty("failure").GetProperty("sourceline").GetInt32());
@@ -1526,9 +1526,9 @@ public sealed class CommandLineTests
 
 		AssertCommandSucceeded(result);
 		Assert.Contains("passed: CoverTests::exportedApiWorks", result.StdOut, StringComparison.Ordinal);
-		string rootGenerated = File.ReadAllText(Path.Combine(outDir, ArtifactDirectoryForHost(null), "build", "tests.c"));
+		string rootGenerated = File.ReadAllText(Path.Combine(outDir, ArtifactDirectoryForHost(null, CompilerCommandMode.Cover), "build", "tests.c"));
 		Assert.DoesNotContain("__camp_coverage", rootGenerated, StringComparison.Ordinal);
-		string dependencyMap = Path.Combine(libraryRoot, "bin", ArtifactDirectoryForHost(NativeBuildKind.Shared) + "_coverage", "cover-lib.camp-coverage-map.csv");
+		string dependencyMap = Path.Combine(libraryRoot, "bin", ArtifactDirectoryForHost(NativeBuildKind.Shared, CompilerCommandMode.Cover), "cover-lib.camp-coverage-map.csv");
 		Assert.True(File.Exists(dependencyMap), dependencyMap);
 		string map = File.ReadAllText(dependencyMap);
 		Assert.Contains("CoverLib::add", map, StringComparison.Ordinal);
@@ -2295,6 +2295,57 @@ public sealed class CommandLineTests
 		string artifactDirectory = Path.Combine(sourceDirectory, "bin", ArtifactDirectoryForHost(null));
 		Assert.True(File.Exists(Path.Combine(artifactDirectory, "build", "main.c")));
 		Assert.True(File.Exists(Path.Combine(artifactDirectory, "build", "main.h")));
+	}
+
+	[Fact]
+	public void Cover_build_file_defaults_to_cover_directory_and_build_file_source_root()
+	{
+		string root = TempPath("cover-build-file-defaults");
+		string sourceDirectory = Path.Combine(root, "src");
+		string testDirectory = Path.Combine(root, "tests");
+		Directory.CreateDirectory(sourceDirectory);
+		Directory.CreateDirectory(testDirectory);
+		string source = Path.Combine(sourceDirectory, "main.camp");
+		string tests = Path.Combine(testDirectory, "tests.camp");
+		File.WriteAllText(source, """
+			namespace CoverBuildFileDefaults;
+
+			export int covered()
+			{
+				int value = 1;
+				return value;
+			}
+			""");
+		File.WriteAllText(tests, """
+			namespace CoverBuildFileDefaults;
+
+			@test
+			void covers(thrown Assertion* assertion)
+			{
+				assert(covered() == 1);
+			}
+			""");
+		string buildFile = Path.Combine(root, "cover_defaults.campbuild");
+		File.WriteAllText(buildFile, """
+			--name cover_defaults
+			src/*.camp
+			tests/*.camp
+			""");
+
+		ProcessResult test = RunCampc("test", buildFile, "--target", NativeTargetForHost());
+		ProcessResult cover = RunCampc("cover", buildFile, "--target", NativeTargetForHost(), "--coverage-format", "json");
+
+		AssertCommandSucceeded(test);
+		AssertCommandSucceeded(cover);
+		string testArtifactDirectory = Path.Combine(root, "bin", ArtifactDirectoryForHost(null, CompilerCommandMode.Test));
+		string coverArtifactDirectory = Path.Combine(root, "bin", ArtifactDirectoryForHost(null, CompilerCommandMode.Cover));
+		Assert.True(File.Exists(Path.Combine(testArtifactDirectory, "cover_defaults.camp-test-results.json")));
+		Assert.True(File.Exists(Path.Combine(coverArtifactDirectory, "cover_defaults.camp-test-results.json")));
+		Assert.True(File.Exists(Path.Combine(coverArtifactDirectory, "cover_defaults.camp-coverage-results.json")));
+		Assert.False(Directory.Exists(Path.Combine(sourceDirectory, "bin")));
+		string map = File.ReadAllText(Path.Combine(coverArtifactDirectory, "cover_defaults.camp-coverage-map.csv"));
+		Assert.Contains("src/main.camp", map, StringComparison.Ordinal);
+		Assert.Contains("tests/tests.camp", map, StringComparison.Ordinal);
 	}
 
 	[Fact]
@@ -5804,16 +5855,16 @@ public sealed class CommandLineTests
 		return CompilerDefaults.TargetName;
 	}
 
-	static string ArtifactDirectoryForHost(NativeBuildKind? buildKind)
+	static string ArtifactDirectoryForHost(NativeBuildKind? buildKind, CompilerCommandMode commandMode = CompilerCommandMode.Build)
 	{
-		return ArtifactDirectoryForTarget(NativeTargetForHost(), buildKind);
+		return ArtifactDirectoryForTarget(NativeTargetForHost(), buildKind, commandMode);
 	}
 
-	static string ArtifactDirectoryForTarget(string targetName, NativeBuildKind? buildKind)
+	static string ArtifactDirectoryForTarget(string targetName, NativeBuildKind? buildKind, CompilerCommandMode commandMode = CompilerCommandMode.Build)
 	{
 		Assert.True(TargetCatalog.TryLoadCached(Path.Combine(FindRepositoryRoot(), "targets"), out TargetCatalog? catalog, out string? error), error);
 		Assert.True(catalog!.TryGetTarget(targetName, out TargetDefinition? target));
-		return BuildArtifactLayout.GetArtifactDirectoryName(target!, buildKind, "DEBUG");
+		return BuildArtifactLayout.GetArtifactDirectoryName(target!, buildKind, "DEBUG", commandMode);
 	}
 
 	static string ArtifactDirectoryForTarget(string targetName, DependencyLinkKind linkKind)
@@ -5961,22 +6012,22 @@ public sealed class CommandLineTests
 
 	static string TestManifestPath(string outDir, string projectName)
 	{
-		return Path.Combine(outDir, ArtifactDirectoryForHost(null), projectName + ".camp-test-manifest.json");
+		return Path.Combine(outDir, ArtifactDirectoryForHost(null, CompilerCommandMode.Test), projectName + ".camp-test-manifest.json");
 	}
 
-	static string TestResultsPath(string outDir, string projectName)
+	static string TestResultsPath(string outDir, string projectName, CompilerCommandMode commandMode = CompilerCommandMode.Test)
 	{
-		return Path.Combine(outDir, ArtifactDirectoryForHost(null), projectName + ".camp-test-results.json");
+		return Path.Combine(outDir, ArtifactDirectoryForHost(null, commandMode), projectName + ".camp-test-results.json");
 	}
 
 	static string CoverageMapPath(string outDir, string projectName)
 	{
-		return Path.Combine(outDir, ArtifactDirectoryForHost(null), projectName + ".camp-coverage-map.csv");
+		return Path.Combine(outDir, ArtifactDirectoryForHost(null, CompilerCommandMode.Cover), projectName + ".camp-coverage-map.csv");
 	}
 
 	static string CoverageResultsPath(string outDir, string projectName)
 	{
-		return Path.Combine(outDir, ArtifactDirectoryForHost(null), projectName + ".camp-coverage-results.json");
+		return Path.Combine(outDir, ArtifactDirectoryForHost(null, CompilerCommandMode.Cover), projectName + ".camp-coverage-results.json");
 	}
 
 	static int FindLine(string path, string text)

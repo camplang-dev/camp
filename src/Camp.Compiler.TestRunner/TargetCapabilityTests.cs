@@ -77,6 +77,9 @@ public sealed class TargetCapabilityTests
 		Assert.Equal("msvc-windows-x86_shared_RELEASE", BuildArtifactLayout.GetArtifactDirectoryName(unicodeWindows, NativeBuildKind.Shared, "release"));
 		Assert.Equal("msvc-windows-x86_ansi_DEBUG", BuildArtifactLayout.GetArtifactDirectoryName(ansiWindows, NativeBuildKind.Exec, "DEBUG"));
 		Assert.Equal("clang-macos-x64_DEBUG", BuildArtifactLayout.GetArtifactDirectoryName(macosTarget, NativeBuildKind.Exec, "DEBUG"));
+		Assert.Equal("clang-macos-x64_DEBUG_TEST", BuildArtifactLayout.GetArtifactDirectoryName(macosTarget, NativeBuildKind.Exec, "DEBUG", CompilerCommandMode.Test));
+		Assert.Equal("clang-macos-x64_DEBUG_COVER", BuildArtifactLayout.GetArtifactDirectoryName(macosTarget, NativeBuildKind.Exec, "DEBUG", CompilerCommandMode.Cover));
+		Assert.Equal("clang-macos-x64_shared_DEBUG_COVER", BuildArtifactLayout.GetArtifactDirectoryName(macosTarget, NativeBuildKind.Shared, "DEBUG", CompilerCommandMode.Cover));
 		Assert.Equal("clang-macos-x64_static_DEBUG", BuildArtifactLayout.GetArtifactDirectoryName(macosTarget, NativeBuildKind.Static, ""));
 	}
 

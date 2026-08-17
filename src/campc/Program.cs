@@ -487,7 +487,7 @@ sealed class CampCli
 		string outputRoot = Path.GetFullPath(outputPrefix, request.WorkingDirectory);
 		string outputDirectory = request.OutDirIsDirect || IsDirectRunOutputPath(outputPrefix)
 			? outputRoot
-			: Path.Combine(outputRoot, BuildArtifactLayout.GetArtifactDirectoryName(target, request.BuildKind, request.ProfileName));
+			: Path.Combine(outputRoot, BuildArtifactLayout.GetArtifactDirectoryName(target, request.BuildKind, request.ProfileName, request.CommandMode));
 		string projectName = string.IsNullOrWhiteSpace(request.ProjectName)
 			? GetDefaultProjectNameFromRequest(request)
 			: request.ProjectName!;
@@ -812,10 +812,8 @@ sealed class CampCli
 			}
 			TargetDefinition? target = TryGetTargetDefinition(consumerRequest, environment, errors);
 			string artifactDirectory = target is null
-				? consumerRequest.TargetName
-				: BuildArtifactLayout.GetArtifactDirectoryName(target, referenceBuildKind, consumerRequest.ProfileName);
-			if (instrumentForCoverage)
-				artifactDirectory += "_coverage";
+				? consumerRequest.TargetName + (instrumentForCoverage ? "_COVER" : "")
+				: BuildArtifactLayout.GetArtifactDirectoryName(target, referenceBuildKind, consumerRequest.ProfileName, instrumentForCoverage ? CompilerCommandMode.Cover : CompilerCommandMode.Build);
 			string projectOutputDirectory = Path.Combine(projectDirectory, "bin", artifactDirectory);
 			projectArgs = RemoveProjectReferenceOverrideOptions(projectArgs);
 			projectArgs.AddRange(["--target", consumerRequest.TargetName]);
