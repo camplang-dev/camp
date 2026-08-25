@@ -28,6 +28,8 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		currentModule = module;
 		module.ResolvedType = ModuleType;
+		BindRequirementAttributes(module);
+		ApplyEffectiveRequirements(module);
 		CollectTypeNames(module);
 		CollectStaticClassNames(module);
 		CollectAliasNames(module);
@@ -41,8 +43,6 @@ public sealed partial class BindableNodeAnalyzer
 			CheckName(usingDeclaration.Alias, GetAliasRange(usingDeclaration.SourceSyntax), "using alias");
 		}
 
-		BindRequirementAttributes(module);
-		ApplyEffectiveRequirements(module);
 		foreach (Definition definition in ActiveDefinitions(module))
 			AnalyzeDefinition(definition, new AnalysisScope());
 
@@ -252,7 +252,7 @@ public sealed partial class BindableNodeAnalyzer
 			string qualifiedKey = DefinitionLookupKey(typeDefinition);
 			if (qualifiedTypeDefinitions.TryGetValue(qualifiedKey, out TypeDefinition? existing))
 			{
-				if (!ReferenceEquals(existing, typeDefinition))
+				if (!ReferenceEquals(existing, typeDefinition) && DuplicateDefinitionsParticipate(existing, typeDefinition))
 					Report(GetNameRange(typeDefinition), $"Duplicate type name '{typeDefinition.Name}'.");
 			}
 			else if (!qualifiedTypeDefinitions.TryAdd(qualifiedKey, typeDefinition))
@@ -268,6 +268,15 @@ public sealed partial class BindableNodeAnalyzer
 				typeDefinitions[SymbolNameService.DefaultTypeSymbol(GetDefinitionNamespace(typeDefinition), typeDefinition.Name)] = typeDefinition;
 			}
 		}
+	}
+
+	bool DuplicateDefinitionsParticipate(Definition left, Definition right)
+	{
+		if (currentModule is null)
+			return true;
+		DeclarationParticipation participation = new(currentModule);
+		return participation.Includes(left, currentModule.DeclarationParticipationMode)
+			&& participation.Includes(right, currentModule.DeclarationParticipationMode);
 	}
 
 	void CollectStaticClassNames(Module module)
@@ -823,7 +832,7 @@ public sealed partial class BindableNodeAnalyzer
 	void ValidateDuplicateTopLevelSymbols(Module module)
 	{
 		SymbolCollisionSet collisions = new();
-		foreach (Definition definition in ActiveDefinitions(module))
+		foreach (Definition definition in DeclarationParticipation.ActiveTopLevelDefinitions(module))
 		{
 			foreach (DeclarationName name in GetDefinitionSymbolNames(definition))
 			{

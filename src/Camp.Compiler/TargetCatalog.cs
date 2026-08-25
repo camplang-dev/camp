@@ -409,8 +409,8 @@ public sealed class TargetDefinition
 	internal TargetSections Sections { get; }
 	public IReadOnlyDictionary<string, string> CallSpecs => Sections.CallSpecs;
 	public IReadOnlyDictionary<string, string> TypeSpecs => Sections.TypeSpecs;
-	public IReadOnlyDictionary<string, string> SyntaxCallSpecs => Sections.DeclaredCallSpecs.Count > 0 ? Sections.DeclaredCallSpecs : Sections.CallSpecs;
-	public IReadOnlyDictionary<string, string> SyntaxTypeSpecs => Sections.DeclaredTypeSpecs.Count > 0 ? Sections.DeclaredTypeSpecs : Sections.TypeSpecs;
+	public IReadOnlyDictionary<string, string> SyntaxCallSpecs => MergeSyntaxSpecs(Sections.DeclaredCallSpecs, Sections.CallSpecs);
+	public IReadOnlyDictionary<string, string> SyntaxTypeSpecs => MergeSyntaxSpecs(Sections.DeclaredTypeSpecs, Sections.TypeSpecs);
 	public IReadOnlyDictionary<string, bool> ConfigurationFlagDeclarations => Sections.ConfigurationFlagDeclarations;
 	public IReadOnlyDictionary<string, bool> ConfigurationFlagConfigurations => Sections.ConfigurationFlagConfigurations;
 	public IReadOnlyDictionary<string, string> DeclaredCallSpecs => Sections.DeclaredCallSpecs;
@@ -431,6 +431,20 @@ public sealed class TargetDefinition
 	public IReadOnlyDictionary<string, string> CEmitter => Sections.CEmitter;
 	public IReadOnlyDictionary<string, TargetProfileBuild> Profiles => Sections.Profiles;
 	public TargetCapabilities Capabilities { get; }
+
+	static IReadOnlyDictionary<string, string> MergeSyntaxSpecs(IReadOnlyDictionary<string, string> declared, IReadOnlyDictionary<string, string> selected)
+	{
+		if (declared.Count == 0)
+			return selected;
+		if (selected.Count == 0)
+			return declared;
+		Dictionary<string, string> result = new(StringComparer.Ordinal);
+		foreach ((string key, string value) in declared)
+			result[key] = value;
+		foreach ((string key, string value) in selected)
+			result[key] = value;
+		return result;
+	}
 
 	public bool HasCallSpec(string name)
 	{
