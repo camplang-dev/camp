@@ -431,6 +431,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	bool ResolveAliasTarget(AliasDefinition alias, Dictionary<AliasDefinition, AliasDefinition> resolving)
 	{
+		SelectAliasTarget(alias);
 		string target = BuildAliasTargetName(alias);
 		if (target == alias.Name && alias.TargetQualifiers.Count == 0)
 		{
@@ -491,6 +492,46 @@ public sealed partial class BindableNodeAnalyzer
 		alias.TargetKind = AliasTargetKind.Type;
 		alias.ResolvedTargetName = ErrorType;
 		return false;
+	}
+
+	void SelectAliasTarget(AliasDefinition alias)
+	{
+		if (alias.TargetCandidates.Count == 0)
+			return;
+
+		AliasTargetCandidate? fallback = null;
+		foreach (AliasTargetCandidate candidate in alias.TargetCandidates)
+		{
+			if (candidate.Condition is null)
+			{
+				fallback = candidate;
+				continue;
+			}
+
+			if (!TryBindConfiguredQueryExpression(candidate.Condition, out ConfigurationFlagExpression? condition) || condition is null)
+				continue;
+			candidate.Condition.ResolvedType = "bool";
+			if (condition.Evaluate(configurationFlags))
+			{
+				ApplyAliasTargetCandidate(alias, candidate);
+				return;
+			}
+		}
+
+		if (fallback is not null)
+		{
+			ApplyAliasTargetCandidate(alias, fallback);
+			return;
+		}
+
+		Report(GetNameRange(alias), $"Alias '{alias.Name}' has no fallback target.");
+	}
+
+	static void ApplyAliasTargetCandidate(AliasDefinition alias, AliasTargetCandidate candidate)
+	{
+		alias.TargetName = candidate.TargetName;
+		alias.TargetQualifiers.Clear();
+		alias.TargetQualifiers.AddRange(candidate.TargetQualifiers);
 	}
 
 	bool TryResolveCallableAliasTarget(AliasDefinition alias, string target, out string resolvedName)

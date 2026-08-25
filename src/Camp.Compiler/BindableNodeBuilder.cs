@@ -261,6 +261,24 @@ public sealed partial class BindableNodeBuilder
 			Namespace = namespaceName,
 			NamespaceAssigned = true
 		};
+		foreach (AliasTargetCandidateSyntax candidateSyntax in syntax.TargetCandidates ?? [])
+		{
+			AliasTargetCandidate candidate = new()
+			{
+				SourceSyntax = candidateSyntax,
+				Condition = candidateSyntax.Condition is null ? null : BuildExpression(candidateSyntax.Condition, "Alias condition"),
+				TargetName = candidateSyntax.TargetName?.Identifier?.Value ?? ""
+				};
+				foreach (QualifierSyntax qualifier in candidateSyntax.TargetName?.Qualifiers ?? [])
+					if (qualifier.Identifier is not null)
+						candidate.TargetQualifiers.Add(qualifier.Identifier.Value.Value);
+			definition.TargetCandidates.Add(candidate);
+		}
+		if (definition.TargetCandidates is [AliasTargetCandidate single])
+		{
+			definition.TargetName = single.TargetName;
+			definition.TargetQualifiers.AddRange(single.TargetQualifiers);
+		}
 		ApplyDefinitionAttributes(definition, syntax.Attributes);
 
 		foreach (MemberDeclaratorSyntax declarator in syntax.Declarators ?? [])
@@ -280,9 +298,9 @@ public sealed partial class BindableNodeBuilder
 			}
 		}
 
-		if (syntax.TargetName is null)
+		if (definition.TargetCandidates.Count == 0 && syntax.TargetName is null)
 			Report(syntax, "Alias target is missing a name.");
-		else
+		else if (definition.TargetCandidates.Count == 0 && syntax.TargetName is not null)
 		{
 			foreach (QualifierSyntax qualifier in syntax.TargetName.Qualifiers ?? [])
 			{

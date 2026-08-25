@@ -128,8 +128,16 @@ public class AliasDefinition : Definition
 {
 	public List<string> TargetQualifiers { get; } = [];
 	public string TargetName { get; set; } = "";
+	public List<AliasTargetCandidate> TargetCandidates { get; } = [];
 	public AliasTargetKind TargetKind { get; set; }
 	public string ResolvedTargetName { get; set; } = "";
+}
+
+public class AliasTargetCandidate : BindableNode
+{
+	public Expression? Condition { get; set; }
+	public List<string> TargetQualifiers { get; } = [];
+	public string TargetName { get; set; } = "";
 }
 
 public class ClassDefinition : TypeDefinition

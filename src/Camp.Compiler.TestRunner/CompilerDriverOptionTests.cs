@@ -523,6 +523,81 @@ public sealed class CompilerDriverOptionTests
 		Assert.Contains("must be at least as available as inherited member", overrideResult.StdErr, StringComparison.Ordinal);
 	}
 
+	[Fact]
+	public void Requirements_select_conditional_aliases_and_symbols()
+	{
+		string source = CreateTempCase("requirement_conditional_alias_symbol.camp", """
+			alias NUMBER =
+				configured(APP_WIDE): long,
+				configured(APP_WIDE): short,
+				int;
+
+			@symbol(configured(APP_RENAMED) ? "renamed_value" : "default_value")
+			export NUMBER getValue()
+			{
+				return 1;
+			}
+			""");
+
+		string repositoryRoot = FindRepositoryRoot();
+		string narrowOut = Path.Combine(repositoryRoot, "tmp", "driver-option-tests", "requirement_conditional_alias_symbol_narrow");
+		string wideOut = Path.Combine(repositoryRoot, "tmp", "driver-option-tests", "requirement_conditional_alias_symbol_wide");
+		if (Directory.Exists(narrowOut))
+			Directory.Delete(narrowOut, recursive: true);
+		if (Directory.Exists(wideOut))
+			Directory.Delete(wideOut, recursive: true);
+
+		CompilerResult narrow = Execute(source, request =>
+		{
+			request.TargetName = "gcc-linux-x64";
+			request.NoStdLib = true;
+			request.ConfigurationFlagDeclarations.Add("APP_WIDE=false");
+			request.ConfigurationFlagDeclarations.Add("APP_RENAMED=false");
+			request.OutDir = narrowOut;
+		});
+		CompilerResult wide = Execute(source, request =>
+		{
+			request.TargetName = "gcc-linux-x64";
+			request.NoStdLib = true;
+			request.ConfigurationFlagDeclarations.Add("APP_WIDE=false");
+			request.ConfigurationFlagDeclarations.Add("APP_RENAMED=false");
+			request.ConfigurationFlagConfigurations.Add("APP_WIDE");
+			request.ConfigurationFlagConfigurations.Add("APP_RENAMED");
+			request.OutDir = wideOut;
+		});
+
+		Assert.Equal(0, narrow.ExitCode);
+		Assert.Equal(0, wide.ExitCode);
+		string narrowHeader = File.ReadAllText(Path.Combine(narrowOut, "gcc-linux-x64_DEBUG", "build", "requirement_conditional_alias_symbol.h"));
+		string wideHeader = File.ReadAllText(Path.Combine(wideOut, "gcc-linux-x64_DEBUG", "build", "requirement_conditional_alias_symbol.h"));
+		Assert.Contains("int32_t default_value(void);", narrowHeader, StringComparison.Ordinal);
+		Assert.Contains("int64_t renamed_value(void);", wideHeader, StringComparison.Ordinal);
+		Assert.DoesNotContain("int16_t renamed_value", wideHeader, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Requirements_reject_conditional_string_attributes_outside_symbol()
+	{
+		string source = CreateTempCase("requirement_conditional_attribute_diagnostic.camp", """
+			@category(configured(APP_DOCS) ? "A" : "B")
+			export int value()
+			{
+				return 0;
+			}
+			""");
+
+		CompilerResult result = Execute(source, request =>
+		{
+			request.TargetName = "gcc-linux-x64";
+			request.NoStdLib = true;
+			request.ConfigurationFlagDeclarations.Add("APP_DOCS=false");
+			request.Inspect = CompilerInspectMode.Declarations;
+		});
+
+		Assert.NotEqual(0, result.ExitCode);
+		Assert.Contains("Conditional string attribute expressions are only supported by @symbol.", result.StdErr, StringComparison.Ordinal);
+	}
+
 	static CompilerResult Execute(string sourcePath, Action<CompilerRequest> configure)
 	{
 		string repositoryRoot = FindRepositoryRoot();

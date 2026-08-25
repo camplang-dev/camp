@@ -105,7 +105,16 @@ public class AliasDeclarationSyntax : SyntaxNode
 	public Token? Identifier { get; set; }
 	public Token? EqualsToken { get; set; }
 	public QualifiedNamespaceSyntax? TargetName { get; set; }
+	public List<AliasTargetCandidateSyntax>? TargetCandidates { get; set; }
 	public Token? SemicolonToken { get; set; }
+}
+
+public class AliasTargetCandidateSyntax : SyntaxNode
+{
+	public ExpressionSyntax? Condition { get; set; }
+	public Token? ColonToken { get; set; }
+	public QualifiedNamespaceSyntax? TargetName { get; set; }
+	public Token? CommaToken { get; set; }
 }
 
 public class TypeDeclarationSyntax : SyntaxNode

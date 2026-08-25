@@ -849,6 +849,15 @@ public sealed partial class BindableNodeAnalyzer
 			return;
 		}
 
+		if (!IsSymbolAttribute(attribute))
+		{
+			foreach (ArgumentExpression argument in attribute.Arguments)
+			{
+				if (ContainsConditionalStringAttributeExpression(argument.Value))
+					Report(GetRange(argument.Value?.SourceSyntax ?? argument.SourceSyntax ?? attribute.SourceSyntax), "Conditional string attribute expressions are only supported by @symbol.");
+			}
+		}
+
 		foreach (ArgumentExpression argument in attribute.Arguments)
 		{
 			if (argument.Value is null)
@@ -996,27 +1005,28 @@ public sealed partial class BindableNodeAnalyzer
 			}
 
 			Expression? value = attribute.Arguments[0].Value;
-			if (value is not LiteralExpression { Kind: LiteralKind.String, Value: string symbol })
+			if (!TryEvaluateSymbolAttributeString(value, out string? symbol) || symbol is null)
 			{
-				Report(GetRange(value?.SourceSyntax ?? attribute.Arguments[0].SourceSyntax ?? attribute.SourceSyntax), "@symbol argument must be a string literal.");
+				Report(GetRange(value?.SourceSyntax ?? attribute.Arguments[0].SourceSyntax ?? attribute.SourceSyntax), "@symbol argument must be a string literal or a conditional string expression using configured(...).");
 				continue;
 			}
 
+			SyntaxNode? diagnosticSyntax = value?.SourceSyntax ?? attribute.Arguments[0].SourceSyntax ?? attribute.SourceSyntax;
 			if (!IsIdentifier(symbol))
 			{
-				Report(GetRange(value.SourceSyntax ?? attribute.Arguments[0].SourceSyntax ?? attribute.SourceSyntax), $"@symbol value '{symbol}' is not a valid identifier.");
+				Report(GetRange(diagnosticSyntax), $"@symbol value '{symbol}' is not a valid identifier.");
 				continue;
 			}
 
 			if (ReservedWords.Contains(symbol))
 			{
-				Report(GetRange(value.SourceSyntax ?? attribute.Arguments[0].SourceSyntax ?? attribute.SourceSyntax), $"@symbol value '{symbol}' is a reserved Camp word.");
+				Report(GetRange(diagnosticSyntax), $"@symbol value '{symbol}' is a reserved Camp word.");
 				continue;
 			}
 
 			if (CReservedWords.Contains(symbol))
 			{
-				Report(GetRange(value.SourceSyntax ?? attribute.Arguments[0].SourceSyntax ?? attribute.SourceSyntax), $"@symbol value '{symbol}' is a reserved C word.");
+				Report(GetRange(diagnosticSyntax), $"@symbol value '{symbol}' is a reserved C word.");
 				continue;
 			}
 
@@ -1025,6 +1035,54 @@ public sealed partial class BindableNodeAnalyzer
 			if (definition is TypeDefinition typeDefinition)
 				typeDefinitions[symbol] = typeDefinition;
 		}
+	}
+
+	bool TryEvaluateSymbolAttributeString(Expression? expression, out string? value)
+	{
+		switch (expression)
+		{
+			case LiteralExpression { Kind: LiteralKind.String, Value: string text }:
+				value = text;
+				return true;
+			case ConditionalExpression { Condition: not null } conditional:
+				if (!TryBindConfiguredQueryExpression(conditional.Condition, out ConfigurationFlagExpression? condition) || condition is null)
+					break;
+				conditional.Condition.ResolvedType = AttributeType;
+				return condition.Evaluate(configurationFlags)
+					? TryEvaluateSymbolAttributeString(conditional.WhenTrue, out value)
+					: TryEvaluateSymbolAttributeString(conditional.WhenFalse, out value);
+		}
+
+		value = null;
+		return false;
+	}
+
+	bool TryBindConfiguredQueryExpression(Expression? expression, out ConfigurationFlagExpression? condition)
+	{
+		condition = null;
+		if (expression is not CallExpression { Target: NamedExpression { Qualifiers.Count: 0, Name: "configured" } } call)
+		{
+			Report(GetRange(expression?.SourceSyntax), "Configuration-dependent syntax requires configured(...).");
+			return false;
+		}
+		if (call.TypeArguments.Count > 0)
+			Report(GetRange(call.SourceSyntax), "configured(...) does not accept type arguments.");
+		if (call.Arguments.Count != 1 || !string.IsNullOrWhiteSpace(call.Arguments[0].Name))
+		{
+			Report(GetRange(call.SourceSyntax), "configured(...) requires one configuration flag expression argument.");
+			return false;
+		}
+		return ConfigurationFlagExpressionBinder.TryBind(call.Arguments[0].Value, configurationFlags, (range, message) => Report(range, message), out condition);
+	}
+
+	static bool ContainsConditionalStringAttributeExpression(Expression? expression)
+	{
+		return expression switch
+		{
+			ConditionalExpression => true,
+			ArrayExpression array => array.Elements.Any(ContainsConditionalStringAttributeExpression),
+			_ => false
+		};
 	}
 
 	void SetDefaultSymbol(Definition definition, string defaultSymbol)

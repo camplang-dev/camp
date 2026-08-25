@@ -476,7 +476,25 @@ public sealed class BindableNodeCodeSerializer
 		writer.Write("alias ");
 		writer.Write(definition.Name);
 		writer.Write(" = ");
-		WriteQualifiedName(definition.TargetQualifiers, definition.TargetName);
+		if (definition.TargetCandidates.Count > 1)
+		{
+			for (int i = 0; i < definition.TargetCandidates.Count; i++)
+			{
+				AliasTargetCandidate candidate = definition.TargetCandidates[i];
+				if (i > 0)
+					writer.Write(", ");
+				if (candidate.Condition is not null)
+				{
+					WriteExpression(candidate.Condition);
+					writer.Write(": ");
+				}
+				WriteQualifiedName(candidate.TargetQualifiers, candidate.TargetName);
+			}
+		}
+		else
+		{
+			WriteQualifiedName(definition.TargetQualifiers, definition.TargetName);
+		}
 		writer.WriteLine(";");
 	}
 

@@ -384,10 +384,31 @@ public sealed class CampParser
 			AliasKeyword = Expect("alias"),
 			Identifier = ExpectIdentifier(),
 			EqualsToken = Expect("="),
-			TargetName = ParseQualifiedNamespace(),
+			TargetCandidates = ParseAliasTargetCandidates(),
 			SemicolonToken = Expect(";")
 		};
+		syntax.TargetName = syntax.TargetCandidates is [AliasTargetCandidateSyntax candidate] ? candidate.TargetName : null;
 		return syntax;
+	}
+
+	List<AliasTargetCandidateSyntax> ParseAliasTargetCandidates()
+	{
+		List<AliasTargetCandidateSyntax> candidates = [];
+		do
+		{
+			AliasTargetCandidateSyntax candidate = new();
+			if (Is("configured") && PeekValue(1) == "(")
+			{
+				candidate.Condition = ParseExpressionItem();
+				candidate.ColonToken = Expect(":");
+			}
+			candidate.TargetName = ParseQualifiedNamespace();
+			if (Is(","))
+				candidate.CommaToken = Take();
+			candidates.Add(candidate);
+		}
+		while (candidates[^1].CommaToken is not null && !AtEnd && !Is(";"));
+		return candidates;
 	}
 
 	QualifiedNamespaceSyntax? ParseQualifiedNamespace()
