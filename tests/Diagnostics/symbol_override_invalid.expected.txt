@@ -1,5 +1,5 @@
 tests/Diagnostics/symbol_override_invalid.camp(1,1): error: @symbol requires exactly one string argument.
-tests/Diagnostics/symbol_override_invalid.camp(4,9): error: @symbol argument must be a string literal.
+tests/Diagnostics/symbol_override_invalid.camp(4,9): error: @symbol argument must be a string literal or a conditional string expression using configured(...).
 tests/Diagnostics/symbol_override_invalid.camp(7,9): error: @symbol value 'bad-name' is not a valid identifier.
 tests/Diagnostics/symbol_override_invalid.camp(10,9): error: @symbol value 'class' is a reserved Camp word.
 tests/Diagnostics/symbol_override_invalid.camp(13,9): error: @symbol value 'typedef' is a reserved C word.

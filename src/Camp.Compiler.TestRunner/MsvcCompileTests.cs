@@ -117,7 +117,7 @@ public sealed class MsvcCompileTests
 		CompilerResult result = Compile(source, NativeBuildKind.Exec);
 		AssertSuccess(result);
 		string timingSource = File.ReadAllText(FindGeneratedPackageSource("std_timing.c"));
-		Assert.Contains("static uint32_t __stdcall Std_timingTimerThread", timingSource, StringComparison.Ordinal);
+		Assert.Contains("static uint32_t __stdcall Std_timingWindowsTimerThread", timingSource, StringComparison.Ordinal);
 		ProcessResult run = Run(FindArtifact(result, ".exe"));
 		Assert.Equal(0, run.ExitCode);
 	}

@@ -5,7 +5,7 @@ endif
 syntax keyword campKeyword if else for foreach while do switch case default break continue goto return yield try catch finally throw within new stackalloc delete await postpone
 syntax keyword campKeyword using namespace as export internal public extern static virtual override sealed abstract fixed escaped scoped unscoped inline alias shadow unsafe
 syntax keyword campKeyword class struct interface enum newtype params delegate fn iter once async this base default true false null
-syntax keyword campKeyword const constof volatile in out thrown overload prep implements copyable sizeof vtableof typenameof caller sourceof classtype
+syntax keyword campKeyword const constof volatile in out thrown overload prep implements copyable sizeof vtableof typenameof caller sourceof configured classtype
 syntax keyword campType any auto bool byte sbyte ushort short uint int ulong long nuint nint float double char wchar achar uchar void string wstring astring
 syntax keyword campTestAttribute test testonly skip contained
 syntax match campMetadata /@[A-Za-z_][A-Za-z0-9_]*/

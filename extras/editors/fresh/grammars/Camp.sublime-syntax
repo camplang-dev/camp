@@ -12,7 +12,7 @@ variables:
   type_keywords: '\b(?:any|auto|bool|byte|sbyte|ushort|short|uint|int|ulong|long|nuint|nint|float|double|char|wchar|achar|uchar|void|string|wstring|astring|classtype)\b'
   type_forms: '\b(?:fn|delegate|async|once|iter|thrown|struct|class)\b'
   storage_keywords: '\b(?:const|constof|volatile|escaped|scoped|unscoped|in|out|thrown|overload|prep|within|unsafe)\b'
-  intrinsic_keywords: '\b(?:sizeof|typenameof|vtableof|caller|sourceof)\b(?=\s*\()'
+  intrinsic_keywords: '\b(?:sizeof|typenameof|vtableof|caller|sourceof|configured)\b(?=\s*\()'
   test_support_functions: '\b(?:assert|fail)\b(?=\s*\()'
   constraint_keywords: '\b(?:implements|copyable)\b'
   statement_keywords: 'if|do|while|for|else|foreach|switch|case|default|try|catch|finally|return|yield|continue|break|goto|throw|delete|await|postpone|within|stackalloc|new'

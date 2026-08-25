@@ -213,8 +213,10 @@ public sealed class CommandLineTests
 		string wrapperBuild = File.ReadAllText(Path.Combine(root, "native-pid", "native-pid.campbuild"));
 		string wrapperSource = File.ReadAllText(Path.Combine(root, "native-pid", "src", "main.camp"));
 		Assert.Contains("--artifact static", wrapperBuild, StringComparison.Ordinal);
-		Assert.Contains("#if POSIX", wrapperSource, StringComparison.Ordinal);
-		Assert.Contains("#elif WINDOWS", wrapperSource, StringComparison.Ordinal);
+		Assert.Contains("@require(SUBSYSTEM_POSIX)", wrapperSource, StringComparison.Ordinal);
+		Assert.Contains("@require(OS_WIN32)", wrapperSource, StringComparison.Ordinal);
+		Assert.Contains("if (configured(SUBSYSTEM_POSIX))", wrapperSource, StringComparison.Ordinal);
+		Assert.Contains("if (configured(OS_WIN32))", wrapperSource, StringComparison.Ordinal);
 		Assert.Contains("namespace global", wrapperSource, StringComparison.Ordinal);
 		Assert.Contains("extern int getpid();", wrapperSource, StringComparison.Ordinal);
 		Assert.Contains("extern uint GetCurrentProcessId();", wrapperSource, StringComparison.Ordinal);
