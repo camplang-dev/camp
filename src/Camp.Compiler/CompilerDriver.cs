@@ -537,7 +537,7 @@ public static class CompilerDriver
 			}
 			target = target.WithVariantSelection(selection);
 
-			if (!TryValidateConfigurationFlags(target))
+			if (!TryCreateConfigurationFlags(target, out ConfigurationFlagSet? configurationFlags))
 				return false;
 
 			foreach (string define in request.Defines)
@@ -549,38 +549,39 @@ public static class CompilerDriver
 				}
 			}
 
-			context = new RuntimeContext(GetPackageSourceRoot(), GetPackageArtifactRoot(), target, normalizedProfile, [.. request.Defines]);
+			context = new RuntimeContext(GetPackageSourceRoot(), GetPackageArtifactRoot(), target, normalizedProfile, [.. request.Defines], configurationFlags!);
 			return true;
 		}
 
-		bool TryValidateConfigurationFlags(TargetDefinition target)
+		bool TryCreateConfigurationFlags(TargetDefinition target, out ConfigurationFlagSet? flags)
 		{
+			flags = null;
 			List<string> errors = [];
-			ConfigurationFlagSet flags = new();
+			ConfigurationFlagSet created = new();
 			foreach ((string name, bool ambientValue) in target.ConfigurationFlagDeclarations)
-				flags.TryDeclare(name + "=" + (ambientValue ? "true" : "false"), defaultAmbientValue: false, ConfigurationFlagOwner.Target, $"target '{target.Name}'", errors);
+				created.TryDeclare(name + "=" + (ambientValue ? "true" : "false"), defaultAmbientValue: false, ConfigurationFlagOwner.Target, $"target '{target.Name}'", errors);
 			foreach ((string name, bool value) in target.ConfigurationFlagConfigurations)
 			{
-				if (!flags.Declarations.ContainsKey(name))
-					flags.TryDeclare(name + "=false", defaultAmbientValue: false, ConfigurationFlagOwner.Target, $"target '{target.Name}'", errors);
-				flags.TryConfigure(name + "=" + (value ? "true" : "false"), defaultValue: true, ConfigurationFlagOwner.Target, $"target '{target.Name}'", allowTargetOwned: true, errors);
+				if (!created.Declarations.ContainsKey(name))
+					created.TryDeclare(name + "=false", defaultAmbientValue: false, ConfigurationFlagOwner.Target, $"target '{target.Name}'", errors);
+				created.TryConfigure(name + "=" + (value ? "true" : "false"), defaultValue: true, ConfigurationFlagOwner.Target, $"target '{target.Name}'", allowTargetOwned: true, errors);
 			}
 			foreach (string define in target.TargetOwnedDefines)
 			{
-				if (!flags.Declarations.ContainsKey(define))
-					flags.TryDeclare(define + "=false", defaultAmbientValue: false, ConfigurationFlagOwner.Target, $"target '{target.Name}'", errors);
+				if (!created.Declarations.ContainsKey(define))
+					created.TryDeclare(define + "=false", defaultAmbientValue: false, ConfigurationFlagOwner.Target, $"target '{target.Name}'", errors);
 			}
 			foreach (string define in target.Defines.Keys)
 			{
-				if (!flags.Declarations.ContainsKey(define))
-					flags.TryDeclare(define + "=false", defaultAmbientValue: false, ConfigurationFlagOwner.Target, $"target '{target.Name}'", errors);
-				if (!flags.Configurations.ContainsKey(define))
-					flags.TryConfigure(define + "=true", defaultValue: true, ConfigurationFlagOwner.Target, $"target '{target.Name}'", allowTargetOwned: true, errors);
+				if (!created.Declarations.ContainsKey(define))
+					created.TryDeclare(define + "=false", defaultAmbientValue: false, ConfigurationFlagOwner.Target, $"target '{target.Name}'", errors);
+				if (!created.Configurations.ContainsKey(define))
+					created.TryConfigure(define + "=true", defaultValue: true, ConfigurationFlagOwner.Target, $"target '{target.Name}'", allowTargetOwned: true, errors);
 			}
 			foreach (string declaration in request.ConfigurationFlagDeclarations)
-				flags.TryDeclare(declaration, defaultAmbientValue: false, ConfigurationFlagOwner.Module, "request", errors);
+				created.TryDeclare(declaration, defaultAmbientValue: false, ConfigurationFlagOwner.Module, "request", errors);
 			foreach (string configuration in request.ConfigurationFlagConfigurations)
-				flags.TryConfigure(configuration, defaultValue: true, ConfigurationFlagOwner.Module, "request", allowTargetOwned: false, errors);
+				created.TryConfigure(configuration, defaultValue: true, ConfigurationFlagOwner.Module, "request", allowTargetOwned: false, errors);
 			foreach (string requirement in request.ConfigurationRequirements)
 			{
 				if (string.IsNullOrWhiteSpace(requirement))
@@ -588,7 +589,10 @@ public static class CompilerDriver
 			}
 			foreach (string error in errors)
 				ErrorLine(error);
-			return errors.Count == 0;
+			if (errors.Count > 0)
+				return false;
+			flags = created;
+			return true;
 		}
 
 		string GetTargetRoot()
@@ -627,6 +631,7 @@ public static class CompilerDriver
 				DeclarationParticipationMode = loadRequest.DeclarationParticipationMode,
 				CoverageInstrumentationMode = loadRequest.CoverageInstrumentationMode,
 				DefaultWithinAllocationPolicy = CompilerRequestPolicy.GetEffectiveWithinAllocationPolicy(loadRequest),
+				ConfigurationFlags = context.ConfigurationFlags,
 				SourcefilePathMode = loadRequest.SourcefilePathMode,
 				SourcefileDefaultRoot = Path.GetFullPath(string.IsNullOrWhiteSpace(loadRequest.SourcefileDefaultRoot) ? loadRequest.WorkingDirectory : loadRequest.SourcefileDefaultRoot)
 			};
@@ -2001,7 +2006,7 @@ public static class CompilerDriver
 		{
 			if (!BuildAllAndReport(compilation))
 				return 1;
-			AnalysisResult analysis = BindableNodeAnalyzer.Analyze(compilation.SharedModule!, compilation.Target);
+			AnalysisResult analysis = BindableNodeAnalyzer.Analyze(compilation.SharedModule!, compilation.Target, compilation.ConfigurationFlags);
 			if (!PrintAnalysisDiagnostics(compilation, analysis.Diagnostics))
 				return 1;
 			compilation.SharedModule = analysis.Module;
@@ -2014,7 +2019,7 @@ public static class CompilerDriver
 		{
 			if (!BuildAllAndReport(compilation))
 				return 1;
-			AnalysisResult analysis = BindableNodeAnalyzer.Analyze(compilation.SharedModule!, compilation.Target);
+			AnalysisResult analysis = BindableNodeAnalyzer.Analyze(compilation.SharedModule!, compilation.Target, compilation.ConfigurationFlags);
 			if (!PrintAnalysisDiagnostics(compilation, analysis.Diagnostics))
 				return 1;
 			compilation.SharedModule = analysis.Module;
@@ -2532,5 +2537,5 @@ public static class CompilerDriver
 		}
 	}
 
-		sealed record RuntimeContext(string PackageSourceRoot, string PackageArtifactRoot, TargetDefinition Target, string ProfileName, IReadOnlyList<string> CommandLineDefines);
+		sealed record RuntimeContext(string PackageSourceRoot, string PackageArtifactRoot, TargetDefinition Target, string ProfileName, IReadOnlyList<string> CommandLineDefines, ConfigurationFlagSet ConfigurationFlags);
 }

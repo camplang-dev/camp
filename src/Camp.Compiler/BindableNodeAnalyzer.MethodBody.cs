@@ -1978,6 +1978,12 @@ public sealed partial class BindableNodeAnalyzer
 		if (TryResolveTargetTypedEnumValue(named, targetType, out string enumType))
 			return enumType;
 
+		if (named.Qualifiers.Count == 0 && configurationFlags.Declarations.ContainsKey(named.Name))
+		{
+			Report(GetRange(named.SourceSyntax), $"Configuration flag '{named.Name}' can only be queried with configured(...).");
+			return ErrorType;
+		}
+
 		if (named.Qualifiers.Count == 0 && TryGetCurrentRetainedAllocatorParameter(scope, out ParameterDefinition? retainedParameter) && named.Name == retainedParameter.Name)
 		{
 			Report(GetRange(named.SourceSyntax), $"Retained allocator parameter '{retainedParameter.Name}' must be accessed as 'this.{retainedParameter.RetainedAllocatorFieldName ?? retainedParameter.Name}'.");
@@ -3243,6 +3249,9 @@ public sealed partial class BindableNodeAnalyzer
 
 	string BodyAnalyzeCallExpression(CallExpression call, BodyScope scope, AnalysisScope typeScope, string? targetType)
 	{
+		if (TryAnalyzeConfiguredIntrinsic(call, out string configuredType))
+			return configuredType;
+
 		NormalizeGenericCallSyntax(call);
 		foreach (TypeReference argument in call.TypeArguments)
 			AnalyzeType(argument, typeScope);
@@ -3364,6 +3373,37 @@ public sealed partial class BindableNodeAnalyzer
 		if (targetType is not null && (preparedResult is null || !TryApplyPreparedResultConversion(preparedResult, returnType, targetType)))
 			CheckAssignable(targetType, returnType, call, call.SourceSyntax, "Call result");
 		return returnType;
+	}
+
+	bool TryAnalyzeConfiguredIntrinsic(CallExpression call, out string type)
+	{
+		type = ErrorType;
+		if (call.Target is not NamedExpression { Qualifiers.Count: 0, Name: "configured" })
+			return false;
+		if (call.TypeArguments.Count > 0)
+			Report(GetRange(call.SourceSyntax), "configured(...) does not accept type arguments.");
+		if (call.Arguments.Count != 1 || !string.IsNullOrWhiteSpace(call.Arguments[0].Name))
+		{
+			Report(GetRange(call.SourceSyntax), "configured(...) requires one configuration flag expression argument.");
+			return true;
+		}
+		ArgumentExpression argument = call.Arguments[0];
+		if (ConfigurationFlagExpressionBinder.TryBind(argument.Value, configurationFlags, (range, message) => Report(range, message), out ConfigurationFlagExpression? expression))
+		{
+			bool value = expression!.Evaluate(configurationFlags);
+			expressionRewrites[call] = new LiteralExpression
+			{
+				SourceSyntax = call.SourceSyntax,
+				Kind = value ? LiteralKind.True : LiteralKind.False,
+				Text = value ? "true" : "false",
+				Value = value,
+				ResolvedType = "bool"
+			};
+			type = "bool";
+			call.ResolvedType = type;
+			return true;
+		}
+		return true;
 	}
 
 	bool TryCreateSelectedConstructionExpression(CallExpression call, BodyScope scope, AnalysisScope typeScope, string? targetType, out string constructionType)

@@ -84,23 +84,42 @@ public sealed partial class BindableNodeAnalyzer
 	readonly HashSet<NewtypeDefinition> analyzedNewtypeSignatures = [];
 	SourcefilePathMapper? sourcefilePathMapper;
 	readonly TargetDefinition? selectedTarget;
+	readonly ConfigurationFlagSet configurationFlags;
 	Module? currentModule;
 	Definition? currentAnalysisDefinition;
 	Action<string, Action>? phaseMeasure;
 
-	BindableNodeAnalyzer(TargetDefinition? selectedTarget = null)
+	BindableNodeAnalyzer(TargetDefinition? selectedTarget = null, ConfigurationFlagSet? configurationFlags = null)
 	{
 		this.selectedTarget = selectedTarget;
+		this.configurationFlags = configurationFlags ?? CreateTargetConfigurationFlags(selectedTarget);
 	}
 
-	public static AnalysisResult Analyze(Module module, TargetDefinition? selectedTarget = null)
+	public static AnalysisResult Analyze(Module module, TargetDefinition? selectedTarget = null, ConfigurationFlagSet? configurationFlags = null)
 	{
 		ArgumentNullException.ThrowIfNull(module);
 
-		BindableNodeAnalyzer analyzer = new(selectedTarget);
+		BindableNodeAnalyzer analyzer = new(selectedTarget, configurationFlags);
 		analyzer.AnalyzeModule(module);
 		analyzer.FillMissingResolvedTypes(module);
 		return new AnalysisResult(module, analyzer.diagnostics);
+	}
+
+	static ConfigurationFlagSet CreateTargetConfigurationFlags(TargetDefinition? target)
+	{
+		ConfigurationFlagSet flags = new();
+		if (target is null)
+			return flags;
+		List<string> errors = [];
+		foreach ((string name, bool ambientValue) in target.ConfigurationFlagDeclarations)
+			flags.TryDeclare(name + "=" + (ambientValue ? "true" : "false"), defaultAmbientValue: false, ConfigurationFlagOwner.Target, $"target '{target.Name}'", errors);
+		foreach ((string name, bool value) in target.ConfigurationFlagConfigurations)
+		{
+			if (!flags.Declarations.ContainsKey(name))
+				flags.TryDeclare(name + "=false", defaultAmbientValue: false, ConfigurationFlagOwner.Target, $"target '{target.Name}'", errors);
+			flags.TryConfigure(name + "=" + (value ? "true" : "false"), defaultValue: true, ConfigurationFlagOwner.Target, $"target '{target.Name}'", allowTargetOwned: true, errors);
+		}
+		return flags;
 	}
 
 
@@ -778,6 +797,21 @@ public sealed partial class BindableNodeAnalyzer
 	void AnalyzeAttribute(AttributeConstructor attribute)
 	{
 		attribute.ResolvedType = AttributeType;
+
+		if (AttributeNameEquals(attribute.Name, "@require"))
+		{
+			if (attribute.Arguments.Count != 1 || !string.IsNullOrWhiteSpace(attribute.Arguments[0].Name))
+			{
+				Report(GetRange(attribute.SourceSyntax), "@require requires one configuration flag expression argument.");
+				return;
+			}
+			ArgumentExpression argument = attribute.Arguments[0];
+			if (ConfigurationFlagExpressionBinder.TryBind(argument.Value, configurationFlags, (range, message) => Report(range, message), out ConfigurationFlagExpression? requirement))
+				attribute.Requirement = requirement;
+			argument.Value!.ResolvedType = AttributeType;
+			argument.ResolvedType = AttributeType;
+			return;
+		}
 
 		foreach (ArgumentExpression argument in attribute.Arguments)
 		{

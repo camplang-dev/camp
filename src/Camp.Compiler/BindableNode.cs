@@ -309,6 +309,7 @@ public class AttributeConstructor : BindableNode
 {
 	public string Name { get; set; } = "";
 	public List<ArgumentExpression> Arguments { get; } = [];
+	public ConfigurationFlagExpression? Requirement { get; set; }
 	public bool IsDocCommentAttribute { get; set; }
 }
 

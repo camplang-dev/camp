@@ -147,6 +147,84 @@ public sealed class CompilerDriverOptionTests
 		Assert.Contains("owned by the selected target", result.StdErr, StringComparison.Ordinal);
 	}
 
+	[Fact]
+	public void Configuration_requirements_and_configured_intrinsic_bind()
+	{
+		string source = CreateTempCase("configuration_requirements.camp", """
+			@require(OS_LINUX || OS_WIN32);
+
+			@require(OS_LINUX || OS_WIN32)
+			void platformMethod()
+			{
+			}
+
+			export int main()
+			{
+				if (configured(OS_LINUX || OS_WIN32))
+					return 1;
+				if (configured(!OS_LINUX && (OS_WIN32 ^ OS_WIN64)))
+					return 2;
+				return 0;
+			}
+			""");
+
+		CompilerResult result = Execute(source, request =>
+		{
+			request.TargetName = "gcc-linux-x64";
+			request.NoStdLib = true;
+		});
+
+		Assert.Equal(0, result.ExitCode);
+	}
+
+	[Fact]
+	public void Configuration_requirement_diagnostics_reject_invalid_placement()
+	{
+		string source = CreateTempCase("configuration_requirement_placement_diagnostics.camp", """
+			@require(OS_LINUX)
+			enum Problem
+			{
+				@require(OS_LINUX)
+				BAD
+			}
+			""");
+
+		CompilerResult result = Execute(source, request =>
+		{
+			request.TargetName = "gcc-linux-x64";
+			request.NoStdLib = true;
+			request.Inspect = CompilerInspectMode.Declarations;
+		});
+
+		Assert.NotEqual(0, result.ExitCode);
+		Assert.Contains("@require is not valid on enum values", result.StdErr, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Configuration_requirement_diagnostics_reject_unknown_and_bare_flags()
+	{
+		string source = CreateTempCase("configuration_requirement_expression_diagnostics.camp", """
+			export int main()
+			{
+				if (configured(UNKNOWN_FLAG))
+					return 1;
+				if (OS_LINUX)
+					return 2;
+				return 0;
+			}
+			""");
+
+		CompilerResult result = Execute(source, request =>
+		{
+			request.TargetName = "gcc-linux-x64";
+			request.NoStdLib = true;
+		});
+
+		Assert.NotEqual(0, result.ExitCode);
+		Assert.Contains("Unknown configuration flag 'UNKNOWN_FLAG'", result.StdErr, StringComparison.Ordinal);
+		Assert.Contains("Configuration flag 'OS_LINUX' can only be queried with configured(...)", result.StdErr, StringComparison.Ordinal);
+	}
+
 	static CompilerResult Execute(string sourcePath, Action<CompilerRequest> configure)
 	{
 		string repositoryRoot = FindRepositoryRoot();

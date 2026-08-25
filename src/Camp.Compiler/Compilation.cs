@@ -27,6 +27,7 @@ public sealed class Compilation
 	public List<string> SourcefileRoots { get; } = [];
 	public HashSet<string> PreprocessorSymbols { get; } = new(System.StringComparer.Ordinal);
 	public HashSet<string> TargetOwnedPreprocessorSymbols { get; } = new(System.StringComparer.Ordinal);
+	public ConfigurationFlagSet ConfigurationFlags { get; set; } = new();
 	public WithinAllocationPolicy DefaultWithinAllocationPolicy { get; set; } = WithinAllocationPolicy.Implicit;
 }
 
@@ -97,7 +98,7 @@ public static class CompilationPipeline
 			file.FileMetadataAttributes.Clear();
 			file.FileMetadataAttributes.AddRange(bindResult.FileMetadataAttributes);
 			IReadOnlyList<BindDiagnostic> diagnostics = bindResult.Diagnostics;
-			IReadOnlyList<BindDiagnostic> fileMetadataDiagnostics = ValidateFileMetadataAttributes(file);
+			IReadOnlyList<BindDiagnostic> fileMetadataDiagnostics = ValidateFileMetadataAttributes(compilation, file);
 			IReadOnlyList<BindDiagnostic> docDiagnostics = DocCommentTranslator.Apply(file);
 			IReadOnlyList<BindDiagnostic> apiDiagnostics = ApiHeaderValidator.Validate(file);
 			file.BindDiagnostics = [.. diagnostics, .. fileMetadataDiagnostics, .. docDiagnostics, .. apiDiagnostics];
@@ -115,12 +116,22 @@ public static class CompilationPipeline
 		return success;
 	}
 
-	static IReadOnlyList<BindDiagnostic> ValidateFileMetadataAttributes(SourceFile file)
+	static IReadOnlyList<BindDiagnostic> ValidateFileMetadataAttributes(Compilation compilation, SourceFile file)
 	{
 		List<BindDiagnostic> diagnostics = [];
 		bool hasCategory = false;
 		foreach (AttributeConstructor attribute in file.FileMetadataAttributes)
 		{
+			if (AttributeNameEquals(attribute.Name, "@require"))
+			{
+				List<ArgumentExpression> requirePositional = attribute.Arguments.Where(static argument => string.IsNullOrWhiteSpace(argument.Name)).ToList();
+				if (requirePositional.Count != 1 || attribute.Arguments.Count != 1)
+					diagnostics.Add(new BindDiagnostic(GetRange(attribute.SourceSyntax), "File metadata attribute @require requires one configuration flag expression argument."));
+				else if (ConfigurationFlagExpressionBinder.TryBind(requirePositional[0].Value, compilation.ConfigurationFlags, (range, message) => diagnostics.Add(new BindDiagnostic(range ?? GetRange(attribute.SourceSyntax), message)), out ConfigurationFlagExpression? requirement))
+					attribute.Requirement = requirement;
+				continue;
+			}
+
 			if (!AttributeNameEquals(attribute.Name, "@category"))
 			{
 				diagnostics.Add(new BindDiagnostic(GetRange(attribute.SourceSyntax), $"Attribute '{attribute.Name}' cannot be used as a file metadata attribute."));
@@ -149,7 +160,7 @@ public static class CompilationPipeline
 
 	public static bool ExpandDeclarationsFromBuiltAst(Compilation compilation)
 	{
-		compilation.DeclarationExpansion = BindableNodeExpander.Expand(compilation.SharedModule!, compilation.Target);
+		compilation.DeclarationExpansion = BindableNodeExpander.Expand(compilation.SharedModule!, compilation.Target, compilation.ConfigurationFlags);
 		compilation.SharedModule = compilation.DeclarationExpansion.Module;
 		AssignGeneratedDefinitionOwners(compilation);
 		return compilation.DeclarationExpansion.Success;

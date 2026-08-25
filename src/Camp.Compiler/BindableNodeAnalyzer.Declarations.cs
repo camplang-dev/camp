@@ -46,6 +46,7 @@ public sealed partial class BindableNodeAnalyzer
 
 		ValidateTestAttributePlacements(module);
 		ValidateDocAttributePlacements(module);
+		ValidateRequirementAttributePlacements(module);
 		ValidateTopLevelOverloadFamilies(module);
 		AnalyzeInlineConstantsAndEnumValues(module);
 		AnalyzeGlobalInitializers(module);
