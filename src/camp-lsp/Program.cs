@@ -1003,7 +1003,7 @@ public sealed class CampLspWorkspace
 			"enum", "newtype", "params", "delegate", "fn", "iter", "once", "async",
 			"const", "constof", "volatile", "escaped", "scoped", "unscoped", "in",
 			"out", "thrown", "overload", "prep", "unsafe", "implements", "copyable",
-			"sizeof", "typenameof", "vtableof", "caller", "sourceof", "classtype"
+			"sizeof", "typenameof", "vtableof", "caller", "sourceof", "configured", "classtype"
 		];
 	}
 

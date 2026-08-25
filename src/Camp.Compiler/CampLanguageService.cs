@@ -115,9 +115,11 @@ public static class CampLanguageService
 
 	static Compilation CreateCompilation(CompilerRequest request, IReadOnlyList<CampSourceOverlay> overlays)
 	{
+		TargetDefinition? target = LoadTarget(request);
 		Compilation compilation = new()
 		{
-			Target = LoadTarget(request),
+			Target = target,
+			ConfigurationFlags = CreateConfigurationFlags(request, target),
 			ProfileName = request.ProfileName,
 			CommandMode = request.CommandMode,
 			DeclarationParticipationMode = request.DeclarationParticipationMode,
@@ -151,6 +153,43 @@ public static class CampLanguageService
 		foreach (string file in request.Files)
 			AddSourceFileIfMissing(compilation, file, request.WorkingDirectory, overlayByPath, isApiHeader: false, loadedPaths);
 		return compilation;
+	}
+
+	static ConfigurationFlagSet CreateConfigurationFlags(CompilerRequest request, TargetDefinition? target)
+	{
+		List<string> errors = [];
+		ConfigurationFlagSet flags = new();
+		flags.TryDeclare("TEST_MODULE=false", defaultAmbientValue: false, ConfigurationFlagOwner.Target, "compiler", errors);
+		if (request.DeclarationParticipationMode == DeclarationParticipationMode.TestModule)
+			flags.TryConfigure("TEST_MODULE=true", defaultValue: true, ConfigurationFlagOwner.Target, "compiler", allowTargetOwned: true, errors);
+		if (target is not null)
+		{
+			foreach ((string name, bool ambientValue) in target.ConfigurationFlagDeclarations)
+				flags.TryDeclare(name + "=" + (ambientValue ? "true" : "false"), defaultAmbientValue: false, ConfigurationFlagOwner.Target, $"target '{target.Name}'", errors);
+			foreach ((string name, bool value) in target.ConfigurationFlagConfigurations)
+			{
+				if (!flags.Declarations.ContainsKey(name))
+					flags.TryDeclare(name + "=false", defaultAmbientValue: false, ConfigurationFlagOwner.Target, $"target '{target.Name}'", errors);
+				flags.TryConfigure(name + "=" + (value ? "true" : "false"), defaultValue: true, ConfigurationFlagOwner.Target, $"target '{target.Name}'", allowTargetOwned: true, errors);
+			}
+			foreach (string define in target.TargetOwnedDefines)
+			{
+				if (!flags.Declarations.ContainsKey(define))
+					flags.TryDeclare(define + "=false", defaultAmbientValue: false, ConfigurationFlagOwner.Target, $"target '{target.Name}'", errors);
+			}
+			foreach (string define in target.Defines.Keys)
+			{
+				if (!flags.Declarations.ContainsKey(define))
+					flags.TryDeclare(define + "=false", defaultAmbientValue: false, ConfigurationFlagOwner.Target, $"target '{target.Name}'", errors);
+				if (!flags.Configurations.ContainsKey(define))
+					flags.TryConfigure(define + "=true", defaultValue: true, ConfigurationFlagOwner.Target, $"target '{target.Name}'", allowTargetOwned: true, errors);
+			}
+		}
+		foreach (string declaration in request.ConfigurationFlagDeclarations)
+			flags.TryDeclare(declaration, defaultAmbientValue: false, ConfigurationFlagOwner.Module, "request", errors);
+		foreach (string configuration in request.ConfigurationFlagConfigurations)
+			flags.TryConfigure(configuration, defaultValue: true, ConfigurationFlagOwner.Module, "request", allowTargetOwned: false, errors);
+		return flags;
 	}
 
 	static WithinAllocationPolicy GetEffectiveWithinAllocationPolicy(CompilerRequest request, IReadOnlyList<CampSourceOverlay> overlays)

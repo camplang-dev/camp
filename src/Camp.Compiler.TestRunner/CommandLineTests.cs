@@ -2913,8 +2913,7 @@ public sealed class CommandLineTests
 			TempPath("wasi-unsupported-out"));
 
 		Assert.NotEqual(0, result.ExitCode);
-		Assert.Contains("Function 'sleep' is not supported by the current target.", result.StdErr, StringComparison.Ordinal);
-		Assert.Contains("The current target does not support timers or thread sleeping.", result.StdErr, StringComparison.Ordinal);
+		Assert.Contains("Symbol 'sleep' could not be found.", result.StdErr, StringComparison.Ordinal);
 	}
 
 	[Fact]
