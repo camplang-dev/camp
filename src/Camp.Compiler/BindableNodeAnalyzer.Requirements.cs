@@ -5,6 +5,36 @@ namespace Camp.Compiler;
 
 public sealed partial class BindableNodeAnalyzer
 {
+	void BindRequirementAttributes(Module module)
+	{
+		foreach (SourceFile file in module.SourceFiles.Values)
+			foreach (AttributeConstructor attribute in file.FileMetadataAttributes)
+				BindRequirementAttribute(attribute);
+		foreach (Definition definition in module.Definitions)
+			BindRequirementAttributes(definition);
+	}
+
+	void BindRequirementAttributes(Definition definition)
+	{
+		foreach (AttributeConstructor attribute in definition.Attributes)
+			BindRequirementAttribute(attribute);
+		foreach (Definition child in GetRequirementChildDefinitions(definition))
+			BindRequirementAttributes(child);
+	}
+
+	void BindRequirementAttribute(AttributeConstructor attribute)
+	{
+		if (!AttributeNameEquals(attribute.Name, "@require") || attribute.Requirement is not null)
+			return;
+		if (attribute.Arguments.Count != 1 || !string.IsNullOrWhiteSpace(attribute.Arguments[0].Name))
+			return;
+		ArgumentExpression argument = attribute.Arguments[0];
+		if (ConfigurationFlagExpressionBinder.TryBind(argument.Value, configurationFlags, (range, message) => Report(range, message), out ConfigurationFlagExpression? requirement))
+			attribute.Requirement = requirement;
+		argument.Value!.ResolvedType = AttributeType;
+		argument.ResolvedType = AttributeType;
+	}
+
 	void ApplyEffectiveRequirements(Module module)
 	{
 		foreach (Definition definition in module.Definitions)

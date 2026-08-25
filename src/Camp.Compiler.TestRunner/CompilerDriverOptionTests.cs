@@ -297,6 +297,107 @@ public sealed class CompilerDriverOptionTests
 		Assert.Contains("helper", testModule.StdOut, StringComparison.Ordinal);
 	}
 
+	[Fact]
+	public void Requirements_validate_access_and_configured_flow()
+	{
+		string guarded = CreateTempCase("requirement_guarded_access.camp", """
+			@require(OS_WIN32)
+			void windowsOnly()
+			{
+			}
+
+			export int main()
+			{
+				if (configured(OS_WIN32))
+					windowsOnly();
+				while (configured(OS_WIN32) && true)
+				{
+					windowsOnly();
+					break;
+				}
+				return 0;
+			}
+			""");
+		string unguarded = CreateTempCase("requirement_unguarded_access.camp", """
+			@require(OS_WIN32)
+			void windowsOnly()
+			{
+			}
+
+			export int main()
+			{
+				windowsOnly();
+				return 0;
+			}
+			""");
+		string signature = CreateTempCase("requirement_signature_access.camp", """
+			@require(OS_WIN32)
+			struct WinValue
+			{
+			}
+
+			void bad(WinValue value)
+			{
+			}
+
+			@require(OS_WIN32)
+			void good(WinValue value)
+			{
+			}
+			""");
+		string exhaustiveReturn = CreateTempCase("requirement_exhaustive_return.camp", """
+			@require(OS_LINUX)
+			int linuxValue()
+			{
+				return 1;
+			}
+
+			@require(OS_WIN32)
+			int windowsValue()
+			{
+				return 2;
+			}
+
+			@require(OS_LINUX || OS_WIN32)
+			int selectedValue()
+			{
+				if (configured(OS_LINUX))
+					return linuxValue();
+				else if (configured(OS_WIN32))
+					return windowsValue();
+			}
+			""");
+
+		CompilerResult guardedResult = Execute(guarded, request =>
+		{
+			request.TargetName = "gcc-linux-x64";
+			request.NoStdLib = true;
+		});
+		CompilerResult unguardedResult = Execute(unguarded, request =>
+		{
+			request.TargetName = "gcc-linux-x64";
+			request.NoStdLib = true;
+		});
+		CompilerResult signatureResult = Execute(signature, request =>
+		{
+			request.TargetName = "gcc-linux-x64";
+			request.NoStdLib = true;
+			request.Inspect = CompilerInspectMode.Declarations;
+		});
+		CompilerResult exhaustiveResult = Execute(exhaustiveReturn, request =>
+		{
+			request.TargetName = "gcc-linux-x64";
+			request.NoStdLib = true;
+		});
+
+		Assert.Equal(0, guardedResult.ExitCode);
+		Assert.Equal(0, exhaustiveResult.ExitCode);
+		Assert.NotEqual(0, unguardedResult.ExitCode);
+		Assert.Contains("requires configuration 'OS_WIN32'", unguardedResult.StdErr, StringComparison.Ordinal);
+		Assert.NotEqual(0, signatureResult.ExitCode);
+		Assert.Contains("Type 'WinValue' requires configuration 'OS_WIN32'", signatureResult.StdErr, StringComparison.Ordinal);
+	}
+
 	static CompilerResult Execute(string sourcePath, Action<CompilerRequest> configure)
 	{
 		string repositoryRoot = FindRepositoryRoot();

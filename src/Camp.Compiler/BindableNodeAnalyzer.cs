@@ -87,6 +87,7 @@ public sealed partial class BindableNodeAnalyzer
 	readonly ConfigurationFlagSet configurationFlags;
 	Module? currentModule;
 	Definition? currentAnalysisDefinition;
+	ConfigurationFlagExpression? currentFlowRequirementProof;
 	Action<string, Action>? phaseMeasure;
 
 	BindableNodeAnalyzer(TargetDefinition? selectedTarget = null, ConfigurationFlagSet? configurationFlags = null)
@@ -250,6 +251,9 @@ public sealed partial class BindableNodeAnalyzer
 
 	bool IsDefinitionVisible(Definition definition, SyntaxNode? referenceSyntax)
 	{
+		if (!IsDefinitionRequirementSatisfied(definition))
+			return false;
+
 		if (currentModule is null || !currentModule.DefinitionSources.TryGetValue(definition, out TokenSequence? definitionSource))
 			return true;
 
@@ -545,6 +549,11 @@ public sealed partial class BindableNodeAnalyzer
 
 	void ReportNotExported(Definition definition, SyntaxNode? referenceSyntax, string symbolKind)
 	{
+		if (!IsDefinitionRequirementSatisfied(definition))
+		{
+			ReportUnavailableRequirement(definition, referenceSyntax, symbolKind);
+			return;
+		}
 		if (IsExternallyVisible(definition)
 			&& GetRange(referenceSyntax) is TokenRange range
 			&& !IsDefinitionImported(definition, range.Sequence, referenceSyntax))
@@ -586,16 +595,34 @@ public sealed partial class BindableNodeAnalyzer
 
 	bool IsMemberVisible(Definition member, TypeDefinition owner, SyntaxNode? referenceSyntax)
 	{
-		return IsExternallyVisible(member)
+		return IsDefinitionRequirementSatisfied(member)
+			&& (IsExternallyVisible(member)
 			|| owner is InterfaceDefinition && IsDefinitionVisible(owner, referenceSyntax)
 			|| member is FieldDefinition { Modifier: FieldModifier.None } && owner is StructDefinition && IsExternallyVisible(owner)
-			|| IsDefinitionInSameFile(owner, referenceSyntax);
+			|| IsDefinitionInSameFile(owner, referenceSyntax));
 	}
 
 	bool IsStaticClassMemberVisible(Definition member, StaticClassDefinition owner, SyntaxNode? referenceSyntax)
 	{
-		return IsExternallyVisible(member)
-			|| IsDefinitionInSameFile(owner, referenceSyntax);
+		return IsDefinitionRequirementSatisfied(member)
+			&& (IsExternallyVisible(member)
+			|| IsDefinitionInSameFile(owner, referenceSyntax));
+	}
+
+	bool IsDefinitionRequirementSatisfied(Definition definition)
+	{
+		if (definition.EffectiveRequirement is not ConfigurationFlagExpression required)
+			return true;
+		ConfigurationFlagExpression? context = currentAnalysisFunction?.EffectiveRequirement ?? currentAnalysisDefinition?.EffectiveRequirement;
+		context = ConfigurationFlagExpressionBinder.And(context, currentFlowRequirementProof);
+		return ConfigurationFlagExpressionBinder.Implies(context, required, configurationFlags);
+	}
+
+	void ReportUnavailableRequirement(Definition definition, SyntaxNode? referenceSyntax, string symbolKind)
+	{
+		if (definition.EffectiveRequirement is not ConfigurationFlagExpression requirement)
+			return;
+		Report(GetRange(referenceSyntax), $"{symbolKind} '{definition.Name}' requires configuration '{requirement}'.");
 	}
 
 	static bool StaticClassHasExternallyVisibleMember(StaticClassDefinition definition)
@@ -606,6 +633,11 @@ public sealed partial class BindableNodeAnalyzer
 
 	void ReportMemberNotExported(Definition member, SyntaxNode? referenceSyntax)
 	{
+		if (!IsDefinitionRequirementSatisfied(member))
+		{
+			ReportUnavailableRequirement(member, referenceSyntax, "Member");
+			return;
+		}
 		Report(GetRange(referenceSyntax), $"Member '{member.Name}' is declared in another file but is not exported.");
 	}
 

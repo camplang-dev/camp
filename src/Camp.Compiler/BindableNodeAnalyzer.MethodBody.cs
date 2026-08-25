@@ -332,13 +332,13 @@ public sealed partial class BindableNodeAnalyzer
 
 			case IfStatement ifStatement:
 				RequireExpressionType("bool", BodyAnalyzeExpression(ifStatement.Condition, scope, typeScope), ifStatement.Condition?.SourceSyntax, "If condition");
-				BodyAnalyzeOptionalStatement(ifStatement.Body, scope, typeScope);
+				BodyAnalyzeOptionalStatement(ifStatement.Body, scope, typeScope, GetPositiveRequirementProof(ifStatement.Condition));
 				BodyAnalyzeOptionalStatement(ifStatement.ElseBody, scope, typeScope);
 				break;
 
 			case WhileStatement whileStatement:
 				RequireExpressionType("bool", BodyAnalyzeExpression(whileStatement.Condition, scope, typeScope), whileStatement.Condition?.SourceSyntax, "While condition");
-				BodyAnalyzeOptionalLoopStatement(whileStatement.Body, scope, typeScope);
+				BodyAnalyzeOptionalLoopStatement(whileStatement.Body, scope, typeScope, GetPositiveRequirementProof(whileStatement.Condition));
 				break;
 
 			case DoWhileStatement doWhile:
@@ -579,19 +579,38 @@ public sealed partial class BindableNodeAnalyzer
 		return expression;
 	}
 
-	void BodyAnalyzeOptionalStatement(Statement? statement, BodyScope scope, AnalysisScope typeScope)
+	void BodyAnalyzeOptionalStatement(Statement? statement, BodyScope scope, AnalysisScope typeScope, ConfigurationFlagExpression? requirementProof = null)
 	{
 		if (statement is not null)
-			BodyAnalyzeStatement(statement, scope, typeScope);
+			WithRequirementProof(requirementProof, () => BodyAnalyzeStatement(statement, scope, typeScope));
 	}
 
-	void BodyAnalyzeOptionalLoopStatement(Statement? statement, BodyScope scope, AnalysisScope typeScope)
+	void BodyAnalyzeOptionalLoopStatement(Statement? statement, BodyScope scope, AnalysisScope typeScope, ConfigurationFlagExpression? requirementProof = null)
 	{
 		if (statement is null)
 			return;
 		scope.LoopDepth++;
-		BodyAnalyzeStatement(statement, scope, typeScope);
+		WithRequirementProof(requirementProof, () => BodyAnalyzeStatement(statement, scope, typeScope));
 		scope.LoopDepth--;
+	}
+
+	void WithRequirementProof(ConfigurationFlagExpression? proof, Action action)
+	{
+		if (proof is null)
+		{
+			action();
+			return;
+		}
+		ConfigurationFlagExpression? previous = currentFlowRequirementProof;
+		currentFlowRequirementProof = ConfigurationFlagExpressionBinder.And(previous, proof);
+		try
+		{
+			action();
+		}
+		finally
+		{
+			currentFlowRequirementProof = previous;
+		}
 	}
 
 	void BindFunctionLabels(FunctionDefinition function)
@@ -6325,7 +6344,12 @@ public sealed partial class BindableNodeAnalyzer
 		else
 		{
 			left = BodyAnalyzeExpression(binary.Left, scope, typeScope);
-			right = BodyAnalyzeExpression(binary.Right, scope, typeScope, IsEnumTargetType(left) ? left : null);
+			ConfigurationFlagExpression? leftProof = binary.Operator == BinaryOperator.LogicalAnd ? GetPositiveRequirementProof(binary.Left) : null;
+			right = "";
+			WithRequirementProof(leftProof, () =>
+			{
+				right = BodyAnalyzeExpression(binary.Right, scope, typeScope, IsEnumTargetType(left) ? left : null);
+			});
 		}
 		expressionConstants[binary] = IsConstant(binary.Left) && IsConstant(binary.Right);
 
@@ -6344,6 +6368,30 @@ public sealed partial class BindableNodeAnalyzer
 			BinaryOperator.NullCoalescing => left,
 			_ => ErrorType
 		};
+	}
+
+	ConfigurationFlagExpression? GetPositiveRequirementProof(Expression? expression)
+	{
+		expression = UnwrapParenthesizedExpression(expression);
+		switch (expression)
+		{
+			case CallExpression call when TryGetConfiguredRequirement(call, out ConfigurationFlagExpression? configured):
+				return configured;
+			case BinaryExpression { Operator: BinaryOperator.LogicalAnd } binary:
+				return ConfigurationFlagExpressionBinder.And(GetPositiveRequirementProof(binary.Left), GetPositiveRequirementProof(binary.Right));
+			default:
+				return null;
+		}
+	}
+
+	bool TryGetConfiguredRequirement(CallExpression call, out ConfigurationFlagExpression? requirement)
+	{
+		requirement = null;
+		if (call.Target is not NamedExpression { Qualifiers.Count: 0, Name: "configured" })
+			return false;
+		if (call.Arguments.Count != 1 || !string.IsNullOrWhiteSpace(call.Arguments[0].Name))
+			return false;
+		return ConfigurationFlagExpressionBinder.TryBind(call.Arguments[0].Value, configurationFlags, static (_, _) => { }, out requirement);
 	}
 
 	string? GetBitwiseEnumOperandTarget(BinaryOperator op, string? targetType)

@@ -21,7 +21,7 @@ public sealed partial class BindableNodeAnalyzer
 	void ValidateProductionDeclarationDependencies(Module module)
 	{
 		DeclarationParticipation participation = new(module);
-		diagnostics.AddRange(participation.ValidateProductionDependencies(callTargets));
+		diagnostics.AddRange(participation.ValidateProductionDependencies());
 	}
 
 	void AnalyzeDeclarations(Module module)
@@ -41,10 +41,11 @@ public sealed partial class BindableNodeAnalyzer
 			CheckName(usingDeclaration.Alias, GetAliasRange(usingDeclaration.SourceSyntax), "using alias");
 		}
 
+		BindRequirementAttributes(module);
+		ApplyEffectiveRequirements(module);
 		foreach (Definition definition in ActiveDefinitions(module))
 			AnalyzeDefinition(definition, new AnalysisScope());
 
-		ApplyEffectiveRequirements(module);
 		ValidateTestAttributePlacements(module);
 		ValidateDocAttributePlacements(module);
 		ValidateRequirementAttributePlacements(module);
@@ -1359,6 +1360,10 @@ public sealed partial class BindableNodeAnalyzer
 
 	void AnalyzeFunctionDefinition(FunctionDefinition definition, AnalysisScope parentScope, string? containingType, bool suppressStaticThisDiagnostic = false)
 	{
+		Definition? previousAnalysisDefinition = currentAnalysisDefinition;
+		currentAnalysisDefinition = definition;
+		try
+		{
 		AnalyzeAttributes(definition.Attributes);
 		ValidateUnsupportedFunctionAttribute(definition);
 		BindAsyncImplementationAttributes(definition, containingType);
@@ -1439,6 +1444,11 @@ public sealed partial class BindableNodeAnalyzer
 			SetDefaultMemberSymbol(definition, EffectiveTypeSymbol(typeDefinition), GetCallableName(definition).TrimStart('~'));
 		else if (containingType is null)
 			SetDefaultTopLevelSymbol(definition, GetCallableName(definition));
+		}
+		finally
+		{
+			currentAnalysisDefinition = previousAnalysisDefinition;
+		}
 	}
 
 	void ValidateStaticFunctionHasNoExplicitThis(FunctionDefinition definition, bool suppressDiagnostic)

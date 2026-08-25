@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace Camp.Compiler;
 
@@ -24,13 +25,68 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (state.Reachable)
 		{
-			if (FunctionRequiresReturn(function))
+			if (FunctionRequiresReturn(function) && !HasRequirementExhaustiveReturn(function))
 				Report(GetNameRange(function) ?? GetRange(function.Body.SourceSyntax ?? function.SourceSyntax), $"Function '{function.Name}' does not return a value on all paths.");
 
 			CheckStructConstructorFieldsAssigned(state, function.Body.SourceSyntax ?? function.SourceSyntax, "before constructor exits");
 			CheckOutParametersAssigned(function, state, function.Body.SourceSyntax ?? function.SourceSyntax);
 		}
 	}
+
+	bool HasRequirementExhaustiveReturn(FunctionDefinition function)
+	{
+		if (function.Body is null || function.EffectiveRequirement is null)
+			return false;
+		List<ConfigurationFlagExpression> requiredTerms = [];
+		CollectSimpleOrTerms(function.EffectiveRequirement, requiredTerms);
+		if (requiredTerms.Count <= 1)
+			return false;
+		HashSet<string> covered = new(StringComparer.Ordinal);
+		CollectTerminatingRequirementBranches(function.Body.Statements, requiredTerms, covered);
+		return requiredTerms.All(term => covered.Contains(term.ToString()));
+	}
+
+	void CollectSimpleOrTerms(ConfigurationFlagExpression expression, List<ConfigurationFlagExpression> terms)
+	{
+		if (expression.Kind == ConfigurationFlagExpressionKind.Or && expression.Left is not null && expression.Right is not null)
+		{
+			CollectSimpleOrTerms(expression.Left, terms);
+			CollectSimpleOrTerms(expression.Right, terms);
+			return;
+		}
+		if (expression.Kind == ConfigurationFlagExpressionKind.Flag)
+			terms.Add(expression);
+	}
+
+	void CollectTerminatingRequirementBranches(IEnumerable<Statement> statements, List<ConfigurationFlagExpression> requiredTerms, HashSet<string> covered)
+	{
+		foreach (Statement statement in statements)
+		{
+			if (statement is not IfStatement ifStatement)
+				continue;
+			CollectTerminatingRequirementBranch(ifStatement, requiredTerms, covered);
+		}
+	}
+
+	void CollectTerminatingRequirementBranch(IfStatement ifStatement, List<ConfigurationFlagExpression> requiredTerms, HashSet<string> covered)
+	{
+		if (GetPositiveRequirementProof(ifStatement.Condition) is ConfigurationFlagExpression proof && StatementTerminates(ifStatement.Body))
+		{
+			foreach (ConfigurationFlagExpression term in requiredTerms)
+				if (ConfigurationFlagExpressionBinder.Implies(proof, term, configurationFlags))
+					covered.Add(term.ToString());
+		}
+		if (ifStatement.ElseBody is IfStatement elseIf)
+			CollectTerminatingRequirementBranch(elseIf, requiredTerms, covered);
+	}
+
+	static bool StatementTerminates(Statement? statement) =>
+		statement switch
+		{
+			ReturnStatement => true,
+			BlockStatement block => block.Statements.Any(StatementTerminates),
+			_ => false
+		};
 
 	List<FieldDefinition> GetRequiredStructConstructorFields(FunctionDefinition function, BodyScope bodyScope)
 	{
