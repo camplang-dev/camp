@@ -275,7 +275,11 @@ noted:
 | `--profile`, `-p` | Select `DEBUG` or `RELEASE`; default is `DEBUG`. |
 | `--variant` | Select one or more target variants. |
 | `--verbose`, `-v` | Print generated artifact status lines. |
-| `--define`, `-d` | Add Camp preprocessor symbols. |
+| `--declare`, `-d` | Declare a module-owned configuration flag, optionally as `NAME=true` or `NAME=false`. |
+| `--configure`, `-c` | Configure a declared non-target-owned flag, optionally as `NAME=true` or `NAME=false`. |
+| `--require` | Add a module-level configuration requirement expression. |
+| `--explicit-require` | Require library-style explicit availability requirements for ambient true capability use. |
+| `--implicit-require` | Allow executable-style implicit ambient requirements. |
 | `--emit` | Select the emitter; the documented emitter is `c99`. |
 | `--nostdlib` | Omit automatic standard library package preparation. |
 | `--reference`, `-r` | Add native libraries or linker references. Multiple values may follow one switch. |

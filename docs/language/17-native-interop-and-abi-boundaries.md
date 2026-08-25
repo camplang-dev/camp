@@ -44,6 +44,49 @@ for the native call, and deletes the copy when the function exits. That is the
 pattern you will use often: keep the raw shape close to the ABI, then expose
 the Camp shape you want callers to use.
 
+## Platform-Specific Imports
+
+Platform APIs should be made available with requirements instead of source
+conditional directives:
+
+```camp
+namespace global
+{
+	@require(SUBSYSTEM_POSIX)
+	extern int getpid();
+
+	@require(OS_WIN32)
+	extern uint GetCurrentProcessId();
+}
+
+int getCurrentProcessId()
+{
+	if (configured(SUBSYSTEM_POSIX))
+		return global::getpid();
+	if (configured(OS_WIN32))
+		return (int)global::GetCurrentProcessId();
+	return -1;
+}
+```
+
+The compiler keeps one source graph for tooling and metadata, then emits only
+the selected native branches. This means platform-specific call specs and type
+specs can appear in declarations guarded by requirements, while ordinary code
+continues to read like normal Camp.
+
+Conditional aliases are useful at the ABI boundary when the selected platform
+changes a type or symbol family:
+
+```camp
+alias TSTRING =
+	configured(UNICODE): wstring,
+	astring;
+
+alias CreateDirectory =
+	configured(UNICODE): CreateDirectoryW,
+	CreateDirectoryA;
+```
+
 ## Source Surface And Native Shape
 
 Camp signatures are source contracts. Native headers receive the ABI components
@@ -795,36 +838,32 @@ facts the erased body asked for.
 Keep platform splits close to the native boundary:
 
 ```camp
-#if WINDOWS
 @symbol("Sleep")
+@require(OS_WIN32)
 extern _winapi void nativeSleep(uint milliseconds);
-#elif POSIX
+
 namespace global
 {
+	@require(SUBSYSTEM_POSIX)
 	extern int usleep(uint microseconds);
 }
-#endif
 
 void sleepMilliseconds(uint milliseconds)
 {
-#if WINDOWS
-	nativeSleep(milliseconds);
-#elif POSIX
-	global::usleep(milliseconds * 1000);
-#endif
+	if (configured(OS_WIN32))
+		nativeSleep(milliseconds);
+	else if (configured(SUBSYSTEM_POSIX))
+		global::usleep(milliseconds * 1000);
 }
 ```
 
 Ordinary program code should call the wrapper. The wrapper is where call specs,
 native names, integer widths, and platform conventions belong.
 
-Use `@notsupported` when a function remains visible in the API but is not
-available for a selected target:
+Use `@require` when an API requires a selected capability:
 
 ```camp
-#if NO_TIMERS
-@notsupported("The current target does not support timers.")
-#endif
+@require(SUPPORTS_TIMERS)
 export extern TimerHandle startTimer(
 	nuint intervalMs,
 	escaped delegate void(TimerHandle handle) callback);

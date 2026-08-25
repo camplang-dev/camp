@@ -54,25 +54,36 @@ Adding a new section should include target-loader validation, docs in the
 compiler target reference, tests for merge/override behavior, and clear default
 behavior when the section is absent.
 
-## Target-Owned Defines
+## Configuration Flags
 
-Target-owned defines are added to preprocessing and should be distinguishable
-from user `--define` values where diagnostics or tooling need that distinction.
+Targets declare the standard configuration flag universe and configure selected
+target facts. Flags are booleans. A declaration gives a flag an ambient value;
+a configuration gives it a selected value. Target-owned flags may not be
+configured by command-line `--configure`.
 
-The compiler uses target-owned defines for platform-specific source selection.
-A user should not be able to spoof a target-owned define and trick the compiler
-into type-checking against one target while emitting for another. Keep user
-defines and target defines separate in the compilation model.
+Standard target flags include platform, architecture, runtime, subsystem, and
+capability facts such as `OS_WIN32`, `OS_WIN64`, `OS_LINUX`, `OS_MACOSX`,
+`OS_WASI`, `RUNTIME_EMSCRIPTEN`, `SUBSYSTEM_POSIX`, `SUBSYSTEM_DARWIN`,
+`ARCH_X86`, `ARCH_X64`, `ARCH_ARM64`, `ARCH_WASM32`, `SUPPORTS_FILES`,
+`SUPPORTS_TIMERS`, `SUPPORTS_THREADS`, `SUPPORTS_NETWORK`, and `UNICODE`.
 
-Profile defines, such as debug/release symbols, are also part of preprocessing.
-They should be deterministic and visible to dumps/tooling as part of the
-compilation environment.
+Source must not use flag names as ordinary identifiers. Expression-level checks
+must use the compiler intrinsic `configured(FLAG_EXPRESSION)`. Declarations use
+`@require(FLAG_EXPRESSION)`, and build inputs use `--require` for module-level
+requirements.
+
+Legacy source-level conditionals and source-local symbol mutation are not part
+of the semantic model. `#if`, `#elif`, `#else`, `#endif`, `#define`, and
+`#undef` remain parseable enough for migration diagnostics, but they are hard
+errors in Camp source.
 
 ## Type Specs And Call Specs
 
 Type specs apply to target-capable carrier types. Call specs apply to concrete
-callables. The parser may accept names syntactically, but semantic validation
-checks selected-target definitions.
+callables. The parser accepts every callspec/typespec declared by the target
+chain, not only the specs configured for the selected native target. Semantic
+validation then checks whether the current requirement context proves the spec's
+declared requirement.
 
 Examples of target type spec domains include near/far/huge pointer families or
 memory-space annotations on targets that need them. Examples of call specs
@@ -82,6 +93,8 @@ Rules for compiler writers:
 
 - validate every source type spec against the selected target;
 - validate every call spec against the selected target;
+- distinguish unknown specs from known but unavailable specs;
+- allow known specs under declarations or flow guarded by their requirements;
 - preserve type spec ordering where the target defines one;
 - apply type specs to the carrier they decorate, not to unrelated generic
   arguments or callable signatures;
@@ -89,6 +102,34 @@ Rules for compiler writers:
   declarations;
 - include call/type specs in callable compatibility and conversion
   classification where required.
+
+Target files declare the syntactic spec universe separately from selected C
+spellings:
+
+```ini
+[declare.callspec]
+_winapi=OS_WIN16 || OS_WIN32
+_sysv=SUBSYSTEM_POSIX
+
+[declare.typespec]
+_near=OS_WIN16 || OS_WIN32
+```
+
+Concrete targets configure platform flags and provide native spellings for the
+specs they actually emit. A use of `_winapi` in an `@require(OS_WIN32)`
+declaration is valid even when another target parses the same file for metadata.
+The declaration is simply unavailable for that target.
+
+## Requirement-Aware Native Emission
+
+Native emission filters declarations whose effective requirements are false for
+the selected target. It also constant-folds `configured(...)` and prunes
+selected `if (configured(...))` branches so emitted C does not reference
+declarations that were filtered out.
+
+Emission filtering is deliberately later than parsing and semantic analysis.
+The compiler should preserve one source graph for metadata, API headers, and
+tooling, then select only the active native surface at C emission.
 
 ## Conversion Policy Tables
 

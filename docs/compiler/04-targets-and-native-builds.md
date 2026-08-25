@@ -45,7 +45,11 @@ The recognized sections are:
 | Section | Purpose |
 |---|---|
 | `[target]` | Target name, base, and C include list. |
-| `[define]` | Target-owned Camp preprocessor symbols. |
+| `[declare]` | Target-owned configuration flag declarations and ambient values. |
+| `[configure]` | Target-owned selected configuration flag values. |
+| `[declare.callspec]` | Callspec names accepted by the parser and their requirements. |
+| `[declare.typespec]` | Typespec names accepted by the parser and their requirements. |
+| `[define]` | Legacy target-owned C/preprocessor compatibility symbols. |
 | `[capability]` | Boolean or string feature flags used by compiler services. |
 | `[callspec]` | Callable calling-convention spellings. |
 | `[typespec]` | Target-specific representation domains and pointer defaults. |
@@ -88,9 +92,8 @@ variants.
 Variant-specific sections use `:<variant>` suffixes:
 
 ```ini
-[define:unicode]
-UNICODE=1
-_UNICODE=1
+[configure:unicode]
+UNICODE=true
 
 [profile.DEBUG:unicode]
 cflags=/Zi /DUNICODE /D_UNICODE
@@ -99,15 +102,30 @@ cflags=/Zi /DUNICODE /D_UNICODE
 Variant overlays are applied after base target merging and before target
 metadata validation.
 
-## Defines
+## Configuration Flags
 
-Target `[define]` keys become Camp preprocessor symbols. They are also
-target-owned. A user cannot supply a target-owned symbol manually through
-`--define`; doing so is a diagnostic. Select the target or variant that owns the
-symbol instead.
+Target `[declare]` keys introduce target-owned configuration flags and ambient
+values:
 
-This rule keeps `#if WINDOWS` and similar conditions tied to real target
-selection.
+```ini
+[declare]
+OS_WIN32=false
+SUBSYSTEM_POSIX=false
+SUPPORTS_FILES=true
+UNICODE=false
+```
+
+Target `[configure]` keys select concrete values:
+
+```ini
+[configure]
+OS_WIN32=true
+ARCH_X64=true
+```
+
+Users cannot configure target-owned flags with `--configure`; selecting the
+target or variant is the supported mechanism. Source checks these flags with
+`configured(...)`, and declarations state requirements with `@require(...)`.
 
 ## Primitive C Types
 
@@ -131,6 +149,10 @@ those C spellings, such as `stdint.h` and `stdbool.h`.
 `[callspec]` maps Camp callable call-spec names to C spelling:
 
 ```ini
+[declare.callspec]
+_stdcall=OS_WIN32
+_sysv=SUBSYSTEM_POSIX
+
 [callspec]
 _cdecl=
 _stdcall=__stdcall
@@ -147,6 +169,10 @@ They do not apply to `void*`, `fn*`, `nint`, `nuint`, or `untyped`. See
 similar target-specific carrier categories:
 
 ```ini
+[declare.typespec]
+_near=OS_WIN16 || OS_WIN32
+_far=OS_WIN16 || OS_WIN32
+
 [typespec]
 _near=__near
 _far=__far

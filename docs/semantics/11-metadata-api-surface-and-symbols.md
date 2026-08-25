@@ -32,6 +32,11 @@ though C emission uses a completion callback. An array parameter remains an
 array parameter in the API header even though ABI lowering passes pointer and
 length components.
 
+API headers preserve availability requirements with `@require(...)`. They
+should serialize source-level requirements, not selected-target native
+filtering, unless the API being produced is explicitly a selected native API
+surface. Consumers must use those requirements when validating references.
+
 Static classes are source containers in Camp API headers. When a static class
 has API-visible members, the API header prints:
 
@@ -78,6 +83,12 @@ test-only helper declarations, generated test thunks, harness symbols, coverage
 runtime symbols, and generated declarations owned by test-only source
 declarations. Test-module metadata views may include test-only declarations when
 the selected metadata visibility would otherwise include them.
+
+Declarations with effective configuration requirements include a `require`
+field whose value is the normalized requirement expression. `@require` itself is
+not emitted as an ordinary raw metadata attribute; the `require` field is the
+canonical representation. Metadata consumers should treat a declaration as
+available only where the consumer can satisfy that expression.
 
 ## Export/Public/All Filtering
 
@@ -382,16 +393,15 @@ references at the `symbolof` expression.
 `symbolof` is not a runtime expression and must not be accepted in ordinary
 function bodies, constant expressions, or emitted C expressions.
 
-### `@notsupported`
+### Availability Requirements
 
-`@notsupported` marks a function or method as unavailable for source calls. It
-is not valid on constructors, destructors, aliases, types, fields, parameters,
-or generic parameters. It accepts at most one positional string reason and does
-not accept named arguments.
+`@require` marks a declaration as available only when a configuration expression
+is satisfied. Metadata records the effective condition in the declaration's
+`require` field, and Camp API headers preserve the source `@require` attribute.
 
-Call analysis should diagnose calls to unsupported functions unless the current
-source context is itself an accepted unsupported/declaration-only surface.
-Metadata should preserve the unsupported marker and reason so tools can explain
+Call analysis should diagnose references to unavailable declarations unless the
+current declaration or flow context proves the required condition. Metadata
+should preserve the requirement so tools can explain
 availability without trying the call.
 
 ### Lifecycle And Async Attributes

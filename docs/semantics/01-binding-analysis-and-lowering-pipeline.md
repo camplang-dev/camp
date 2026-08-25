@@ -7,8 +7,8 @@ earlier stage owns.
 
 ## Source Files And Compilation
 
-A `Compilation` contains source files, target selection, profile, preprocessor
-symbols, default `within` allocation policy, parsed trees, bindable trees,
+A `Compilation` contains source files, target selection, profile, configuration
+flags, default `within` allocation policy, parsed trees, bindable trees,
 declaration expansion results, lowering results, and owner maps from definitions
 back to source files.
 
@@ -44,28 +44,21 @@ request or build-file workflow must select it only for those modes. Within a
 file that also participates in production builds, `@test` and `@testonly` are
 the source-level mechanisms that remove declarations from the production view.
 
-## Preprocessing
+## Prelude Processing And Configuration
 
-Preprocessing runs before tokenization and parsing. It consumes Camp
-preprocessor symbols from:
+Camp no longer has token-level conditional preprocessing. Legacy conditional
+directives and source-local define mutation are diagnosed, not evaluated.
 
-- the built-in `TRUE` symbol;
-- selected profile symbol, such as `DEBUG` or `RELEASE`;
-- selected target and variant owned defines;
-- command-line or build-pragma defines.
+The driver/language-service prelude still recognizes `#within` policy
+directives. `#build` is a project-loading concern and must not become a semantic
+construct in the bindable tree.
 
-Target-owned defines are recorded separately from user defines so diagnostics can
-reject user attempts to supply target-owned symbols manually.
-
-When declaration participation mode is test module, preprocessing also defines
-`TEST_MODULE`. This symbol belongs to the compiler-owned test mode. It should
-not be defined manually to simulate a test build because it would not enable the
-test declaration view, harness generation, manifest output, or coverage runner
-behavior.
-
-The preprocessor also recognizes file-prelude `#within` policy directives in the
-compiler driver/language service path. `#build` is a project-loading concern and
-must not become a semantic construct in the bindable tree.
+Configuration flags are declared and configured by targets, variants, build
+files, and command-line options before analysis. `TEST_MODULE` is declared by
+the compiler and configured for test/coverage declaration participation. It
+should not be configured manually to simulate a test build because that would
+not enable the test declaration view, harness generation, manifest output, or
+coverage runner behavior.
 
 ## Tokenization And Parsing
 

@@ -140,8 +140,8 @@ Effective build options are applied in this order:
 3. Command-line arguments or `.campbuild` response-file arguments.
 
 Repeated list-valued options accumulate. Examples include `--api`,
-`--exclude`, `--define`, `--reference`, `--framework`, `--use`,
-`--use-source`, and `--project-reference`.
+`--exclude`, `--declare`, `--configure`, `--require`, `--reference`,
+`--framework`, `--use`, `--use-source`, and `--project-reference`.
 
 Single-valued options resolve by precedence. Examples include `--target`,
 `--profile`, `--emit`, `--metadata`, `--artifact`, `--name`, `--subsystem`,
@@ -152,19 +152,28 @@ diagnostic.
 Variant selections are also precedence-sensitive. A higher-precedence variant
 list replaces a lower-precedence list; values at the same precedence accumulate.
 
-## Conditional Symbols
+## Configuration Flags
 
-`--define` and `#build --define` add Camp preprocessor symbols. The compiler
-also defines `TRUE`, the selected profile (`DEBUG` or `RELEASE`), and target
-symbols from the selected target and variants.
+`--declare` and `#build --declare` introduce module-owned configuration flags.
+`--declare NAME` gives the flag a false ambient value; `--declare NAME=true`
+gives it a true ambient value.
 
-Target-owned symbols cannot be supplied manually through `--define`. Selecting
-the matching target or target variant is the supported way to obtain them. This
-prevents source from pretending to be built for a target that was not selected.
+`--configure` and `#build --configure` select a value for a declared flag.
+`--configure NAME` is equivalent to `--configure NAME=true`; use
+`--configure NAME=false` to select false.
 
-Camp inline constants are separate from preprocessor symbols. Inline constants
-do not participate in Camp `#if` evaluation, and generated C macros do not feed
-back into Camp preprocessing.
+`--require` and `#build --require` publish a module-level requirement that must
+be satisfied by consumers. Source declarations use `@require(...)`, and method
+bodies query flags with `configured(...)`.
+
+Target-owned flags are declared or configured by target files and variants. A
+user cannot configure them from the command line; selecting the target or target
+variant is the supported way to obtain those facts.
+
+Legacy source conditionals (`#if`, `#elif`, `#else`, `#endif`) and source-local
+symbol mutation (`#define`, `#undef`) are hard errors in Camp source. Use
+`@require(...)` on declarations and ordinary `if (configured(...))` in
+function bodies.
 
 ## `#within` Directives
 

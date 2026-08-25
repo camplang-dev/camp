@@ -78,6 +78,38 @@ rediscovering them:
   callable parameter list;
 - omitted trailing `out` result binding must select exactly one callable shape;
 - intentional discard targets must be recognized as write-only storage;
+
+## Configuration Queries
+
+`configured(FLAG_EXPRESSION)` is a compiler intrinsic expression. It returns
+`bool` and is the only source expression that can query configuration flags.
+Bare flag names are not ordinary source values and must be diagnosed if they
+are used as normal identifiers.
+
+The argument is a configuration flag expression: declared flag names, `true`,
+`false`, `!`, `&&`, `||`, `^`, and parentheses. Unknown flags are diagnostics.
+`configured(...)` does not accept type arguments and must receive exactly one
+argument.
+
+Flow analysis treats a positive `configured(...)` condition as a proof inside
+the guarded expression/body:
+
+```camp
+if (configured(OS_WIN32) && callWin32())
+{
+	// OS_WIN32 is proven here, and was proven while binding callWin32().
+}
+```
+
+Logical `&&` proves the left side while analyzing the right side and proves both
+sides in the body. A disjunction such as
+`(configured(A) && useA()) || (configured(B) && useB())` proves the appropriate
+condition in each operand but proves no single condition for the whole body.
+
+Requirement-aware return validation may use a function requirement such as
+`@require(A || B)` together with terminating `if (configured(A))` and
+`else if (configured(B))` branches to prove that all available configurations
+return.
 - source transfer statements must be checked before generated cleanup gotos
   obscure the original control flow.
 

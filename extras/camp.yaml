@@ -55,7 +55,7 @@ rules:
   - type.keyword: "\\b(const|constof|volatile|escaped|scoped|unscoped|in|out|overload|prep|within|unsafe)\\b"
   - type.keyword: "\\b(implements|copyable)\\b"
 
-  - special: "\\b(sizeof|typenameof|vtableof|caller|sourceof)\\b\\s*\\("
+  - special: "\\b(sizeof|typenameof|vtableof|caller|sourceof|configured)\\b\\s*\\("
   - special: "\\b(assert|fail)\\b\\s*\\("
   - constant.bool: "\\b(true|false)\\b"
   - constant: "\\b(null|default|this|base)\\b"

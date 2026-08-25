@@ -11,9 +11,9 @@ names, `@index` and `@range` for indexing and slicing, and `@awaitwith` and
 `@noawait` for async bodies.
 
 This chapter fills in the metadata side: documentation comments, direct
-documentation attributes, target-availability hints such as `@notsupported`,
-and the compact table you can use when you need to remember where each
-attribute belongs.
+documentation attributes, availability requirements such as `@require`, and the
+compact table you can use when you need to remember where each attribute
+belongs.
 
 ## Attribute Syntax
 
@@ -129,6 +129,53 @@ public class Directory
 The semicolon matters: it makes the category a file default instead of attaching
 the attribute to the next declaration. A declaration can still use its own
 `@category(...)` when it belongs somewhere else.
+
+## Availability Requirements
+
+Some declarations exist only when a selected target or build configuration
+supports the feature they need. Use `@require(...)` to state that requirement:
+
+```camp
+@require(SUPPORTS_FILES)
+public static void FileSystem.deleteFile(string path, thrown IoError error);
+```
+
+The expression inside `@require` uses configuration flags such as
+`OS_WIN32`, `SUBSYSTEM_POSIX`, and `SUPPORTS_FILES`. These names are not
+ordinary variables. In executable code, query them with `configured(...)`:
+
+```camp
+void logPlatform()
+{
+	if (configured(OS_WIN32))
+		Console.writeLine("Windows");
+	else if (configured(SUBSYSTEM_POSIX))
+		Console.writeLine("POSIX");
+}
+```
+
+When most declarations in a file share the same requirement, write it as a file
+metadata attribute:
+
+```camp
+namespace Std;
+
+@require(SUPPORTS_FILES);
+
+public enum FileAccess
+{
+	READ,
+	WRITE
+}
+```
+
+The semicolon again matters. `@require(SUPPORTS_FILES);` is a file-level default
+for top-level declarations in that file. A top-level declaration with its own
+`@require` uses that declaration requirement instead of the file default.
+
+For everyday code, the practical rule is simple: put `@require(...)` on APIs
+that need a platform or capability, and use `if (configured(...))` when a
+function body needs to choose between supported implementations.
 
 Inside a doc comment, write them as doc commands:
 
@@ -251,27 +298,20 @@ Examples should name the domain they are demonstrating. They do not need to be
 complete programs, but they should avoid suggesting that invented APIs are part
 of the standard library unless that is actually true.
 
-## Target Availability With `@notsupported`
+## Target Availability With `@require`
 
-`@notsupported` marks a function or method as unavailable for the active target
-while preserving it in source/API metadata.
+`@require` marks a declaration as available only when the selected target or
+build configuration satisfies a condition.
 
 ```camp
-#if NO_TIMERS
-@notsupported("The current target does not support timers.")
-#endif
+@require(SUPPORTS_TIMERS)
 export extern TimerHandle startTimer(
 	nuint intervalMs,
 	escaped delegate void(TimerHandle handle) callback);
 ```
 
-The optional argument is a string reason. Calls to a not-supported function are
-diagnosed unless the caller is also marked not supported. This lets target
-specific standard-library files keep one source shape while clearly explaining
-why a declaration cannot be used on a particular target.
-
-`@notsupported` applies only to functions and methods. It is not valid on
-fields, parameters, constructors, or destructors.
+The same requirement is preserved in API headers and metadata so tools can show
+which declarations are target- or capability-specific.
 
 ## Testing Attributes
 
@@ -419,7 +459,7 @@ symbol links, or deprecation messages.
 | `@range` | First parameter in an `index, count` pair | Enables range boundary syntax such as `start..end` for slice-like APIs |
 | `@awaitwith` | One ordinary runtime parameter of a concrete async body | Selects the resumer used after `await` suspension |
 | `@noawait` | Concrete async definitions with Camp bodies | Declares that the async body cannot suspend and may not contain `await` |
-| `@notsupported("reason")` | Functions and methods | Marks the callable unavailable on the active target while preserving source/API metadata |
+| `@require(CONDITION)` | Declarations and fields where availability is meaningful | Makes the declaration available only when the configuration condition is satisfied |
 | `@getshadow` | Shadow-capable base methods | Marks the getter hook that returns attached shadow data |
 | `@setshadow` | Shadow-capable base methods | Marks the setter hook that stores attached shadow data |
 | `@summary("text")` | Declarations and declaration children | Main documentation summary; plain doc-comment text lowers to this |
@@ -441,7 +481,7 @@ For the feature-specific attributes already introduced:
 - `@symbol` belongs with native names and exported ABI design.
 - `@index` and `@range` belong with arrays, slicing, and indexer-like APIs.
 - `@awaitwith` and `@noawait` belong with async bodies and resumers.
-- `@notsupported` belongs with target-conditioned APIs and standard-library
+- `@require` belongs with target-conditioned APIs and standard-library
   portability.
 - `@test`, `@testonly`, and `@skip` belong with first-class test runs.
 - `@getshadow` and `@setshadow` belong with shadow classes and native extension

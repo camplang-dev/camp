@@ -72,6 +72,12 @@ loads referenced source files for analysis.
 This design keeps editor analysis responsive and avoids surprising writes from
 the editor process.
 
+The language service uses the same configuration flag model as the compiler. It
+should understand declarations guarded by `@require(...)`, flow guarded by
+`configured(...)`, and API metadata `require` fields without pretending that a
+source file was token-filtered for one target. Legacy conditional directives are
+reported as source diagnostics instead of hidden from analysis.
+
 ## Source Overlays
 
 Language-service analysis can include source overlays:

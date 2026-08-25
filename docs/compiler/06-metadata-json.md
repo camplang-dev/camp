@@ -139,6 +139,7 @@ Most declaration objects may contain:
 | `symbol` | Flattened emitted symbol when different from `name`. |
 | `visibility` | `export`, `public`, or `internal` for visible declarations. |
 | `extern` | `true` for extern declarations or synthesized API externs. |
+| `require` | Configuration requirement expression for availability-gated declarations. |
 | `metadata` | Metadata attributes from doc comments or source attributes. |
 | `testOnly` | `true` when the declaration participates only in test/coverage builds. |
 | `test` | Structured discovery data for a function marked `@test`. |
