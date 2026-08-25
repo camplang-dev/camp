@@ -2,7 +2,7 @@
 
 ## Status
 
-Pending.
+Accepted.
 
 ## Proposal Date
 
@@ -10,7 +10,7 @@ Pending.
 
 ## Last Updated Date
 
-2026-08-14
+2026-08-25
 
 ## Summary
 
