@@ -23,7 +23,7 @@ public sealed class CampParserOptions
 	{
 		return target is null
 			? Empty
-			: new CampParserOptions(target.TypeSpecs.Keys, target.CallSpecs.Keys);
+			: new CampParserOptions(target.SyntaxTypeSpecs.Keys, target.SyntaxCallSpecs.Keys);
 	}
 }
 

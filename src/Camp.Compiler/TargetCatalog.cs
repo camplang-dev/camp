@@ -409,6 +409,12 @@ public sealed class TargetDefinition
 	internal TargetSections Sections { get; }
 	public IReadOnlyDictionary<string, string> CallSpecs => Sections.CallSpecs;
 	public IReadOnlyDictionary<string, string> TypeSpecs => Sections.TypeSpecs;
+	public IReadOnlyDictionary<string, string> SyntaxCallSpecs => Sections.DeclaredCallSpecs.Count > 0 ? Sections.DeclaredCallSpecs : Sections.CallSpecs;
+	public IReadOnlyDictionary<string, string> SyntaxTypeSpecs => Sections.DeclaredTypeSpecs.Count > 0 ? Sections.DeclaredTypeSpecs : Sections.TypeSpecs;
+	public IReadOnlyDictionary<string, bool> ConfigurationFlagDeclarations => Sections.ConfigurationFlagDeclarations;
+	public IReadOnlyDictionary<string, bool> ConfigurationFlagConfigurations => Sections.ConfigurationFlagConfigurations;
+	public IReadOnlyDictionary<string, string> DeclaredCallSpecs => Sections.DeclaredCallSpecs;
+	public IReadOnlyDictionary<string, string> DeclaredTypeSpecs => Sections.DeclaredTypeSpecs;
 	public IReadOnlyDictionary<string, string> CTypes => Sections.CTypes;
 	public IReadOnlyDictionary<string, string> Defines => Sections.Defines;
 	public IReadOnlyDictionary<string, string> TargetCapabilities => Sections.Capabilities;
@@ -669,9 +675,13 @@ internal sealed class TargetSections
 {
 	public Dictionary<string, string> CallSpecs { get; } = new(StringComparer.Ordinal);
 	public Dictionary<string, string> TypeSpecs { get; } = new(StringComparer.Ordinal);
+	public Dictionary<string, string> DeclaredCallSpecs { get; } = new(StringComparer.Ordinal);
+	public Dictionary<string, string> DeclaredTypeSpecs { get; } = new(StringComparer.Ordinal);
 	public Dictionary<string, string> Capabilities { get; } = new(StringComparer.Ordinal);
 	public Dictionary<string, string> CTypes { get; } = new(StringComparer.Ordinal);
 	public Dictionary<string, string> Defines { get; } = new(StringComparer.Ordinal);
+	public Dictionary<string, bool> ConfigurationFlagDeclarations { get; } = new(StringComparer.Ordinal);
+	public Dictionary<string, bool> ConfigurationFlagConfigurations { get; } = new(StringComparer.Ordinal);
 	public Dictionary<string, int> NaturalIntegerWidths { get; } = new(StringComparer.Ordinal);
 	public Dictionary<string, int> PointerWidths { get; } = new(StringComparer.Ordinal);
 	public Dictionary<string, TargetVariantGroup> VariantGroups { get; } = new(StringComparer.Ordinal);
@@ -694,9 +704,13 @@ internal sealed class TargetSections
 	{
 		Includes.AddRange(source.Includes);
 		CopySection(source.Defines, Defines);
+		CopySection(source.ConfigurationFlagDeclarations, ConfigurationFlagDeclarations);
+		CopySection(source.ConfigurationFlagConfigurations, ConfigurationFlagConfigurations);
 		CopySection(source.CallSpecs, CallSpecs);
+		CopySection(source.DeclaredCallSpecs, DeclaredCallSpecs);
 		CopySection(source.Capabilities, Capabilities);
 		CopyTypeSpecSection(source.TypeSpecs, source.TypeSpecOrder);
+		CopySection(source.DeclaredTypeSpecs, DeclaredTypeSpecs);
 		CopySection(source.CTypes, CTypes);
 		CopySection(source.NaturalIntegerWidths, NaturalIntegerWidths);
 		CopySection(source.PointerWidths, PointerWidths);
@@ -725,6 +739,7 @@ internal sealed class TargetSections
 			{
 				ValidateConditionalVariants(section.SectionName, parsed.Variants);
 				RecordTargetOwnedDefines(parsed.BaseName, section);
+				RecordTargetOwnedConfigurationFlags(parsed.BaseName, section);
 				ConditionalSections.Add(new TargetConditionalSection(parsed.BaseName, [.. parsed.Variants], section));
 				continue;
 			}
@@ -750,6 +765,9 @@ internal sealed class TargetSections
 			case "callspec":
 				MergeSection(section, CallSpecs);
 				break;
+			case "declare.callspec":
+				MergeRequiredSpecSection(section, DeclaredCallSpecs, "callspec");
+				break;
 			case "target":
 				MergeTargetSection(section);
 				break;
@@ -760,8 +778,17 @@ internal sealed class TargetSections
 				RecordTargetOwnedDefines(sectionName, section);
 				MergeSection(section, Defines);
 				break;
+			case "declare":
+				MergeFlagDeclarationSection(section);
+				break;
+			case "configure":
+				MergeFlagConfigurationSection(section);
+				break;
 			case "typespec":
 				MergeTypeSpecSection(section);
+				break;
+			case "declare.typespec":
+				MergeRequiredSpecSection(section, DeclaredTypeSpecs, "typespec");
 				break;
 			case "ctype":
 				MergeSection(section, CTypes);
@@ -860,6 +887,49 @@ internal sealed class TargetSections
 				TypeSpecOrder.Add(key.KeyName);
 			TypeSpecs[key.KeyName] = key.Value;
 		}
+	}
+
+	void MergeFlagDeclarationSection(SectionData section)
+	{
+		foreach (KeyData key in section.Keys)
+		{
+			if (!ConfigurationFlagSyntax.IsValidName(key.KeyName))
+				throw new InvalidDataException($"Configuration flag '{key.KeyName}' is not a valid identifier.");
+			ConfigurationFlagDeclarations[key.KeyName] = ParseBooleanValue(key.Value, $"[declare] '{key.KeyName}'");
+			TargetOwnedDefines.Add(key.KeyName);
+		}
+	}
+
+	void MergeFlagConfigurationSection(SectionData section)
+	{
+		foreach (KeyData key in section.Keys)
+		{
+			if (!ConfigurationFlagSyntax.IsValidName(key.KeyName))
+				throw new InvalidDataException($"Configuration flag '{key.KeyName}' is not a valid identifier.");
+			ConfigurationFlagConfigurations[key.KeyName] = ParseBooleanValue(key.Value, $"[configure] '{key.KeyName}'");
+			TargetOwnedDefines.Add(key.KeyName);
+		}
+	}
+
+	void MergeRequiredSpecSection(SectionData section, Dictionary<string, string> target, string specKind)
+	{
+		foreach (KeyData key in section.Keys)
+		{
+			if (key.KeyName.Length == 0)
+				throw new InvalidDataException($"[declare.{specKind}] entries must have a name.");
+			target[key.KeyName] = key.Value.Trim();
+		}
+	}
+
+	static bool ParseBooleanValue(string value, string context)
+	{
+		string normalized = value.Trim();
+		return normalized switch
+		{
+			"true" => true,
+			"false" => false,
+			_ => throw new InvalidDataException($"{context} must use true or false.")
+		};
 	}
 
 	void MergeWidthSection(SectionData section, string sectionName, Dictionary<string, int> target)
@@ -980,6 +1050,14 @@ internal sealed class TargetSections
 	void RecordTargetOwnedDefines(string sectionName, SectionData section)
 	{
 		if (sectionName != "define")
+			return;
+		foreach (KeyData key in section.Keys)
+			TargetOwnedDefines.Add(key.KeyName);
+	}
+
+	void RecordTargetOwnedConfigurationFlags(string sectionName, SectionData section)
+	{
+		if (sectionName is not ("declare" or "configure"))
 			return;
 		foreach (KeyData key in section.Keys)
 			TargetOwnedDefines.Add(key.KeyName);

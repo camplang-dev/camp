@@ -63,6 +63,36 @@ public sealed class TargetCapabilityTests
 	}
 
 	[Fact]
+	public void Targets_declare_configuration_flags_and_abi_spec_universe()
+	{
+		TargetCatalog catalog = LoadCatalog();
+		Assert.True(catalog.TryGetTarget("gcc-linux-x64", out TargetDefinition? linux));
+		Assert.True(catalog.TryGetTarget("msvc-windows-x64", out TargetDefinition? windowsX64));
+		Assert.True(catalog.TryGetTarget("msvc-windows-x86", out TargetDefinition? windowsX86));
+		Assert.True(catalog.TryGetTarget("wasm32-wasi", out TargetDefinition? wasi));
+
+		Assert.True(linux!.ConfigurationFlagDeclarations.ContainsKey("OS_LINUX"));
+		Assert.True(linux.ConfigurationFlagDeclarations["SUPPORTS_FILES"]);
+		Assert.True(linux.ConfigurationFlagConfigurations["OS_LINUX"]);
+		Assert.True(linux.ConfigurationFlagConfigurations["SUBSYSTEM_POSIX"]);
+		Assert.True(linux.ConfigurationFlagConfigurations["ARCH_X64"]);
+
+		Assert.True(windowsX64!.ConfigurationFlagConfigurations["OS_WIN32"]);
+		Assert.True(windowsX64.ConfigurationFlagConfigurations["OS_WIN64"]);
+		Assert.True(windowsX64.ConfigurationFlagConfigurations["ARCH_X64"]);
+		Assert.True(windowsX86!.ConfigurationFlagConfigurations["OS_WIN32"]);
+		Assert.True(windowsX86.ConfigurationFlagConfigurations["ARCH_X86"]);
+		Assert.True(wasi!.ConfigurationFlagConfigurations["OS_WASI"]);
+		Assert.False(wasi.ConfigurationFlagConfigurations["SUPPORTS_FILES"]);
+		Assert.False(wasi.ConfigurationFlagConfigurations["SUPPORTS_TIMERS"]);
+
+		Assert.Contains("_stdcall", windowsX64.SyntaxCallSpecs.Keys);
+		Assert.Contains("_near", windowsX64.SyntaxTypeSpecs.Keys);
+		Assert.Contains("_msabi", linux.SyntaxCallSpecs.Keys);
+		Assert.Equal("OS_WIN16 || OS_WIN32", windowsX64.DeclaredTypeSpecs["_near"]);
+	}
+
+	[Fact]
 	public void Artifact_directory_names_include_target_variants_library_kind_and_profile()
 	{
 		TargetCatalog catalog = LoadCatalog();
