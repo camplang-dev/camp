@@ -39,6 +39,7 @@
       "kind": "function",
       "name": "addWorks",
       "symbol": "TestMetadata_addWorks",
+      "require": "TEST_MODULE",
       "testOnly": true,
       "test": {
         "id": "TestMetadata::addWorks",
@@ -57,6 +58,7 @@
         {
           "id": "function:TestMetadata::addWorks/parameter:assertion",
           "name": "assertion",
+          "require": "TEST_MODULE",
           "modifier": "thrown",
           "type": "Assertion*"
         }
@@ -76,6 +78,7 @@
       "kind": "function",
       "name": "skippedDirect",
       "symbol": "TestMetadata_skippedDirect",
+      "require": "TEST_MODULE",
       "testOnly": true,
       "test": {
         "id": "TestMetadata::skippedDirect",
@@ -94,6 +97,7 @@
         {
           "id": "function:TestMetadata::skippedDirect/parameter:assertion",
           "name": "assertion",
+          "require": "TEST_MODULE",
           "modifier": "thrown",
           "type": "Assertion*"
         }
@@ -113,6 +117,7 @@
       "kind": "function",
       "name": "invalidShape",
       "symbol": "TestMetadata_invalidShape",
+      "require": "TEST_MODULE",
       "testOnly": true,
       "test": {
         "id": "TestMetadata::invalidShape",
@@ -147,11 +152,13 @@
       "name": "Fixture",
       "symbol": "TestMetadataFixture",
       "visibility": "internal",
+      "require": "TEST_MODULE",
       "testOnly": true,
       "fields": [
         {
           "id": "struct:TestMetadata::Fixture/field:value",
           "name": "value",
+          "require": "TEST_MODULE",
           "type": "int"
         }
       ],
@@ -166,6 +173,7 @@
       "kind": "function",
       "name": "helperValue",
       "symbol": "TestMetadata_helperValue",
+      "require": "TEST_MODULE",
       "testOnly": true,
       "returnType": "int",
       "metadata": [

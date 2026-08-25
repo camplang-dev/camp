@@ -588,7 +588,14 @@ public static class CompilerDriver
 			foreach (string requirement in request.ConfigurationRequirements)
 			{
 				if (string.IsNullOrWhiteSpace(requirement))
+				{
 					errors.Add("Configuration requirements cannot be empty.");
+					continue;
+				}
+				if (ConfigurationFlagExpressionBinder.TryParse(requirement, created, errors.Add, out ConfigurationFlagExpression? expression)
+					&& expression is not null
+					&& !expression.Evaluate(created))
+					errors.Add($"Configuration requirement '{requirement}' is not satisfied by the selected target and configuration.");
 			}
 			foreach (string error in errors)
 				ErrorLine(error);

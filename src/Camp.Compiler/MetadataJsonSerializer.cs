@@ -235,6 +235,8 @@ public static class MetadataJsonSerializer
 		{
 			json.WriteStartObject();
 			WriteIdentity(json, definition, includeKind, includeVisibility);
+			if (definition.EffectiveRequirement is not null)
+				json.WriteString("require", definition.EffectiveRequirement.ToString());
 			WriteTestFacts(json, definition);
 			switch (definition)
 			{

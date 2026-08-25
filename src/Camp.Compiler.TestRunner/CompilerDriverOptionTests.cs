@@ -598,6 +598,41 @@ public sealed class CompilerDriverOptionTests
 		Assert.Contains("Conditional string attribute expressions are only supported by @symbol.", result.StdErr, StringComparison.Ordinal);
 	}
 
+	[Fact]
+	public void Requirements_enforce_command_line_requirements()
+	{
+		string source = CreateTempCase("requirement_command_line.camp", "export int main() => 0;\n");
+
+		CompilerResult targetSatisfied = Execute(source, request =>
+		{
+			request.TargetName = "gcc-linux-x64";
+			request.NoStdLib = true;
+			request.ConfigurationRequirements.Add("OS_LINUX && SUPPORTS_FILES");
+			request.Inspect = CompilerInspectMode.Declarations;
+		});
+		CompilerResult targetRejected = Execute(source, request =>
+		{
+			request.TargetName = "gcc-linux-x64";
+			request.NoStdLib = true;
+			request.ConfigurationRequirements.Add("OS_WIN32");
+			request.Inspect = CompilerInspectMode.Declarations;
+		});
+		CompilerResult moduleConfigured = Execute(source, request =>
+		{
+			request.TargetName = "gcc-linux-x64";
+			request.NoStdLib = true;
+			request.ConfigurationFlagDeclarations.Add("APP_FEATURE=false");
+			request.ConfigurationFlagConfigurations.Add("APP_FEATURE");
+			request.ConfigurationRequirements.Add("APP_FEATURE");
+			request.Inspect = CompilerInspectMode.Declarations;
+		});
+
+		Assert.Equal(0, targetSatisfied.ExitCode);
+		Assert.NotEqual(0, targetRejected.ExitCode);
+		Assert.Contains("Configuration requirement 'OS_WIN32' is not satisfied", targetRejected.StdErr, StringComparison.Ordinal);
+		Assert.Equal(0, moduleConfigured.ExitCode);
+	}
+
 	static CompilerResult Execute(string sourcePath, Action<CompilerRequest> configure)
 	{
 		string repositoryRoot = FindRepositoryRoot();

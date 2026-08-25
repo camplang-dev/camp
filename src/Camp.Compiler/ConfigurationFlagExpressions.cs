@@ -83,6 +83,23 @@ public static class ConfigurationFlagExpressionBinder
 	public static ConfigurationFlagExpression False() =>
 		new() { Kind = ConfigurationFlagExpressionKind.Literal, LiteralValue = false };
 
+	public static bool TryParse(string text, ConfigurationFlagSet flags, Action<string> report, out ConfigurationFlagExpression? expression)
+	{
+		List<TokenValue> tokens = CampTokenizer.Tokenize(text)
+			.Where(static token => token.Class is not TokenClass.Whitespace and not TokenClass.NewLine and not TokenClass.LineComment and not TokenClass.BlockComment)
+			.ToList();
+		FlagExpressionTextParser parser = new(tokens, flags, report);
+		if (!parser.TryParseExpression(out expression))
+			return false;
+		if (!parser.IsEnd)
+		{
+			report($"Unexpected token '{parser.CurrentValue}' in configuration flag expression.");
+			expression = null;
+			return false;
+		}
+		return true;
+	}
+
 	public static bool Implies(ConfigurationFlagExpression? context, ConfigurationFlagExpression required, ConfigurationFlagSet flags)
 	{
 		if (required.Evaluate(flags))
@@ -202,4 +219,121 @@ public static class ConfigurationFlagExpressionBinder
 	}
 
 	static TokenRange? GetRange(Expression expression) => null;
+
+	sealed class FlagExpressionTextParser(List<TokenValue> tokens, ConfigurationFlagSet flags, Action<string> report)
+	{
+		int index;
+		public bool IsEnd => index >= tokens.Count;
+		public string CurrentValue => IsEnd ? "<end>" : tokens[index].Value;
+
+		public bool TryParseExpression(out ConfigurationFlagExpression? expression) =>
+			TryParseOr(out expression);
+
+		bool TryParseOr(out ConfigurationFlagExpression? expression)
+		{
+			if (!TryParseXor(out expression))
+				return false;
+			while (Take("||"))
+			{
+				if (!TryParseXor(out ConfigurationFlagExpression? right))
+					return false;
+				expression = new ConfigurationFlagExpression { Kind = ConfigurationFlagExpressionKind.Or, Left = expression, Right = right };
+			}
+			return true;
+		}
+
+		bool TryParseXor(out ConfigurationFlagExpression? expression)
+		{
+			if (!TryParseAnd(out expression))
+				return false;
+			while (Take("^"))
+			{
+				if (!TryParseAnd(out ConfigurationFlagExpression? right))
+					return false;
+				expression = new ConfigurationFlagExpression { Kind = ConfigurationFlagExpressionKind.Xor, Left = expression, Right = right };
+			}
+			return true;
+		}
+
+		bool TryParseAnd(out ConfigurationFlagExpression? expression)
+		{
+			if (!TryParseUnary(out expression))
+				return false;
+			while (Take("&&"))
+			{
+				if (!TryParseUnary(out ConfigurationFlagExpression? right))
+					return false;
+				expression = new ConfigurationFlagExpression { Kind = ConfigurationFlagExpressionKind.And, Left = expression, Right = right };
+			}
+			return true;
+		}
+
+		bool TryParseUnary(out ConfigurationFlagExpression? expression)
+		{
+			if (Take("!"))
+			{
+				if (!TryParseUnary(out ConfigurationFlagExpression? operand))
+				{
+					expression = null;
+					return false;
+				}
+				expression = new ConfigurationFlagExpression { Kind = ConfigurationFlagExpressionKind.Not, Left = operand };
+				return true;
+			}
+			return TryParsePrimary(out expression);
+		}
+
+		bool TryParsePrimary(out ConfigurationFlagExpression? expression)
+		{
+			expression = null;
+			if (Take("("))
+			{
+				if (!TryParseExpression(out expression))
+					return false;
+				if (!Take(")"))
+				{
+					report("Configuration flag expression is missing ')'.");
+					expression = null;
+					return false;
+				}
+				return true;
+			}
+			if (IsEnd)
+			{
+				report("Configuration flag expression is incomplete.");
+				return false;
+			}
+			TokenValue token = tokens[index++];
+			if (token.Value == "true" || token.Value == "false")
+			{
+				expression = new ConfigurationFlagExpression { Kind = ConfigurationFlagExpressionKind.Literal, LiteralValue = token.Value == "true" };
+				return true;
+			}
+			if (token.Class == TokenClass.Identifier)
+			{
+				if (!flags.Declarations.ContainsKey(token.Value))
+				{
+					report($"Unknown configuration flag '{token.Value}'.");
+					return false;
+				}
+				expression = new ConfigurationFlagExpression { Kind = ConfigurationFlagExpressionKind.Flag, FlagName = token.Value };
+				return true;
+			}
+			report($"Unexpected token '{token.Value}' in configuration flag expression.");
+			return false;
+		}
+
+		bool Take(string value)
+		{
+			if (value.Length == 2 && index + 1 < tokens.Count && tokens[index].Value + tokens[index + 1].Value == value)
+			{
+				index += 2;
+				return true;
+			}
+			if (IsEnd || tokens[index].Value != value)
+				return false;
+			index++;
+			return true;
+		}
+	}
 }

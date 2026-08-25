@@ -30,6 +30,7 @@
       "kind": "function",
       "name": "defaultTest",
       "symbol": "MetaA_defaultTest",
+      "require": "TEST_MODULE",
       "testOnly": true,
       "test": {
         "id": "MetaA::defaultTest",
@@ -73,6 +74,7 @@
       "kind": "function",
       "name": "blockTest",
       "symbol": "MetaB_blockTest",
+      "require": "TEST_MODULE",
       "testOnly": true,
       "test": {
         "id": "MetaB::blockTest",
@@ -119,6 +121,7 @@
       "id": "function:rootTest",
       "kind": "function",
       "name": "rootTest",
+      "require": "TEST_MODULE",
       "testOnly": true,
       "test": {
         "id": "rootTest",
