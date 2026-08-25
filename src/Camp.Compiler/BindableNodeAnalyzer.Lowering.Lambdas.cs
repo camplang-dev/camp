@@ -144,7 +144,8 @@ public sealed partial class BindableNodeAnalyzer
 			ResolvedType = shape.ReturnType,
 			ReturnType = TypeReferenceForResolvedName(shape.ReturnType),
 			Body = lambda.Body,
-			VisibilitySourceFunction = currentRewriteFunction
+			VisibilitySourceFunction = currentRewriteFunction,
+			EffectiveRequirement = currentRewriteFunction?.EffectiveRequirement
 		};
 		if (currentRewriteFunction is not null)
 		{
@@ -213,7 +214,8 @@ public sealed partial class BindableNodeAnalyzer
 			SourceSyntax = lambda.SourceSyntax,
 			Name = name,
 			Symbol = name,
-			ResolvedType = name
+			ResolvedType = name,
+			EffectiveRequirement = currentRewriteFunction?.EffectiveRequirement
 		};
 
 		List<LambdaCapture> contextCaptures = [];
