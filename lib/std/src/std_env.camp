@@ -23,9 +23,7 @@ static class Env
 	///
 	/// - path: The new current directory as a null-terminated UTF-8 string.
 	/// @remarks Throws `IoError` when the directory cannot be selected.
-#if NO_FILES
-	@notsupported("The current target does not support changing the current directory.")
-#endif
+	@require(SUPPORTS_FILES)
 	public static void setCurrentDirectory(string path, thrown IoError error)
 	{
 		if (camp_io_set_current_directory(path, out error) == 0)
@@ -59,9 +57,7 @@ static class Env
 	/// - name: The variable name. Empty names and names containing `=` are invalid.
 	/// - value: The new variable value. An empty string defines an empty variable.
 	/// @remarks Throws `IoError` when the variable cannot be set.
-#if NO_FILES
-	@notsupported("The current target does not support mutating environment variables.")
-#endif
+	@require(SUPPORTS_FILES)
 	public static void setVariable(string name, string value, thrown IoError error)
 	{
 		if (camp_io_set_environment_variable(name, value, out error) == 0)
@@ -75,9 +71,7 @@ static class Env
 	/// @returns `true` when the variable existed before removal, or `false` when
 	/// it was already missing.
 	/// @remarks Throws `IoError` when the remove request itself is invalid or fails.
-#if NO_FILES
-	@notsupported("The current target does not support mutating environment variables.")
-#endif
+	@require(SUPPORTS_FILES)
 	public static bool removeVariable(string name, thrown IoError error)
 	{
 		int result = camp_io_remove_environment_variable(name, out error);

@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using Camp.Compiler;
 using Xunit;
 
@@ -10,33 +11,38 @@ public sealed class CompilerDriverOptionTests
 	[Fact]
 	public void Variants_control_target_owned_defines()
 	{
-		string source = CreateTempCase("variant_driver.camp", """
-			#if UNICODE
-			export inline int WIDTH = 2;
-			#else
-			export inline int WIDTH = 1;
-			#endif
+		string ansiSource = CreateTempCase("variant_driver_ansi.camp", """
+			@symbol(configured(UNICODE) ? "widthW" : "widthA")
+			export extern int width();
+			""");
+		string unicodeSource = CreateTempCase("variant_driver_unicode.camp", """
+			@symbol(configured(UNICODE) ? "widthW" : "widthA")
+			export extern int width();
 			""");
 
-		CompilerResult ansi = Execute(source, request =>
+		CompilerResult ansi = Execute(ansiSource, request =>
 		{
 			request.TargetName = "msvc-windows-x64";
 			request.Variants.Add("ansi");
-			request.Inspect = CompilerInspectMode.Declarations;
 			request.NoStdLib = true;
 		});
-		CompilerResult unicode = Execute(source, request =>
+		CompilerResult unicode = Execute(unicodeSource, request =>
 		{
 			request.TargetName = "msvc-windows-x64";
 			request.Variants.Add("unicode");
-			request.Inspect = CompilerInspectMode.Declarations;
 			request.NoStdLib = true;
 		});
 
 		Assert.Equal(0, ansi.ExitCode);
-		Assert.Contains("WIDTH = 1", ansi.StdOut, StringComparison.Ordinal);
 		Assert.Equal(0, unicode.ExitCode);
-		Assert.Contains("WIDTH = 2", unicode.StdOut, StringComparison.Ordinal);
+
+		string root = Path.Combine(FindRepositoryRoot(), "tmp", "driver-option-tests");
+		string ansiHeader = File.ReadAllText(Directory.GetFiles(Path.Combine(root, "variant_driver_ansi"), "variant_driver_ansi.h", SearchOption.AllDirectories).Single());
+		string unicodeHeader = File.ReadAllText(Directory.GetFiles(Path.Combine(root, "variant_driver_unicode"), "variant_driver_unicode.h", SearchOption.AllDirectories).Single());
+		Assert.Contains("widthA", ansiHeader, StringComparison.Ordinal);
+		Assert.DoesNotContain("widthW", ansiHeader, StringComparison.Ordinal);
+		Assert.Contains("widthW", unicodeHeader, StringComparison.Ordinal);
+		Assert.DoesNotContain("widthA", unicodeHeader, StringComparison.Ordinal);
 	}
 
 	[Fact]
@@ -65,7 +71,7 @@ public sealed class CompilerDriverOptionTests
 	}
 
 	[Fact]
-	public void Target_owned_define_is_rejected_from_request_and_warns_in_source()
+	public void Target_owned_define_is_rejected_from_request_and_source_define_errors()
 	{
 		string normal = CreateTempCase("variant_driver_define.camp", "export int main() => 0;\n");
 		string sourceDefine = CreateTempCase("variant_driver_source_define.camp", """
@@ -88,8 +94,8 @@ public sealed class CompilerDriverOptionTests
 
 		Assert.NotEqual(0, cliLike.ExitCode);
 		Assert.Contains("Define 'UNICODE' is owned by target", cliLike.StdErr, StringComparison.Ordinal);
-		Assert.Equal(0, source.ExitCode);
-		Assert.Contains("warning: Preprocessor symbol 'UNICODE' is owned by the selected target", source.StdErr, StringComparison.Ordinal);
+		Assert.NotEqual(0, source.ExitCode);
+		Assert.Contains("#define is no longer supported", source.StdErr, StringComparison.Ordinal);
 	}
 
 	[Fact]

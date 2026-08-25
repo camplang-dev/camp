@@ -17,6 +17,7 @@
       "name": "MODE",
       "symbol": "TestMetadata_MODE",
       "visibility": "export",
+      "require": "TEST_MODULE",
       "type": "const int",
       "inline": true,
       "value": 1

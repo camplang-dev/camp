@@ -4410,6 +4410,15 @@ public static class CCodeEmitter
 
 		void WriteIfStatement(TextWriter writer, IfStatement ifStatement, int indent)
 		{
+			if (TryEvaluateConfiguredCondition(ifStatement.Condition, out bool configuredValue))
+			{
+				if (configuredValue)
+					WriteEmbeddedStatement(writer, ifStatement.Body, indent);
+				else if (ifStatement.ElseBody is not null)
+					WriteEmbeddedStatement(writer, ifStatement.ElseBody, indent);
+				return;
+			}
+
 			WriteIndent(writer, indent);
 			writer.WriteLine("if (" + FormatExpression(ifStatement.Condition) + ")");
 			WriteEmbeddedStatement(writer, ifStatement.Body, indent);
@@ -5274,6 +5283,8 @@ public static class CCodeEmitter
 		{
 			if (TryFormatOffsetOfCall(call, out string offsetOfText))
 				return offsetOfText;
+			if (TryEvaluateConfiguredCall(call, out bool configuredValue))
+				return configuredValue ? "1" : "0";
 
 			string target = FormatExpression(call.Target);
 			FunctionDefinition? function = TryGetCallFunction(call);
@@ -5326,6 +5337,37 @@ public static class CCodeEmitter
 			if (TryGetCallResultCastType(call, function, genericSubstitutions, out string? castType))
 				return "(" + FormatResolvedType(castType!, "").Declaration.Trim() + ")(" + text + ")";
 			return text;
+		}
+
+		bool TryEvaluateConfiguredCondition(Expression? expression, out bool value)
+		{
+			value = false;
+			if (expression is ParenthesizedExpression parenthesized)
+				return TryEvaluateConfiguredCondition(parenthesized.Expression, out value);
+			if (expression is LiteralExpression { Kind: LiteralKind.True })
+			{
+				value = true;
+				return true;
+			}
+			if (expression is LiteralExpression { Kind: LiteralKind.False })
+			{
+				value = false;
+				return true;
+			}
+			return expression is CallExpression call && TryEvaluateConfiguredCall(call, out value);
+		}
+
+		bool TryEvaluateConfiguredCall(CallExpression call, out bool value)
+		{
+			value = false;
+			if (call.Target is not NamedExpression { Qualifiers.Count: 0, Name: "configured" })
+				return false;
+			if (call.Arguments.Count != 1 || call.Arguments[0].Value is null)
+				return false;
+			if (!ConfigurationFlagExpressionBinder.TryBind(call.Arguments[0].Value, compilation.ConfigurationFlags, static (_, _) => { }, out ConfigurationFlagExpression? expression) || expression is null)
+				return false;
+			value = expression.Evaluate(compilation.ConfigurationFlags);
+			return true;
 		}
 
 		List<ArgumentExpression> GetCallArgumentsInAbiOrder(CallExpression call, FunctionDefinition? function)

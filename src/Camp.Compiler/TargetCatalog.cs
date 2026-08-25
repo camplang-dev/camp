@@ -456,6 +456,26 @@ public sealed class TargetDefinition
 		return Sections.TypeSpecs.ContainsKey(name);
 	}
 
+	public bool HasDeclaredCallSpec(string name)
+	{
+		return Sections.DeclaredCallSpecs.ContainsKey(name);
+	}
+
+	public bool HasDeclaredTypeSpec(string name)
+	{
+		return Sections.DeclaredTypeSpecs.ContainsKey(name);
+	}
+
+	public bool TryGetDeclaredCallSpecRequirement(string name, out string requirement)
+	{
+		return Sections.DeclaredCallSpecs.TryGetValue(name, out requirement!);
+	}
+
+	public bool TryGetDeclaredTypeSpecRequirement(string name, out string requirement)
+	{
+		return Sections.DeclaredTypeSpecs.TryGetValue(name, out requirement!);
+	}
+
 	public bool IsPrimitiveUnsupported(string name)
 	{
 		return Sections.CTypes.TryGetValue(name, out string? value) && value == "<unsupported>";

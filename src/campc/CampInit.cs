@@ -308,27 +308,22 @@ static class CampInit
 		return CommonFiles(context, "src/main.camp", $$"""
 			namespace {{namespaceName}};
 
-			#if POSIX
 			namespace global
 			{
+				@require(SUBSYSTEM_POSIX)
 				extern int getpid();
-			}
-			#elif WINDOWS
-			namespace global
-			{
+
+				@require(OS_WIN32)
 				extern uint GetCurrentProcessId();
 			}
-			#endif
 
 			export int getCurrentProcessId()
 			{
-			#if POSIX
-				return global::getpid();
-			#elif WINDOWS
-				return (int)global::GetCurrentProcessId();
-			#else
+				if (configured(SUBSYSTEM_POSIX))
+					return global::getpid();
+				if (configured(OS_WIN32))
+					return (int)global::GetCurrentProcessId();
 				return -1;
-			#endif
 			}
 
 			@test

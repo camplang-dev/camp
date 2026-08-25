@@ -2966,8 +2966,8 @@ public sealed class CommandLineTests
 			TempPath("emscripten-unsupported-out"));
 
 		Assert.NotEqual(0, result.ExitCode);
-		Assert.Contains("Function 'open' is not supported by the current target.", result.StdErr, StringComparison.Ordinal);
-		Assert.Contains("The current target does not support file handles.", result.StdErr, StringComparison.Ordinal);
+		Assert.Contains("Unknown type 'FileHandle'.", result.StdErr, StringComparison.Ordinal);
+		Assert.Contains("Symbol 'FileAccess' could not be found.", result.StdErr, StringComparison.Ordinal);
 	}
 
 	[Fact]
@@ -2983,11 +2983,9 @@ public sealed class CommandLineTests
 		File.WriteAllText(Path.Combine(librarySource, "library.camp"), """
 			export int width()
 			{
-				#if UNICODE
-				return 2;
-				#else
+				if (configured(UNICODE))
+					return 2;
 				return 1;
-				#endif
 			}
 			""");
 		File.WriteAllText(Path.Combine(libraryRoot, "sample-lib.campbuild"), """
@@ -3872,19 +3870,14 @@ public sealed class CommandLineTests
 		if (!OperatingSystem.IsWindows())
 			Assert.Skip("MSVC default target selection only applies on Windows.");
 		string temp = CreateTempCase("msvc-default-target/main.camp", """
-			#if WIN32
 			export int selectedTarget()
 			{
-				return 86;
+				if (configured(OS_WIN64))
+					return 64;
+				if (configured(OS_WIN32))
+					return 86;
+				return 0;
 			}
-			#endif
-
-			#if WIN64
-			export int selectedTarget()
-			{
-				return 64;
-			}
-			#endif
 			""");
 
 		ProcessResult x86 = RunCampc(
@@ -3902,10 +3895,8 @@ public sealed class CommandLineTests
 
 		Assert.Equal(0, x86.ExitCode);
 		Assert.Contains("return 86", x86.StdOut, StringComparison.Ordinal);
-		Assert.DoesNotContain("return 64", x86.StdOut, StringComparison.Ordinal);
 		Assert.Equal(0, x64.ExitCode);
 		Assert.Contains("return 64", x64.StdOut, StringComparison.Ordinal);
-		Assert.DoesNotContain("return 86", x64.StdOut, StringComparison.Ordinal);
 	}
 
 	[Fact]

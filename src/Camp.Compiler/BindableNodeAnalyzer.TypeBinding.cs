@@ -776,8 +776,10 @@ public sealed partial class BindableNodeAnalyzer
 			return;
 
 		callSpec = ResolveCallSpecAlias(callSpec, syntax);
-		if (selectedTarget is null || !selectedTarget.Capabilities.HasCallSpec(callSpec))
+		if (!IsTargetCallSpecKnown(callSpec))
 			Report(GetRange(syntax), $"Callspec '{callSpec}' is not defined by target '{selectedTarget?.Name ?? "#NONE"}'.");
+		else if (!IsTargetCallSpecAvailable(callSpec, syntax))
+			Report(GetRange(syntax), $"Callspec '{callSpec}' requires configuration '{GetTargetCallSpecRequirementText(callSpec)}'.");
 	}
 
 	void ValidateCallableSpec(CallableTypeReference callable)
@@ -805,18 +807,22 @@ public sealed partial class BindableNodeAnalyzer
 				? typeAlias!.ResolvedTargetName
 				: spec;
 
-		if (selectedTarget?.Capabilities.HasCallSpec(spec) == true)
+		if (IsTargetCallSpecKnown(spec))
 		{
 			if (callSpec is not null && callSpec != spec)
 				Report(GetRange(syntax), $"Callable type has multiple callspecs: '{callSpec}' and '{spec}'.");
+			if (!IsTargetCallSpecAvailable(spec, syntax))
+				Report(GetRange(syntax), $"Callspec '{spec}' requires configuration '{GetTargetCallSpecRequirementText(spec)}'.");
 			callSpec = spec;
 			return;
 		}
 
-		if (selectedTarget?.Capabilities.HasTypeSpec(spec) == true)
+		if (IsTargetTypeSpecKnown(spec))
 		{
 			if (targetSpec is not null && targetSpec != spec)
 				Report(GetRange(syntax), $"Callable type has multiple target typespecs: '{targetSpec}' and '{spec}'.");
+			if (!IsTargetTypeSpecAvailable(spec, syntax))
+				Report(GetRange(syntax), $"Typespec '{spec}' requires configuration '{GetTargetTypeSpecRequirementText(spec)}'.");
 			targetSpec = spec;
 			return;
 		}
@@ -885,7 +891,7 @@ public sealed partial class BindableNodeAnalyzer
 			return false;
 		}
 
-		if (selectedTarget?.Capabilities.HasCallSpec(typeSpec.Specifier) == true)
+		if (IsTargetCallSpecKnown(typeSpec.Specifier))
 		{
 			if (typeSpec.Type is RawFunctionPointerTypeReference)
 			{
@@ -897,9 +903,14 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		typeSpec.Specifier = ResolveTypeSpecAlias(typeSpec.Specifier, typeSpec.SourceSyntax);
-		if (selectedTarget is null || !selectedTarget.Capabilities.HasTypeSpec(typeSpec.Specifier))
+		if (!IsTargetTypeSpecKnown(typeSpec.Specifier))
 		{
 			Report(GetRange(typeSpec.SourceSyntax), $"Typespec '{typeSpec.Specifier}' is not defined by target '{selectedTarget?.Name ?? "#NONE"}'.");
+			return false;
+		}
+		if (!IsTargetTypeSpecAvailable(typeSpec.Specifier, typeSpec.SourceSyntax))
+		{
+			Report(GetRange(typeSpec.SourceSyntax), $"Typespec '{typeSpec.Specifier}' requires configuration '{GetTargetTypeSpecRequirementText(typeSpec.Specifier)}'.");
 			return false;
 		}
 
@@ -919,6 +930,51 @@ public sealed partial class BindableNodeAnalyzer
 
 		Report(GetRange(typeSpec.SourceSyntax), $"Typespec '{typeSpec.Specifier}' cannot be applied to type '{FormatTypeReference(typeSpec.Type)}'.");
 		return false;
+	}
+
+	bool IsTargetCallSpecKnown(string spec)
+	{
+		return selectedTarget?.HasCallSpec(spec) == true || selectedTarget?.HasDeclaredCallSpec(spec) == true;
+	}
+
+	bool IsTargetTypeSpecKnown(string spec)
+	{
+		return selectedTarget?.HasTypeSpec(spec) == true || selectedTarget?.HasDeclaredTypeSpec(spec) == true;
+	}
+
+	bool IsTargetCallSpecAvailable(string spec, SyntaxNode? syntax)
+	{
+		if (selectedTarget?.HasCallSpec(spec) == true)
+			return true;
+		return IsDeclaredTargetSpecRequirementSatisfied(selectedTarget?.TryGetDeclaredCallSpecRequirement(spec, out string? requirementText) == true ? requirementText : null, syntax);
+	}
+
+	bool IsTargetTypeSpecAvailable(string spec, SyntaxNode? syntax)
+	{
+		if (selectedTarget?.HasTypeSpec(spec) == true)
+			return true;
+		return IsDeclaredTargetSpecRequirementSatisfied(selectedTarget?.TryGetDeclaredTypeSpecRequirement(spec, out string? requirementText) == true ? requirementText : null, syntax);
+	}
+
+	bool IsDeclaredTargetSpecRequirementSatisfied(string? requirementText, SyntaxNode? syntax)
+	{
+		if (string.IsNullOrWhiteSpace(requirementText))
+			return true;
+		if (!ConfigurationFlagExpressionBinder.TryParse(requirementText, configurationFlags, message => Report(GetRange(syntax), message), out ConfigurationFlagExpression? requirement) || requirement is null)
+			return false;
+		ConfigurationFlagExpression? context = currentAnalysisFunction?.EffectiveRequirement ?? currentAnalysisDefinition?.EffectiveRequirement;
+		context = ConfigurationFlagExpressionBinder.And(context, currentFlowRequirementProof);
+		return ConfigurationFlagExpressionBinder.Implies(context, requirement, configurationFlags);
+	}
+
+	string GetTargetCallSpecRequirementText(string spec)
+	{
+		return selectedTarget?.TryGetDeclaredCallSpecRequirement(spec, out string? requirement) == true ? requirement : "true";
+	}
+
+	string GetTargetTypeSpecRequirementText(string spec)
+	{
+		return selectedTarget?.TryGetDeclaredTypeSpecRequirement(spec, out string? requirement) == true ? requirement : "true";
 	}
 
 	string ResolveNamedType(NamedTypeReference named, AnalysisScope scope)

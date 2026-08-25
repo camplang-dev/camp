@@ -1,6 +1,7 @@
 namespace Std;
 
 @category("I/O");
+@require(SUPPORTS_FILES);
 
 /// Provides common host filesystem operations.
 static class FileSystem
@@ -10,9 +11,7 @@ static class FileSystem
 	/// - path: Directory path to create.
 	/// - recursive: When true, missing parent directories are created.
 	/// @remarks Throws `IoError` when the directory cannot be created.
-#if NO_FILES
-	@notsupported("The current target does not support filesystem operations.")
-#endif
+	@require(SUPPORTS_FILES)
 	public static void createDirectory(string path, bool recursive = false, thrown IoError error)
 	{
 		int result = recursive
@@ -30,9 +29,7 @@ static class FileSystem
 	/// @remarks Throws `IoError` when the directory cannot be deleted.
 	/// Recursive deletion deletes symlink or reparse-point entries themselves
 	/// rather than following them as directories.
-#if NO_FILES
-	@notsupported("The current target does not support filesystem operations.")
-#endif
+	@require(SUPPORTS_FILES)
 	public static void deleteDirectory(string path, bool recursive = false, thrown IoError error)
 	{
 		int result = recursive
@@ -47,9 +44,7 @@ static class FileSystem
 	///
 	/// - path: File path to delete.
 	/// @remarks Throws `IoError` when the file cannot be deleted.
-#if NO_FILES
-	@notsupported("The current target does not support filesystem operations.")
-#endif
+	@require(SUPPORTS_FILES)
 	public static void deleteFile(string path, thrown IoError error)
 	{
 		if (camp_io_delete_file(path, out error) == 0)
@@ -63,9 +58,7 @@ static class FileSystem
 	/// - dest: Destination file path.
 	/// - overwrite: When true, an existing destination file may be replaced.
 	/// @remarks Throws `IoError` when the file cannot be copied.
-#if NO_FILES
-	@notsupported("The current target does not support filesystem operations.")
-#endif
+	@require(SUPPORTS_FILES)
 	public static void copyFile(string source, string dest, bool overwrite = false, thrown IoError error)
 	{
 		int overwriteFlag = 0;
@@ -82,9 +75,7 @@ static class FileSystem
 	/// - dest: Destination file path.
 	/// - overwrite: When true, an existing destination file may be replaced.
 	/// @remarks Throws `IoError` when the file cannot be moved.
-#if NO_FILES
-	@notsupported("The current target does not support filesystem operations.")
-#endif
+	@require(SUPPORTS_FILES)
 	public static void moveFile(string source, string dest, bool overwrite = false, thrown IoError error)
 	{
 		int overwriteFlag = 0;
@@ -119,9 +110,7 @@ static class FileSystem
 	///
 	/// - file: File path to query.
 	/// @remarks Throws `IoError` when the file size cannot be queried.
-#if NO_FILES
-	@notsupported("The current target does not support filesystem operations.")
-#endif
+	@require(SUPPORTS_FILES)
 	public static ulong getSize(string file, thrown IoError error)
 	{
 		ulong size = 0;

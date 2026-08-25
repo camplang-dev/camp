@@ -3,8 +3,5 @@
 
 namespace TestMetadata;
 
-#if TEST_MODULE
+@require(TEST_MODULE)
 export inline const int MODE = 1;
-#else
-export inline const int MODE = 0;
-#endif

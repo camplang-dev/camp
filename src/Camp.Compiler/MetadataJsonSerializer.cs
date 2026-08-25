@@ -1089,10 +1089,11 @@ public static class MetadataJsonSerializer
 
 		void WriteMetadata(Utf8JsonWriter json, IReadOnlyList<AttributeConstructor> attributes)
 		{
-			if (attributes.Count == 0)
+			List<AttributeConstructor> emittedAttributes = [.. attributes.Where(static attribute => !AttributeNameEquals(attribute.Name, "@require"))];
+			if (emittedAttributes.Count == 0)
 				return;
 			json.WriteStartArray("metadata");
-			foreach (AttributeConstructor attribute in attributes)
+			foreach (AttributeConstructor attribute in emittedAttributes)
 				WriteAttribute(json, attribute);
 			json.WriteEndArray();
 		}

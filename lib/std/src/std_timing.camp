@@ -6,13 +6,12 @@ namespace Std;
 /// @remarks
 /// A default handle means no timer was started. Handles are opaque and are only
 /// valid for calls to [stopTimer].
+@require(SUPPORTS_TIMERS)
 public newtype TimerHandle: nint;
 
 /// Suspends the current thread for approximately the requested duration.
 /// - timeoutMs: The number of milliseconds to wait. A value of 0 returns immediately.
-#if NO_TIMERS
-@notsupported("The current target does not support timers or thread sleeping.")
-#endif
+@require(SUPPORTS_TIMERS)
 public void sleep(nuint timeoutMs)
 {
 	timingSleepPlatform(timeoutMs);
@@ -25,9 +24,7 @@ public void sleep(nuint timeoutMs)
 /// async resumer that marshals continuations to that thread.
 /// - timeoutMs: The number of milliseconds to wait. A value of 0 completes immediately.
 /// - complete: The callback to invoke when the delay elapses.
-#if NO_TIMERS
-@notsupported("The current target does not support timers.")
-#endif
+@require(SUPPORTS_TIMERS)
 public void sleepAsync(nuint timeoutMs, escaped once void() complete)
 {
 	if (timeoutMs == 0)
@@ -50,9 +47,7 @@ public void sleepAsync(nuint timeoutMs, escaped once void() complete)
 /// - intervalMs: The number of milliseconds between callback invocations. A value of 0 does not start a timer.
 /// - callback: The function to invoke for each tick.
 /// @returns A non-default handle when the timer starts successfully; otherwise `default`.
-#if NO_TIMERS
-@notsupported("The current target does not support timers.")
-#endif
+@require(SUPPORTS_TIMERS)
 public TimerHandle startTimer(nuint intervalMs, escaped delegate void(TimerHandle handle) callback)
 {
 	return timingStartTimerPlatform(intervalMs, callback);
@@ -63,9 +58,7 @@ public TimerHandle startTimer(nuint intervalMs, escaped delegate void(TimerHandl
 /// Cancellation is cooperative. A callback that is already running may finish
 /// after this function returns.
 /// - handle: The timer handle returned by [startTimer].
-#if NO_TIMERS
-@notsupported("The current target does not support timers.")
-#endif
+@require(SUPPORTS_TIMERS)
 public void stopTimer(TimerHandle handle)
 {
 	timingStopTimerPlatform(handle);
@@ -113,17 +106,22 @@ public extern nuint atomicCompareExchange(overload nuint* dest, nuint expected, 
 @symbol("atomicCompareExchangePtr")
 public extern void* atomicCompareExchange(overload void** dest, void* expected, void* value);
 
-#if POSIX
-
 namespace global
 {
+	@require(SUBSYSTEM_POSIX)
 	extern int usleep(uint usec);
+
+	@require(SUBSYSTEM_POSIX)
 	extern int pthread_create(nint* thread, void* attr, fn void*(void*) start, void* arg);
+
+	@require(SUBSYSTEM_POSIX)
 	extern int pthread_detach(nint thread);
 }
 
 const nuint TIMING_POSIX_SLEEP_CHUNK_MS = 1000;
+const nuint TIMING_WINDOWS_SLEEP_CHUNK_MS = 0xFFFFFFFF;
 
+@require(SUPPORTS_TIMERS)
 escaped class TimingTimerState
 {
 	bool cancelled;
@@ -132,68 +130,12 @@ escaped class TimingTimerState
 	nint thread;
 }
 
-void timingSleepPlatform(nuint timeoutMs)
-{
-	while (timeoutMs > 0)
-	{
-		nuint step = timeoutMs > TIMING_POSIX_SLEEP_CHUNK_MS ? TIMING_POSIX_SLEEP_CHUNK_MS : timeoutMs;
-		global::usleep((uint)(step * 1000));
-		timeoutMs -= step;
-	}
-}
-
-void* timingTimerThread(void* context)
-{
-	TimingTimerState* state = (TimingTimerState*)context;
-	TimerHandle handle = (TimerHandle)(nint)state;
-
-	while (!state.cancelled)
-	{
-		timingSleepPlatform(state.intervalMs);
-		if (!state.cancelled)
-			state.callback(handle);
-	}
-
-	within(default) delete state;
-	return null;
-}
-
-TimerHandle timingStartTimerPlatform(nuint intervalMs, escaped delegate void(TimerHandle handle) callback)
-{
-	if (intervalMs == 0 || callback == default)
-		return default;
-
-	auto state = within(default) new TimingTimerState();
-	if (state == null)
-		return default;
-
-	state.intervalMs = intervalMs;
-	state.callback = callback;
-	if (global::pthread_create(&state.thread, null, timingTimerThread, state) != 0)
-	{
-		within(default) delete state;
-		return default;
-	}
-
-	global::pthread_detach(state.thread);
-	return (TimerHandle)(nint)state;
-}
-
-void timingStopTimerPlatform(TimerHandle handle)
-{
-	if (handle == default)
-		return;
-
-	TimingTimerState* state = (TimingTimerState*)(nint)handle;
-	state.cancelled = true;
-}
-
-#elif WINDOWS
-
 @symbol("Sleep")
+@require(OS_WIN32)
 extern _winapi void timingWinSleep(uint dwMilliseconds);
 
 @symbol("CreateThread")
+@require(OS_WIN32)
 extern _winapi void* timingWinCreateThread(
 	void* lpThreadAttributes,
 	nuint dwStackSize,
@@ -204,18 +146,71 @@ extern _winapi void* timingWinCreateThread(
 );
 
 @symbol("CloseHandle")
+@require(OS_WIN32)
 extern _winapi int timingWinCloseHandle(void* hObject);
 
-const nuint TIMING_WINDOWS_SLEEP_CHUNK_MS = 0xFFFFFFFF;
-
-escaped class TimingTimerState
+@require(SUBSYSTEM_POSIX && SUPPORTS_TIMERS)
+void timingSleepPosix(nuint timeoutMs)
 {
-	bool cancelled;
-	nuint intervalMs;
-	escaped delegate void(TimerHandle handle) callback;
+	while (timeoutMs > 0)
+	{
+		nuint step = timeoutMs > TIMING_POSIX_SLEEP_CHUNK_MS ? TIMING_POSIX_SLEEP_CHUNK_MS : timeoutMs;
+		global::usleep((uint)(step * 1000));
+		timeoutMs -= step;
+	}
 }
 
-void timingSleepPlatform(nuint timeoutMs)
+@require(SUBSYSTEM_POSIX && SUPPORTS_TIMERS)
+void* timingPosixTimerThread(void* context)
+{
+	TimingTimerState* state = (TimingTimerState*)context;
+	TimerHandle handle = (TimerHandle)(nint)state;
+
+	while (!state.cancelled)
+	{
+		timingSleepPosix(state.intervalMs);
+		if (!state.cancelled)
+			state.callback(handle);
+	}
+
+	within(default) delete state;
+	return null;
+}
+
+@require(SUBSYSTEM_POSIX && SUPPORTS_TIMERS)
+TimerHandle timingStartTimerPosix(nuint intervalMs, escaped delegate void(TimerHandle handle) callback)
+{
+	if (intervalMs == 0 || callback == default)
+		return default;
+
+	auto state = within(default) new TimingTimerState();
+	if (state == null)
+		return default;
+
+	state.intervalMs = intervalMs;
+	state.callback = callback;
+	if (global::pthread_create(&state.thread, null, timingPosixTimerThread, state) != 0)
+	{
+		within(default) delete state;
+		return default;
+	}
+
+	global::pthread_detach(state.thread);
+	return (TimerHandle)(nint)state;
+}
+
+@require(SUBSYSTEM_POSIX && SUPPORTS_TIMERS)
+void timingStopTimerPosix(TimerHandle handle)
+{
+	if (handle == default)
+		return;
+
+	TimingTimerState* state = (TimingTimerState*)(nint)handle;
+	state.cancelled = true;
+}
+
+@require(OS_WIN32 && SUPPORTS_TIMERS)
+void timingSleepWindows(nuint timeoutMs)
 {
 	while (timeoutMs > 0)
 	{
@@ -225,14 +220,15 @@ void timingSleepPlatform(nuint timeoutMs)
 	}
 }
 
-_winapi uint timingTimerThread(void* context)
+@require(OS_WIN32 && SUPPORTS_TIMERS)
+_winapi uint timingWindowsTimerThread(void* context)
 {
 	TimingTimerState* state = (TimingTimerState*)context;
 	TimerHandle handle = (TimerHandle)(nint)state;
 
 	while (!state.cancelled)
 	{
-		timingSleepPlatform(state.intervalMs);
+		timingSleepWindows(state.intervalMs);
 		if (!state.cancelled)
 			state.callback(handle);
 	}
@@ -241,7 +237,8 @@ _winapi uint timingTimerThread(void* context)
 	return 0;
 }
 
-TimerHandle timingStartTimerPlatform(nuint intervalMs, escaped delegate void(TimerHandle handle) callback)
+@require(OS_WIN32 && SUPPORTS_TIMERS)
+TimerHandle timingStartTimerWindows(nuint intervalMs, escaped delegate void(TimerHandle handle) callback)
 {
 	if (intervalMs == 0 || callback == default)
 		return default;
@@ -253,7 +250,7 @@ TimerHandle timingStartTimerPlatform(nuint intervalMs, escaped delegate void(Tim
 	state.intervalMs = intervalMs;
 	state.callback = callback;
 
-	void* thread = timingWinCreateThread(null, 0, timingTimerThread, state, 0, null);
+	void* thread = timingWinCreateThread(null, 0, timingWindowsTimerThread, state, 0, null);
 	if (thread == null)
 	{
 		within(default) delete state;
@@ -264,7 +261,8 @@ TimerHandle timingStartTimerPlatform(nuint intervalMs, escaped delegate void(Tim
 	return (TimerHandle)(nint)state;
 }
 
-void timingStopTimerPlatform(TimerHandle handle)
+@require(OS_WIN32 && SUPPORTS_TIMERS)
+void timingStopTimerWindows(TimerHandle handle)
 {
 	if (handle == default)
 		return;
@@ -273,28 +271,42 @@ void timingStopTimerPlatform(TimerHandle handle)
 	state.cancelled = true;
 }
 
-#else
-
-#if NO_TIMERS
-@notsupported("The current target does not support timers or thread sleeping.")
-#endif
+@require(SUPPORTS_TIMERS)
 void timingSleepPlatform(nuint timeoutMs)
 {
+	if (configured(SUBSYSTEM_POSIX))
+	{
+		timingSleepPosix(timeoutMs);
+		return;
+	}
+	if (configured(OS_WIN32))
+	{
+		timingSleepWindows(timeoutMs);
+		return;
+	}
 }
 
-#if NO_TIMERS
-@notsupported("The current target does not support timers.")
-#endif
+@require(SUPPORTS_TIMERS)
 TimerHandle timingStartTimerPlatform(nuint intervalMs, escaped delegate void(TimerHandle handle) callback)
 {
+	if (configured(SUBSYSTEM_POSIX))
+		return timingStartTimerPosix(intervalMs, callback);
+	if (configured(OS_WIN32))
+		return timingStartTimerWindows(intervalMs, callback);
 	return default;
 }
 
-#if NO_TIMERS
-@notsupported("The current target does not support timers.")
-#endif
+@require(SUPPORTS_TIMERS)
 void timingStopTimerPlatform(TimerHandle handle)
 {
+	if (configured(SUBSYSTEM_POSIX))
+	{
+		timingStopTimerPosix(handle);
+		return;
+	}
+	if (configured(OS_WIN32))
+	{
+		timingStopTimerWindows(handle);
+		return;
+	}
 }
-
-#endif
