@@ -1,2 +1,0 @@
-tests/Diagnostics/testonly_dependency_test_module.camp(22,8): error: Production declaration 'productionStorage' cannot depend on test-only declaration 'Hidden'.
-tests/Diagnostics/testonly_dependency_test_module.camp(24,5): error: Production declaration 'productionUsesHelper' cannot depend on test-only declaration 'helper'.

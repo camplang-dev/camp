@@ -41,6 +41,8 @@ public sealed class DeclarationParticipation
 
 	public bool Includes(Definition definition, DeclarationParticipationMode mode)
 	{
+		if (definition.EffectiveRequirement is not null)
+			return EvaluateRequirement(definition.EffectiveRequirement, mode);
 		return mode == DeclarationParticipationMode.TestModule || !IsTestOnly(definition);
 	}
 
@@ -68,17 +70,34 @@ public sealed class DeclarationParticipation
 		List<AnalysisDiagnostic> diagnostics = [];
 		foreach (Definition definition in module.Definitions)
 		{
-			if (IsTestOnly(definition))
+			if (!Includes(definition, DeclarationParticipationMode.Production))
 				continue;
 			foreach (Definition dependency in FindDefinitionDependencies(definition, callTargets))
 			{
-				if (ReferenceEquals(definition, dependency) || !IsTestOnly(dependency))
+				if (ReferenceEquals(definition, dependency) || Includes(dependency, DeclarationParticipationMode.Production))
 					continue;
-				diagnostics.Add(new AnalysisDiagnostic(GetDiagnosticRange(definition), $"Production declaration '{definition.Name}' cannot depend on test-only declaration '{dependency.Name}'."));
+				string dependencyKind = IsTestOnly(dependency) ? "test-only" : "unavailable";
+				diagnostics.Add(new AnalysisDiagnostic(GetDiagnosticRange(definition), $"Production declaration '{definition.Name}' cannot depend on {dependencyKind} declaration '{dependency.Name}'."));
 				break;
 			}
 		}
 		return diagnostics;
+	}
+
+	bool EvaluateRequirement(ConfigurationFlagExpression requirement, DeclarationParticipationMode mode)
+	{
+		return requirement.Kind switch
+		{
+			ConfigurationFlagExpressionKind.Flag => requirement.FlagName == "TEST_MODULE"
+				? mode == DeclarationParticipationMode.TestModule || module.ConfigurationFlags.IsConfiguredTrue("TEST_MODULE")
+				: requirement.FlagName is not null && module.ConfigurationFlags.IsConfiguredTrue(requirement.FlagName),
+			ConfigurationFlagExpressionKind.Literal => requirement.LiteralValue,
+			ConfigurationFlagExpressionKind.Not => requirement.Left is not null && !EvaluateRequirement(requirement.Left, mode),
+			ConfigurationFlagExpressionKind.And => requirement.Left is not null && requirement.Right is not null && EvaluateRequirement(requirement.Left, mode) && EvaluateRequirement(requirement.Right, mode),
+			ConfigurationFlagExpressionKind.Or => requirement.Left is not null && requirement.Right is not null && (EvaluateRequirement(requirement.Left, mode) || EvaluateRequirement(requirement.Right, mode)),
+			ConfigurationFlagExpressionKind.Xor => requirement.Left is not null && requirement.Right is not null && EvaluateRequirement(requirement.Left, mode) ^ EvaluateRequirement(requirement.Right, mode),
+			_ => false
+		};
 	}
 
 	void IndexDefinition(Definition definition, bool inheritedTestOnly)

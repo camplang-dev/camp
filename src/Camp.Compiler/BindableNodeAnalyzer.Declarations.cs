@@ -44,6 +44,7 @@ public sealed partial class BindableNodeAnalyzer
 		foreach (Definition definition in ActiveDefinitions(module))
 			AnalyzeDefinition(definition, new AnalysisScope());
 
+		ApplyEffectiveRequirements(module);
 		ValidateTestAttributePlacements(module);
 		ValidateDocAttributePlacements(module);
 		ValidateRequirementAttributePlacements(module);

@@ -111,6 +111,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (target is null)
 			return flags;
 		List<string> errors = [];
+		flags.TryDeclare("TEST_MODULE=false", defaultAmbientValue: false, ConfigurationFlagOwner.Target, "compiler", errors);
 		foreach ((string name, bool ambientValue) in target.ConfigurationFlagDeclarations)
 			flags.TryDeclare(name + "=" + (ambientValue ? "true" : "false"), defaultAmbientValue: false, ConfigurationFlagOwner.Target, $"target '{target.Name}'", errors);
 		foreach ((string name, bool value) in target.ConfigurationFlagConfigurations)

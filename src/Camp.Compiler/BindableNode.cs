@@ -26,6 +26,7 @@ public class Module : BindableNode
 	public string SourcefileDefaultRoot { get; set; } = "";
 	public List<string> SourcefileRoots { get; } = [];
 	public DeclarationParticipationMode DeclarationParticipationMode { get; set; } = DeclarationParticipationMode.Production;
+	public ConfigurationFlagSet ConfigurationFlags { get; set; } = new();
 }
 
 public enum SourcefilePathMode
@@ -55,6 +56,7 @@ public abstract class Definition : BindableNode
 	public string? Internal { get; set; }
 	public string? Extern { get; set; }
 	public bool IsApiHeader { get; set; }
+	public ConfigurationFlagExpression? EffectiveRequirement { get; set; }
 	public TypeReference? OutOfScopeOwnerType { get; set; }
 	public string? OutOfScopeOwnerName { get; set; }
 	public string? OutOfScopeOwnerSymbol { get; set; }

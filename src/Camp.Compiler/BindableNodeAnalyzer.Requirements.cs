@@ -1,9 +1,69 @@
 using System.Collections.Generic;
+using System.Linq;
 
 namespace Camp.Compiler;
 
 public sealed partial class BindableNodeAnalyzer
 {
+	void ApplyEffectiveRequirements(Module module)
+	{
+		foreach (Definition definition in module.Definitions)
+			ApplyEffectiveRequirement(definition, inheritedRequirement: null, topLevel: true, ownerKind: "");
+	}
+
+	void ApplyEffectiveRequirement(Definition definition, ConfigurationFlagExpression? inheritedRequirement, bool topLevel, string ownerKind)
+	{
+		ConfigurationFlagExpression? explicitRequirement = GetExplicitRequirement(definition.Attributes);
+		ConfigurationFlagExpression? effective = inheritedRequirement;
+		if (topLevel)
+			effective = explicitRequirement ?? GetFileRequirement(definition);
+		else if (explicitRequirement is not null)
+			effective = ConfigurationFlagExpressionBinder.And(effective, explicitRequirement);
+
+		if (DeclarationParticipation.IsTest(definition) || DeclarationParticipation.HasExplicitTestOnly(definition))
+			effective = ConfigurationFlagExpressionBinder.And(effective, ConfigurationFlagExpressionBinder.Flag("TEST_MODULE"));
+
+		if (definition.GeneratedInfo?.Source is Definition source && source.EffectiveRequirement is not null)
+			effective = ConfigurationFlagExpressionBinder.And(effective, source.EffectiveRequirement);
+
+		definition.EffectiveRequirement = effective;
+
+		bool childTopLevel = false;
+		string childOwnerKind = definition switch
+		{
+			ClassDefinition => "class",
+			StaticClassDefinition => "static class",
+			StructDefinition => "struct",
+			InterfaceDefinition => "interface",
+			EnumDefinition => "enum",
+			NewtypeDefinition => "newtype",
+			ParamsDefinition => "params",
+			FunctionDefinition => "function",
+			_ => ownerKind
+		};
+		foreach (Definition child in GetRequirementChildDefinitions(definition))
+			ApplyEffectiveRequirement(child, effective, childTopLevel, childOwnerKind);
+	}
+
+	ConfigurationFlagExpression? GetFileRequirement(Definition definition)
+	{
+		if (currentModule is null
+			|| !currentModule.DefinitionSources.TryGetValue(definition, out TokenSequence? source)
+			|| source is null
+			|| !currentModule.SourceFiles.TryGetValue(source, out SourceFile? file))
+			return null;
+		AttributeConstructor? attribute = file.FileMetadataAttributes.FirstOrDefault(static attribute => AttributeNameEquals(attribute.Name, "@require"));
+		return attribute?.Requirement;
+	}
+
+	static ConfigurationFlagExpression? GetExplicitRequirement(IEnumerable<AttributeConstructor> attributes)
+	{
+		foreach (AttributeConstructor attribute in attributes)
+			if (AttributeNameEquals(attribute.Name, "@require"))
+				return attribute.Requirement;
+		return null;
+	}
+
 	void ValidateRequirementAttributePlacements(Module module)
 	{
 		foreach (Definition definition in module.Definitions)
@@ -84,6 +144,59 @@ public sealed partial class BindableNodeAnalyzer
 				if (AttributeNameEquals(attribute.Name, "@require"))
 					Report(GetRange(attribute.SourceSyntax ?? parameter.SourceSyntax), "@require is not valid on generic parameters.");
 			}
+		}
+	}
+
+	static IEnumerable<Definition> GetRequirementChildDefinitions(Definition definition)
+	{
+		switch (definition)
+		{
+			case ClassDefinition classDefinition:
+				foreach (FieldDefinition field in classDefinition.Fields)
+					yield return field;
+				foreach (FunctionDefinition function in classDefinition.Functions)
+					yield return function;
+				break;
+			case StaticClassDefinition staticClassDefinition:
+				foreach (FieldDefinition field in staticClassDefinition.Fields)
+					yield return field;
+				foreach (FunctionDefinition function in staticClassDefinition.Functions)
+					yield return function;
+				break;
+			case StructDefinition structDefinition:
+				foreach (FieldDefinition field in structDefinition.Fields)
+					yield return field;
+				foreach (FunctionDefinition function in structDefinition.Functions)
+					yield return function;
+				break;
+			case InterfaceDefinition interfaceDefinition:
+				foreach (FunctionDefinition function in interfaceDefinition.Functions)
+					yield return function;
+				break;
+			case EnumDefinition enumDefinition:
+				foreach (VariableDefinition value in enumDefinition.Values)
+					yield return value;
+				foreach (FunctionDefinition function in enumDefinition.Functions)
+					yield return function;
+				break;
+			case NewtypeDefinition newtypeDefinition:
+				foreach (ParameterDefinition parameter in newtypeDefinition.Parameters)
+					yield return parameter;
+				foreach (FieldDefinition field in newtypeDefinition.Fields)
+					yield return field;
+				foreach (FunctionDefinition function in newtypeDefinition.Functions)
+					yield return function;
+				break;
+			case ParamsDefinition paramsDefinition:
+				foreach (ParameterDefinition component in paramsDefinition.Components)
+					yield return component;
+				foreach (FunctionDefinition function in paramsDefinition.Functions)
+					yield return function;
+				break;
+			case FunctionDefinition functionDefinition:
+				foreach (ParameterDefinition parameter in functionDefinition.Parameters)
+					yield return parameter;
+				break;
 		}
 	}
 }

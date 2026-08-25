@@ -558,6 +558,9 @@ public static class CompilerDriver
 			flags = null;
 			List<string> errors = [];
 			ConfigurationFlagSet created = new();
+			created.TryDeclare("TEST_MODULE=false", defaultAmbientValue: false, ConfigurationFlagOwner.Target, "compiler", errors);
+			if (request.DeclarationParticipationMode == DeclarationParticipationMode.TestModule)
+				created.TryConfigure("TEST_MODULE=true", defaultValue: true, ConfigurationFlagOwner.Target, "compiler", allowTargetOwned: true, errors);
 			foreach ((string name, bool ambientValue) in target.ConfigurationFlagDeclarations)
 				created.TryDeclare(name + "=" + (ambientValue ? "true" : "false"), defaultAmbientValue: false, ConfigurationFlagOwner.Target, $"target '{target.Name}'", errors);
 			foreach ((string name, bool value) in target.ConfigurationFlagConfigurations)

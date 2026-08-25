@@ -225,6 +225,78 @@ public sealed class CompilerDriverOptionTests
 		Assert.Contains("Configuration flag 'OS_LINUX' can only be queried with configured(...)", result.StdErr, StringComparison.Ordinal);
 	}
 
+	[Fact]
+	public void Effective_requirements_filter_declarations_and_file_defaults()
+	{
+		string source = CreateTempCase("effective_requirements.camp", """
+			@require(OS_WIN32);
+
+			void fileDefaultOmitted()
+			{
+			}
+
+			@require(OS_LINUX)
+			void declarationOverrideIncluded()
+			{
+			}
+
+			@require(OS_WIN32)
+			class WindowsOnly
+			{
+				void childAlsoOmitted()
+				{
+				}
+			}
+			""");
+
+		CompilerResult result = Execute(source, request =>
+		{
+			request.TargetName = "gcc-linux-x64";
+			request.NoStdLib = true;
+			request.Inspect = CompilerInspectMode.Declarations;
+		});
+
+		Assert.Equal(0, result.ExitCode);
+		Assert.Contains("declarationOverrideIncluded", result.StdOut, StringComparison.Ordinal);
+		Assert.DoesNotContain("fileDefaultOmitted", result.StdOut, StringComparison.Ordinal);
+		Assert.DoesNotContain("WindowsOnly", result.StdOut, StringComparison.Ordinal);
+		Assert.DoesNotContain("childAlsoOmitted", result.StdOut, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Testonly_uses_requirement_participation_for_production_filtering()
+	{
+		string source = CreateTempCase("effective_requirements_testonly.camp", """
+			@testonly
+			void helper()
+			{
+			}
+
+			void normal()
+			{
+			}
+			""");
+
+		CompilerResult production = Execute(source, request =>
+		{
+			request.NoStdLib = true;
+			request.Inspect = CompilerInspectMode.Declarations;
+		});
+		CompilerResult testModule = Execute(source, request =>
+		{
+			request.NoStdLib = true;
+			request.Inspect = CompilerInspectMode.Declarations;
+			request.DeclarationParticipationMode = DeclarationParticipationMode.TestModule;
+		});
+
+		Assert.Equal(0, production.ExitCode);
+		Assert.Contains("normal", production.StdOut, StringComparison.Ordinal);
+		Assert.DoesNotContain("helper", production.StdOut, StringComparison.Ordinal);
+		Assert.Equal(0, testModule.ExitCode);
+		Assert.Contains("normal", testModule.StdOut, StringComparison.Ordinal);
+		Assert.Contains("helper", testModule.StdOut, StringComparison.Ordinal);
+	}
+
 	static CompilerResult Execute(string sourcePath, Action<CompilerRequest> configure)
 	{
 		string repositoryRoot = FindRepositoryRoot();

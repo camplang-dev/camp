@@ -36,6 +36,21 @@ public sealed class ConfigurationFlagExpression
 
 public static class ConfigurationFlagExpressionBinder
 {
+	public static ConfigurationFlagExpression And(ConfigurationFlagExpression? left, ConfigurationFlagExpression? right)
+	{
+		if (left is null)
+			return right ?? True();
+		if (right is null)
+			return left;
+		return new ConfigurationFlagExpression { Kind = ConfigurationFlagExpressionKind.And, Left = left, Right = right };
+	}
+
+	public static ConfigurationFlagExpression Flag(string name) =>
+		new() { Kind = ConfigurationFlagExpressionKind.Flag, FlagName = name };
+
+	public static ConfigurationFlagExpression True() =>
+		new() { Kind = ConfigurationFlagExpressionKind.Literal, LiteralValue = true };
+
 	public static bool TryBind(Expression? expression, ConfigurationFlagSet flags, Action<TokenRange?, string> report, out ConfigurationFlagExpression? result)
 	{
 		result = null;

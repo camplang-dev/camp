@@ -194,6 +194,7 @@ public static class CompilationPipeline
 		module.SourcefilePathMode = compilation.SourcefilePathMode;
 		module.SourcefileDefaultRoot = compilation.SourcefileDefaultRoot;
 		module.DeclarationParticipationMode = compilation.DeclarationParticipationMode;
+		module.ConfigurationFlags = compilation.ConfigurationFlags;
 		module.SourcefileRoots.AddRange(compilation.SourcefileRoots);
 		foreach (SourceFile file in compilation.Files)
 		{
