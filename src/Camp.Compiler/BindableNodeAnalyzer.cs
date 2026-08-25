@@ -88,6 +88,7 @@ public sealed partial class BindableNodeAnalyzer
 	Module? currentModule;
 	Definition? currentAnalysisDefinition;
 	ConfigurationFlagExpression? currentFlowRequirementProof;
+	bool allowConditionalInterfaceTypeReference;
 	Action<string, Action>? phaseMeasure;
 
 	BindableNodeAnalyzer(TargetDefinition? selectedTarget = null, ConfigurationFlagSet? configurationFlags = null)
@@ -611,6 +612,8 @@ public sealed partial class BindableNodeAnalyzer
 
 	bool IsDefinitionRequirementSatisfied(Definition definition)
 	{
+		if (allowConditionalInterfaceTypeReference && definition is InterfaceDefinition)
+			return true;
 		if (definition.EffectiveRequirement is not ConfigurationFlagExpression required)
 			return true;
 		ConfigurationFlagExpression? context = currentAnalysisFunction?.EffectiveRequirement ?? currentAnalysisDefinition?.EffectiveRequirement;

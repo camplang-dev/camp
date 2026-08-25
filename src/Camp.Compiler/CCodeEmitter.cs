@@ -758,6 +758,44 @@ public static class CCodeEmitter
 		int currentWideStringLiteralIndex;
 		FunctionDefinition? currentFunction;
 		bool currentFunctionHasLabels;
+
+		bool IsSelected(Definition definition) =>
+			compilation.SharedModule is not Module module || DeclarationParticipation.Includes(definition, module);
+
+		IEnumerable<FieldDefinition> SelectedFields(IEnumerable<FieldDefinition> fields)
+		{
+			foreach (FieldDefinition field in fields)
+				if (IsSelected(field) && IsSelectedTypeReference(field.Type))
+					yield return field;
+		}
+
+		bool IsSelectedTypeReference(TypeReference? type)
+		{
+			return type switch
+			{
+				null => true,
+				TypeDefinitionReference { Definition: Definition definition } => IsSelected(definition),
+				AttributedTypeReference attributed => IsSelectedTypeReference(attributed.Type),
+				GenericTypeReference generic => IsSelectedTypeReference(generic.Type) && generic.TypeArguments.All(IsSelectedTypeReference),
+				ArrayTypeReference array => IsSelectedTypeReference(array.ElementType),
+				FixedArrayTypeReference fixedArray => IsSelectedTypeReference(fixedArray.ElementType),
+				OptionalTypeReference optional => IsSelectedTypeReference(optional.ElementType),
+				PointerTypeReference pointer => IsSelectedTypeReference(pointer.ElementType),
+				ConstTypeReference constType => IsSelectedTypeReference(constType.Type),
+				ConstOfTypeReference constOf => IsSelectedTypeReference(constOf.Type),
+				VolatileTypeReference volatileType => IsSelectedTypeReference(volatileType.Type),
+				EscapedTypeReference escaped => IsSelectedTypeReference(escaped.Type),
+				ScopedTypeReference scoped => IsSelectedTypeReference(scoped.Type),
+				UnscopedTypeReference unscoped => IsSelectedTypeReference(unscoped.Type),
+				CallableTypeReference callable => IsSelectedTypeReference(callable.ReturnType) && callable.Parameters.All(parameter => IsSelectedTypeReference(parameter.Type)),
+				TargetTypeSpecTypeReference targetSpec => IsSelectedTypeReference(targetSpec.Type),
+				IterTypeReference iter => IsSelectedTypeReference(iter.ElementType) && iter.Parameters.All(parameter => IsSelectedTypeReference(parameter.Type)),
+				GroupedParamsTypeReference grouped => IsSelectedTypeReference(grouped.StructType),
+				MaterializedStructTypeReference materialized => IsSelectedTypeReference(materialized.ParamsType),
+				ThrownTypeReference thrown => IsSelectedTypeReference(thrown.Type),
+				_ => true
+			};
+		}
 		readonly string sharedExportPrefix = options.BuildKind is NativeBuildKind.Shared
 			? compilation.Target?.Capabilities.GetCEmitterValue("dll_export_prefix") ?? ""
 			: "";
@@ -822,15 +860,15 @@ public static class CCodeEmitter
 
 			WriteSection(writer, "Function declarations", () =>
 			{
-				foreach (FunctionDefinition function in GetAllFunctions(definitions).Where(static function => (IsExternallyVisible(function) || IsGeneratedVirtualDispatchFunction(function)) && ShouldEmitCFunction(function)))
+				foreach (FunctionDefinition function in GetAllFunctions(definitions).Where(function => IsSelected(function) && (IsExternallyVisible(function) || IsGeneratedVirtualDispatchFunction(function)) && ShouldEmitCFunction(function)))
 					WriteFunctionPrototype(writer, function, storage: null);
 			});
 
 			WriteSection(writer, "Object declarations", () =>
 			{
-				foreach (VariableDefinition variable in definitions.OfType<VariableDefinition>().Where(static variable => !variable.IsInline && (IsExternallyVisible(variable) || IsGeneratedVirtualDispatchVariable(variable))))
+				foreach (VariableDefinition variable in definitions.OfType<VariableDefinition>().Where(variable => IsSelected(variable) && !variable.IsInline && (IsExternallyVisible(variable) || IsGeneratedVirtualDispatchVariable(variable))))
 					WriteVariableDeclaration(writer, variable, storage: "extern");
-				foreach (FieldDefinition field in GetAllStaticFields(definitions).Where(static field => !field.IsInline && IsExternallyVisible(field)))
+				foreach (FieldDefinition field in GetAllStaticFields(definitions).Where(field => IsSelected(field) && !field.IsInline && IsExternallyVisible(field)))
 					WriteFieldStorageDeclaration(writer, field, storage: "extern");
 			});
 		}
@@ -840,11 +878,11 @@ public static class CCodeEmitter
 			EnsureDelegateThunksCollected();
 			emittedNames.Clear();
 			List<Definition> definitions = GetOwnedDefinitions(file).ToList();
-			List<FunctionDefinition> privateFunctions = GetAllFunctions(definitions).Where(static function => !IsExternallyVisible(function) && ShouldEmitCFunction(function)).ToList();
-			List<VariableDefinition> privateVariables = definitions.OfType<VariableDefinition>().Where(static variable => !variable.IsInline && !IsExternallyVisible(variable) && !IsGeneratedVirtualDispatchVariable(variable)).ToList();
-			List<FieldDefinition> privateStaticFields = GetAllStaticFields(definitions).Where(static field => !field.IsInline && !IsExternallyVisible(field)).ToList();
+			List<FunctionDefinition> privateFunctions = GetAllFunctions(definitions).Where(function => IsSelected(function) && !IsExternallyVisible(function) && ShouldEmitCFunction(function)).ToList();
+			List<VariableDefinition> privateVariables = definitions.OfType<VariableDefinition>().Where(variable => IsSelected(variable) && !variable.IsInline && !IsExternallyVisible(variable) && !IsGeneratedVirtualDispatchVariable(variable)).ToList();
+			List<FieldDefinition> privateStaticFields = GetAllStaticFields(definitions).Where(field => IsSelected(field) && !field.IsInline && !IsExternallyVisible(field)).ToList();
 			List<DelegateThunk> delegateThunks = delegateThunksByFile.TryGetValue(file, out List<DelegateThunk>? thunks) ? thunks : [];
-			List<AsyncFrameInfo> asyncFrames = GetAllFunctions(definitions).Select(TryBuildAsyncFrameInfo).Where(static frame => frame is not null).Cast<AsyncFrameInfo>().ToList();
+			List<AsyncFrameInfo> asyncFrames = GetAllFunctions(definitions).Where(IsSelected).Select(TryBuildAsyncFrameInfo).Where(static frame => frame is not null).Cast<AsyncFrameInfo>().ToList();
 
 			if (privateFunctions.Count == 0 && privateVariables.Count == 0 && privateStaticFields.Count == 0 && delegateThunks.Count == 0 && asyncFrames.Count == 0)
 				return;
@@ -922,6 +960,8 @@ public static class CCodeEmitter
 
 			foreach (FunctionDefinition function in GetAllFunctions(definitions))
 			{
+				if (!IsSelected(function))
+					continue;
 				if (function.Extern is not null || function.Body is null)
 					continue;
 				if (!ShouldEmitCFunction(function))
@@ -1083,7 +1123,7 @@ public static class CCodeEmitter
 
 			foreach (StructDefinition structDefinition in GetLayoutOrderedStructDefinitions(apiTypes.Cast<Definition>().ToList()))
 			{
-				WriteFieldLayout(writer, structDefinition, structDefinition.Fields);
+				WriteFieldLayout(writer, structDefinition, SelectedFields(structDefinition.Fields).ToList());
 				wrote = true;
 			}
 
@@ -1278,7 +1318,7 @@ public static class CCodeEmitter
 				case StaticClassDefinition staticClassDefinition:
 					foreach (FunctionDefinition function in staticClassDefinition.Functions)
 						reservedCNames.Add(CName(function));
-					foreach (FieldDefinition field in staticClassDefinition.Fields)
+					foreach (FieldDefinition field in SelectedFields(staticClassDefinition.Fields))
 						if (field.Modifier == FieldModifier.Static)
 							reservedCNames.Add(CName(field));
 					break;
@@ -1714,13 +1754,13 @@ public static class CCodeEmitter
 				: "static";
 		}
 
-		static IEnumerable<FieldDefinition> GetAllStaticFields(IEnumerable<Definition> definitions)
+		IEnumerable<FieldDefinition> GetAllStaticFields(IEnumerable<Definition> definitions)
 		{
 			foreach (Definition definition in definitions)
 			{
 				if (definition is StaticClassDefinition staticClassDefinition)
 				{
-					foreach (FieldDefinition field in staticClassDefinition.Fields)
+					foreach (FieldDefinition field in SelectedFields(staticClassDefinition.Fields))
 						if (field.Modifier == FieldModifier.Static)
 							yield return field;
 					continue;
@@ -1728,7 +1768,7 @@ public static class CCodeEmitter
 
 				if (definition is not TypeDefinition type)
 					continue;
-				foreach (FieldDefinition field in GetTypeFields(type))
+				foreach (FieldDefinition field in SelectedFields(GetTypeFields(type)))
 					if (field.Modifier == FieldModifier.Static)
 						yield return field;
 			}
@@ -1761,12 +1801,12 @@ public static class CCodeEmitter
 				AddType(variable.Type, variable.ResolvedType);
 			foreach (TypeDefinition type in definitions.OfType<TypeDefinition>())
 			{
-				foreach (FieldDefinition field in GetTypeFields(type))
+				foreach (FieldDefinition field in SelectedFields(GetTypeFields(type)))
 					AddType(field.Type, field.ResolvedType);
 			}
 			foreach (StaticClassDefinition staticClassDefinition in definitions.OfType<StaticClassDefinition>())
 			{
-				foreach (FieldDefinition field in staticClassDefinition.Fields)
+				foreach (FieldDefinition field in SelectedFields(staticClassDefinition.Fields))
 					AddType(field.Type, field.ResolvedType);
 			}
 			return types.Order(StringComparer.Ordinal);
@@ -2217,13 +2257,13 @@ public static class CCodeEmitter
 			switch (type)
 			{
 				case StructDefinition structDefinition:
-					WriteFieldLayout(writer, structDefinition, structDefinition.Fields);
+					WriteFieldLayout(writer, structDefinition, SelectedFields(structDefinition.Fields).ToList());
 					break;
 				case ClassDefinition classDefinition:
 					if (classDefinition.IsShadow)
 						WriteShadowDataLayout(writer, classDefinition);
 					else if (classDefinition.Extern is null)
-						WriteFieldLayout(writer, classDefinition, GetClassLayoutFields(classDefinition));
+						WriteFieldLayout(writer, classDefinition, SelectedFields(GetClassLayoutFields(classDefinition)).ToList());
 					break;
 				case InterfaceDefinition interfaceDefinition:
 					WriteInterfaceLayout(writer, interfaceDefinition);
@@ -2249,7 +2289,7 @@ public static class CCodeEmitter
 				if (!visiting.Add(structDefinition))
 					yield break;
 
-				foreach (FieldDefinition field in structDefinition.Fields.Where(static field => field.Modifier != FieldModifier.Static))
+				foreach (FieldDefinition field in SelectedFields(structDefinition.Fields).Where(static field => field.Modifier != FieldModifier.Static))
 				{
 					foreach (string dependencyName in GetByValueStructDependencyNames(field.Type))
 					{
@@ -2339,7 +2379,7 @@ public static class CCodeEmitter
 		{
 			if (GetDirectBaseClass(classDefinition) is ClassDefinition baseClass)
 				AddClassLayoutFields(baseClass, fields);
-			fields.AddRange(classDefinition.Fields);
+			fields.AddRange(SelectedFields(classDefinition.Fields));
 		}
 
 		ClassDefinition? GetDirectBaseClass(ClassDefinition classDefinition)

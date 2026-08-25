@@ -398,6 +398,131 @@ public sealed class CompilerDriverOptionTests
 		Assert.Contains("Type 'WinValue' requires configuration 'OS_WIN32'", signatureResult.StdErr, StringComparison.Ordinal);
 	}
 
+	[Fact]
+	public void Requirements_filter_selected_type_shape()
+	{
+		string source = CreateTempCase("requirement_type_shape.camp", """
+			@require(OS_WIN32)
+			interface IWindows
+			{
+				void ping();
+			}
+
+			struct Shape
+			{
+				int always;
+
+				@require(OS_WIN32)
+				int windowsOnly;
+			}
+
+			class Control: IWindows
+			{
+				void ping(): IWindows
+				{
+				}
+			}
+
+			virtual class VBase
+			{
+				virtual int alwaysValue()
+				{
+					return 1;
+				}
+
+				@require(OS_WIN32)
+				virtual int windowsValue()
+				{
+					return 2;
+				}
+			}
+
+			export int main()
+			{
+				Shape shape = { .always = 1 };
+				return shape.always;
+			}
+			""");
+
+		string repositoryRoot = FindRepositoryRoot();
+		string outDir = Path.Combine(repositoryRoot, "tmp", "driver-option-tests", "requirement_type_shape_output");
+		if (Directory.Exists(outDir))
+			Directory.Delete(outDir, recursive: true);
+		CompilerResult result = Execute(source, request =>
+		{
+			request.TargetName = "gcc-linux-x64";
+			request.NoStdLib = true;
+			request.OutDir = outDir;
+		});
+
+		Assert.Equal(0, result.ExitCode);
+		string privateHeader = File.ReadAllText(Path.Combine(outDir, "gcc-linux-x64_DEBUG", "build", "requirement_type_shape_private.h"));
+		Assert.Contains("int32_t always;", privateHeader, StringComparison.Ordinal);
+		Assert.DoesNotContain("windowsOnly", privateHeader, StringComparison.Ordinal);
+		Assert.DoesNotContain("IWindows", privateHeader, StringComparison.Ordinal);
+		Assert.Contains("alwaysValue", privateHeader, StringComparison.Ordinal);
+		Assert.DoesNotContain("windowsValue", privateHeader, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Requirements_validate_abstract_and_override_availability()
+	{
+		string conditionalAbstract = CreateTempCase("requirement_conditional_abstract.camp", """
+			abstract class Base
+			{
+				@require(OS_WIN32)
+				abstract int draw();
+			}
+
+			virtual class Derived: Base
+			{
+			}
+			""");
+		string narrowOverride = CreateTempCase("requirement_narrow_override.camp", """
+			virtual class Base
+			{
+				virtual int draw()
+				{
+					return 1;
+				}
+			}
+
+			virtual class Derived: Base
+			{
+				@require(OS_WIN32)
+				override int draw()
+				{
+					return 2;
+				}
+			}
+			""");
+
+		CompilerResult linuxResult = Execute(conditionalAbstract, request =>
+		{
+			request.TargetName = "gcc-linux-x64";
+			request.NoStdLib = true;
+			request.Inspect = CompilerInspectMode.Declarations;
+		});
+		CompilerResult windowsResult = Execute(conditionalAbstract, request =>
+		{
+			request.TargetName = "msvc-windows-x64";
+			request.NoStdLib = true;
+			request.Inspect = CompilerInspectMode.Declarations;
+		});
+		CompilerResult overrideResult = Execute(narrowOverride, request =>
+		{
+			request.TargetName = "gcc-linux-x64";
+			request.NoStdLib = true;
+			request.Inspect = CompilerInspectMode.Declarations;
+		});
+
+		Assert.Equal(0, linuxResult.ExitCode);
+		Assert.NotEqual(0, windowsResult.ExitCode);
+		Assert.Contains("must use override to implement inherited abstract member 'draw()'", windowsResult.StdErr, StringComparison.Ordinal);
+		Assert.NotEqual(0, overrideResult.ExitCode);
+		Assert.Contains("must be at least as available as inherited member", overrideResult.StdErr, StringComparison.Ordinal);
+	}
+
 	static CompilerResult Execute(string sourcePath, Action<CompilerRequest> configure)
 	{
 		string repositoryRoot = FindRepositoryRoot();

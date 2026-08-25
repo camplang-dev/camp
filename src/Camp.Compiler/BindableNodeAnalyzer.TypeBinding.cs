@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -18,6 +19,30 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		foreach (TypeReference type in types)
 			AnalyzeType(type, scope);
+	}
+
+	void AnalyzeConditionalInterfaceTypeList(List<TypeReference> types, AnalysisScope scope)
+	{
+		WithConditionalInterfaceTypeReferences(() => AnalyzeTypeList(types, scope));
+	}
+
+	void AnalyzeOptionalConditionalInterfaceType(TypeReference? type, AnalysisScope scope)
+	{
+		WithConditionalInterfaceTypeReferences(() => AnalyzeOptionalType(type, scope));
+	}
+
+	void WithConditionalInterfaceTypeReferences(Action action)
+	{
+		bool previous = allowConditionalInterfaceTypeReference;
+		allowConditionalInterfaceTypeReference = true;
+		try
+		{
+			action();
+		}
+		finally
+		{
+			allowConditionalInterfaceTypeReference = previous;
+		}
 	}
 
 	void AnalyzeType(TypeReference type, AnalysisScope scope)

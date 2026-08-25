@@ -43,6 +43,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	void ApplyEffectiveRequirement(Definition definition, ConfigurationFlagExpression? inheritedRequirement, bool topLevel, string ownerKind)
 	{
+		ConfigurationFlagExpression? generatedRequirement = definition.GeneratedInfo is not null ? definition.EffectiveRequirement : null;
 		ConfigurationFlagExpression? explicitRequirement = GetExplicitRequirement(definition.Attributes);
 		ConfigurationFlagExpression? effective = inheritedRequirement;
 		if (topLevel)
@@ -55,6 +56,8 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (definition.GeneratedInfo?.Source is Definition source && source.EffectiveRequirement is not null)
 			effective = ConfigurationFlagExpressionBinder.And(effective, source.EffectiveRequirement);
+		if (generatedRequirement is not null)
+			effective = ConfigurationFlagExpressionBinder.And(effective, generatedRequirement);
 
 		definition.EffectiveRequirement = effective;
 

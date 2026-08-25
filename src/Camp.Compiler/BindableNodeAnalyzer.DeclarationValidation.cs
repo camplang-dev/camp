@@ -26,15 +26,15 @@ public sealed partial class BindableNodeAnalyzer
 			switch (info.Definition)
 			{
 				case ClassDefinition classDefinition:
-					AnalyzeClassOrStructBaseTypes(classDefinition, classDefinition.BaseTypes, "Class");
+					WithConditionalInterfaceTypeReferences(() => AnalyzeClassOrStructBaseTypes(classDefinition, classDefinition.BaseTypes, "Class"));
 					break;
 
 				case StructDefinition structDefinition:
-					AnalyzeClassOrStructBaseTypes(structDefinition, structDefinition.BaseTypes, "Struct");
+					WithConditionalInterfaceTypeReferences(() => AnalyzeClassOrStructBaseTypes(structDefinition, structDefinition.BaseTypes, "Struct"));
 					break;
 
 				case InterfaceDefinition interfaceDefinition:
-					AnalyzeInterfaceBaseTypes(interfaceDefinition);
+					WithConditionalInterfaceTypeReferences(() => AnalyzeInterfaceBaseTypes(interfaceDefinition));
 					break;
 			}
 		}
@@ -180,12 +180,12 @@ public sealed partial class BindableNodeAnalyzer
 			MethodSignature signature = BuildMethodSignature(abstractMethod);
 			if (IsDestructorFunction(abstractMethod))
 			{
-				if (!ContainsOverrideSignature(definition.Functions, signature))
+				if (!ContainsOverrideSignature(definition.Functions, signature, abstractMethod))
 					Report(GetNameRange(definition), $"Class '{definition.Name}' must use override to implement inherited abstract destructor '{abstractMethod.Name}'.");
 				continue;
 			}
 
-			if (!ContainsOverrideSignature(definition.Functions, signature))
+			if (!ContainsOverrideSignature(definition.Functions, signature, abstractMethod))
 				Report(GetNameRange(definition), $"Class '{definition.Name}' must use override to implement inherited abstract member '{signature.DisplayName}'.");
 		}
 	}
@@ -945,6 +945,8 @@ public sealed partial class BindableNodeAnalyzer
 			{
 				if (!OverloadSelectorShapeCompatible(function, inherited, out string overloadShapeMismatch))
 					Report(GetNameRange(function), $"Override '{GetCallableName(function)}' must preserve the base declaration's {overloadShapeMismatch}.");
+				if (!IsAtLeastAsAvailable(function, inherited))
+					Report(GetNameRange(function), $"Override '{GetCallableName(function)}' must be at least as available as inherited member '{inherited.Name}'.");
 				return;
 			}
 		}
@@ -1165,14 +1167,15 @@ public sealed partial class BindableNodeAnalyzer
 
 	IEnumerable<FunctionDefinition> GetInterfaceMembers(InterfaceDefinition definition)
 	{
-		foreach (InterfaceDefinition baseInterface in GetBaseInterfaces(definition))
+		List<FunctionDefinition> members = [];
+		WithRequirementProof(definition.EffectiveRequirement, () =>
 		{
-			foreach (FunctionDefinition function in baseInterface.Functions)
-				yield return function;
-		}
+			foreach (InterfaceDefinition baseInterface in GetBaseInterfaces(definition))
+				members.AddRange(SelectedInterfaceMembers(baseInterface));
 
-		foreach (FunctionDefinition function in definition.Functions)
-			yield return function;
+			members.AddRange(SelectedInterfaceMembers(definition));
+		});
+		return members;
 	}
 
 	IEnumerable<FunctionDefinition> GetInheritedAbstractMethods(ClassDefinition definition)
@@ -1190,7 +1193,7 @@ public sealed partial class BindableNodeAnalyzer
 			if (!seen.Add(classDefinition))
 				continue;
 
-			foreach (FunctionDefinition function in classDefinition.Functions)
+			foreach (FunctionDefinition function in SelectedFunctions(classDefinition.Functions))
 			{
 				if (function.Modifier == FunctionModifier.Abstract)
 					yield return function;
@@ -1287,15 +1290,22 @@ public sealed partial class BindableNodeAnalyzer
 			: new CallableSlot(text[..separator], text[(separator + 1)..]);
 	}
 
-	bool ContainsOverrideSignature(List<FunctionDefinition> functions, MethodSignature required)
+	bool ContainsOverrideSignature(List<FunctionDefinition> functions, MethodSignature required, FunctionDefinition inherited)
 	{
 		foreach (FunctionDefinition function in functions)
 		{
-			if (function.Modifier == FunctionModifier.Override && BuildMethodSignature(function).Equals(required))
+			if (function.Modifier == FunctionModifier.Override && BuildMethodSignature(function).Equals(required) && IsAtLeastAsAvailable(function, inherited))
 				return true;
 		}
 
 		return false;
+	}
+
+	bool IsAtLeastAsAvailable(Definition candidate, Definition required)
+	{
+		if (candidate.EffectiveRequirement is null)
+			return true;
+		return ConfigurationFlagExpressionBinder.Implies(required.EffectiveRequirement ?? ConfigurationFlagExpressionBinder.True(), candidate.EffectiveRequirement, configurationFlags);
 	}
 
 	void ValidateFunctionModifiers(FunctionDefinition definition)

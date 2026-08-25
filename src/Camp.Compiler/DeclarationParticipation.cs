@@ -76,8 +76,9 @@ public sealed class DeclarationParticipation
 			{
 				if (ReferenceEquals(definition, dependency) || Includes(dependency, DeclarationParticipationMode.Production))
 					continue;
-				string dependencyKind = IsTestOnly(dependency) ? "test-only" : "unavailable";
-				diagnostics.Add(new AnalysisDiagnostic(GetDiagnosticRange(definition), $"Production declaration '{definition.Name}' cannot depend on {dependencyKind} declaration '{dependency.Name}'."));
+				if (!IsTestOnly(dependency))
+					continue;
+				diagnostics.Add(new AnalysisDiagnostic(GetDiagnosticRange(definition), $"Production declaration '{definition.Name}' cannot depend on test-only declaration '{dependency.Name}'."));
 				break;
 			}
 		}

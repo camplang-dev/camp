@@ -32,7 +32,8 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			Name = VirtualTableTypeName(classDefinition),
 			Symbol = VirtualTableTypeName(classDefinition),
-			ResolvedType = VirtualTableTypeName(classDefinition)
+			ResolvedType = VirtualTableTypeName(classDefinition),
+			EffectiveRequirement = classDefinition.EffectiveRequirement
 		};
 		if (baseLowering is not null)
 		{
@@ -41,7 +42,8 @@ public sealed partial class BindableNodeAnalyzer
 				Name = baseClass!.Name,
 				Symbol = baseClass.Name,
 				Type = TypeReferenceFor(baseLowering.VTableType),
-				ResolvedType = baseLowering.VTableType.Name
+				ResolvedType = baseLowering.VTableType.Name,
+				EffectiveRequirement = baseLowering.VTableType.EffectiveRequirement
 			});
 		}
 
@@ -55,14 +57,15 @@ public sealed partial class BindableNodeAnalyzer
 				Name = VirtualTableFieldName,
 				Symbol = VirtualTableFieldName,
 				Type = PointerTo(TypeReferenceFor(vtableType)),
-				ResolvedType = $"{vtableType.Name}*"
+				ResolvedType = $"{vtableType.Name}*",
+				EffectiveRequirement = classDefinition.EffectiveRequirement
 			};
 			classDefinition.Fields.Insert(0, field);
 			lowering.Field = field;
 		}
 
 		List<FunctionDefinition> generated = [];
-		foreach (FunctionDefinition function in classDefinition.Functions.ToArray())
+		foreach (FunctionDefinition function in SelectedFunctions(classDefinition.Functions).ToArray())
 		{
 			if (!IsVirtualMethodDeclaration(function))
 				continue;
@@ -213,13 +216,13 @@ public sealed partial class BindableNodeAnalyzer
 			callable.Parameters.Add(CloneParameter(parameter));
 		}
 
-		return new FieldDefinition
-		{
-			Name = VirtualSlotName(function),
-			Symbol = VirtualSlotName(function),
-			Type = callable,
-			ResolvedType = callable.ResolvedType
-		};
+		FieldDefinition field = generatedDeclarations.Field(GeneratedDeclarationCategory.VirtualDispatch, "virtual slot field", function);
+		field.Name = VirtualSlotName(function);
+		field.Symbol = VirtualSlotName(function);
+		field.Type = callable;
+		field.ResolvedType = callable.ResolvedType;
+		field.EffectiveRequirement = function.EffectiveRequirement;
+		return field;
 	}
 
 	BlockStatement CreateVirtualDispatchBody(ClassDefinition owner, FunctionDefinition function, FieldDefinition slotField)
@@ -396,6 +399,7 @@ public sealed partial class BindableNodeAnalyzer
 					Type = PointerTo(new ConstTypeReference { Type = InterfaceType(interfaceDefinition), ResolvedType = "const " + interfaceDefinition.Name }),
 					ResolvedType = "const " + interfaceDefinition.Name + "*"
 				};
+				ApplyCombinedRequirement(externVTable, classDefinition, interfaceDefinition);
 				module.Definitions.Add(externVTable);
 				generatedInterfaceDefinitions.Add(externVTable);
 
@@ -406,6 +410,7 @@ public sealed partial class BindableNodeAnalyzer
 					Type = new ConstTypeReference { Type = InterfaceType(interfaceDefinition), ResolvedType = "const " + interfaceDefinition.Name },
 					ResolvedType = "const " + interfaceDefinition.Name
 				};
+				ApplyCombinedRequirement(externStoragePlaceholder, classDefinition, interfaceDefinition);
 					InterfaceImplementationLowering externLowering = new(classDefinition, interfaceDefinition, Field: null, externVTable, externStoragePlaceholder, ObjectVTableStorage: null, DirectEntries: false, IsStruct: false, IsExternClass: true);
 				implementations.Add(externLowering);
 				if (FindImportedInterfaceAccessor(classDefinition, interfaceDefinition) is null)
@@ -418,6 +423,7 @@ public sealed partial class BindableNodeAnalyzer
 			field.Symbol = InterfaceFieldName(interfaceDefinition);
 			field.Type = PointerTo(new ConstTypeReference { Type = InterfaceType(interfaceDefinition), ResolvedType = "const " + interfaceDefinition.Name });
 			field.ResolvedType = "const " + interfaceDefinition.Name + "*";
+			ApplyCombinedRequirement(field, classDefinition, interfaceDefinition);
 			classDefinition.Fields.Insert(interfaceIndex, field);
 
 			VariableDefinition vtableStorage = generatedDeclarations.Variable(GeneratedDeclarationCategory.Interface, "interface vtable storage", classDefinition);
@@ -425,6 +431,7 @@ public sealed partial class BindableNodeAnalyzer
 			vtableStorage.Symbol = InterfaceVTableName(classDefinition, interfaceDefinition) + "__storage";
 			vtableStorage.Type = new ConstTypeReference { Type = InterfaceType(interfaceDefinition), ResolvedType = "const " + interfaceDefinition.Name };
 			vtableStorage.ResolvedType = "const " + interfaceDefinition.Name;
+			ApplyCombinedRequirement(vtableStorage, classDefinition, interfaceDefinition);
 			module.Definitions.Add(vtableStorage);
 			generatedInterfaceDefinitions.Add(vtableStorage);
 
@@ -437,6 +444,7 @@ public sealed partial class BindableNodeAnalyzer
 				objectVTableStorage.Symbol = InterfaceVTableName(classDefinition, interfaceDefinition) + "__object_storage";
 				objectVTableStorage.Type = new ConstTypeReference { Type = InterfaceType(interfaceDefinition), ResolvedType = "const " + interfaceDefinition.Name };
 				objectVTableStorage.ResolvedType = "const " + interfaceDefinition.Name;
+				ApplyCombinedRequirement(objectVTableStorage, classDefinition, interfaceDefinition);
 				module.Definitions.Add(objectVTableStorage);
 				generatedInterfaceDefinitions.Add(objectVTableStorage);
 			}
@@ -449,6 +457,7 @@ public sealed partial class BindableNodeAnalyzer
 			vtable.Internal = GetCombinedInternalVisibility(classDefinition, interfaceDefinition);
 			vtable.Type = PointerTo(new ConstTypeReference { Type = InterfaceType(interfaceDefinition), ResolvedType = "const " + interfaceDefinition.Name });
 			vtable.ResolvedType = "const " + interfaceDefinition.Name + "*";
+			ApplyCombinedRequirement(vtable, classDefinition, interfaceDefinition);
 			vtable.InitialValue = new UnaryExpression
 			{
 				Operator = UnaryOperator.AddressOf,
@@ -501,6 +510,7 @@ public sealed partial class BindableNodeAnalyzer
 		accessor.Extern = lowering.IsExternClass ? "extern" : null;
 		accessor.ReturnType = sourceReturnType;
 		accessor.ResolvedType = $"{interfaceDefinition.Name}**";
+		ApplyCombinedRequirement(accessor, classDefinition, interfaceDefinition);
 		accessor.EffectiveThisParameter = new ThisParameterDefinition
 		{
 			Name = "this",
@@ -580,6 +590,7 @@ public sealed partial class BindableNodeAnalyzer
 			vtableStorage.Symbol = InterfaceVTableName(structDefinition, interfaceDefinition) + "__storage";
 			vtableStorage.Type = new ConstTypeReference { Type = InterfaceType(interfaceDefinition), ResolvedType = "const " + interfaceDefinition.Name };
 			vtableStorage.ResolvedType = "const " + interfaceDefinition.Name;
+			ApplyCombinedRequirement(vtableStorage, structDefinition, interfaceDefinition);
 			module.Definitions.Add(vtableStorage);
 			generatedInterfaceDefinitions.Add(vtableStorage);
 
@@ -588,6 +599,7 @@ public sealed partial class BindableNodeAnalyzer
 			vtable.Symbol = InterfaceVTableName(structDefinition, interfaceDefinition);
 			vtable.Type = PointerTo(new ConstTypeReference { Type = InterfaceType(interfaceDefinition), ResolvedType = "const " + interfaceDefinition.Name });
 			vtable.ResolvedType = "const " + interfaceDefinition.Name + "*";
+			ApplyCombinedRequirement(vtable, structDefinition, interfaceDefinition);
 			vtable.InitialValue = new UnaryExpression
 			{
 				Operator = UnaryOperator.AddressOf,
@@ -645,6 +657,9 @@ public sealed partial class BindableNodeAnalyzer
 	FunctionDefinition CreateInterfaceThunkDeclaration(InterfaceImplementationLowering lowering, InterfaceDefinition entryInterface, FunctionDefinition member)
 	{
 		FunctionDefinition thunk = generatedDeclarations.Function(GeneratedDeclarationCategory.Interface, "interface thunk", lowering.Type);
+		thunk.EffectiveRequirement = ConfigurationFlagExpressionBinder.And(
+			ConfigurationFlagExpressionBinder.And(lowering.Type.EffectiveRequirement, lowering.Interface.EffectiveRequirement),
+			member.EffectiveRequirement);
 		thunk.Name = InterfaceThunkName(lowering.Type, entryInterface, member);
 		thunk.Symbol = InterfaceThunkName(lowering.Type, entryInterface, member);
 		thunk.ReturnType = member.Modifier == FunctionModifier.Constructor
@@ -931,7 +946,8 @@ public sealed partial class BindableNodeAnalyzer
 			Public = definition.Public,
 			Internal = definition.Internal,
 			Extern = definition.Extern,
-			ResolvedType = definition.ResolvedType ?? definition.Name
+			ResolvedType = definition.ResolvedType ?? definition.Name,
+			EffectiveRequirement = definition.EffectiveRequirement
 		};
 		foreach (GenericParameter parameter in definition.GenericParameters)
 			lowered.GenericParameters.Add(parameter);
@@ -945,12 +961,13 @@ public sealed partial class BindableNodeAnalyzer
 					Name = baseInterface.Name,
 					Symbol = baseInterface.Name,
 					Type = InterfaceType(baseInterface),
-					ResolvedType = baseInterface.Name
+					ResolvedType = baseInterface.Name,
+					EffectiveRequirement = baseInterface.EffectiveRequirement
 				});
 			}
 		}
 
-		foreach (FunctionDefinition member in definition.Functions)
+		foreach (FunctionDefinition member in SelectedInterfaceMembers(definition))
 			lowered.Fields.Add(CreateInterfaceVTableEntryField(definition, member));
 
 		loweredInterfaceStructs[definition] = lowered;
@@ -1029,7 +1046,8 @@ public sealed partial class BindableNodeAnalyzer
 			Name = GetInterfaceEntryName(member),
 			Symbol = GetInterfaceEntryName(member),
 			Type = callable,
-			ResolvedType = callable.ResolvedType
+			ResolvedType = callable.ResolvedType,
+			EffectiveRequirement = member.EffectiveRequirement
 		};
 	}
 
@@ -1052,7 +1070,7 @@ public sealed partial class BindableNodeAnalyzer
 			}
 		}
 
-		foreach (FunctionDefinition member in interfaceDefinition.Functions)
+		foreach (FunctionDefinition member in SelectedInterfaceMembers(interfaceDefinition))
 		{
 			initializer.Items.Add(new InitializerItem
 			{

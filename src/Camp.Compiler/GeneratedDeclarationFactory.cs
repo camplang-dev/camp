@@ -31,6 +31,7 @@ internal sealed class GeneratedDeclarationFactory
 		where T : Definition
 	{
 		definition.GeneratedInfo = new GeneratedDeclarationInfo(category, reason, source);
+		definition.EffectiveRequirement = source?.EffectiveRequirement;
 		definition.Provenance = new NodeProvenance(source?.SourceSyntax, SourceSymbol(source), reason, category, Visibility(definition, source));
 		return definition;
 	}

@@ -551,8 +551,8 @@ public sealed partial class BindableNodeAnalyzer
 		AnalysisScope scope = CreateTypeScope(definition, parentScope);
 		definition.ResolvedType = definition.Name;
 		AnalyzeGenericParameters(definition.GenericParameters, scope);
-		AnalyzeTypeList(definition.BaseTypes, scope);
-		RegisterBaseTypes(definition, definition.BaseTypes);
+		AnalyzeConditionalInterfaceTypeList(definition.BaseTypes, scope);
+		WithConditionalInterfaceTypeReferences(() => RegisterBaseTypes(definition, definition.BaseTypes));
 
 		foreach (FieldDefinition field in definition.Fields)
 			AnalyzeFieldDefinition(field, FieldUsesStaticMemberScope(field) ? CreateStaticMemberScope(definition, parentScope) : scope, definition);
@@ -632,8 +632,8 @@ public sealed partial class BindableNodeAnalyzer
 		AnalysisScope scope = CreateTypeScope(definition, parentScope);
 		definition.ResolvedType = definition.Name;
 		AnalyzeGenericParameters(definition.GenericParameters, scope);
-		AnalyzeTypeList(definition.BaseTypes, scope);
-		RegisterBaseTypes(definition, definition.BaseTypes);
+		AnalyzeConditionalInterfaceTypeList(definition.BaseTypes, scope);
+		WithConditionalInterfaceTypeReferences(() => RegisterBaseTypes(definition, definition.BaseTypes));
 
 		foreach (FieldDefinition field in definition.Fields)
 			AnalyzeFieldDefinition(field, FieldUsesStaticMemberScope(field) ? CreateStaticMemberScope(definition, parentScope) : scope, definition);
@@ -652,8 +652,8 @@ public sealed partial class BindableNodeAnalyzer
 		AnalysisScope scope = CreateTypeScope(definition, parentScope);
 		definition.ResolvedType = definition.Name;
 		AnalyzeGenericParameters(definition.GenericParameters, scope);
-		AnalyzeTypeList(definition.BaseTypes, scope);
-		RegisterBaseTypes(definition, definition.BaseTypes);
+		AnalyzeConditionalInterfaceTypeList(definition.BaseTypes, scope);
+		WithConditionalInterfaceTypeReferences(() => RegisterBaseTypes(definition, definition.BaseTypes));
 
 		foreach (FunctionDefinition function in definition.Functions)
 			AnalyzeFunctionDefinition(function, FunctionUsesStaticMemberScope(function) ? CreateStaticMemberScope(definition, parentScope) : scope, definition.Name);
@@ -1404,7 +1404,7 @@ public sealed partial class BindableNodeAnalyzer
 		ValidateNoDirectFixedArrayType(definition.ReturnType, definition.ReturnType?.SourceSyntax ?? definition.SourceSyntax, "a function return type");
 		ValidateNoDirectExternClassType(definition.ReturnType, definition.ReturnType?.SourceSyntax ?? definition.SourceSyntax, "a function return type");
 		ValidateNoExternClassArrayElement(definition.ReturnType, definition.ReturnType?.SourceSyntax ?? definition.SourceSyntax);
-		AnalyzeOptionalType(definition.CallableAscriptionType, scope);
+		AnalyzeOptionalConditionalInterfaceType(definition.CallableAscriptionType, scope);
 
 		ValidateFunctionModifiers(definition);
 		ValidateGenericArgumentUse(definition.ReturnType);
