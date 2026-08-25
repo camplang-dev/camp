@@ -25,18 +25,13 @@ public static class CampPreprocessor
 
 		List<TokenValue> output = [];
 		List<ParseDiagnostic> diagnostics = [];
-		List<ConditionalFrame> stack = [];
 
 		foreach (List<Token> line in EnumerateLines(tokens))
 		{
 			LineInfo info = AnalyzeLine(line);
-			bool active = IsActive(stack);
 			if (info.Directive is null)
 			{
-				if (active)
-					AddLine(output, line);
-				else
-					AddNewLines(output, line);
+				AddLine(output, line);
 				continue;
 			}
 
@@ -44,85 +39,31 @@ public static class CampPreprocessor
 			switch (directive)
 			{
 				case "define":
-					if (active)
-						ApplyDefine(line, info.ExpressionStart, symbols, ownedSymbols, diagnostics);
-					break;
-
 				case "undef":
-					if (active)
-						ApplyUndef(line, info.ExpressionStart, symbols, diagnostics);
+					AddDiagnostic(diagnostics, info.Directive.Value, $"#{directive} is no longer supported; declare and configure configuration flags with --declare/--configure or #build options.");
 					break;
 
 				case "if":
-					{
-						bool parentActive = active;
-						bool condition = parentActive && EvaluateExpression(line, info.ExpressionStart, symbols, diagnostics);
-						stack.Add(new ConditionalFrame(parentActive, condition, condition));
-						break;
-					}
-
 				case "elif":
-					if (stack.Count == 0)
-					{
-						AddDiagnostic(diagnostics, info.Directive.Value, "#elif without matching #if.");
-						break;
-					}
-					{
-						ConditionalFrame frame = stack[^1];
-						if (frame.SeenElse)
-						{
-							AddDiagnostic(diagnostics, info.Directive.Value, "#elif cannot appear after #else.");
-							break;
-						}
-						bool condition = frame.ParentActive && !frame.BranchTaken && EvaluateExpression(line, info.ExpressionStart, symbols, diagnostics);
-						stack[^1] = frame with { CurrentActive = condition, BranchTaken = frame.BranchTaken || condition };
-						break;
-					}
-
 				case "else":
-					if (stack.Count == 0)
-					{
-						AddDiagnostic(diagnostics, info.Directive.Value, "#else without matching #if.");
-						break;
-					}
-					{
-						ConditionalFrame frame = stack[^1];
-						if (frame.SeenElse)
-						{
-							AddDiagnostic(diagnostics, info.Directive.Value, "Duplicate #else in conditional compilation block.");
-							break;
-						}
-						bool condition = frame.ParentActive && !frame.BranchTaken;
-						stack[^1] = frame with { CurrentActive = condition, BranchTaken = true, SeenElse = true };
-						break;
-					}
-
 				case "endif":
-					if (stack.Count == 0)
-						AddDiagnostic(diagnostics, info.Directive.Value, "#endif without matching #if.");
-					else
-						stack.RemoveAt(stack.Count - 1);
+					AddDiagnostic(diagnostics, info.Directive.Value, $"#{directive} is no longer supported; use @require on declarations and configured(...) in ordinary flow control.");
 					break;
 
 				case "build":
 					break;
 
 				case "within":
-					if (active)
-						ValidateWithinDirective(line, info.ExpressionStart, diagnostics);
+					ValidateWithinDirective(line, info.ExpressionStart, diagnostics);
 					break;
 
 				default:
-					if (active)
-						AddDiagnostic(diagnostics, info.Directive.Value, $"Unknown preprocessor directive '#{directive}'.");
+					AddDiagnostic(diagnostics, info.Directive.Value, $"Unknown preprocessor directive '#{directive}'.");
 					break;
 			}
 
 			AddNewLines(output, line);
 		}
-
-		if (stack.Count > 0)
-			diagnostics.Add(new ParseDiagnostic(null, "Missing #endif for conditional compilation block."));
 
 		return new PreprocessResult(output, diagnostics);
 	}

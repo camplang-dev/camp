@@ -633,6 +633,29 @@ public sealed class CompilerDriverOptionTests
 		Assert.Equal(0, moduleConfigured.ExitCode);
 	}
 
+	[Fact]
+	public void Requirements_reject_legacy_preprocessor_conditionals_without_hiding_source()
+	{
+		string source = CreateTempCase("requirement_legacy_preprocessor.camp", """
+			#if OS_WIN32
+			this is not hidden anymore
+			#endif
+
+			export int main() => 0;
+			""");
+
+		CompilerResult result = Execute(source, request =>
+		{
+			request.TargetName = "gcc-linux-x64";
+			request.NoStdLib = true;
+			request.Inspect = CompilerInspectMode.Declarations;
+		});
+
+		Assert.NotEqual(0, result.ExitCode);
+		Assert.Contains("#if is no longer supported", result.StdErr, StringComparison.Ordinal);
+		Assert.Contains("requirement_legacy_preprocessor.camp(2,9): error: Expected ';', method body, or assignment.", result.StdErr, StringComparison.Ordinal);
+	}
+
 	static CompilerResult Execute(string sourcePath, Action<CompilerRequest> configure)
 	{
 		string repositoryRoot = FindRepositoryRoot();
