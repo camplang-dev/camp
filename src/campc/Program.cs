@@ -691,6 +691,10 @@ sealed class CampCli
 		request.TestFilters.AddRange(bag.TestFilters);
 		request.CoverageSubjects.AddRange(bag.CoverageSubjects);
 		request.Defines.AddRange(bag.Defines);
+		request.ConfigurationFlagDeclarations.AddRange(bag.ConfigurationFlagDeclarations);
+		request.ConfigurationFlagConfigurations.AddRange(bag.ConfigurationFlagConfigurations);
+		request.ConfigurationRequirements.AddRange(bag.ConfigurationRequirements);
+		request.ConfigurationRequirementPolicy = bag.ConfigurationRequirementPolicy;
 		request.Variants.AddRange(bag.Variants);
 		request.References.AddRange(bag.References);
 		request.Frameworks.AddRange(bag.Frameworks);
@@ -1594,6 +1598,9 @@ sealed class BuildOptionBag
 	public List<string> ApiPatterns { get; } = [];
 	public List<string> ExcludePatterns { get; } = [];
 	public List<string> Defines { get; } = [];
+	public List<string> ConfigurationFlagDeclarations { get; } = [];
+	public List<string> ConfigurationFlagConfigurations { get; } = [];
+	public List<string> ConfigurationRequirements { get; } = [];
 	public List<string> References { get; } = [];
 	public List<string> Frameworks { get; } = [];
 	public List<string> Variants { get; } = [];
@@ -1638,6 +1645,12 @@ sealed class BuildOptionBag
 		"implicit" => Camp.Compiler.WithinAllocationPolicy.Implicit,
 		_ => null
 	};
+	public ConfigurationRequirementPolicy? ConfigurationRequirementPolicy => Get("require-policy") switch
+	{
+		"explicit" => Camp.Compiler.ConfigurationRequirementPolicy.Explicit,
+		"implicit" => Camp.Compiler.ConfigurationRequirementPolicy.Implicit,
+		_ => null
+	};
 	public bool DebugInfo => Get("debug-info") == "true";
 	public bool HasBuildOnlyOptions => Frameworks.Count > 0 || ProjectReferences.Count > 0 || ArtifactSpecified || Get("name") is not null || Get("subsystem") is not null || Get("out-dir") is not null || DebugInfo || TimingEnabled || TimingOutput is not null;
 	public bool HasTestResultOptions => Get("test-output-dir") is not null || Get("test-result-format") is not null;
@@ -1652,6 +1665,9 @@ sealed class BuildOptionBag
 		foreach (string pattern in options.ExcludePatterns)
 			ExcludePatterns.Add(pattern);
 		Defines.AddRange(options.Defines);
+		ConfigurationFlagDeclarations.AddRange(options.ConfigurationFlagDeclarations);
+		ConfigurationFlagConfigurations.AddRange(options.ConfigurationFlagConfigurations);
+		ConfigurationRequirements.AddRange(options.ConfigurationRequirements);
 		References.AddRange(options.References);
 		Frameworks.AddRange(options.Frameworks);
 		SourcefileRoots.AddRange(options.SourcefileRoots);
@@ -1737,6 +1753,9 @@ sealed class ParsedOptions
 	public List<string> ApiPatterns { get; } = [];
 	public List<string> ExcludePatterns { get; } = [];
 	public List<string> Defines { get; } = [];
+	public List<string> ConfigurationFlagDeclarations { get; } = [];
+	public List<string> ConfigurationFlagConfigurations { get; } = [];
+	public List<string> ConfigurationRequirements { get; } = [];
 	public List<string> References { get; } = [];
 	public List<string> Frameworks { get; } = [];
 	public List<string> Variants { get; } = [];
@@ -1818,6 +1837,12 @@ static class CommandLineOptionParser
 				case "--implicit-within":
 					AddSingle(result, "within", "implicit");
 					break;
+				case "--explicit-require":
+					AddSingle(result, "require-policy", "explicit");
+					break;
+				case "--implicit-require":
+					AddSingle(result, "require-policy", "implicit");
+					break;
 				case "--artifact":
 					string artifact = RequiredValue(tokens, ref i, token, errors);
 					result.ArtifactSpecified = true;
@@ -1898,8 +1923,18 @@ static class CommandLineOptionParser
 					result.ExcludePatterns.Add(PathArguments.Normalize(RequiredValue(tokens, ref i, token, errors)));
 					break;
 				case "--define":
-				case "-d":
 					result.Defines.Add(RequiredValue(tokens, ref i, token, errors));
+					break;
+				case "--declare":
+				case "-d":
+					result.ConfigurationFlagDeclarations.Add(RequiredValue(tokens, ref i, token, errors));
+					break;
+				case "--configure":
+				case "-c":
+					result.ConfigurationFlagConfigurations.Add(RequiredValue(tokens, ref i, token, errors));
+					break;
+				case "--require":
+					result.ConfigurationRequirements.Add(RequiredValue(tokens, ref i, token, errors));
 					break;
 				case "--reference":
 				case "-r":

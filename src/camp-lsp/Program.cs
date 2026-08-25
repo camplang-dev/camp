@@ -1175,6 +1175,7 @@ public sealed class CampLspWorkspace
 			SubsystemName = source.SubsystemName,
 			NoStdLib = source.NoStdLib,
 			WithinAllocationPolicy = source.WithinAllocationPolicy,
+			ConfigurationRequirementPolicy = source.ConfigurationRequirementPolicy,
 			SourcefilePathMode = source.SourcefilePathMode,
 			SourcefileDefaultRoot = source.SourcefileDefaultRoot,
 			ListTests = source.ListTests,
@@ -1190,6 +1191,9 @@ public sealed class CampLspWorkspace
 		clone.ApiFiles.AddRange(source.ApiFiles);
 		clone.AnalysisSourceFiles.AddRange(source.AnalysisSourceFiles);
 		clone.Defines.AddRange(source.Defines);
+		clone.ConfigurationFlagDeclarations.AddRange(source.ConfigurationFlagDeclarations);
+		clone.ConfigurationFlagConfigurations.AddRange(source.ConfigurationFlagConfigurations);
+		clone.ConfigurationRequirements.AddRange(source.ConfigurationRequirements);
 		clone.Variants.AddRange(source.Variants);
 		clone.SourcefileRoots.AddRange(source.SourcefileRoots);
 		clone.TestFilters.AddRange(source.TestFilters);

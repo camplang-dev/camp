@@ -49,6 +49,38 @@ public sealed class ProjectLoaderTests
 	}
 
 	[Fact]
+	public void Project_loader_reads_configuration_flag_options()
+	{
+		string root = CreateTempDirectory("project-loader-configuration-flags");
+		string sourceDirectory = Path.Combine(root, "src");
+		Directory.CreateDirectory(sourceDirectory);
+		File.WriteAllText(Path.Combine(sourceDirectory, "main.camp"), """
+			#build --declare LOCAL_FEATURE=true
+			#build --configure LOCAL_FEATURE=false
+			#build --require "LOCAL_FEATURE || OTHER_FEATURE"
+
+			export int main() => 0;
+			""");
+		string buildFile = Path.Combine(root, "sample.campbuild");
+		File.WriteAllText(buildFile, """
+			--nostdlib
+			--artifact none
+			--explicit-require
+			--declare OTHER_FEATURE
+			src/*.camp
+			""");
+
+		CampProjectLoadResult result = CampProjectLoader.LoadBuildFile(buildFile, CreateEnvironment(root));
+
+		Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
+		Assert.Equal(ConfigurationRequirementPolicy.Explicit, result.Request.ConfigurationRequirementPolicy);
+		Assert.Contains("OTHER_FEATURE", result.Request.ConfigurationFlagDeclarations);
+		Assert.Contains("LOCAL_FEATURE=true", result.Request.ConfigurationFlagDeclarations);
+		Assert.Contains("LOCAL_FEATURE=false", result.Request.ConfigurationFlagConfigurations);
+		Assert.Contains("LOCAL_FEATURE || OTHER_FEATURE", result.Request.ConfigurationRequirements);
+	}
+
+	[Fact]
 	public void Project_loader_reads_sourcefile_path_options()
 	{
 		string workspace = CreateTempDirectory("project-loader-sourcefile-paths");

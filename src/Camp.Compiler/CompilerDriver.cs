@@ -31,6 +31,10 @@ public sealed class CompilerRequest
 	public List<string> ApiFiles { get; } = [];
 	public List<string> AnalysisSourceFiles { get; } = [];
 	public List<string> Defines { get; } = [];
+	public List<string> ConfigurationFlagDeclarations { get; } = [];
+	public List<string> ConfigurationFlagConfigurations { get; } = [];
+	public List<string> ConfigurationRequirements { get; } = [];
+	public ConfigurationRequirementPolicy? ConfigurationRequirementPolicy { get; set; }
 	public CompilerInspectMode? Inspect { get; set; }
 	public bool InspectApi { get; set; }
 	public string TargetName { get; set; } = CompilerDefaults.TargetName;
@@ -533,6 +537,9 @@ public static class CompilerDriver
 			}
 			target = target.WithVariantSelection(selection);
 
+			if (!TryValidateConfigurationFlags(target))
+				return false;
+
 			foreach (string define in request.Defines)
 			{
 				if (target.TargetOwnedDefines.Contains(define))
@@ -544,6 +551,32 @@ public static class CompilerDriver
 
 			context = new RuntimeContext(GetPackageSourceRoot(), GetPackageArtifactRoot(), target, normalizedProfile, [.. request.Defines]);
 			return true;
+		}
+
+		bool TryValidateConfigurationFlags(TargetDefinition target)
+		{
+			List<string> errors = [];
+			ConfigurationFlagSet flags = new();
+			foreach (string define in target.TargetOwnedDefines)
+				flags.TryDeclare(define + "=false", defaultAmbientValue: false, ConfigurationFlagOwner.Target, $"target '{target.Name}'", errors);
+			foreach (string define in target.Defines.Keys)
+			{
+				if (!flags.Declarations.ContainsKey(define))
+					flags.TryDeclare(define + "=false", defaultAmbientValue: false, ConfigurationFlagOwner.Target, $"target '{target.Name}'", errors);
+				flags.TryConfigure(define + "=true", defaultValue: true, ConfigurationFlagOwner.Target, $"target '{target.Name}'", allowTargetOwned: true, errors);
+			}
+			foreach (string declaration in request.ConfigurationFlagDeclarations)
+				flags.TryDeclare(declaration, defaultAmbientValue: false, ConfigurationFlagOwner.Module, "request", errors);
+			foreach (string configuration in request.ConfigurationFlagConfigurations)
+				flags.TryConfigure(configuration, defaultValue: true, ConfigurationFlagOwner.Module, "request", allowTargetOwned: false, errors);
+			foreach (string requirement in request.ConfigurationRequirements)
+			{
+				if (string.IsNullOrWhiteSpace(requirement))
+					errors.Add("Configuration requirements cannot be empty.");
+			}
+			foreach (string error in errors)
+				ErrorLine(error);
+			return errors.Count == 0;
 		}
 
 		string GetTargetRoot()

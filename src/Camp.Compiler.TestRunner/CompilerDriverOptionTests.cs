@@ -92,6 +92,61 @@ public sealed class CompilerDriverOptionTests
 		Assert.Contains("warning: Preprocessor symbol 'UNICODE' is owned by the selected target", source.StdErr, StringComparison.Ordinal);
 	}
 
+	[Fact]
+	public void Configuration_flags_validate_declarations_and_configurations()
+	{
+		string source = CreateTempCase("configuration_flags.camp", "export int main() => 0;\n");
+
+		CompilerResult ok = Execute(source, request =>
+		{
+			request.NoStdLib = true;
+			request.ConfigurationFlagDeclarations.Add("APP_TRACE");
+			request.ConfigurationFlagConfigurations.Add("APP_TRACE");
+		});
+		CompilerResult unknown = Execute(source, request =>
+		{
+			request.NoStdLib = true;
+			request.ConfigurationFlagConfigurations.Add("APP_TRACE");
+		});
+		CompilerResult duplicateDeclare = Execute(source, request =>
+		{
+			request.NoStdLib = true;
+			request.ConfigurationFlagDeclarations.Add("APP_TRACE");
+			request.ConfigurationFlagDeclarations.Add("APP_TRACE=true");
+		});
+		CompilerResult duplicateConfigure = Execute(source, request =>
+		{
+			request.NoStdLib = true;
+			request.ConfigurationFlagDeclarations.Add("APP_TRACE");
+			request.ConfigurationFlagConfigurations.Add("APP_TRACE");
+			request.ConfigurationFlagConfigurations.Add("APP_TRACE=false");
+		});
+
+		Assert.Equal(0, ok.ExitCode);
+		Assert.NotEqual(0, unknown.ExitCode);
+		Assert.Contains("must be declared before it can be configured", unknown.StdErr, StringComparison.Ordinal);
+		Assert.NotEqual(0, duplicateDeclare.ExitCode);
+		Assert.Contains("already declared", duplicateDeclare.StdErr, StringComparison.Ordinal);
+		Assert.NotEqual(0, duplicateConfigure.ExitCode);
+		Assert.Contains("already configured", duplicateConfigure.StdErr, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Target_owned_configuration_flags_are_not_configurable_from_request()
+	{
+		string source = CreateTempCase("configuration_flags_target_owned.camp", "export int main() => 0;\n");
+
+		CompilerResult result = Execute(source, request =>
+		{
+			request.TargetName = "msvc-windows-x64";
+			request.NoStdLib = true;
+			request.ConfigurationFlagConfigurations.Add("UNICODE=false");
+		});
+
+		Assert.NotEqual(0, result.ExitCode);
+		Assert.Contains("owned by the selected target", result.StdErr, StringComparison.Ordinal);
+	}
+
 	static CompilerResult Execute(string sourcePath, Action<CompilerRequest> configure)
 	{
 		string repositoryRoot = FindRepositoryRoot();
