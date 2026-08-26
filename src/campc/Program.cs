@@ -573,6 +573,7 @@ sealed class CampCli
 
 		PrintPackagePreviewWarning();
 		List<string> errors = [];
+		args = ResponseFileExpander.ExpandBareBuildFiles(args, environment.WorkingDirectory, errors).ToArray();
 		List<string> sourceArgs = [];
 		string? upgrade = null;
 		for (int i = 0; i < args.Length; i++)
@@ -591,20 +592,26 @@ sealed class CampCli
 			errors.Add(upgradeError!);
 		BuildOptionBag bag = new();
 		ApplyGlobalPragmas(environment, bag, errors);
+		ParsedOptions restoreOptions = CommandLineOptionParser.Parse(sourceArgs, allowPositionals: true, errors);
+		bag.Apply(restoreOptions, Precedence.Local, "restore", errors);
 		foreach (string file in ExpandSourcePatterns(sourceArgs, [], environment.WorkingDirectory, errors))
 			ApplyFilePragmas(file, environment, bag, Precedence.Local, errors);
 		if (errors.Count > 0)
 			return PrintErrors(errors);
 
-		foreach (PackageSpec package in bag.UsePackages)
+		string projectRoot = GetRestoreProjectRoot(restoreOptions.Positionals, environment.WorkingDirectory);
+		return PackageCommands.Restore(bag.UsePackages, bag.UseSources, upgrade, environment, projectRoot);
+	}
+
+	static string GetRestoreProjectRoot(IReadOnlyList<string> positionals, string workingDirectory)
+	{
+		foreach (string positional in positionals)
 		{
-			if (PackageCommands.IsInstalled(package, environment.GlobalPackageRoot) || PackageCommands.IsInstalled(package, environment.LocalPackageRoot))
-				continue;
-			if (!PackageCommands.Install(package, global: false, environment, bag.UseSources, out string message, out string? error))
-				return Error(error ?? message);
-			Console.Out.WriteLine(message);
+			string fullPath = Path.GetFullPath(positional, workingDirectory);
+			if (File.Exists(fullPath))
+				return Path.GetDirectoryName(fullPath)!;
 		}
-		return 0;
+		return workingDirectory;
 	}
 
 	static bool TryBuildRequest(string[] args, CliEnvironment environment, CommandKind command, out CompilerRequest? request, out List<string> errors, List<string>? projectReferenceStack = null)
@@ -1467,6 +1474,221 @@ sealed class PackageCommands
 			return Error("pkg publish requires <version|+major|+minor|+patch>.");
 		return Error("pkg publish is not implemented yet.");
 	}
+
+	public static int Restore(IReadOnlyList<PackageSpec> packages, IReadOnlyList<PackageSourceSpec> sources, string? upgrade, CliEnvironment environment, string projectRoot)
+	{
+		if (packages.Count == 0)
+			return 0;
+
+		string lockPath = Path.Combine(projectRoot, "packages.ini");
+		PackageLockFile? existingLock = null;
+		if (File.Exists(lockPath))
+		{
+			if (!PackageLockFile.TryParse(lockPath, File.ReadAllText(lockPath), out existingLock, out List<string> lockErrors))
+				return PrintErrors(lockErrors);
+		}
+
+		Dictionary<string, ResolvedPackage> resolved = new(StringComparer.Ordinal);
+		Dictionary<string, PackageCatalog> catalogs = new(StringComparer.Ordinal);
+		List<PackageSourceLocation> locations = sources
+			.Where(static source => !string.IsNullOrWhiteSpace(source.Path))
+			.Select(static source => new PackageSourceLocation(source.Name, source.Path!))
+			.ToList();
+		if (locations.Count == 0)
+			return Error("No package sources are configured. Add --use-source to the build file or use 'campc pkg add-global-source'.");
+
+		string? upgradeName = null;
+		PackageVersionExpression? upgradeExpression = null;
+		bool upgradeAll = upgrade == "";
+		if (!string.IsNullOrWhiteSpace(upgrade))
+		{
+			PackageDependencySpec upgradeSpec = PackageDependencySpec.Parse(upgrade);
+			upgradeName = upgradeSpec.Name;
+			upgradeExpression = upgradeSpec.VersionExpression ?? (upgradeSpec.SelectedVersion is PackageSelectedVersion selected ? new PackageVersionExpression(selected.Major, selected.Minor, selected.Patch) : null);
+		}
+
+		foreach (PackageSpec package in packages)
+		{
+			PackageDependencySpec dependency = PackageDependencySpec.Parse(package.ToString());
+			if (upgradeName is not null && dependency.Name.Equals(upgradeName, StringComparison.Ordinal))
+				dependency = dependency with { VersionExpression = upgradeExpression ?? dependency.VersionExpression, SelectedVersion = null };
+			if (!TryResolveDependency(dependency, direct: true, out string? error))
+				return Error(error!);
+		}
+
+		SortedDictionary<string, PackageLockEntry> lockEntries = new(StringComparer.Ordinal);
+		foreach (ResolvedPackage package in resolved.Values.OrderBy(static package => package.Name, StringComparer.Ordinal))
+		{
+			if (!InstallResolvedPackage(package, projectRoot, out string? error))
+				return Error(error!);
+			lockEntries[package.Name] = new PackageLockEntry(package.Name, package.Identity, package.Version, package.CatalogVersion.Sha256);
+			Console.Out.WriteLine($"installed: {package.Name}@{package.Version}");
+		}
+		File.WriteAllText(lockPath, new PackageLockFile(lockEntries).Write(), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+		return 0;
+
+		bool TryResolveDependency(PackageDependencySpec dependency, bool direct, out string? error)
+		{
+			error = null;
+			if (resolved.TryGetValue(dependency.Name, out ResolvedPackage? existing))
+			{
+				if (!Matches(dependency, existing.Version))
+				{
+					error = $"Package dependency conflict for '{dependency.Name}'. Selected {existing.Version}, but dependency requires {FormatVersionRequirement(dependency)}.";
+					return false;
+				}
+				return true;
+			}
+
+			bool shouldUpgrade = upgradeAll || direct && upgradeName is not null && dependency.Name.Equals(upgradeName, StringComparison.Ordinal);
+			if (!shouldUpgrade
+				&& existingLock?.Packages.TryGetValue(dependency.Name, out PackageLockEntry? locked) == true
+				&& Matches(dependency, locked.Version))
+			{
+				if (!TryFindCatalogVersion(dependency.Name, locked.Identity, locked.Version, out PackageCatalog? lockedCatalog, out PackageCatalogVersion? lockedVersion, out PackageSourceLocation? lockedSource, out error))
+					return false;
+				ResolvedPackage lockedPackage = new(dependency.Name, locked.Identity, locked.Version, lockedCatalog!, lockedVersion!, lockedSource!);
+				resolved[dependency.Name] = lockedPackage;
+				foreach (PackageDependencySpec transitive in lockedVersion!.Dependencies)
+					if (!TryResolveDependency(transitive, direct: false, out error))
+						return false;
+				return true;
+			}
+
+			if (!TryFindBestCatalogVersion(dependency, out PackageCatalog? catalog, out PackageCatalogVersion? version, out PackageSourceLocation? source, out error))
+				return false;
+			ResolvedPackage package = new(dependency.Name, catalog!.Identity, version!.Version, catalog, version, source!);
+			resolved[dependency.Name] = package;
+			foreach (PackageDependencySpec transitive in version.Dependencies)
+				if (!TryResolveDependency(transitive, direct: false, out error))
+					return false;
+			return true;
+		}
+
+		bool TryFindCatalogVersion(string packageName, string identity, PackageSelectedVersion version, out PackageCatalog? catalog, out PackageCatalogVersion? catalogVersion, out PackageSourceLocation? source, out string? error)
+		{
+			catalog = null;
+			catalogVersion = null;
+			source = null;
+			error = null;
+			foreach (PackageSourceLocation location in locations)
+			{
+				if (!TryLoadCatalog(packageName, location, out PackageCatalog? candidate, out error))
+					continue;
+				if (!candidate!.Identity.Equals(identity, StringComparison.Ordinal))
+					continue;
+				if (candidate.Versions.TryGetValue(version, out PackageCatalogVersion? selected))
+				{
+					catalog = candidate;
+					catalogVersion = selected;
+					source = location;
+					return true;
+				}
+			}
+			error = $"Package '{packageName}/{version}' is locked but not installed and could not be found in configured package sources. Add a package source or update the lock with 'campc restore --upgrade {packageName}'.";
+			return false;
+		}
+
+		bool TryFindBestCatalogVersion(PackageDependencySpec dependency, out PackageCatalog? catalog, out PackageCatalogVersion? version, out PackageSourceLocation? source, out string? error)
+		{
+			catalog = null;
+			version = null;
+			source = null;
+			error = null;
+			string? identity = null;
+			foreach (PackageSourceLocation location in locations)
+			{
+				if (!TryLoadCatalog(dependency.Name, location, out PackageCatalog? candidate, out string? catalogError))
+				{
+					error ??= catalogError;
+					continue;
+				}
+				if (identity is not null && !identity.Equals(candidate!.Identity, StringComparison.Ordinal))
+				{
+					error = $"Package '{dependency.Name}' has conflicting identities in configured package sources: '{identity}' and '{candidate.Identity}'.";
+					return false;
+				}
+				identity = candidate!.Identity;
+				foreach (PackageCatalogVersion item in candidate.Versions.Values.Reverse())
+				{
+					if (!Matches(dependency, item.Version))
+						continue;
+					if (version is null || item.Version.CompareTo(version.Version) > 0)
+					{
+						catalog = candidate;
+						version = item;
+						source = location;
+					}
+				}
+			}
+			if (version is not null)
+				return true;
+			error = $"Package '{dependency}' could not be found in configured package sources.";
+			return false;
+		}
+
+		bool TryLoadCatalog(string packageName, PackageSourceLocation source, out PackageCatalog? catalog, out string? error)
+		{
+			string key = source.Name + ":" + packageName;
+			if (catalogs.TryGetValue(key, out catalog))
+			{
+				error = null;
+				return true;
+			}
+			if (!PackageSourceClient.TryReadText(source, packageName, "versions.ini", out string text, out error))
+				return false;
+			if (!PackageCatalog.TryParse(source.Name + ":" + packageName + "/versions.ini", text, out catalog, out List<string> errors))
+			{
+				error = string.Join(Environment.NewLine, errors);
+				return false;
+			}
+			if (!catalog!.PackageName.Equals(packageName, StringComparison.Ordinal))
+			{
+				error = $"Package source '{source.Name}' catalog for '{packageName}' declares package name '{catalog.PackageName}'.";
+				return false;
+			}
+			catalogs[key] = catalog;
+			return true;
+		}
+	}
+
+	static bool Matches(PackageDependencySpec dependency, PackageSelectedVersion version)
+	{
+		if (dependency.SelectedVersion is not null)
+			return dependency.SelectedVersion == version;
+		return dependency.VersionExpression is null || dependency.VersionExpression.Matches(version);
+	}
+
+	static string FormatVersionRequirement(PackageDependencySpec dependency)
+	{
+		if (dependency.SelectedVersion is not null)
+			return "/" + dependency.SelectedVersion;
+		if (dependency.VersionExpression is not null)
+			return "@" + dependency.VersionExpression;
+		return "any version";
+	}
+
+	static bool InstallResolvedPackage(ResolvedPackage package, string projectRoot, out string? error)
+	{
+		string targetDirectory = Path.Combine(projectRoot, "cache", "pkg", package.Name, package.Version.ToString());
+		if (Directory.Exists(Path.Combine(targetDirectory, "src")))
+		{
+			error = null;
+			return true;
+		}
+		if (!PackageSourceClient.TryReadBytes(package.Source, package.Name, package.CatalogVersion.SourceArchive, out byte[] archive, out error))
+			return false;
+		string tempDirectory = Path.Combine(projectRoot, "cache", "pkg", ".tmp-" + package.Name + "-" + Guid.NewGuid().ToString("N"));
+		if (!PackageArchive.TryExtractVerified(archive, package.CatalogVersion.Sha256, tempDirectory, out error))
+			return false;
+		if (Directory.Exists(targetDirectory))
+			Directory.Delete(targetDirectory, recursive: true);
+		Directory.CreateDirectory(Path.GetDirectoryName(targetDirectory)!);
+		Directory.Move(tempDirectory, targetDirectory);
+		return true;
+	}
+
+	sealed record ResolvedPackage(string Name, string Identity, PackageSelectedVersion Version, PackageCatalog Catalog, PackageCatalogVersion CatalogVersion, PackageSourceLocation Source);
 
 	public static bool Install(PackageSpec package, bool global, CliEnvironment environment, IReadOnlyList<PackageSourceSpec> sources, out string message, out string? error)
 	{

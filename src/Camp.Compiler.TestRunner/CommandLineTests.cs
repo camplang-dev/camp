@@ -5618,30 +5618,60 @@ public sealed class CommandLineTests
 	public void Restore_installs_packages_into_cache_pkg()
 	{
 		string packageName = "cache-demo-stage4";
-		string repositoryRoot = FindRepositoryRoot();
-		string cachePackageRoot = Path.Combine(repositoryRoot, "cache", "pkg", packageName);
-		if (Directory.Exists(cachePackageRoot))
-			Directory.Delete(cachePackageRoot, recursive: true);
-		string oldPackageRoot = Path.Combine(repositoryRoot, "pkg", packageName);
-		if (Directory.Exists(oldPackageRoot))
-			Directory.Delete(oldPackageRoot, recursive: true);
-
+		string dependencyName = "cache-dep-stage4";
 		string tempRoot = TempPath("pkg-restore-cache");
-		string sourceFile = Path.Combine(tempRoot, "source", packageName, "1.2.3", "src", "demo.camp");
-		Directory.CreateDirectory(Path.GetDirectoryName(sourceFile)!);
-		File.WriteAllText(sourceFile, "export int restoredValue() => 7;\n");
+		string sourceRoot = Path.Combine(tempRoot, "source");
+		CreatePublishedPackage(sourceRoot, packageName, "1.2.3", "export int restoredValue() => 7;\n", use: dependencyName + "@2");
+		CreatePublishedPackage(sourceRoot, dependencyName, "2.0.0", "export int depValue() => 3;\n");
 		string sourceRootArgument = Path.Combine(tempRoot, "source").Replace('\\', '/');
 		string app = CreateTempCase("pkg_restore_cache.camp", $$"""
 			#build --use-source local "{{sourceRootArgument}}"
 			#build --use {{packageName}}@1.2.3
 			""");
+		string projectRoot = Path.GetDirectoryName(app)!;
+		string cachePackageRoot = Path.Combine(projectRoot, "cache", "pkg", packageName);
+		string cacheDependencyRoot = Path.Combine(projectRoot, "cache", "pkg", dependencyName);
+		string oldPackageRoot = Path.Combine(FindRepositoryRoot(), "pkg", packageName);
+		string lockPath = Path.Combine(projectRoot, "packages.ini");
+		if (File.Exists(lockPath))
+			File.Delete(lockPath);
 
 		ProcessResult result = RunCampc("restore", app);
 
 		Assert.Equal(0, result.ExitCode);
 		Assert.Contains($"installed: {packageName}@1.2.3", result.StdOut, StringComparison.Ordinal);
+		Assert.Contains($"installed: {dependencyName}@2.0.0", result.StdOut, StringComparison.Ordinal);
 		Assert.True(File.Exists(Path.Combine(cachePackageRoot, "1.2.3", "src", "demo.camp")));
+		Assert.True(File.Exists(Path.Combine(cacheDependencyRoot, "2.0.0", "src", "demo.camp")));
+		Assert.True(File.Exists(lockPath));
+		string lockText = File.ReadAllText(lockPath);
+		Assert.Contains($"[{packageName}]", lockText, StringComparison.Ordinal);
+		Assert.Contains($"[{dependencyName}]", lockText, StringComparison.Ordinal);
 		Assert.False(Directory.Exists(oldPackageRoot));
+	}
+
+	static void CreatePublishedPackage(string sourceRoot, string packageName, string version, string source, string? use = null)
+	{
+		string packageDirectory = Path.Combine(sourceRoot, packageName);
+		string sourceTree = Path.Combine(Path.GetDirectoryName(sourceRoot)!, "published-src", packageName, version);
+		string sourceDirectory = Path.Combine(sourceTree, "src");
+		Directory.CreateDirectory(sourceDirectory);
+		File.WriteAllText(Path.Combine(sourceTree, packageName + ".campbuild"), "src/*.camp\n");
+		File.WriteAllText(Path.Combine(sourceDirectory, "demo.camp"), source);
+		byte[] archive = PackageArchive.CreateDeterministicZip(sourceTree, Directory.GetFiles(sourceTree, "*", SearchOption.AllDirectories));
+		Directory.CreateDirectory(packageDirectory);
+		string archiveName = packageName + "_" + version + ".zip";
+		File.WriteAllBytes(Path.Combine(packageDirectory, archiveName), archive);
+		string useLine = string.IsNullOrWhiteSpace(use) ? "" : "use=" + use + "\n";
+		File.WriteAllText(Path.Combine(packageDirectory, "versions.ini"), $$"""
+			[package]
+			name={{packageName}}
+			identity={{packageName}}-identity
+
+			[{{version}}]
+			{{useLine}}sha256={{PackageArchive.Sha256Hex(archive)}}
+			src={{archiveName}}
+			""");
 	}
 
 	static ProcessResult RunCampc(params string[] arguments)
