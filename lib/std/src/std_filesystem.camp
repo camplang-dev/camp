@@ -3,7 +3,7 @@ namespace Std;
 @category("I/O");
 
 /// Provides common host filesystem operations.
-@require(SUPPORTS_FILES)
+requires (SUPPORTS_FILES)
 static class FileSystem
 {
 	/// Creates a directory.

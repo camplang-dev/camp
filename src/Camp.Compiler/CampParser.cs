@@ -101,6 +101,18 @@ public sealed class CampParser
 			return new CompilationUnitItemSyntax { FileMetadataAttribute = fileMetadataAttribute };
 		}
 
+		if (TryParseRequirementScope(topLevel: true) is RequirementScopeSyntax requirement)
+		{
+			if (requirement.SemicolonToken is not null)
+			{
+				if (seenNonPreludeCompilationUnitItem)
+					Report(requirement.RequiresKeyword, "File-wide requires declarations must appear before aliases and ordinary declarations.");
+			}
+			else
+				seenNonPreludeCompilationUnitItem = true;
+			return new CompilationUnitItemSyntax { RequirementScope = requirement };
+		}
+
 		AliasDeclarationSyntax? aliasDeclaration = ParseAliasDeclaration();
 		if (aliasDeclaration is not null)
 		{
@@ -272,6 +284,13 @@ public sealed class CampParser
 			return new CompilationUnitItemSyntax { FileMetadataAttribute = fileMetadataAttribute };
 		}
 
+		if (TryParseRequirementScope(topLevel: true) is RequirementScopeSyntax requirement)
+		{
+			if (requirement.SemicolonToken is not null)
+				Report(requirement.RequiresKeyword, "File-wide requires declarations are not allowed inside namespace blocks.");
+			return new CompilationUnitItemSyntax { RequirementScope = requirement };
+		}
+
 		if (Is("export") && TryParseExportProjectionDeclaration() is ExportProjectionDeclarationSyntax projection)
 			return new CompilationUnitItemSyntax { ImportExportDeclaration = projection };
 
@@ -363,6 +382,139 @@ public sealed class CampParser
 		return syntax;
 	}
 
+	RequirementScopeSyntax? TryParseRequirementScope(bool topLevel)
+	{
+		if (!IsRequirementScopeStart())
+			return null;
+
+		RequirementScopeSyntax syntax = ParseRequirementPrefix();
+		if (TakeIf(";") is Token semicolon)
+		{
+			syntax.SemicolonToken = semicolon;
+			return syntax;
+		}
+
+		if (TakeIf("{") is Token openBrace)
+		{
+			syntax.OpenBraceToken = openBrace;
+			if (topLevel)
+			{
+				syntax.Items = [];
+				while (!AtEnd && !Is("}"))
+				{
+					int start = index;
+					CompilationUnitItemSyntax? item = ParseRequirementCompilationUnitItem();
+					if (item is not null)
+						syntax.Items.Add(item);
+					else
+						ReportAndAdvance("Expected declaration inside requires block.");
+					if (index == start)
+						ReportAndAdvance("Parser did not consume a token.");
+				}
+				if (syntax.Items.Count == 0)
+					syntax.Items = null;
+			}
+			else
+			{
+				syntax.Declarations = [];
+				while (!AtEnd && !Is("}"))
+				{
+					int start = index;
+					DeclarationSyntax? declaration = ParseDeclaration();
+					if (declaration is not null)
+						syntax.Declarations.Add(declaration);
+					else
+						ReportAndAdvance("Expected declaration inside requires block.");
+					if (index == start)
+						ReportAndAdvance("Parser did not consume a token.");
+				}
+				if (syntax.Declarations.Count == 0)
+					syntax.Declarations = null;
+			}
+			syntax.CloseBraceToken = Expect("}");
+			return syntax;
+		}
+
+		if (topLevel)
+		{
+			syntax.Item = ParseRequirementCompilationUnitItem();
+			if (syntax.Item is null)
+				Report(syntax.RequiresKeyword, "requires must be followed by a declaration, declaration block, or semicolon.");
+		}
+		else
+		{
+			syntax.Declaration = ParseDeclaration();
+			if (syntax.Declaration is null)
+				Report(syntax.RequiresKeyword, "requires must be followed by a declaration, declaration block, or semicolon.");
+		}
+		return syntax;
+	}
+
+	CompilationUnitItemSyntax? ParseRequirementCompilationUnitItem()
+	{
+		if (TryParseRequirementScope(topLevel: true) is RequirementScopeSyntax requirement)
+		{
+			if (requirement.SemicolonToken is not null)
+				Report(requirement.RequiresKeyword, "File-wide requires declarations are not allowed inside requires blocks.");
+			return new CompilationUnitItemSyntax { RequirementScope = requirement };
+		}
+
+		if (Is("using"))
+		{
+			UsingImportExportDeclarationSyntax usingDeclaration = ParseUsingImportExportDeclaration();
+			Report(usingDeclaration.Keyword, "Using declarations are not allowed inside requires blocks.");
+			return new CompilationUnitItemSyntax { ImportExportDeclaration = usingDeclaration };
+		}
+
+		if (Is("namespace"))
+		{
+			if (TryParseNamespaceBlock() is NamespaceBlockSyntax namespaceBlock)
+			{
+				Report(namespaceBlock.Keyword, "Namespace blocks are not allowed inside requires blocks.");
+				return new CompilationUnitItemSyntax { NamespaceBlock = namespaceBlock };
+			}
+			ExportImportExportDeclarationSyntax namespaceDeclaration = ParseNamespaceDeclaration();
+			Report(namespaceDeclaration.Keyword, "Namespace statements are not allowed inside requires blocks.");
+			return new CompilationUnitItemSyntax { ImportExportDeclaration = namespaceDeclaration };
+		}
+
+		FileMetadataAttributeSyntax? fileMetadataAttribute = TryParseFileMetadataAttribute();
+		if (fileMetadataAttribute is not null)
+		{
+			Report(fileMetadataAttribute.Attribute?.AttributeIdentifier, "File metadata attributes are not allowed inside requires blocks.");
+			return new CompilationUnitItemSyntax { FileMetadataAttribute = fileMetadataAttribute };
+		}
+
+		if (Is("export") && TryParseExportProjectionDeclaration() is ExportProjectionDeclarationSyntax projection)
+			return new CompilationUnitItemSyntax { ImportExportDeclaration = projection };
+
+		AliasDeclarationSyntax? aliasDeclaration = ParseAliasDeclaration();
+		if (aliasDeclaration is not null)
+			return new CompilationUnitItemSyntax { AliasDeclaration = aliasDeclaration };
+
+		DeclarationSyntax? declaration = ParseDeclaration();
+		if (declaration is not null)
+			return new CompilationUnitItemSyntax { Declaration = declaration };
+
+		return null;
+	}
+
+	RequirementScopeSyntax ParseRequirementPrefix()
+	{
+		return new RequirementScopeSyntax
+		{
+			RequiresKeyword = Expect("requires"),
+			OpenParenToken = Expect("("),
+			Condition = ParseExpressionItem(),
+			CloseParenToken = Expect(")")
+		};
+	}
+
+	bool IsRequirementScopeStart()
+	{
+		return Is("requires") && PeekValue(1) == "(";
+	}
+
 	AliasDeclarationSyntax? ParseAliasDeclaration()
 	{
 		int start = index;
@@ -438,6 +590,9 @@ public sealed class CampParser
 	DeclarationSyntax? ParseDeclaration()
 	{
 		int start = index;
+
+		if (TryParseRequirementScope(topLevel: false) is RequirementScopeSyntax requirement)
+			return new DeclarationSyntax { RequirementScope = requirement };
 
 		TypeDeclarationSyntax? typeDeclaration = ParseTypeDeclaration();
 		if (typeDeclaration is not null)
@@ -547,10 +702,10 @@ public sealed class CampParser
 			syntax.SemicolonToken = TakeIf(";");
 		}
 
-		while (!AtEnd && !Is("}"))
-		{
-			int start = index;
-			DeclarationSyntax? declaration = ParseDeclaration();
+			while (!AtEnd && !Is("}"))
+			{
+				int start = index;
+				DeclarationSyntax? declaration = ParseDeclaration();
 
 			if (declaration is not null)
 				syntax.Declarations.Add(declaration);

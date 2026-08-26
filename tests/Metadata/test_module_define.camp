@@ -3,5 +3,5 @@
 
 namespace TestMetadata;
 
-@require(TEST_MODULE)
+requires (TEST_MODULE)
 export inline const int MODE = 1;

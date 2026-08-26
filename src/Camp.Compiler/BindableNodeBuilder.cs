@@ -11,6 +11,7 @@ public sealed class BindResult(Module Module, IReadOnlyList<BindDiagnostic> Diag
 	public Module Module { get; } = Module;
 	public IReadOnlyList<BindDiagnostic> Diagnostics { get; } = Diagnostics;
 	public IReadOnlyList<AttributeConstructor> FileMetadataAttributes { get; init; } = [];
+	public IReadOnlyList<SourceRequirement> SourceRequirements { get; init; } = [];
 	public bool Success => !Diagnostics.Any(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error);
 }
 
@@ -18,6 +19,8 @@ public sealed partial class BindableNodeBuilder
 {
 	readonly List<BindDiagnostic> diagnostics = [];
 	readonly List<AttributeConstructor> fileMetadataAttributes = [];
+	readonly List<SourceRequirement> sourceRequirements = [];
+	readonly List<SourceRequirement> activeSourceRequirements = [];
 
 	BindableNodeBuilder()
 	{
@@ -31,7 +34,8 @@ public sealed partial class BindableNodeBuilder
 		Module module = builder.BuildModule(syntax);
 		return new BindResult(module, builder.diagnostics)
 		{
-			FileMetadataAttributes = builder.fileMetadataAttributes
+			FileMetadataAttributes = builder.fileMetadataAttributes,
+			SourceRequirements = builder.sourceRequirements
 		};
 	}
 
@@ -52,6 +56,8 @@ public sealed partial class BindableNodeBuilder
 				BuildImportExportDeclaration(module, item.ImportExportDeclaration);
 			else if (item.FileMetadataAttribute?.Attribute is not null)
 				fileMetadataAttributes.Add(BuildAttribute(item.FileMetadataAttribute.Attribute));
+			else if (item.RequirementScope is not null)
+				BuildRequirementScopeItem(module, item.RequirementScope, module.Namespace);
 			else if (item.NamespaceBlock is not null)
 				BuildNamespaceBlock(module, item.NamespaceBlock);
 			else if (item.AliasDeclaration is not null)
@@ -146,10 +152,10 @@ public sealed partial class BindableNodeBuilder
 			{
 				ExportProjectionDefinition projection = BuildExportProjection(projectionSyntax);
 				projection.Namespace = module.Namespace;
-				projection.NamespaceAssigned = true;
-				module.ExportProjections.Add(projection);
-				break;
-			}
+					projection.NamespaceAssigned = true;
+					module.ExportProjections.Add(projection);
+					break;
+				}
 
 			default:
 				Report(syntax, "Unsupported import or export declaration.");
@@ -171,13 +177,15 @@ public sealed partial class BindableNodeBuilder
 				AddGlobalDeclaration(module, item.Declaration, namespaceName);
 			else if (item.AliasDeclaration is not null)
 				AddAliasDeclaration(module, item.AliasDeclaration, namespaceName);
+			else if (item.RequirementScope is not null)
+				BuildRequirementScopeItem(module, item.RequirementScope, namespaceName);
 			else if (item.ImportExportDeclaration is ExportProjectionDeclarationSyntax projection)
 			{
 				ExportProjectionDefinition exportProjection = BuildExportProjection(projection);
-				exportProjection.Namespace = namespaceName;
-				exportProjection.NamespaceAssigned = true;
-				module.ExportProjections.Add(exportProjection);
-			}
+					exportProjection.Namespace = namespaceName;
+					exportProjection.NamespaceAssigned = true;
+					module.ExportProjections.Add(exportProjection);
+				}
 			else if (item.NamespaceBlock is not null)
 				Report(item.NamespaceBlock, "Namespace blocks may not be nested.");
 			else if (item.ImportExportDeclaration is UsingImportExportDeclarationSyntax)
@@ -189,6 +197,111 @@ public sealed partial class BindableNodeBuilder
 			else
 				Report(item, "Namespace block item does not contain a declaration.");
 		}
+	}
+
+	void BuildRequirementScopeItem(Module module, RequirementScopeSyntax syntax, string? namespaceName)
+	{
+		SourceRequirement requirement = BuildSourceRequirement(syntax);
+		if (syntax.SemicolonToken is not null)
+		{
+			sourceRequirements.Add(requirement);
+			return;
+		}
+
+		WithSourceRequirement(requirement, () =>
+		{
+			if (syntax.Item is not null)
+				BuildCompilationUnitItem(module, syntax.Item, namespaceName, inRequirementBlock: true);
+			foreach (CompilationUnitItemSyntax item in syntax.Items ?? [])
+				BuildCompilationUnitItem(module, item, namespaceName, inRequirementBlock: true);
+		});
+	}
+
+	void BuildCompilationUnitItem(Module module, CompilationUnitItemSyntax item, string? namespaceName, bool inRequirementBlock)
+	{
+		if (item.Declaration is not null)
+			AddGlobalDeclaration(module, item.Declaration, namespaceName);
+		else if (item.AliasDeclaration is not null)
+			AddAliasDeclaration(module, item.AliasDeclaration, namespaceName);
+		else if (item.RequirementScope is not null)
+			BuildRequirementScopeItem(module, item.RequirementScope, namespaceName);
+		else if (item.ImportExportDeclaration is ExportProjectionDeclarationSyntax projection)
+		{
+			ExportProjectionDefinition exportProjection = BuildExportProjection(projection);
+			exportProjection.Namespace = namespaceName;
+			exportProjection.NamespaceAssigned = true;
+			module.ExportProjections.Add(exportProjection);
+		}
+		else if (item.NamespaceBlock is not null)
+			Report(item.NamespaceBlock, "Namespace blocks are not allowed inside requires blocks.");
+		else if (item.ImportExportDeclaration is UsingImportExportDeclarationSyntax)
+			Report(item.ImportExportDeclaration, "Using declarations are not allowed inside requires blocks.");
+		else if (item.ImportExportDeclaration is ExportImportExportDeclarationSyntax)
+			Report(item.ImportExportDeclaration, "Namespace statements are not allowed inside requires blocks.");
+		else if (item.FileMetadataAttribute is not null)
+			Report(item.FileMetadataAttribute, "File metadata attributes are not allowed inside requires blocks.");
+		else if (inRequirementBlock)
+			Report(item, "Requires block item does not contain a declaration.");
+		else
+			Report(item, "Compilation unit item does not contain a declaration.");
+	}
+
+	SourceRequirement BuildSourceRequirement(RequirementScopeSyntax syntax)
+	{
+		SourceRequirement requirement = new()
+		{
+			SourceSyntax = syntax,
+			Expression = syntax.Condition is null ? null : BuildExpression(syntax.Condition, "requires condition")
+		};
+		if (syntax.Condition is null)
+			Report(syntax, "requires is missing a condition.");
+		return requirement;
+	}
+
+	void WithSourceRequirement(SourceRequirement requirement, Action action)
+	{
+		activeSourceRequirements.Add(requirement);
+		try
+		{
+			action();
+		}
+		finally
+		{
+			activeSourceRequirements.RemoveAt(activeSourceRequirements.Count - 1);
+		}
+	}
+
+	void ApplyActiveSourceRequirements(Definition definition)
+	{
+		definition.SourceRequirements.AddRange(activeSourceRequirements);
+	}
+
+	void ForEachDeclaration(IEnumerable<DeclarationSyntax>? declarations, Action<DeclarationSyntax> action)
+	{
+		foreach (DeclarationSyntax child in declarations ?? [])
+		{
+			if (child.RequirementScope is not null)
+				BuildRequirementScopeDeclaration(child.RequirementScope, action);
+			else
+				action(child);
+		}
+	}
+
+	void BuildRequirementScopeDeclaration(RequirementScopeSyntax syntax, Action<DeclarationSyntax> action)
+	{
+		SourceRequirement requirement = BuildSourceRequirement(syntax);
+		if (syntax.SemicolonToken is not null)
+		{
+			Report(syntax, "File-wide requires declarations are not allowed inside type declarations.");
+			return;
+		}
+
+		WithSourceRequirement(requirement, () =>
+		{
+			if (syntax.Declaration is not null)
+				action(syntax.Declaration);
+			ForEachDeclaration(syntax.Declarations, action);
+		});
 	}
 
 	ExportProjectionDefinition BuildExportProjection(ExportProjectionDeclarationSyntax syntax)
@@ -261,6 +374,7 @@ public sealed partial class BindableNodeBuilder
 			Namespace = namespaceName,
 			NamespaceAssigned = true
 		};
+		ApplyActiveSourceRequirements(definition);
 		foreach (AliasTargetCandidateSyntax candidateSyntax in syntax.TargetCandidates ?? [])
 		{
 			AliasTargetCandidate candidate = new()
@@ -268,10 +382,10 @@ public sealed partial class BindableNodeBuilder
 				SourceSyntax = candidateSyntax,
 				Condition = candidateSyntax.Condition is null ? null : BuildExpression(candidateSyntax.Condition, "Alias condition"),
 				TargetName = candidateSyntax.TargetName?.Identifier?.Value ?? ""
-				};
-				foreach (QualifierSyntax qualifier in candidateSyntax.TargetName?.Qualifiers ?? [])
-					if (qualifier.Identifier is not null)
-						candidate.TargetQualifiers.Add(qualifier.Identifier.Value.Value);
+			};
+			foreach (QualifierSyntax qualifier in candidateSyntax.TargetName?.Qualifiers ?? [])
+				if (qualifier.Identifier is not null)
+					candidate.TargetQualifiers.Add(qualifier.Identifier.Value.Value);
 			definition.TargetCandidates.Add(candidate);
 		}
 		if (definition.TargetCandidates is [AliasTargetCandidate single])
@@ -282,21 +396,21 @@ public sealed partial class BindableNodeBuilder
 		ApplyDefinitionAttributes(definition, syntax.Attributes);
 
 		foreach (MemberDeclaratorSyntax declarator in syntax.Declarators ?? [])
-		{
-			switch (declarator.Keyword?.Value)
 			{
-				case "export":
-					SetVisibility(definition, declarator, "export");
-					break;
-				case "internal":
-				case "public":
-					SetVisibility(definition, declarator, declarator.Keyword?.Value ?? "public");
-					break;
-				default:
-					Report(declarator, $"'{declarator.Keyword?.Value}' is not a valid alias declarator.");
-					break;
+				switch (declarator.Keyword?.Value)
+				{
+					case "export":
+						SetVisibility(definition, declarator, "export");
+						break;
+					case "internal":
+					case "public":
+						SetVisibility(definition, declarator, declarator.Keyword?.Value ?? "public");
+						break;
+					default:
+						Report(declarator, $"'{declarator.Keyword?.Value}' is not a valid alias declarator.");
+						break;
+				}
 			}
-		}
 
 		if (definition.TargetCandidates.Count == 0 && syntax.TargetName is null)
 			Report(syntax, "Alias target is missing a name.");
@@ -318,28 +432,28 @@ public sealed partial class BindableNodeBuilder
 	{
 		if (syntax.TypeDeclaration is not null)
 		{
-			if (BuildTypeDefinition(syntax.TypeDeclaration) is Definition definition)
-			{
-				AssignNamespace(definition, namespaceName);
-				module.Definitions.Add(definition);
-			}
+				if (BuildTypeDefinition(syntax.TypeDeclaration) is Definition definition)
+				{
+					AssignNamespace(definition, namespaceName);
+					module.Definitions.Add(definition);
+				}
 		}
 		else if (syntax.MemberDeclaration is not null)
 		{
 			if (IsMethodDeclaration(syntax.MemberDeclaration))
 			{
 				bool outOfScopeMember = syntax.MemberDeclaration.OutOfScopeOwnerType is not null;
-				if (BuildFunctionDefinition(syntax.MemberDeclaration, isGlobal: !outOfScopeMember, allowVirtual: false) is FunctionDefinition function)
-				{
-					AssignNamespace(function, namespaceName);
-					module.Definitions.Add(function);
+					if (BuildFunctionDefinition(syntax.MemberDeclaration, isGlobal: !outOfScopeMember, allowVirtual: false) is FunctionDefinition function)
+					{
+						AssignNamespace(function, namespaceName);
+						module.Definitions.Add(function);
+					}
 				}
-			}
-			else if (BuildVariableDefinition(syntax.MemberDeclaration, isGlobal: true) is VariableDefinition variable)
-			{
-				AssignNamespace(variable, namespaceName);
-				module.Definitions.Add(variable);
-			}
+				else if (BuildVariableDefinition(syntax.MemberDeclaration, isGlobal: true) is VariableDefinition variable)
+				{
+					AssignNamespace(variable, namespaceName);
+					module.Definitions.Add(variable);
+				}
 		}
 		else
 		{
@@ -394,6 +508,7 @@ public sealed partial class BindableNodeBuilder
 			Name = GetRequiredIdentifier(syntax.Identifier, syntax, "Struct declaration is missing a name."),
 			Symbol = syntax.Identifier?.Value ?? ""
 		};
+		ApplyActiveSourceRequirements(definition);
 
 		ApplyDefinitionAttributes(definition, syntax.Attributes);
 		ApplyStructDeclarators(definition, syntax.Declarators);
@@ -418,7 +533,7 @@ public sealed partial class BindableNodeBuilder
 		if (syntax.Scope.EnumValueList is not null)
 			Report(syntax.Scope.EnumValueList, "Struct bodies may not contain enum values.");
 
-		foreach (DeclarationSyntax child in syntax.Scope.Declarations ?? [])
+		ForEachDeclaration(syntax.Scope.Declarations, child =>
 		{
 			if (child.MemberDeclaration is not null)
 			{
@@ -440,7 +555,7 @@ public sealed partial class BindableNodeBuilder
 			{
 				Report(child, "Struct member declaration is empty.");
 			}
-		}
+		});
 
 		return definition;
 	}
@@ -453,6 +568,7 @@ public sealed partial class BindableNodeBuilder
 			Name = GetRequiredIdentifier(syntax.Identifier, syntax, "Class declaration is missing a name."),
 			Symbol = syntax.Identifier?.Value ?? ""
 		};
+		ApplyActiveSourceRequirements(definition);
 
 		ApplyDefinitionAttributes(definition, syntax.Attributes);
 		ApplyClassDeclarators(definition, syntax.Declarators);
@@ -477,7 +593,7 @@ public sealed partial class BindableNodeBuilder
 		if (syntax.Scope.EnumValueList is not null)
 			Report(syntax.Scope.EnumValueList, "Class bodies may not contain enum values.");
 
-		foreach (DeclarationSyntax child in syntax.Scope.Declarations ?? [])
+		ForEachDeclaration(syntax.Scope.Declarations, child =>
 		{
 			if (child.MemberDeclaration is not null)
 			{
@@ -499,7 +615,7 @@ public sealed partial class BindableNodeBuilder
 			{
 				Report(child, "Class member declaration is empty.");
 			}
-		}
+		});
 
 		return definition;
 	}
@@ -512,6 +628,7 @@ public sealed partial class BindableNodeBuilder
 			Name = GetRequiredIdentifier(syntax.Identifier, syntax, "Static class declaration is missing a name."),
 			Symbol = syntax.Identifier?.Value ?? ""
 		};
+		ApplyActiveSourceRequirements(definition);
 
 		ApplyDefinitionAttributes(definition, syntax.Attributes);
 		ApplyStaticClassDeclarators(definition, syntax.Declarators);
@@ -539,7 +656,7 @@ public sealed partial class BindableNodeBuilder
 		if (syntax.Scope.EnumValueList is not null)
 			Report(syntax.Scope.EnumValueList, "Static class bodies may not contain enum values.");
 
-		foreach (DeclarationSyntax child in syntax.Scope.Declarations ?? [])
+		ForEachDeclaration(syntax.Scope.Declarations, child =>
 		{
 			if (child.MemberDeclaration is not null)
 			{
@@ -552,16 +669,16 @@ public sealed partial class BindableNodeBuilder
 				{
 					definition.Fields.Add(field);
 				}
-			}
-			else if (child.TypeDeclaration is not null)
-			{
-				Report(child.TypeDeclaration, "Nested type declarations are not supported in static classes by this binder pass.");
-			}
-			else
-			{
-				Report(child, "Static class member declaration is empty.");
-			}
-		}
+				}
+				else if (child.TypeDeclaration is not null)
+				{
+					Report(child.TypeDeclaration, "Nested type declarations are not supported in static classes by this binder pass.");
+				}
+				else
+				{
+					Report(child, "Static class member declaration is empty.");
+				}
+			});
 
 		return definition;
 	}
@@ -574,6 +691,7 @@ public sealed partial class BindableNodeBuilder
 			Name = GetRequiredIdentifier(syntax.Identifier, syntax, "Interface declaration is missing a name."),
 			Symbol = syntax.Identifier?.Value ?? ""
 		};
+		ApplyActiveSourceRequirements(definition);
 
 		ApplyDefinitionAttributes(definition, syntax.Attributes);
 		ApplyInterfaceDeclarators(definition, syntax.Declarators);
@@ -598,7 +716,7 @@ public sealed partial class BindableNodeBuilder
 		if (syntax.Scope.EnumValueList is not null)
 			Report(syntax.Scope.EnumValueList, "Interface bodies may not contain enum values.");
 
-		foreach (DeclarationSyntax child in syntax.Scope.Declarations ?? [])
+		ForEachDeclaration(syntax.Scope.Declarations, child =>
 		{
 			if (child.MemberDeclaration is not null)
 			{
@@ -610,16 +728,16 @@ public sealed partial class BindableNodeBuilder
 				{
 					definition.Functions.Add(function);
 				}
-			}
-			else if (child.TypeDeclaration is not null)
-			{
-				Report(child.TypeDeclaration, "Nested type declarations are not supported in interfaces by this binder pass.");
-			}
-			else
-			{
-				Report(child, "Interface member declaration is empty.");
-			}
-		}
+				}
+				else if (child.TypeDeclaration is not null)
+				{
+					Report(child.TypeDeclaration, "Nested type declarations are not supported in interfaces by this binder pass.");
+				}
+				else
+				{
+					Report(child, "Interface member declaration is empty.");
+				}
+			});
 
 		return definition;
 	}
@@ -632,6 +750,7 @@ public sealed partial class BindableNodeBuilder
 			Name = GetRequiredIdentifier(syntax.Identifier, syntax, "Enum declaration is missing a name."),
 			Symbol = syntax.Identifier?.Value ?? ""
 		};
+		ApplyActiveSourceRequirements(definition);
 
 		ApplyDefinitionAttributes(definition, syntax.Attributes);
 		ApplyNonStructTypeDeclarators(definition, syntax.Declarators, "enum");
@@ -671,7 +790,6 @@ public sealed partial class BindableNodeBuilder
 			Symbol = enumName + "_" + (syntax.Identifier?.Value ?? ""),
 			Type = new NamedTypeReference { SourceSyntax = syntax, Name = enumName }
 		};
-
 		ApplyDefinitionAttributes(definition, syntax.Attributes);
 
 		if (syntax.Expression is not null)
@@ -688,6 +806,7 @@ public sealed partial class BindableNodeBuilder
 			Name = GetRequiredIdentifier(syntax.Identifier, syntax, "Newtype declaration is missing a name."),
 			Symbol = syntax.Identifier?.Value ?? ""
 		};
+		ApplyActiveSourceRequirements(definition);
 
 		ApplyDefinitionAttributes(definition, syntax.Attributes);
 		ApplyNonStructTypeDeclarators(definition, syntax.Declarators, "newtype");
@@ -732,6 +851,7 @@ public sealed partial class BindableNodeBuilder
 			Name = GetRequiredIdentifier(syntax.Identifier, syntax, "Params declaration is missing a name."),
 			Symbol = syntax.Identifier?.Value ?? ""
 		};
+		ApplyActiveSourceRequirements(definition);
 
 		ApplyDefinitionAttributes(definition, syntax.Attributes);
 		ApplyNonStructTypeDeclarators(definition, syntax.Declarators, "params");
@@ -762,34 +882,34 @@ public sealed partial class BindableNodeBuilder
 
 	void AddMethodOnlyScope(List<FunctionDefinition> functions, TypeDeclarationScopeSyntax scope, string typeKind)
 	{
-		foreach (DeclarationSyntax child in scope.Declarations ?? [])
+		ForEachDeclaration(scope.Declarations, child =>
 		{
-			if (child.MemberDeclaration is not null)
-			{
-				if (IsMethodDeclaration(child.MemberDeclaration))
+				if (child.MemberDeclaration is not null)
 				{
-					if (BuildFunctionDefinition(child.MemberDeclaration, isGlobal: false, allowVirtual: false) is FunctionDefinition function)
-						functions.Add(function);
+					if (IsMethodDeclaration(child.MemberDeclaration))
+					{
+						if (BuildFunctionDefinition(child.MemberDeclaration, isGlobal: false, allowVirtual: false) is FunctionDefinition function)
+							functions.Add(function);
+					}
+					else
+					{
+						Report(child.MemberDeclaration, $"{typeKind} declarations may not contain fields.");
+					}
+				}
+				else if (child.TypeDeclaration is not null)
+				{
+					Report(child.TypeDeclaration, $"Nested type declarations are not supported in {typeKind} declarations by this binder pass.");
 				}
 				else
 				{
-					Report(child.MemberDeclaration, $"{typeKind} declarations may not contain fields.");
+					Report(child, $"{typeKind} member declaration is empty.");
 				}
-			}
-			else if (child.TypeDeclaration is not null)
-			{
-				Report(child.TypeDeclaration, $"Nested type declarations are not supported in {typeKind} declarations by this binder pass.");
-			}
-			else
-			{
-				Report(child, $"{typeKind} member declaration is empty.");
-			}
-		}
+			});
 	}
 
 	void AddNewtypeScope(NewtypeDefinition definition, TypeDeclarationScopeSyntax scope)
 	{
-		foreach (DeclarationSyntax child in scope.Declarations ?? [])
+		ForEachDeclaration(scope.Declarations, child =>
 		{
 			if (child.MemberDeclaration is not null)
 			{
@@ -800,12 +920,12 @@ public sealed partial class BindableNodeBuilder
 						if (function.Modifier == FunctionModifier.Constructor)
 						{
 							Report(child.MemberDeclaration, "Newtype declarations may not contain constructors.");
-							continue;
+							return;
 						}
 						if (function.Modifier == FunctionModifier.Destructor || function.SourceSyntax is MemberDeclarationSyntax { TildeToken: not null })
 						{
 							Report(child.MemberDeclaration, "Value newtypes cannot declare destructors; use an explicit cleanup method and 'value finally cleanup()'.");
-							continue;
+							return;
 						}
 						definition.Functions.Add(function);
 					}
@@ -816,16 +936,16 @@ public sealed partial class BindableNodeBuilder
 						Report(child.MemberDeclaration, "Newtype declarations may contain only static fields.");
 					definition.Fields.Add(field);
 				}
-			}
-			else if (child.TypeDeclaration is not null)
-			{
-				Report(child.TypeDeclaration, "Nested type declarations are not supported in newtype declarations by this binder pass.");
-			}
-			else
-			{
-				Report(child, "newtype member declaration is empty.");
-			}
-		}
+				}
+				else if (child.TypeDeclaration is not null)
+				{
+					Report(child.TypeDeclaration, "Nested type declarations are not supported in newtype declarations by this binder pass.");
+				}
+				else
+				{
+					Report(child, "newtype member declaration is empty.");
+				}
+			});
 	}
 
 	TypeReference? BuildOptionalSingleUnderlyingType(UnderlyingTypeListSyntax? syntax, string tooManyMessage)
@@ -867,16 +987,15 @@ public sealed partial class BindableNodeBuilder
 			return null;
 		}
 
-		VariableDefinition definition = new()
-		{
-			SourceSyntax = syntax,
-			Name = GetRequiredIdentifier(syntax.Identifier, syntax, "Variable declaration is missing a name."),
-			Symbol = syntax.Identifier?.Value ?? "",
-			Type = BuildTypeReference(syntax.Type),
-			OutOfScopeOwnerType = syntax.OutOfScopeOwnerType is null ? null : BuildTypeReference(syntax.OutOfScopeOwnerType)
-		};
-
-		ApplyDefinitionAttributes(definition, syntax.Attributes);
+			VariableDefinition definition = new()
+			{
+				SourceSyntax = syntax,
+				Name = GetRequiredIdentifier(syntax.Identifier, syntax, "Variable declaration is missing a name."),
+				Symbol = syntax.Identifier?.Value ?? "",
+				Type = BuildTypeReference(syntax.Type),
+				OutOfScopeOwnerType = syntax.OutOfScopeOwnerType is null ? null : BuildTypeReference(syntax.OutOfScopeOwnerType)
+			};
+			ApplyDefinitionAttributes(definition, syntax.Attributes);
 		ApplyVariableDeclarators(definition, syntax.Declarators, isGlobal, syntax.OutOfScopeOwnerType is not null);
 
 		if (IsVoid(definition.Type))
@@ -905,15 +1024,16 @@ public sealed partial class BindableNodeBuilder
 			return null;
 		}
 
-		FieldDefinition definition = new()
-		{
-			SourceSyntax = syntax,
-			Name = GetRequiredIdentifier(syntax.Identifier, syntax, "Field declaration is missing a name."),
-			Symbol = syntax.Identifier?.Value ?? "",
-			Type = BuildTypeReference(syntax.Type)
-		};
+			FieldDefinition definition = new()
+			{
+				SourceSyntax = syntax,
+				Name = GetRequiredIdentifier(syntax.Identifier, syntax, "Field declaration is missing a name."),
+				Symbol = syntax.Identifier?.Value ?? "",
+				Type = BuildTypeReference(syntax.Type)
+			};
+			ApplyActiveSourceRequirements(definition);
 
-		ApplyDefinitionAttributes(definition, syntax.Attributes);
+			ApplyDefinitionAttributes(definition, syntax.Attributes);
 		ApplyFieldDeclarators(definition, syntax.Declarators);
 
 		if (IsVoid(definition.Type))
@@ -944,17 +1064,18 @@ public sealed partial class BindableNodeBuilder
 		bool isLifecycleMember = isConstructor || isDestructor;
 		PrepReturnTypeSyntax? prepReturnType = syntax.Type as PrepReturnTypeSyntax;
 
-		FunctionDefinition definition = new()
-		{
-			SourceSyntax = syntax,
-			Name = !isDestructor
-				? GetRequiredIdentifier(syntax.Identifier, syntax, "Method declaration is missing a name.")
-				: "~" + GetRequiredIdentifier(syntax.Identifier, syntax, "Destructor declaration is missing a name."),
-			Symbol = syntax.Identifier?.Value ?? "",
-			OutOfScopeOwnerType = syntax.OutOfScopeOwnerType is null ? null : BuildTypeReference(syntax.OutOfScopeOwnerType)
-		};
+			FunctionDefinition definition = new()
+			{
+				SourceSyntax = syntax,
+				Name = !isDestructor
+					? GetRequiredIdentifier(syntax.Identifier, syntax, "Method declaration is missing a name.")
+					: "~" + GetRequiredIdentifier(syntax.Identifier, syntax, "Destructor declaration is missing a name."),
+				Symbol = syntax.Identifier?.Value ?? "",
+				OutOfScopeOwnerType = syntax.OutOfScopeOwnerType is null ? null : BuildTypeReference(syntax.OutOfScopeOwnerType)
+			};
+			ApplyActiveSourceRequirements(definition);
 
-		ApplyDefinitionAttributes(definition, syntax.Attributes);
+			ApplyDefinitionAttributes(definition, syntax.Attributes);
 		ApplyFunctionDeclarators(definition, syntax.Declarators, isGlobal, allowVirtual, onlyExport: isConstructor);
 		definition.CallSpec = syntax.CallSpec?.Value;
 		AddGenericParameters(definition.GenericParameters, syntax.GenericParameterList);
@@ -1211,13 +1332,13 @@ public sealed partial class BindableNodeBuilder
 			AddArguments(attribute.Arguments, syntax.ArgumentList, "Attribute argument");
 		else
 			foreach (ExpressionSyntax expression in syntax.ExpressionList?.Expressions ?? [])
-			{
-				attribute.Arguments.Add(new ArgumentExpression
 				{
-					SourceSyntax = expression,
-					Value = BuildExpression(expression, "Attribute argument")
-				});
-			}
+					attribute.Arguments.Add(new ArgumentExpression
+					{
+						SourceSyntax = expression,
+						Value = BuildExpression(expression, "Attribute argument")
+					});
+				}
 
 		return attribute;
 	}
@@ -2330,7 +2451,8 @@ public sealed partial class BindableNodeBuilder
 		return syntax switch
 		{
 			CompilationUnitSyntax compilationUnit => compilationUnit.Items is [CompilationUnitItemSyntax first, ..] ? GetRange(first) : null,
-			CompilationUnitItemSyntax item => GetRangeOrNull(item.ImportExportDeclaration) ?? GetRangeOrNull(item.FileMetadataAttribute) ?? GetRangeOrNull(item.NamespaceBlock) ?? GetRangeOrNull(item.AliasDeclaration) ?? GetRangeOrNull(item.Declaration),
+				CompilationUnitItemSyntax item => GetRangeOrNull(item.ImportExportDeclaration) ?? GetRangeOrNull(item.FileMetadataAttribute) ?? GetRangeOrNull(item.RequirementScope) ?? GetRangeOrNull(item.NamespaceBlock) ?? GetRangeOrNull(item.AliasDeclaration) ?? GetRangeOrNull(item.Declaration),
+				RequirementScopeSyntax requirement => requirement.RequiresKeyword?.Range,
 			FileMetadataAttributeSyntax attribute => GetRangeOrNull(attribute.Attribute),
 			NamespaceBlockSyntax namespaceBlock => namespaceBlock.Keyword?.Range,
 			AliasDeclarationSyntax alias => alias.Identifier?.Range ?? alias.AliasKeyword?.Range,
@@ -2342,7 +2464,7 @@ public sealed partial class BindableNodeBuilder
 			TypeDeclarationDeclaratorSyntax declarator => declarator.Keyword?.Range,
 			GenericParameterSyntax parameter => parameter.Identifier?.Range,
 			TypeDeclarationScopeSyntax scope => scope.OpenBraceToken?.Range,
-			DeclarationSyntax declaration => GetRangeOrNull(declaration.TypeDeclaration) ?? GetRangeOrNull(declaration.MemberDeclaration),
+				DeclarationSyntax declaration => GetRangeOrNull(declaration.RequirementScope) ?? GetRangeOrNull(declaration.TypeDeclaration) ?? GetRangeOrNull(declaration.MemberDeclaration),
 			MemberDeclarationSyntax declaration => declaration.Identifier?.Range ?? declaration.TildeToken?.Range,
 			MemberDeclaratorSyntax declarator => declarator.Keyword?.Range,
 			ValueParameterSyntax parameter => parameter.Identifier?.Range ?? GetRangeOrNull(parameter.Type),

@@ -47,6 +47,8 @@ public class UsingDeclaration : BindableNode
 public abstract class Definition : BindableNode
 {
 	public List<AttributeConstructor> Attributes { get; } = [];
+	[XmlIgnore]
+	public List<SourceRequirement> SourceRequirements { get; } = [];
 	public string Name { get; set; } = "";
 	public string DefaultSymbol { get; set; } = "";
 	public string Symbol { get; set; } = "";
@@ -64,6 +66,13 @@ public abstract class Definition : BindableNode
 	public string? OutOfScopeOwnerName { get; set; }
 	public string? OutOfScopeOwnerSymbol { get; set; }
 	internal GeneratedDeclarationInfo? GeneratedInfo { get; set; }
+}
+
+public class SourceRequirement : BindableNode
+{
+	public Expression? Expression { get; set; }
+	[XmlIgnore]
+	public ConfigurationFlagExpression? Requirement { get; set; }
 }
 
 public class ExportProjectionDefinition : BindableNode

@@ -11,16 +11,24 @@ public static class SyntaxNodeTraversal
 			case CompilationUnitSyntax syntax:
 				foreach (SyntaxNode child in syntax.Items ?? []) yield return child;
 				break;
-			case CompilationUnitItemSyntax syntax:
-				if (syntax.ImportExportDeclaration is not null) yield return syntax.ImportExportDeclaration;
-				if (syntax.FileMetadataAttribute is not null) yield return syntax.FileMetadataAttribute;
-				if (syntax.NamespaceBlock is not null) yield return syntax.NamespaceBlock;
-				if (syntax.AliasDeclaration is not null) yield return syntax.AliasDeclaration;
-				if (syntax.Declaration is not null) yield return syntax.Declaration;
-				break;
-			case FileMetadataAttributeSyntax syntax:
-				if (syntax.Attribute is not null) yield return syntax.Attribute;
-				break;
+				case CompilationUnitItemSyntax syntax:
+					if (syntax.ImportExportDeclaration is not null) yield return syntax.ImportExportDeclaration;
+					if (syntax.FileMetadataAttribute is not null) yield return syntax.FileMetadataAttribute;
+					if (syntax.RequirementScope is not null) yield return syntax.RequirementScope;
+					if (syntax.NamespaceBlock is not null) yield return syntax.NamespaceBlock;
+					if (syntax.AliasDeclaration is not null) yield return syntax.AliasDeclaration;
+					if (syntax.Declaration is not null) yield return syntax.Declaration;
+					break;
+				case RequirementScopeSyntax syntax:
+					if (syntax.Condition is not null) yield return syntax.Condition;
+					if (syntax.Item is not null) yield return syntax.Item;
+					if (syntax.Declaration is not null) yield return syntax.Declaration;
+					foreach (SyntaxNode child in syntax.Items ?? []) yield return child;
+					foreach (SyntaxNode child in syntax.Declarations ?? []) yield return child;
+					break;
+				case FileMetadataAttributeSyntax syntax:
+					if (syntax.Attribute is not null) yield return syntax.Attribute;
+					break;
 			case NamespaceBlockSyntax syntax:
 				if (syntax.QualifiedNamespace is not null) yield return syntax.QualifiedNamespace;
 				foreach (SyntaxNode child in syntax.Items ?? []) yield return child;
@@ -368,13 +376,27 @@ public static class SyntaxNodeTraversal
 			case CompilationUnitSyntax syntax:
 				foreach (SyntaxNode child in syntax.Items ?? []) foreach (Token token in Tokens(child)) yield return token;
 				break;
-			case CompilationUnitItemSyntax syntax:
-				if (syntax.ImportExportDeclaration is not null) foreach (Token token in Tokens(syntax.ImportExportDeclaration)) yield return token;
-				if (syntax.FileMetadataAttribute is not null) foreach (Token token in Tokens(syntax.FileMetadataAttribute)) yield return token;
-				if (syntax.NamespaceBlock is not null) foreach (Token token in Tokens(syntax.NamespaceBlock)) yield return token;
-				if (syntax.AliasDeclaration is not null) foreach (Token token in Tokens(syntax.AliasDeclaration)) yield return token;
-				if (syntax.Declaration is not null) foreach (Token token in Tokens(syntax.Declaration)) yield return token;
-				break;
+				case CompilationUnitItemSyntax syntax:
+					if (syntax.ImportExportDeclaration is not null) foreach (Token token in Tokens(syntax.ImportExportDeclaration)) yield return token;
+					if (syntax.FileMetadataAttribute is not null) foreach (Token token in Tokens(syntax.FileMetadataAttribute)) yield return token;
+					if (syntax.RequirementScope is not null) foreach (Token token in Tokens(syntax.RequirementScope)) yield return token;
+					if (syntax.NamespaceBlock is not null) foreach (Token token in Tokens(syntax.NamespaceBlock)) yield return token;
+					if (syntax.AliasDeclaration is not null) foreach (Token token in Tokens(syntax.AliasDeclaration)) yield return token;
+					if (syntax.Declaration is not null) foreach (Token token in Tokens(syntax.Declaration)) yield return token;
+					break;
+				case RequirementScopeSyntax syntax:
+					foreach (Token token in Tokens(syntax.RequiresKeyword)) yield return token;
+					foreach (Token token in Tokens(syntax.OpenParenToken)) yield return token;
+					if (syntax.Condition is not null) foreach (Token token in Tokens(syntax.Condition)) yield return token;
+					foreach (Token token in Tokens(syntax.CloseParenToken)) yield return token;
+					foreach (Token token in Tokens(syntax.SemicolonToken)) yield return token;
+					if (syntax.Item is not null) foreach (Token token in Tokens(syntax.Item)) yield return token;
+					if (syntax.Declaration is not null) foreach (Token token in Tokens(syntax.Declaration)) yield return token;
+					foreach (Token token in Tokens(syntax.OpenBraceToken)) yield return token;
+					foreach (SyntaxNode child in syntax.Items ?? []) foreach (Token token in Tokens(child)) yield return token;
+					foreach (SyntaxNode child in syntax.Declarations ?? []) foreach (Token token in Tokens(child)) yield return token;
+					foreach (Token token in Tokens(syntax.CloseBraceToken)) yield return token;
+					break;
 			case FileMetadataAttributeSyntax syntax:
 				if (syntax.Attribute is not null) foreach (Token token in Tokens(syntax.Attribute)) yield return token;
 				foreach (Token token in Tokens(syntax.SemicolonToken)) yield return token;

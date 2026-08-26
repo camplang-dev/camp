@@ -45,6 +45,7 @@ public sealed class SourceFile
 	public CompilationUnitSyntax? SyntaxTree { get; set; }
 	public Module? BindableTree { get; set; }
 	public List<AttributeConstructor> FileMetadataAttributes { get; } = [];
+	public List<SourceRequirement> SourceRequirements { get; } = [];
 	public IReadOnlyList<ParseDiagnostic> ParseDiagnostics { get; set; } = [];
 	public IReadOnlyList<BindDiagnostic> BindDiagnostics { get; set; } = [];
 }
@@ -97,6 +98,8 @@ public static class CompilationPipeline
 			file.BindableTree = bindResult.Module;
 			file.FileMetadataAttributes.Clear();
 			file.FileMetadataAttributes.AddRange(bindResult.FileMetadataAttributes);
+			file.SourceRequirements.Clear();
+			file.SourceRequirements.AddRange(bindResult.SourceRequirements);
 			IReadOnlyList<BindDiagnostic> diagnostics = bindResult.Diagnostics;
 			IReadOnlyList<BindDiagnostic> fileMetadataDiagnostics = ValidateFileMetadataAttributes(compilation, file);
 			IReadOnlyList<BindDiagnostic> docDiagnostics = DocCommentTranslator.Apply(file);
@@ -124,11 +127,7 @@ public static class CompilationPipeline
 		{
 			if (AttributeNameEquals(attribute.Name, "@require"))
 			{
-				List<ArgumentExpression> requirePositional = attribute.Arguments.Where(static argument => string.IsNullOrWhiteSpace(argument.Name)).ToList();
-				if (requirePositional.Count != 1 || attribute.Arguments.Count != 1)
-					diagnostics.Add(new BindDiagnostic(GetRange(attribute.SourceSyntax), "File metadata attribute @require requires one configuration flag expression argument."));
-				else if (ConfigurationFlagExpressionBinder.TryBind(requirePositional[0].Value, compilation.ConfigurationFlags, (range, message) => diagnostics.Add(new BindDiagnostic(range ?? GetRange(attribute.SourceSyntax), message)), out ConfigurationFlagExpression? requirement))
-					attribute.Requirement = requirement;
+				diagnostics.Add(new BindDiagnostic(GetRange(attribute.SourceSyntax), "@require is no longer supported; use 'requires (CONDITION);' for file-wide requirements."));
 				continue;
 			}
 

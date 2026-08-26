@@ -1,10 +1,10 @@
-@require(OS_WIN32)
+requires (OS_WIN32)
 int same()
 {
 	return 1;
 }
 
-@require(OS_LINUX)
+requires (OS_LINUX)
 int same()
 {
 	return 2;

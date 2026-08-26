@@ -15,9 +15,25 @@ public class CompilationUnitItemSyntax : SyntaxNode
 {
 	public ImportExportDeclarationSyntax? ImportExportDeclaration { get; set; }
 	public FileMetadataAttributeSyntax? FileMetadataAttribute { get; set; }
+	public RequirementScopeSyntax? RequirementScope { get; set; }
 	public NamespaceBlockSyntax? NamespaceBlock { get; set; }
 	public AliasDeclarationSyntax? AliasDeclaration { get; set; }
 	public DeclarationSyntax? Declaration { get; set; }
+}
+
+public class RequirementScopeSyntax : SyntaxNode
+{
+	public Token? RequiresKeyword { get; set; }
+	public Token? OpenParenToken { get; set; }
+	public ExpressionSyntax? Condition { get; set; }
+	public Token? CloseParenToken { get; set; }
+	public Token? SemicolonToken { get; set; }
+	public CompilationUnitItemSyntax? Item { get; set; }
+	public DeclarationSyntax? Declaration { get; set; }
+	public Token? OpenBraceToken { get; set; }
+	public List<CompilationUnitItemSyntax>? Items { get; set; }
+	public List<DeclarationSyntax>? Declarations { get; set; }
+	public Token? CloseBraceToken { get; set; }
 }
 
 public class FileMetadataAttributeSyntax : SyntaxNode
@@ -166,6 +182,7 @@ public class TypeDeclarationScopeSyntax : SyntaxNode
 
 public class DeclarationSyntax : SyntaxNode
 {
+	public RequirementScopeSyntax? RequirementScope { get; set; }
 	public TypeDeclarationSyntax? TypeDeclaration { get; set; }
 	public MemberDeclarationSyntax? MemberDeclaration { get; set; }
 }

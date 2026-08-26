@@ -24,6 +24,13 @@ public sealed class ConfigurationFlagSet
 {
 	readonly Dictionary<string, ConfigurationFlagDeclaration> declarations = new(StringComparer.Ordinal);
 	readonly Dictionary<string, ConfigurationFlagConfiguration> configurations = new(StringComparer.Ordinal);
+	static readonly HashSet<string> CompilerOwnedFlags = new(StringComparer.Ordinal) { "TRUE", "FALSE" };
+
+	public ConfigurationFlagSet()
+	{
+		declarations.Add("TRUE", new ConfigurationFlagDeclaration("TRUE", true, ConfigurationFlagOwner.Target, "compiler"));
+		declarations.Add("FALSE", new ConfigurationFlagDeclaration("FALSE", false, ConfigurationFlagOwner.Target, "compiler"));
+	}
 
 	public IReadOnlyDictionary<string, ConfigurationFlagDeclaration> Declarations => declarations;
 	public IReadOnlyDictionary<string, ConfigurationFlagConfiguration> Configurations => configurations;
@@ -33,6 +40,11 @@ public sealed class ConfigurationFlagSet
 		if (!ConfigurationFlagSyntax.TryParseAssignment(text, defaultAmbientValue, out string name, out bool ambientValue, out string? error))
 		{
 			errors.Add(error!);
+			return false;
+		}
+		if (CompilerOwnedFlags.Contains(name))
+		{
+			errors.Add($"Configuration flag '{name}' is owned by the compiler and cannot be declared.");
 			return false;
 		}
 		if (declarations.TryGetValue(name, out ConfigurationFlagDeclaration? existing))
@@ -49,6 +61,11 @@ public sealed class ConfigurationFlagSet
 		if (!ConfigurationFlagSyntax.TryParseAssignment(text, defaultValue, out string name, out bool value, out string? error))
 		{
 			errors.Add(error!);
+			return false;
+		}
+		if (CompilerOwnedFlags.Contains(name))
+		{
+			errors.Add($"Configuration flag '{name}' is owned by the compiler and cannot be configured.");
 			return false;
 		}
 		if (!declarations.TryGetValue(name, out ConfigurationFlagDeclaration? declaration))

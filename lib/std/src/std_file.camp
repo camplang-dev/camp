@@ -1,7 +1,7 @@
 namespace Std;
 
 @category("I/O");
-@require(SUPPORTS_FILES);
+requires (SUPPORTS_FILES);
 
 const int CAMP_IO_ACCESS_READ = 1;
 const int CAMP_IO_ACCESS_WRITE = 2;

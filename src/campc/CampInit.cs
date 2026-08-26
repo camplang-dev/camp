@@ -310,10 +310,10 @@ static class CampInit
 
 			namespace global
 			{
-				@require(SUBSYSTEM_POSIX)
+				requires (SUBSYSTEM_POSIX)
 				extern int getpid();
 
-				@require(OS_WIN32)
+				requires (OS_WIN32)
 				extern uint GetCurrentProcessId();
 			}
 

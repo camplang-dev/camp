@@ -1,7 +1,7 @@
 namespace Std;
 
 @category("Synchronization");
-@require(SUPPORTS_TIMERS && (SUBSYSTEM_POSIX || OS_WIN32));
+requires (SUPPORTS_TIMERS && (SUBSYSTEM_POSIX || OS_WIN32));
 
 /// Represents a running timer.
 /// @remarks
@@ -104,20 +104,20 @@ public extern void* atomicCompareExchange(overload void** dest, void* expected, 
 
 namespace global
 {
-	@require(SUBSYSTEM_POSIX)
+	requires (SUBSYSTEM_POSIX)
 	extern int usleep(uint usec);
 
-	@require(SUBSYSTEM_POSIX)
+	requires (SUBSYSTEM_POSIX)
 	extern int pthread_create(nint* thread, void* attr, fn void*(void*) start, void* arg);
 
-	@require(SUBSYSTEM_POSIX)
+	requires (SUBSYSTEM_POSIX)
 	extern int pthread_detach(nint thread);
 }
 
-@require(SUBSYSTEM_POSIX)
+requires (SUBSYSTEM_POSIX)
 const nuint TIMING_POSIX_SLEEP_CHUNK_MS = 1000;
 
-@require(OS_WIN32)
+requires (OS_WIN32)
 const nuint TIMING_WINDOWS_SLEEP_CHUNK_MS = 0xFFFFFFFF;
 
 escaped class TimingTimerState
@@ -128,26 +128,26 @@ escaped class TimingTimerState
 	nint thread;
 }
 
-@symbol("Sleep")
-@require(OS_WIN32)
-extern _winapi void timingWinSleep(uint dwMilliseconds);
+requires (OS_WIN32)
+{
+	@symbol("Sleep")
+	extern _winapi void timingWinSleep(uint dwMilliseconds);
 
-@symbol("CreateThread")
-@require(OS_WIN32)
-extern _winapi void* timingWinCreateThread(
-	void* lpThreadAttributes,
-	nuint dwStackSize,
-	fn _winapi uint(void*) lpStartAddress,
-	void* lpParameter,
-	uint dwCreationFlags,
-	uint* lpThreadId
-);
+	@symbol("CreateThread")
+	extern _winapi void* timingWinCreateThread(
+		void* lpThreadAttributes,
+		nuint dwStackSize,
+		fn _winapi uint(void*) lpStartAddress,
+		void* lpParameter,
+		uint dwCreationFlags,
+		uint* lpThreadId
+	);
 
-@symbol("CloseHandle")
-@require(OS_WIN32)
-extern _winapi int timingWinCloseHandle(void* hObject);
+	@symbol("CloseHandle")
+	extern _winapi int timingWinCloseHandle(void* hObject);
+}
 
-@require(SUBSYSTEM_POSIX)
+requires (SUBSYSTEM_POSIX)
 void timingSleepPosix(nuint timeoutMs)
 {
 	while (timeoutMs > 0)
@@ -158,7 +158,7 @@ void timingSleepPosix(nuint timeoutMs)
 	}
 }
 
-@require(SUBSYSTEM_POSIX && SUPPORTS_TIMERS)
+requires (SUBSYSTEM_POSIX && SUPPORTS_TIMERS)
 void* timingPosixTimerThread(void* context)
 {
 	TimingTimerState* state = (TimingTimerState*)context;
@@ -175,7 +175,7 @@ void* timingPosixTimerThread(void* context)
 	return null;
 }
 
-@require(SUBSYSTEM_POSIX && SUPPORTS_TIMERS)
+requires (SUBSYSTEM_POSIX && SUPPORTS_TIMERS)
 TimerHandle timingStartTimerPosix(nuint intervalMs, escaped delegate void(TimerHandle handle) callback)
 {
 	if (intervalMs == 0 || callback == default)
@@ -197,7 +197,7 @@ TimerHandle timingStartTimerPosix(nuint intervalMs, escaped delegate void(TimerH
 	return (TimerHandle)(nint)state;
 }
 
-@require(SUBSYSTEM_POSIX && SUPPORTS_TIMERS)
+requires (SUBSYSTEM_POSIX && SUPPORTS_TIMERS)
 void timingStopTimerPosix(TimerHandle handle)
 {
 	if (handle == default)
@@ -207,7 +207,7 @@ void timingStopTimerPosix(TimerHandle handle)
 	state.cancelled = true;
 }
 
-@require(OS_WIN32)
+requires (OS_WIN32)
 void timingSleepWindows(nuint timeoutMs)
 {
 	while (timeoutMs > 0)
@@ -218,7 +218,7 @@ void timingSleepWindows(nuint timeoutMs)
 	}
 }
 
-@require(OS_WIN32 && SUPPORTS_TIMERS)
+requires (OS_WIN32 && SUPPORTS_TIMERS)
 _winapi uint timingWindowsTimerThread(void* context)
 {
 	TimingTimerState* state = (TimingTimerState*)context;
@@ -235,7 +235,7 @@ _winapi uint timingWindowsTimerThread(void* context)
 	return 0;
 }
 
-@require(OS_WIN32 && SUPPORTS_TIMERS)
+requires (OS_WIN32 && SUPPORTS_TIMERS)
 TimerHandle timingStartTimerWindows(nuint intervalMs, escaped delegate void(TimerHandle handle) callback)
 {
 	if (intervalMs == 0 || callback == default)
@@ -259,7 +259,7 @@ TimerHandle timingStartTimerWindows(nuint intervalMs, escaped delegate void(Time
 	return (TimerHandle)(nint)state;
 }
 
-@require(OS_WIN32 && SUPPORTS_TIMERS)
+requires (OS_WIN32 && SUPPORTS_TIMERS)
 void timingStopTimerWindows(TimerHandle handle)
 {
 	if (handle == default)

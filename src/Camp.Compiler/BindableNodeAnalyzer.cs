@@ -836,16 +836,13 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (AttributeNameEquals(attribute.Name, "@require"))
 		{
-			if (attribute.Arguments.Count != 1 || !string.IsNullOrWhiteSpace(attribute.Arguments[0].Name))
+			Report(GetRange(attribute.SourceSyntax), "@require is no longer supported; use 'requires (CONDITION)' before a declaration.");
+			foreach (ArgumentExpression argument in attribute.Arguments)
 			{
-				Report(GetRange(attribute.SourceSyntax), "@require requires one configuration flag expression argument.");
-				return;
+				if (argument.Value is not null)
+					argument.Value.ResolvedType = AttributeType;
+				argument.ResolvedType = AttributeType;
 			}
-			ArgumentExpression argument = attribute.Arguments[0];
-			if (ConfigurationFlagExpressionBinder.TryBind(argument.Value, configurationFlags, (range, message) => Report(range, message), out ConfigurationFlagExpression? requirement))
-				attribute.Requirement = requirement;
-			argument.Value!.ResolvedType = AttributeType;
-			argument.ResolvedType = AttributeType;
 			return;
 		}
 

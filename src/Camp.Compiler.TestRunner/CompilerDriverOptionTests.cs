@@ -154,12 +154,62 @@ public sealed class CompilerDriverOptionTests
 	}
 
 	[Fact]
+	public void Compiler_owned_true_false_flags_bind_and_cannot_be_user_owned()
+	{
+		string source = CreateTempCase("configuration_flags_true_false.camp", """
+			requires (TRUE)
+			void trueMethod()
+			{
+			}
+
+			requires (FALSE)
+			void falseMethod()
+			{
+			}
+
+			export int main()
+			{
+				if (configured(TRUE) && !configured(FALSE))
+					return 0;
+				return 1;
+			}
+			""");
+
+		CompilerResult ok = Execute(source, request =>
+		{
+			request.TargetName = "gcc-linux-x64";
+			request.NoStdLib = true;
+			request.Inspect = CompilerInspectMode.Declarations;
+		});
+		CompilerResult declareTrue = Execute(source, request =>
+		{
+			request.TargetName = "gcc-linux-x64";
+			request.NoStdLib = true;
+			request.ConfigurationFlagDeclarations.Add("TRUE");
+		});
+		CompilerResult configureFalse = Execute(source, request =>
+		{
+			request.TargetName = "gcc-linux-x64";
+			request.NoStdLib = true;
+			request.ConfigurationFlagConfigurations.Add("FALSE=true");
+		});
+
+		Assert.Equal(0, ok.ExitCode);
+		Assert.Contains("trueMethod", ok.StdOut, StringComparison.Ordinal);
+		Assert.DoesNotContain("falseMethod", ok.StdOut, StringComparison.Ordinal);
+		Assert.NotEqual(0, declareTrue.ExitCode);
+		Assert.Contains("owned by the compiler and cannot be declared", declareTrue.StdErr, StringComparison.Ordinal);
+		Assert.NotEqual(0, configureFalse.ExitCode);
+		Assert.Contains("owned by the compiler and cannot be configured", configureFalse.StdErr, StringComparison.Ordinal);
+	}
+
+	[Fact]
 	public void Configuration_requirements_and_configured_intrinsic_bind()
 	{
 		string source = CreateTempCase("configuration_requirements.camp", """
-			@require(OS_LINUX || OS_WIN32);
+			requires (OS_LINUX || OS_WIN32);
 
-			@require(OS_LINUX || OS_WIN32)
+			requires (OS_LINUX || OS_WIN32)
 			void platformMethod()
 			{
 			}
@@ -184,14 +234,64 @@ public sealed class CompilerDriverOptionTests
 	}
 
 	[Fact]
+	public void Requires_is_contextual_and_not_statement_syntax()
+	{
+		string contextual = CreateTempCase("requires_contextual_keyword.camp", """
+			class requires
+			{
+				int value;
+			}
+
+			int useRequires(int requires)
+			{
+				int requiresLocal = requires;
+				return requiresLocal;
+			}
+
+			export int main()
+			{
+				requires value = { .value = useRequires(1) };
+				return value.value;
+			}
+			""");
+		string invalidStatement = CreateTempCase("requires_invalid_statement.camp", """
+			export int main()
+			{
+				requires (TRUE)
+				{
+					return 0;
+				}
+				return 1;
+			}
+			""");
+
+		CompilerResult contextualResult = Execute(contextual, request =>
+		{
+			request.TargetName = "gcc-linux-x64";
+			request.NoStdLib = true;
+		});
+		CompilerResult invalidResult = Execute(invalidStatement, request =>
+		{
+			request.TargetName = "gcc-linux-x64";
+			request.NoStdLib = true;
+		});
+
+		Assert.Equal(0, contextualResult.ExitCode);
+		Assert.NotEqual(0, invalidResult.ExitCode);
+		Assert.Contains("requires_invalid_statement.camp(5,10): error: Expected '}'.", invalidResult.StdErr, StringComparison.Ordinal);
+	}
+
+	[Fact]
 	public void Configuration_requirement_diagnostics_reject_invalid_placement()
 	{
 		string source = CreateTempCase("configuration_requirement_placement_diagnostics.camp", """
-			@require(OS_LINUX)
-			enum Problem
+			requires (OS_LINUX)
+			class Problem
 			{
-				@require(OS_LINUX)
-				BAD
+				requires (OS_LINUX)
+				Problem()
+				{
+				}
 			}
 			""");
 
@@ -203,7 +303,98 @@ public sealed class CompilerDriverOptionTests
 		});
 
 		Assert.NotEqual(0, result.ExitCode);
-		Assert.Contains("@require is not valid on enum values", result.StdErr, StringComparison.Ordinal);
+		Assert.Contains("requires is not valid on constructors or destructors", result.StdErr, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Legacy_require_attribute_reports_migration_diagnostics()
+	{
+		string declarationSource = CreateTempCase("legacy_require_attribute_declaration.camp", """
+			@require(OS_LINUX)
+			void oldDeclaration()
+			{
+			}
+			""");
+		string fileSource = CreateTempCase("legacy_require_attribute_file.camp", """
+			@require(OS_LINUX);
+
+			void oldFileDefault()
+			{
+			}
+			""");
+
+		CompilerResult declarationResult = Execute(declarationSource, request =>
+		{
+			request.TargetName = "gcc-linux-x64";
+			request.NoStdLib = true;
+			request.Inspect = CompilerInspectMode.Declarations;
+		});
+		CompilerResult fileResult = Execute(fileSource, request =>
+		{
+			request.TargetName = "gcc-linux-x64";
+			request.NoStdLib = true;
+			request.Inspect = CompilerInspectMode.Declarations;
+		});
+
+		Assert.NotEqual(0, declarationResult.ExitCode);
+		Assert.Contains("@require is no longer supported; use 'requires (CONDITION)' before a declaration.", declarationResult.StdErr, StringComparison.Ordinal);
+		Assert.NotEqual(0, fileResult.ExitCode);
+		Assert.Contains("@require is no longer supported; use 'requires (CONDITION);' for file-wide requirements.", fileResult.StdErr, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Requirement_satisfiability_warnings_are_bounded_and_skip_exact_constants()
+	{
+		string constants = CreateTempCase("requirement_satisfiability_constants.camp", """
+			requires (TRUE)
+			void always()
+			{
+			}
+
+			requires (FALSE)
+			void never()
+			{
+			}
+			""");
+		string contradictions = CreateTempCase("requirement_satisfiability_contradictions.camp", """
+			requires (APP_A && !APP_A)
+			void direct()
+			{
+			}
+
+			requires (APP_A)
+			{
+				requires (!APP_A)
+				void nested()
+				{
+				}
+			}
+
+			requires (APP_A || APP_B)
+			void satisfiable()
+			{
+			}
+			""");
+
+		CompilerResult constantsResult = Execute(constants, request =>
+		{
+			request.TargetName = "gcc-linux-x64";
+			request.NoStdLib = true;
+		});
+		CompilerResult contradictionResult = Execute(contradictions, request =>
+		{
+			request.TargetName = "gcc-linux-x64";
+			request.NoStdLib = true;
+			request.ConfigurationFlagDeclarations.Add("APP_A=false");
+			request.ConfigurationFlagDeclarations.Add("APP_B=false");
+		});
+
+		Assert.Equal(0, constantsResult.ExitCode);
+		Assert.DoesNotContain("cannot be satisfied", constantsResult.StdErr, StringComparison.Ordinal);
+		Assert.Equal(0, contradictionResult.ExitCode);
+		Assert.Contains("Requirement 'APP_A && !APP_A' cannot be satisfied.", contradictionResult.StdErr, StringComparison.Ordinal);
+		Assert.Contains("Requirement 'APP_A && !APP_A' cannot be satisfied.", contradictionResult.StdErr, StringComparison.Ordinal);
+		Assert.DoesNotContain("APP_A || APP_B' cannot be satisfied", contradictionResult.StdErr, StringComparison.Ordinal);
 	}
 
 	[Fact]
@@ -235,23 +426,20 @@ public sealed class CompilerDriverOptionTests
 	public void Effective_requirements_filter_declarations_and_file_defaults()
 	{
 		string source = CreateTempCase("effective_requirements.camp", """
-			@require(OS_WIN32);
+			requires (OS_LINUX);
 
-			void fileDefaultOmitted()
+			void fileDefaultIncluded()
 			{
 			}
 
-			@require(OS_LINUX)
-			void declarationOverrideIncluded()
+			requires (SUPPORTS_FILES)
+			void strengthenedIncluded()
 			{
 			}
 
-			@require(OS_WIN32)
-			class WindowsOnly
+			requires (OS_WIN32)
+			void strengthenedOmitted()
 			{
-				void childAlsoOmitted()
-				{
-				}
 			}
 			""");
 
@@ -263,10 +451,9 @@ public sealed class CompilerDriverOptionTests
 		});
 
 		Assert.Equal(0, result.ExitCode);
-		Assert.Contains("declarationOverrideIncluded", result.StdOut, StringComparison.Ordinal);
-		Assert.DoesNotContain("fileDefaultOmitted", result.StdOut, StringComparison.Ordinal);
-		Assert.DoesNotContain("WindowsOnly", result.StdOut, StringComparison.Ordinal);
-		Assert.DoesNotContain("childAlsoOmitted", result.StdOut, StringComparison.Ordinal);
+		Assert.Contains("fileDefaultIncluded", result.StdOut, StringComparison.Ordinal);
+		Assert.Contains("strengthenedIncluded", result.StdOut, StringComparison.Ordinal);
+		Assert.DoesNotContain("strengthenedOmitted", result.StdOut, StringComparison.Ordinal);
 	}
 
 	[Fact]
@@ -307,7 +494,7 @@ public sealed class CompilerDriverOptionTests
 	public void Requirements_validate_access_and_configured_flow()
 	{
 		string guarded = CreateTempCase("requirement_guarded_access.camp", """
-			@require(OS_WIN32)
+			requires (OS_WIN32)
 			void windowsOnly()
 			{
 			}
@@ -325,7 +512,7 @@ public sealed class CompilerDriverOptionTests
 			}
 			""");
 		string unguarded = CreateTempCase("requirement_unguarded_access.camp", """
-			@require(OS_WIN32)
+			requires (OS_WIN32)
 			void windowsOnly()
 			{
 			}
@@ -337,7 +524,7 @@ public sealed class CompilerDriverOptionTests
 			}
 			""");
 		string signature = CreateTempCase("requirement_signature_access.camp", """
-			@require(OS_WIN32)
+			requires (OS_WIN32)
 			struct WinValue
 			{
 			}
@@ -346,25 +533,25 @@ public sealed class CompilerDriverOptionTests
 			{
 			}
 
-			@require(OS_WIN32)
+			requires (OS_WIN32)
 			void good(WinValue value)
 			{
 			}
 			""");
 		string exhaustiveReturn = CreateTempCase("requirement_exhaustive_return.camp", """
-			@require(OS_LINUX)
+			requires (OS_LINUX)
 			int linuxValue()
 			{
 				return 1;
 			}
 
-			@require(OS_WIN32)
+			requires (OS_WIN32)
 			int windowsValue()
 			{
 				return 2;
 			}
 
-			@require(OS_LINUX || OS_WIN32)
+			requires (OS_LINUX || OS_WIN32)
 			int selectedValue()
 			{
 				if (configured(OS_LINUX))
@@ -408,7 +595,7 @@ public sealed class CompilerDriverOptionTests
 	public void Requirements_filter_selected_type_shape()
 	{
 		string source = CreateTempCase("requirement_type_shape.camp", """
-			@require(OS_WIN32)
+			requires (OS_WIN32)
 			interface IWindows
 			{
 				void ping();
@@ -418,7 +605,7 @@ public sealed class CompilerDriverOptionTests
 			{
 				int always;
 
-				@require(OS_WIN32)
+				requires (OS_WIN32)
 				int windowsOnly;
 			}
 
@@ -436,7 +623,7 @@ public sealed class CompilerDriverOptionTests
 					return 1;
 				}
 
-				@require(OS_WIN32)
+				requires (OS_WIN32)
 				virtual int windowsValue()
 				{
 					return 2;
@@ -476,7 +663,7 @@ public sealed class CompilerDriverOptionTests
 		string conditionalAbstract = CreateTempCase("requirement_conditional_abstract.camp", """
 			abstract class Base
 			{
-				@require(OS_WIN32)
+				requires (OS_WIN32)
 				abstract int draw();
 			}
 
@@ -495,7 +682,7 @@ public sealed class CompilerDriverOptionTests
 
 			virtual class Derived: Base
 			{
-				@require(OS_WIN32)
+				requires (OS_WIN32)
 				override int draw()
 				{
 					return 2;

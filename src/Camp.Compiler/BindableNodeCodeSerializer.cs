@@ -37,6 +37,7 @@ public sealed class BindableNodeCodeSerializer
 	int generatedLocalIndex;
 	bool writingInterfaceMembers;
 	string? currentStaticClassName;
+	ConfigurationFlagExpression? currentRequirementContext;
 
 	BindableNodeCodeSerializer(TextWriter writer, BindableNodeCodeSerializerOptions? options)
 	{
@@ -271,6 +272,7 @@ public sealed class BindableNodeCodeSerializer
 
 	void WriteClassDefinition(ClassDefinition definition)
 	{
+		WriteRequirementPrefix(definition);
 		WriteAttributes(definition.Attributes);
 		WriteIndent();
 		WriteDefinitionPrefix(definition);
@@ -288,15 +290,19 @@ public sealed class BindableNodeCodeSerializer
 		WriteBaseTypes(apiHeader ? ApiBaseTypes(definition) : definition.BaseTypes);
 		WriteLineBlock(() =>
 		{
+			ConfigurationFlagExpression? previousRequirementContext = currentRequirementContext;
+			currentRequirementContext = definition.EffectiveRequirement;
 			if (apiHeader)
 				WriteApiClassMembers(definition, definition.Fields, definition.Functions);
 			else
 				WriteMembers(definition.Fields, definition.Functions);
+			currentRequirementContext = previousRequirementContext;
 		});
 	}
 
 	void WriteStaticClassDefinition(StaticClassDefinition definition)
 	{
+		WriteRequirementPrefix(definition);
 		WriteAttributes(definition.Attributes);
 		WriteIndent();
 		writer.Write("static class ");
@@ -304,12 +310,15 @@ public sealed class BindableNodeCodeSerializer
 		WriteLineBlock(() =>
 		{
 			string? previousStaticClassName = currentStaticClassName;
+			ConfigurationFlagExpression? previousRequirementContext = currentRequirementContext;
 			currentStaticClassName = definition.Name;
+			currentRequirementContext = definition.EffectiveRequirement;
 			if (apiHeader)
 				WriteApiClassMembers(null, definition.Fields, StaticClassFunctions(definition), allowSyntheticConstructor: false);
 			else
 				WriteMembers(definition.Fields, definition.Functions);
 			currentStaticClassName = previousStaticClassName;
+			currentRequirementContext = previousRequirementContext;
 		});
 	}
 
@@ -330,6 +339,7 @@ public sealed class BindableNodeCodeSerializer
 
 	void WriteStructDefinition(StructDefinition definition)
 	{
+		WriteRequirementPrefix(definition);
 		WriteAttributes(definition.Attributes);
 		WriteIndent();
 		WriteDefinitionPrefix(definition);
@@ -341,15 +351,19 @@ public sealed class BindableNodeCodeSerializer
 		WriteBaseTypes(apiHeader ? [] : definition.BaseTypes);
 		WriteLineBlock(() =>
 		{
+			ConfigurationFlagExpression? previousRequirementContext = currentRequirementContext;
+			currentRequirementContext = definition.EffectiveRequirement;
 			if (apiHeader)
 				WriteApiStructMembers(definition.Fields, definition.Functions);
 			else
 				WriteMembers(definition.Fields, definition.Functions);
+			currentRequirementContext = previousRequirementContext;
 		});
 	}
 
 	void WriteInterfaceDefinition(InterfaceDefinition definition)
 	{
+		WriteRequirementPrefix(definition);
 		WriteAttributes(definition.Attributes);
 		WriteIndent();
 		WriteDefinitionPrefix(definition);
@@ -363,7 +377,9 @@ public sealed class BindableNodeCodeSerializer
 		{
 			bool wrote = false;
 			bool previousWritingInterfaceMembers = writingInterfaceMembers;
+			ConfigurationFlagExpression? previousRequirementContext = currentRequirementContext;
 			writingInterfaceMembers = true;
+			currentRequirementContext = definition.EffectiveRequirement;
 			foreach (FunctionDefinition function in definition.Functions)
 			{
 				if (wrote)
@@ -372,11 +388,13 @@ public sealed class BindableNodeCodeSerializer
 				wrote = true;
 			}
 			writingInterfaceMembers = previousWritingInterfaceMembers;
+			currentRequirementContext = previousRequirementContext;
 		});
 	}
 
 	void WriteEnumDefinition(EnumDefinition definition)
 	{
+		WriteRequirementPrefix(definition);
 		WriteAttributes(definition.Attributes);
 		WriteIndent();
 		WriteDefinitionPrefix(definition);
@@ -408,6 +426,7 @@ public sealed class BindableNodeCodeSerializer
 
 	void WriteNewtypeDefinition(NewtypeDefinition definition)
 	{
+		WriteRequirementPrefix(definition);
 		WriteAttributes(definition.Attributes);
 		WriteIndent();
 		WriteDefinitionPrefix(definition);
@@ -443,10 +462,13 @@ public sealed class BindableNodeCodeSerializer
 
 		WriteLineBlock(() =>
 		{
+			ConfigurationFlagExpression? previousRequirementContext = currentRequirementContext;
+			currentRequirementContext = definition.EffectiveRequirement;
 			if (apiHeader)
 				WriteApiClassMembers(definition.Fields, definition.Functions);
 			else
 				WriteMembers(definition.Fields, definition.Functions);
+			currentRequirementContext = previousRequirementContext;
 		});
 	}
 
@@ -459,6 +481,7 @@ public sealed class BindableNodeCodeSerializer
 
 	void WriteParamsDefinition(ParamsDefinition definition)
 	{
+		WriteRequirementPrefix(definition);
 		WriteAttributes(definition.Attributes);
 		WriteIndent();
 		WriteDefinitionPrefix(definition);
@@ -470,6 +493,7 @@ public sealed class BindableNodeCodeSerializer
 
 	void WriteAliasDefinition(AliasDefinition definition)
 	{
+		WriteRequirementPrefix(definition);
 		WriteAttributes(definition.Attributes);
 		WriteIndent();
 		WriteDefinitionPrefix(definition);
@@ -738,6 +762,7 @@ public sealed class BindableNodeCodeSerializer
 
 	void WriteVariableDefinition(VariableDefinition definition)
 	{
+		WriteRequirementPrefix(definition);
 		WriteAttributes(definition.Attributes);
 		WriteIndent();
 		WriteDefinitionPrefix(definition);
@@ -761,6 +786,7 @@ public sealed class BindableNodeCodeSerializer
 
 	void WriteFieldDefinition(FieldDefinition definition)
 	{
+		WriteRequirementPrefix(definition);
 		WriteAttributes(definition.Attributes);
 		WriteIndent();
 		WriteDefinitionPrefix(definition);
@@ -783,6 +809,7 @@ public sealed class BindableNodeCodeSerializer
 
 	void WriteFunctionDefinition(FunctionDefinition definition)
 	{
+		WriteRequirementPrefix(definition);
 		WriteAttributes(definition.Attributes);
 		WriteIndent();
 		WriteDefinitionPrefix(definition);
@@ -1459,6 +1486,20 @@ public sealed class BindableNodeCodeSerializer
 			else
 				writer.WriteLine();
 		}
+	}
+
+	void WriteRequirementPrefix(Definition definition)
+	{
+		if (definition.EffectiveRequirement is null)
+			return;
+		if (currentRequirementContext?.ToString() == definition.EffectiveRequirement.ToString())
+			return;
+		if (definition is FunctionDefinition { Modifier: FunctionModifier.Constructor or FunctionModifier.Destructor })
+			return;
+		WriteIndent();
+		writer.Write("requires (");
+		writer.Write(definition.EffectiveRequirement);
+		writer.WriteLine(")");
 	}
 
 	void WriteDefinitionPrefix(Definition definition)

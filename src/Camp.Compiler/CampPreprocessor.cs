@@ -47,7 +47,7 @@ public static class CampPreprocessor
 				case "elif":
 				case "else":
 				case "endif":
-					AddDiagnostic(diagnostics, info.Directive.Value, $"#{directive} is no longer supported; use @require on declarations and configured(...) in ordinary flow control.");
+					AddDiagnostic(diagnostics, info.Directive.Value, $"#{directive} is no longer supported; use requires declarations and configured(...) in ordinary flow control.");
 					break;
 
 				case "build":
