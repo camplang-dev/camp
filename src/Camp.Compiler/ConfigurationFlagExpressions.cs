@@ -218,7 +218,10 @@ public static class ConfigurationFlagExpressionBinder
 		}
 	}
 
-	static TokenRange? GetRange(Expression expression) => null;
+	static TokenRange? GetRange(Expression expression) =>
+		expression.SourceSyntax is not null && SyntaxNodeTraversal.TryGetRange(expression.SourceSyntax, out TokenRange range)
+			? range
+			: null;
 
 	sealed class FlagExpressionTextParser(List<TokenValue> tokens, ConfigurationFlagSet flags, Action<string> report)
 	{

@@ -1,0 +1,1 @@
+tests/Diagnostics/configured_unknown_flag_range.camp(3,17): error: Unknown configuration flag 'APP_UNKNOWN'.

@@ -2,44 +2,6 @@
 
 Next bug number: BUG-087.
 
-## BUG-085 - Unknown configuration flag diagnostics lose the expression source range
-
-Confirmed: 2026-08-25
-
-The compiler reports unknown configuration flags used inside `configured(...)`
-at the start of the file with a `(no line,column)` suffix instead of pointing at
-the `configured(...)` expression or the unknown flag token.
-
-Minimal repro:
-
-```camp
-export int main()
-{
-	if (configured(APP_UNKNOWN))
-		return 1;
-	return 0;
-}
-```
-
-Command:
-
-```sh
-campc build repro.camp --artifact none
-```
-
-Observed diagnostic:
-
-```text
-repro.camp(1,1): (no line,column) error: Unknown configuration flag 'APP_UNKNOWN'.
-```
-
-Expected behavior:
-
-The diagnostic should point at the `APP_UNKNOWN` token or at least the
-`configured(...)` expression. Proposal 018 and the semantic docs make
-configuration flags expression-level syntax in `configured(...)`, so users need
-the source range of the offending query.
-
 ## BUG-086 - @require declarations can bypass unconditional duplicate validation when unreferenced
 
 Confirmed: 2026-08-25
