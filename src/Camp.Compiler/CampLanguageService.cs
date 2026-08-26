@@ -368,6 +368,7 @@ public static class CampLanguageService
 
 	static bool TryGetCachedExternalPackageApiHeader(CompilerRequest request, string packageName, string? requestedVersion, DependencyLinkKind? linkKind, out string? apiHeader)
 	{
+		requestedVersion ??= TryGetLockedPackageVersion(request, packageName);
 		string targetName = string.IsNullOrWhiteSpace(request.TargetName) ? CompilerDefaults.TargetName : request.TargetName;
 		string profileName = string.IsNullOrWhiteSpace(request.ProfileName) ? "DEBUG" : request.ProfileName.ToUpperInvariant();
 		string targetDirectory = GetTargetVariantDirectoryName(request, targetName);
@@ -409,15 +410,10 @@ public static class CampLanguageService
 
 	static IReadOnlyList<string> GetAnalysisExternalPackageSources(CompilerRequest request, string packageName, string? requestedVersion)
 	{
+		requestedVersion ??= TryGetLockedPackageVersion(request, packageName);
 		foreach (string sourceRoot in CandidatePackageSourceRoots(request))
 		{
 			string packageRoot = Path.Combine(sourceRoot, packageName);
-			if (requestedVersion is null)
-			{
-				string unversionedSourceRoot = Path.Combine(packageRoot, "src");
-				if (Directory.Exists(unversionedSourceRoot))
-					return Directory.GetFiles(unversionedSourceRoot, "*.camp", SearchOption.AllDirectories).Order(StringComparer.OrdinalIgnoreCase).ToList();
-			}
 			if (!Directory.Exists(packageRoot))
 				continue;
 			foreach (string versionDirectory in CandidatePackageVersionDirectories(packageRoot, requestedVersion))
@@ -446,8 +442,6 @@ public static class CampLanguageService
 
 	static IEnumerable<string> CandidatePackageSourceRoots(CompilerRequest request)
 	{
-		foreach (string root in request.UseSourceRoots)
-			yield return Path.GetFullPath(root, request.WorkingDirectory);
 		string workingDirectory = Path.GetFullPath(request.WorkingDirectory);
 		yield return Path.Combine(workingDirectory, "cache", "pkg");
 		foreach (string runtimeRoot in CandidateRuntimeRoots(request.RuntimeRoot))
@@ -489,13 +483,20 @@ public static class CampLanguageService
 				yield return exact;
 			yield break;
 		}
-		string live = Path.Combine(packageRoot, "live");
-		if (Directory.Exists(live))
-			yield return live;
 		foreach (string directory in Directory.GetDirectories(packageRoot)
-			.Where(path => !string.Equals(Path.GetFileName(path), "live", StringComparison.OrdinalIgnoreCase))
-			.OrderByDescending(static path => Path.GetFileName(path), StringComparer.OrdinalIgnoreCase))
+			.Where(static path => PackageSelectedVersion.TryParse(Path.GetFileName(path), out _, out _))
+			.OrderByDescending(static path => PackageSelectedVersion.Parse(Path.GetFileName(path)!), PackageSelectedVersion.Comparer))
 			yield return directory;
+	}
+
+	static string? TryGetLockedPackageVersion(CompilerRequest request, string packageName)
+	{
+		string lockPath = Path.Combine(request.WorkingDirectory, "packages.ini");
+		if (!File.Exists(lockPath))
+			return null;
+		if (!PackageLockFile.TryParse(lockPath, File.ReadAllText(lockPath), out PackageLockFile? lockFile, out _))
+			return null;
+		return lockFile!.Packages.TryGetValue(packageName, out PackageLockEntry? entry) ? entry.Version.ToString() : null;
 	}
 
 	static (string Name, string? Version, DependencyLinkKind? LinkKind) ParsePackageSpec(string value)

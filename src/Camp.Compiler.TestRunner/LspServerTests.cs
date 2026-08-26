@@ -1208,27 +1208,40 @@ public sealed class LspServerTests
 	}
 
 	[Fact]
-	public void Lsp_uses_package_sources_before_stale_package_api_headers()
+	public void Lsp_uses_installed_package_cache_for_package_definitions()
 	{
 		using LspProcess lsp = LspProcess.Start();
-		string root = CreateTempDirectory("lsp-package-source-freshness");
+		string root = CreateTempDirectory("lsp-package-cache");
 		string appRoot = Path.Combine(root, "app");
 		string appSource = Path.Combine(appRoot, "src");
-		string packageSource = Path.Combine(root, "package-source", "ext-win32", "live", "src");
-		string packageApi = Path.Combine(appRoot, "cache", "pkg", "ext-win32", "live", "bin", ArtifactDirectoryForTarget(CompilerDefaults.TargetName, NativeBuildKind.Static), "ext-win32_api.camp");
+		string packageSource = Path.Combine(root, "package-source", "ext-win32", "src");
+		string installedPackageSource = Path.Combine(appRoot, "cache", "pkg", "ext-win32", "1.0.0", "src");
+		string packageApi = Path.Combine(appRoot, "cache", "pkg", "ext-win32", "1.0.0", "bin", ArtifactDirectoryForTarget(CompilerDefaults.TargetName, NativeBuildKind.Static), "ext-win32_api.camp");
 		Directory.CreateDirectory(appSource);
 		Directory.CreateDirectory(packageSource);
+		Directory.CreateDirectory(installedPackageSource);
 		Directory.CreateDirectory(Path.GetDirectoryName(packageApi)!);
 		File.WriteAllText(Path.Combine(packageSource, "win32.camp"), """
 			namespace Win32;
 
-			export inline int OLD_DECL = 1;
-			export inline int NEW_DECL = 2;
+			export inline int LIVE_ONLY_DECL = 3;
+			""");
+		File.WriteAllText(Path.Combine(installedPackageSource, "win32.camp"), """
+			namespace Win32;
+
+			export inline int API_DECL = 1;
+			export inline int CACHE_DECL = 2;
 			""");
 		File.WriteAllText(packageApi, """
 			namespace Win32;
 
-			export inline int OLD_DECL = 1;
+			export inline int API_DECL = 1;
+			""");
+		File.WriteAllText(Path.Combine(appRoot, "packages.ini"), """
+			[ext-win32]
+			identity=ext-win32
+			version=1.0.0
+			sha256=0000000000000000000000000000000000000000000000000000000000000000
 			""");
 		File.WriteAllText(Path.Combine(appRoot, "app.campbuild"), $$"""
 			--artifact exec
@@ -1243,7 +1256,7 @@ public sealed class LspServerTests
 
 			export int main()
 			{
-				return OLD_DECL + NEW_DECL;
+				return API_DECL + CACHE_DECL;
 			}
 			""";
 		File.WriteAllText(file, text);
@@ -1258,22 +1271,22 @@ public sealed class LspServerTests
 		JsonNode diagnostics = lsp.ReadNotification("textDocument/publishDiagnostics");
 		Assert.Empty(diagnostics["params"]?["diagnostics"]?.AsArray()!);
 
-		CampTextPosition oldPosition = PositionOf(text, "OLD_DECL +");
-		JsonNode oldDefinition = lsp.Request("textDocument/definition", new
+		CampTextPosition apiPosition = PositionOf(text, "API_DECL +");
+		JsonNode apiDefinition = lsp.Request("textDocument/definition", new
 		{
 			textDocument = new { uri },
-			position = new { line = oldPosition.Line, character = oldPosition.Character }
+			position = new { line = apiPosition.Line, character = apiPosition.Character }
 		});
-		CampTextPosition newPosition = PositionOf(text, "NEW_DECL;");
-		JsonNode newDefinition = lsp.Request("textDocument/definition", new
+		CampTextPosition cachePosition = PositionOf(text, "CACHE_DECL;");
+		JsonNode cacheDefinition = lsp.Request("textDocument/definition", new
 		{
 			textDocument = new { uri },
-			position = new { line = newPosition.Line, character = newPosition.Character }
+			position = new { line = cachePosition.Line, character = cachePosition.Character }
 		});
 
-		Assert.EndsWith("win32.camp", oldDefinition["result"]?["uri"]?.GetValue<string>(), StringComparison.Ordinal);
-		Assert.EndsWith("win32.camp", newDefinition["result"]?["uri"]?.GetValue<string>(), StringComparison.Ordinal);
-		Assert.DoesNotContain("_api.camp", oldDefinition["result"]?["uri"]?.GetValue<string>(), StringComparison.Ordinal);
+		Assert.EndsWith("win32.camp", apiDefinition["result"]?["uri"]?.GetValue<string>(), StringComparison.Ordinal);
+		Assert.EndsWith("win32.camp", cacheDefinition["result"]?["uri"]?.GetValue<string>(), StringComparison.Ordinal);
+		Assert.Contains("/cache/pkg/ext-win32/1.0.0/", cacheDefinition["result"]?["uri"]?.GetValue<string>()?.Replace('\\', '/'), StringComparison.Ordinal);
 	}
 
 	[Fact]
