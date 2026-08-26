@@ -60,8 +60,10 @@ Response files use the same option language as command-line arguments:
 Relative source patterns and path-valued options inside a response file are
 rebased to the directory containing that response file. This includes source
 patterns, `--api`, `--exclude`, `--out-dir`, `--sourcefile-root`,
-`--use-source` paths, and project-reference paths. Native references are
-rebased only when they look like paths; bare linker names remain bare names.
+`--use-source` paths, and project-reference paths. `--use-source` is used by
+restore/install/publish workflows; ordinary builds consume the installed package
+cache instead of the source path. Native references are rebased only when they
+look like paths; bare linker names remain bare names.
 
 Project-reference link-kind suffixes are preserved while the path part is
 rebased:
@@ -230,6 +232,6 @@ src/*.camp
 ```
 
 Prefer source `#build` pragmas for facts that truly belong to a source surface,
-such as required package uses or API files. Prefer `.campbuild` files
-for project selection, artifact kind, output name, target, and local developer
-build choices.
+such as required package uses or API files. Prefer `.campbuild` files for
+project selection, artifact kind, output name, target, local package source
+configuration, and local developer build choices.

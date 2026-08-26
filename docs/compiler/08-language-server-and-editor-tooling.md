@@ -64,10 +64,12 @@ patterns, reads global and local `#build` pragmas, resolves package and project
 reference information, and prepares a `CompilerRequest` for analysis.
 
 Unlike `campc build`, the project loader does not compile project references or
-packages. For project references it tries to find an existing API header in the
-referenced project's expected `bin/<artifact-directory>` location. If no API
-header is available and the command kind is language service, it recursively
-loads referenced source files for analysis.
+packages. For packages it reads only installed package cache entries; it does
+not run restore and does not contact `--use-source` roots. For project
+references it tries to find an existing API header in the referenced project's
+expected `bin/<artifact-directory>` location. If no API header is available and
+the command kind is language service, it recursively loads referenced source
+files for analysis.
 
 This design keeps editor analysis responsive and avoids surprising writes from
 the editor process.
@@ -228,8 +230,8 @@ Loose files and ordinary project files include the standard library by default.
 that behavior for the request.
 
 Package and project-reference API headers are included when available. When an
-installed package is missing, the language server should report diagnostics from
-the loader/compiler rather than attempting package installation.
+installed package is missing, the language server reports a restore-oriented
+diagnostic rather than attempting package installation.
 
 ## LSP Range Mapping
 

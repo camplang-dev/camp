@@ -202,10 +202,20 @@ export int main()
 ```
 
 Use `.campbuild` files for project selection, targets, artifact names, output
-locations, and local build choices. Use source `#build` pragmas for facts that
-belong to the source surface, such as required API files. Do not add package
-pragmas to normal examples or application code; package commands and layouts are
-experimental compiler-development infrastructure.
+locations, local package source declarations, and local build choices. Use
+source `#build` pragmas for facts that belong to the source surface, such as
+required API files or required package dependencies. Do not add package pragmas
+to normal examples unless the example is specifically about package behavior.
+
+When a project uses `--use`, add the matching `--use-source` only for restore or
+package-cache setup, then run `campc restore <build-file>` before building.
+Ordinary build/run/test/cover/dump and LSP analysis consume installed package
+cache entries; they do not use `--use-source` as a live source folder.
+
+Do not use removed package commands (`pkg add`, `pkg remove`, `pkg add-source`,
+`pkg remove-source`, or `pkg search`). Edit build files manually for `--use` and
+local `--use-source`; use `pkg add-global-source` only for intentional global
+package source configuration.
 
 Use the `--artifact` command-line/build-file parameter only when the desired
 artifact kind must be stated explicitly. `campc build` infers an executable when

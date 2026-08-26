@@ -69,7 +69,8 @@ it provides equivalent declarations through API files or root source files.
 
 `lib/global.camp` is read during build-option collection before local source
 pragmas. It is the global place for compiler-checkout build defaults such as
-package sources. It is not a replacement for the standard library package.
+package sources. It is not a replacement for the standard library package, and
+user package restore does not route the standard library through `packages.ini`.
 
 Because global pragmas affect every build using the checkout, keep this file
 small and avoid project-specific settings. Project-specific package sources and

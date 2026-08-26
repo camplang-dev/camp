@@ -2,111 +2,115 @@
 
 Camp's package infrastructure is a development-preview compiler feature. It
 exists so compiler authors can exercise package API generation, native artifact
-caching, package references, and language-service behavior while the real
-package model is still being designed.
+caching, package references, restore behavior, publishing, and language-service
+integration while the package model is still settling.
 
-The current implementation is not recommended for ordinary Camp projects. It
-does not include a public package repository, package publishing command, remote
-restore protocol, package manifest format, lock file, checksum model, or
-dependency solver. The CLI commands and source layout are expected to change.
+Packages are source-only payloads. A package source publishes deterministic zip
+archives plus a `versions.ini` catalog. Projects restore selected archives into
+their local package cache and record exact selections in `packages.ini`.
+Ordinary build, run, test, cover, dump, and language-server operations consume
+only installed package cache entries. They do not contact package sources and do
+not use `--use-source` as a live source lookup path.
 
-Today, packages are source folders plus compiler-produced API and native
-artifacts. The implementation is intentionally local and file-system based:
-package sources live under configured source roots, copied packages live under
-package roots, and build outputs live in cache directories keyed by target,
-profile, and dependency link kind.
+## Dependency Specs
 
-## Package Specs
-
-The experimental compiler path models a package dependency as a name, an
-optional version, and an optional link kind:
+Package dependencies use a package name, an optional version request, and an
+optional link kind:
 
 ```text
 textlib
+textlib@1
+textlib@1.2
 textlib@1.2.0
+textlib/1.2.0
 textlib@1.2.0:shared
 textlib:static
 textlib:api
 ```
 
-Package specs may appear in the current prototype surface:
+`@` requests a compatible catalog version. `pkg@1` means any `1.x.y` version,
+`pkg@1.2` means any `1.2.y` version, and `pkg@1.2.0` means that exact selected
+version. `/` names an exact installed version.
 
-- `--use` command-line arguments;
-- `#build --use` pragmas;
-- `campc pkg add`;
-- experimental restore and package install workflows.
-
-The link kind describes how the package is consumed when the root build needs
-native artifacts. The default dependency link kind is `shared`.
-
-## Version Resolution
-
-Versions use a simple semantic-version ordering with `major.minor.patch` and an
-optional suffix. If a dependency omits the version, package lookup selects the
-highest installed version by that ordering. Exact versions select the matching
-version directory.
-
-Live source packages discovered through `--use-source` may be unversioned. When
-an unversioned live package is used, its resolved cache version is `live`.
-
-## Source Root Layout
-
-The current source-root layout is a usage demonstration for compiler
-development. A package source root contains package directories. A versioned
-source package uses this shape:
-
-```text
-packages/
-  textlib/
-    1.2.0/
-      src/
-        text.camp
-        text_native.c
-        text_native.h
-```
-
-A live unversioned source package uses:
-
-```text
-packages/
-  textlib/
-    src/
-      text.camp
-```
-
-Only the `src` subtree is compiled. Camp source, C source, and C headers under
-that subtree are considered cache inputs. Packages that provide native helpers
-place them beside the Camp sources they support.
+The default dependency link kind is `:shared`.
 
 ## Package Sources
 
-`--use-source <name> <path>` adds a named source root to the effective request:
+`--use-source <name> <path-or-url>` declares a named package source for restore,
+install, and publish workflows:
 
 ```camp
 #build --use-source local-libs ../packages
-#build --use textlib@1.2.0
+#build --use textlib@1.2
 ```
 
-The source name is used by the experimental package search and source-management
-commands. The compiler build path uses the paths. A package source with no path
-may appear while editing source lists, but it cannot satisfy installation or
-live-source resolution until a path is provided.
+The source path can be a local filesystem path or an HTTP/HTTPS URL. Source
+names are local configuration. They are not written to `packages.ini`.
 
-## Copied Package Roots
-
-Copied packages are searched in two roots:
+A source root contains package directories:
 
 ```text
-<repo>/cache/pkg
-<working-directory>/cache/pkg
+packages/
+  textlib/
+    versions.ini
+    textlib_1.2.0.zip
 ```
 
-The repository root is the global package root for the active compiler checkout.
-The working-directory root is local to the project being built. `campc restore`
-copies missing packages into the local root. `campc pkg install --global` copies
-into the global root.
+`versions.ini` describes package identity, published versions, source archives,
+hashes, compiler provenance, and direct dependencies:
 
-Copied packages use:
+```ini
+[package]
+name=textlib
+identity=textlib
+
+[1.2.0]
+compiler=campc/0.9.1-preview.1
+use=otherlib@1:static
+sha256=<archive-sha256>
+src=textlib_1.2.0.zip
+```
+
+Archive paths are relative to the package directory unless they are already
+absolute paths or URLs.
+
+## Restore And Lock Files
+
+`campc restore` reads effective `--use-source` and `--use` declarations from the
+provided source/build file plus global configuration. It resolves direct and
+transitive dependencies, verifies archive SHA-256 values, extracts selected
+source archives into the project cache, and writes `packages.ini`:
+
+```sh
+campc restore textapp.campbuild
+campc restore src/*.camp
+```
+
+The lock file records portable package facts only:
+
+```ini
+[textlib]
+identity=textlib
+version=1.2.0
+sha256=<archive-sha256>
+```
+
+Restore reuses locked versions unless `--upgrade` is supplied. `--upgrade`
+updates all direct dependencies. `--upgrade textlib` updates one direct
+dependency, and `--upgrade textlib@1.3` updates it within the supplied version
+request.
+
+## Installed Package Cache
+
+Restored and manually installed packages use:
+
+```text
+<project>/cache/pkg/<package>/<version>/
+<compiler-home>/cache/pkg/<package>/<version>/
+```
+
+Project cache entries win over compiler/global cache entries. A restored package
+contains the extracted source archive:
 
 ```text
 cache/pkg/
@@ -114,32 +118,19 @@ cache/pkg/
     1.2.0/
       src/
         text.camp
+      textlib.campbuild
 ```
 
-Build artifacts for copied packages are written under the matching package's
-cache tree, not into the package source directory.
-
-## Live Source Packages
-
-When `--use-source` points at a source root, the compiler can consume packages
-directly from that root without first installing them. Live packages are still
-built into the working directory's package cache:
+Package API/native artifacts are built lazily under the installed package
+version:
 
 ```text
-cache/pkg/
-  textlib/
-    live/
-      bin/
-        clang-macos-x64_shared_DEBUG/
-          textlib_api.camp
-          textlib_api.h
-          textlib_api.json
-          libtextlib.dylib
+cache/pkg/textlib/1.2.0/bin/<artifact-directory>/
+  textlib_api.camp
+  textlib_api.h
+  textlib_api.json
+  libtextlib.a
 ```
-
-Live package sources are treated as cache inputs. If a live package source file
-changes, the cached API or native artifact is rebuilt for the next consuming
-build.
 
 ## Dependency Link Kinds
 
@@ -153,99 +144,65 @@ Package dependencies support three link kinds:
 
 When the root request does not build a native artifact, package preparation only
 needs API headers. When the root request builds an executable or library,
-`:static` and `:shared` request native libraries, while `:api` deliberately
-does not.
+`:static` and `:shared` request native libraries, while `:api` deliberately does
+not.
 
-Shared dependencies are also added to `SharedLibraryApiHeaders`, so generated C
-headers can use the import/export surface appropriate to shared-library
-consumption.
+## Package Commands
+
+`campc pkg` commands are development-preview commands.
+
+| Command | Meaning |
+|---|---|
+| `pkg add-global-source <name> <path-or-url>` | Add or replace a named global package source. |
+| `pkg remove-global-source <name>` | Remove a named global package source. |
+| `pkg list-global-sources` | List configured global package sources. |
+| `pkg publish <version|+major|+minor|+patch> [build-file] [--out dir] [--name name]` | Create a deterministic source archive and update `versions.ini`. |
+| `pkg install <package[@version|/version]> [--local file] [--global]` | Install a package archive into a package cache without editing `packages.ini`. |
+| `pkg uninstall <package[/version]> [--global]` | Remove one cached version or all cached versions of a package. |
+
+`pkg add`, `pkg remove`, `pkg add-source`, `pkg remove-source`, and `pkg search`
+are intentionally removed. Edit build files manually for `--use` and local
+`--use-source` declarations.
+
+## Publishing
+
+`pkg publish` selects a build file, collects package source files, creates a
+deterministic source zip, computes its SHA-256, and writes or updates
+`versions.ini`. The default output directory is:
+
+```text
+<project-root>/pub/<package-name>/
+```
+
+`--out` names the package directory itself, not the parent feed directory.
+
+Published archives exclude generated outputs, package caches, build caches,
+lock files, and binary artifacts.
 
 ## Standard Library Package
 
-The standard library is prepared as package `std` unless `--nostdlib` is set.
-Its source package lives under `lib/std/src`. For native builds the compiler
-builds `std` as a static package dependency and links it into the root artifact.
-For analysis-only and C-only builds, the compiler prepares the API header as
-needed.
+The standard library is still compiler-owned. Unless `--nostdlib` is set, the
+compiler prepares package `std` from `lib/std/src` and caches its artifacts
+under the compiler library cache. User package restore does not route `std`
+through `packages.ini`.
 
-Because `std` is bundled with the compiler checkout, its package source root is
-the repository `lib` directory rather than an installed package source.
+## Project References Versus Packages
 
-## Experimental Restore
-
-`campc restore` reads effective global and local package pragmas from the
-provided sources or build file. For each `--use` package that is not installed
-locally or globally, it copies the package from the configured source roots into
-the local package root:
-
-```sh
-campc restore @textapp.campbuild
-```
-
-Restore does not build API headers or native libraries. Those are built lazily
-by a later compile when the selected target/profile/link kind is known. This
-command is intended for compiler development and package-infrastructure testing,
-not normal project setup.
-
-## Experimental Package Commands
-
-The `campc pkg` commands are development-preview commands. They operate only on
-local files and copied package folders. They do not contact a package
-repository.
-
-`campc pkg search textlib` prints versions found in configured source roots.
-With `--local <file>`, search reads source roots from that file in addition to
-global pragmas. With `--source <name>`, it restricts search to one named source.
-
-`campc pkg install textlib@1.2.0` copies the selected package source into the
-local package root. `--global` selects the global root.
-
-`campc pkg uninstall textlib@1.2.0` removes one installed version. Omitting the
-version removes all installed versions for that package from the selected root.
-
-`campc pkg add` and `campc pkg remove` edit `#build --use` pragmas at the top of
-the named source file. `campc pkg add-source` and `campc pkg remove-source` edit
-`#build --use-source` pragmas in either `lib/global.camp` or a selected local
-source file.
-
-## Project References Versus Experimental Packages
-
-For normal multi-project development today, use a project reference when the
-dependency is another project in the same source tree and should be built with
-the consumer's target, profile, variants, and requested link kind. The package
-path exists to test compiler behavior around package identity, API headers, and
-cached native artifacts.
+Use a project reference when the dependency is another project in the same
+source tree and should be built with the consumer's target, profile, variants,
+and requested link kind. Use package references when the dependency should be
+resolved through restore and consumed from the package cache.
 
 Project references accept only `:static` and `:shared` suffixes. Package
 references also accept `:api`.
-
-Both mechanisms ultimately contribute Camp API headers to analysis and native
-libraries to linking. Their cache roots and freshness checks differ:
-
-- packages are keyed by package name, version or `live`, target, link kind, and
-  profile;
-- project references are built into the referenced project's `bin` directory and
-  checked against the referenced build file, sources, includes, target metadata,
-  compiler binaries, global defaults, and native references.
-
-## Transitive Native References
-
-When a static project reference is consumed, its native references are added to
-the consumer's link line because static linking must carry the referenced
-library's dependencies forward. When a shared reference is consumed, only shared
-runtime/link files that are themselves shared dependencies need to propagate.
-
-Package builds follow the same general rule through the link files returned by
-the package build. Shared runtime files are copied next to the final artifact
-when the target exposes a shared-library extension or import-library mapping.
 
 ## Cache Validity
 
 Package cache reuse is conservative. The compiler compares output timestamps
 against source files, native helper sources, headers, target definitions, and
-compiler inputs. Command-line defines disable package cache reuse for that
-request, because defines can change the API or native output.
+compiler inputs. Command-line configuration that can change output disables
+cache reuse for that request.
 
-Delete the package's cached `bin` directory to force a rebuild for one target
-and link kind. Delete the package version directory to force source
-reinstallation or live cache refresh.
+Delete a package version's `bin` directory to force artifact rebuild for one
+target/profile/link kind. Delete the package version directory to force
+reinstallation by `campc restore` or `campc pkg install`.

@@ -210,7 +210,7 @@ to the `export` metadata view if `--metadata` is not supplied.
 ## `restore`
 
 `restore` reads effective package source and package use pragmas, then installs
-missing packages into the local package root:
+selected source archives into the local package cache and writes `packages.ini`:
 
 ```sh
 campc restore @textapp.campbuild
@@ -218,39 +218,33 @@ campc restore src/*.camp
 ```
 
 Restore uses the same `#build --use` and `#build --use-source` information as a
-build, but it does not compile source. It installs into the working directory's
-local package cache unless the package is already available from either the
-local or global package root.
+build, but it does not compile source. Ordinary builds consume the installed
+package cache only; they do not contact package sources.
 
 ## `pkg`
 
-`pkg` manages simple package source and dependency pragmas plus package
-installation. The supported subcommands are:
+`pkg` manages global package sources, package publishing, and package caches.
+The supported subcommands are:
 
 | Command | Meaning |
 |---|---|
-| `pkg add-source <name> <folder> --local <file>` | Add or replace a local package source pragma. |
-| `pkg add-source <name> <folder> --global` | Add or replace a global package source pragma. |
-| `pkg remove-source <name> --local <file>` | Remove a local package source pragma. |
-| `pkg remove-source <name> --global` | Remove a global package source pragma. |
-| `pkg search <pkg> [--source <name>] [--local <file>]` | Search configured source roots for package versions. |
-| `pkg install <pkg@version> [--global]` | Copy a package from a configured source into a package root. |
-| `pkg uninstall <pkg[@version]> [--global]` | Remove an installed package or package version. |
-| `pkg add <pkg@version> <file.camp>` | Add a `#build --use` pragma to a source file. |
-| `pkg remove <pkg> <file.camp>` | Remove matching `#build --use` pragmas from a source file. |
+| `pkg add-global-source <name> <path-or-url>` | Add or replace a named global package source. |
+| `pkg remove-global-source <name>` | Remove a named global package source. |
+| `pkg list-global-sources` | List named global package sources. |
+| `pkg publish <version|+major|+minor|+patch> [build-file]` | Publish a deterministic source archive and update `versions.ini`. |
+| `pkg install <pkg[@version|/version]> [--local file] [--global]` | Install a source archive into a package cache without editing `packages.ini`. |
+| `pkg uninstall <pkg[/version]> [--global]` | Remove an installed package version or package. |
 
 Examples:
 
 ```sh
-campc pkg add-source local-libs ../packages --local src/main.camp
-campc pkg search text
-campc pkg install textlib@1.2.0
-campc pkg add textlib@1.2.0 src/main.camp
+campc pkg add-global-source local-libs ../packages
+campc pkg publish 1.2.0 textlib.campbuild
+campc pkg install textlib@1.2 --local src/main.camp
+campc pkg uninstall textlib/1.2.0
 ```
 
-The package manager edits source files by inserting or removing prelude
-`#build` lines. It does not rewrite `.campbuild` files through a structured
-project model.
+Edit build files manually for `--use` and local `--use-source` declarations.
 
 ## `help`
 
@@ -283,8 +277,8 @@ noted:
 | `--emit` | Select the emitter; the documented emitter is `c99`. |
 | `--nostdlib` | Omit automatic standard library package preparation. |
 | `--reference`, `-r` | Add native libraries or linker references. Multiple values may follow one switch. |
-| `--use`, `-u` | Use an installed or live package, as `pkg`, `pkg@version`, or `pkg@version:kind`. |
-| `--use-source` | Add a named package source root for live package lookup. |
+| `--use`, `-u` | Use an installed package, as `pkg`, `pkg@version`, `pkg/version`, or with `:api`, `:static`, or `:shared`. |
+| `--use-source` | Add a named package source for restore/install/publish workflows. Ordinary builds do not use it for live lookup. |
 | `--project-reference` | Build and reference another Camp project. |
 | `--metadata` | Select metadata emission: `none`, `export`, `public`, or `all`. |
 | `--sourcefile-paths` | Select `caller(sourcefile)` path style: `relative` or `absolute`; default is `relative`. |

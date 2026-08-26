@@ -213,15 +213,16 @@ Bundled package artifacts use:
 <repo>/cache/lib/<package>/bin/<artifact-directory>/
 ```
 
-Installed and live package artifacts use the package cache root:
+Installed package artifacts use the package cache root:
 
 ```text
 <repo>/cache/pkg/<package>/<version>/bin/<artifact-directory>/
-<working-directory>/cache/pkg/<package>/<version-or-live>/bin/<artifact-directory>/
+<working-directory>/cache/pkg/<package>/<version>/bin/<artifact-directory>/
 ```
 
-Package source directories are never used as build output directories. Live
-source packages still write artifacts under the working-directory package cache.
+Package source directories are never used as build output directories. Ordinary
+builds consume only installed package cache entries; package sources are read by
+restore/install/publish workflows.
 
 ## Project Reference Output
 
@@ -299,7 +300,7 @@ directory:
 
 ```sh
 rm -rf bin/gcc-linux-x64_DEBUG
-rm -rf cache/pkg/textlib/live/bin/gcc-linux-x64_shared_DEBUG
+rm -rf cache/pkg/textlib/1.2.0/bin/gcc-linux-x64_shared_DEBUG
 rm -rf ../mathlib/bin/gcc-linux-x64_static_DEBUG
 ```
 
