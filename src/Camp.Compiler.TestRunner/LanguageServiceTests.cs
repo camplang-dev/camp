@@ -835,8 +835,14 @@ public sealed class LanguageServiceTests
 		string formsRoot = Path.Combine(root, "win32-forms");
 		string source = Path.Combine(appRoot, "src", "main.camp");
 		Directory.CreateDirectory(Path.GetDirectoryName(source)!);
-		string packageApi = Path.Combine(appRoot, "cache", "pkg", "ext-win32", "live", "bin", "msvc-windows-x64_static_DEBUG", "ext-win32_api.camp");
+		string packageApi = Path.Combine(appRoot, "cache", "pkg", "ext-win32", "1.0.0", "bin", "msvc-windows-x64_static_DEBUG", "ext-win32_api.camp");
 		Directory.CreateDirectory(Path.GetDirectoryName(packageApi)!);
+		File.WriteAllText(Path.Combine(appRoot, "packages.ini"), """
+			[ext-win32]
+			identity=ext-win32
+			version=1.0.0
+			sha256=0000000000000000000000000000000000000000000000000000000000000000
+			""");
 		File.WriteAllText(packageApi, """
 			namespace Win32;
 
