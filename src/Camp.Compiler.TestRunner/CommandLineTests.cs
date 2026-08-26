@@ -5577,20 +5577,41 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
-	public void Package_source_can_be_added_and_searched_locally()
+	public void Package_global_sources_can_be_added_listed_and_removed()
 	{
-		string tempRoot = TempPath("pkg-search");
-		Directory.CreateDirectory(Path.Combine(tempRoot, "source", "demo", "1.2.3", "src"));
-		File.WriteAllText(Path.Combine(tempRoot, "source", "demo", "1.2.3", "src", "demo.camp"), "export int value = 1;\n");
-		string localFile = Path.Combine(tempRoot, "local.camp");
-		File.WriteAllText(localFile, "// local package config\n");
+		string home = TempPath("pkg-global-sources-home");
+		string source = Path.Combine(home, "feed");
+		Dictionary<string, string?> environment = new()
+		{
+			[CampRuntimeLayout.HomeEnvironmentVariable] = home
+		};
 
-		ProcessResult add = RunCampc("pkg", "add-source", "local", Path.Combine(tempRoot, "source"), "--local", localFile);
-		ProcessResult search = RunCampc("pkg", "search", "demo", "--local", localFile);
+		ProcessResult add = RunCampc(environment, "pkg", "add-global-source", "local", source);
+		ProcessResult list = RunCampc(environment, "pkg", "list-global-sources");
+		ProcessResult remove = RunCampc(environment, "pkg", "remove-global-source", "local");
+		ProcessResult listAfterRemove = RunCampc(environment, "pkg", "list-global-sources");
 
 		Assert.Equal(0, add.ExitCode);
-		Assert.Equal(0, search.ExitCode);
-		Assert.Contains("local: demo@1.2.3", search.StdOut, StringComparison.Ordinal);
+		Assert.Equal(0, list.ExitCode);
+		Assert.Contains($"local {source}", list.StdOut, StringComparison.Ordinal);
+		Assert.Equal(0, remove.ExitCode);
+		Assert.Equal(0, listAfterRemove.ExitCode);
+		Assert.DoesNotContain("local ", listAfterRemove.StdOut, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Removed_package_commands_report_replacements()
+	{
+		ProcessResult add = RunCampc("pkg", "add", "demo@1.0.0", "main.camp");
+		ProcessResult removeSource = RunCampc("pkg", "remove-source", "local");
+		ProcessResult search = RunCampc("pkg", "search", "demo");
+
+		Assert.NotEqual(0, add.ExitCode);
+		Assert.Contains("pkg add has been removed", add.StdErr, StringComparison.Ordinal);
+		Assert.NotEqual(0, removeSource.ExitCode);
+		Assert.Contains("pkg remove-source has been removed", removeSource.StdErr, StringComparison.Ordinal);
+		Assert.NotEqual(0, search.ExitCode);
+		Assert.Contains("pkg search has been removed", search.StdErr, StringComparison.Ordinal);
 	}
 
 	[Fact]

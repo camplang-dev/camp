@@ -246,14 +246,7 @@ public static class CampProjectLoader
 		{
 			if (string.IsNullOrWhiteSpace(source.Path))
 				continue;
-			string fullPath = Path.GetFullPath(source.Path, workingDirectory);
-			if (!Directory.Exists(fullPath))
-			{
-				errors.Add($"Package source '{source.Name}' path '{source.Path}' could not be found.");
-				errors.Add($"resolved path: {fullPath}");
-				continue;
-			}
-			destination.Add(fullPath);
+			destination.Add(source.Path!);
 		}
 	}
 
