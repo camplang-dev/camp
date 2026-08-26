@@ -52,10 +52,10 @@ conditional directives:
 ```camp
 namespace global
 {
-	@require(SUBSYSTEM_POSIX)
+	requires (SUBSYSTEM_POSIX)
 	extern int getpid();
 
-	@require(OS_WIN32)
+	requires (OS_WIN32)
 	extern uint GetCurrentProcessId();
 }
 
@@ -838,13 +838,15 @@ facts the erased body asked for.
 Keep platform splits close to the native boundary:
 
 ```camp
-@symbol("Sleep")
-@require(OS_WIN32)
-extern _winapi void nativeSleep(uint milliseconds);
+requires (OS_WIN32)
+{
+	@symbol("Sleep")
+	extern _winapi void nativeSleep(uint milliseconds);
+}
 
 namespace global
 {
-	@require(SUBSYSTEM_POSIX)
+	requires (SUBSYSTEM_POSIX)
 	extern int usleep(uint microseconds);
 }
 
@@ -860,10 +862,10 @@ void sleepMilliseconds(uint milliseconds)
 Ordinary program code should call the wrapper. The wrapper is where call specs,
 native names, integer widths, and platform conventions belong.
 
-Use `@require` when an API requires a selected capability:
+Use `requires` when an API requires a selected capability:
 
 ```camp
-@require(SUPPORTS_TIMERS)
+requires (SUPPORTS_TIMERS)
 export extern TimerHandle startTimer(
 	nuint intervalMs,
 	escaped delegate void(TimerHandle handle) callback);

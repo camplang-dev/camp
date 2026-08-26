@@ -107,7 +107,7 @@ sides in the body. A disjunction such as
 condition in each operand but proves no single condition for the whole body.
 
 Requirement-aware return validation may use a function requirement such as
-`@require(A || B)` together with terminating `if (configured(A))` and
+`requires (A || B)` together with terminating `if (configured(A))` and
 `else if (configured(B))` branches to prove that all available configurations
 return.
 - source transfer statements must be checked before generated cleanup gotos

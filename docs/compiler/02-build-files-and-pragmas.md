@@ -165,7 +165,7 @@ gives it a true ambient value.
 `--configure NAME=false` to select false.
 
 `--require` and `#build --require` publish a module-level requirement that must
-be satisfied by consumers. Source declarations use `@require(...)`, and method
+be satisfied by consumers. Source declarations use `requires (...)`, and method
 bodies query flags with `configured(...)`.
 
 Target-owned flags are declared or configured by target files and variants. A
@@ -174,7 +174,7 @@ variant is the supported way to obtain those facts.
 
 Legacy source conditionals (`#if`, `#elif`, `#else`, `#endif`) and source-local
 symbol mutation (`#define`, `#undef`) are hard errors in Camp source. Use
-`@require(...)` on declarations and ordinary `if (configured(...))` in
+`requires (...)` on declarations and ordinary `if (configured(...))` in
 function bodies.
 
 ## `#within` Directives

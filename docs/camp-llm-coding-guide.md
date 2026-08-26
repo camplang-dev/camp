@@ -234,15 +234,16 @@ libraries, shared libraries, or `--artifact none` analysis/emission workflows.
 
 Configuration availability is semantic, not token-preprocessor based. Do not
 write `#if`, `#elif`, `#else`, `#endif`, `#define`, or `#undef` in Camp source.
-Use `@require(FLAG_EXPRESSION)` on declarations and
+Use `requires (FLAG_EXPRESSION)` on declarations and
 `if (configured(FLAG_EXPRESSION))` in function bodies. Configuration flag names
 such as `OS_WIN32` and `SUPPORTS_FILES` are not ordinary identifiers; they must
 be queried through `configured(...)` in expressions.
 
-Use standalone file metadata `@require(CONDITION);` only when most top-level
-declarations in a file share that availability. A top-level declaration with
-its own `@require` replaces the file-level requirement; it does not combine with
-it. Use `--declare`, `--configure`, and `--require` in `.campbuild`/`#build`
+Use file-wide `requires (CONDITION);` only when most top-level declarations in
+a file share that availability. File-wide, block-level, and declaration-level
+requirements combine cumulatively; a declaration-level `requires` strengthens
+the enclosing/file requirement. Use `--declare`, `--configure`, and `--require`
+in `.campbuild`/`#build`
 when a project owns build-time options. Do not use `--configure` to spoof
 target-owned facts such as `OS_WIN32`; select the target or variant instead.
 
@@ -1138,7 +1139,7 @@ Rules for generated interop code:
 - `extern` follows the same namespace/default-symbol policy as ordinary
   declarations. Use `@symbol` for a namespaced Camp declaration with a fixed
   foreign ABI spelling, or `namespace global` for a raw unprefixed root import.
-- Put `@require(...)` on platform-specific imports and guard calls with
+- Put `requires (...)` on platform-specific imports and guard calls with
   `configured(...)` rather than hiding declarations with source conditionals.
 - Use conditional aliases for platform string/symbol families when needed:
   `alias TSTRING = configured(UNICODE): wstring, astring;`.

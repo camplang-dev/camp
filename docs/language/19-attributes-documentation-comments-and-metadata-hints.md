@@ -11,7 +11,7 @@ names, `@index` and `@range` for indexing and slicing, and `@awaitwith` and
 `@noawait` for async bodies.
 
 This chapter fills in the metadata side: documentation comments, direct
-documentation attributes, availability requirements such as `@require`, and the
+documentation attributes, availability requirements such as `requires`, and the
 compact table you can use when you need to remember where each attribute
 belongs.
 
@@ -133,14 +133,14 @@ the attribute to the next declaration. A declaration can still use its own
 ## Availability Requirements
 
 Some declarations exist only when a selected target or build configuration
-supports the feature they need. Use `@require(...)` to state that requirement:
+supports the feature they need. Use `requires (...)` to state that requirement:
 
 ```camp
-@require(SUPPORTS_FILES)
+requires (SUPPORTS_FILES)
 public static void FileSystem.deleteFile(string path, thrown IoError error);
 ```
 
-The expression inside `@require` uses configuration flags such as
+The expression inside `requires` uses configuration flags such as
 `OS_WIN32`, `SUBSYSTEM_POSIX`, and `SUPPORTS_FILES`. These names are not
 ordinary variables. In executable code, query them with `configured(...)`:
 
@@ -154,13 +154,13 @@ void logPlatform()
 }
 ```
 
-When most declarations in a file share the same requirement, write it as a file
-metadata attribute:
+When most declarations in a file share the same requirement, write it once near
+the top of the file:
 
 ```camp
 namespace Std;
 
-@require(SUPPORTS_FILES);
+requires (SUPPORTS_FILES);
 
 public enum FileAccess
 {
@@ -169,11 +169,11 @@ public enum FileAccess
 }
 ```
 
-The semicolon again matters. `@require(SUPPORTS_FILES);` is a file-level default
-for top-level declarations in that file. A top-level declaration with its own
-`@require` uses that declaration requirement instead of the file default.
+The semicolon matters. `requires (SUPPORTS_FILES);` is a file-wide requirement
+for top-level declarations in that file. A declaration can add another
+`requires`; the conditions combine.
 
-For everyday code, the practical rule is simple: put `@require(...)` on APIs
+For everyday code, the practical rule is simple: put `requires (...)` on APIs
 that need a platform or capability, and use `if (configured(...))` when a
 function body needs to choose between supported implementations.
 
@@ -298,13 +298,13 @@ Examples should name the domain they are demonstrating. They do not need to be
 complete programs, but they should avoid suggesting that invented APIs are part
 of the standard library unless that is actually true.
 
-## Target Availability With `@require`
+## Target Availability With `requires`
 
-`@require` marks a declaration as available only when the selected target or
+`requires` marks a declaration as available only when the selected target or
 build configuration satisfies a condition.
 
 ```camp
-@require(SUPPORTS_TIMERS)
+requires (SUPPORTS_TIMERS)
 export extern TimerHandle startTimer(
 	nuint intervalMs,
 	escaped delegate void(TimerHandle handle) callback);
@@ -459,7 +459,6 @@ symbol links, or deprecation messages.
 | `@range` | First parameter in an `index, count` pair | Enables range boundary syntax such as `start..end` for slice-like APIs |
 | `@awaitwith` | One ordinary runtime parameter of a concrete async body | Selects the resumer used after `await` suspension |
 | `@noawait` | Concrete async definitions with Camp bodies | Declares that the async body cannot suspend and may not contain `await` |
-| `@require(CONDITION)` | Declarations and fields where availability is meaningful | Makes the declaration available only when the configuration condition is satisfied |
 | `@getshadow` | Shadow-capable base methods | Marks the getter hook that returns attached shadow data |
 | `@setshadow` | Shadow-capable base methods | Marks the setter hook that stores attached shadow data |
 | `@summary("text")` | Declarations and declaration children | Main documentation summary; plain doc-comment text lowers to this |
@@ -481,7 +480,7 @@ For the feature-specific attributes already introduced:
 - `@symbol` belongs with native names and exported ABI design.
 - `@index` and `@range` belong with arrays, slicing, and indexer-like APIs.
 - `@awaitwith` and `@noawait` belong with async bodies and resumers.
-- `@require` belongs with target-conditioned APIs and standard-library
+- `requires` belongs with target-conditioned APIs and standard-library
   portability.
 - `@test`, `@testonly`, and `@skip` belong with first-class test runs.
 - `@getshadow` and `@setshadow` belong with shadow classes and native extension

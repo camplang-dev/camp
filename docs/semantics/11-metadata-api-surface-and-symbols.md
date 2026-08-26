@@ -32,7 +32,7 @@ though C emission uses a completion callback. An array parameter remains an
 array parameter in the API header even though ABI lowering passes pointer and
 length components.
 
-API headers preserve availability requirements with `@require(...)`. They
+API headers preserve availability requirements with `requires (...)`. They
 should serialize source-level requirements, not selected-target native
 filtering, unless the API being produced is explicitly a selected native API
 surface. Consumers must use those requirements when validating references.
@@ -85,9 +85,9 @@ declarations. Test-module metadata views may include test-only declarations when
 the selected metadata visibility would otherwise include them.
 
 Declarations with effective configuration requirements include a `require`
-field whose value is the normalized requirement expression. `@require` itself is
-not emitted as an ordinary raw metadata attribute; the `require` field is the
-canonical representation. Metadata consumers should treat a declaration as
+field whose value is the normalized requirement expression. Source `requires`
+syntax is not emitted as an ordinary raw metadata attribute; the `require` field
+is the canonical representation. Metadata consumers should treat a declaration as
 available only where the consumer can satisfy that expression.
 
 ## Export/Public/All Filtering
@@ -395,14 +395,19 @@ function bodies, constant expressions, or emitted C expressions.
 
 ### Availability Requirements
 
-`@require` marks a declaration as available only when a configuration expression
+`requires` marks a declaration as available only when a configuration expression
 is satisfied. Metadata records the effective condition in the declaration's
-`require` field, and Camp API headers preserve the source `@require` attribute.
+`require` field, and Camp API headers preserve the source `requires` syntax.
 
 Call analysis should diagnose references to unavailable declarations unless the
 current declaration or flow context proves the required condition. Metadata
 should preserve the requirement so tools can explain
 availability without trying the call.
+
+File-wide `requires (CONDITION);` appears in the source prelude and applies to
+top-level declarations in that file. Block and single-declaration `requires`
+forms apply to enclosed declarations. File-wide, enclosing, and declaration
+requirements combine cumulatively with logical `&&`.
 
 ### Lifecycle And Async Attributes
 
@@ -597,12 +602,10 @@ metadata attribute. It sets the default category for top-level declarations in
 that source file that do not declare their own category. File metadata
 attributes may appear after `using`, `namespace`, and other import/export
 prelude declarations, but must appear before aliases and ordinary declarations.
-`@category` and `@require` are currently supported as file metadata attributes.
-`@category` requires exactly one string literal argument, and a source file may
-declare at most one file-default category. `@require` requires exactly one
-configuration flag expression argument and sets the default availability
-requirement for top-level declarations in that source file that do not declare
-their own requirement.
+`@category` is currently supported as a file metadata attribute. `@category`
+requires exactly one string literal argument, and a source file may declare at
+most one file-default category. Availability requirements use `requires`
+declaration syntax, not file metadata attribute syntax.
 
 For metadata export, a top-level `this` extension method or out-of-scope static
 extension member first inherits the effective category of the type it extends.

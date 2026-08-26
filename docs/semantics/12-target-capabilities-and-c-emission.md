@@ -69,7 +69,7 @@ capability facts such as `OS_WIN32`, `OS_WIN64`, `OS_LINUX`, `OS_MACOSX`,
 
 Source must not use flag names as ordinary identifiers. Expression-level checks
 must use the compiler intrinsic `configured(FLAG_EXPRESSION)`. Declarations use
-`@require(FLAG_EXPRESSION)`, and build inputs use `--require` for module-level
+`requires (FLAG_EXPRESSION)`, and build inputs use `--require` for module-level
 requirements.
 
 Legacy source-level conditionals and source-local symbol mutation are not part
@@ -116,7 +116,7 @@ _near=OS_WIN16 || OS_WIN32
 ```
 
 Concrete targets configure platform flags and provide native spellings for the
-specs they actually emit. A use of `_winapi` in an `@require(OS_WIN32)`
+specs they actually emit. A use of `_winapi` in a `requires (OS_WIN32)`
 declaration is valid even when another target parses the same file for metadata.
 The declaration is simply unavailable for that target.
 

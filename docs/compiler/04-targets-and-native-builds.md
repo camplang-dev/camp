@@ -125,7 +125,7 @@ ARCH_X64=true
 
 Users cannot configure target-owned flags with `--configure`; selecting the
 target or variant is the supported mechanism. Source checks these flags with
-`configured(...)`, and declarations state requirements with `@require(...)`.
+`configured(...)`, and declarations state requirements with `requires (...)`.
 
 ## Primitive C Types
 

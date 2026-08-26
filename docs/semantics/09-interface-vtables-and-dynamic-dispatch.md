@@ -78,14 +78,14 @@ language rules, the diagnostic should point at the candidate and tell the author
 that the marker is missing.
 
 Availability requirements participate in slot shape and conformance. A virtual
-or interface member with `@require(CONDITION)` contributes a slot only where the
+or interface member with `requires (CONDITION)` contributes a slot only where the
 condition is satisfied. An override or implementation must be at least as
 available as the slot it satisfies. Calling a base implementation or referring
 to a requirement-gated slot requires the current declaration or flow context to
 prove the same requirement.
 
 A broadly available type may implement a requirement-gated interface member by
-putting a suitable `@require` on the implementing method. If the interface type
+putting a suitable `requires` on the implementing method. If the interface type
 or any parameter/return type is itself requirement-gated, the implementing
 method or containing type must independently state a requirement that proves
 those types are available.
