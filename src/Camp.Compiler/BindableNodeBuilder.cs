@@ -57,7 +57,7 @@ public sealed partial class BindableNodeBuilder
 			else if (item.FileMetadataAttribute?.Attribute is not null)
 				fileMetadataAttributes.Add(BuildAttribute(item.FileMetadataAttribute.Attribute));
 			else if (item.RequirementScope is not null)
-				BuildRequirementScopeItem(module, item.RequirementScope, module.Namespace);
+				BuildRequirementScopeItem(module, item.RequirementScope, module.Namespace, inNamespaceBlock: false);
 			else if (item.NamespaceBlock is not null)
 				BuildNamespaceBlock(module, item.NamespaceBlock);
 			else if (item.AliasDeclaration is not null)
@@ -178,7 +178,7 @@ public sealed partial class BindableNodeBuilder
 			else if (item.AliasDeclaration is not null)
 				AddAliasDeclaration(module, item.AliasDeclaration, namespaceName);
 			else if (item.RequirementScope is not null)
-				BuildRequirementScopeItem(module, item.RequirementScope, namespaceName);
+				BuildRequirementScopeItem(module, item.RequirementScope, namespaceName, inNamespaceBlock: true);
 			else if (item.ImportExportDeclaration is ExportProjectionDeclarationSyntax projection)
 			{
 				ExportProjectionDefinition exportProjection = BuildExportProjection(projection);
@@ -199,7 +199,7 @@ public sealed partial class BindableNodeBuilder
 		}
 	}
 
-	void BuildRequirementScopeItem(Module module, RequirementScopeSyntax syntax, string? namespaceName)
+	void BuildRequirementScopeItem(Module module, RequirementScopeSyntax syntax, string? namespaceName, bool inNamespaceBlock)
 	{
 		SourceRequirement requirement = BuildSourceRequirement(syntax);
 		if (syntax.SemicolonToken is not null)
@@ -211,20 +211,20 @@ public sealed partial class BindableNodeBuilder
 		WithSourceRequirement(requirement, () =>
 		{
 			if (syntax.Item is not null)
-				BuildCompilationUnitItem(module, syntax.Item, namespaceName, inRequirementBlock: true);
+				BuildCompilationUnitItem(module, syntax.Item, namespaceName, inRequirementBlock: true, inNamespaceBlock);
 			foreach (CompilationUnitItemSyntax item in syntax.Items ?? [])
-				BuildCompilationUnitItem(module, item, namespaceName, inRequirementBlock: true);
+				BuildCompilationUnitItem(module, item, namespaceName, inRequirementBlock: true, inNamespaceBlock);
 		});
 	}
 
-	void BuildCompilationUnitItem(Module module, CompilationUnitItemSyntax item, string? namespaceName, bool inRequirementBlock)
+	void BuildCompilationUnitItem(Module module, CompilationUnitItemSyntax item, string? namespaceName, bool inRequirementBlock, bool inNamespaceBlock)
 	{
 		if (item.Declaration is not null)
 			AddGlobalDeclaration(module, item.Declaration, namespaceName);
 		else if (item.AliasDeclaration is not null)
 			AddAliasDeclaration(module, item.AliasDeclaration, namespaceName);
 		else if (item.RequirementScope is not null)
-			BuildRequirementScopeItem(module, item.RequirementScope, namespaceName);
+			BuildRequirementScopeItem(module, item.RequirementScope, namespaceName, inNamespaceBlock);
 		else if (item.ImportExportDeclaration is ExportProjectionDeclarationSyntax projection)
 		{
 			ExportProjectionDefinition exportProjection = BuildExportProjection(projection);
@@ -233,7 +233,12 @@ public sealed partial class BindableNodeBuilder
 			module.ExportProjections.Add(exportProjection);
 		}
 		else if (item.NamespaceBlock is not null)
-			Report(item.NamespaceBlock, "Namespace blocks are not allowed inside requires blocks.");
+		{
+			if (inNamespaceBlock)
+				Report(item.NamespaceBlock, "Namespace blocks may not be nested.");
+			else
+				BuildNamespaceBlock(module, item.NamespaceBlock);
+		}
 		else if (item.ImportExportDeclaration is UsingImportExportDeclarationSyntax)
 			Report(item.ImportExportDeclaration, "Using declarations are not allowed inside requires blocks.");
 		else if (item.ImportExportDeclaration is ExportImportExportDeclarationSyntax)

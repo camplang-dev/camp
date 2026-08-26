@@ -469,10 +469,7 @@ public sealed class CampParser
 		if (Is("namespace"))
 		{
 			if (TryParseNamespaceBlock() is NamespaceBlockSyntax namespaceBlock)
-			{
-				Report(namespaceBlock.Keyword, "Namespace blocks are not allowed inside requires blocks.");
 				return new CompilationUnitItemSyntax { NamespaceBlock = namespaceBlock };
-			}
 			ExportImportExportDeclarationSyntax namespaceDeclaration = ParseNamespaceDeclaration();
 			Report(namespaceDeclaration.Keyword, "Namespace statements are not allowed inside requires blocks.");
 			return new CompilationUnitItemSyntax { ImportExportDeclaration = namespaceDeclaration };

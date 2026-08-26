@@ -308,6 +308,61 @@ public sealed class CompilerDriverOptionTests
 	}
 
 	[Fact]
+	public void Requirements_and_namespace_blocks_can_wrap_each_other_without_enabling_nested_namespaces()
+	{
+		string allowed = CreateTempCase("requirement_namespace_blocks.camp", """
+			namespace Default;
+
+			requires (OS_LINUX) namespace Platform
+			{
+				export int value()
+				{
+					return 1;
+				}
+			}
+
+			namespace Wrapped
+			{
+				requires (OS_LINUX)
+				export int other()
+				{
+					return 2;
+				}
+			}
+			""");
+		string nested = CreateTempCase("requirement_nested_namespace_blocks.camp", """
+			namespace Outer
+			{
+				requires (OS_LINUX) namespace Inner
+				{
+					export int value()
+					{
+						return 1;
+					}
+				}
+			}
+			""");
+
+		CompilerResult allowedResult = Execute(allowed, request =>
+		{
+			request.TargetName = "gcc-linux-x64";
+			request.NoStdLib = true;
+			request.InspectApi = true;
+		});
+		CompilerResult nestedResult = Execute(nested, request =>
+		{
+			request.TargetName = "gcc-linux-x64";
+			request.NoStdLib = true;
+			request.Inspect = CompilerInspectMode.Declarations;
+		});
+
+		Assert.Equal(0, allowedResult.ExitCode);
+		Assert.Contains("requires (OS_LINUX)", allowedResult.StdOut, StringComparison.Ordinal);
+		Assert.NotEqual(0, nestedResult.ExitCode);
+		Assert.Contains("Namespace blocks may not be nested.", nestedResult.StdErr, StringComparison.Ordinal);
+	}
+
+	[Fact]
 	public void Legacy_require_attribute_reports_migration_diagnostics()
 	{
 		string declarationSource = CreateTempCase("legacy_require_attribute_declaration.camp", """
