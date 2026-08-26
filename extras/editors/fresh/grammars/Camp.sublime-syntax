@@ -16,7 +16,7 @@ variables:
   test_support_functions: '\b(?:assert|fail)\b(?=\s*\()'
   constraint_keywords: '\b(?:implements|copyable)\b'
   statement_keywords: 'if|do|while|for|else|foreach|switch|case|default|try|catch|finally|return|yield|continue|break|goto|throw|delete|await|postpone|within|stackalloc|new'
-  declaration_keywords: 'export|internal|public|extern|static|virtual|override|sealed|abstract|fixed|escaped|inline|alias|shadow'
+  declaration_keywords: 'requires|export|internal|public|extern|static|virtual|override|sealed|abstract|fixed|escaped|inline|alias|shadow'
 
 contexts:
   main:

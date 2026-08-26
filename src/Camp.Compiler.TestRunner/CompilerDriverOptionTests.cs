@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
 using Camp.Compiler;
 using Xunit;
 
@@ -766,6 +767,47 @@ public sealed class CompilerDriverOptionTests
 		Assert.Contains("int32_t default_value(void);", narrowHeader, StringComparison.Ordinal);
 		Assert.Contains("int64_t renamed_value(void);", wideHeader, StringComparison.Ordinal);
 		Assert.DoesNotContain("int16_t renamed_value", wideHeader, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Requirement_outputs_use_source_syntax_and_stable_metadata_field()
+	{
+		string source = CreateTempCase("requirement_output_api_metadata.camp", """
+			requires (OS_LINUX)
+			export int linuxOnly()
+			{
+				return 1;
+			}
+			""");
+		string repositoryRoot = FindRepositoryRoot();
+		string outDir = Path.Combine(repositoryRoot, "tmp", "driver-option-tests", "requirement_output_api_metadata");
+		if (Directory.Exists(outDir))
+			Directory.Delete(outDir, recursive: true);
+
+		CompilerResult api = Execute(source, request =>
+		{
+			request.TargetName = "gcc-linux-x64";
+			request.NoStdLib = true;
+			request.InspectApi = true;
+		});
+		CompilerResult metadata = Execute(source, request =>
+		{
+			request.TargetName = "gcc-linux-x64";
+			request.NoStdLib = true;
+			request.BuildKind = NativeBuildKind.Static;
+			request.EmitMetadata = MetadataVisibility.Export;
+			request.OutDir = outDir;
+			request.ProjectName = "requirement_output_api_metadata";
+		});
+
+		Assert.Equal(0, api.ExitCode);
+		Assert.Contains("requires (OS_LINUX)", api.StdOut, StringComparison.Ordinal);
+		Assert.DoesNotContain("@require", api.StdOut, StringComparison.Ordinal);
+		Assert.Equal(0, metadata.ExitCode);
+		string metadataPath = Path.Combine(outDir, "gcc-linux-x64_static_DEBUG", "requirement_output_api_metadata_api.json");
+		using JsonDocument document = JsonDocument.Parse(File.ReadAllText(metadataPath));
+		JsonElement declaration = document.RootElement.GetProperty("declarations").EnumerateArray().Single(static item => item.GetProperty("name").GetString() == "linuxOnly");
+		Assert.Equal("OS_LINUX", declaration.GetProperty("require").GetString());
 	}
 
 	[Fact]
