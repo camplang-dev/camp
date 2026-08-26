@@ -16,6 +16,9 @@
       "include": "#preprocessor"
     },
     {
+      "include": "#declarations"
+    },
+    {
       "include": "#keywords"
     },
     {
@@ -149,6 +152,52 @@
         {
           "name": "keyword.control.directive.camp",
           "match": "^\\s*#\\s*(?:build|within|define|undef|if|elif|else|endif)\\b"
+        }
+      ]
+    },
+    "declarations": {
+      "patterns": [
+        {
+          "name": "meta.declaration.requirement.namespace.camp",
+          "match": "\\b(requires)\\b(\\s*)(\\()([^)]*)(\\))(\\s*)\\b(namespace)\\b(\\s+)([A-Za-z_][A-Za-z0-9_]*(?:(::)[A-Za-z_][A-Za-z0-9_]*)*)",
+          "captures": {
+            "1": {
+              "name": "storage.modifier.camp"
+            },
+            "3": {
+              "name": "punctuation.section.group.begin.camp"
+            },
+            "4": {
+              "name": "meta.requirement.condition.camp"
+            },
+            "5": {
+              "name": "punctuation.section.group.end.camp"
+            },
+            "7": {
+              "name": "keyword.control.import.camp"
+            },
+            "9": {
+              "name": "entity.name.namespace.camp"
+            },
+            "10": {
+              "name": "punctuation.accessor.namespace.camp"
+            }
+          }
+        },
+        {
+          "name": "meta.declaration.namespace.camp",
+          "match": "\\b(namespace)\\b(\\s+)([A-Za-z_][A-Za-z0-9_]*(?:(::)[A-Za-z_][A-Za-z0-9_]*)*)",
+          "captures": {
+            "1": {
+              "name": "keyword.control.import.camp"
+            },
+            "3": {
+              "name": "entity.name.namespace.camp"
+            },
+            "4": {
+              "name": "punctuation.accessor.namespace.camp"
+            }
+          }
         }
       ]
     },

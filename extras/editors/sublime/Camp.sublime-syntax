@@ -235,6 +235,18 @@ contexts:
       scope: constant.numeric.integer.decimal.camp
 
   declarations:
+    - match: '\b(requires)\b(\s*)(\()([^)]*)(\))(\s*)\b(namespace)\b(\s+)({{qualified_identifier}})'
+      captures:
+        1: storage.modifier.camp
+        3: punctuation.section.group.begin.camp
+        4: meta.requirement.condition.camp
+        5: punctuation.section.group.end.camp
+        7: keyword.control.import.camp
+        9: entity.name.namespace.camp
+    - match: '\b(namespace)\b(\s+)({{qualified_identifier}})'
+      captures:
+        1: keyword.control.import.camp
+        3: entity.name.namespace.camp
     - match: '^(\s*(?:(?:{{declaration_keywords}})\s+)*)(\b{{target_spec}}\b(?:\s+\b{{target_spec}}\b)*)\s+(?=[^\n;{}]*\()'
       captures:
         2: storage.modifier.target.camp
