@@ -275,6 +275,7 @@ static void AddPackageCommands(Command pkg, string[] originalArgs, CliEnvironmen
 	Command install = new("install", "Install a source-only package into the package cache.");
 	install.Arguments.Add(new Argument<string>("package"));
 	install.Options.Add(new Option<bool>("--global") { Description = "Install into the compiler package root." });
+	install.Options.Add(new Option<string?>("--local") { Description = "Read local package source configuration from a Camp file." });
 	install.SetAction(_ => CampCli.Run(originalArgs, environment));
 	pkg.Subcommands.Add(install);
 
@@ -1420,7 +1421,7 @@ sealed class PackageCommands
 		if (args.Length > 0)
 			return Error("pkg list-global-sources does not accept arguments.");
 		List<string> errors = [];
-		BuildOptionBag bag = LoadEffectiveSources(environment, [], errors);
+		BuildOptionBag bag = LoadEffectiveSources(environment, args, errors);
 		if (errors.Count > 0)
 			return PrintErrors(errors);
 		foreach (PackageSourceSpec source in bag.UseSources)
@@ -1434,11 +1435,12 @@ sealed class PackageCommands
 	static int InstallCommand(string[] args, CliEnvironment environment)
 	{
 		if (args.Length == 0)
-			return Error("pkg install requires <pkg@ver>.");
+			return Error("pkg install requires <package[@version|/version]>.");
 		bool global = args.Contains("--global", StringComparer.Ordinal);
-		PackageSpec package = PackageSpec.Parse(args[0]);
+		if (!PackageDependencySpec.TryParse(args[0], out PackageDependencySpec package, out string? packageError))
+			return Error(packageError!);
 		List<string> errors = [];
-		BuildOptionBag bag = LoadEffectiveSources(environment, [], errors);
+		BuildOptionBag bag = LoadEffectiveSources(environment, args, errors);
 		if (errors.Count > 0)
 			return PrintErrors(errors);
 		if (!Install(package, global, environment, bag.UseSources, out string message, out string? error))
@@ -1472,7 +1474,18 @@ sealed class PackageCommands
 	{
 		if (args.Length == 0)
 			return Error("pkg publish requires <version|+major|+minor|+patch>.");
-		return Error("pkg publish is not implemented yet.");
+		if (!TryParsePublishArgs(args, environment, out PublishRequest? request, out string? error))
+			return Error(error!);
+		if (!TryLoadPackageBuildInputs(request!, environment, out PublishInputs? inputs, out error))
+			return Error(error!);
+		if (!TrySelectPublishVersion(request!.Version, inputs!.OutputDirectory, inputs.PackageName, out PackageSelectedVersion version, out error))
+			return Error(error!);
+		if (!TryPublish(inputs, version, out string? archiveName, out string? hash, out error))
+			return Error(error!);
+		Console.Out.WriteLine($"published: {inputs.PackageName}@{version}");
+		Console.Out.WriteLine($"archive: {archiveName}");
+		Console.Out.WriteLine($"sha256: {hash}");
+		return 0;
 	}
 
 	public static int Restore(IReadOnlyList<PackageSpec> packages, IReadOnlyList<PackageSourceSpec> sources, string? upgrade, CliEnvironment environment, string projectRoot)
@@ -1670,7 +1683,12 @@ sealed class PackageCommands
 
 	static bool InstallResolvedPackage(ResolvedPackage package, string projectRoot, out string? error)
 	{
-		string targetDirectory = Path.Combine(projectRoot, "cache", "pkg", package.Name, package.Version.ToString());
+		return InstallResolvedPackageToRoot(package, Path.Combine(projectRoot, "cache", "pkg"), out error);
+	}
+
+	static bool InstallResolvedPackageToRoot(ResolvedPackage package, string targetRoot, out string? error)
+	{
+		string targetDirectory = Path.Combine(targetRoot, package.Name, package.Version.ToString());
 		if (Directory.Exists(Path.Combine(targetDirectory, "src")))
 		{
 			error = null;
@@ -1678,7 +1696,7 @@ sealed class PackageCommands
 		}
 		if (!PackageSourceClient.TryReadBytes(package.Source, package.Name, package.CatalogVersion.SourceArchive, out byte[] archive, out error))
 			return false;
-		string tempDirectory = Path.Combine(projectRoot, "cache", "pkg", ".tmp-" + package.Name + "-" + Guid.NewGuid().ToString("N"));
+		string tempDirectory = Path.Combine(targetRoot, ".tmp-" + package.Name + "-" + Guid.NewGuid().ToString("N"));
 		if (!PackageArchive.TryExtractVerified(archive, package.CatalogVersion.Sha256, tempDirectory, out error))
 			return false;
 		if (Directory.Exists(targetDirectory))
@@ -1690,31 +1708,26 @@ sealed class PackageCommands
 
 	sealed record ResolvedPackage(string Name, string Identity, PackageSelectedVersion Version, PackageCatalog Catalog, PackageCatalogVersion CatalogVersion, PackageSourceLocation Source);
 
-	public static bool Install(PackageSpec package, bool global, CliEnvironment environment, IReadOnlyList<PackageSourceSpec> sources, out string message, out string? error)
+	public static bool Install(PackageDependencySpec package, bool global, CliEnvironment environment, IReadOnlyList<PackageSourceSpec> sources, out string message, out string? error)
 	{
 		error = null;
 		message = "";
-		foreach (PackageSourceSpec source in sources)
+		List<PackageSourceLocation> locations = sources
+			.Where(static source => !string.IsNullOrWhiteSpace(source.Path))
+			.Select(static source => new PackageSourceLocation(source.Name, source.Path!))
+			.ToList();
+		if (locations.Count == 0)
 		{
-			if (string.IsNullOrWhiteSpace(source.Path))
-				continue;
-			string packageDirectory = Path.Combine(source.Path!, package.Name);
-			if (!Directory.Exists(packageDirectory))
-				continue;
-			string? version = package.Version ?? Directory.GetDirectories(packageDirectory).Select(Path.GetFileName).Where(static value => value is not null).Cast<string>().OrderByDescending(static value => SemVersion.Parse(value), SemVersion.Comparer).FirstOrDefault();
-			if (version is null)
-				continue;
-			string sourceDirectory = Path.Combine(packageDirectory, version);
-			if (!Directory.Exists(Path.Combine(sourceDirectory, "src")))
-				continue;
-			string targetRoot = global ? environment.GlobalPackageRoot : environment.LocalPackageRoot;
-			string targetDirectory = Path.Combine(targetRoot, package.Name, version);
-			CopyDirectory(sourceDirectory, targetDirectory);
-			message = $"installed: {package.Name}@{version}";
-			return true;
+			error = "No package sources are configured. Use 'campc pkg add-global-source' or add --use-source to a local build configuration.";
+			return false;
 		}
-		error = $"Package '{package}' could not be found in configured package sources.";
-		return false;
+		if (!TryResolveSinglePackage(package, locations, out ResolvedPackage? resolved, out error))
+			return false;
+		string targetRoot = global ? environment.GlobalPackageRoot : environment.LocalPackageRoot;
+		if (!InstallResolvedPackageToRoot(resolved!, targetRoot, out error))
+			return false;
+		message = $"installed: {resolved!.Name}@{resolved.Version}";
+		return true;
 	}
 
 	public static bool IsInstalled(PackageSpec package, string root)
@@ -1726,6 +1739,313 @@ sealed class PackageCommands
 			return Directory.GetDirectories(packageDirectory).Length > 0;
 		return Directory.Exists(Path.Combine(packageDirectory, package.Version));
 	}
+
+	static bool TryResolveSinglePackage(PackageDependencySpec dependency, IReadOnlyList<PackageSourceLocation> locations, out ResolvedPackage? resolved, out string? error)
+	{
+		resolved = null;
+		error = null;
+		string? identity = null;
+		foreach (PackageSourceLocation location in locations)
+		{
+			if (!PackageSourceClient.TryReadText(location, dependency.Name, "versions.ini", out string text, out string? readError))
+			{
+				error ??= readError;
+				continue;
+			}
+			if (!PackageCatalog.TryParse(location.Name + ":" + dependency.Name + "/versions.ini", text, out PackageCatalog? catalog, out List<string> catalogErrors))
+			{
+				error = string.Join(Environment.NewLine, catalogErrors);
+				return false;
+			}
+			if (!catalog!.PackageName.Equals(dependency.Name, StringComparison.Ordinal))
+			{
+				error = $"Package source '{location.Name}' catalog for '{dependency.Name}' declares package name '{catalog.PackageName}'.";
+				return false;
+			}
+			if (identity is not null && !identity.Equals(catalog.Identity, StringComparison.Ordinal))
+			{
+				error = $"Package '{dependency.Name}' has conflicting identities in configured package sources: '{identity}' and '{catalog.Identity}'.";
+				return false;
+			}
+			identity = catalog.Identity;
+			foreach (PackageCatalogVersion version in catalog.Versions.Values.Reverse())
+			{
+				if (!Matches(dependency, version.Version))
+					continue;
+				if (resolved is null || version.Version.CompareTo(resolved.Version) > 0)
+					resolved = new ResolvedPackage(dependency.Name, catalog.Identity, version.Version, catalog, version, location);
+			}
+		}
+		if (resolved is not null)
+			return true;
+		error = $"Package '{dependency}' could not be found in configured package sources.";
+		return false;
+	}
+
+	static bool TryParsePublishArgs(string[] args, CliEnvironment environment, out PublishRequest? request, out string? error)
+	{
+		request = null;
+		error = null;
+		string version = args[0];
+		string? buildFile = null;
+		string? name = null;
+		string? outputDirectory = null;
+		for (int i = 1; i < args.Length; i++)
+		{
+			string arg = args[i];
+			if (arg == "--name")
+			{
+				if (i + 1 >= args.Length)
+				{
+					error = "pkg publish --name requires a value.";
+					return false;
+				}
+				name = args[++i];
+				continue;
+			}
+			if (arg == "--out")
+			{
+				if (i + 1 >= args.Length)
+				{
+					error = "pkg publish --out requires a value.";
+					return false;
+				}
+				outputDirectory = Path.GetFullPath(args[++i], environment.WorkingDirectory);
+				continue;
+			}
+			if (arg.StartsWith("-", StringComparison.Ordinal))
+			{
+				error = $"pkg publish option '{arg}' is not valid.";
+				return false;
+			}
+			if (buildFile is not null)
+			{
+				error = "pkg publish accepts at most one build file.";
+				return false;
+			}
+			buildFile = arg;
+		}
+		if (buildFile is null)
+		{
+			string[] candidates = Directory.GetFiles(environment.WorkingDirectory, "*.campbuild").OrderBy(static path => path, StringComparer.Ordinal).ToArray();
+			if (candidates.Length == 0)
+			{
+				error = "pkg publish requires a build file when the current directory does not contain one.";
+				return false;
+			}
+			if (candidates.Length > 1)
+			{
+				error = "pkg publish requires an explicit build file when the current directory contains multiple .campbuild files.";
+				return false;
+			}
+			buildFile = candidates[0];
+		}
+		else
+		{
+			string fullPath = Path.GetFullPath(buildFile, environment.WorkingDirectory);
+			if (!File.Exists(fullPath) && !Path.HasExtension(fullPath) && File.Exists(fullPath + ".campbuild"))
+				fullPath += ".campbuild";
+			buildFile = fullPath;
+		}
+		if (!File.Exists(buildFile))
+		{
+			error = $"Build file '{buildFile}' could not be found.";
+			return false;
+		}
+		request = new PublishRequest(version, buildFile, name, outputDirectory);
+		return true;
+	}
+
+	static bool TryLoadPackageBuildInputs(PublishRequest request, CliEnvironment environment, out PublishInputs? inputs, out string? error)
+	{
+		inputs = null;
+		error = null;
+		List<string> errors = [];
+		string projectRoot = Path.GetDirectoryName(request.BuildFile)!;
+		string[] expanded = ResponseFileExpander.ExpandBareBuildFiles([request.BuildFile], environment.WorkingDirectory, errors).ToArray();
+		ParsedOptions options = CommandLineOptionParser.Parse(expanded, allowPositionals: true, errors);
+		BuildOptionBag bag = new();
+		bag.Apply(options, Precedence.Local, request.BuildFile, errors);
+		List<string> sourceFiles = ExpandPackageSourcePatterns(options.Positionals, bag.ExcludePatterns, projectRoot, errors);
+		if (sourceFiles.Count == 0)
+			errors.Add("pkg publish requires at least one source file in the selected build file.");
+		if (errors.Count > 0)
+		{
+			error = string.Join(Environment.NewLine, errors);
+			return false;
+		}
+		string packageName = request.Name ?? bag.ProjectName ?? Path.GetFileNameWithoutExtension(request.BuildFile);
+		if (!PackageDependencySpec.TryParse(packageName, out PackageDependencySpec parsedName, out string? packageNameError) || parsedName.Name != packageName || parsedName.VersionExpression is not null || parsedName.SelectedVersion is not null || parsedName.LinkKind is not null)
+		{
+			error = $"Package name '{packageName}' is not valid: {packageNameError ?? "package names cannot include versions or dependency kinds."}";
+			return false;
+		}
+		string outputDirectory = request.OutputDirectory ?? Path.Combine(projectRoot, "pub", packageName);
+		List<string> packageFiles = CollectPackageFiles(projectRoot, request.BuildFile, sourceFiles);
+		inputs = new PublishInputs(packageName, projectRoot, outputDirectory, request.BuildFile, packageFiles, bag.UsePackages);
+		return true;
+	}
+
+	static List<string> ExpandPackageSourcePatterns(List<string> patterns, List<string> excludePatterns, string projectRoot, List<string> errors)
+	{
+		List<string> files = [];
+		HashSet<string> seen = new(StringComparer.OrdinalIgnoreCase);
+		foreach (string pattern in patterns)
+		{
+			foreach (string path in Glob.Expand(pattern, projectRoot))
+			{
+				if (!path.EndsWith(".camp", StringComparison.OrdinalIgnoreCase))
+					continue;
+				if (excludePatterns.Any(exclude => Glob.IsMatch(Path.GetRelativePath(projectRoot, path), exclude)))
+					continue;
+				if (seen.Add(path))
+					files.Add(path);
+			}
+		}
+		return files.OrderBy(static path => path, StringComparer.Ordinal).ToList();
+	}
+
+	static List<string> CollectPackageFiles(string projectRoot, string buildFile, IReadOnlyList<string> sourceFiles)
+	{
+		HashSet<string> files = new(StringComparer.OrdinalIgnoreCase)
+		{
+			Path.GetFullPath(buildFile)
+		};
+		foreach (string source in sourceFiles)
+		{
+			files.Add(Path.GetFullPath(source));
+			string directory = Path.GetDirectoryName(source)!;
+			foreach (string support in Directory.GetFiles(directory, "*", SearchOption.AllDirectories)
+				.Where(static path => path.EndsWith(".c", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".h", StringComparison.OrdinalIgnoreCase)))
+				files.Add(Path.GetFullPath(support));
+		}
+		foreach (string rootFile in Directory.GetFiles(projectRoot, "*", SearchOption.TopDirectoryOnly))
+		{
+			string name = Path.GetFileName(rootFile);
+			if (name.StartsWith("README", StringComparison.OrdinalIgnoreCase)
+				|| name.StartsWith("LICENSE", StringComparison.OrdinalIgnoreCase)
+				|| name.StartsWith("COPYING", StringComparison.OrdinalIgnoreCase))
+				files.Add(Path.GetFullPath(rootFile));
+		}
+		return files
+			.Where(file => IsUnderDirectory(file, projectRoot))
+			.Where(file => !IsUnderExcludedPackageDirectory(file, projectRoot))
+			.OrderBy(static file => file, StringComparer.Ordinal)
+			.ToList();
+	}
+
+	static bool IsUnderDirectory(string path, string directory)
+	{
+		string relative = Path.GetRelativePath(directory, path);
+		return relative != "." && !relative.StartsWith("..", StringComparison.Ordinal) && !Path.IsPathRooted(relative);
+	}
+
+	static bool IsUnderExcludedPackageDirectory(string path, string projectRoot)
+	{
+		string relative = Path.GetRelativePath(projectRoot, path).Replace('\\', '/');
+		return relative.StartsWith("bin/", StringComparison.OrdinalIgnoreCase)
+			|| relative.StartsWith("cache/", StringComparison.OrdinalIgnoreCase)
+			|| relative.StartsWith("pub/", StringComparison.OrdinalIgnoreCase)
+			|| relative.Equals("packages.ini", StringComparison.OrdinalIgnoreCase);
+	}
+
+	static bool TrySelectPublishVersion(string value, string outputDirectory, string packageName, out PackageSelectedVersion version, out string? error)
+	{
+		version = new PackageSelectedVersion(0, 0, 0);
+		error = null;
+		SortedDictionary<PackageSelectedVersion, PackageCatalogVersion> existing = [];
+		string catalogPath = Path.Combine(outputDirectory, "versions.ini");
+		if (File.Exists(catalogPath))
+		{
+			if (!PackageCatalog.TryParse(catalogPath, File.ReadAllText(catalogPath), out PackageCatalog? catalog, out List<string> errors))
+			{
+				error = string.Join(Environment.NewLine, errors);
+				return false;
+			}
+			if (!catalog!.PackageName.Equals(packageName, StringComparison.Ordinal))
+			{
+				error = $"Existing catalog '{catalogPath}' declares package '{catalog.PackageName}', not '{packageName}'.";
+				return false;
+			}
+			existing = catalog.Versions;
+		}
+		PackageSelectedVersion? latest = existing.Keys.Count == 0 ? null : existing.Keys.Max(PackageSelectedVersion.Comparer);
+		if (value is not ("+major" or "+minor" or "+patch") && !PackageSelectedVersion.TryParse(value, out _, out string? versionError))
+		{
+			error = versionError;
+			return false;
+		}
+		version = value switch
+		{
+			"+major" => latest is null ? new PackageSelectedVersion(1, 0, 0) : new PackageSelectedVersion(latest.Major + 1, 0, 0),
+			"+minor" => latest is null ? new PackageSelectedVersion(0, 1, 0) : new PackageSelectedVersion(latest.Major, latest.Minor + 1, 0),
+			"+patch" => latest is null ? new PackageSelectedVersion(0, 0, 1) : new PackageSelectedVersion(latest.Major, latest.Minor, latest.Patch + 1),
+			_ => PackageSelectedVersion.Parse(value)
+		};
+		if (existing.ContainsKey(version))
+		{
+			error = $"Package version '{packageName}@{version}' already exists in '{catalogPath}'.";
+			return false;
+		}
+		return true;
+	}
+
+	static bool TryPublish(PublishInputs inputs, PackageSelectedVersion version, out string? archiveName, out string? hash, out string? error)
+	{
+		archiveName = null;
+		hash = null;
+		error = null;
+		Directory.CreateDirectory(inputs.OutputDirectory);
+		archiveName = inputs.PackageName + "_" + version + ".zip";
+		string archivePath = Path.Combine(inputs.OutputDirectory, archiveName);
+		if (File.Exists(archivePath))
+		{
+			error = $"Package archive '{archivePath}' already exists.";
+			return false;
+		}
+		byte[] archive = PackageArchive.CreateDeterministicZip(inputs.ProjectRoot, inputs.Files);
+		hash = PackageArchive.Sha256Hex(archive);
+		File.WriteAllBytes(archivePath, archive);
+
+		string catalogPath = Path.Combine(inputs.OutputDirectory, "versions.ini");
+		PackageCatalog catalog;
+		if (File.Exists(catalogPath))
+		{
+			if (!PackageCatalog.TryParse(catalogPath, File.ReadAllText(catalogPath), out PackageCatalog? parsed, out List<string> errors))
+			{
+				error = string.Join(Environment.NewLine, errors);
+				return false;
+			}
+			catalog = parsed!;
+		}
+		else
+		{
+			catalog = new PackageCatalog(inputs.PackageName, inputs.PackageName, new SortedDictionary<PackageSelectedVersion, PackageCatalogVersion>(PackageSelectedVersion.Comparer));
+		}
+		if (!catalog.PackageName.Equals(inputs.PackageName, StringComparison.Ordinal))
+		{
+			error = $"Existing catalog '{catalogPath}' declares package '{catalog.PackageName}', not '{inputs.PackageName}'.";
+			return false;
+		}
+		catalog.Versions[version] = new PackageCatalogVersion(
+			version,
+			hash,
+			archiveName,
+			"campc/" + StripLeadingVersionPrefix(CampBuildInfo.Version),
+			inputs.Dependencies.Select(static package => PackageDependencySpec.Parse(package.ToString())).ToList());
+		File.WriteAllText(catalogPath, catalog.Write(), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+		return true;
+	}
+
+	static string StripLeadingVersionPrefix(string version)
+	{
+		return version.StartsWith("v", StringComparison.OrdinalIgnoreCase) && version.Length > 1 && char.IsDigit(version[1])
+			? version[1..]
+			: version;
+	}
+
+	sealed record PublishRequest(string Version, string BuildFile, string? Name, string? OutputDirectory);
+	sealed record PublishInputs(string PackageName, string ProjectRoot, string OutputDirectory, string BuildFile, IReadOnlyList<string> Files, IReadOnlyList<PackageSpec> Dependencies);
 
 	static BuildOptionBag LoadEffectiveSources(CliEnvironment environment, string[] args, List<string> errors)
 	{

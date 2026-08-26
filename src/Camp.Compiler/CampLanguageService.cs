@@ -56,12 +56,13 @@ public static class CampLanguageService
 	{
 		ArgumentNullException.ThrowIfNull(request);
 
-		Compilation compilation = CreateCompilation(request, overlays ?? []);
+		List<CampSourceDiagnostic> setupDiagnostics = [];
+		Compilation compilation = CreateCompilation(request, overlays ?? [], setupDiagnostics);
 		CompilationPipeline.Lower(compilation);
 		return new CampAnalysisSnapshot
 		{
 			Compilation = compilation,
-			Diagnostics = CollectDiagnostics(compilation)
+			Diagnostics = [.. setupDiagnostics, .. CollectDiagnostics(compilation)]
 		};
 	}
 
@@ -70,13 +71,14 @@ public static class CampLanguageService
 		ArgumentNullException.ThrowIfNull(request);
 
 		CompilerRequest testRequest = CloneForTestDiscovery(request);
-		Compilation compilation = CreateCompilation(testRequest, overlays ?? []);
+		List<CampSourceDiagnostic> setupDiagnostics = [];
+		Compilation compilation = CreateCompilation(testRequest, overlays ?? [], setupDiagnostics);
 		CompilationPipeline.Lower(compilation);
 		CampTestManifestMode mode = testRequest.SharedLibraryApiHeaders.Count > 0
 			? CampTestManifestMode.External
 			: CampTestManifestMode.InModule;
 		CampTestDiscoveryResult discovery = CampTestDiscovery.Discover(compilation, mode);
-		List<CampSourceDiagnostic> diagnostics = [.. CollectDiagnostics(compilation)];
+		List<CampSourceDiagnostic> diagnostics = [.. setupDiagnostics, .. CollectDiagnostics(compilation)];
 		diagnostics.AddRange(discovery.Diagnostics.Select(diagnostic => ConvertDiagnostic(compilation, null, diagnostic.Range, diagnostic.Message, diagnostic.Code, diagnostic.Severity)));
 		List<CampDiscoveredTest> tests = [];
 		foreach (CampTestManifestEntry test in discovery.Manifest.Tests)
@@ -113,7 +115,7 @@ public static class CampLanguageService
 		};
 	}
 
-	static Compilation CreateCompilation(CompilerRequest request, IReadOnlyList<CampSourceOverlay> overlays)
+	static Compilation CreateCompilation(CompilerRequest request, IReadOnlyList<CampSourceOverlay> overlays, List<CampSourceDiagnostic>? setupDiagnostics)
 	{
 		TargetDefinition? target = LoadTarget(request);
 		Compilation compilation = new()
@@ -146,7 +148,7 @@ public static class CampLanguageService
 			StringComparer.OrdinalIgnoreCase);
 
 		HashSet<string> loadedPaths = new(StringComparer.OrdinalIgnoreCase);
-		foreach ((string Path, bool IsApiHeader) apiFile in GetAnalysisApiFiles(request))
+		foreach ((string Path, bool IsApiHeader) apiFile in GetAnalysisApiFiles(request, setupDiagnostics))
 			AddSourceFileIfMissing(compilation, apiFile.Path, request.WorkingDirectory, overlayByPath, apiFile.IsApiHeader, loadedPaths);
 		foreach (string file in request.AnalysisSourceFiles)
 			AddSourceFileIfMissing(compilation, file, request.WorkingDirectory, overlayByPath, isApiHeader: false, loadedPaths);
@@ -287,11 +289,11 @@ public static class CampLanguageService
 		return clone;
 	}
 
-	static IReadOnlyList<(string Path, bool IsApiHeader)> GetAnalysisApiFiles(CompilerRequest request)
+	static IReadOnlyList<(string Path, bool IsApiHeader)> GetAnalysisApiFiles(CompilerRequest request, List<CampSourceDiagnostic>? setupDiagnostics)
 	{
 		List<(string Path, bool IsApiHeader)> apiFiles = request.ApiFiles.Select(static path => (path, true)).ToList();
 		foreach (string packageSpec in request.UsePackages)
-			AddAnalysisPackageApiFiles(request, apiFiles, packageSpec);
+			AddAnalysisPackageApiFiles(request, apiFiles, packageSpec, setupDiagnostics);
 		if (!request.NoStdLib && RequestContainsPackageSourceFile(request, "std"))
 		{
 			foreach (string stdSource in GetAnalysisPackageSources(request, "std"))
@@ -313,7 +315,7 @@ public static class CampLanguageService
 		return apiFiles;
 	}
 
-	static void AddAnalysisPackageApiFiles(CompilerRequest request, List<(string Path, bool IsApiHeader)> apiFiles, string packageSpec)
+	static void AddAnalysisPackageApiFiles(CompilerRequest request, List<(string Path, bool IsApiHeader)> apiFiles, string packageSpec, List<CampSourceDiagnostic>? setupDiagnostics)
 	{
 		(string packageName, string? requestedVersion, DependencyLinkKind? linkKind) = ParsePackageSpec(packageSpec);
 		if (string.IsNullOrWhiteSpace(packageName) || string.Equals(packageName, "std", StringComparison.OrdinalIgnoreCase))
@@ -330,6 +332,26 @@ public static class CampLanguageService
 			AddIfMissing(apiFiles, apiHeader!, isApiHeader: true);
 			return;
 		}
+		setupDiagnostics?.Add(new CampSourceDiagnostic(
+			GetPrimaryDiagnosticPath(request),
+			null,
+			FormatMissingAnalysisPackageDiagnostic(request, packageSpec, packageName, requestedVersion),
+			null,
+			DiagnosticSeverity.Error));
+	}
+
+	static string GetPrimaryDiagnosticPath(CompilerRequest request)
+	{
+		string? source = request.AnalysisSourceFiles.FirstOrDefault() ?? request.Files.FirstOrDefault() ?? request.ApiFiles.FirstOrDefault();
+		return source is null ? request.WorkingDirectory : Path.GetFullPath(source, request.WorkingDirectory);
+	}
+
+	static string FormatMissingAnalysisPackageDiagnostic(CompilerRequest request, string packageSpec, string packageName, string? requestedVersion)
+	{
+		string? lockedVersion = TryGetLockedPackageVersion(request, packageName);
+		if (lockedVersion is not null && requestedVersion is null)
+			return $"Package '{packageName}/{lockedVersion}' is locked but not installed. Run 'campc restore'.";
+		return $"Package '{packageSpec}' is not installed. Run 'campc restore'.";
 	}
 
 	static bool TryGetCachedPackageApiHeader(CompilerRequest request, string packageName, out string? apiHeader)

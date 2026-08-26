@@ -1290,6 +1290,47 @@ public sealed class LspServerTests
 	}
 
 	[Fact]
+	public void Lsp_reports_restore_diagnostic_for_missing_locked_package()
+	{
+		using LspProcess lsp = LspProcess.Start();
+		string root = CreateTempDirectory("lsp-missing-package");
+		string appSource = Path.Combine(root, "src");
+		Directory.CreateDirectory(appSource);
+		File.WriteAllText(Path.Combine(root, "packages.ini"), """
+			[ext-missing]
+			identity=ext-missing
+			version=1.2.3
+			sha256=0000000000000000000000000000000000000000000000000000000000000000
+			""");
+		File.WriteAllText(Path.Combine(root, "app.campbuild"), """
+			--artifact exec
+			--nostdlib
+			--use ext-missing:static
+			src/*.camp
+			""");
+		string file = Path.Combine(appSource, "main.camp");
+		string text = """
+			export int main()
+			{
+				return missingValue();
+			}
+			""";
+		File.WriteAllText(file, text);
+		string uri = new Uri(file).AbsoluteUri;
+
+		lsp.Initialize(root);
+		lsp.Notify("textDocument/didOpen", new
+		{
+			textDocument = new { uri, languageId = "camp", version = 1, text }
+		});
+
+		JsonNode diagnostics = lsp.ReadNotification("textDocument/publishDiagnostics");
+		string messages = string.Join('\n', diagnostics["params"]?["diagnostics"]?.AsArray().Select(static diagnostic => diagnostic?["message"]?.GetValue<string>())!);
+		Assert.Contains("Package 'ext-missing/1.2.3' is locked but not installed", messages, StringComparison.Ordinal);
+		Assert.Contains("campc restore", messages, StringComparison.Ordinal);
+	}
+
+	[Fact]
 	public void Lsp_build_file_can_disable_standard_library()
 	{
 		using LspProcess lsp = LspProcess.Start();

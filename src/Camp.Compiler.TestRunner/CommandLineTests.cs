@@ -5658,6 +5658,94 @@ public sealed class CommandLineTests
 		Assert.Equal(0, build.ExitCode);
 	}
 
+	[Fact]
+	public void Package_publish_creates_restorable_source_archive()
+	{
+		string root = TempPath("pkg-publish-source");
+		if (Directory.Exists(root))
+			Directory.Delete(root, recursive: true);
+		string packageRoot = Path.Combine(root, "demo-lib");
+		string packageSource = Path.Combine(packageRoot, "src");
+		Directory.CreateDirectory(packageSource);
+		File.WriteAllText(Path.Combine(packageRoot, "README.md"), "Demo package.\n");
+		File.WriteAllText(Path.Combine(packageRoot, "packages.ini"), "[old]\nversion=0.0.1\n");
+		File.WriteAllText(Path.Combine(packageSource, "demo.camp"), "export int demoValue() => 42;\n");
+		File.WriteAllText(Path.Combine(packageRoot, "demo-lib.campbuild"), """
+			--artifact static
+			--name demo-lib
+			src/*.camp
+			""");
+		string outDir = Path.Combine(root, "feed", "demo-lib");
+
+		ProcessResult publish = RunCampcIn(packageRoot, "pkg", "publish", "1.0.0", "demo-lib.campbuild", "--out", outDir);
+
+		AssertCommandSucceeded(publish);
+		Assert.True(File.Exists(Path.Combine(outDir, "versions.ini")));
+		Assert.True(File.Exists(Path.Combine(outDir, "demo-lib_1.0.0.zip")));
+		string catalog = File.ReadAllText(Path.Combine(outDir, "versions.ini"));
+		Assert.Contains("[package]", catalog, StringComparison.Ordinal);
+		Assert.Contains("name=demo-lib", catalog, StringComparison.Ordinal);
+		Assert.Contains("[1.0.0]", catalog, StringComparison.Ordinal);
+		Assert.DoesNotContain("packages.ini", ZipEntryNames(Path.Combine(outDir, "demo-lib_1.0.0.zip")));
+
+		ProcessResult duplicate = RunCampcIn(packageRoot, "pkg", "publish", "1.0.0", "demo-lib.campbuild", "--out", outDir);
+		Assert.NotEqual(0, duplicate.ExitCode);
+		Assert.Contains("already exists", duplicate.StdErr, StringComparison.Ordinal);
+		ProcessResult patch = RunCampcIn(packageRoot, "pkg", "publish", "+patch", "demo-lib.campbuild", "--out", outDir);
+		AssertCommandSucceeded(patch);
+		Assert.Contains("[1.0.1]", File.ReadAllText(Path.Combine(outDir, "versions.ini")), StringComparison.Ordinal);
+
+		string appRoot = Path.Combine(root, "app");
+		string appSource = Path.Combine(appRoot, "src");
+		Directory.CreateDirectory(appSource);
+		File.WriteAllText(Path.Combine(appSource, "main.camp"), $$"""
+			#build --use-source local "{{Path.Combine(root, "feed").Replace('\\', '/')}}"
+			#build --use demo-lib@1.0.0
+
+			export int main()
+			{
+				return demoValue() - 42;
+			}
+			""");
+
+		ProcessResult restore = RunCampc("restore", Path.Combine(appSource, "main.camp"));
+		AssertCommandSucceeded(restore);
+		Assert.True(File.Exists(Path.Combine(appRoot, "src", "packages.ini")) || File.Exists(Path.Combine(appRoot, "packages.ini")));
+	}
+
+	[Fact]
+	public void Package_install_and_uninstall_use_catalog_archives_without_lockfile()
+	{
+		string packageName = "install-demo-stage9";
+		string root = TempPath("pkg-install-cache");
+		if (Directory.Exists(root))
+			Directory.Delete(root, recursive: true);
+		string sourceRoot = Path.Combine(root, "source");
+		CreatePublishedPackage(sourceRoot, packageName, "1.0.0", "export int oldValue() => 1;\n");
+		CreatePublishedPackage(sourceRoot, packageName, "1.2.0", "export int newValue() => 2;\n");
+		string projectRoot = Path.Combine(root, "app");
+		Directory.CreateDirectory(projectRoot);
+		string localConfig = Path.Combine(projectRoot, "local.camp");
+		File.WriteAllText(localConfig, "#build --use-source local " + QuoteForTest(sourceRoot.Replace('\\', '/')) + "\n");
+
+		ProcessResult installLatest = RunCampcIn(projectRoot, "pkg", "install", packageName + "@1", "--local", "local.camp");
+		AssertCommandSucceeded(installLatest);
+		Assert.True(File.Exists(Path.Combine(projectRoot, "cache", "pkg", packageName, "1.2.0", "src", "demo.camp")));
+		Assert.False(File.Exists(Path.Combine(projectRoot, "packages.ini")));
+
+		ProcessResult uninstallExact = RunCampcIn(projectRoot, "pkg", "uninstall", packageName + "/1.2.0");
+		AssertCommandSucceeded(uninstallExact);
+		Assert.False(Directory.Exists(Path.Combine(projectRoot, "cache", "pkg", packageName, "1.2.0")));
+
+		ProcessResult installExact = RunCampcIn(projectRoot, "pkg", "install", packageName + "/1.0.0", "--local", "local.camp");
+		AssertCommandSucceeded(installExact);
+		Assert.True(File.Exists(Path.Combine(projectRoot, "cache", "pkg", packageName, "1.0.0", "src", "demo.camp")));
+
+		ProcessResult uninstallAll = RunCampcIn(projectRoot, "pkg", "uninstall", packageName);
+		AssertCommandSucceeded(uninstallAll);
+		Assert.False(Directory.Exists(Path.Combine(projectRoot, "cache", "pkg", packageName)));
+	}
+
 	static void CreatePublishedPackage(string sourceRoot, string packageName, string version, string source, string? use = null)
 	{
 		string packageDirectory = Path.Combine(sourceRoot, packageName);
@@ -5670,17 +5758,33 @@ public sealed class CommandLineTests
 		Directory.CreateDirectory(packageDirectory);
 		string archiveName = packageName + "_" + version + ".zip";
 		File.WriteAllBytes(Path.Combine(packageDirectory, archiveName), archive);
-		string useLine = string.IsNullOrWhiteSpace(use) ? "" : "use=" + use + "\n";
-		File.WriteAllText(Path.Combine(packageDirectory, "versions.ini"), $$"""
-			[package]
-			name={{packageName}}
-			identity={{packageName}}-identity
-
-			[{{version}}]
-			{{useLine}}sha256={{PackageArchive.Sha256Hex(archive)}}
-			src={{archiveName}}
-			""");
+		string catalogPath = Path.Combine(packageDirectory, "versions.ini");
+		PackageCatalog catalog;
+		if (File.Exists(catalogPath))
+		{
+			Assert.True(PackageCatalog.TryParse(catalogPath, File.ReadAllText(catalogPath), out PackageCatalog? parsed, out List<string> errors), string.Join('\n', errors));
+			catalog = parsed!;
+		}
+		else
+		{
+			catalog = new PackageCatalog(packageName, packageName + "-identity", new SortedDictionary<PackageSelectedVersion, PackageCatalogVersion>(PackageSelectedVersion.Comparer));
+		}
+		catalog.Versions[PackageSelectedVersion.Parse(version)] = new PackageCatalogVersion(
+			PackageSelectedVersion.Parse(version),
+			PackageArchive.Sha256Hex(archive),
+			archiveName,
+			null,
+			string.IsNullOrWhiteSpace(use) ? [] : [PackageDependencySpec.Parse(use)]);
+		File.WriteAllText(catalogPath, catalog.Write());
 	}
+
+	static string ZipEntryNames(string zipPath)
+	{
+		using System.IO.Compression.ZipArchive archive = System.IO.Compression.ZipFile.OpenRead(zipPath);
+		return string.Join('\n', archive.Entries.Select(static entry => entry.FullName));
+	}
+
+	static string QuoteForTest(string value) => "\"" + value.Replace("\"", "\\\"", StringComparison.Ordinal) + "\"";
 
 	static ProcessResult RunCampc(params string[] arguments)
 	{
