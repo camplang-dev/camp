@@ -217,6 +217,14 @@ Do not use removed package commands (`pkg add`, `pkg remove`, `pkg add-source`,
 local `--use-source`; use `pkg add-global-source` only for intentional global
 package source configuration.
 
+When setting up a package project, name the `.campbuild` file the same as the
+package and its directory. Exclude `pub/` in the package repo's `.gitignore`;
+`campc pkg publish` writes ZIP and INI publication artifacts there, and those
+generated files should not be committed to source repos. In repos that contain
+multiple package source directories, keep one shared `pub/` directory outside
+the package source folders, and put `--pub-dir ../pub` in each package's
+`.campbuild` file so all publication artifacts collect under the same root.
+
 Use the `--artifact` command-line/build-file parameter only when the desired
 artifact kind must be stated explicitly. `campc build` infers an executable when
 a root source contains a public or exported `main`, and `campc run` defaults to

@@ -80,7 +80,9 @@ global registry before Camp needs one.
 - Preserve the current default package reference type of `:shared`.
 - Add `campc pkg publish`.
 - Make `campc pkg publish` default to `<project-root>/pub/<package-name>` when
-  `--out` is omitted.
+  `--pub-dir` is omitted.
+- Make `campc pkg publish --pub-dir <folder>` publish under
+  `<folder>/<package-name>`.
 - Keep global source management ergonomic through `campc pkg` commands.
 - Remove package commands that only edit local project dependencies or search
   non-indexed sources.
@@ -109,7 +111,7 @@ The v1 package command surface is:
 | `campc restore <build-file> --upgrade <package[@version]>` | Upgrade one direct dependency, optionally constrained by a version expression. |
 | `campc pkg install <package[@version\|/version]> [--global]` | Install a package into cache without changing `packages.ini`. |
 | `campc pkg uninstall <package[/version]> [--global]` | Remove one package version or all cached versions of a package. |
-| `campc pkg publish <version\|+major\|+minor\|+patch> [<build-file>] [--name <package>] [--out <folder>]` | Publish a source archive and update `versions.ini`. |
+| `campc pkg publish <version\|+major\|+minor\|+patch> [<build-file>] [--name <package>] [--pub-dir <folder>]` | Publish a source archive and update `versions.ini`. |
 | `campc pkg add-global-source <name> <path-or-url>` | Add or replace a named global package source. |
 | `campc pkg remove-global-source <name>` | Remove a named global package source. |
 | `campc pkg list-global-sources` | Print configured global package sources. |
@@ -457,8 +459,8 @@ package directory and run `campc restore`.
 
 ## Publishing Behavior
 
-`campc pkg publish` creates or updates a package source directory. When `--out`
-is omitted, it writes to:
+`campc pkg publish` creates or updates a package source directory. When
+`--pub-dir` is omitted, it writes to:
 
 ```text
 <project-root>/pub/<package-name>
@@ -487,13 +489,14 @@ Output:
       nnverium-easydb_1.2.0.zip
 ```
 
-Explicit output is still available:
+Explicit publication roots are still available:
 
 ```sh
-campc pkg publish 1.2.1 --out ../package-feed/nnverium-easydb
+campc pkg publish 1.2.1 --pub-dir ../package-feed
 ```
 
-`--out` names the package directory, not the parent feed directory.
+This writes to `../package-feed/nnverium-easydb/`; `--pub-dir` names the
+publication root, not the package-specific subdirectory.
 
 The publish version may be exact:
 
@@ -691,7 +694,7 @@ Add or update command-line tests for:
 - `pkg publish` requiring an explicit build file when zero or multiple build
   files are present;
 - `pkg publish` defaulting to `<project-root>/pub/<package-name>`;
-- `pkg publish --out`;
+- `pkg publish --pub-dir` writing under `<pub-dir>/<package-name>`;
 - publish failure for duplicate version;
 - publish failure when package name/version cannot be inferred and required
   arguments are missing.
@@ -746,6 +749,7 @@ The feature is complete when:
 - default package reference type remains `:shared`;
 - `campc pkg publish` writes source archives and `versions.ini`;
 - `campc pkg publish` defaults to `<project-root>/pub/<package-name>`;
+- `campc pkg publish --pub-dir` writes under `<pub-dir>/<package-name>`;
 - `campc pkg install` and `uninstall` operate on package caches without editing
   `packages.ini`;
 - global source commands work;

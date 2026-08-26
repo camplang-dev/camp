@@ -241,6 +241,7 @@ static void AddBuildOptions(Command command, bool buildOnly, bool testRunnerOpti
 	command.Options.Add(new Option<string?>("--name") { Description = "Artifact/project name without extension." });
 	command.Options.Add(new Option<string?>("--subsystem") { Description = "Native subsystem, currently windows." });
 	command.Options.Add(new Option<string?>("--out-dir") { Description = "Directory for final artifacts." });
+	command.Options.Add(new Option<string?>("--pub-dir") { Description = "Package publication root directory. Ignored except by pkg publish." });
 }
 
 static void AddCoverageOptions(Command command)
@@ -289,7 +290,7 @@ static void AddPackageCommands(Command pkg, string[] originalArgs, CliEnvironmen
 	publish.Arguments.Add(new Argument<string>("version"));
 	publish.Arguments.Add(new Argument<string?>("build-file") { Arity = ArgumentArity.ZeroOrOne });
 	publish.Options.Add(new Option<string?>("--name") { Description = "Package name when it cannot be inferred." });
-	publish.Options.Add(new Option<string?>("--out") { Description = "Output package directory." });
+	publish.Options.Add(new Option<string?>("--pub-dir") { Description = "Output package publication root directory." });
 	publish.SetAction(_ => CampCli.Run(originalArgs, environment));
 	pkg.Subcommands.Add(publish);
 
@@ -545,6 +546,27 @@ sealed class CampCli
 		return normalized == "." || normalized.EndsWith("/.", StringComparison.Ordinal);
 	}
 
+	static string? ResolveOptionalPath(string? value, string baseDirectory)
+	{
+		return string.IsNullOrWhiteSpace(value) ? null : ResolvePath(value, baseDirectory);
+	}
+
+	static string ResolvePath(string value, string baseDirectory)
+	{
+		if (IsDirectRunOutputPath(value))
+		{
+			string prefix = value[..^1];
+			string resolved = Path.IsPathRooted(prefix) ? prefix : Path.GetFullPath(prefix, baseDirectory);
+			return Path.Combine(resolved, ".");
+		}
+		return Path.IsPathRooted(value) ? value : Path.GetFullPath(value, baseDirectory);
+	}
+
+	static string ResolvePathLike(string value, string baseDirectory)
+	{
+		return PathArguments.LooksLikePath(value) ? ResolvePath(value, baseDirectory) : value;
+	}
+
 	static int RunDump(string[] args, CliEnvironment environment)
 	{
 		if (args.Length == 0)
@@ -574,7 +596,6 @@ sealed class CampCli
 
 		PrintPackagePreviewWarning();
 		List<string> errors = [];
-		args = ResponseFileExpander.ExpandBareBuildFiles(args, environment.WorkingDirectory, errors).ToArray();
 		List<string> sourceArgs = [];
 		string? upgrade = null;
 		for (int i = 0; i < args.Length; i++)
@@ -589,6 +610,9 @@ sealed class CampCli
 			}
 			sourceArgs.Add(args[i]);
 		}
+		string? buildFile = TryGetBuildFileArgument(sourceArgs, environment.WorkingDirectory);
+		string? buildFileProjectRoot = buildFile is null ? null : Path.GetDirectoryName(buildFile);
+		sourceArgs = ResponseFileExpander.ExpandBareBuildFiles(sourceArgs, environment.WorkingDirectory, errors);
 		if (upgrade is not null && upgrade.Length > 0 && !PackageDependencySpec.TryParse(upgrade, out _, out string? upgradeError))
 			errors.Add(upgradeError!);
 		BuildOptionBag bag = new();
@@ -600,18 +624,15 @@ sealed class CampCli
 		if (errors.Count > 0)
 			return PrintErrors(errors);
 
-		string projectRoot = GetRestoreProjectRoot(restoreOptions.Positionals, environment.WorkingDirectory);
+		string projectRoot = buildFileProjectRoot ?? GetSourceProjectRoot(ExpandSourcePatterns(sourceArgs, [], environment.WorkingDirectory, errors), environment.WorkingDirectory);
 		return PackageCommands.Restore(bag.UsePackages, bag.UseSources, upgrade, environment, projectRoot);
 	}
 
-	static string GetRestoreProjectRoot(IReadOnlyList<string> positionals, string workingDirectory)
+	static string GetSourceProjectRoot(IReadOnlyList<string> sourceFiles, string workingDirectory)
 	{
-		foreach (string positional in positionals)
-		{
-			string fullPath = Path.GetFullPath(positional, workingDirectory);
-			if (File.Exists(fullPath))
-				return Path.GetDirectoryName(fullPath)!;
-		}
+		string? firstSource = sourceFiles.FirstOrDefault(static file => file != "-");
+		if (!string.IsNullOrWhiteSpace(firstSource))
+			return Path.GetDirectoryName(Path.GetFullPath(firstSource, workingDirectory)) ?? workingDirectory;
 		return workingDirectory;
 	}
 
@@ -619,8 +640,13 @@ sealed class CampCli
 	{
 		request = null;
 		errors = [];
-		string? defaultOutDir = command is CommandKind.Build or CommandKind.Run or CommandKind.Test or CommandKind.Cover ? TryGetDefaultOutDirFromBuildFile(args, environment.WorkingDirectory) : null;
-		string sourcefileDefaultRoot = TryGetDefaultSourcefileRootFromBuildFile(args, environment.WorkingDirectory) ?? environment.WorkingDirectory;
+		string? buildFile = command is CommandKind.Build or CommandKind.Run or CommandKind.Test or CommandKind.Cover or CommandKind.Dump
+			? TryGetBuildFileArgument(args, environment.WorkingDirectory)
+			: null;
+		string? buildFileProjectRoot = buildFile is null ? null : Path.GetDirectoryName(buildFile);
+		string? defaultOutDir = command is CommandKind.Build or CommandKind.Run or CommandKind.Test or CommandKind.Cover && buildFileProjectRoot is not null
+			? Path.Combine(buildFileProjectRoot, "bin")
+			: null;
 
 		if (command is CommandKind.Build or CommandKind.Run or CommandKind.Test or CommandKind.Cover)
 			args = ResponseFileExpander.ExpandBareBuildFiles(args, environment.WorkingDirectory, errors).ToArray();
@@ -652,6 +678,8 @@ sealed class CampCli
 		apiFiles = ExpandSourcePatterns(bag.ApiPatterns, [], environment.WorkingDirectory, errors);
 		if (sourceFiles.Count == 0)
 			errors.Add("At least one source file pattern is required.");
+		string projectRoot = buildFileProjectRoot ?? GetSourceProjectRoot(sourceFiles, environment.WorkingDirectory);
+		string sourcefileDefaultRoot = buildFileProjectRoot ?? projectRoot;
 
 		if (command == CommandKind.Dump && bag.HasBuildOnlyOptions)
 			errors.Add("dump does not accept --framework, --artifact, --name, --subsystem, or --out-dir.");
@@ -682,7 +710,7 @@ sealed class CampCli
 		request = new CompilerRequest
 		{
 			RuntimeRoot = environment.RuntimeRoot,
-			WorkingDirectory = environment.WorkingDirectory,
+			WorkingDirectory = projectRoot,
 			TargetName = bag.TargetName ?? CompilerDefaults.TargetName,
 			ProfileName = bag.ProfileName ?? "DEBUG",
 			EmitKind = bag.EmitKind ?? "c99",
@@ -695,7 +723,7 @@ sealed class CampCli
 			CoverageInstrumentationMode = CoverageInstrumentationMode.Disabled,
 			EmitDebugInfo = bag.DebugInfo,
 			EmitMetadata = bag.MetadataVisibility,
-			OutDir = bag.OutDir ?? defaultOutDir,
+			OutDir = ResolveOptionalPath(bag.OutDir, environment.WorkingDirectory) ?? defaultOutDir,
 			OutDirIsDirect = bag.OutDir is not null && IsDirectRunOutputPath(bag.OutDir),
 			ProjectName = bag.ProjectName,
 			SubsystemName = bag.SubsystemName,
@@ -705,16 +733,16 @@ sealed class CampCli
 			SourcefileDefaultRoot = sourcefileDefaultRoot,
 			Verbose = bag.Verbose,
 			TimingEnabled = bag.TimingEnabled,
-			TimingOutput = bag.TimingOutput,
+			TimingOutput = ResolveOptionalPath(bag.TimingOutput, environment.WorkingDirectory),
 			ColorOutput = !Console.IsOutputRedirected,
 			ListTests = bag.ListTests,
 			IgnoreLeaks = bag.IgnoreLeaks,
-			TestOutputDir = bag.TestOutputDir,
+			TestOutputDir = ResolveOptionalPath(bag.TestOutputDir, environment.WorkingDirectory),
 			TestResultFormat = bag.TestResultFormat,
-			CoverageOutputDir = bag.CoverageOutputDir,
+			CoverageOutputDir = ResolveOptionalPath(bag.CoverageOutputDir, environment.WorkingDirectory),
 			CoverageFormat = bag.CoverageFormat
 		};
-		request.SourcefileRoots.AddRange(bag.SourcefileRoots);
+		request.SourcefileRoots.AddRange(bag.SourcefileRoots.Select(root => ResolvePath(root, environment.WorkingDirectory)));
 		request.TestFilters.AddRange(bag.TestFilters);
 		request.CoverageSubjects.AddRange(bag.CoverageSubjects);
 		request.Defines.AddRange(bag.Defines);
@@ -723,13 +751,13 @@ sealed class CampCli
 		request.ConfigurationRequirements.AddRange(bag.ConfigurationRequirements);
 		request.ConfigurationRequirementPolicy = bag.ConfigurationRequirementPolicy;
 		request.Variants.AddRange(bag.Variants);
-		request.References.AddRange(bag.References);
+		request.References.AddRange(bag.References.Select(reference => ResolvePathLike(reference, environment.WorkingDirectory)));
 		request.Frameworks.AddRange(bag.Frameworks);
 		request.UsePackages.AddRange(bag.UsePackages.Select(static package => package.ToString()));
 		if (!TryAddUseSourceRoots(bag.UseSources, environment.WorkingDirectory, request.UseSourceRoots, errors))
 			return false;
-		request.Files.AddRange(sourceFiles.Select(path => Path.GetRelativePath(environment.WorkingDirectory, path)));
-		request.ApiFiles.AddRange(apiFiles.Select(path => Path.GetRelativePath(environment.WorkingDirectory, path)));
+		request.Files.AddRange(sourceFiles.Select(path => Path.GetRelativePath(projectRoot, path)));
+		request.ApiFiles.AddRange(apiFiles.Select(path => Path.GetRelativePath(projectRoot, path)));
 		if (!TryBuildProjectReferences(bag.ProjectReferences, request, environment, projectReferenceStack ?? [], out List<string> projectApiHeaders, out List<string> sharedProjectApiHeaders, out List<string> projectLibraries, errors))
 			return false;
 		request.ApiFiles.AddRange(projectApiHeaders);
@@ -1450,7 +1478,8 @@ sealed class PackageCommands
 		BuildOptionBag bag = LoadEffectiveSources(environment, args, errors);
 		if (errors.Count > 0)
 			return PrintErrors(errors);
-		if (!Install(package, global, environment, bag.UseSources, out string message, out string? error))
+		string localPackageRoot = GetLocalPackageCacheRoot(args, environment);
+		if (!Install(package, global, environment, localPackageRoot, bag.UseSources, out string message, out string? error))
 			return Error(error ?? message);
 		Console.Out.WriteLine(message);
 		return 0;
@@ -1462,7 +1491,7 @@ sealed class PackageCommands
 			return Error("pkg uninstall requires <pkg@ver>.");
 		bool global = args.Contains("--global", StringComparer.Ordinal);
 		PackageSpec package = PackageSpec.Parse(args[0]);
-		string root = global ? environment.GlobalPackageRoot : environment.LocalPackageRoot;
+		string root = global ? environment.GlobalPackageRoot : GetLocalPackageCacheRoot(args, environment);
 		string packageDirectory = Path.Combine(root, package.Name);
 		if (!Directory.Exists(packageDirectory))
 			return 0;
@@ -1715,7 +1744,7 @@ sealed class PackageCommands
 
 	sealed record ResolvedPackage(string Name, string Identity, PackageSelectedVersion Version, PackageCatalog Catalog, PackageCatalogVersion CatalogVersion, PackageSourceLocation Source);
 
-	public static bool Install(PackageDependencySpec package, bool global, CliEnvironment environment, IReadOnlyList<PackageSourceSpec> sources, out string message, out string? error)
+	public static bool Install(PackageDependencySpec package, bool global, CliEnvironment environment, string localPackageRoot, IReadOnlyList<PackageSourceSpec> sources, out string message, out string? error)
 	{
 		error = null;
 		message = "";
@@ -1730,7 +1759,7 @@ sealed class PackageCommands
 		}
 		if (!TryResolveSinglePackage(package, locations, out ResolvedPackage? resolved, out error))
 			return false;
-		string targetRoot = global ? environment.GlobalPackageRoot : environment.LocalPackageRoot;
+		string targetRoot = global ? environment.GlobalPackageRoot : localPackageRoot;
 		if (!InstallResolvedPackageToRoot(resolved!, targetRoot, out error))
 			return false;
 		message = $"installed: {resolved!.Name}@{resolved.Version}";
@@ -1810,11 +1839,11 @@ sealed class PackageCommands
 				name = args[++i];
 				continue;
 			}
-			if (arg == "--out")
+			if (arg == "--pub-dir")
 			{
 				if (i + 1 >= args.Length)
 				{
-					error = "pkg publish --out requires a value.";
+					error = "pkg publish --pub-dir requires a value.";
 					return false;
 				}
 				outputDirectory = Path.GetFullPath(args[++i], environment.WorkingDirectory);
@@ -1887,7 +1916,8 @@ sealed class PackageCommands
 			error = $"Package name '{packageName}' is not valid: {packageNameError ?? "package names cannot include versions or dependency kinds."}";
 			return false;
 		}
-		string outputDirectory = request.OutputDirectory ?? Path.Combine(projectRoot, "pub", packageName);
+		string publicationRoot = request.OutputDirectory ?? ResolveOptionalPath(bag.PubDir, projectRoot) ?? Path.Combine(projectRoot, "pub");
+		string outputDirectory = Path.Combine(publicationRoot, packageName);
 		List<string> packageFiles = CollectPackageFiles(projectRoot, request.BuildFile, sourceFiles);
 		inputs = new PublishInputs(packageName, projectRoot, outputDirectory, request.BuildFile, packageFiles, bag.UsePackages);
 		return true;
@@ -2068,6 +2098,17 @@ sealed class PackageCommands
 		return bag;
 	}
 
+	static string GetLocalPackageCacheRoot(string[] args, CliEnvironment environment)
+	{
+		if (ReadOptionValue(args, "--local") is string localFile)
+		{
+			string fullPath = Path.GetFullPath(localFile, environment.WorkingDirectory);
+			string projectRoot = Path.GetDirectoryName(fullPath) ?? environment.WorkingDirectory;
+			return Path.Combine(projectRoot, "cache", "pkg");
+		}
+		return environment.LocalPackageRoot;
+	}
+
 	static bool TrySelectBuildFile(string[] args, CliEnvironment environment, out string? file, out string? error)
 	{
 		file = null;
@@ -2098,6 +2139,13 @@ sealed class PackageCommands
 			if (args[i] == name)
 				return args[i + 1];
 		return null;
+	}
+
+	static string? ResolveOptionalPath(string? value, string baseDirectory)
+	{
+		return string.IsNullOrWhiteSpace(value)
+			? null
+			: Path.IsPathRooted(value) ? value : Path.GetFullPath(value, baseDirectory);
 	}
 
 	static void EditBuildPragmas(string file, Func<string, bool> keep, string? addLine)
@@ -2160,6 +2208,7 @@ sealed class BuildOptionBag
 	public string? ProfileName => Get("profile");
 	public string? EmitKind => Get("emit");
 	public string? OutDir => Get("out-dir");
+	public string? PubDir => Get("pub-dir");
 	public string? ProjectName => Get("name");
 	public string? SubsystemName => Get("subsystem");
 	public MetadataVisibility? MetadataVisibility => Get("metadata") is string value ? ParseMetadata(value) : null;
@@ -2411,6 +2460,9 @@ static class CommandLineOptionParser
 				case "--out-dir":
 					AddSingle(result, "out-dir", PathArguments.Normalize(RequiredValue(tokens, ref i, token, errors)));
 					break;
+				case "--pub-dir":
+					AddSingle(result, "pub-dir", PathArguments.Normalize(RequiredValue(tokens, ref i, token, errors)));
+					break;
 				case "--sourcefile-paths":
 					string sourcefilePaths = RequiredValue(tokens, ref i, token, errors);
 					if (sourcefilePaths is not ("relative" or "absolute"))
@@ -2652,6 +2704,7 @@ static class ResponseFileExpander
 		"--api",
 		"--exclude",
 		"--out-dir",
+		"--pub-dir",
 		"--build-dir",
 		"--sourcefile-root",
 		"--test-output-dir",
@@ -2706,7 +2759,7 @@ static class ResponseFileExpander
 	{
 		return option switch
 		{
-			"--target" or "-t" or "--profile" or "-p" or "--variant" or "--memory-model" or "--emit" or "--metadata" or "--artifact" or "--name" or "--subsystem" or "--out-dir" or "--build-dir" or "--sourcefile-paths" or "--sourcefile-root" or "--test-output-dir" or "--test-result-format" or "--coverage-output-dir" or "--coverage-format" or "--coverage-subject" or "--filter" or "--api" or "--exclude" or "--define" or "-d" or "--use" or "-u" or "--project-reference" => 1,
+			"--target" or "-t" or "--profile" or "-p" or "--variant" or "--memory-model" or "--emit" or "--metadata" or "--artifact" or "--name" or "--subsystem" or "--out-dir" or "--pub-dir" or "--build-dir" or "--sourcefile-paths" or "--sourcefile-root" or "--test-output-dir" or "--test-result-format" or "--coverage-output-dir" or "--coverage-format" or "--coverage-subject" or "--filter" or "--api" or "--exclude" or "--define" or "-d" or "--use" or "-u" or "--project-reference" => 1,
 			"--use-source" => 2,
 			_ => 0
 		};

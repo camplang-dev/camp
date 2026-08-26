@@ -59,7 +59,7 @@ Response files use the same option language as command-line arguments:
 
 Relative source patterns and path-valued options inside a response file are
 rebased to the directory containing that response file. This includes source
-patterns, `--api`, `--exclude`, `--out-dir`, `--sourcefile-root`,
+patterns, `--api`, `--exclude`, `--out-dir`, `--pub-dir`, `--sourcefile-root`,
 `--use-source` paths, and project-reference paths. `--use-source` is used by
 restore/install/publish workflows; ordinary builds consume the installed package
 cache instead of the source path. Native references are rebased only when they

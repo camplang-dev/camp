@@ -5602,6 +5602,43 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Restore_uses_build_file_directory_as_project_root()
+	{
+		string packageName = "cache-root-demo";
+		string root = TempPath("pkg-restore-buildfile-root");
+		if (Directory.Exists(root))
+			Directory.Delete(root, recursive: true);
+		string sourceRoot = Path.Combine(root, "source");
+		CreatePublishedPackage(sourceRoot, packageName, "1.0.0", "export int restoredValue() => 5;\n");
+
+		string projectRoot = Path.Combine(root, "app");
+		string sourceDirectory = Path.Combine(projectRoot, "src");
+		Directory.CreateDirectory(sourceDirectory);
+		File.WriteAllText(Path.Combine(sourceDirectory, "main.camp"), """
+			export int main()
+			{
+				return restoredValue() - 5;
+			}
+			""");
+		File.WriteAllText(Path.Combine(projectRoot, "app.campbuild"), $$"""
+			--use-source local "{{sourceRoot.Replace('\\', '/')}}"
+			--use {{packageName}}@1.0.0
+			--pub-dir ignored-for-restore
+			src/main.camp
+			""");
+
+		ProcessResult restore = RunCampcIn(root, "restore", Path.Combine("app", "app.campbuild"));
+
+		AssertCommandSucceeded(restore);
+		Assert.True(File.Exists(Path.Combine(projectRoot, "packages.ini")));
+		Assert.False(File.Exists(Path.Combine(root, "packages.ini")));
+		Assert.True(File.Exists(Path.Combine(projectRoot, "cache", "pkg", packageName, "1.0.0", "src", "demo.camp")));
+
+		ProcessResult build = RunCampcIn(root, "build", Path.Combine("app", "app.campbuild"), "--target", NativeTargetForHost(), "--out-dir", Path.Combine(projectRoot, "out"));
+		AssertCommandSucceeded(build);
+	}
+
+	[Fact]
 	public void Package_publish_creates_restorable_source_archive()
 	{
 		string root = TempPath("pkg-publish-source");
@@ -5616,11 +5653,12 @@ public sealed class CommandLineTests
 		File.WriteAllText(Path.Combine(packageRoot, "demo-lib.campbuild"), """
 			--artifact static
 			--name demo-lib
+			--pub-dir ../feed
 			src/*.camp
 			""");
 		string outDir = Path.Combine(root, "feed", "demo-lib");
 
-		ProcessResult publish = RunCampcIn(packageRoot, "pkg", "publish", "1.0.0", "demo-lib.campbuild", "--out", outDir);
+		ProcessResult publish = RunCampcIn(packageRoot, "pkg", "publish", "1.0.0", "demo-lib.campbuild");
 
 		AssertCommandSucceeded(publish);
 		Assert.True(File.Exists(Path.Combine(outDir, "versions.ini")));
@@ -5631,12 +5669,19 @@ public sealed class CommandLineTests
 		Assert.Contains("[1.0.0]", catalog, StringComparison.Ordinal);
 		Assert.DoesNotContain("packages.ini", ZipEntryNames(Path.Combine(outDir, "demo-lib_1.0.0.zip")));
 
-		ProcessResult duplicate = RunCampcIn(packageRoot, "pkg", "publish", "1.0.0", "demo-lib.campbuild", "--out", outDir);
+		ProcessResult duplicate = RunCampcIn(packageRoot, "pkg", "publish", "1.0.0", "demo-lib.campbuild");
 		Assert.NotEqual(0, duplicate.ExitCode);
 		Assert.Contains("already exists", duplicate.StdErr, StringComparison.Ordinal);
-		ProcessResult patch = RunCampcIn(packageRoot, "pkg", "publish", "+patch", "demo-lib.campbuild", "--out", outDir);
+		ProcessResult patch = RunCampcIn(packageRoot, "pkg", "publish", "+patch", "demo-lib.campbuild");
 		AssertCommandSucceeded(patch);
 		Assert.Contains("[1.0.1]", File.ReadAllText(Path.Combine(outDir, "versions.ini")), StringComparison.Ordinal);
+
+		string overrideFeed = Path.Combine(root, "override-feed");
+		string overrideDir = Path.Combine(overrideFeed, "demo-lib");
+		ProcessResult overridePublish = RunCampcIn(packageRoot, "pkg", "publish", "2.0.0", "demo-lib.campbuild", "--pub-dir", overrideFeed);
+		AssertCommandSucceeded(overridePublish);
+		Assert.True(File.Exists(Path.Combine(overrideDir, "versions.ini")));
+		Assert.True(File.Exists(Path.Combine(overrideDir, "demo-lib_2.0.0.zip")));
 
 		string appRoot = Path.Combine(root, "app");
 		string appSource = Path.Combine(appRoot, "src");

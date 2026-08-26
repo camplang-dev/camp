@@ -60,8 +60,11 @@ public static class CampProjectLoader
 	static CampProjectLoadResult Load(IReadOnlyList<string> args, CampProjectEnvironment environment, CampProjectCommandKind command, HashSet<string> projectReferenceStack)
 	{
 		List<string> errors = [];
-		string? defaultOutDir = command is CampProjectCommandKind.Build or CampProjectCommandKind.Run or CampProjectCommandKind.Test or CampProjectCommandKind.Cover ? TryGetDefaultOutDirFromBuildFile(args, environment.WorkingDirectory) : null;
-		string sourcefileDefaultRoot = TryGetDefaultSourcefileRootFromBuildFile(args, environment.WorkingDirectory) ?? environment.WorkingDirectory;
+		string? buildFile = command is CampProjectCommandKind.Build or CampProjectCommandKind.Run or CampProjectCommandKind.Test or CampProjectCommandKind.Cover or CampProjectCommandKind.Dump or CampProjectCommandKind.LanguageService
+			? TryGetBuildFileArgument(args, environment.WorkingDirectory)
+			: null;
+		string? buildFileProjectRoot = buildFile is null ? null : Path.GetDirectoryName(buildFile);
+		string? defaultOutDir = command is CampProjectCommandKind.Build or CampProjectCommandKind.Run or CampProjectCommandKind.Test or CampProjectCommandKind.Cover && buildFileProjectRoot is not null ? Path.Combine(buildFileProjectRoot, "bin") : null;
 		string[] expandedArgs = command is CampProjectCommandKind.Build or CampProjectCommandKind.Run or CampProjectCommandKind.Test or CampProjectCommandKind.Cover
 			? CampResponseFileExpander.ExpandBareBuildFiles(args, environment.WorkingDirectory, errors).ToArray()
 			: args.ToArray();
@@ -69,7 +72,7 @@ public static class CampProjectLoader
 		{
 			ParsedCampBuildOptions cli = CampBuildOptionParser.Parse(expandedArgs, allowPositionals: true, errors);
 			if (errors.Count == 0)
-				return Load(cli, environment, command, errors, projectReferenceStack, defaultOutDir, sourcefileDefaultRoot);
+				return Load(cli, environment, command, errors, projectReferenceStack, defaultOutDir, buildFileProjectRoot);
 		}
 
 		return Failed(environment, errors);
@@ -127,7 +130,7 @@ public static class CampProjectLoader
 		return null;
 	}
 
-	static CampProjectLoadResult Load(ParsedCampBuildOptions cli, CampProjectEnvironment environment, CampProjectCommandKind command, List<string> errors, HashSet<string> projectReferenceStack, string? defaultOutDir, string sourcefileDefaultRoot)
+	static CampProjectLoadResult Load(ParsedCampBuildOptions cli, CampProjectEnvironment environment, CampProjectCommandKind command, List<string> errors, HashSet<string> projectReferenceStack, string? defaultOutDir, string? explicitProjectRoot)
 	{
 		CampBuildOptionBag bag = new();
 		ApplyGlobalPragmas(environment, bag, errors);
@@ -150,6 +153,8 @@ public static class CampProjectLoader
 		apiFiles = ExpandSourcePatterns(bag.ApiPatterns, [], environment.WorkingDirectory, errors);
 		if (sourceFiles.Count == 0)
 			errors.Add("At least one source file pattern is required.");
+		string projectRoot = explicitProjectRoot ?? GetSourceProjectRoot(sourceFiles, environment.WorkingDirectory);
+		string sourcefileDefaultRoot = explicitProjectRoot ?? projectRoot;
 		if (command == CampProjectCommandKind.Dump && bag.HasBuildOnlyOptions)
 			errors.Add("dump does not accept --framework, --artifact, --name, --subsystem, or --out-dir.");
 		if (command == CampProjectCommandKind.Dump && bag.HasTestResultOptions)
@@ -170,7 +175,7 @@ public static class CampProjectLoader
 		CompilerRequest request = new()
 		{
 			RuntimeRoot = environment.RuntimeRoot,
-			WorkingDirectory = environment.WorkingDirectory,
+			WorkingDirectory = projectRoot,
 			TargetName = bag.TargetName ?? CompilerDefaults.TargetName,
 			ProfileName = bag.ProfileName ?? "DEBUG",
 			EmitKind = bag.EmitKind ?? "c99",
@@ -212,8 +217,8 @@ public static class CampProjectLoader
 		request.Frameworks.AddRange(bag.Frameworks);
 		request.UsePackages.AddRange(bag.UsePackages.Select(static package => package.ToString()));
 		AddUseSourceRoots(bag.UseSources, environment.WorkingDirectory, request.UseSourceRoots, errors);
-		request.Files.AddRange(sourceFiles.Select(path => Path.GetRelativePath(environment.WorkingDirectory, path)));
-		request.ApiFiles.AddRange(apiFiles.Select(path => Path.GetRelativePath(environment.WorkingDirectory, path)));
+		request.Files.AddRange(sourceFiles.Select(path => Path.GetRelativePath(projectRoot, path)));
+		request.ApiFiles.AddRange(apiFiles.Select(path => Path.GetRelativePath(projectRoot, path)));
 
 		CampProjectLoadResult result = new() { Request = request };
 		result.Diagnostics.AddRange(errors);
@@ -312,6 +317,14 @@ public static class CampProjectLoader
 				return fullPath;
 		}
 		return null;
+	}
+
+	static string GetSourceProjectRoot(IReadOnlyList<string> sourceFiles, string workingDirectory)
+	{
+		string? firstSource = sourceFiles.FirstOrDefault(static file => file != "-");
+		if (!string.IsNullOrWhiteSpace(firstSource))
+			return Path.GetDirectoryName(Path.GetFullPath(firstSource, workingDirectory)) ?? workingDirectory;
+		return workingDirectory;
 	}
 
 	static void AddLanguageServiceProjectReferenceSources(CampProjectLoadResult result, CompilerRequest request, string buildFile, HashSet<string> projectReferenceStack)
@@ -784,6 +797,9 @@ static class CampBuildOptionParser
 				case "--out-dir":
 					AddSingle(result, "out-dir", CampPathArguments.Normalize(RequiredValue(tokens, ref i, token, errors)));
 					break;
+				case "--pub-dir":
+					RequiredValue(tokens, ref i, token, errors);
+					break;
 				case "--sourcefile-paths":
 					string sourcefilePaths = RequiredValue(tokens, ref i, token, errors);
 					if (sourcefilePaths is not ("relative" or "absolute"))
@@ -1048,6 +1064,7 @@ public static class CampResponseFileExpander
 		"--api",
 		"--exclude",
 		"--out-dir",
+		"--pub-dir",
 		"--build-dir",
 		"--sourcefile-root",
 		"--test-output-dir",
@@ -1098,7 +1115,7 @@ public static class CampResponseFileExpander
 
 	static int OptionValueCount(string option)
 	{
-		return option is "--target" or "-t" or "--profile" or "-p" or "--variant" or "--memory-model" or "--emit" or "--metadata" or "--artifact" or "--name" or "--subsystem" or "--out-dir" or "--build-dir" or "--sourcefile-paths" or "--sourcefile-root" or "--test-output-dir" or "--test-result-format" or "--coverage-output-dir" or "--coverage-format" or "--coverage-subject" or "--filter" or "--api" or "--exclude" or "--define" or "-d" or "--reference" or "-r" or "--framework" or "-f" or "--use" or "-u" or "--project-reference" or "--local"
+		return option is "--target" or "-t" or "--profile" or "-p" or "--variant" or "--memory-model" or "--emit" or "--metadata" or "--artifact" or "--name" or "--subsystem" or "--out-dir" or "--pub-dir" or "--build-dir" or "--sourcefile-paths" or "--sourcefile-root" or "--test-output-dir" or "--test-result-format" or "--coverage-output-dir" or "--coverage-format" or "--coverage-subject" or "--filter" or "--api" or "--exclude" or "--define" or "-d" or "--reference" or "-r" or "--framework" or "-f" or "--use" or "-u" or "--project-reference" or "--local"
 			? 1
 			: option == "--use-source" ? 2 : 0;
 	}

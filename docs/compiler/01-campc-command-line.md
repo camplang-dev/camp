@@ -231,7 +231,7 @@ The supported subcommands are:
 | `pkg add-global-source <name> <path-or-url>` | Add or replace a named global package source. |
 | `pkg remove-global-source <name>` | Remove a named global package source. |
 | `pkg list-global-sources` | List named global package sources. |
-| `pkg publish <version|+major|+minor|+patch> [build-file]` | Publish a deterministic source archive and update `versions.ini`. |
+| `pkg publish <version|+major|+minor|+patch> [build-file] [--pub-dir dir]` | Publish a deterministic source archive and update `versions.ini`. |
 | `pkg install <pkg[@version|/version]> [--local file] [--global]` | Install a source archive into a package cache without editing `packages.ini`. |
 | `pkg uninstall <pkg[/version]> [--global]` | Remove an installed package version or package. |
 
@@ -300,6 +300,7 @@ Native build and output-layout options:
 | `--artifact` | Select `exec`, `static`, `shared`, `only-static`, `only-shared`, or `none`. |
 | `--name` | Set the project/artifact base name. |
 | `--out-dir` | Set the final artifact output directory. |
+| `--pub-dir` | Set the package publication root for `pkg publish`; package files are written under `<pub-dir>/<package-name>/`. Build, run, test, and cover accept and ignore it so shared `.campbuild` files can carry publish configuration. |
 | `--subsystem` | Select a native subsystem; the documented value is `windows` for executable builds. |
 | `--framework`, `-f` | Link native frameworks on targets that support framework linking. Multiple values may follow one switch. |
 

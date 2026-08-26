@@ -156,7 +156,7 @@ not.
 | `pkg add-global-source <name> <path-or-url>` | Add or replace a named global package source. |
 | `pkg remove-global-source <name>` | Remove a named global package source. |
 | `pkg list-global-sources` | List configured global package sources. |
-| `pkg publish <version|+major|+minor|+patch> [build-file] [--out dir] [--name name]` | Create a deterministic source archive and update `versions.ini`. |
+| `pkg publish <version|+major|+minor|+patch> [build-file] [--pub-dir dir] [--name name]` | Create a deterministic source archive and update `versions.ini`. |
 | `pkg install <package[@version|/version]> [--local file] [--global]` | Install a package archive into a package cache without editing `packages.ini`. |
 | `pkg uninstall <package[/version]> [--global]` | Remove one cached version or all cached versions of a package. |
 
@@ -174,7 +174,8 @@ deterministic source zip, computes its SHA-256, and writes or updates
 <project-root>/pub/<package-name>/
 ```
 
-`--out` names the package directory itself, not the parent feed directory.
+`--pub-dir` names the publication root directory. Package files are written
+under `<pub-dir>/<package-name>/`.
 
 Published archives exclude generated outputs, package caches, build caches,
 lock files, and binary artifacts.
