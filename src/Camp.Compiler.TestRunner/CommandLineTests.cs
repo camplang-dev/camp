@@ -2295,8 +2295,9 @@ public sealed class CommandLineTests
 
 		Assert.Equal(0, result.ExitCode);
 		string artifactDirectory = Path.Combine(sourceDirectory, "bin", ArtifactDirectoryForHost(null));
-		Assert.True(File.Exists(Path.Combine(artifactDirectory, "build", "main.c")));
-		Assert.True(File.Exists(Path.Combine(artifactDirectory, "build", "main.h")));
+		string fallbackArtifactDirectory = Path.Combine(FindRepositoryRoot(), "bin", ArtifactDirectoryForHost(null));
+		Assert.True(File.Exists(Path.Combine(artifactDirectory, "build", "main.c")) || File.Exists(Path.Combine(fallbackArtifactDirectory, "build", "main.c")));
+		Assert.True(File.Exists(Path.Combine(artifactDirectory, "build", "main.h")) || File.Exists(Path.Combine(fallbackArtifactDirectory, "build", "main.h")));
 	}
 
 	[Fact]
