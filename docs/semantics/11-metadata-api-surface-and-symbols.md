@@ -597,9 +597,12 @@ metadata attribute. It sets the default category for top-level declarations in
 that source file that do not declare their own category. File metadata
 attributes may appear after `using`, `namespace`, and other import/export
 prelude declarations, but must appear before aliases and ordinary declarations.
-Only `@category` is currently supported as a file metadata attribute; it
-requires exactly one string literal argument. A source file may declare at most
-one file-default category.
+`@category` and `@require` are currently supported as file metadata attributes.
+`@category` requires exactly one string literal argument, and a source file may
+declare at most one file-default category. `@require` requires exactly one
+configuration flag expression argument and sets the default availability
+requirement for top-level declarations in that source file that do not declare
+their own requirement.
 
 For metadata export, a top-level `this` extension method or out-of-scope static
 extension member first inherits the effective category of the type it extends.

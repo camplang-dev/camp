@@ -81,7 +81,6 @@ public enum FileOptions: int
 	SHARE_WRITE = 16
 }
 
-@require(SUPPORTS_FILES)
 bool FileHandle_readFd(void* context, nuint* readCount, byte* buffer, nuint buffer_length)
 {
 	FileHandle handle = (FileHandle)(nint)context;
@@ -93,7 +92,6 @@ bool FileHandle_readFd(void* context, nuint* readCount, byte* buffer, nuint buff
 	return true;
 }
 
-@require(SUPPORTS_FILES)
 bool FileHandle_writeFd(void* context, nuint* written, byte* buffer, nuint buffer_length)
 {
 	FileHandle handle = (FileHandle)(nint)context;
@@ -112,7 +110,6 @@ public newtype FileHandle: nint
 	/// Closing an invalid or already-closed handle is ignored. Errors reported
 	/// by the underlying platform close operation are intentionally discarded,
 	/// making this method suitable for `finally close()` cleanup.
-	@require(SUPPORTS_FILES)
 	public void close()
 	{
 		if ((nint)this > 0)
@@ -122,7 +119,6 @@ public newtype FileHandle: nint
 		}
 	}
 	
-	@require(SUPPORTS_FILES)
 	public static FileHandle open(string path, FileAccess access, FileMode mode, FileOptions options = default, thrown IoError error)
 	{
 		nint fileHandle = camp_io_file_open(path, FileHandle_access(access), FileHandle_mode(mode), FileHandle_options(options), out error);
@@ -133,7 +129,6 @@ public newtype FileHandle: nint
 		return (FileHandle)fileHandle;
 	}
 	
-	@require(SUPPORTS_FILES)
 	public ulong getLength(thrown IoError error)
 	{
 		long current = camp_io_file_seek((nint)this, 0, CAMP_IO_SEEK_CURRENT, out error);
@@ -148,7 +143,6 @@ public newtype FileHandle: nint
 		return (ulong)length;
 	}
 	
-	@require(SUPPORTS_FILES)
 	public ulong getPosition(thrown IoError error)
 	{
 		long position = camp_io_file_seek((nint)this, 0, CAMP_IO_SEEK_CURRENT, out error);
@@ -158,7 +152,6 @@ public newtype FileHandle: nint
 		return (ulong)position;
 	}
 	
-	@require(SUPPORTS_FILES)
 	public void setPosition(ulong value, thrown IoError error)
 	{
 		if (camp_io_file_seek((nint)this, (long)value, CAMP_IO_SEEK_BEGIN, out error) < 0)
@@ -166,7 +159,6 @@ public newtype FileHandle: nint
 		error = default;
 	}
 
-	@require(SUPPORTS_FILES)
 	public void read(byte[] buffer, out nuint readCount, thrown IoError error)
 	{
 		nint result = camp_io_file_read((nint)this, (void*)buffer.elements, buffer.length, out error);
@@ -176,7 +168,6 @@ public newtype FileHandle: nint
 		error = default;
 	}
 	
-	@require(SUPPORTS_FILES)
 	public void write(const byte[] buffer, thrown IoError error)
 	{
 		nuint offset = 0;
@@ -194,26 +185,22 @@ public newtype FileHandle: nint
 		error = default;
 	}
 	
-	@require(SUPPORTS_FILES)
 	public ByteReader getByteReader()
 	{
 		return { FileHandle_readFd, (void*)(nint)this };
 	}
 	
-	@require(SUPPORTS_FILES)
 	public CharReader getCharReader()
 	{
 		ByteReader byteReader = this.ByteReader;
 		return { (unsafe fn bool(void*, nuint*, char*, nuint))byteReader.call, byteReader.context };
 	}
 	
-	@require(SUPPORTS_FILES)
 	public ByteWriter getByteWriter()
 	{
 		return { FileHandle_writeFd, (void*)(nint)this };
 	}
 	
-	@require(SUPPORTS_FILES)
 	public CharWriter getCharWriter()
 	{
 		ByteWriter byteWriter = this.ByteWriter;
