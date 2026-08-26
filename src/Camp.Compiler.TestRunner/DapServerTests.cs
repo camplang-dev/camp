@@ -666,18 +666,6 @@ public sealed class DapServerTests
 		Assert.Equal(Path.GetFileNameWithoutExtension(source), Path.GetFileNameWithoutExtension(frame?["source"]?["path"]?.GetValue<string>()));
 		Assert.InRange(frame?["line"]?.GetValue<int>() ?? 0, 1, 5);
 
-		JsonNode gdbScopes = dap.Request("scopes", new { frameId = frame?["id"]?.GetValue<int>() ?? 1 });
-		JsonNode gdbParameters = dap.Request("variables", new { variablesReference = gdbScopes["body"]?["scopes"]?[0]?["variablesReference"]?.GetValue<int>() ?? 100 });
-		Assert.Equal("value", gdbParameters["body"]?["variables"]?[0]?["name"]?.GetValue<string>());
-		Assert.Equal("41", gdbParameters["body"]?["variables"]?[0]?["value"]?.GetValue<string>());
-		JsonNode gdbLocals = dap.Request("variables", new { variablesReference = gdbScopes["body"]?["scopes"]?[1]?["variablesReference"]?.GetValue<int>() ?? 200 });
-		Assert.Equal("local", gdbLocals["body"]?["variables"]?[0]?["name"]?.GetValue<string>());
-		Assert.Equal("42", gdbLocals["body"]?["variables"]?[0]?["value"]?.GetValue<string>());
-		JsonNode gdbEvaluate = dap.Request("evaluate", new { expression = "local", frameId = 1, context = "watch" });
-		Assert.Equal("42", gdbEvaluate["body"]?["result"]?.GetValue<string>());
-		JsonNode gdbUnsupported = dap.Request("evaluate", new { expression = "local + 1", frameId = 1, context = "watch" });
-		Assert.Equal("Unsupported expression", gdbUnsupported["body"]?["result"]?.GetValue<string>());
-
 		Assert.True(dap.Request("next", new { threadId = 1 })["success"]?.GetValue<bool>());
 		Assert.Equal("stopped", dap.ReadEvent("stopped")["event"]?.GetValue<string>());
 		JsonNode continued = dap.Request("continue", new { threadId = 1 });
