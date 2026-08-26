@@ -794,7 +794,6 @@ public sealed class CompilerDriverOptionTests
 		{
 			request.TargetName = "gcc-linux-x64";
 			request.NoStdLib = true;
-			request.BuildKind = NativeBuildKind.Static;
 			request.EmitMetadata = MetadataVisibility.Export;
 			request.OutDir = outDir;
 			request.ProjectName = "requirement_output_api_metadata";
@@ -804,7 +803,7 @@ public sealed class CompilerDriverOptionTests
 		Assert.Contains("requires (OS_LINUX)", api.StdOut, StringComparison.Ordinal);
 		Assert.DoesNotContain("@require", api.StdOut, StringComparison.Ordinal);
 		Assert.Equal(0, metadata.ExitCode);
-		string metadataPath = Path.Combine(outDir, "gcc-linux-x64_static_DEBUG", "requirement_output_api_metadata_api.json");
+		string metadataPath = Path.Combine(outDir, "gcc-linux-x64_DEBUG", "requirement_output_api_metadata_api.json");
 		using JsonDocument document = JsonDocument.Parse(File.ReadAllText(metadataPath));
 		JsonElement declaration = document.RootElement.GetProperty("declarations").EnumerateArray().Single(static item => item.GetProperty("name").GetString() == "linuxOnly");
 		Assert.Equal("OS_LINUX", declaration.GetProperty("require").GetString());

@@ -1085,19 +1085,19 @@ public static class CampResponseFileExpander
 		for (int i = 0; i < args.Count; i++)
 		{
 			string arg = args[i];
-			expanded.AddRange(IsBareBuildFileArgument(args, i, workingDirectory)
-				? Expand(["@" + arg], workingDirectory, errors)
+			expanded.AddRange(IsBuildFileArgument(args, i, workingDirectory)
+				? Expand([arg.StartsWith('@') ? arg : "@" + arg], workingDirectory, errors)
 				: [arg]);
 		}
 		return expanded;
 	}
 
-	static bool IsBareBuildFileArgument(IReadOnlyList<string> args, int index, string workingDirectory)
+	static bool IsBuildFileArgument(IReadOnlyList<string> args, int index, string workingDirectory)
 	{
 		string arg = args[index];
 		if (arg.StartsWith("-", StringComparison.Ordinal) || IsOptionValue(args, index))
 			return false;
-		string responseFile = ResolveResponseFile(arg, workingDirectory);
+		string responseFile = ResolveResponseFile(arg.StartsWith('@') ? arg[1..] : arg, workingDirectory);
 		return File.Exists(responseFile) && Path.GetExtension(responseFile).Equals(".campbuild", StringComparison.OrdinalIgnoreCase);
 	}
 

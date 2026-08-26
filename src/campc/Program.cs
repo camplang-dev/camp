@@ -11,7 +11,9 @@ using Camp.Compiler;
 
 CliEnvironment environment = CliEnvironment.Create();
 List<string> startupErrors = [];
-string[] expandedArgs = ResponseFileExpander.Expand(args, environment.WorkingDirectory, startupErrors).ToArray();
+string[] expandedArgs = ShouldDeferBuildLikeResponseExpansion(args)
+	? args
+	: ResponseFileExpander.Expand(args, environment.WorkingDirectory, startupErrors).ToArray();
 if (startupErrors.Count > 0)
 {
 	foreach (string error in startupErrors)
@@ -31,6 +33,9 @@ static bool IsVersionRequest(string[] args)
 {
 	return args is ["--version"];
 }
+
+static bool ShouldDeferBuildLikeResponseExpansion(string[] args) =>
+	args.Length > 0 && args[0] is "build" or "run" or "test" or "cover";
 
 static string GetVersionText()
 {
@@ -636,14 +641,14 @@ sealed class CampCli
 		return workingDirectory;
 	}
 
-	static bool TryBuildRequest(string[] args, CliEnvironment environment, CommandKind command, out CompilerRequest? request, out List<string> errors, List<string>? projectReferenceStack = null)
+static bool TryBuildRequest(string[] args, CliEnvironment environment, CommandKind command, out CompilerRequest? request, out List<string> errors, List<string>? projectReferenceStack = null, string? explicitProjectRoot = null)
 	{
 		request = null;
 		errors = [];
 		string? buildFile = command is CommandKind.Build or CommandKind.Run or CommandKind.Test or CommandKind.Cover or CommandKind.Dump
 			? TryGetBuildFileArgument(args, environment.WorkingDirectory)
 			: null;
-		string? buildFileProjectRoot = buildFile is null ? null : Path.GetDirectoryName(buildFile);
+	string? buildFileProjectRoot = explicitProjectRoot ?? (buildFile is null ? null : Path.GetDirectoryName(buildFile));
 		string? defaultOutDir = command is CommandKind.Build or CommandKind.Run or CommandKind.Test or CommandKind.Cover && buildFileProjectRoot is not null
 			? Path.Combine(buildFileProjectRoot, "bin")
 			: null;
@@ -884,7 +889,7 @@ sealed class CampCli
 				RuntimeRoot = environment.RuntimeRoot,
 				HomeDirectory = environment.HomeDirectory
 			};
-			if (!TryBuildRequest(projectArgs.ToArray(), projectEnvironment, CommandKind.Build, out CompilerRequest? projectRequest, out List<string> projectErrors, childStack))
+			if (!TryBuildRequest(projectArgs.ToArray(), projectEnvironment, CommandKind.Build, out CompilerRequest? projectRequest, out List<string> projectErrors, childStack, projectDirectory))
 			{
 				foreach (string projectError in projectErrors)
 					errors.Add($"{projectReference}: {projectError}");
@@ -892,7 +897,6 @@ sealed class CampCli
 			}
 			projectRequest!.OutDir = projectOutputDirectory;
 			projectRequest.OutDirIsDirect = true;
-			projectRequest.SourcefileDefaultRoot = consumerRequest.SourcefileDefaultRoot;
 
 			if (instrumentForCoverage)
 				projectRequest.CoverageInstrumentationMode = CoverageInstrumentationMode.ProductionSubject;
@@ -2725,19 +2729,19 @@ static class ResponseFileExpander
 		for (int i = 0; i < args.Count; i++)
 		{
 			string arg = args[i];
-			expanded.AddRange(IsBareBuildFileArgument(args, i, workingDirectory)
-				? Expand(["@" + arg], workingDirectory, errors)
+			expanded.AddRange(IsBuildFileArgument(args, i, workingDirectory)
+				? Expand([arg.StartsWith('@') ? arg : "@" + arg], workingDirectory, errors)
 				: [arg]);
 		}
 		return expanded;
 	}
 
-	static bool IsBareBuildFileArgument(IReadOnlyList<string> args, int index, string workingDirectory)
+	static bool IsBuildFileArgument(IReadOnlyList<string> args, int index, string workingDirectory)
 	{
 		string arg = args[index];
 		if (arg.StartsWith("-", StringComparison.Ordinal) || IsOptionValue(args, index))
 			return false;
-		string responseFile = ResolveResponseFile(arg, workingDirectory);
+		string responseFile = ResolveResponseFile(arg.StartsWith('@') ? arg[1..] : arg, workingDirectory);
 		return File.Exists(responseFile) && Path.GetExtension(responseFile).Equals(".campbuild", StringComparison.OrdinalIgnoreCase);
 	}
 

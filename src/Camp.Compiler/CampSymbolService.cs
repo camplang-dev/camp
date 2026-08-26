@@ -2311,7 +2311,7 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 		return text.Replace("\r\n", "\n", StringComparison.Ordinal)
 			.Split('\n')
 			.Select(static line => line.Trim())
-			.FirstOrDefault(static line => line.Length > 0 && !line.StartsWith("@", StringComparison.Ordinal));
+			.FirstOrDefault(static line => line.Length > 0 && !line.StartsWith("@", StringComparison.Ordinal) && !line.StartsWith("requires (", StringComparison.Ordinal));
 	}
 
 	static string? GetDocumentSymbolDetail(BindableNode node)

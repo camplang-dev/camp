@@ -432,9 +432,9 @@ public sealed class CommandLineTests
 
 		Assert.Equal(1, result.ExitCode);
 		Assert.Contains("failed: HarnessCli::directFailure", result.StdOut, StringComparison.Ordinal);
-		Assert.Contains($"{RelativeSourcePath(source)}:{FindLine(source, "assert(1 == 2);")} 1 == 2", result.StdOut, StringComparison.Ordinal);
+		Assert.Contains($"{ProjectRelativeSourcePath(source)}:{FindLine(source, "assert(1 == 2);")} 1 == 2", result.StdOut, StringComparison.Ordinal);
 		Assert.Contains("failed: HarnessCli::wrapperFailure", result.StdOut, StringComparison.Ordinal);
-		Assert.Contains($"{RelativeSourcePath(source)}:{FindLine(source, "assertPositive(0);")} 0", result.StdOut, StringComparison.Ordinal);
+		Assert.Contains($"{ProjectRelativeSourcePath(source)}:{FindLine(source, "assertPositive(0);")} 0", result.StdOut, StringComparison.Ordinal);
 		Assert.Contains("skipped: HarnessCli::skippedCase", result.StdOut, StringComparison.Ordinal);
 		Assert.Contains("invalid: HarnessCli::invalidShape", result.StdOut, StringComparison.Ordinal);
 		Assert.Contains("test summary: 0 passed, 2 failed, 1 skipped, 1 invalid, 0 error, 4 total", result.StdOut, StringComparison.Ordinal);
@@ -997,7 +997,7 @@ public sealed class CommandLineTests
 		Assert.Contains($":{allocationLine} ", result.StdOut, StringComparison.Ordinal);
 		using JsonDocument results = JsonDocument.Parse(File.ReadAllText(TestResultsPath(outDir, "coverage_harness_leaks", CompilerCommandMode.Cover)));
 		JsonElement test = Assert.Single(results.RootElement.GetProperty("tests").EnumerateArray());
-		Assert.Equal(RelativeSourcePath(source), test.GetProperty("failure").GetProperty("sourcefile").GetString());
+		Assert.Equal(ProjectRelativeSourcePath(source), test.GetProperty("failure").GetProperty("sourcefile").GetString());
 		Assert.Equal(allocationLine, test.GetProperty("failure").GetProperty("sourceline").GetInt32());
 	}
 
@@ -1042,7 +1042,7 @@ public sealed class CommandLineTests
 		Assert.Contains($":{allocationLine} ", result.StdOut, StringComparison.Ordinal);
 		using JsonDocument results = JsonDocument.Parse(File.ReadAllText(TestResultsPath(outDir, "coverage_test_allocation_source", CompilerCommandMode.Cover)));
 		JsonElement test = Assert.Single(results.RootElement.GetProperty("tests").EnumerateArray());
-		Assert.Equal(RelativeSourcePath(source), test.GetProperty("failure").GetProperty("sourcefile").GetString());
+		Assert.Equal(ProjectRelativeSourcePath(source), test.GetProperty("failure").GetProperty("sourcefile").GetString());
 		Assert.Equal(allocationLine, test.GetProperty("failure").GetProperty("sourceline").GetInt32());
 	}
 
@@ -1310,7 +1310,7 @@ public sealed class CommandLineTests
 		Assert.Contains(FindLine(source, "return 0;"), file.GetProperty("uncoveredLines").EnumerateArray().Select(static line => line.GetInt32()));
 
 		string lcov = File.ReadAllText(Path.Combine(coverageDir, "lcov.info"));
-		Assert.Contains("SF:" + RelativeSourcePath(source), lcov, StringComparison.Ordinal);
+		Assert.Contains("SF:" + ProjectRelativeSourcePath(source), lcov, StringComparison.Ordinal);
 		Assert.Contains("FNDA:1,CoverageCli::add", lcov, StringComparison.Ordinal);
 		Assert.Contains("FNDA:0,CoverageCli::unused", lcov, StringComparison.Ordinal);
 	}
@@ -1540,7 +1540,7 @@ public sealed class CommandLineTests
 		Assert.Equal(2, coverage.RootElement.GetProperty("summary").GetProperty("function").GetProperty("total").GetInt32());
 		Assert.Equal(1, coverage.RootElement.GetProperty("summary").GetProperty("function").GetProperty("covered").GetInt32());
 		JsonElement file = Assert.Single(coverage.RootElement.GetProperty("files").EnumerateArray());
-		Assert.Contains(RelativeSourcePath(libraryCamp), file.GetProperty("path").GetString(), StringComparison.Ordinal);
+		Assert.Contains(ProjectRelativeSourcePath(libraryCamp, libraryRoot), file.GetProperty("path").GetString(), StringComparison.Ordinal);
 		Assert.Contains(FindLine(libraryCamp, "return 0;"), file.GetProperty("uncoveredLines").EnumerateArray().Select(static line => line.GetInt32()));
 	}
 
@@ -1655,7 +1655,7 @@ public sealed class CommandLineTests
 		string cFile = Assert.Single(Directory.GetFiles(outDir, "main.c", SearchOption.AllDirectories));
 		string cText = File.ReadAllText(cFile);
 		Assert.Contains("#line 1", cText, StringComparison.Ordinal);
-		Assert.Contains(EscapeCString(Path.GetFullPath(source)), cText, StringComparison.Ordinal);
+		Assert.Contains(EscapeCString(ProjectRelativeSourcePath(source)), cText, StringComparison.Ordinal);
 	}
 
 	[Fact]
@@ -6151,6 +6151,12 @@ public sealed class CommandLineTests
 	static string RelativeSourcePath(string path)
 	{
 		return Path.GetRelativePath(FindRepositoryRoot(), Path.GetFullPath(path)).Replace('\\', '/');
+	}
+
+	static string ProjectRelativeSourcePath(string path, string? projectRoot = null)
+	{
+		string root = projectRoot ?? Path.GetDirectoryName(Path.GetFullPath(path)) ?? FindRepositoryRoot();
+		return Path.GetRelativePath(root, Path.GetFullPath(path)).Replace('\\', '/');
 	}
 
 	static string TestManifestPath(string outDir, string projectName)
