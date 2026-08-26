@@ -873,7 +873,8 @@ public sealed partial class BindableNodeAnalyzer
 	void ValidateDuplicateTopLevelSymbols(Module module)
 	{
 		SymbolCollisionSet collisions = new();
-		foreach (Definition definition in DeclarationParticipation.ActiveTopLevelDefinitions(module))
+		DeclarationParticipation participation = new(module);
+		foreach (Definition definition in DuplicateValidationTopLevelDefinitions(module, participation))
 		{
 			foreach (DeclarationName name in GetDefinitionSymbolNames(definition))
 			{
@@ -894,8 +895,12 @@ public sealed partial class BindableNodeAnalyzer
 
 		foreach (TypeDefinition type in allTypeDefinitions)
 		{
+			if (!IncludesInDuplicateValidation(type, module, participation))
+				continue;
 			foreach (FieldDefinition field in GetTypeFields(type))
 			{
+				if (!IncludesInDuplicateValidation(field, module, participation))
+					continue;
 				if (field.Modifier != FieldModifier.Static || string.IsNullOrWhiteSpace(field.Symbol))
 					continue;
 
@@ -916,6 +921,8 @@ public sealed partial class BindableNodeAnalyzer
 
 			foreach (FunctionDefinition function in GetTypeFunctions(type))
 			{
+				if (!IncludesInDuplicateValidation(function, module, participation))
+					continue;
 				if (!function.SymbolOverridden || string.IsNullOrWhiteSpace(function.Symbol))
 					continue;
 
@@ -926,6 +933,18 @@ public sealed partial class BindableNodeAnalyzer
 						: $"Symbol '{symbol}' is already declared in this scope as a component of '{componentOwner}'.");
 			}
 		}
+	}
+
+	IEnumerable<Definition> DuplicateValidationTopLevelDefinitions(Module module, DeclarationParticipation participation)
+	{
+		foreach (Definition definition in module.Definitions)
+			if (IncludesInDuplicateValidation(definition, module, participation))
+				yield return definition;
+	}
+
+	static bool IncludesInDuplicateValidation(Definition definition, Module module, DeclarationParticipation participation)
+	{
+		return module.DeclarationParticipationMode == DeclarationParticipationMode.TestModule || !participation.IsTestOnly(definition);
 	}
 
 	IEnumerable<string> GetDefinitionComponentSymbolNames(Definition definition)

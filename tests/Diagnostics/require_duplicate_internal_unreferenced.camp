@@ -1,0 +1,11 @@
+@require(OS_WIN32)
+int same()
+{
+	return 1;
+}
+
+@require(OS_LINUX)
+int same()
+{
+	return 2;
+}

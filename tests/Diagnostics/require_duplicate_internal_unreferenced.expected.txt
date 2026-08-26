@@ -1,0 +1,1 @@
+tests/Diagnostics/require_duplicate_internal_unreferenced.camp(8,5): error: Duplicate symbol name 'same'.
