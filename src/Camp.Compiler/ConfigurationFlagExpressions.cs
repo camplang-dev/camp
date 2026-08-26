@@ -56,14 +56,28 @@ public sealed class ConfigurationFlagExpression
 
 public static class ConfigurationFlagExpressionBinder
 {
-	public static ConfigurationFlagExpression And(ConfigurationFlagExpression? left, ConfigurationFlagExpression? right)
+	public static ConfigurationFlagExpression? And(ConfigurationFlagExpression? left, ConfigurationFlagExpression? right)
 	{
+		left = Normalize(left);
+		right = Normalize(right);
 		if (left is null)
-			return right ?? True();
+			return right;
 		if (right is null)
+			return left;
+		if (IsLiteral(left, false) || IsLiteral(right, false))
+			return False();
+		if (IsLiteral(left, true))
+			return right;
+		if (IsLiteral(right, true))
 			return left;
 		return new ConfigurationFlagExpression { Kind = ConfigurationFlagExpressionKind.And, Left = left, Right = right };
 	}
+
+	public static ConfigurationFlagExpression? Normalize(ConfigurationFlagExpression? expression) =>
+		expression is null || IsLiteral(expression, true) ? null : expression;
+
+	static bool IsLiteral(ConfigurationFlagExpression expression, bool value) =>
+		expression.Kind == ConfigurationFlagExpressionKind.Literal && expression.LiteralValue == value;
 
 	public static ConfigurationFlagExpression Flag(string name) =>
 		new() { Kind = ConfigurationFlagExpressionKind.Flag, FlagName = name };

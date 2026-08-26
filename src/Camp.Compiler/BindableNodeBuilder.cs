@@ -995,6 +995,7 @@ public sealed partial class BindableNodeBuilder
 				Type = BuildTypeReference(syntax.Type),
 				OutOfScopeOwnerType = syntax.OutOfScopeOwnerType is null ? null : BuildTypeReference(syntax.OutOfScopeOwnerType)
 			};
+			ApplyActiveSourceRequirements(definition);
 			ApplyDefinitionAttributes(definition, syntax.Attributes);
 		ApplyVariableDeclarators(definition, syntax.Declarators, isGlobal, syntax.OutOfScopeOwnerType is not null);
 
