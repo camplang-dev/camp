@@ -909,19 +909,19 @@ public static class CompilerDriver
 			sourceDirectory = null;
 			artifactRoot = null;
 			resolvedVersion = null;
-			if (TryFindLiveSourcePackage(packageName, requestedVersion, out sourceDirectory, out artifactRoot, out resolvedVersion))
-				return true;
+			string? lockedVersion = TryGetLockedPackageVersion(packageName);
 			foreach ((string installRoot, string outputRoot) in GetInstalledPackageRoots())
 			{
 				string packageDirectory = Path.Combine(installRoot, packageName);
 				if (!Directory.Exists(packageDirectory))
 					continue;
-				string? version = requestedVersion;
+				string? version = requestedVersion ?? lockedVersion;
 				if (version is null)
 					version = Directory.GetDirectories(packageDirectory)
 						.Select(Path.GetFileName)
 						.Where(static value => !string.IsNullOrWhiteSpace(value))
-						.OrderByDescending(static value => PackageVersion.Parse(value!), PackageVersion.Comparer)
+						.Where(static value => PackageSelectedVersion.TryParse(value!, out _, out _))
+						.OrderByDescending(static value => PackageSelectedVersion.Parse(value!), PackageSelectedVersion.Comparer)
 						.FirstOrDefault();
 				if (version is null)
 					continue;
@@ -936,73 +936,29 @@ public static class CompilerDriver
 			return false;
 		}
 
-		bool TryFindLiveSourcePackage(string packageName, string? requestedVersion, out string? sourceDirectory, out string? artifactRoot, out string? resolvedVersion)
+		string? TryGetLockedPackageVersion(string packageName)
 		{
-			sourceDirectory = null;
-			artifactRoot = null;
-			resolvedVersion = null;
-			foreach (string root in request.UseSourceRoots)
-			{
-				string sourceRoot = Path.GetFullPath(root, request.WorkingDirectory);
-				if (requestedVersion is null)
-				{
-					string unversioned = Path.Combine(sourceRoot, packageName, "src");
-					if (Directory.Exists(unversioned))
-					{
-						sourceDirectory = unversioned;
-						artifactRoot = Path.Combine(request.WorkingDirectory, "cache", "pkg");
-						resolvedVersion = "live";
-						return true;
-					}
-				}
-
-				string packageDirectory = Path.Combine(sourceRoot, packageName);
-				if (!Directory.Exists(packageDirectory))
-					continue;
-				string? version = requestedVersion;
-				if (version is null)
-					version = Directory.GetDirectories(packageDirectory)
-						.Select(Path.GetFileName)
-						.Where(static value => !string.IsNullOrWhiteSpace(value))
-						.OrderByDescending(static value => PackageVersion.Parse(value!), PackageVersion.Comparer)
-						.FirstOrDefault();
-				if (version is null)
-					continue;
-				string candidate = Path.Combine(packageDirectory, version, "src");
-				if (!Directory.Exists(candidate))
-					continue;
-				sourceDirectory = candidate;
-				artifactRoot = Path.Combine(request.WorkingDirectory, "cache", "pkg");
-				resolvedVersion = version;
-				return true;
-			}
-			return false;
+			string lockPath = Path.Combine(request.WorkingDirectory, "packages.ini");
+			if (!File.Exists(lockPath))
+				return null;
+			if (!PackageLockFile.TryParse(lockPath, File.ReadAllText(lockPath), out PackageLockFile? lockFile, out _))
+				return null;
+			return lockFile!.Packages.TryGetValue(packageName, out PackageLockEntry? entry) ? entry.Version.ToString() : null;
 		}
 
 		string FormatPackageNotFoundDiagnostic(string packageSpec, string packageName, string? requestedVersion)
 		{
 			StringBuilder builder = new();
-			builder.Append("Package '").Append(packageSpec).Append("' could not be found.");
-			if (request.UseSourceRoots.Count > 0)
-			{
-				builder.AppendLine();
-				builder.AppendLine("Searched package source roots:");
-				foreach (string root in request.UseSourceRoots)
-				{
-					string sourceRoot = Path.GetFullPath(root, request.WorkingDirectory);
-					builder.Append("  ").Append(sourceRoot);
-					if (requestedVersion is null)
-						builder.Append(" (looked for ").Append(Path.Combine(sourceRoot, packageName, "src")).Append(')');
-					else
-						builder.Append(" (looked for ").Append(Path.Combine(sourceRoot, packageName, requestedVersion, "src")).Append(')');
-					builder.AppendLine();
-				}
-			}
+			string? lockedVersion = TryGetLockedPackageVersion(packageName);
+			if (lockedVersion is not null && requestedVersion is null)
+				builder.Append("Package '").Append(packageName).Append('/').Append(lockedVersion).Append("' is locked but not installed.");
+			else
+				builder.Append("Package '").Append(packageSpec).Append("' is not installed.");
 			builder.AppendLine();
 			builder.AppendLine("Searched installed package roots:");
 			foreach ((string installRoot, _) in GetInstalledPackageRoots())
 				builder.Append("  ").Append(Path.Combine(installRoot, packageName)).AppendLine();
-			builder.Append("Run 'campc restore' or 'campc pkg install ").Append(packageSpec).Append("' if this is an installed package.");
+			builder.Append("Run 'campc restore'.");
 			return builder.ToString();
 		}
 
@@ -1010,8 +966,8 @@ public static class CompilerDriver
 		{
 			string globalRoot = CampRuntimeLayout.Resolve(request.WorkingDirectory, request.RuntimeRoot).PackageCacheDirectory;
 			string localRoot = Path.GetFullPath(Path.Combine(request.WorkingDirectory, "cache", "pkg"));
-			yield return (globalRoot, globalRoot);
 			yield return (localRoot, localRoot);
+			yield return (globalRoot, globalRoot);
 		}
 
 		static string GetPackageArtifactDirectory(string artifactRoot, string packageName, string? version, RuntimeContext context, NativeBuildKind? buildKind)

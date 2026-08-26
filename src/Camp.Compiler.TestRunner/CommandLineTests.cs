@@ -5627,6 +5627,11 @@ public sealed class CommandLineTests
 		string app = CreateTempCase("pkg_restore_cache.camp", $$"""
 			#build --use-source local "{{sourceRootArgument}}"
 			#build --use {{packageName}}@1.2.3
+
+			export int main()
+			{
+				return restoredValue() - 7;
+			}
 			""");
 		string projectRoot = Path.GetDirectoryName(app)!;
 		string cachePackageRoot = Path.Combine(projectRoot, "cache", "pkg", packageName);
@@ -5648,6 +5653,9 @@ public sealed class CommandLineTests
 		Assert.Contains($"[{packageName}]", lockText, StringComparison.Ordinal);
 		Assert.Contains($"[{dependencyName}]", lockText, StringComparison.Ordinal);
 		Assert.False(Directory.Exists(oldPackageRoot));
+
+		ProcessResult build = RunCampcIn(projectRoot, "build", Path.GetFileName(app), "--target", NativeTargetForHost(), "--out-dir", Path.Combine(projectRoot, "out"));
+		Assert.Equal(0, build.ExitCode);
 	}
 
 	static void CreatePublishedPackage(string sourceRoot, string packageName, string version, string source, string? use = null)
