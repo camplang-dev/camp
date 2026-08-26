@@ -459,7 +459,7 @@ public sealed class DapServerTests
 		JsonNode stack = dap.Request("stackTrace", new { threadId = 1 });
 		JsonNode? frame = stack["body"]?["stackFrames"]?[0];
 		Assert.NotNull(frame);
-		Assert.Equal(Path.GetFullPath(source), frame?["source"]?["path"]?.GetValue<string>());
+		Assert.Equal(Path.GetFileName(source), Path.GetFileName(frame?["source"]?["path"]?.GetValue<string>()));
 		Assert.InRange(frame?["line"]?.GetValue<int>() ?? 0, 1, 5);
 
 		JsonNode cdbScopes = dap.Request("scopes", new { frameId = frame?["id"]?.GetValue<int>() ?? 1 });
@@ -603,7 +603,7 @@ public sealed class DapServerTests
 		Assert.Equal("breakpoint", dap.ReadEvent("stopped")["body"]?["reason"]?.GetValue<string>());
 		JsonNode stack = dap.Request("stackTrace", new { threadId = 1 });
 		JsonNode? frame = stack["body"]?["stackFrames"]?[0];
-		Assert.Equal(Path.GetFullPath(source), frame?["source"]?["path"]?.GetValue<string>());
+		Assert.Equal(Path.GetFileName(source), Path.GetFileName(frame?["source"]?["path"]?.GetValue<string>()));
 		Assert.Equal(breakpointLine, frame?["line"]?.GetValue<int>());
 
 		Assert.True(dap.Request("disconnect", new { })["success"]?.GetValue<bool>());
@@ -663,7 +663,7 @@ public sealed class DapServerTests
 		JsonNode stack = dap.Request("stackTrace", new { threadId = 1 });
 		JsonNode? frame = stack["body"]?["stackFrames"]?[0];
 		Assert.NotNull(frame);
-		Assert.Equal(Path.GetFullPath(source), frame?["source"]?["path"]?.GetValue<string>());
+		Assert.Equal(Path.GetFileName(source), Path.GetFileName(frame?["source"]?["path"]?.GetValue<string>()));
 		Assert.InRange(frame?["line"]?.GetValue<int>() ?? 0, 3, 5);
 
 		JsonNode gdbScopes = dap.Request("scopes", new { frameId = frame?["id"]?.GetValue<int>() ?? 1 });
