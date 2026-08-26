@@ -3090,19 +3090,14 @@ public sealed class CommandLineTests
 		if (Directory.Exists(root))
 			Directory.Delete(root, recursive: true);
 		string packageName = "api-demo-project-reference-current";
-		string repositoryRoot = FindRepositoryRoot();
-		string cachedPackageRoot = Path.Combine(repositoryRoot, "cache", "pkg", packageName);
 		string libraryRoot = Path.Combine(root, "sample-lib");
 		string librarySource = Path.Combine(libraryRoot, "src");
-		string packageSource = Path.Combine(root, "package-source", packageName, "src");
+		string sourceRoot = Path.Combine(root, "package-source");
 		string appRoot = Path.Combine(root, "sample-app");
 		Directory.CreateDirectory(librarySource);
-		Directory.CreateDirectory(packageSource);
 		Directory.CreateDirectory(appRoot);
-		string sourceRootArgument = Path.Combine(root, "package-source").Replace('\\', '/');
-		if (Directory.Exists(cachedPackageRoot))
-			Directory.Delete(cachedPackageRoot, recursive: true);
-		File.WriteAllText(Path.Combine(packageSource, "api.camp"), "export newtype NativeHandle: nint;\n");
+		string sourceRootArgument = sourceRoot.Replace('\\', '/');
+		CreatePublishedPackage(sourceRoot, packageName, "1.0.0", "export newtype NativeHandle: nint;\n");
 		File.WriteAllText(Path.Combine(librarySource, "library.camp"), """
 			export int add(int left, int right)
 			{
@@ -3113,12 +3108,11 @@ public sealed class CommandLineTests
 			--nostdlib
 			--name sample-lib
 			--use-source local "{{sourceRootArgument}}"
-			--use {{packageName}}:api
+			--use {{packageName}}@1.0.0:api
 			src/*.camp
 			""");
-		try
-		{
-			string app = Path.Combine(appRoot, "app.camp");
+		AssertCommandSucceeded(RunCampcIn(libraryRoot, "restore", "sample-lib.campbuild"));
+		string app = Path.Combine(appRoot, "app.camp");
 			File.WriteAllText(app, """
 				#build --nostdlib
 				#build --name sample-app
@@ -3127,7 +3121,7 @@ public sealed class CommandLineTests
 				{
 					return add(20, 22) - 42;
 				}
-				""");
+			""");
 			string target = NativeTargetForHost();
 			string outDir = Path.Combine(appRoot, "bin");
 			string referenceOutputDirectory = Path.Combine(libraryRoot, "bin", ArtifactDirectoryForTarget(target, NativeBuildKind.Static));
@@ -3165,13 +3159,7 @@ public sealed class CommandLineTests
 
 			AssertCommandSucceeded(second);
 			Assert.DoesNotContain(libraryRoot + ":static: generated:", second.StdOut, StringComparison.Ordinal);
-			Assert.Equal(firstLibraryWrite, File.GetLastWriteTimeUtc(libraryPath));
-		}
-		finally
-		{
-			if (Directory.Exists(cachedPackageRoot))
-				Directory.Delete(cachedPackageRoot, recursive: true);
-		}
+		Assert.Equal(firstLibraryWrite, File.GetLastWriteTimeUtc(libraryPath));
 	}
 
 	[Fact]
@@ -4466,7 +4454,7 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
-	public void Use_source_resolves_live_unversioned_package_sources()
+	public void Use_source_does_not_resolve_live_package_sources_during_build()
 	{
 		string root = TempPath("live-use-source");
 		string sourceRoot = Path.Combine(root, "package-source");
@@ -4497,36 +4485,12 @@ public sealed class CommandLineTests
 
 		ProcessResult first = RunCampc("build", app, "--verbose", "--out-dir", TempPath("live-use-source-build-1"));
 
-		Assert.Equal(0, first.ExitCode);
-		AssertGeneratedOrUnchanged(first.StdOut, "live_use_source_app.c");
-		Assert.True(File.Exists(Path.Combine(cachedPackageRoot, "live", "bin", ArtifactDirectoryForHost(NativeBuildKind.Shared), "live-demo_api.camp")));
+		Assert.NotEqual(0, first.ExitCode);
+		Assert.Contains("Package 'live-demo' is not installed.", first.StdErr, StringComparison.Ordinal);
+		Assert.Contains("Run 'campc restore'.", first.StdErr, StringComparison.Ordinal);
+		Assert.False(Directory.Exists(cachedPackageRoot));
 		Assert.False(Directory.Exists(Path.Combine(sourceRoot, "live-demo", "bin")));
 		Assert.False(Directory.Exists(Path.Combine(sourceRoot, "live-demo", "build")));
-
-		File.WriteAllText(packageFile, """
-			export int liveChanged()
-			{
-				return 2;
-			}
-			""");
-		File.SetLastWriteTimeUtc(packageFile, DateTime.UtcNow.AddSeconds(5));
-		File.WriteAllText(app, $$"""
-			#build --nostdlib
-			#build --artifact none
-			#build --use-source local "{{sourceRootArgument}}"
-			#build --use live-demo
-
-			export int main()
-			{
-				return liveChanged() - 2;
-			}
-			""");
-
-		ProcessResult second = RunCampc("build", app, "--verbose", "--out-dir", TempPath("live-use-source-build-2"));
-
-		Assert.Equal(0, second.ExitCode);
-		AssertGeneratedOrUnchanged(second.StdOut, "live_use_source_app.c");
-		Assert.True(File.Exists(Path.Combine(cachedPackageRoot, "live", "bin", ArtifactDirectoryForHost(NativeBuildKind.Shared), "live-demo_api.camp")));
 	}
 
 	[Fact]
@@ -4534,9 +4498,7 @@ public sealed class CommandLineTests
 	{
 		string root = TempPath("imported-alias-member-call");
 		string sourceRoot = Path.Combine(root, "package-source");
-		string packageRoot = Path.Combine(sourceRoot, "alias-projection", "src");
-		Directory.CreateDirectory(packageRoot);
-		File.WriteAllText(Path.Combine(packageRoot, "api.camp"), """
+		CreatePublishedPackage(sourceRoot, "alias-projection", "1.0.0", """
 			namespace AliasProjection;
 
 			export alias WPARAM = nuint;
@@ -4550,7 +4512,7 @@ public sealed class CommandLineTests
 			#build --nostdlib
 			#build --artifact none
 			#build --use-source local "{{sourceRootArgument}}"
-			#build --use alias-projection:api
+			#build --use alias-projection@1.0.0:api
 
 			using AliasProjection;
 
@@ -4576,7 +4538,8 @@ public sealed class CommandLineTests
 			}
 			""");
 
-		ProcessResult result = RunCampc("build", app, "--out-dir", TempPath("imported-alias-member-call-out"));
+		AssertCommandSucceeded(RunCampc("restore", app));
+		ProcessResult result = RunCampcIn(Path.GetDirectoryName(app)!, "build", Path.GetFileName(app), "--out-dir", TempPath("imported-alias-member-call-out"));
 
 		AssertCommandSucceeded(result);
 	}
@@ -4756,7 +4719,7 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
-	public void Build_reports_missing_use_source_path_with_resolved_path()
+	public void Build_does_not_validate_unused_use_source_path()
 	{
 		string root = TempPath("missing-use-source-root");
 		string missingSourceRoot = Path.Combine(root, "package-source");
@@ -4774,13 +4737,12 @@ public sealed class CommandLineTests
 
 		ProcessResult result = RunCampc("build", app);
 
-		Assert.NotEqual(0, result.ExitCode);
-		Assert.Contains($"Package source 'local' path '{Path.GetFullPath(missingSourceRoot)}' could not be found.", result.StdErr, StringComparison.Ordinal);
-		Assert.Contains($"resolved path: {Path.GetFullPath(missingSourceRoot)}", result.StdErr, StringComparison.Ordinal);
+		Assert.Equal(0, result.ExitCode);
+		Assert.DoesNotContain("Package source", result.StdErr, StringComparison.Ordinal);
 	}
 
 	[Fact]
-	public void Build_reports_missing_live_package_with_searched_roots()
+	public void Build_reports_missing_installed_package_with_restore_guidance()
 	{
 		string root = TempPath("missing-live-package");
 		string sourceRoot = Path.Combine(root, "package-source");
@@ -4801,10 +4763,9 @@ public sealed class CommandLineTests
 		ProcessResult result = RunCampc("build", app);
 
 		Assert.NotEqual(0, result.ExitCode);
-		Assert.Contains("Package 'missing-live:api' could not be found.", result.StdErr, StringComparison.Ordinal);
-		Assert.Contains("Searched package source roots:", result.StdErr, StringComparison.Ordinal);
-		Assert.Contains(Path.Combine(Path.GetFullPath(sourceRoot), "missing-live", "src"), result.StdErr, StringComparison.Ordinal);
+		Assert.Contains("Package 'missing-live:api' is not installed.", result.StdErr, StringComparison.Ordinal);
 		Assert.Contains("Searched installed package roots:", result.StdErr, StringComparison.Ordinal);
+		Assert.Contains("Run 'campc restore'.", result.StdErr, StringComparison.Ordinal);
 	}
 
 	[Fact]
@@ -4814,15 +4775,10 @@ public sealed class CommandLineTests
 			Assert.Skip("Shared package runtime smoke is currently macOS-only.");
 		string root = TempPath("live-package-shared-static");
 		string sourceRoot = Path.Combine(root, "package-source");
-		string cachedPackageRoot = Path.Combine(FindRepositoryRoot(), "cache", "pkg", "live-link-demo");
-		if (Directory.Exists(cachedPackageRoot))
-			Directory.Delete(cachedPackageRoot, recursive: true);
-		string packageSource = Path.Combine(sourceRoot, "live-link-demo", "src");
 		string appRoot = Path.Combine(root, "app");
-		Directory.CreateDirectory(packageSource);
 		Directory.CreateDirectory(appRoot);
 		string sourceRootArgument = sourceRoot.Replace('\\', '/');
-		File.WriteAllText(Path.Combine(packageSource, "demo.camp"), """
+		CreatePublishedPackage(sourceRoot, "live-link-demo", "1.0.0", """
 			export int liveValue()
 			{
 				return 42;
@@ -4833,7 +4789,7 @@ public sealed class CommandLineTests
 			#build --nostdlib
 			#build --name live-package-app
 			#build --use-source local "{{sourceRootArgument}}"
-			#build --use live-link-demo
+			#build --use live-link-demo@1.0.0
 
 			export int main()
 			{
@@ -4841,11 +4797,13 @@ public sealed class CommandLineTests
 			}
 			""");
 		string outDir = Path.Combine(appRoot, "bin");
+		AssertCommandSucceeded(RunCampcIn(appRoot, "restore", app));
 
-		ProcessResult shared = RunCampc("build", app, "--target", "clang-macos-x64", "--out-dir", outDir);
+		ProcessResult shared = RunCampcIn(appRoot, "build", "app.camp", "--target", "clang-macos-x64", "--out-dir", outDir);
 
 		AssertCommandSucceeded(shared);
-		string sharedCacheDirectory = Path.Combine(cachedPackageRoot, "live", "bin", ArtifactDirectoryForTarget("clang-macos-x64", NativeBuildKind.Shared));
+		string restoredPackageRoot = Path.Combine(appRoot, "cache", "pkg", "live-link-demo", "1.0.0");
+		string sharedCacheDirectory = Path.Combine(restoredPackageRoot, "bin", ArtifactDirectoryForTarget("clang-macos-x64", NativeBuildKind.Shared));
 		string appArtifactDirectory = Path.Combine(outDir, ArtifactDirectoryForTarget("clang-macos-x64", NativeBuildKind.Exec));
 		Assert.True(File.Exists(Path.Combine(sharedCacheDirectory, "liblive-link-demo.dylib")));
 		Assert.True(File.Exists(Path.Combine(appArtifactDirectory, "liblive-link-demo.dylib")));
@@ -4855,17 +4813,18 @@ public sealed class CommandLineTests
 			#build --nostdlib
 			#build --name live-package-static-app
 			#build --use-source local "{{sourceRootArgument}}"
-			#build --use live-link-demo:static
+			#build --use live-link-demo@1.0.0:static
 
 			export int main()
 			{
 				return liveValue() - 42;
 			}
 			""");
-		ProcessResult staticResult = RunCampc("build", app, "--target", "clang-macos-x64", "--out-dir", outDir);
+		AssertCommandSucceeded(RunCampcIn(appRoot, "restore", app));
+		ProcessResult staticResult = RunCampcIn(appRoot, "build", "app.camp", "--target", "clang-macos-x64", "--out-dir", outDir);
 
 		AssertCommandSucceeded(staticResult);
-		string staticCacheDirectory = Path.Combine(cachedPackageRoot, "live", "bin", ArtifactDirectoryForTarget("clang-macos-x64", NativeBuildKind.Static));
+		string staticCacheDirectory = Path.Combine(restoredPackageRoot, "bin", ArtifactDirectoryForTarget("clang-macos-x64", NativeBuildKind.Static));
 		Assert.True(File.Exists(Path.Combine(staticCacheDirectory, "liblive-link-demo.a")));
 		Assert.True(File.Exists(Path.Combine(staticCacheDirectory, "live-link-demo_api.camp")));
 		Assert.NotEqual(sharedCacheDirectory, staticCacheDirectory);
@@ -4876,15 +4835,10 @@ public sealed class CommandLineTests
 	{
 		string root = TempPath("live-static-package-iterator-api");
 		string sourceRoot = Path.Combine(root, "package-source");
-		string cachedPackageRoot = Path.Combine(FindRepositoryRoot(), "cache", "pkg", "live-iterator-demo");
-		if (Directory.Exists(cachedPackageRoot))
-			Directory.Delete(cachedPackageRoot, recursive: true);
-		string packageSource = Path.Combine(sourceRoot, "live-iterator-demo", "src");
 		string appRoot = Path.Combine(root, "app");
-		Directory.CreateDirectory(packageSource);
 		Directory.CreateDirectory(appRoot);
 		string sourceRootArgument = sourceRoot.Replace('\\', '/');
-		File.WriteAllText(Path.Combine(packageSource, "demo.camp"), """
+		CreatePublishedPackage(sourceRoot, "live-iterator-demo", "1.0.0", """
 			#build --nostdlib
 
 			namespace LiveIteratorDemo;
@@ -4925,7 +4879,7 @@ public sealed class CommandLineTests
 			#build --name live-iterator-app
 			#build --artifact static
 			#build --use-source local "{{sourceRootArgument}}"
-			#build --use live-iterator-demo:static
+			#build --use live-iterator-demo@1.0.0:static
 
 			using LiveIteratorDemo;
 
@@ -4939,11 +4893,12 @@ public sealed class CommandLineTests
 			""");
 		string outDir = Path.Combine(appRoot, "bin");
 		string target = NativeTargetForHost();
+		AssertCommandSucceeded(RunCampcIn(appRoot, "restore", app));
 
-		ProcessResult result = RunCampc("build", app, "--target", target, "--out-dir", outDir);
+		ProcessResult result = RunCampcIn(appRoot, "build", "app.camp", "--target", target, "--out-dir", outDir);
 
 		AssertCommandSucceeded(result);
-		string staticCacheDirectory = Path.Combine(cachedPackageRoot, "live", "bin", ArtifactDirectoryForTarget(target, NativeBuildKind.Static));
+		string staticCacheDirectory = Path.Combine(appRoot, "cache", "pkg", "live-iterator-demo", "1.0.0", "bin", ArtifactDirectoryForTarget(target, NativeBuildKind.Static));
 		string apiPath = Path.Combine(staticCacheDirectory, "live-iterator-demo_api.camp");
 		Assert.True(File.Exists(apiPath));
 		string api = File.ReadAllText(apiPath);
@@ -4956,13 +4911,10 @@ public sealed class CommandLineTests
 	{
 		string root = TempPath("live-package-api-only");
 		string sourceRoot = Path.Combine(root, "package-source");
-		string cachedPackageRoot = Path.Combine(FindRepositoryRoot(), "cache", "pkg", "api-demo");
-		string packageSource = Path.Combine(sourceRoot, "api-demo", "src");
 		string appRoot = Path.Combine(root, "app");
-		Directory.CreateDirectory(packageSource);
 		Directory.CreateDirectory(appRoot);
 		string sourceRootArgument = sourceRoot.Replace('\\', '/');
-		File.WriteAllText(Path.Combine(packageSource, "api.camp"), """
+		CreatePublishedPackage(sourceRoot, "api-demo", "1.0.0", """
 			export newtype NativeHandle: nint;
 			export extern NativeHandle getNativeHandle();
 			""");
@@ -4971,7 +4923,7 @@ public sealed class CommandLineTests
 			#build --nostdlib
 			#build --name api-package-app
 			#build --use-source local "{{sourceRootArgument}}"
-			#build --use api-demo:api
+			#build --use api-demo@1.0.0:api
 
 			export int main()
 			{
@@ -4981,25 +4933,16 @@ public sealed class CommandLineTests
 			""");
 		string outDir = Path.Combine(appRoot, "bin");
 		string target = NativeTargetForHost();
-		if (Directory.Exists(cachedPackageRoot))
-			Directory.Delete(cachedPackageRoot, recursive: true);
 
-		try
-		{
-			ProcessResult result = RunCampc("build", app, "--target", target, "--out-dir", outDir);
+		AssertCommandSucceeded(RunCampcIn(appRoot, "restore", app));
+		ProcessResult result = RunCampcIn(appRoot, "build", "app.camp", "--target", target, "--out-dir", outDir);
 
-			AssertCommandSucceeded(result);
-			string apiCacheDirectory = Path.Combine(cachedPackageRoot, "live", "bin", ArtifactDirectoryForTarget(target, DependencyLinkKind.Api));
-			Assert.True(File.Exists(Path.Combine(apiCacheDirectory, "api-demo_api.camp")));
-			Assert.True(File.Exists(Path.Combine(apiCacheDirectory, "api-demo_api.h")));
-			Assert.True(File.Exists(Path.Combine(apiCacheDirectory, "api-demo_api.json")));
-			Assert.DoesNotContain(Directory.GetFiles(apiCacheDirectory), path => Path.GetExtension(path) is ".a" or ".lib" or ".dll" or ".dylib" or ".so");
-		}
-		finally
-		{
-			if (Directory.Exists(cachedPackageRoot))
-				Directory.Delete(cachedPackageRoot, recursive: true);
-		}
+		AssertCommandSucceeded(result);
+		string apiCacheDirectory = Path.Combine(appRoot, "cache", "pkg", "api-demo", "1.0.0", "bin", ArtifactDirectoryForTarget(target, DependencyLinkKind.Api));
+		Assert.True(File.Exists(Path.Combine(apiCacheDirectory, "api-demo_api.camp")));
+		Assert.True(File.Exists(Path.Combine(apiCacheDirectory, "api-demo_api.h")));
+		Assert.True(File.Exists(Path.Combine(apiCacheDirectory, "api-demo_api.json")));
+		Assert.DoesNotContain(Directory.GetFiles(apiCacheDirectory), path => Path.GetExtension(path) is ".a" or ".lib" or ".dll" or ".dylib" or ".so");
 	}
 
 	[Fact]
@@ -5007,12 +4950,10 @@ public sealed class CommandLineTests
 	{
 		string root = TempPath("response-use-source-pattern");
 		string sourceRoot = Path.Combine(root, "package-source");
-		string packageSource = Path.Combine(sourceRoot, "live-demo", "src");
 		string appRoot = Path.Combine(root, "app");
 		string appSource = Path.Combine(appRoot, "src");
-		Directory.CreateDirectory(packageSource);
 		Directory.CreateDirectory(appSource);
-		File.WriteAllText(Path.Combine(packageSource, "demo.camp"), """
+		CreatePublishedPackage(sourceRoot, "live-demo", "1.0.0", """
 			export int liveValue()
 			{
 				return 42;
@@ -5030,11 +4971,12 @@ public sealed class CommandLineTests
 			--artifact none
 			--name app
 			--use-source local ../package-source
-			--use live-demo
+			--use live-demo@1.0.0
 			src/*.camp
 			""");
 
-		ProcessResult result = RunCampc("build", "@" + buildFile, "--verbose");
+		AssertCommandSucceeded(RunCampcIn(appRoot, "restore", "app.campbuild"));
+		ProcessResult result = RunCampcIn(appRoot, "build", "@app.campbuild", "--verbose");
 
 		Assert.Equal(0, result.ExitCode);
 		AssertGeneratedOrUnchanged(result.StdOut, "main.c");
@@ -5453,7 +5395,8 @@ public sealed class CommandLineTests
 		ProcessResult result = RunCampc("build", temp, "-u", "missing-one@1.0.0", "missing-two@1.0.0");
 
 		Assert.NotEqual(0, result.ExitCode);
-		Assert.Contains("Package 'missing-one@1.0.0' could not be found.", result.StdErr, StringComparison.Ordinal);
+		Assert.Contains("Package 'missing-one@1.0.0' is not installed.", result.StdErr, StringComparison.Ordinal);
+		Assert.Contains("Run 'campc restore'.", result.StdErr, StringComparison.Ordinal);
 	}
 
 	[Fact]

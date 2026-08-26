@@ -850,7 +850,13 @@ sealed class CampCli
 			projectArgs.AddRange(["--out-dir", Path.Combine(projectOutputDirectory, ".")]);
 
 			List<string> childStack = [.. projectReferenceStack, canonicalBuildFile];
-			if (!TryBuildRequest(projectArgs.ToArray(), environment, CommandKind.Build, out CompilerRequest? projectRequest, out List<string> projectErrors, childStack))
+			CliEnvironment projectEnvironment = new()
+			{
+				WorkingDirectory = projectDirectory,
+				RuntimeRoot = environment.RuntimeRoot,
+				HomeDirectory = environment.HomeDirectory
+			};
+			if (!TryBuildRequest(projectArgs.ToArray(), projectEnvironment, CommandKind.Build, out CompilerRequest? projectRequest, out List<string> projectErrors, childStack))
 			{
 				foreach (string projectError in projectErrors)
 					errors.Add($"{projectReference}: {projectError}");
@@ -858,6 +864,7 @@ sealed class CampCli
 			}
 			projectRequest!.OutDir = projectOutputDirectory;
 			projectRequest.OutDirIsDirect = true;
+			projectRequest.SourcefileDefaultRoot = consumerRequest.SourcefileDefaultRoot;
 
 			if (instrumentForCoverage)
 				projectRequest.CoverageInstrumentationMode = CoverageInstrumentationMode.ProductionSubject;
