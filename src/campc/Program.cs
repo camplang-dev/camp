@@ -25,6 +25,8 @@ if (IsVersionRequest(expandedArgs))
 	Console.Out.WriteLine(GetVersionText());
 	return 0;
 }
+if (ShouldBypassRootParserForBuildLikeResponse(args))
+	return CampCli.Run(args, environment);
 RootCommand rootCommand = BuildCommandTree(environment, expandedArgs);
 int exitCode = ContainsRemovedOption(expandedArgs) ? CampCli.Run(expandedArgs, environment) : rootCommand.Parse(expandedArgs).Invoke();
 return exitCode;
@@ -36,6 +38,9 @@ static bool IsVersionRequest(string[] args)
 
 static bool ShouldDeferBuildLikeResponseExpansion(string[] args) =>
 	args.Length > 0 && args[0] is "build" or "run" or "test" or "cover";
+
+static bool ShouldBypassRootParserForBuildLikeResponse(string[] args) =>
+	ShouldDeferBuildLikeResponseExpansion(args) && args.Skip(1).Any(static arg => arg.StartsWith('@') && arg.Length > 1);
 
 static string GetVersionText()
 {

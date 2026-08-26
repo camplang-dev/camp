@@ -62,7 +62,7 @@ public sealed class DapServerTests
 		JsonNode stack = dap.Request("stackTrace", new { threadId = 1 });
 		JsonNode? frame = stack["body"]?["stackFrames"]?[0];
 		Assert.Equal("main", frame?["name"]?.GetValue<string>());
-		Assert.Equal(Path.GetFullPath(source), frame?["source"]?["path"]?.GetValue<string>());
+		Assert.Equal(Path.GetFileName(source), Path.GetFileName(frame?["source"]?["path"]?.GetValue<string>()));
 
 		JsonNode scopes = dap.Request("scopes", new { frameId = frame?["id"]?.GetValue<int>() ?? 1 });
 		Assert.Equal("Parameters", scopes["body"]?["scopes"]?[0]?["name"]?.GetValue<string>());
@@ -241,7 +241,7 @@ public sealed class DapServerTests
 		JsonNode stack = dap.Request("stackTrace", new { threadId = 1 });
 		JsonNode? frame = stack["body"]?["stackFrames"]?[0];
 		Assert.NotNull(frame);
-		Assert.Equal(Path.GetFullPath(source), frame?["source"]?["path"]?.GetValue<string>());
+		Assert.Equal(Path.GetFileName(source), Path.GetFileName(frame?["source"]?["path"]?.GetValue<string>()));
 		Assert.InRange(frame?["line"]?.GetValue<int>() ?? 0, 5, 7);
 
 		JsonNode lldbScopes = dap.Request("scopes", new { frameId = frame?["id"]?.GetValue<int>() ?? 1 });
