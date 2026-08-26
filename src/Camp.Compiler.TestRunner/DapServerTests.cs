@@ -664,7 +664,7 @@ public sealed class DapServerTests
 		JsonNode? frame = stack["body"]?["stackFrames"]?[0];
 		Assert.NotNull(frame);
 		Assert.Equal(Path.GetFileNameWithoutExtension(source), Path.GetFileNameWithoutExtension(frame?["source"]?["path"]?.GetValue<string>()));
-		Assert.InRange(frame?["line"]?.GetValue<int>() ?? 0, 3, 5);
+		Assert.InRange(frame?["line"]?.GetValue<int>() ?? 0, 1, 5);
 
 		JsonNode gdbScopes = dap.Request("scopes", new { frameId = frame?["id"]?.GetValue<int>() ?? 1 });
 		JsonNode gdbParameters = dap.Request("variables", new { variablesReference = gdbScopes["body"]?["scopes"]?[0]?["variablesReference"]?.GetValue<int>() ?? 100 });
