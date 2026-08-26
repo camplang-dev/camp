@@ -295,6 +295,8 @@ contexts:
       scope: support.function.test.camp
 
   statements:
+    - match: '\b(requires)\b(?=\s*\()'
+      scope: storage.modifier.camp
     - match: '\b(?:{{statement_keywords}})\b'
       scope: keyword.control.camp
     - match: '{{intrinsic_keywords}}'
