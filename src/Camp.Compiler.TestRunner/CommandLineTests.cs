@@ -2700,6 +2700,34 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Api_header_emits_source_authored_destroy_method()
+	{
+		string root = TempPath("api-source-authored-destroy");
+		string libraryRoot = Path.Combine(root, "library");
+		string librarySource = Path.Combine(libraryRoot, "src");
+		Directory.CreateDirectory(librarySource);
+		File.WriteAllText(Path.Combine(librarySource, "library.camp"), """
+			public class Resource
+			{
+				public void destroy()
+				{
+				}
+			}
+			""");
+		File.WriteAllText(Path.Combine(libraryRoot, "library.campbuild"), """
+			--name destroy-api-lib
+			src/*.camp
+			""");
+		string target = NativeTargetForHost();
+
+		ProcessResult result = RunCampc("build", Path.Combine(libraryRoot, "library.campbuild"), "--target", target);
+
+		AssertCommandSucceeded(result);
+		string api = File.ReadAllText(Path.Combine(libraryRoot, "bin", ArtifactDirectoryForTarget(target, NativeBuildKind.Static), "destroy-api-lib_api.camp"));
+		Assert.Contains("public extern void destroy();", api, StringComparison.Ordinal);
+	}
+
+	[Fact]
 	public void Shared_project_reference_exposes_export_api_only()
 	{
 		string root = TempPath("project-reference-public-shared");

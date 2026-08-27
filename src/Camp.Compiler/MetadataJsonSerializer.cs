@@ -1498,7 +1498,10 @@ public static class MetadataJsonSerializer
 			if (function.GeneratedInfo?.Category == GeneratedDeclarationCategory.Iterator
 				|| function.Provenance?.Category == GeneratedDeclarationCategory.Iterator)
 				return function.Name is "op_initnew" or "create" or "op_delete";
-			return function.Name is "op_initnew" or "create" or "op_delete" or "destroy";
+			if (function.GeneratedInfo?.Category == GeneratedDeclarationCategory.Lifecycle
+				|| function.Provenance?.Category == GeneratedDeclarationCategory.Lifecycle)
+				return function.Name is "op_initnew" or "create" or "op_delete" or "destroy";
+			return false;
 		}
 
 		static bool IsGeneratedVirtualImplementationFunction(FunctionDefinition function)
