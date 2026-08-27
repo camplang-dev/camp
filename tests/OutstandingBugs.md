@@ -2,9 +2,9 @@
 
 Next bug number: BUG-088.
 
-## BUG-087: Override signature lookup does not recognize same-namespace types from another source file
+## ~~BUG-087: Override signature lookup does not recognize same-namespace types from another source file~~
 
-Status: Open
+Status: Fixed
 
 An override method declared in one source file can fail to resolve an unqualified
 type declared in another source file, even when both files are in the same

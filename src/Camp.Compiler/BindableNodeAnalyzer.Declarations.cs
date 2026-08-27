@@ -1443,6 +1443,11 @@ public sealed partial class BindableNodeAnalyzer
 
 	void AnalyzeFunctionDefinition(FunctionDefinition definition, AnalysisScope parentScope, string? containingType, bool suppressStaticThisDiagnostic = false)
 	{
+		TypeDefinition? previousAnalysisContainingType = currentAnalysisContainingType;
+		if (containingType is not null && typeDefinitions.TryGetValue(containingType, out TypeDefinition? owner))
+			currentAnalysisContainingType = owner;
+		try
+		{
 		WithAnalysisDefinition(definition, () =>
 		{
 		AnalyzeAttributes(definition.Attributes);
@@ -1526,6 +1531,11 @@ public sealed partial class BindableNodeAnalyzer
 		else if (containingType is null)
 			SetDefaultTopLevelSymbol(definition, GetCallableName(definition));
 		});
+		}
+		finally
+		{
+			currentAnalysisContainingType = previousAnalysisContainingType;
+		}
 	}
 
 	void ValidateStaticFunctionHasNoExplicitThis(FunctionDefinition definition, bool suppressDiagnostic)

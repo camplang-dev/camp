@@ -1880,6 +1880,42 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Override_signature_resolves_same_namespace_type_from_another_file()
+	{
+		string baseSource = CreateTempCase("override_namespace_base.camp", """
+			namespace A::B;
+
+			export extern void* malloc(nuint size);
+			export extern void free(void* ptr);
+
+			export virtual class Base
+			{
+				export virtual void f(Thing* value)
+				{
+				}
+			}
+
+			export struct Thing
+			{
+			}
+			""");
+		string derivedSource = CreateTempCase("override_namespace_derived.camp", """
+			namespace A::B;
+
+			export sealed class Derived: Base
+			{
+				export override void f(Thing* value)
+				{
+				}
+			}
+			""");
+
+		ProcessResult result = BuildInProcess("override-namespace-out", noStdLib: true, baseSource, derivedSource);
+
+		AssertCommandSucceeded(result);
+	}
+
+	[Fact]
 	public void Public_visibility_spelling_is_artifact_visibility()
 	{
 		string source = CreateTempCase("public_visibility.camp", """
