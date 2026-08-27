@@ -86,11 +86,44 @@ public sealed class CommandLineTests
 		Assert.Contains("-u, --use", build.StdOut, StringComparison.Ordinal);
 		Assert.Contains("--api", build.StdOut, StringComparison.Ordinal);
 		Assert.Contains("--debug-info", build.StdOut, StringComparison.Ordinal);
+		Assert.Contains("-d, --declare", build.StdOut, StringComparison.Ordinal);
+		Assert.Contains("-c, --configure", build.StdOut, StringComparison.Ordinal);
+		Assert.Contains("--require", build.StdOut, StringComparison.Ordinal);
+		Assert.Contains("--explicit-require", build.StdOut, StringComparison.Ordinal);
+		Assert.Contains("--implicit-require", build.StdOut, StringComparison.Ordinal);
+		Assert.DoesNotContain("--define", build.StdOut, StringComparison.Ordinal);
 		Assert.Equal(0, test.ExitCode);
 		Assert.Contains("--list", test.StdOut, StringComparison.Ordinal);
 		Assert.Contains("--filter", test.StdOut, StringComparison.Ordinal);
 		Assert.Contains("--ignore-leaks", test.StdOut, StringComparison.Ordinal);
 		Assert.Contains("--test-output-dir", test.StdOut, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Configuration_flag_options_parse_from_cli()
+	{
+		string source = CreateTempCase("configuration-cli-options.camp", """
+			export int main()
+			{
+				if (configured(APP_FEATURE))
+					return 0;
+				return 1;
+			}
+			""");
+
+		ProcessResult result = RunCampc(
+			"build",
+			source,
+			"--artifact",
+			"none",
+			"-d",
+			"APP_FEATURE",
+			"-c",
+			"APP_FEATURE",
+			"--require",
+			"APP_FEATURE");
+
+		AssertCommandSucceeded(result);
 	}
 
 	[Fact]

@@ -180,12 +180,26 @@ static void AddBuildOptions(Command command, bool buildOnly, bool testRunnerOpti
 	command.Options.Add(new Option<bool>("--verbose", "-v") { Description = "Print generated artifact paths." });
 	command.Options.Add(new Option<bool>("--timing") { Description = "Print build timing information to stderr." });
 	command.Options.Add(new Option<string?>("--timing-output") { Description = "Write build timing information as JSON." });
-	command.Options.Add(new Option<List<string>>("--define", "-d")
+	command.Options.Add(new Option<List<string>>("--declare", "-d")
 	{
-		Description = "Define conditional compilation symbols.",
+		Description = "Declare module-owned configuration flags, optionally as NAME=true or NAME=false.",
 		Arity = ArgumentArity.ZeroOrMore,
 		AllowMultipleArgumentsPerToken = true
 	});
+	command.Options.Add(new Option<List<string>>("--configure", "-c")
+	{
+		Description = "Configure declared non-target-owned flags, optionally as NAME=true or NAME=false.",
+		Arity = ArgumentArity.ZeroOrMore,
+		AllowMultipleArgumentsPerToken = true
+	});
+	command.Options.Add(new Option<List<string>>("--require")
+	{
+		Description = "Add module-level configuration requirement expressions.",
+		Arity = ArgumentArity.ZeroOrMore,
+		AllowMultipleArgumentsPerToken = true
+	});
+	command.Options.Add(new Option<bool>("--explicit-require") { Description = "Require explicit availability requirements for ambient true capability use." });
+	command.Options.Add(new Option<bool>("--implicit-require") { Description = "Allow implicit ambient requirements." });
 	command.Options.Add(new Option<string?>("--emit") { Description = "Select the emitter, currently c99." });
 	command.Options.Add(new Option<bool>("--debug-info") { Description = "Emit Camp debug metadata and native debug line information." });
 	command.Options.Add(new Option<bool>("--nostdlib") { Description = "Do not include the standard library package." });
@@ -2768,7 +2782,7 @@ static class ResponseFileExpander
 	{
 		return option switch
 		{
-			"--target" or "-t" or "--profile" or "-p" or "--variant" or "--memory-model" or "--emit" or "--metadata" or "--artifact" or "--name" or "--subsystem" or "--out-dir" or "--pub-dir" or "--build-dir" or "--sourcefile-paths" or "--sourcefile-root" or "--test-output-dir" or "--test-result-format" or "--coverage-output-dir" or "--coverage-format" or "--coverage-subject" or "--filter" or "--api" or "--exclude" or "--define" or "-d" or "--use" or "-u" or "--project-reference" => 1,
+			"--target" or "-t" or "--profile" or "-p" or "--variant" or "--memory-model" or "--emit" or "--metadata" or "--artifact" or "--name" or "--subsystem" or "--out-dir" or "--pub-dir" or "--build-dir" or "--sourcefile-paths" or "--sourcefile-root" or "--test-output-dir" or "--test-result-format" or "--coverage-output-dir" or "--coverage-format" or "--coverage-subject" or "--filter" or "--api" or "--exclude" or "--define" or "--declare" or "-d" or "--configure" or "-c" or "--require" or "--use" or "-u" or "--project-reference" => 1,
 			"--use-source" => 2,
 			_ => 0
 		};
