@@ -2197,6 +2197,39 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Optional_response_file_include_is_ignored_when_missing_and_expanded_when_present()
+	{
+		string root = TempPath("optional-response-file");
+		string sourceDirectory = Path.Combine(root, "src");
+		Directory.CreateDirectory(sourceDirectory);
+		File.WriteAllText(Path.Combine(sourceDirectory, "main.camp"), """
+			export int main()
+			{
+				return 0;
+			}
+			""");
+		string configDirectory = Path.Combine(root, "config");
+		Directory.CreateDirectory(configDirectory);
+		File.WriteAllText(Path.Combine(configDirectory, "shared.campbuild"), """
+			../src/*.camp
+			""");
+		string buildFile = Path.Combine(root, "sample.campbuild");
+		File.WriteAllText(buildFile, """
+			--nostdlib
+			--artifact none
+			--name optional_include
+			@?missing-local.campbuild
+			@?config/shared
+			""");
+
+		ProcessResult result = RunCampc("build", "@" + buildFile.Replace('\\', '/'), "--verbose", "--out-dir", TempPath("optional-response-file-build"));
+
+		Assert.Equal(0, result.ExitCode);
+		AssertGeneratedOrUnchanged(result.StdOut, "main.c");
+		Assert.DoesNotContain("missing-local", result.StdErr, StringComparison.Ordinal);
+	}
+
+	[Fact]
 	public void Build_treats_bare_campbuild_file_as_response_file()
 	{
 		string root = TempPath("bare-campbuild-file");

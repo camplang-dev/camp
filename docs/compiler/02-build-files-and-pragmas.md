@@ -55,7 +55,10 @@ Response files use the same option language as command-line arguments:
 - backslash escapes `"` and `\` inside quoted text;
 - a `#` at the start of a response-file token begins a comment through the end
   of the line;
-- response files may include other response files with `@other-file`.
+- response files may include other response files with `@other-file`;
+- response files may optionally include another response file with
+  `@?other-file`. If the optional file is missing, it is ignored. If it exists,
+  it is parsed normally, and any errors inside it are still reported.
 
 Relative source patterns and path-valued options inside a response file are
 rebased to the directory containing that response file. This includes source
@@ -71,6 +74,23 @@ rebased:
 ```text
 --project-reference ../mathlib:static
 ```
+
+Optional response-file includes are useful for local machine configuration that
+should not usually be committed:
+
+```text
+# app.campbuild
+@../shared.campbuild
+@?../local.campbuild
+
+--name app
+--use ext-json
+src/*.camp
+```
+
+The required shared file can be checked in, while `local.campbuild` can be
+ignored by source control and used for local package sources or similar
+developer-specific paths.
 
 ## Source Patterns
 

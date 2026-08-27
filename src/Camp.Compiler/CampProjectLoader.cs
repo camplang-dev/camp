@@ -1132,7 +1132,21 @@ public static class CampResponseFileExpander
 				continue;
 			}
 
-			string responseFile = ResolveResponseFile(arg[1..], workingDirectory);
+			bool optional = arg.StartsWith("@?", StringComparison.Ordinal);
+			string responsePath = optional ? arg[2..] : arg[1..];
+			if (responsePath.Length == 0)
+			{
+				errors.Add(optional ? "Optional response file reference '@?' must specify a file." : "Response file reference '@' must specify a file.");
+				continue;
+			}
+
+			string responseFile = ResolveResponseFile(responsePath, workingDirectory);
+			if (!File.Exists(responseFile))
+			{
+				if (!optional)
+					errors.Add($"Response file '{responsePath}' could not be found.");
+				continue;
+			}
 			string canonical = Path.GetFullPath(responseFile);
 			if (!responseStack.Add(canonical))
 			{
@@ -1157,11 +1171,6 @@ public static class CampResponseFileExpander
 
 	static List<string> TokenizeResponseFile(string file, List<string> errors)
 	{
-		if (!File.Exists(file))
-		{
-			errors.Add($"Response file '{file}' could not be found.");
-			return [];
-		}
 		return CampBuildPragmaReader.Split(File.ReadAllText(file));
 	}
 
@@ -1174,6 +1183,15 @@ public static class CampResponseFileExpander
 			result.Add(token);
 			if (token.StartsWith("-", StringComparison.Ordinal))
 			{
+				if (token == "--use-source")
+				{
+					if (i + 1 < tokens.Count)
+						result.Add(tokens[++i]);
+					if (i + 1 < tokens.Count && !tokens[i + 1].StartsWith("-", StringComparison.Ordinal))
+						result.Add(RebasePathValue(tokens[++i], baseDirectory));
+					continue;
+				}
+
 				int count = OptionValueCount(token);
 				for (int value = 0; value < count && i + 1 < tokens.Count; value++)
 				{

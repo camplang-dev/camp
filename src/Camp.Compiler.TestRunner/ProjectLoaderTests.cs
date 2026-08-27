@@ -81,6 +81,40 @@ public sealed class ProjectLoaderTests
 	}
 
 	[Fact]
+	public void Project_loader_expands_optional_response_file_includes()
+	{
+		string root = CreateTempDirectory("project-loader-optional-response-file");
+		string app = Path.Combine(root, "app");
+		string sourceDirectory = Path.Combine(app, "src");
+		string packageSource = Path.Combine(root, "packages");
+		Directory.CreateDirectory(sourceDirectory);
+		Directory.CreateDirectory(packageSource);
+		File.WriteAllText(Path.Combine(sourceDirectory, "main.camp"), """
+			export int main()
+			{
+				return 0;
+			}
+			""");
+		File.WriteAllText(Path.Combine(root, "shared.campbuild"), """
+			--use-source local packages
+			""");
+		string buildFile = Path.Combine(app, "sample.campbuild");
+		File.WriteAllText(buildFile, """
+			@?../missing-local.campbuild
+			@?../shared
+			--nostdlib
+			--artifact none
+			src/*.camp
+			""");
+
+		CampProjectLoadResult result = CampProjectLoader.LoadBuildFile(buildFile, CreateEnvironment(root));
+
+		Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
+		Assert.Single(result.Request.Files);
+		Assert.Contains(Path.GetFullPath(packageSource), result.Request.UseSourceRoots.Select(path => Path.GetFullPath(path)));
+	}
+
+	[Fact]
 	public void Project_loader_reads_sourcefile_path_options()
 	{
 		string workspace = CreateTempDirectory("project-loader-sourcefile-paths");

@@ -2785,10 +2785,19 @@ static class ResponseFileExpander
 				continue;
 			}
 
-			string responseFile = ResolveResponseFile(arg[1..], workingDirectory);
+			bool optional = arg.StartsWith("@?", StringComparison.Ordinal);
+			string responsePath = optional ? arg[2..] : arg[1..];
+			if (responsePath.Length == 0)
+			{
+				errors.Add(optional ? "Optional response file reference '@?' must specify a file." : "Response file reference '@' must specify a file.");
+				continue;
+			}
+
+			string responseFile = ResolveResponseFile(responsePath, workingDirectory);
 			if (!File.Exists(responseFile))
 			{
-				errors.Add($"Response file '{arg[1..]}' could not be found.");
+				if (!optional)
+					errors.Add($"Response file '{responsePath}' could not be found.");
 				continue;
 			}
 			if (!responseStack.Add(responseFile))
