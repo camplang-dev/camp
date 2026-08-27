@@ -642,9 +642,9 @@ public sealed class CompilerDriverOptionTests
 		Assert.Equal(0, guardedResult.ExitCode);
 		Assert.Equal(0, exhaustiveResult.ExitCode);
 		Assert.NotEqual(0, unguardedResult.ExitCode);
-		Assert.Contains("requires configuration 'OS_WIN32'", unguardedResult.StdErr, StringComparison.Ordinal);
+		Assert.Contains("requires configuration 'OS_WIN32', but that requirement is not proven here", unguardedResult.StdErr, StringComparison.Ordinal);
 		Assert.NotEqual(0, signatureResult.ExitCode);
-		Assert.Contains("Type 'WinValue' requires configuration 'OS_WIN32'", signatureResult.StdErr, StringComparison.Ordinal);
+		Assert.Contains("Type 'WinValue' requires configuration 'OS_WIN32', but that requirement is not proven here", signatureResult.StdErr, StringComparison.Ordinal);
 	}
 
 	[Fact]

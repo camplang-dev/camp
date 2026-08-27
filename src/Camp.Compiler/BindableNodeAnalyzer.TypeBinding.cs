@@ -779,7 +779,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (!IsTargetCallSpecKnown(callSpec))
 			Report(GetRange(syntax), $"Callspec '{callSpec}' is not defined by target '{selectedTarget?.Name ?? "#NONE"}'.");
 		else if (!IsTargetCallSpecAvailable(callSpec, syntax))
-			Report(GetRange(syntax), $"Callspec '{callSpec}' requires configuration '{GetTargetCallSpecRequirementText(callSpec)}'.");
+			Report(GetRange(syntax), FormatRequirementNotProvenDiagnostic("Callspec", callSpec, GetTargetCallSpecRequirementText(callSpec)));
 	}
 
 	void ValidateCallableSpec(CallableTypeReference callable)
@@ -812,7 +812,7 @@ public sealed partial class BindableNodeAnalyzer
 			if (callSpec is not null && callSpec != spec)
 				Report(GetRange(syntax), $"Callable type has multiple callspecs: '{callSpec}' and '{spec}'.");
 			if (!IsTargetCallSpecAvailable(spec, syntax))
-				Report(GetRange(syntax), $"Callspec '{spec}' requires configuration '{GetTargetCallSpecRequirementText(spec)}'.");
+				Report(GetRange(syntax), FormatRequirementNotProvenDiagnostic("Callspec", spec, GetTargetCallSpecRequirementText(spec)));
 			callSpec = spec;
 			return;
 		}
@@ -822,7 +822,7 @@ public sealed partial class BindableNodeAnalyzer
 			if (targetSpec is not null && targetSpec != spec)
 				Report(GetRange(syntax), $"Callable type has multiple target typespecs: '{targetSpec}' and '{spec}'.");
 			if (!IsTargetTypeSpecAvailable(spec, syntax))
-				Report(GetRange(syntax), $"Typespec '{spec}' requires configuration '{GetTargetTypeSpecRequirementText(spec)}'.");
+				Report(GetRange(syntax), FormatRequirementNotProvenDiagnostic("Typespec", spec, GetTargetTypeSpecRequirementText(spec)));
 			targetSpec = spec;
 			return;
 		}
@@ -910,7 +910,7 @@ public sealed partial class BindableNodeAnalyzer
 		}
 		if (!IsTargetTypeSpecAvailable(typeSpec.Specifier, typeSpec.SourceSyntax))
 		{
-			Report(GetRange(typeSpec.SourceSyntax), $"Typespec '{typeSpec.Specifier}' requires configuration '{GetTargetTypeSpecRequirementText(typeSpec.Specifier)}'.");
+			Report(GetRange(typeSpec.SourceSyntax), FormatRequirementNotProvenDiagnostic("Typespec", typeSpec.Specifier, GetTargetTypeSpecRequirementText(typeSpec.Specifier)));
 			return false;
 		}
 

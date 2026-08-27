@@ -625,8 +625,11 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (definition.EffectiveRequirement is not ConfigurationFlagExpression requirement)
 			return;
-		Report(GetRange(referenceSyntax), $"{symbolKind} '{definition.Name}' requires configuration '{requirement}'.");
+		Report(GetRange(referenceSyntax), FormatRequirementNotProvenDiagnostic(symbolKind, definition.Name, requirement.ToString()));
 	}
+
+	static string FormatRequirementNotProvenDiagnostic(string subjectKind, string subjectName, string requirement) =>
+		$"{subjectKind} '{subjectName}' requires configuration '{requirement}', but that requirement is not proven here. Add an explicit configured(...) guard or adjust the surrounding requires condition.";
 
 	static bool StaticClassHasExternallyVisibleMember(StaticClassDefinition definition)
 	{
