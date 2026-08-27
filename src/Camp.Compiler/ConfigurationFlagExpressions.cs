@@ -85,6 +85,18 @@ public static class ConfigurationFlagExpressionBinder
 	public static ConfigurationFlagExpression True() =>
 		new() { Kind = ConfigurationFlagExpressionKind.Literal, LiteralValue = true };
 
+	public static ConfigurationFlagExpression? Not(ConfigurationFlagExpression? expression)
+	{
+		expression = Normalize(expression);
+		if (expression is null)
+			return False();
+		if (IsLiteral(expression, false))
+			return null;
+		if (expression.Kind == ConfigurationFlagExpressionKind.Not)
+			return expression.Left;
+		return new ConfigurationFlagExpression { Kind = ConfigurationFlagExpressionKind.Not, Left = expression };
+	}
+
 	public static ConfigurationFlagExpression Or(ConfigurationFlagExpression? left, ConfigurationFlagExpression? right)
 	{
 		if (left is null)

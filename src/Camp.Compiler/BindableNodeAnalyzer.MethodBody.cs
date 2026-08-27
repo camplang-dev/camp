@@ -333,7 +333,7 @@ public sealed partial class BindableNodeAnalyzer
 			case IfStatement ifStatement:
 				RequireExpressionType("bool", BodyAnalyzeExpression(ifStatement.Condition, scope, typeScope), ifStatement.Condition?.SourceSyntax, "If condition");
 				BodyAnalyzeOptionalStatement(ifStatement.Body, scope, typeScope, GetPositiveRequirementProof(ifStatement.Condition));
-				BodyAnalyzeOptionalStatement(ifStatement.ElseBody, scope, typeScope);
+				BodyAnalyzeOptionalStatement(ifStatement.ElseBody, scope, typeScope, GetNegativeDirectRequirementProof(ifStatement.Condition));
 				break;
 
 			case WhileStatement whileStatement:
@@ -6384,6 +6384,14 @@ public sealed partial class BindableNodeAnalyzer
 		}
 	}
 
+	ConfigurationFlagExpression? GetNegativeDirectRequirementProof(Expression? expression)
+	{
+		expression = UnwrapParenthesizedExpression(expression);
+		return expression is CallExpression call && TryGetConfiguredRequirement(call, out ConfigurationFlagExpression? configured)
+			? ConfigurationFlagExpressionBinder.Not(configured)
+			: null;
+	}
+
 	bool TryGetConfiguredRequirement(CallExpression call, out ConfigurationFlagExpression? requirement)
 	{
 		requirement = null;
@@ -6779,8 +6787,16 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		string conditionType = BodyAnalyzeExpression(conditional.Condition, scope, typeScope);
 		RequireExpressionType("bool", conditionType, conditional.Condition?.SourceSyntax, "Conditional expression condition");
-		string trueType = BodyAnalyzeExpression(conditional.WhenTrue, scope, typeScope, targetType);
-		string falseType = BodyAnalyzeExpression(conditional.WhenFalse, scope, typeScope, targetType);
+		string trueType = "";
+		WithRequirementProof(GetPositiveRequirementProof(conditional.Condition), () =>
+		{
+			trueType = BodyAnalyzeExpression(conditional.WhenTrue, scope, typeScope, targetType);
+		});
+		string falseType = "";
+		WithRequirementProof(GetNegativeDirectRequirementProof(conditional.Condition), () =>
+		{
+			falseType = BodyAnalyzeExpression(conditional.WhenFalse, scope, typeScope, targetType);
+		});
 		expressionConstants[conditional] = IsConstant(conditional.Condition) && IsConstant(conditional.WhenTrue) && IsConstant(conditional.WhenFalse);
 		if (targetType is not null && targetType != TargetType)
 		{

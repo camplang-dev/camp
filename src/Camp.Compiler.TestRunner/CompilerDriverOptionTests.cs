@@ -648,6 +648,92 @@ public sealed class CompilerDriverOptionTests
 	}
 
 	[Fact]
+	public void Requirements_flow_through_conditional_expressions_and_else_contexts()
+	{
+		string valid = CreateTempCase("requirement_conditional_expression_flow.camp", """
+			requires (APP_WIN)
+			int winValue()
+			{
+				return 1;
+			}
+
+			requires (APP_LINUX)
+			int linuxValue()
+			{
+				return 2;
+			}
+
+			requires (APP_MAC)
+			int macValue()
+			{
+				return 3;
+			}
+
+			requires (APP_WIN || APP_LINUX)
+			int nestedConditional()
+			{
+				return configured(APP_WIN) ? winValue() : configured(APP_LINUX) ? linuxValue() : 0;
+			}
+
+			requires (APP_WIN || APP_LINUX)
+			int negativeConditionalArm()
+			{
+				return configured(APP_WIN) ? winValue() : linuxValue();
+			}
+
+			requires (APP_WIN || APP_LINUX || APP_MAC)
+			int nestedIfAndConditional()
+			{
+				if (configured(APP_WIN || APP_LINUX))
+					return configured(APP_WIN) ? winValue() : linuxValue();
+				else
+					return macValue();
+			}
+			""");
+		string invalid = CreateTempCase("requirement_conditional_expression_flow_invalid.camp", """
+			requires (APP_WIN)
+			int winValue()
+			{
+				return 1;
+			}
+
+			requires (APP_LINUX)
+			int linuxValue()
+			{
+				return 2;
+			}
+
+			requires (APP_WIN || APP_LINUX || APP_MAC)
+			int ambiguousFalseArm()
+			{
+				return configured(APP_WIN) ? winValue() : linuxValue();
+			}
+			""");
+
+		CompilerResult validResult = Execute(valid, request =>
+		{
+			request.NoStdLib = true;
+			request.ConfigurationFlagDeclarations.Add("APP_WIN");
+			request.ConfigurationFlagDeclarations.Add("APP_LINUX");
+			request.ConfigurationFlagDeclarations.Add("APP_MAC");
+			request.ConfigurationFlagConfigurations.Add("APP_LINUX");
+		});
+		CompilerResult invalidResult = Execute(invalid, request =>
+		{
+			request.NoStdLib = true;
+			request.ConfigurationFlagDeclarations.Add("APP_WIN");
+			request.ConfigurationFlagDeclarations.Add("APP_LINUX");
+			request.ConfigurationFlagDeclarations.Add("APP_MAC");
+			request.ConfigurationFlagConfigurations.Add("APP_MAC");
+		});
+
+		Assert.Equal(0, validResult.ExitCode);
+		Assert.NotEqual(0, invalidResult.ExitCode);
+		Assert.Contains("linuxValue", invalidResult.StdErr, StringComparison.Ordinal);
+		Assert.Contains("APP_LINUX", invalidResult.StdErr, StringComparison.Ordinal);
+	}
+
+	[Fact]
 	public void Requirements_filter_selected_type_shape()
 	{
 		string source = CreateTempCase("requirement_type_shape.camp", """
