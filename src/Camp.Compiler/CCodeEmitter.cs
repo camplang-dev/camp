@@ -4071,7 +4071,7 @@ public static class CCodeEmitter
 				return false;
 			}
 			source = new CDebugSourceRange(
-				Path.GetFullPath(sourceFile!.Path),
+				DebugSourcePath(sourceFile!),
 				range.StartLineNumber,
 				range.StartColumn,
 				range.EndLineNumber,
@@ -4099,7 +4099,7 @@ public static class CCodeEmitter
 						&& !IsIdentifierPart(lines[i][after])
 						&& lines[i][after..].TrimStart().StartsWith("(", StringComparison.Ordinal))
 					{
-						source = new CDebugSourceRange(Path.GetFullPath(file.Path), i + 1, index + 1, i + 1, after + 1);
+						source = new CDebugSourceRange(DebugSourcePath(file), i + 1, index + 1, i + 1, after + 1);
 						return true;
 					}
 					index = lines[i].IndexOf(name, index + 1, StringComparison.Ordinal);
@@ -4149,7 +4149,7 @@ public static class CCodeEmitter
 		{
 			if (functionSource is null || string.IsNullOrWhiteSpace(name))
 				return false;
-			SourceFile? file = compilation.Files.FirstOrDefault(candidate => string.Equals(Path.GetFullPath(candidate.Path), functionSource.File, StringComparison.OrdinalIgnoreCase));
+			SourceFile? file = compilation.Files.FirstOrDefault(candidate => string.Equals(DebugSourcePath(candidate), functionSource.File, StringComparison.OrdinalIgnoreCase));
 			if (file is null)
 				return false;
 			string[] lines = file.Text.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n').Split('\n');
@@ -4168,6 +4168,11 @@ public static class CCodeEmitter
 				}
 			}
 			return false;
+		}
+
+		static string DebugSourcePath(SourceFile file)
+		{
+			return Path.GetFullPath(string.IsNullOrWhiteSpace(file.FullPath) ? file.Path : file.FullPath);
 		}
 
 		void WriteAsyncReturnStatement(TextWriter writer, ReturnStatement ret, int indent)

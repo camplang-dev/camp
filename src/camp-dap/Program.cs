@@ -885,8 +885,8 @@ sealed class LldbDebugBackend : IDebugBackend
 		string campc = ResolveCampc();
 		DateTime buildStart = DateTime.UtcNow;
 		List<string> args = string.IsNullOrWhiteSpace(testFilter)
-			? ["build", project, "--profile", "DEBUG", "--artifact", "exec", "--debug-info"]
-			: ["test", project, "--profile", "DEBUG", "--debug-info", "--filter", testFilter!];
+			? ["build", project, "--profile", "DEBUG", "--artifact", "exec", "--debug-info", "--sourcefile-paths", "absolute"]
+			: ["test", project, "--profile", "DEBUG", "--debug-info", "--sourcefile-paths", "absolute", "--filter", testFilter!];
 		if (!ProjectDeclaresOutDir(project, cwd))
 			args.AddRange(["--out-dir", outDirectory]);
 		ProcessStartInfo info = new()
