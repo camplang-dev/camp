@@ -91,8 +91,8 @@ The argument is a configuration flag expression: declared flag names, `true`,
 `configured(...)` does not accept type arguments and must receive exactly one
 argument.
 
-Flow analysis treats a positive `configured(...)` condition as a proof inside
-the guarded expression/body:
+Availability analysis treats a positive `configured(...)` condition as a proof
+inside the guarded expression/body:
 
 ```camp
 if (configured(OS_WIN32) && callWin32())
@@ -105,6 +105,44 @@ Logical `&&` proves the left side while analyzing the right side and proves both
 sides in the body. A disjunction such as
 `(configured(A) && useA()) || (configured(B) && useB())` proves the appropriate
 condition in each operand but proves no single condition for the whole body.
+
+Conditional expressions also propagate availability proof into their arms:
+
+```camp
+return configured(OS_WIN32) ? win32Value() : configured(OS_LINUX) ? linuxValue() : default;
+```
+
+The true arm is analyzed with the positive condition proven. When the condition
+is a direct `configured(EXPR)` query, the false arm is analyzed with `!EXPR`
+proven. The same rule applies to `else` bodies:
+
+```camp
+requires (OS_WIN32 || OS_LINUX)
+int platformValue()
+{
+	if (configured(OS_WIN32))
+		return win32Value();
+	else
+		return linuxValue();
+}
+```
+
+The compiler does not assume that configuration flags are mutually exclusive.
+The `else` branch above can call `linuxValue()` because the active context is
+`(OS_WIN32 || OS_LINUX) && !OS_WIN32`, which implies `OS_LINUX`. In a broader
+context such as `OS_WIN32 || OS_LINUX || OS_MACOSX`, the same `else` branch
+would not prove `OS_LINUX`.
+
+Nested guarded regions compose their active configuration context with `&&`.
+For example, inside `if (configured(OS_WIN32 || OS_LINUX))`, a nested
+`configured(OS_WIN32) ? win32Value() : linuxValue()` expression may use the
+false arm to prove Linux when the surrounding requirement also allows macOS.
+
+Negative proof is intentionally conservative. The first version applies it to
+direct `configured(EXPR)` conditions in conditional expressions and `else`
+bodies. It does not infer negative facts after a terminating `if` without an
+`else`; source should use an explicit `else` block when the negated context is
+needed.
 
 Requirement-aware return validation may use a function requirement such as
 `requires (A || B)` together with terminating `if (configured(A))` and
