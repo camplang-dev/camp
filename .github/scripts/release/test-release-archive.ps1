@@ -31,7 +31,7 @@ try {
         "bin\campc$toolExt",
         "bin\camp-lsp$toolExt",
         "bin\camp-dap$toolExt",
-        "lib\global.camp",
+        "base.campbuild",
         "lib\std\src",
         "targets",
         "cache\lib",

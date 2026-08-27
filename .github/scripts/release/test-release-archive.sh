@@ -52,7 +52,7 @@ required_paths=(
     "bin/campc$tool_ext"
     "bin/camp-lsp$tool_ext"
     "bin/camp-dap$tool_ext"
-    "lib/global.camp"
+    "base.campbuild"
     "lib/std/src"
     "targets"
     "cache/lib"

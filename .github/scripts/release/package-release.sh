@@ -97,7 +97,7 @@ resolve_vscode_vsix() {
     echo "$built"
 }
 
-for required in "$repo_root/src/publish-tools.proj" "$repo_root/lib" "$repo_root/targets" "$repo_root/extras/editors" "$repo_root/extras/vscode-camp/package.json" "$repo_root/LICENSE" "$repo_root/README.md"; do
+for required in "$repo_root/src/publish-tools.proj" "$repo_root/base.campbuild" "$repo_root/lib" "$repo_root/targets" "$repo_root/extras/editors" "$repo_root/extras/vscode-camp/package.json" "$repo_root/LICENSE" "$repo_root/README.md"; do
     if [ ! -e "$required" ]; then
         echo "Required path is missing: $required" >&2
         exit 1
@@ -136,6 +136,7 @@ mkdir -p "$layout/bin" "$layout/cache/lib" "$layout/cache/pkg"
 cp "$publish_dir/campc$tool_ext" "$layout/bin/"
 cp "$publish_dir/camp-lsp$tool_ext" "$layout/bin/"
 cp "$publish_dir/camp-dap$tool_ext" "$layout/bin/"
+cp "$repo_root/base.campbuild" "$layout/base.campbuild"
 cp -R "$repo_root/lib" "$layout/lib"
 cp -R "$repo_root/targets" "$layout/targets"
 mkdir -p "$layout/extras"

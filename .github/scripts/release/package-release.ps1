@@ -55,7 +55,7 @@ function Resolve-VscodeVsix {
     return $built.FullName
 }
 
-foreach ($required in @("src\publish-tools.proj", "lib", "targets", "extras\editors", "extras\vscode-camp\package.json", "LICENSE", "README.md")) {
+foreach ($required in @("src\publish-tools.proj", "base.campbuild", "lib", "targets", "extras\editors", "extras\vscode-camp\package.json", "LICENSE", "README.md")) {
     $path = Join-Path $RepoRoot $required
     if (-not (Test-Path $path)) {
         throw "Required path is missing: $path"
@@ -102,6 +102,7 @@ try {
     Copy-Item (Join-Path $publishDir "campc$toolExt") (Join-Path $layout "bin")
     Copy-Item (Join-Path $publishDir "camp-lsp$toolExt") (Join-Path $layout "bin")
     Copy-Item (Join-Path $publishDir "camp-dap$toolExt") (Join-Path $layout "bin")
+    Copy-Item (Join-Path $RepoRoot "base.campbuild") (Join-Path $layout "base.campbuild")
     Copy-Item (Join-Path $RepoRoot "lib") (Join-Path $layout "lib") -Recurse
     Copy-Item (Join-Path $RepoRoot "targets") (Join-Path $layout "targets") -Recurse
     New-Item -ItemType Directory -Force -Path (Join-Path $layout "extras") | Out-Null
