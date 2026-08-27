@@ -162,7 +162,7 @@ Effective build options are applied in this order:
 3. Command-line arguments or `.campbuild` response-file arguments.
 
 Repeated list-valued options accumulate. Examples include `--api`,
-`--exclude`, `--declare`, `--configure`, `--require`, `--reference`,
+`--exclude`, `--declare`, `--configure`, `--requires`, `--reference`,
 `--framework`, `--use`, `--use-source`, and `--project-reference`.
 
 Single-valued options resolve by precedence. Examples include `--target`,
@@ -184,7 +184,7 @@ gives it a true ambient value.
 `--configure NAME` is equivalent to `--configure NAME=true`; use
 `--configure NAME=false` to select false.
 
-`--require` and `#build --require` publish a module-level requirement that must
+`--requires` and `#build --requires` publish a module-level requirement that must
 be satisfied by consumers. Source declarations use `requires (...)`, and method
 bodies query flags with `configured(...)`.
 

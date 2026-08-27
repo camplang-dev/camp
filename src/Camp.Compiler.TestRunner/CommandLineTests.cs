@@ -88,9 +88,9 @@ public sealed class CommandLineTests
 		Assert.Contains("--debug-info", build.StdOut, StringComparison.Ordinal);
 		Assert.Contains("-d, --declare", build.StdOut, StringComparison.Ordinal);
 		Assert.Contains("-c, --configure", build.StdOut, StringComparison.Ordinal);
-		Assert.Contains("--require", build.StdOut, StringComparison.Ordinal);
-		Assert.Contains("--explicit-require", build.StdOut, StringComparison.Ordinal);
-		Assert.Contains("--implicit-require", build.StdOut, StringComparison.Ordinal);
+		Assert.Contains("--requires", build.StdOut, StringComparison.Ordinal);
+		Assert.Contains("--explicit-requires", build.StdOut, StringComparison.Ordinal);
+		Assert.Contains("--implicit-requires", build.StdOut, StringComparison.Ordinal);
 		Assert.DoesNotContain("--define", build.StdOut, StringComparison.Ordinal);
 		Assert.Equal(0, test.ExitCode);
 		Assert.Contains("--list", test.StdOut, StringComparison.Ordinal);
@@ -120,7 +120,7 @@ public sealed class CommandLineTests
 			"APP_FEATURE",
 			"-c",
 			"APP_FEATURE",
-			"--require",
+			"--requires",
 			"APP_FEATURE");
 
 		AssertCommandSucceeded(result);

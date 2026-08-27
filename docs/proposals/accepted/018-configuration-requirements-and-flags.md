@@ -26,9 +26,9 @@ The proposal introduces:
   query whether a configuration expression is true;
 - configuration flag declarations through `--declare` / `-d`;
 - selected configuration values through `--configure` / `-c`;
-- module-level dependency requirements through `--require`;
-- requirement policy selection through `--explicit-require` and
-  `--implicit-require`;
+- module-level dependency requirements through `--requires`;
+- requirement policy selection through `--explicit-requires` and
+  `--implicit-requires`;
 - a base target that declares standard platform and capability flags before a
   final concrete target is selected;
 - target-declared callspecs and typespecs with requirement expressions so
@@ -216,7 +216,7 @@ analysis. They can be declared by:
 - command-line declarations.
 
 All flags used in `@require(...)`, standalone `@require(...);`, module
-`--require`, or `configured(...)` must be declared. Unknown flags are diagnostics.
+`--requires`, or `configured(...)` must be declared. Unknown flags are diagnostics.
 
 Declared flags are not ordinary source identifiers.
 
@@ -263,7 +263,7 @@ Flag expressions are accepted only in:
 
 - `@require(CONDITION)`;
 - standalone file metadata `@require(CONDITION);`;
-- module/build `--require CONDITION`;
+- module/build `--requires CONDITION`;
 - compiler intrinsic `configured(CONDITION)`.
 
 They are not ordinary Camp expressions. A flag name inside a flag expression
@@ -1200,7 +1200,7 @@ selected value.
 
 The configuration arguments in this section are available from both command-line
 invocation and build-file configuration. In other words, `--declare`,
-`--configure`, `--require`, `--explicit-require`, and `--implicit-require`
+`--configure`, `--requires`, `--explicit-requires`, and `--implicit-requires`
 should be accepted through both `#build` and `.campbuild` using the same
 semantics.
 
@@ -1277,15 +1277,15 @@ that configures those values.
 This preserves the current target-owned restriction: source should not pretend
 to be compiled for a different target by manually supplying target facts.
 
-### `--require`
+### `--requires`
 
-`--require` publishes a module-level requirement.
+`--requires` publishes a module-level requirement.
 
 Forms:
 
 ```text
---require OS_WIN32
---require "OS_WIN32 && SUPPORTS_FILES"
+--requires OS_WIN32
+--requires "OS_WIN32 && SUPPORTS_FILES"
 ```
 
 Rules:
@@ -1301,7 +1301,7 @@ Rules:
 This is the right shape for a Windows-only library:
 
 ```text
-campc build windowslib.campbuild --require OS_WIN32
+campc build windowslib.campbuild --requires OS_WIN32
 ```
 
 Then source files do not need `@require(OS_WIN32)` everywhere. The module as a
@@ -1310,18 +1310,18 @@ whole has that requirement.
 If `app` references `windowslib`, `app` must satisfy `OS_WIN32`. In practice
 that means selecting a target that configures `OS_WIN32=true`.
 
-### `--explicit-require` And `--implicit-require`
+### `--explicit-requires` And `--implicit-requires`
 
-`--explicit-require` and `--implicit-require` control how the compiler handles
+`--explicit-requires` and `--implicit-requires` control how the compiler handles
 ambient true defaults when source uses declarations that have requirements.
 
 Defaults:
 
-- reusable libraries default to `--explicit-require`;
-- test/cover builds of libraries default to `--explicit-require`;
-- executables default to `--implicit-require`.
+- reusable libraries default to `--explicit-requires`;
+- test/cover builds of libraries default to `--explicit-requires`;
+- executables default to `--implicit-requires`.
 
-Under `--explicit-require`, using a declaration that requires a flag is valid
+Under `--explicit-requires`, using a declaration that requires a flag is valid
 only when the source context explicitly proves or carries that requirement:
 
 ```camp
@@ -1329,7 +1329,7 @@ only when the source context explicitly proves or carries that requirement:
 
 public void save()
 {
-	FileSystem.writeFile("out.txt", "text"); // invalid under explicit-require
+	FileSystem.writeFile("out.txt", "text"); // invalid under explicit-requires
 }
 ```
 
@@ -1346,15 +1346,15 @@ public void save()
 or by publishing a module-level requirement:
 
 ```text
---require SUPPORTS_FILES
+--requires SUPPORTS_FILES
 ```
 
-Under `--implicit-require`, ambient true defaults may satisfy the call. If the
+Under `--implicit-requires`, ambient true defaults may satisfy the call. If the
 compiler discovers that the module used required features without spelling those
 requirements explicitly, it records those discovered requirements in API
 headers/metadata.
 
-For example, if a module uses file and timer APIs under `--implicit-require`,
+For example, if a module uses file and timer APIs under `--implicit-requires`,
 and those requirements were not already attached to specific declarations, the
 generated API header can begin with:
 
@@ -1368,7 +1368,7 @@ produce a build error. The fix for an executable is usually to stop using files
 or choose a target that supports them, not to publish a requirement.
 
 For portable libraries that want to support capability-limited targets,
-`--explicit-require` forces the author to choose between:
+`--explicit-requires` forces the author to choose between:
 
 - requiring the capability for the whole module; or
 - limiting the requirement to specific entrypoints so the rest of the module
@@ -2049,7 +2049,7 @@ void f()
 or require support for the whole module:
 
 ```text
---require SUPPORTS_FILES
+--requires SUPPORTS_FILES
 ```
 
 ## Referenced Modules And Requirement Propagation
@@ -2068,10 +2068,10 @@ Then it validates:
    satisfies `B`'s module-level requirement.
 3. If `A` references a specific declaration from `B`, the source context in `A`
    satisfies that declaration's requirement.
-4. If `A` is itself a reusable library under `--explicit-require`, it must
+4. If `A` is itself a reusable library under `--explicit-requires`, it must
    publish an equal or stronger module requirement or put the requirement on the
    relevant declarations.
-5. If `A` is built under `--implicit-require`, the compiler may satisfy the use
+5. If `A` is built under `--implicit-requires`, the compiler may satisfy the use
    from ambient true defaults and write discovered unspecified requirements into
    `A`'s API header/metadata.
 
@@ -2085,7 +2085,7 @@ public void save()
 ```
 
 If `FileSystem.writeFile` requires `SUPPORTS_FILES`, then under
-`--explicit-require` this public declaration must either carry:
+`--explicit-requires` this public declaration must either carry:
 
 ```camp
 @require(SUPPORTS_FILES)
@@ -2098,10 +2098,10 @@ public void save()
 or the module must publish:
 
 ```text
---require SUPPORTS_FILES
+--requires SUPPORTS_FILES
 ```
 
-Under `--implicit-require`, the compiler may rely on an ambient true default,
+Under `--implicit-requires`, the compiler may rely on an ambient true default,
 but the discovered requirement becomes part of the generated API/metadata
 contract.
 
@@ -2196,7 +2196,7 @@ Camp API headers should preserve:
 - module-level requirements;
 - declaration requirements;
 - file-level requirements;
-- requirements discovered under `--implicit-require`.
+- requirements discovered under `--implicit-requires`.
 
 A consuming compiler should reject calls or type references unless the consuming
 source context proves the imported declaration's requirement.
@@ -2258,7 +2258,7 @@ not satisfy OS_WIN32.
 ```text
 Public declaration 'save' calls 'FileSystem.writeFile', which requires
 SUPPORTS_FILES. Add @require(SUPPORTS_FILES) to 'save' or add a module-level
---require SUPPORTS_FILES.
+--requires SUPPORTS_FILES.
 ```
 
 In implicit mode, that case is not an error; the compiler adds the discovered
@@ -2411,8 +2411,8 @@ Recommended updates:
 Recommended updates:
 
 - `docs/compiler/01-campc-command-line.md`
-  - Document `--declare`, `--configure`, `--require`, `--explicit-require`, and
-    `--implicit-require`.
+  - Document `--declare`, `--configure`, `--requires`, `--explicit-requires`, and
+    `--implicit-requires`.
   - Explain target-owned flags and `TEST_MODULE`.
 
 - `docs/compiler/02-build-files-and-pragmas.md`
@@ -2470,7 +2470,7 @@ Where a test is mostly about selected native output, convert it to:
 
 Cover:
 
-- declared flags accepted in `@require`, `--require`, and `configured`;
+- declared flags accepted in `@require`, `--requires`, and `configured`;
 - unknown flags diagnosed;
 - bare flag names rejected in ordinary source expressions;
 - flags do not collide with ordinary variables/types/aliases of the same name;
@@ -2554,13 +2554,13 @@ Cover:
 
 Cover:
 
-- `--require` emitted into API headers/metadata;
+- `--requires` emitted into API headers/metadata;
 - consuming modules satisfying module requirements;
 - consuming modules rejected when selected target does not satisfy module
   requirements;
-- `--explicit-require` rejecting public library declarations that use required
+- `--explicit-requires` rejecting public library declarations that use required
   APIs without carrying/publishing requirements;
-- `--implicit-require` accepting the same shape and emitting discovered API
+- `--implicit-requires` accepting the same shape and emitting discovered API
   requirements;
 - executables defaulting to implicit mode;
 - libraries and library test/cover builds defaulting to explicit mode.
@@ -2648,7 +2648,7 @@ Cover diagnostic quality for:
   target, or target variant;
 - valid user `--configure` of flags declared by referenced modules, API
   headers, or portable metadata;
-- explicit-require failures;
+- explicit-requires failures;
 - override requirement narrower than the overridden slot;
 - missing conditional interface implementation;
 - plain `else` branch that does not prove the alternate requirement.
@@ -2703,8 +2703,8 @@ Suggested broad compiler changes:
 The following details are part of this proposal rather than deferred open
 questions:
 
-- `--declare`, `--configure`, `--require`, `--explicit-require`, and
-  `--implicit-require` are available through both `#build` and `.campbuild`.
+- `--declare`, `--configure`, `--requires`, `--explicit-requires`, and
+  `--implicit-requires` are available through both `#build` and `.campbuild`.
 - Metadata should use a simple explicit representation for declared flags,
   declared ABI specs, module requirements, declaration requirements, and
   discovered implicit requirements. The implementation plan may choose exact
@@ -2742,8 +2742,8 @@ This proposal is ready to move to pending when reviewers agree on:
 - allowing conditional interface conformance for portable types;
 - disallowing `@require` on constructors, destructors, parameters, generic
   parameters, base-class entries, and enum values;
-- introducing `--declare`, `--configure`, `--require`, `--explicit-require`, and
-  `--implicit-require`;
+- introducing `--declare`, `--configure`, `--requires`, `--explicit-requires`, and
+  `--implicit-requires`;
 - forbidding `--configure` from configuring target-owned flags while allowing
   it for current-module and dependency flags declared with `--declare`;
 - introducing a base target and standard configuration flags;

@@ -69,7 +69,7 @@ capability facts such as `OS_WIN32`, `OS_WIN64`, `OS_LINUX`, `OS_MACOSX`,
 
 Source must not use flag names as ordinary identifiers. Expression-level checks
 must use the compiler intrinsic `configured(FLAG_EXPRESSION)`. Declarations use
-`requires (FLAG_EXPRESSION)`, and build inputs use `--require` for module-level
+`requires (FLAG_EXPRESSION)`, and build inputs use `--requires` for module-level
 requirements.
 
 Legacy source-level conditionals and source-local symbol mutation are not part

@@ -57,7 +57,7 @@ public sealed class ProjectLoaderTests
 		File.WriteAllText(Path.Combine(sourceDirectory, "main.camp"), """
 			#build --declare LOCAL_FEATURE=true
 			#build --configure LOCAL_FEATURE=false
-			#build --require "LOCAL_FEATURE || OTHER_FEATURE"
+			#build --requires "LOCAL_FEATURE || OTHER_FEATURE"
 
 			export int main() => 0;
 			""");
@@ -65,7 +65,7 @@ public sealed class ProjectLoaderTests
 		File.WriteAllText(buildFile, """
 			--nostdlib
 			--artifact none
-			--explicit-require
+			--explicit-requires
 			--declare OTHER_FEATURE
 			src/*.camp
 			""");

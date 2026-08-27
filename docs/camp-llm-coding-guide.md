@@ -242,7 +242,7 @@ be queried through `configured(...)` in expressions.
 Use file-wide `requires (CONDITION);` only when most top-level declarations in
 a file share that availability. File-wide, block-level, and declaration-level
 requirements combine cumulatively; a declaration-level `requires` strengthens
-the enclosing/file requirement. Use `--declare`, `--configure`, and `--require`
+the enclosing/file requirement. Use `--declare`, `--configure`, and `--requires`
 in `.campbuild`/`#build`
 when a project owns build-time options. Do not use `--configure` to spoof
 target-owned facts such as `OS_WIN32`; select the target or variant instead.

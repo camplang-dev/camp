@@ -192,14 +192,14 @@ static void AddBuildOptions(Command command, bool buildOnly, bool testRunnerOpti
 		Arity = ArgumentArity.ZeroOrMore,
 		AllowMultipleArgumentsPerToken = true
 	});
-	command.Options.Add(new Option<List<string>>("--require")
+	command.Options.Add(new Option<List<string>>("--requires")
 	{
 		Description = "Add module-level configuration requirement expressions.",
 		Arity = ArgumentArity.ZeroOrMore,
 		AllowMultipleArgumentsPerToken = true
 	});
-	command.Options.Add(new Option<bool>("--explicit-require") { Description = "Require explicit availability requirements for ambient true capability use." });
-	command.Options.Add(new Option<bool>("--implicit-require") { Description = "Allow implicit ambient requirements." });
+	command.Options.Add(new Option<bool>("--explicit-requires") { Description = "Require explicit availability requirements for ambient true capability use." });
+	command.Options.Add(new Option<bool>("--implicit-requires") { Description = "Allow implicit ambient requirements." });
 	command.Options.Add(new Option<string?>("--emit") { Description = "Select the emitter, currently c99." });
 	command.Options.Add(new Option<bool>("--debug-info") { Description = "Emit Camp debug metadata and native debug line information." });
 	command.Options.Add(new Option<bool>("--nostdlib") { Description = "Do not include the standard library package." });
@@ -2447,10 +2447,10 @@ static class CommandLineOptionParser
 				case "--implicit-within":
 					AddSingle(result, "within", "implicit");
 					break;
-				case "--explicit-require":
+				case "--explicit-requires":
 					AddSingle(result, "require-policy", "explicit");
 					break;
-				case "--implicit-require":
+				case "--implicit-requires":
 					AddSingle(result, "require-policy", "implicit");
 					break;
 				case "--artifact":
@@ -2546,7 +2546,7 @@ static class CommandLineOptionParser
 				case "-c":
 					result.ConfigurationFlagConfigurations.Add(RequiredValue(tokens, ref i, token, errors));
 					break;
-				case "--require":
+				case "--requires":
 					result.ConfigurationRequirements.Add(RequiredValue(tokens, ref i, token, errors));
 					break;
 				case "--reference":
@@ -2782,7 +2782,7 @@ static class ResponseFileExpander
 	{
 		return option switch
 		{
-			"--target" or "-t" or "--profile" or "-p" or "--variant" or "--memory-model" or "--emit" or "--metadata" or "--artifact" or "--name" or "--subsystem" or "--out-dir" or "--pub-dir" or "--build-dir" or "--sourcefile-paths" or "--sourcefile-root" or "--test-output-dir" or "--test-result-format" or "--coverage-output-dir" or "--coverage-format" or "--coverage-subject" or "--filter" or "--api" or "--exclude" or "--define" or "--declare" or "-d" or "--configure" or "-c" or "--require" or "--use" or "-u" or "--project-reference" => 1,
+			"--target" or "-t" or "--profile" or "-p" or "--variant" or "--memory-model" or "--emit" or "--metadata" or "--artifact" or "--name" or "--subsystem" or "--out-dir" or "--pub-dir" or "--build-dir" or "--sourcefile-paths" or "--sourcefile-root" or "--test-output-dir" or "--test-result-format" or "--coverage-output-dir" or "--coverage-format" or "--coverage-subject" or "--filter" or "--api" or "--exclude" or "--define" or "--declare" or "-d" or "--configure" or "-c" or "--requires" or "--use" or "-u" or "--project-reference" => 1,
 			"--use-source" => 2,
 			_ => 0
 		};

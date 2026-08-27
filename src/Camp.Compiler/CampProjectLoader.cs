@@ -768,10 +768,10 @@ static class CampBuildOptionParser
 				case "--implicit-within":
 					AddSingle(result, "within", "implicit");
 					break;
-				case "--explicit-require":
+				case "--explicit-requires":
 					AddSingle(result, "require-policy", "explicit");
 					break;
-				case "--implicit-require":
+				case "--implicit-requires":
 					AddSingle(result, "require-policy", "implicit");
 					break;
 				case "--artifact":
@@ -860,7 +860,7 @@ static class CampBuildOptionParser
 				case "-c":
 					result.ConfigurationFlagConfigurations.Add(RequiredValue(tokens, ref i, token, errors));
 					break;
-				case "--require":
+				case "--requires":
 					result.ConfigurationRequirements.Add(RequiredValue(tokens, ref i, token, errors));
 					break;
 				case "--reference":
@@ -1115,7 +1115,7 @@ public static class CampResponseFileExpander
 
 	static int OptionValueCount(string option)
 	{
-		return option is "--target" or "-t" or "--profile" or "-p" or "--variant" or "--memory-model" or "--emit" or "--metadata" or "--artifact" or "--name" or "--subsystem" or "--out-dir" or "--pub-dir" or "--build-dir" or "--sourcefile-paths" or "--sourcefile-root" or "--test-output-dir" or "--test-result-format" or "--coverage-output-dir" or "--coverage-format" or "--coverage-subject" or "--filter" or "--api" or "--exclude" or "--define" or "--declare" or "-d" or "--configure" or "-c" or "--require" or "--reference" or "-r" or "--framework" or "-f" or "--use" or "-u" or "--project-reference" or "--local"
+		return option is "--target" or "-t" or "--profile" or "-p" or "--variant" or "--memory-model" or "--emit" or "--metadata" or "--artifact" or "--name" or "--subsystem" or "--out-dir" or "--pub-dir" or "--build-dir" or "--sourcefile-paths" or "--sourcefile-root" or "--test-output-dir" or "--test-result-format" or "--coverage-output-dir" or "--coverage-format" or "--coverage-subject" or "--filter" or "--api" or "--exclude" or "--define" or "--declare" or "-d" or "--configure" or "-c" or "--requires" or "--reference" or "-r" or "--framework" or "-f" or "--use" or "-u" or "--project-reference" or "--local"
 			? 1
 			: option == "--use-source" ? 2 : 0;
 	}
