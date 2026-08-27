@@ -1,0 +1,45 @@
+namespace Std;
+
+@category("Synchronization");
+
+/// Atomically stores a signed native integer and returns the previous value.
+/// - dest: The storage location to update.
+/// - value: The value to store.
+@symbol("atomicExchangeNInt")
+public extern nint atomicExchange(overload nint* dest, nint value);
+
+/// Atomically stores an unsigned native integer and returns the previous value.
+/// - dest: The storage location to update.
+/// - value: The value to store.
+@symbol("atomicExchangeNUInt")
+public extern nuint atomicExchange(overload nuint* dest, nuint value);
+
+/// Atomically stores a pointer and returns the previous value.
+/// - dest: The storage location to update.
+/// - value: The value to store.
+@symbol("atomicExchangePtr")
+public extern void* atomicExchange(overload void** dest, void* value);
+
+/// Atomically stores a signed native integer when the current value matches `expected`.
+/// @returns The value that was stored before the operation.
+/// - dest: The storage location to update.
+/// - expected: The value that must currently be stored for the exchange to occur.
+/// - value: The value to store when `expected` matches.
+@symbol("atomicCompareExchangeNInt")
+public extern nint atomicCompareExchange(overload nint* dest, nint expected, nint value);
+
+/// Atomically stores an unsigned native integer when the current value matches `expected`.
+/// @returns The value that was stored before the operation.
+/// - dest: The storage location to update.
+/// - expected: The value that must currently be stored for the exchange to occur.
+/// - value: The value to store when `expected` matches.
+@symbol("atomicCompareExchangeNUInt")
+public extern nuint atomicCompareExchange(overload nuint* dest, nuint expected, nuint value);
+
+/// Atomically stores a pointer when the current value matches `expected`.
+/// @returns The value that was stored before the operation.
+/// - dest: The storage location to update.
+/// - expected: The value that must currently be stored for the exchange to occur.
+/// - value: The value to store when `expected` matches.
+@symbol("atomicCompareExchangePtr")
+public extern void* atomicCompareExchange(overload void** dest, void* expected, void* value);

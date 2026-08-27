@@ -3,24 +3,24 @@ namespace Std;
 @category("I/O");
 requires (SUPPORTS_FILES);
 
-const int CAMP_IO_ACCESS_READ = 1;
-const int CAMP_IO_ACCESS_WRITE = 2;
-const int CAMP_IO_ACCESS_READ_WRITE = 3;
+inline int CAMP_IO_ACCESS_READ = 1;
+inline int CAMP_IO_ACCESS_WRITE = 2;
+inline int CAMP_IO_ACCESS_READ_WRITE = 3;
 
-const int CAMP_IO_MODE_OPEN_EXISTING = 0;
-const int CAMP_IO_MODE_CREATE = 1;
-const int CAMP_IO_MODE_CREATE_OR_TRUNCATE = 2;
-const int CAMP_IO_MODE_APPEND = 3;
+inline int CAMP_IO_MODE_OPEN_EXISTING = 0;
+inline int CAMP_IO_MODE_CREATE = 1;
+inline int CAMP_IO_MODE_CREATE_OR_TRUNCATE = 2;
+inline int CAMP_IO_MODE_APPEND = 3;
 
-const int CAMP_IO_SEEK_BEGIN = 0;
-const int CAMP_IO_SEEK_CURRENT = 1;
-const int CAMP_IO_SEEK_END = 2;
+inline int CAMP_IO_SEEK_BEGIN = 0;
+inline int CAMP_IO_SEEK_CURRENT = 1;
+inline int CAMP_IO_SEEK_END = 2;
 
-const int CAMP_IO_OPTION_SEQUENTIAL = 1;
-const int CAMP_IO_OPTION_RANDOM_ACCESS = 2;
-const int CAMP_IO_OPTION_WRITE_THROUGH = 4;
-const int CAMP_IO_OPTION_SHARE_READ = 8;
-const int CAMP_IO_OPTION_SHARE_WRITE = 16;
+inline int CAMP_IO_OPTION_SEQUENTIAL = 1;
+inline int CAMP_IO_OPTION_RANDOM_ACCESS = 2;
+inline int CAMP_IO_OPTION_WRITE_THROUGH = 4;
+inline int CAMP_IO_OPTION_SHARE_READ = 8;
+inline int CAMP_IO_OPTION_SHARE_WRITE = 16;
 
 int FileHandle_access(FileAccess access)
 {

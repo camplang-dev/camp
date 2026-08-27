@@ -73,5 +73,5 @@ void *atomicCompareExchangePtr(void **dest, void *expected, void *value)
 }
 
 #else
-#error "Std timing atomics require MSVC, GCC, or Clang intrinsics."
+#error "Std atomics require MSVC, GCC, or Clang intrinsics."
 #endif

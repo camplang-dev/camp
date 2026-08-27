@@ -574,8 +574,8 @@ Values are ordinary structs and newtypes. If input may be untrusted, check
 
 ## Timing, Timers, And Atomics
 
-The timing helpers expose target-backed sleep, async sleep, repeating timers,
-and a small set of atomic operations:
+The timing helpers expose target-backed sleep, async sleep, and repeating
+timers:
 
 ```camp
 void pauseBriefly()
@@ -613,7 +613,7 @@ void startHeartbeat()
 ```
 
 Timer availability is target-dependent. If a target does not support timers or
-sleeping, these declarations may be marked unsupported.
+sleeping, these declarations may be unavailable.
 
 Atomics are deliberately narrow:
 
@@ -641,7 +641,8 @@ read directly:
 - `std_file.camp` for files;
 - `std_list.camp`, `std_hashmap.camp`, and `std_hashset.camp` for collections;
 - `std_numerics.camp` for limits and numeric helpers;
-- `std_time.camp` and `std_timing.camp` for time and timers.
+- `std_time.camp` and `std_timing.camp` for time and timers;
+- `std_atomic.camp` for native integer and pointer atomics.
 
 The patterns are more important than memorizing every method:
 
