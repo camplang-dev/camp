@@ -21,7 +21,8 @@ public sealed class CampRuntimeLayout
 	public string TargetDirectory => Path.Combine(HomeDirectory, "targets");
 	public string CompilerLibraryCacheDirectory => Path.Combine(HomeDirectory, "cache", "lib");
 	public string PackageCacheDirectory => Path.Combine(HomeDirectory, "cache", "pkg");
-	public string GlobalCampPath => Path.Combine(LibraryDirectory, "global.camp");
+	public string BaseCampBuildPath => Path.Combine(HomeDirectory, "base.campbuild");
+	public string GlobalCampBuildPath => Path.Combine(HomeDirectory, "global.campbuild");
 
 	public static CampRuntimeLayout Resolve(string? workingDirectory = null, string? runtimeBaseDirectory = null)
 	{

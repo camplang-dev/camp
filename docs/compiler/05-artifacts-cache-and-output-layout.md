@@ -254,7 +254,7 @@ referenced project before compiling the consumer.
 Project-reference cache checks consider:
 
 - the referenced `.campbuild` file;
-- `lib/global.camp`, when present;
+- compiler-root `base.campbuild` and `global.campbuild`, when present;
 - referenced root sources;
 - API files;
 - shared-library API headers used by the reference;

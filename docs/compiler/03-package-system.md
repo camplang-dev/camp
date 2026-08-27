@@ -77,14 +77,20 @@ absolute paths or URLs.
 ## Restore And Lock Files
 
 `campc restore` reads effective `--use-source` and `--use` declarations from the
-provided source/build file plus global configuration. It resolves direct and
-transitive dependencies, verifies archive SHA-256 values, extracts selected
-source archives into the project cache, and writes `packages.ini`:
+provided source/build file plus compiler-root package source configuration. It
+resolves direct and transitive dependencies, verifies archive SHA-256 values,
+extracts selected source archives into the project cache, and writes
+`packages.ini`:
 
 ```sh
 campc restore textapp.campbuild
 campc restore src/*.camp
+campc restore --only-local
 ```
+
+If no target is specified, restore can select the only `.campbuild` file in the
+current directory when there are no loose `.camp` source files. `--only-local`
+ignores compiler-root `base.campbuild` and `global.campbuild` package sources.
 
 The lock file records portable package facts only:
 
@@ -149,24 +155,25 @@ not.
 
 ## Package Commands
 
-`campc pkg` commands are development-preview commands.
+`campc package` commands are development-preview commands.
 
 | Command | Meaning |
 |---|---|
-| `pkg add-global-source <name> <path-or-url>` | Add or replace a named global package source. |
-| `pkg remove-global-source <name>` | Remove a named global package source. |
-| `pkg list-global-sources` | List configured global package sources. |
-| `pkg publish <version|+major|+minor|+patch> [build-file] [--pub-dir dir] [--name name]` | Create a deterministic source archive and update `versions.ini`. |
-| `pkg install <package[@version|/version]> [--local file] [--global]` | Install a package archive into a package cache without editing `packages.ini`. |
-| `pkg uninstall <package[/version]> [--global]` | Remove one cached version or all cached versions of a package. |
+| `package list-sources [target] [--global]` | List effective package sources in precedence order. |
+| `package add-source <name> <path-or-url> [target] [--global]` | Add a named package source to the selected target. |
+| `package remove-source <name> [target] [--global]` | Remove a named package source from the selected target. |
+| `package publish <version|+major|+minor|+patch> [target] [--pub-dir dir] [--name name] [--dry-run]` | Create a deterministic source archive and update `versions.ini`. |
+| `package install <package[@version|/version]> [target] [--global] [--dry-run]` | Install a package archive into a package cache without editing project configuration. |
+| `package uninstall <package[@version|/version]> [target] [--global] [--dry-run]` | Remove one cached version or all cached versions of a package. |
 
-`pkg add`, `pkg remove`, `pkg add-source`, `pkg remove-source`, and `pkg search`
-are intentionally removed. Edit build files manually for `--use` and local
-`--use-source` declarations.
+The target is either `--global`, an explicit `.campbuild` or `.camp` file, or
+the implicit single `.campbuild` in the current directory. `install` and
+`uninstall` alter only package caches and print that project configuration was
+not changed.
 
 ## Publishing
 
-`pkg publish` selects a build file, collects package source files, creates a
+`package publish` selects a build file, collects package source files, creates a
 deterministic source zip, computes its SHA-256, and writes or updates
 `versions.ini`. The default output directory is:
 
@@ -206,4 +213,4 @@ cache reuse for that request.
 
 Delete a package version's `bin` directory to force artifact rebuild for one
 target/profile/link kind. Delete the package version directory to force
-reinstallation by `campc restore` or `campc pkg install`.
+reinstallation by `campc restore` or `campc package install`.

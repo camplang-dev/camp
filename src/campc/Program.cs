@@ -37,7 +37,7 @@ static bool IsVersionRequest(string[] args)
 }
 
 static bool ShouldDeferBuildLikeResponseExpansion(string[] args) =>
-	args.Length > 0 && args[0] is "build" or "run" or "test" or "cover";
+	args.Length > 0 && args[0] is "build" or "run" or "test" or "cover" or "dump" or "restore";
 
 static bool ShouldBypassRootParserForBuildLike(string[] args) =>
 	ShouldDeferBuildLikeResponseExpansion(args) && !args.Skip(1).Any(static arg => arg is "--help" or "-h" or "-?" or "help");
@@ -122,12 +122,13 @@ static RootCommand BuildCommandTree(CliEnvironment environment, string[] origina
 		Arity = ArgumentArity.ZeroOrMore,
 		AllowMultipleArgumentsPerToken = true
 	});
+	restore.Options.Add(new Option<bool>("--only-local") { Description = "Ignore compiler base/global package sources and use only local project package sources." });
 	restore.SetAction(_ => CampCli.Run(originalArgs, environment));
 	root.Subcommands.Add(restore);
 
-	Command pkg = new("pkg", "Manage source-only package publishing and caches.");
-	AddPackageCommands(pkg, originalArgs, environment);
-	root.Subcommands.Add(pkg);
+	Command package = new("package", "Manage source-only package publishing and caches.");
+	AddPackageCommands(package, originalArgs, environment);
+	root.Subcommands.Add(package);
 
 	Command help = new("help", "Show help for campc or a command.");
 	help.Arguments.Add(new Argument<string?>("command")
@@ -211,13 +212,13 @@ static void AddBuildOptions(Command command, bool buildOnly, bool testRunnerOpti
 	});
 	command.Options.Add(new Option<string>("--use", "-u")
 	{
-		Description = "Use an installed package, as pkg or pkg@version.",
+		Description = "Use an installed package, as package, package@version, package/version, or with :api, :static, or :shared.",
 		Arity = ArgumentArity.ExactlyOne,
 		AllowMultipleArgumentsPerToken = false
 	});
 	command.Options.Add(new Option<string[]>("--use-source")
 	{
-		Description = "Define a package source name and optional local path.",
+		Description = "Define a package source name and path or URL.",
 		Arity = new ArgumentArity(2, 2),
 		AllowMultipleArgumentsPerToken = true
 	});
@@ -265,7 +266,7 @@ static void AddBuildOptions(Command command, bool buildOnly, bool testRunnerOpti
 	command.Options.Add(new Option<string?>("--name") { Description = "Artifact/project name without extension." });
 	command.Options.Add(new Option<string?>("--subsystem") { Description = "Native subsystem, currently windows." });
 	command.Options.Add(new Option<string?>("--out-dir") { Description = "Directory for final artifacts." });
-	command.Options.Add(new Option<string?>("--pub-dir") { Description = "Package publication root directory. Ignored except by pkg publish." });
+	command.Options.Add(new Option<string?>("--pub-dir") { Description = "Package publication root directory. Ignored except by package publish." });
 }
 
 static void AddCoverageOptions(Command command)
@@ -280,51 +281,53 @@ static void AddCoverageOptions(Command command)
 	});
 }
 
-static void AddPackageCommands(Command pkg, string[] originalArgs, CliEnvironment environment)
+static void AddPackageCommands(Command package, string[] originalArgs, CliEnvironment environment)
 {
-	Command addGlobalSource = new("add-global-source", "Add or replace a named global package source.");
-	addGlobalSource.Arguments.Add(new Argument<string>("name"));
-	addGlobalSource.Arguments.Add(new Argument<string>("path-or-url"));
-	addGlobalSource.SetAction(_ => CampCli.Run(originalArgs, environment));
-	pkg.Subcommands.Add(addGlobalSource);
+	Command listSources = new("list-sources", "List configured package sources.");
+	listSources.Arguments.Add(new Argument<List<string>>("target") { Arity = ArgumentArity.ZeroOrMore });
+	listSources.Options.Add(new Option<bool>("--global") { Description = "Target compiler-global package source configuration." });
+	listSources.SetAction(_ => CampCli.Run(originalArgs, environment));
+	package.Subcommands.Add(listSources);
 
-	Command removeGlobalSource = new("remove-global-source", "Remove a named global package source.");
-	removeGlobalSource.Arguments.Add(new Argument<string>("name"));
-	removeGlobalSource.SetAction(_ => CampCli.Run(originalArgs, environment));
-	pkg.Subcommands.Add(removeGlobalSource);
+	Command addSource = new("add-source", "Add a named package source.");
+	addSource.Arguments.Add(new Argument<string>("name"));
+	addSource.Arguments.Add(new Argument<string>("path-or-url"));
+	addSource.Arguments.Add(new Argument<List<string>>("target") { Arity = ArgumentArity.ZeroOrMore });
+	addSource.Options.Add(new Option<bool>("--global") { Description = "Target compiler-global package source configuration." });
+	addSource.SetAction(_ => CampCli.Run(originalArgs, environment));
+	package.Subcommands.Add(addSource);
 
-	Command listGlobalSources = new("list-global-sources", "List configured global package sources.");
-	listGlobalSources.SetAction(_ => CampCli.Run(originalArgs, environment));
-	pkg.Subcommands.Add(listGlobalSources);
+	Command removeSource = new("remove-source", "Remove a named package source.");
+	removeSource.Arguments.Add(new Argument<string>("name"));
+	removeSource.Arguments.Add(new Argument<List<string>>("target") { Arity = ArgumentArity.ZeroOrMore });
+	removeSource.Options.Add(new Option<bool>("--global") { Description = "Target compiler-global package source configuration." });
+	removeSource.SetAction(_ => CampCli.Run(originalArgs, environment));
+	package.Subcommands.Add(removeSource);
 
 	Command install = new("install", "Install a source-only package into the package cache.");
 	install.Arguments.Add(new Argument<string>("package"));
+	install.Arguments.Add(new Argument<List<string>>("target") { Arity = ArgumentArity.ZeroOrMore });
 	install.Options.Add(new Option<bool>("--global") { Description = "Install into the compiler package root." });
-	install.Options.Add(new Option<string?>("--local") { Description = "Read local package source configuration from a Camp file." });
+	install.Options.Add(new Option<bool>("--dry-run") { Description = "Print the planned cache operation without changing files." });
 	install.SetAction(_ => CampCli.Run(originalArgs, environment));
-	pkg.Subcommands.Add(install);
+	package.Subcommands.Add(install);
 
 	Command uninstall = new("uninstall", "Remove a package from the package cache.");
 	uninstall.Arguments.Add(new Argument<string>("package"));
+	uninstall.Arguments.Add(new Argument<List<string>>("target") { Arity = ArgumentArity.ZeroOrMore });
 	uninstall.Options.Add(new Option<bool>("--global") { Description = "Remove from the compiler package root." });
+	uninstall.Options.Add(new Option<bool>("--dry-run") { Description = "Print the planned cache operation without changing files." });
 	uninstall.SetAction(_ => CampCli.Run(originalArgs, environment));
-	pkg.Subcommands.Add(uninstall);
+	package.Subcommands.Add(uninstall);
 
 	Command publish = new("publish", "Publish a source-only package archive.");
 	publish.Arguments.Add(new Argument<string>("version"));
-	publish.Arguments.Add(new Argument<string?>("build-file") { Arity = ArgumentArity.ZeroOrOne });
+	publish.Arguments.Add(new Argument<string?>("target-file") { Arity = ArgumentArity.ZeroOrOne });
 	publish.Options.Add(new Option<string?>("--name") { Description = "Package name when it cannot be inferred." });
 	publish.Options.Add(new Option<string?>("--pub-dir") { Description = "Output package publication root directory." });
+	publish.Options.Add(new Option<bool>("--dry-run") { Description = "Print the planned publication without changing files." });
 	publish.SetAction(_ => CampCli.Run(originalArgs, environment));
-	pkg.Subcommands.Add(publish);
-
-	foreach (string removed in new[] { "add", "remove", "add-source", "remove-source", "search" })
-	{
-		Command compatibility = new(removed, "Removed package command.");
-		compatibility.Arguments.Add(new Argument<List<string>>("args") { Arity = ArgumentArity.ZeroOrMore });
-		compatibility.SetAction(_ => CampCli.Run(originalArgs, environment));
-		pkg.Subcommands.Add(compatibility);
-	}
+	package.Subcommands.Add(publish);
 }
 
 sealed class CampCli
@@ -332,7 +335,7 @@ sealed class CampCli
 	public static int Run(string[] args, CliEnvironment environment)
 	{
 		if (args.Length == 0)
-			return Error("A command is required. Expected init, pkg, restore, build, dump, run, test, or cover.");
+			return Error("A command is required. Expected init, package, restore, build, dump, run, test, or cover.");
 
 		return args[0] switch
 		{
@@ -343,10 +346,10 @@ sealed class CampCli
 			"cover" => RunBuildLike(args[1..], environment, CommandKind.Cover),
 			"dump" => RunDump(args[1..], environment),
 			"restore" => RunRestore(args[1..], environment),
-			"pkg" => PackageCommands.Run(args[1..], environment),
+			"package" => PackageCommands.Run(args[1..], environment),
 			"--inspect" or "--build" or "-b" => Error("The root compiler command has been replaced by subcommands. Use 'campc dump ...' or 'campc build ...'."),
-			_ when args[0].StartsWith("-", StringComparison.Ordinal) => Error($"Unknown command '{args[0]}'. Use init, pkg, restore, build, dump, run, test, or cover."),
-			_ => Error($"Unknown command '{args[0]}'. Use init, pkg, restore, build, dump, run, test, or cover.")
+			_ when args[0].StartsWith("-", StringComparison.Ordinal) => Error($"Unknown command '{args[0]}'. Use init, package, restore, build, dump, run, test, or cover."),
+			_ => Error($"Unknown command '{args[0]}'. Use init, package, restore, build, dump, run, test, or cover.")
 		};
 	}
 
@@ -591,6 +594,60 @@ sealed class CampCli
 		return PathArguments.LooksLikePath(value) ? ResolvePath(value, baseDirectory) : value;
 	}
 
+	static bool TryApplyImplicitBuildTarget(string[] args, CliEnvironment environment, out string[] updatedArgs, List<string> errors)
+	{
+		updatedArgs = args;
+		if (HasBuildTargetOrSourceArgument(args, environment.WorkingDirectory))
+			return true;
+		if (!TryResolveImplicitCampbuildTarget(environment.WorkingDirectory, out string? buildFile, out string? error))
+		{
+			errors.Add(error!);
+			return false;
+		}
+		updatedArgs = [buildFile!, .. args];
+		return true;
+	}
+
+	static bool HasBuildTargetOrSourceArgument(IReadOnlyList<string> args, string workingDirectory)
+	{
+		for (int i = 0; i < args.Count; i++)
+		{
+			string token = args[i];
+			if (token.StartsWith("-", StringComparison.Ordinal))
+			{
+				i += ResponseFileExpander.OptionValueCountForBuildRequest(token);
+				continue;
+			}
+			return true;
+		}
+		return false;
+	}
+
+	public static bool TryResolveImplicitCampbuildTarget(string workingDirectory, out string? buildFile, out string? error)
+	{
+		buildFile = null;
+		error = null;
+		string[] campbuildFiles = Directory.GetFiles(workingDirectory, "*.campbuild").OrderBy(static path => path, StringComparer.Ordinal).ToArray();
+		string[] campFiles = Directory.GetFiles(workingDirectory, "*.camp").OrderBy(static path => path, StringComparer.Ordinal).ToArray();
+		if (campFiles.Length > 0)
+		{
+			error = "Specify a .campbuild file or source file. The current directory contains .camp source files, so no implicit .campbuild target was selected.";
+			return false;
+		}
+		if (campbuildFiles.Length == 0)
+		{
+			error = "Specify a .campbuild file or source file. The current directory does not contain a .campbuild file.";
+			return false;
+		}
+		if (campbuildFiles.Length > 1)
+		{
+			error = "Specify a .campbuild file. The current directory contains multiple .campbuild files.";
+			return false;
+		}
+		buildFile = campbuildFiles[0];
+		return true;
+	}
+
 	static int RunDump(string[] args, CliEnvironment environment)
 	{
 		if (args.Length == 0)
@@ -615,13 +672,11 @@ sealed class CampCli
 
 	static int RunRestore(string[] args, CliEnvironment environment)
 	{
-		if (args.Length == 0)
-			return Error("restore requires at least one .camp file.");
-
 		PrintPackagePreviewWarning();
 		List<string> errors = [];
 		List<string> sourceArgs = [];
 		string? upgrade = null;
+		bool onlyLocal = false;
 		for (int i = 0; i < args.Length; i++)
 		{
 			if (args[i] == "--upgrade")
@@ -632,15 +687,24 @@ sealed class CampCli
 					upgrade = "";
 				continue;
 			}
+			if (args[i] == "--only-local")
+			{
+				onlyLocal = true;
+				continue;
+			}
 			sourceArgs.Add(args[i]);
 		}
+		if (!TryApplyImplicitBuildTarget(sourceArgs.ToArray(), environment, out string[] resolvedSourceArgs, errors))
+			return PrintErrors(errors);
+		sourceArgs = [.. resolvedSourceArgs];
 		string? buildFile = TryGetBuildFileArgument(sourceArgs, environment.WorkingDirectory);
 		string? buildFileProjectRoot = buildFile is null ? null : Path.GetDirectoryName(buildFile);
 		sourceArgs = ResponseFileExpander.ExpandBareBuildFiles(sourceArgs, environment.WorkingDirectory, errors);
 		if (upgrade is not null && upgrade.Length > 0 && !PackageDependencySpec.TryParse(upgrade, out _, out string? upgradeError))
 			errors.Add(upgradeError!);
 		BuildOptionBag bag = new();
-		ApplyGlobalPragmas(environment, bag, errors);
+		if (!onlyLocal)
+			ApplyCompilerPackageSourcePragmas(environment, bag, errors, includeGlobal: true);
 		ParsedOptions restoreOptions = CommandLineOptionParser.Parse(sourceArgs, allowPositionals: true, errors);
 		bag.Apply(restoreOptions, Precedence.Local, "restore", errors);
 		foreach (string file in ExpandSourcePatterns(sourceArgs, [], environment.WorkingDirectory, errors))
@@ -664,6 +728,9 @@ static bool TryBuildRequest(string[] args, CliEnvironment environment, CommandKi
 	{
 		request = null;
 		errors = [];
+		if (command is CommandKind.Build or CommandKind.Run or CommandKind.Test or CommandKind.Cover or CommandKind.Dump
+			&& !TryApplyImplicitBuildTarget(args, environment, out args, errors))
+			return false;
 		string? buildFile = command is CommandKind.Build or CommandKind.Run or CommandKind.Test or CommandKind.Cover or CommandKind.Dump
 			? TryGetBuildFileArgument(args, environment.WorkingDirectory)
 			: null;
@@ -672,7 +739,7 @@ static bool TryBuildRequest(string[] args, CliEnvironment environment, CommandKi
 			? Path.Combine(buildFileProjectRoot, "bin")
 			: null;
 
-		if (command is CommandKind.Build or CommandKind.Run or CommandKind.Test or CommandKind.Cover)
+		if (command is CommandKind.Build or CommandKind.Run or CommandKind.Test or CommandKind.Cover or CommandKind.Dump)
 			args = ResponseFileExpander.ExpandBareBuildFiles(args, environment.WorkingDirectory, errors).ToArray();
 		if (errors.Count > 0)
 			return false;
@@ -920,7 +987,7 @@ static bool TryBuildRequest(string[] args, CliEnvironment environment, CommandKi
 			if (instrumentForCoverage)
 				projectRequest.CoverageInstrumentationMode = CoverageInstrumentationMode.ProductionSubject;
 
-			if (!instrumentForCoverage && target is not null && TryGetCurrentProjectReferenceArtifacts(projectRequest, canonicalBuildFile, projectOutputDirectory, referenceBuildKind, target, environment.GlobalCampPath, requireLibrary, out string? currentApiHeader, out string? currentLibrary))
+			if (!instrumentForCoverage && target is not null && TryGetCurrentProjectReferenceArtifacts(projectRequest, canonicalBuildFile, projectOutputDirectory, referenceBuildKind, target, environment.BaseCampBuildPath, environment.GlobalCampBuildPath, requireLibrary, out string? currentApiHeader, out string? currentLibrary))
 			{
 				if (consumerRequest.Verbose)
 					Console.Out.WriteLine($"{projectReference}: project reference {ProjectReferenceOutputName(projectRequest, canonicalBuildFile)}: current");
@@ -1004,7 +1071,7 @@ static bool TryBuildRequest(string[] args, CliEnvironment environment, CommandKi
 		return errors.Count == 0;
 	}
 
-	static bool TryGetCurrentProjectReferenceArtifacts(CompilerRequest projectRequest, string buildFile, string outputDirectory, NativeBuildKind buildKind, TargetDefinition target, string globalCampPath, bool requireLibrary, out string apiHeader, out string? library)
+	static bool TryGetCurrentProjectReferenceArtifacts(CompilerRequest projectRequest, string buildFile, string outputDirectory, NativeBuildKind buildKind, TargetDefinition target, string baseCampBuildPath, string globalCampBuildPath, bool requireLibrary, out string apiHeader, out string? library)
 	{
 		string projectName = ProjectReferenceOutputName(projectRequest, buildFile);
 		apiHeader = Path.Combine(outputDirectory, projectName + "_api.camp");
@@ -1033,7 +1100,7 @@ static bool TryBuildRequest(string[] args, CliEnvironment environment, CommandKi
 				outputs.Add(library!);
 		}
 
-		List<string> inputs = GetProjectReferenceCacheInputs(projectRequest, buildFile, target, globalCampPath).ToList();
+		List<string> inputs = GetProjectReferenceCacheInputs(projectRequest, buildFile, target, baseCampBuildPath, globalCampBuildPath).ToList();
 		return OutputsAreCurrent(outputs, inputs);
 	}
 
@@ -1097,11 +1164,13 @@ static bool TryBuildRequest(string[] args, CliEnvironment environment, CommandKi
 		return false;
 	}
 
-	static IEnumerable<string> GetProjectReferenceCacheInputs(CompilerRequest projectRequest, string buildFile, TargetDefinition target, string globalCampPath)
+	static IEnumerable<string> GetProjectReferenceCacheInputs(CompilerRequest projectRequest, string buildFile, TargetDefinition target, string baseCampBuildPath, string globalCampBuildPath)
 	{
 		yield return buildFile;
-		if (File.Exists(globalCampPath))
-			yield return globalCampPath;
+		if (File.Exists(baseCampBuildPath))
+			yield return baseCampBuildPath;
+		if (File.Exists(globalCampBuildPath))
+			yield return globalCampBuildPath;
 		foreach (string input in ResolveProjectReferenceInputPaths(projectRequest, projectRequest.Files, includeDirectories: true))
 			yield return input;
 		foreach (string input in ResolveProjectReferenceInputPaths(projectRequest, projectRequest.ApiFiles, includeDirectories: false))
@@ -1370,13 +1439,25 @@ static bool TryBuildRequest(string[] args, CliEnvironment environment, CommandKi
 
 	static void ApplyGlobalPragmas(CliEnvironment environment, BuildOptionBag bag, List<string> errors)
 	{
-		if (!File.Exists(environment.GlobalCampPath))
-			return;
-		ApplyFilePragmas(environment.GlobalCampPath, environment, bag, Precedence.Global, errors);
+		ApplyCompilerPackageSourcePragmas(environment, bag, errors, includeGlobal: true);
+	}
+
+	static void ApplyCompilerPackageSourcePragmas(CliEnvironment environment, BuildOptionBag bag, List<string> errors, bool includeGlobal)
+	{
+		if (File.Exists(environment.BaseCampBuildPath))
+			ApplyFilePragmas(environment.BaseCampBuildPath, environment, bag, Precedence.Global, errors);
+		if (includeGlobal && File.Exists(environment.GlobalCampBuildPath))
+			ApplyFilePragmas(environment.GlobalCampBuildPath, environment, bag, Precedence.Global, errors);
 	}
 
 	static void ApplyFilePragmas(string file, CliEnvironment environment, BuildOptionBag bag, Precedence precedence, List<string> errors)
 	{
+		if (file.EndsWith(".campbuild", StringComparison.OrdinalIgnoreCase))
+		{
+			ParsedOptions parsed = CommandLineOptionParser.Parse(ResponseFileExpander.Expand(["@" + file], environment.WorkingDirectory, errors), allowPositionals: true, errors);
+			bag.Apply(parsed, precedence, file, errors);
+			return;
+		}
 		foreach (PragmaLine pragma in BuildPragmaReader.Read(file, environment.WorkingDirectory, errors))
 		{
 			ParsedOptions parsed = CommandLineOptionParser.Parse(pragma.Tokens, allowPositionals: false, errors);
@@ -1384,7 +1465,7 @@ static bool TryBuildRequest(string[] args, CliEnvironment environment, CommandKi
 		}
 	}
 
-	static List<string> ExpandSourcePatterns(List<string> patterns, List<string> excludePatterns, string workingDirectory, List<string> errors)
+	public static List<string> ExpandSourcePatterns(List<string> patterns, List<string> excludePatterns, string workingDirectory, List<string> errors)
 	{
 		List<string> files = [];
 		HashSet<string> seen = new(StringComparer.OrdinalIgnoreCase);
@@ -1439,106 +1520,177 @@ sealed class PackageCommands
 	public static int Run(string[] args, CliEnvironment environment)
 	{
 		if (args.Length == 0)
-			return Error("pkg requires a package command.");
+			return Error("package requires a package command.");
 		CampCli.PrintPackagePreviewWarning();
 		return args[0] switch
 		{
-			"add-global-source" => AddGlobalSource(args[1..], environment),
-			"remove-global-source" => RemoveGlobalSource(args[1..], environment),
-			"list-global-sources" => ListGlobalSources(args[1..], environment),
+			"list-sources" => ListSources(args[1..], environment),
+			"add-source" => AddSource(args[1..], environment),
+			"remove-source" => RemoveSource(args[1..], environment),
 			"install" => InstallCommand(args[1..], environment),
 			"uninstall" => Uninstall(args[1..], environment),
 			"publish" => Publish(args[1..], environment),
-			"add" => Error("pkg add has been removed. Edit the build file and add --use manually."),
-			"remove" => Error("pkg remove has been removed. Edit the build file and remove --use manually."),
-			"add-source" => Error("pkg add-source has been removed. Use pkg add-global-source for global sources or edit the build file and add --use-source manually."),
-			"remove-source" => Error("pkg remove-source has been removed. Use pkg remove-global-source for global sources or edit the build file manually."),
-			"search" => Error("pkg search has been removed until Camp has a package index."),
-			_ => Error($"Unknown pkg command '{args[0]}'.")
+			_ => Error($"Unknown package command '{args[0]}'.")
 		};
 	}
 
-	static int AddGlobalSource(string[] args, CliEnvironment environment)
+	static int ListSources(string[] args, CliEnvironment environment)
+	{
+		if (!TryResolvePackageTarget(args, environment, out PackageCommandTarget? target, out string[] remaining, out bool _, out string? error))
+			return Error(error!);
+		if (remaining.Length > 0)
+			return Error($"package list-sources does not accept argument '{remaining[0]}'.");
+		if (!TryLoadEffectiveSourceEntries(target!, out List<PackageSourceEntry> sources, out error))
+			return Error(error!);
+		foreach (PackageSourceEntry source in sources.AsEnumerable().Reverse())
+			Console.Out.WriteLine($"{source.Name} {source.Path} {source.Source}");
+		return 0;
+	}
+
+	static int AddSource(string[] args, CliEnvironment environment)
 	{
 		if (args.Length < 2)
-			return Error("pkg add-global-source requires <name> <path-or-url>.");
-		EditBuildPragmas(environment.GlobalCampPath, line => !line.StartsWith("#build --use-source " + args[0] + " ", StringComparison.Ordinal), $"#build --use-source {args[0]} {Quote(args[1])}");
+			return Error("package add-source requires <name> <path-or-url>.");
+		string name = args[0];
+		string path = args[1];
+		if (!TryResolvePackageTarget(args[2..], environment, out PackageCommandTarget? target, out string[] remaining, out bool _, out string? error))
+			return Error(error!);
+		if (remaining.Length > 0)
+			return Error($"package add-source does not accept argument '{remaining[0]}'.");
+		if (!TryLoadEffectiveSourceEntries(target!, out List<PackageSourceEntry> sources, out error))
+			return Error(error!);
+		if (sources.Any(source => source.Name.Equals(name, StringComparison.Ordinal)))
+			return Error($"Package source '{name}' already exists.");
+		EditBuildPragmas(target!.SourceWriteFile, line => true, FormatUseSourceLine(target.SourceWriteFile, name, path));
+		Console.Out.WriteLine($"added source: {name} {path}");
+		Console.Out.WriteLine($"updated: {target.SourceWriteFile}");
 		return 0;
 	}
 
-	static int RemoveGlobalSource(string[] args, CliEnvironment environment)
+	static int RemoveSource(string[] args, CliEnvironment environment)
 	{
 		if (args.Length < 1)
-			return Error("pkg remove-global-source requires <name>.");
-		EditBuildPragmas(environment.GlobalCampPath, line => !line.StartsWith("#build --use-source " + args[0], StringComparison.Ordinal), null);
-		return 0;
-	}
-
-	static int ListGlobalSources(string[] args, CliEnvironment environment)
-	{
-		if (args.Length > 0)
-			return Error("pkg list-global-sources does not accept arguments.");
-		List<string> errors = [];
-		BuildOptionBag bag = LoadEffectiveSources(environment, args, errors);
-		if (errors.Count > 0)
-			return PrintErrors(errors);
-		foreach (PackageSourceSpec source in bag.UseSources)
+			return Error("package remove-source requires <name>.");
+		string name = args[0];
+		if (!TryResolvePackageTarget(args[1..], environment, out PackageCommandTarget? target, out string[] remaining, out bool _, out string? error))
+			return Error(error!);
+		if (remaining.Length > 0)
+			return Error($"package remove-source does not accept argument '{remaining[0]}'.");
+		bool removed = false;
+		EditBuildPragmas(target!.SourceWriteFile, line =>
 		{
-			if (!string.IsNullOrWhiteSpace(source.Path))
-				Console.Out.WriteLine($"{source.Name} {source.Path}");
-		}
+			if (IsUseSourceLineForName(line, name))
+			{
+				removed = true;
+				return false;
+			}
+			return true;
+		}, null);
+		if (!removed)
+			return Error($"Package source '{name}' is not declared in '{target.SourceWriteFile}'.");
+		Console.Out.WriteLine($"removed source: {name}");
+		Console.Out.WriteLine($"updated: {target.SourceWriteFile}");
 		return 0;
 	}
 
 	static int InstallCommand(string[] args, CliEnvironment environment)
 	{
 		if (args.Length == 0)
-			return Error("pkg install requires <package[@version|/version]>.");
-		bool global = args.Contains("--global", StringComparer.Ordinal);
+			return Error("package install requires <package[@version|/version]>.");
 		if (!PackageDependencySpec.TryParse(args[0], out PackageDependencySpec package, out string? packageError))
 			return Error(packageError!);
-		List<string> errors = [];
-		BuildOptionBag bag = LoadEffectiveSources(environment, args, errors);
-		if (errors.Count > 0)
-			return PrintErrors(errors);
-		string localPackageRoot = GetLocalPackageCacheRoot(args, environment);
-		if (!Install(package, global, environment, localPackageRoot, bag.UseSources, out string message, out string? error))
-			return Error(error ?? message);
-		Console.Out.WriteLine(message);
+		if (!TryResolvePackageTarget(args[1..], environment, out PackageCommandTarget? target, out string[] remaining, out bool dryRun, out string? error))
+			return Error(error!);
+		if (remaining.Length > 0)
+			return Error($"package install does not accept argument '{remaining[0]}'.");
+		if (!TryLoadEffectiveSourceEntries(target!, out List<PackageSourceEntry> sources, out error))
+			return Error(error!);
+		if (!TryResolveSinglePackage(package, ToLocations(sources), out ResolvedPackage? resolved, out error))
+			return Error(error!);
+		string targetDirectory = Path.Combine(target!.CacheRoot, resolved!.Name, resolved.Version.ToString());
+		bool alreadyInstalled = Directory.Exists(Path.Combine(targetDirectory, "src"));
+		if (dryRun)
+		{
+			Console.Out.WriteLine("dry-run: install");
+			Console.Out.WriteLine($"target: {target.DisplayName}");
+			Console.Out.WriteLine($"cache: {targetDirectory}");
+			Console.Out.WriteLine($"source: {resolved.Source.Name} {resolved.Source.Root}");
+			Console.Out.WriteLine($"archive: {resolved.CatalogVersion.SourceArchive}");
+			Console.Out.WriteLine(alreadyInstalled ? $"already installed: {resolved.Name}@{resolved.Version}" : $"would install: {resolved.Name}@{resolved.Version}");
+			Console.Out.WriteLine("project configuration was not changed");
+			return 0;
+		}
+		if (!InstallResolvedPackageToRoot(resolved, target.CacheRoot, out error))
+			return Error(error!);
+		Console.Out.WriteLine(alreadyInstalled ? $"already installed: {resolved.Name}@{resolved.Version}" : $"installed: {resolved.Name}@{resolved.Version}");
+		Console.Out.WriteLine($"cache: {targetDirectory}");
+		Console.Out.WriteLine("project configuration was not changed");
 		return 0;
 	}
 
 	static int Uninstall(string[] args, CliEnvironment environment)
 	{
 		if (args.Length == 0)
-			return Error("pkg uninstall requires <pkg@ver>.");
-		bool global = args.Contains("--global", StringComparer.Ordinal);
+			return Error("package uninstall requires <package[@version|/version]>.");
 		PackageSpec package = PackageSpec.Parse(args[0]);
-		string root = global ? environment.GlobalPackageRoot : GetLocalPackageCacheRoot(args, environment);
-		string packageDirectory = Path.Combine(root, package.Name);
-		if (!Directory.Exists(packageDirectory))
-			return 0;
-		if (package.Version is null)
-			Directory.Delete(packageDirectory, recursive: true);
-		else
+		if (!TryResolvePackageTarget(args[1..], environment, out PackageCommandTarget? target, out string[] remaining, out bool dryRun, out string? error))
+			return Error(error!);
+		if (remaining.Length > 0)
+			return Error($"package uninstall does not accept argument '{remaining[0]}'.");
+		string removalDirectory = package.Version is null
+			? Path.Combine(target!.CacheRoot, package.Name)
+			: Path.Combine(target!.CacheRoot, package.Name, package.Version);
+		bool installed = Directory.Exists(removalDirectory);
+		if (dryRun)
 		{
-			string versionDirectory = Path.Combine(packageDirectory, package.Version);
-			if (Directory.Exists(versionDirectory))
-				Directory.Delete(versionDirectory, recursive: true);
+			Console.Out.WriteLine("dry-run: uninstall");
+			Console.Out.WriteLine($"target: {target.DisplayName}");
+			Console.Out.WriteLine($"cache: {removalDirectory}");
+			Console.Out.WriteLine(installed ? $"would remove: {FormatPackageForMessage(package)}" : $"not installed: {FormatPackageForMessage(package)}");
+			Console.Out.WriteLine("project configuration was not changed");
+			return 0;
 		}
+		if (installed)
+			Directory.Delete(removalDirectory, recursive: true);
+		if (installed)
+			Console.Out.WriteLine($"uninstalled: {FormatPackageForMessage(package)}");
+		else
+			Console.Out.WriteLine($"not installed: {FormatPackageForMessage(package)}");
+		Console.Out.WriteLine($"cache: {removalDirectory}");
+		Console.Out.WriteLine("project configuration was not changed");
 		return 0;
 	}
 
 	static int Publish(string[] args, CliEnvironment environment)
 	{
 		if (args.Length == 0)
-			return Error("pkg publish requires <version|+major|+minor|+patch>.");
+			return Error("package publish requires <version|+major|+minor|+patch>.");
 		if (!TryParsePublishArgs(args, environment, out PublishRequest? request, out string? error))
 			return Error(error!);
 		if (!TryLoadPackageBuildInputs(request!, environment, out PublishInputs? inputs, out error))
 			return Error(error!);
 		if (!TrySelectPublishVersion(request!.Version, inputs!.OutputDirectory, inputs.PackageName, out PackageSelectedVersion version, out error))
 			return Error(error!);
+		if (request.DryRun)
+		{
+			Console.Out.WriteLine("dry-run: publish");
+			Console.Out.WriteLine($"target: {request.BuildFile}");
+			Console.Out.WriteLine($"project root: {inputs.ProjectRoot}");
+			Console.Out.WriteLine($"package: {inputs.PackageName}@{version}");
+			Console.Out.WriteLine($"versions: {Path.Combine(inputs.OutputDirectory, "versions.ini")}");
+			Console.Out.WriteLine($"archive: {Path.Combine(inputs.OutputDirectory, inputs.PackageName + "_" + version + ".zip")}");
+			Console.Out.WriteLine("files:");
+			foreach (string file in inputs.Files)
+				Console.Out.WriteLine("  " + Path.GetRelativePath(inputs.ProjectRoot, file));
+			if (inputs.Dependencies.Count > 0)
+			{
+				Console.Out.WriteLine("dependencies:");
+				foreach (PackageSpec dependency in inputs.Dependencies)
+					Console.Out.WriteLine("  " + dependency);
+			}
+			Console.Out.WriteLine("no files were changed");
+			return 0;
+		}
 		if (!TryPublish(inputs, version, out string? archiveName, out string? hash, out error))
 			return Error(error!);
 		Console.Out.WriteLine($"published: {inputs.PackageName}@{version}");
@@ -1567,7 +1719,7 @@ sealed class PackageCommands
 			.Select(static source => new PackageSourceLocation(source.Name, source.Path!))
 			.ToList();
 		if (locations.Count == 0)
-			return Error("No package sources are configured. Add --use-source to the build file or use 'campc pkg add-global-source'.");
+			return Error("No package sources are configured. Add --use-source to the build file or use 'campc package add-source <name> <path-or-url> --global'.");
 
 		string? upgradeName = null;
 		PackageVersionExpression? upgradeExpression = null;
@@ -1777,7 +1929,7 @@ sealed class PackageCommands
 			.ToList();
 		if (locations.Count == 0)
 		{
-			error = "No package sources are configured. Use 'campc pkg add-global-source' or add --use-source to a local build configuration.";
+			error = "No package sources are configured. Use 'campc package add-source <name> <path-or-url> --global' or add --use-source to a local build configuration.";
 			return false;
 		}
 		if (!TryResolveSinglePackage(package, locations, out ResolvedPackage? resolved, out error))
@@ -1849,6 +2001,7 @@ sealed class PackageCommands
 		string? buildFile = null;
 		string? name = null;
 		string? outputDirectory = null;
+		bool dryRun = false;
 		for (int i = 1; i < args.Length; i++)
 		{
 			string arg = args[i];
@@ -1856,7 +2009,7 @@ sealed class PackageCommands
 			{
 				if (i + 1 >= args.Length)
 				{
-					error = "pkg publish --name requires a value.";
+					error = "package publish --name requires a value.";
 					return false;
 				}
 				name = args[++i];
@@ -1866,38 +2019,33 @@ sealed class PackageCommands
 			{
 				if (i + 1 >= args.Length)
 				{
-					error = "pkg publish --pub-dir requires a value.";
+					error = "package publish --pub-dir requires a value.";
 					return false;
 				}
 				outputDirectory = Path.GetFullPath(args[++i], environment.WorkingDirectory);
 				continue;
 			}
+			if (arg == "--dry-run")
+			{
+				dryRun = true;
+				continue;
+			}
 			if (arg.StartsWith("-", StringComparison.Ordinal))
 			{
-				error = $"pkg publish option '{arg}' is not valid.";
+				error = $"package publish option '{arg}' is not valid.";
 				return false;
 			}
 			if (buildFile is not null)
 			{
-				error = "pkg publish accepts at most one build file.";
+				error = "package publish accepts at most one build file.";
 				return false;
 			}
 			buildFile = arg;
 		}
 		if (buildFile is null)
 		{
-			string[] candidates = Directory.GetFiles(environment.WorkingDirectory, "*.campbuild").OrderBy(static path => path, StringComparer.Ordinal).ToArray();
-			if (candidates.Length == 0)
-			{
-				error = "pkg publish requires a build file when the current directory does not contain one.";
+			if (!CampCli.TryResolveImplicitCampbuildTarget(environment.WorkingDirectory, out buildFile, out error))
 				return false;
-			}
-			if (candidates.Length > 1)
-			{
-				error = "pkg publish requires an explicit build file when the current directory contains multiple .campbuild files.";
-				return false;
-			}
-			buildFile = candidates[0];
 		}
 		else
 		{
@@ -1911,7 +2059,7 @@ sealed class PackageCommands
 			error = $"Build file '{buildFile}' could not be found.";
 			return false;
 		}
-		request = new PublishRequest(version, buildFile, name, outputDirectory);
+		request = new PublishRequest(version, buildFile, name, outputDirectory, dryRun);
 		return true;
 	}
 
@@ -1927,7 +2075,7 @@ sealed class PackageCommands
 		bag.Apply(options, Precedence.Local, request.BuildFile, errors);
 		List<string> sourceFiles = ExpandPackageSourcePatterns(options.Positionals, bag.ExcludePatterns, projectRoot, errors);
 		if (sourceFiles.Count == 0)
-			errors.Add("pkg publish requires at least one source file in the selected build file.");
+			errors.Add("package publish requires at least one source file in the selected build file.");
 		if (errors.Count > 0)
 		{
 			error = string.Join(Environment.NewLine, errors);
@@ -2104,65 +2252,150 @@ sealed class PackageCommands
 			: version;
 	}
 
-	sealed record PublishRequest(string Version, string BuildFile, string? Name, string? OutputDirectory);
+	sealed record PublishRequest(string Version, string BuildFile, string? Name, string? OutputDirectory, bool DryRun);
 	sealed record PublishInputs(string PackageName, string ProjectRoot, string OutputDirectory, string BuildFile, IReadOnlyList<string> Files, IReadOnlyList<PackageSpec> Dependencies);
-
-	static BuildOptionBag LoadEffectiveSources(CliEnvironment environment, string[] args, List<string> errors)
+	sealed record PackageCommandTarget(bool Global, string? File, string ProjectRoot, string CacheRoot, string SourceWriteFile, CliEnvironment Environment)
 	{
-		BuildOptionBag bag = new();
-		foreach (PragmaLine pragma in BuildPragmaReader.Read(environment.GlobalCampPath, environment.WorkingDirectory, errors))
-			bag.Apply(CommandLineOptionParser.Parse(pragma.Tokens, allowPositionals: false, errors), Precedence.Global, pragma.SourceName, errors);
-		if (ReadOptionValue(args, "--local") is string localFile)
-		{
-			string fullPath = Path.GetFullPath(localFile, environment.WorkingDirectory);
-			foreach (PragmaLine pragma in BuildPragmaReader.Read(fullPath, environment.WorkingDirectory, errors))
-				bag.Apply(CommandLineOptionParser.Parse(pragma.Tokens, allowPositionals: false, errors), Precedence.Local, pragma.SourceName, errors);
-		}
-		return bag;
+		public string DisplayName => Global ? "global" : File!;
 	}
+	sealed record PackageSourceEntry(string Name, string Path, string Source);
 
-	static string GetLocalPackageCacheRoot(string[] args, CliEnvironment environment)
+	static bool TryResolvePackageTarget(string[] args, CliEnvironment environment, out PackageCommandTarget? target, out string[] remaining, out bool dryRun, out string? error)
 	{
-		if (ReadOptionValue(args, "--local") is string localFile)
-		{
-			string fullPath = Path.GetFullPath(localFile, environment.WorkingDirectory);
-			string projectRoot = Path.GetDirectoryName(fullPath) ?? environment.WorkingDirectory;
-			return Path.Combine(projectRoot, "cache", "pkg");
-		}
-		return environment.LocalPackageRoot;
-	}
-
-	static bool TrySelectBuildFile(string[] args, CliEnvironment environment, out string? file, out string? error)
-	{
-		file = null;
+		target = null;
 		error = null;
-		if (args.Contains("--global", StringComparer.Ordinal))
+		dryRun = false;
+		List<string> positionals = [];
+		bool global = false;
+		foreach (string arg in args)
 		{
-			file = environment.GlobalCampPath;
+			if (arg == "--global")
+			{
+				global = true;
+				continue;
+			}
+			if (arg == "--dry-run")
+			{
+				dryRun = true;
+				continue;
+			}
+			positionals.Add(arg);
+		}
+		if (global && positionals.Count > 0)
+		{
+			error = "--global cannot be combined with a local package target.";
+			remaining = [];
+			return false;
+		}
+		if (global)
+		{
+			target = new PackageCommandTarget(true, null, environment.HomeDirectory, environment.GlobalPackageRoot, environment.GlobalCampBuildPath, environment);
+			remaining = [];
 			return true;
 		}
-		int local = Array.IndexOf(args, "--local");
-		if (local >= 0)
+		if (positionals.Count > 1)
 		{
-			if (local + 1 >= args.Length)
+			error = $"Package command accepts at most one target file; unexpected argument '{positionals[1]}'.";
+			remaining = [];
+			return false;
+		}
+		string? file = null;
+		if (positionals.Count == 1)
+		{
+			file = ResolveTargetFile(positionals[0], environment.WorkingDirectory);
+			if (!File.Exists(file))
 			{
-				error = "--local requires <file.camp>.";
+				error = $"Package target '{positionals[0]}' could not be found. Resolved path: {file}";
+				remaining = [];
 				return false;
 			}
-			file = Path.GetFullPath(args[local + 1], environment.WorkingDirectory);
-			return true;
+			if (!file.EndsWith(".campbuild", StringComparison.OrdinalIgnoreCase) && !file.EndsWith(".camp", StringComparison.OrdinalIgnoreCase))
+			{
+				error = $"Package target '{positionals[0]}' must be a .campbuild or .camp file.";
+				remaining = [];
+				return false;
+			}
 		}
-		error = "Specify --global or --local <file.camp>.";
-		return false;
+		else if (!CampCli.TryResolveImplicitCampbuildTarget(environment.WorkingDirectory, out file, out error))
+		{
+			remaining = [];
+			return false;
+		}
+		string projectRoot = Path.GetDirectoryName(file!) ?? environment.WorkingDirectory;
+		target = new PackageCommandTarget(false, file, projectRoot, Path.Combine(projectRoot, "cache", "pkg"), file!, environment);
+		remaining = [];
+		return true;
 	}
 
-	static string? ReadOptionValue(string[] args, string name)
+	static string ResolveTargetFile(string value, string workingDirectory)
 	{
-		for (int i = 0; i + 1 < args.Length; i++)
-			if (args[i] == name)
-				return args[i + 1];
-		return null;
+		string fullPath = Path.GetFullPath(PathArguments.Normalize(value), workingDirectory);
+		if (!File.Exists(fullPath) && !Path.HasExtension(fullPath) && File.Exists(fullPath + ".campbuild"))
+			fullPath += ".campbuild";
+		return fullPath;
 	}
+
+	static bool TryLoadEffectiveSourceEntries(PackageCommandTarget target, out List<PackageSourceEntry> sources, out string? error)
+	{
+		sources = [];
+		error = null;
+		List<string> errors = [];
+		if (File.Exists(target.Environment.BaseCampBuildPath))
+			AddSourceEntriesFromBuildFile(target.Environment.BaseCampBuildPath, target.Environment.WorkingDirectory, sources, errors);
+		if (File.Exists(target.Environment.GlobalCampBuildPath))
+			AddSourceEntriesFromBuildFile(target.Environment.GlobalCampBuildPath, target.Environment.WorkingDirectory, sources, errors);
+		if (!target.Global && target.File is not null)
+			AddSourceEntriesFromTarget(target.File, target.ProjectRoot, sources, errors);
+		if (errors.Count > 0)
+		{
+			error = string.Join(Environment.NewLine, errors);
+			return false;
+		}
+		return true;
+	}
+
+	static void AddSourceEntriesFromTarget(string file, string projectRoot, List<PackageSourceEntry> sources, List<string> errors)
+	{
+		if (file.EndsWith(".campbuild", StringComparison.OrdinalIgnoreCase))
+		{
+			AddSourceEntriesFromBuildFile(file, projectRoot, sources, errors);
+			string[] expanded = ResponseFileExpander.Expand(["@" + file], projectRoot, errors).ToArray();
+			ParsedOptions options = CommandLineOptionParser.Parse(expanded, allowPositionals: true, errors);
+			foreach (string sourceFile in CampCli.ExpandSourcePatterns(options.Positionals, options.ExcludePatterns, projectRoot, errors))
+				AddSourceEntriesFromCampFile(sourceFile, projectRoot, sources, errors);
+			return;
+		}
+		AddSourceEntriesFromCampFile(file, projectRoot, sources, errors);
+	}
+
+	static void AddSourceEntriesFromBuildFile(string file, string workingDirectory, List<PackageSourceEntry> sources, List<string> errors)
+	{
+		string[] expanded = ResponseFileExpander.Expand(["@" + file], workingDirectory, errors).ToArray();
+		ParsedOptions options = CommandLineOptionParser.Parse(expanded, allowPositionals: true, errors);
+		foreach (PackageSourceSpec source in options.UseSources)
+			if (!string.IsNullOrWhiteSpace(source.Path))
+				sources.Add(new PackageSourceEntry(source.Name, source.Path!, Path.GetRelativePath(workingDirectory, file)));
+	}
+
+	static void AddSourceEntriesFromCampFile(string file, string workingDirectory, List<PackageSourceEntry> sources, List<string> errors)
+	{
+		foreach (PragmaLine pragma in BuildPragmaReader.Read(file, workingDirectory, errors))
+		{
+			ParsedOptions options = CommandLineOptionParser.Parse(pragma.Tokens, allowPositionals: false, errors);
+			foreach (PackageSourceSpec source in options.UseSources)
+				if (!string.IsNullOrWhiteSpace(source.Path))
+					sources.Add(new PackageSourceEntry(source.Name, source.Path!, pragma.SourceName));
+		}
+	}
+
+	static IReadOnlyList<PackageSourceLocation> ToLocations(IEnumerable<PackageSourceEntry> sources)
+	{
+		return sources
+			.Select(static source => new PackageSourceLocation(source.Name, source.Path))
+			.ToList();
+	}
+
+	static string FormatPackageForMessage(PackageSpec package) => package.Version is null ? package.Name : package.Name + "/" + package.Version;
 
 	static string? ResolveOptionalPath(string? value, string baseDirectory)
 	{
@@ -2175,10 +2408,35 @@ sealed class PackageCommands
 	{
 		Directory.CreateDirectory(Path.GetDirectoryName(file)!);
 		List<string> lines = File.Exists(file) ? File.ReadAllLines(file).ToList() : [];
-		lines = lines.Where(line => !line.TrimStart().StartsWith("#build ", StringComparison.Ordinal) || keep(line.Trim())).ToList();
+		lines = lines.Where(line =>
+		{
+			string trimmed = line.Trim();
+			return !IsEditableBuildOptionLine(trimmed) || keep(trimmed);
+		}).ToList();
 		if (addLine is not null)
 			lines.Insert(0, addLine);
 		File.WriteAllLines(file, lines, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+	}
+
+	static bool IsEditableBuildOptionLine(string trimmed)
+	{
+		return trimmed.StartsWith("#build ", StringComparison.Ordinal)
+			|| trimmed.StartsWith("--use-source ", StringComparison.Ordinal);
+	}
+
+	static bool IsUseSourceLineForName(string line, string name)
+	{
+		string trimmed = line.Trim();
+		if (trimmed.StartsWith("#build ", StringComparison.Ordinal))
+			trimmed = trimmed["#build ".Length..].TrimStart();
+		return trimmed.StartsWith("--use-source " + name + " ", StringComparison.Ordinal)
+			|| trimmed.Equals("--use-source " + name, StringComparison.Ordinal);
+	}
+
+	static string FormatUseSourceLine(string file, string name, string path)
+	{
+		string line = $"--use-source {name} {Quote(path)}";
+		return file.EndsWith(".camp", StringComparison.OrdinalIgnoreCase) ? "#build " + line : line;
 	}
 
 	static void CopyDirectory(string source, string target)
@@ -3065,8 +3323,15 @@ sealed record PackageSpec(string Name, string? Version, DependencyLinkKind? Link
 				errors?.Add($"Package dependency kind ':{suffix}' is not valid. Expected :api, :static, or :shared.");
 			}
 		}
-		string[] parts = value.Split('@', 2);
-		return new PackageSpec(parts[0], parts.Length == 2 && parts[1].Length > 0 ? parts[1] : null, linkKind);
+		if (value.Contains('@') && value.Contains('/'))
+		{
+			errors?.Add($"Package spec '{value}' may not contain both '@' and '/'.");
+			return new PackageSpec(value, null, linkKind);
+		}
+		int separator = value.IndexOfAny(['@', '/']);
+		return separator >= 0
+			? new PackageSpec(value[..separator], separator + 1 < value.Length ? value[(separator + 1)..] : null, linkKind)
+			: new PackageSpec(value, null, linkKind);
 	}
 	public override string ToString()
 	{
@@ -3136,7 +3401,8 @@ sealed class CliEnvironment
 	public required string WorkingDirectory { get; init; }
 	public required string RuntimeRoot { get; init; }
 	public required string HomeDirectory { get; init; }
-	public string GlobalCampPath => Path.Combine(HomeDirectory, "lib", "global.camp");
+	public string BaseCampBuildPath => Path.Combine(HomeDirectory, "base.campbuild");
+	public string GlobalCampBuildPath => Path.Combine(HomeDirectory, "global.campbuild");
 	public string GlobalPackageRoot => Path.Combine(HomeDirectory, "cache", "pkg");
 	public string LocalPackageRoot => Path.Combine(WorkingDirectory, "cache", "pkg");
 

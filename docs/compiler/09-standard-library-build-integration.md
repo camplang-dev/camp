@@ -65,16 +65,18 @@ Use it for:
 Source that uses `Std` declarations will fail analysis under `--nostdlib` unless
 it provides equivalent declarations through API files or root source files.
 
-## `lib/global.camp`
+## Compiler-Root Build Defaults
 
-`lib/global.camp` is read during build-option collection before local source
-pragmas. It is the global place for compiler-checkout build defaults such as
-package sources. It is not a replacement for the standard library package, and
-user package restore does not route the standard library through `packages.ini`.
+Compiler-root `base.campbuild` and `global.campbuild` are read during
+build-option collection before local source pragmas. `base.campbuild` is for
+compiler-distributed defaults. `global.campbuild` is machine-local and is the
+global place for package sources added with `campc package add-source --global`.
+Neither file is a replacement for the standard library package, and user
+package restore does not route the standard library through `packages.ini`.
 
-Because global pragmas affect every build using the checkout, keep this file
-small and avoid project-specific settings. Project-specific package sources and
-uses belong in source preludes or `.campbuild` files.
+Because compiler-root defaults affect every build using the installation, keep
+them small and avoid project-specific settings. Project-specific package sources
+and uses belong in source preludes or project `.campbuild` files.
 
 ## API Preparation
 

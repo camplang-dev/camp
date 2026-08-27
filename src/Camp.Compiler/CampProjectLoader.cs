@@ -23,7 +23,8 @@ public sealed class CampProjectEnvironment
 	public required string WorkingDirectory { get; init; }
 	public required string RuntimeRoot { get; init; }
 	public required string HomeDirectory { get; init; }
-	public string GlobalCampPath => Path.Combine(HomeDirectory, "lib", "global.camp");
+	public string BaseCampBuildPath => Path.Combine(HomeDirectory, "base.campbuild");
+	public string GlobalCampBuildPath => Path.Combine(HomeDirectory, "global.campbuild");
 	public string GlobalPackageRoot => Path.Combine(HomeDirectory, "cache", "pkg");
 	public string LocalPackageRoot => Path.Combine(WorkingDirectory, "cache", "pkg");
 
@@ -486,12 +487,19 @@ public static class CampProjectLoader
 
 	static void ApplyGlobalPragmas(CampProjectEnvironment environment, CampBuildOptionBag bag, List<string> errors)
 	{
-		if (File.Exists(environment.GlobalCampPath))
-			ApplyFilePragmas(environment.GlobalCampPath, environment, bag, CampBuildOptionPrecedence.Global, errors);
+		if (File.Exists(environment.BaseCampBuildPath))
+			ApplyFilePragmas(environment.BaseCampBuildPath, environment, bag, CampBuildOptionPrecedence.Global, errors);
+		if (File.Exists(environment.GlobalCampBuildPath))
+			ApplyFilePragmas(environment.GlobalCampBuildPath, environment, bag, CampBuildOptionPrecedence.Global, errors);
 	}
 
 	static void ApplyFilePragmas(string file, CampProjectEnvironment environment, CampBuildOptionBag bag, CampBuildOptionPrecedence precedence, List<string> errors)
 	{
+		if (file.EndsWith(".campbuild", StringComparison.OrdinalIgnoreCase))
+		{
+			bag.Apply(CampBuildOptionParser.Parse(CampResponseFileExpander.Expand(["@" + file], environment.WorkingDirectory, errors), allowPositionals: true, errors), precedence, file, errors);
+			return;
+		}
 		foreach (CampBuildPragmaLine pragma in CampBuildPragmaReader.Read(file, environment.WorkingDirectory, errors))
 			bag.Apply(CampBuildOptionParser.Parse(pragma.Tokens, allowPositionals: false, errors), precedence, pragma.SourceName, errors);
 	}

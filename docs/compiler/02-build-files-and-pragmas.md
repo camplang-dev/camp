@@ -2,8 +2,8 @@
 
 Camp build configuration is deliberately small: `.campbuild` files are response
 files, and source files may contribute prelude directives. The compiler combines
-global pragmas, local pragmas, and command-line options into one effective build
-request.
+compiler-root defaults, local pragmas, and command-line options into one
+effective build request.
 
 ## `.campbuild` Files
 
@@ -25,8 +25,8 @@ Use a build file with `@file`:
 campc build @app.campbuild
 ```
 
-For `build`, `run`, `test`, and `cover`, a bare positional `.campbuild` file is
-expanded the same way:
+For `build`, `run`, `test`, `cover`, `dump`, and `restore`, a bare positional
+`.campbuild` file is expanded the same way:
 
 ```sh
 campc build app.campbuild
@@ -34,6 +34,11 @@ campc run app.campbuild -- --trace
 campc test app.campbuild
 campc cover app.campbuild
 ```
+
+If a build-like command, restore, or package command needs a project target and
+none is specified, it may select the only `.campbuild` file in the current
+directory. This implicit selection is allowed only when the directory contains
+exactly one `.campbuild` file and no loose `.camp` source files.
 
 `campc init` creates ordinary `.campbuild` response files. There is no separate
 project-file format hidden behind the starter templates; the generated build
@@ -157,9 +162,14 @@ positional source arguments are not valid in `#build`.
 
 Effective build options are applied in this order:
 
-1. Global pragmas from `lib/global.camp`.
-2. Local pragmas from root source and included files.
-3. Command-line arguments or `.campbuild` response-file arguments.
+1. Compiler-root `base.campbuild`.
+2. Compiler-root `global.campbuild`.
+3. Local pragmas from root source and included files.
+4. Command-line arguments or `.campbuild` response-file arguments.
+
+`base.campbuild` is for compiler-distributed defaults. `global.campbuild` is
+machine-local and is normally edited with `campc package add-source --global` or
+`campc package remove-source --global`.
 
 Repeated list-valued options accumulate. Examples include `--api`,
 `--exclude`, `--declare`, `--configure`, `--requires`, `--reference`,

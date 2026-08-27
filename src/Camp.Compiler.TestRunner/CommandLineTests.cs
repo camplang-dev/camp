@@ -72,9 +72,12 @@ public sealed class CommandLineTests
 		ProcessResult init = RunCampc("help", "init");
 		ProcessResult build = RunCampc("help", "build");
 		ProcessResult test = RunCampc("help", "test");
+		ProcessResult package = RunCampc("help", "package");
 
 		Assert.Equal(0, root.ExitCode);
 		Assert.Contains("Commands:", root.StdOut, StringComparison.Ordinal);
+		Assert.Contains("package", root.StdOut, StringComparison.Ordinal);
+		Assert.DoesNotContain("pkg", root.StdOut, StringComparison.Ordinal);
 		Assert.Equal(0, init.ExitCode);
 		Assert.Contains("--template", init.StdOut, StringComparison.Ordinal);
 		Assert.Contains("--list", init.StdOut, StringComparison.Ordinal);
@@ -97,6 +100,11 @@ public sealed class CommandLineTests
 		Assert.Contains("--filter", test.StdOut, StringComparison.Ordinal);
 		Assert.Contains("--ignore-leaks", test.StdOut, StringComparison.Ordinal);
 		Assert.Contains("--test-output-dir", test.StdOut, StringComparison.Ordinal);
+		Assert.Equal(0, package.ExitCode);
+		Assert.Contains("list-sources", package.StdOut, StringComparison.Ordinal);
+		Assert.Contains("add-source", package.StdOut, StringComparison.Ordinal);
+		Assert.Contains("remove-source", package.StdOut, StringComparison.Ordinal);
+		Assert.Contains("install", package.StdOut, StringComparison.Ordinal);
 	}
 
 	[Fact]
@@ -202,6 +210,7 @@ public sealed class CommandLineTests
 		Assert.True(File.Exists(Path.Combine(root, "hello", "hello.campbuild")));
 		Assert.Equal("src/*.camp\n", File.ReadAllText(Path.Combine(root, "hello", "hello.campbuild")).Replace("\r\n", "\n", StringComparison.Ordinal));
 		Assert.Contains("export int main(string[] args)", File.ReadAllText(Path.Combine(root, "hello", "src", "main.camp")), StringComparison.Ordinal);
+		Assert.Contains("pub/", File.ReadAllText(Path.Combine(root, "hello", ".gitignore")).Replace("\r\n", "\n", StringComparison.Ordinal), StringComparison.Ordinal);
 		ProcessResult appRun = RunCampcIn(root, "run", Path.Combine("hello", "hello.campbuild"), "--target", target, "--out-dir", Path.Combine(root, "hello", "out"));
 		AssertCommandSucceeded(appRun);
 		Assert.Contains("Hello, world!", appRun.StdOut, StringComparison.Ordinal);
@@ -227,6 +236,7 @@ public sealed class CommandLineTests
 		AssertCommandSucceeded(posixInit);
 		Assert.False(File.Exists(Path.Combine(root, "posix-api", "src", "main.camp")));
 		string posixSource = File.ReadAllText(Path.Combine(root, "posix-api", "src", "posix.camp"));
+		Assert.Contains("requires (SUBSYSTEM_POSIX);", posixSource, StringComparison.Ordinal);
 		Assert.Contains("@symbol(\"getpid\")", posixSource, StringComparison.Ordinal);
 		Assert.Contains("public extern int getpid();", posixSource, StringComparison.Ordinal);
 		Assert.Contains("--api ../posix-api/src/*.camp", File.ReadAllText(Path.Combine(root, "posix-api", "README.md")), StringComparison.Ordinal);
@@ -236,6 +246,7 @@ public sealed class CommandLineTests
 		AssertCommandSucceeded(windowsInit);
 		Assert.False(File.Exists(Path.Combine(root, "windows-api", "src", "main.camp")));
 		string windowsSource = File.ReadAllText(Path.Combine(root, "windows-api", "src", "windows.camp"));
+		Assert.Contains("requires (OS_WIN32);", windowsSource, StringComparison.Ordinal);
 		Assert.Contains("@symbol(\"GetCurrentProcessId\")", windowsSource, StringComparison.Ordinal);
 		Assert.Contains("public extern uint GetCurrentProcessId();", windowsSource, StringComparison.Ordinal);
 		Assert.Contains("--api ../windows-api/src/*.camp", File.ReadAllText(Path.Combine(root, "windows-api", "README.md")), StringComparison.Ordinal);
@@ -259,6 +270,75 @@ public sealed class CommandLineTests
 		ProcessResult wrapperTest = RunCampcIn(root, "test", Path.Combine("native-pid", "native-pid.campbuild"), "--target", target, "--out-dir", Path.Combine(root, "native-pid", "out"));
 		AssertCommandSucceeded(wrapperTest);
 		Assert.Contains("passed: NativePid::testGetCurrentProcessId", wrapperTest.StdOut, StringComparison.Ordinal);
+		string wrapperReadme = File.ReadAllText(Path.Combine(root, "native-pid", "README.md"));
+		Assert.Contains("SUBSYSTEM_POSIX", wrapperReadme, StringComparison.Ordinal);
+		Assert.Contains("OS_WIN32", wrapperReadme, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Commands_use_implicit_single_build_file_and_package_source_targets()
+	{
+		string root = TempPath("implicit-build-target");
+		ResetDirectory(root);
+		string projectRoot = Path.Combine(root, "app");
+		string sourceRoot = Path.Combine(projectRoot, "src");
+		Directory.CreateDirectory(sourceRoot);
+		File.WriteAllText(Path.Combine(sourceRoot, "main.camp"), """
+			export int main(string[] args)
+			{
+				return 0;
+			}
+
+			@test
+			void implicitTargetTest(thrown Assertion* assertion)
+			{
+				assert(true);
+			}
+			""");
+		File.WriteAllText(Path.Combine(projectRoot, "app.campbuild"), """
+			src/*.camp
+			""");
+
+		ProcessResult build = RunCampcIn(projectRoot, "build", "--artifact", "none", "--target", NativeTargetForHost(), "--out-dir", Path.Combine(projectRoot, "out"));
+		AssertCommandSucceeded(build);
+		ProcessResult dump = RunCampcIn(projectRoot, "dump", "tokens");
+		AssertCommandSucceeded(dump);
+		Assert.Contains("\"export\" Identifier", dump.StdOut, StringComparison.Ordinal);
+		ProcessResult run = RunCampcIn(projectRoot, "run", "--target", NativeTargetForHost(), "--out-dir", Path.Combine(projectRoot, "run-out"));
+		AssertCommandSucceeded(run);
+		ProcessResult test = RunCampcIn(projectRoot, "test", "--target", NativeTargetForHost(), "--out-dir", Path.Combine(projectRoot, "test-out"));
+		AssertCommandSucceeded(test);
+		Assert.Contains("passed: implicitTargetTest", test.StdOut, StringComparison.Ordinal);
+		ProcessResult cover = RunCampcIn(projectRoot, "cover", "--target", NativeTargetForHost(), "--out-dir", Path.Combine(projectRoot, "cover-out"));
+		AssertCommandSucceeded(cover);
+		Assert.Contains("passed: implicitTargetTest", cover.StdOut, StringComparison.Ordinal);
+
+		ProcessResult addSource = RunCampcIn(projectRoot, "package", "add-source", "local", "../packages");
+		AssertCommandSucceeded(addSource);
+		Assert.Contains("updated:", addSource.StdOut, StringComparison.Ordinal);
+		string buildText = File.ReadAllText(Path.Combine(projectRoot, "app.campbuild"));
+		Assert.Contains("--use-source local ../packages", buildText, StringComparison.Ordinal);
+
+		ProcessResult duplicate = RunCampcIn(projectRoot, "package", "add-source", "local", "../other-packages");
+		Assert.NotEqual(0, duplicate.ExitCode);
+		Assert.Contains("already exists", duplicate.StdErr, StringComparison.Ordinal);
+
+		ProcessResult list = RunCampcIn(projectRoot, "package", "list-sources");
+		AssertCommandSucceeded(list);
+		Assert.Contains("local ", list.StdOut, StringComparison.Ordinal);
+		Assert.Contains("packages", list.StdOut, StringComparison.Ordinal);
+
+		ProcessResult remove = RunCampcIn(projectRoot, "package", "remove-source", "local");
+		AssertCommandSucceeded(remove);
+		Assert.DoesNotContain("--use-source local", File.ReadAllText(Path.Combine(projectRoot, "app.campbuild")), StringComparison.Ordinal);
+
+		ProcessResult ambiguous = RunCampcIn(root, "build");
+		Assert.NotEqual(0, ambiguous.ExitCode);
+		Assert.Contains("does not contain a .campbuild", ambiguous.StdErr, StringComparison.Ordinal);
+		File.WriteAllText(Path.Combine(projectRoot, "loose.camp"), "export int loose() => 1;\n");
+		ProcessResult sourceConflict = RunCampcIn(projectRoot, "build");
+		Assert.NotEqual(0, sourceConflict.ExitCode);
+		Assert.Contains("contains .camp source files", sourceConflict.StdErr, StringComparison.Ordinal);
 	}
 
 	[Fact]
@@ -274,6 +354,7 @@ public sealed class CommandLineTests
 		CopyDirectory(Path.GetDirectoryName(sourceCampc)!, installBin);
 		CopyDirectory(Path.Combine(repositoryRoot, "lib"), Path.Combine(installRoot, "lib"));
 		CopyDirectory(Path.Combine(repositoryRoot, "targets"), Path.Combine(installRoot, "targets"));
+		File.Copy(Path.Combine(repositoryRoot, "base.campbuild"), Path.Combine(installRoot, "base.campbuild"));
 		Directory.CreateDirectory(Path.Combine(installRoot, "cache", "lib"));
 		Directory.CreateDirectory(Path.Combine(installRoot, "cache", "pkg"));
 
@@ -5660,14 +5741,17 @@ public sealed class CommandLineTests
 			[CampRuntimeLayout.HomeEnvironmentVariable] = home
 		};
 
-		ProcessResult add = RunCampc(environment, "pkg", "add-global-source", "local", source);
-		ProcessResult list = RunCampc(environment, "pkg", "list-global-sources");
-		ProcessResult remove = RunCampc(environment, "pkg", "remove-global-source", "local");
-		ProcessResult listAfterRemove = RunCampc(environment, "pkg", "list-global-sources");
+		ProcessResult add = RunCampc(environment, "package", "add-source", "local", source, "--global");
+		ProcessResult list = RunCampc(environment, "package", "list-sources", "--global");
+		ProcessResult duplicate = RunCampc(environment, "package", "add-source", "local", source, "--global");
+		ProcessResult remove = RunCampc(environment, "package", "remove-source", "local", "--global");
+		ProcessResult listAfterRemove = RunCampc(environment, "package", "list-sources", "--global");
 
 		Assert.Equal(0, add.ExitCode);
 		Assert.Equal(0, list.ExitCode);
 		Assert.Contains($"local {source}", list.StdOut, StringComparison.Ordinal);
+		Assert.NotEqual(0, duplicate.ExitCode);
+		Assert.Contains("already exists", duplicate.StdErr, StringComparison.Ordinal);
 		Assert.Equal(0, remove.ExitCode);
 		Assert.Equal(0, listAfterRemove.ExitCode);
 		Assert.DoesNotContain("local ", listAfterRemove.StdOut, StringComparison.Ordinal);
@@ -5676,16 +5760,16 @@ public sealed class CommandLineTests
 	[Fact]
 	public void Removed_package_commands_report_replacements()
 	{
-		ProcessResult add = RunCampc("pkg", "add", "demo@1.0.0", "main.camp");
-		ProcessResult removeSource = RunCampc("pkg", "remove-source", "local");
-		ProcessResult search = RunCampc("pkg", "search", "demo");
+		ProcessResult oldRoot = RunCampc("pkg", "add", "demo@1.0.0", "main.camp");
+		ProcessResult add = RunCampc("package", "add", "demo@1.0.0", "main.camp");
+		ProcessResult search = RunCampc("package", "search", "demo");
 
+		Assert.NotEqual(0, oldRoot.ExitCode);
+		Assert.Contains("pkg", oldRoot.StdErr, StringComparison.Ordinal);
 		Assert.NotEqual(0, add.ExitCode);
-		Assert.Contains("pkg add has been removed", add.StdErr, StringComparison.Ordinal);
-		Assert.NotEqual(0, removeSource.ExitCode);
-		Assert.Contains("pkg remove-source has been removed", removeSource.StdErr, StringComparison.Ordinal);
+		Assert.Contains("Unrecognized command or argument 'add'", add.StdErr, StringComparison.Ordinal);
 		Assert.NotEqual(0, search.ExitCode);
-		Assert.Contains("pkg search has been removed", search.StdErr, StringComparison.Ordinal);
+		Assert.Contains("Unrecognized command or argument 'search'", search.StdErr, StringComparison.Ordinal);
 	}
 
 	[Fact]
@@ -5770,6 +5854,46 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Restore_only_local_ignores_compiler_root_package_sources()
+	{
+		string packageName = "only-local-demo";
+		string root = TempPath("pkg-restore-only-local");
+		if (Directory.Exists(root))
+			Directory.Delete(root, recursive: true);
+		string home = Path.Combine(root, "home");
+		string sourceRoot = Path.Combine(root, "source");
+		CreatePublishedPackage(sourceRoot, packageName, "1.0.0", "export int restoredValue() => 11;\n");
+		Dictionary<string, string?> environment = new()
+		{
+			[CampRuntimeLayout.HomeEnvironmentVariable] = home
+		};
+		string projectRoot = Path.Combine(root, "app");
+		string sourceDirectory = Path.Combine(projectRoot, "src");
+		Directory.CreateDirectory(sourceDirectory);
+		File.WriteAllText(Path.Combine(sourceDirectory, "main.camp"), """
+			export int main()
+			{
+				return restoredValue() - 11;
+			}
+			""");
+		File.WriteAllText(Path.Combine(projectRoot, "app.campbuild"), $$"""
+			--use {{packageName}}@1.0.0
+			src/main.camp
+			""");
+
+		string buildFile = Path.Combine(projectRoot, "app.campbuild");
+		ProcessResult addGlobalSource = RunCampc(environment, "package", "add-source", "global", sourceRoot.Replace('\\', '/'), "--global");
+		ProcessResult onlyLocal = RunCampc(environment, "restore", buildFile, "--only-local");
+		ProcessResult normal = RunCampc(environment, "restore", buildFile);
+
+		AssertCommandSucceeded(addGlobalSource);
+		Assert.NotEqual(0, onlyLocal.ExitCode);
+		Assert.Contains("No package sources are configured", onlyLocal.StdErr, StringComparison.Ordinal);
+		AssertCommandSucceeded(normal);
+		Assert.True(File.Exists(Path.Combine(projectRoot, "cache", "pkg", packageName, "1.0.0", "src", "demo.camp")));
+	}
+
+	[Fact]
 	public void Package_publish_creates_restorable_source_archive()
 	{
 		string root = TempPath("pkg-publish-source");
@@ -5789,7 +5913,12 @@ public sealed class CommandLineTests
 			""");
 		string outDir = Path.Combine(root, "feed", "demo-lib");
 
-		ProcessResult publish = RunCampcIn(packageRoot, "pkg", "publish", "1.0.0", "demo-lib.campbuild");
+		ProcessResult dryRun = RunCampcIn(packageRoot, "package", "publish", "1.0.0", "demo-lib.campbuild", "--dry-run");
+		AssertCommandSucceeded(dryRun);
+		Assert.Contains("dry-run: publish", dryRun.StdOut, StringComparison.Ordinal);
+		Assert.False(File.Exists(Path.Combine(outDir, "versions.ini")));
+
+		ProcessResult publish = RunCampcIn(packageRoot, "package", "publish", "1.0.0", "demo-lib.campbuild");
 
 		AssertCommandSucceeded(publish);
 		Assert.True(File.Exists(Path.Combine(outDir, "versions.ini")));
@@ -5800,16 +5929,16 @@ public sealed class CommandLineTests
 		Assert.Contains("[1.0.0]", catalog, StringComparison.Ordinal);
 		Assert.DoesNotContain("packages.ini", ZipEntryNames(Path.Combine(outDir, "demo-lib_1.0.0.zip")));
 
-		ProcessResult duplicate = RunCampcIn(packageRoot, "pkg", "publish", "1.0.0", "demo-lib.campbuild");
+		ProcessResult duplicate = RunCampcIn(packageRoot, "package", "publish", "1.0.0", "demo-lib.campbuild");
 		Assert.NotEqual(0, duplicate.ExitCode);
 		Assert.Contains("already exists", duplicate.StdErr, StringComparison.Ordinal);
-		ProcessResult patch = RunCampcIn(packageRoot, "pkg", "publish", "+patch", "demo-lib.campbuild");
+		ProcessResult patch = RunCampcIn(packageRoot, "package", "publish", "+patch", "demo-lib.campbuild");
 		AssertCommandSucceeded(patch);
 		Assert.Contains("[1.0.1]", File.ReadAllText(Path.Combine(outDir, "versions.ini")), StringComparison.Ordinal);
 
 		string overrideFeed = Path.Combine(root, "override-feed");
 		string overrideDir = Path.Combine(overrideFeed, "demo-lib");
-		ProcessResult overridePublish = RunCampcIn(packageRoot, "pkg", "publish", "2.0.0", "demo-lib.campbuild", "--pub-dir", overrideFeed);
+		ProcessResult overridePublish = RunCampcIn(packageRoot, "package", "publish", "2.0.0", "demo-lib.campbuild", "--pub-dir", overrideFeed);
 		AssertCommandSucceeded(overridePublish);
 		Assert.True(File.Exists(Path.Combine(overrideDir, "versions.ini")));
 		Assert.True(File.Exists(Path.Combine(overrideDir, "demo-lib_2.0.0.zip")));
@@ -5844,25 +5973,51 @@ public sealed class CommandLineTests
 		CreatePublishedPackage(sourceRoot, packageName, "1.2.0", "export int newValue() => 2;\n");
 		string projectRoot = Path.Combine(root, "app");
 		Directory.CreateDirectory(projectRoot);
-		string localConfig = Path.Combine(projectRoot, "local.camp");
-		File.WriteAllText(localConfig, "#build --use-source local " + QuoteForTest(sourceRoot.Replace('\\', '/')) + "\n");
+		string buildFile = Path.Combine(projectRoot, "app.campbuild");
+		File.WriteAllText(buildFile, "--use-source local " + QuoteForTest(sourceRoot.Replace('\\', '/')) + "\n");
 
-		ProcessResult installLatest = RunCampcIn(projectRoot, "pkg", "install", packageName + "@1", "--local", "local.camp");
+		ProcessResult dryRun = RunCampcIn(projectRoot, "package", "install", packageName + "@1", "app.campbuild", "--dry-run");
+		AssertCommandSucceeded(dryRun);
+		Assert.Contains("dry-run: install", dryRun.StdOut, StringComparison.Ordinal);
+		Assert.False(Directory.Exists(Path.Combine(projectRoot, "cache")));
+
+		ProcessResult installLatest = RunCampcIn(projectRoot, "package", "install", packageName + "@1", "app.campbuild");
 		AssertCommandSucceeded(installLatest);
+		Assert.Contains("project configuration was not changed", installLatest.StdOut, StringComparison.Ordinal);
 		Assert.True(File.Exists(Path.Combine(projectRoot, "cache", "pkg", packageName, "1.2.0", "src", "demo.camp")));
 		Assert.False(File.Exists(Path.Combine(projectRoot, "packages.ini")));
 
-		ProcessResult uninstallExact = RunCampcIn(projectRoot, "pkg", "uninstall", packageName + "/1.2.0");
+		ProcessResult uninstallDryRun = RunCampcIn(projectRoot, "package", "uninstall", packageName + "/1.2.0", "app.campbuild", "--dry-run");
+		AssertCommandSucceeded(uninstallDryRun);
+		Assert.Contains("dry-run: uninstall", uninstallDryRun.StdOut, StringComparison.Ordinal);
+		Assert.True(Directory.Exists(Path.Combine(projectRoot, "cache", "pkg", packageName, "1.2.0")));
+
+		ProcessResult uninstallExact = RunCampcIn(projectRoot, "package", "uninstall", packageName + "/1.2.0", "app.campbuild");
 		AssertCommandSucceeded(uninstallExact);
+		Assert.Contains("project configuration was not changed", uninstallExact.StdOut, StringComparison.Ordinal);
 		Assert.False(Directory.Exists(Path.Combine(projectRoot, "cache", "pkg", packageName, "1.2.0")));
 
-		ProcessResult installExact = RunCampcIn(projectRoot, "pkg", "install", packageName + "/1.0.0", "--local", "local.camp");
+		ProcessResult installExact = RunCampcIn(projectRoot, "package", "install", packageName + "/1.0.0", "app.campbuild");
 		AssertCommandSucceeded(installExact);
 		Assert.True(File.Exists(Path.Combine(projectRoot, "cache", "pkg", packageName, "1.0.0", "src", "demo.camp")));
 
-		ProcessResult uninstallAll = RunCampcIn(projectRoot, "pkg", "uninstall", packageName);
+		ProcessResult uninstallAll = RunCampcIn(projectRoot, "package", "uninstall", packageName, "app.campbuild");
 		AssertCommandSucceeded(uninstallAll);
 		Assert.False(Directory.Exists(Path.Combine(projectRoot, "cache", "pkg", packageName)));
+
+		string home = Path.Combine(root, "home");
+		Dictionary<string, string?> environment = new()
+		{
+			[CampRuntimeLayout.HomeEnvironmentVariable] = home
+		};
+		ProcessResult globalSource = RunCampc(environment, "package", "add-source", "global", sourceRoot.Replace('\\', '/'), "--global");
+		AssertCommandSucceeded(globalSource);
+		ProcessResult globalInstall = RunCampc(environment, "package", "install", packageName + "@1", "--global");
+		AssertCommandSucceeded(globalInstall);
+		Assert.True(File.Exists(Path.Combine(home, "cache", "pkg", packageName, "1.2.0", "src", "demo.camp")));
+		ProcessResult globalUninstall = RunCampc(environment, "package", "uninstall", packageName + "/1.2.0", "--global");
+		AssertCommandSucceeded(globalUninstall);
+		Assert.False(Directory.Exists(Path.Combine(home, "cache", "pkg", packageName, "1.2.0")));
 	}
 
 	static void CreatePublishedPackage(string sourceRoot, string packageName, string version, string source, string? use = null)

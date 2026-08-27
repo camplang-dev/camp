@@ -12,7 +12,7 @@ campc cover [pattern.camp...] [options]
 campc dump <kind> [pattern.camp...] [options]
 campc init <name> [--template app|static|shared|posix-api|windows-api|wrapper]
 campc restore [pattern.camp...]
-campc pkg <command> [...]
+campc package <command> [...]
 campc help [command]
 ```
 
@@ -25,8 +25,10 @@ except for reading already generated API headers and source files.
 
 Every command is interpreted from the current working directory. Source patterns
 may be file paths or globs. `@response-file` arguments are expanded before the
-command is parsed, and build/run also treat a bare `.campbuild` positional
-argument as a response file. See [Build Files And Pragmas](02-build-files-and-pragmas.md).
+command is parsed. Build, run, test, cover, dump, restore, and package commands
+that need a project target can also select the only `.campbuild` file in the
+current directory when there are no loose `.camp` source files. See
+[Build Files And Pragmas](02-build-files-and-pragmas.md).
 
 `campc` exits with `0` on success and `1` on command-line, package, parse,
 semantic, metadata, emission, project-reference, or native-build failure. Normal
@@ -215,36 +217,44 @@ selected source archives into the local package cache and writes `packages.ini`:
 ```sh
 campc restore @textapp.campbuild
 campc restore src/*.camp
+campc restore --only-local
 ```
 
 Restore uses the same `#build --use` and `#build --use-source` information as a
 build, but it does not compile source. Ordinary builds consume the installed
 package cache only; they do not contact package sources.
 
-## `pkg`
+`--only-local` ignores compiler-root `base.campbuild` and `global.campbuild`
+package sources.
 
-`pkg` manages global package sources, package publishing, and package caches.
+## `package`
+
+`package` manages package sources, package publishing, and package caches.
 The supported subcommands are:
 
 | Command | Meaning |
 |---|---|
-| `pkg add-global-source <name> <path-or-url>` | Add or replace a named global package source. |
-| `pkg remove-global-source <name>` | Remove a named global package source. |
-| `pkg list-global-sources` | List named global package sources. |
-| `pkg publish <version|+major|+minor|+patch> [build-file] [--pub-dir dir]` | Publish a deterministic source archive and update `versions.ini`. |
-| `pkg install <pkg[@version|/version]> [--local file] [--global]` | Install a source archive into a package cache without editing `packages.ini`. |
-| `pkg uninstall <pkg[/version]> [--global]` | Remove an installed package version or package. |
+| `package list-sources [target] [--global]` | List effective package sources in precedence order. |
+| `package add-source <name> <path-or-url> [target] [--global]` | Add a named source to the selected target. |
+| `package remove-source <name> [target] [--global]` | Remove a named source from the selected target. |
+| `package publish <version|+major|+minor|+patch> [target] [--pub-dir dir] [--name name] [--dry-run]` | Publish a deterministic source archive and update `versions.ini`. |
+| `package install <package[@version|/version]> [target] [--global] [--dry-run]` | Install a source archive into a package cache without editing project configuration. |
+| `package uninstall <package[@version|/version]> [target] [--global] [--dry-run]` | Remove an installed package version or package. |
 
 Examples:
 
 ```sh
-campc pkg add-global-source local-libs ../packages
-campc pkg publish 1.2.0 textlib.campbuild
-campc pkg install textlib@1.2 --local src/main.camp
-campc pkg uninstall textlib/1.2.0
+campc package add-source local-libs ../packages textapp.campbuild
+campc package add-source common https://packages.example --global
+campc package publish 1.2.0 textlib.campbuild
+campc package install textlib@1.2 textapp.campbuild
+campc package uninstall textlib/1.2.0 textapp.campbuild
 ```
 
-Edit build files manually for `--use` and local `--use-source` declarations.
+The target is either `--global`, an explicit `.campbuild` or `.camp` file, or
+the implicit single `.campbuild` in the current directory. `install` and
+`uninstall` alter only package caches and report that project configuration was
+not changed.
 
 ## `help`
 
@@ -277,7 +287,7 @@ noted:
 | `--emit` | Select the emitter; the documented emitter is `c99`. |
 | `--nostdlib` | Omit automatic standard library package preparation. |
 | `--reference`, `-r` | Add native libraries or linker references. Multiple values may follow one switch. |
-| `--use`, `-u` | Use an installed package, as `pkg`, `pkg@version`, `pkg/version`, or with `:api`, `:static`, or `:shared`. |
+| `--use`, `-u` | Use an installed package, as `package`, `package@version`, `package/version`, or with `:api`, `:static`, or `:shared`. |
 | `--use-source` | Add a named package source for restore/install/publish workflows. Ordinary builds do not use it for live lookup. |
 | `--project-reference` | Build and reference another Camp project. |
 | `--metadata` | Select metadata emission: `none`, `export`, `public`, or `all`. |
@@ -300,7 +310,7 @@ Native build and output-layout options:
 | `--artifact` | Select `exec`, `static`, `shared`, `only-static`, `only-shared`, or `none`. |
 | `--name` | Set the project/artifact base name. |
 | `--out-dir` | Set the final artifact output directory. |
-| `--pub-dir` | Set the package publication root for `pkg publish`; package files are written under `<pub-dir>/<package-name>/`. Build, run, test, and cover accept and ignore it so shared `.campbuild` files can carry publish configuration. |
+| `--pub-dir` | Set the package publication root for `package publish`; package files are written under `<pub-dir>/<package-name>/`. Build, run, test, cover, and dump accept and ignore it so shared `.campbuild` files can carry publish configuration. |
 | `--subsystem` | Select a native subsystem; the documented value is `windows` for executable builds. |
 | `--framework`, `-f` | Link native frameworks on targets that support framework linking. Multiple values may follow one switch. |
 

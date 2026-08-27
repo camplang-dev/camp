@@ -8,6 +8,7 @@ obj/
 # Camp package/cache output
 pkg/
 cache/
+global.campbuild
 
 # User-specific IDE/editor files
 .idea/

@@ -81,6 +81,37 @@ public sealed class ProjectLoaderTests
 	}
 
 	[Fact]
+	public void Project_loader_reads_compiler_root_base_and_global_campbuild_files()
+	{
+		string root = CreateTempDirectory("project-loader-base-global-campbuild");
+		string home = Path.Combine(root, "home");
+		Directory.CreateDirectory(home);
+		string sourceDirectory = Path.Combine(root, "src");
+		Directory.CreateDirectory(sourceDirectory);
+		File.WriteAllText(Path.Combine(sourceDirectory, "main.camp"), "export int main() => 0;\n");
+		File.WriteAllText(Path.Combine(home, "base.campbuild"), "--use-source base ../base-feed\n");
+		File.WriteAllText(Path.Combine(home, "global.campbuild"), "--use-source global ../global-feed\n");
+		string buildFile = Path.Combine(root, "sample.campbuild");
+		File.WriteAllText(buildFile, """
+			--nostdlib
+			--artifact none
+			src/*.camp
+			""");
+		CampProjectEnvironment environment = new()
+		{
+			WorkingDirectory = root,
+			RuntimeRoot = AppContext.BaseDirectory,
+			HomeDirectory = home
+		};
+
+		CampProjectLoadResult result = CampProjectLoader.LoadBuildFile(buildFile, environment);
+
+		Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
+		Assert.Equal(Path.GetFullPath(Path.Combine(home, "../base-feed")), result.Request.UseSourceRoots[0]);
+		Assert.Equal(Path.GetFullPath(Path.Combine(home, "../global-feed")), result.Request.UseSourceRoots[1]);
+	}
+
+	[Fact]
 	public void Project_loader_expands_optional_response_file_includes()
 	{
 		string root = CreateTempDirectory("project-loader-optional-response-file");

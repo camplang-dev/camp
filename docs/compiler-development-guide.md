@@ -68,11 +68,24 @@ rejection except for mechanical archive changes. New accepted proposals live
 in `docs/proposals/accepted` as historical files after their details are
 integrated into canonical docs.
 
+When implementation of a pending proposal is complete, move that proposal from
+`docs/proposals/pending` to `docs/proposals/accepted`, update its status to
+accepted, and commit that proposal-lifecycle change separately before committing
+or finalizing the rest of the implementation work. After this move, treat the
+proposal as historical; ongoing corrections belong in canonical documentation,
+tests, and source.
+
 Implementation plans are not proposals. Keep implementation plans outside
 `docs/proposals/accepted`, even when the work is complete. If a plan was written
 for a proposal, the proposal may move through the proposal lifecycle, but the
 plan itself should remain uncommitted unless the maintainer explicitly asks for
 it to be committed somewhere else.
+
+When implementing a staged plan, treat each completed stage as a commit
+boundary unless the maintainer explicitly says otherwise. After a stage's
+required targeted tests pass, update and save the external plan with that
+stage's completion criteria checked off, then commit the repository changes for
+that stage. Do not commit the external plan file unless explicitly requested.
 
 ## Working In A Dirty Tree
 

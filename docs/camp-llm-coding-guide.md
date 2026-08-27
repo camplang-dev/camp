@@ -213,13 +213,14 @@ Ordinary build/run/test/cover/dump and LSP analysis consume installed package
 cache entries; they do not use `--use-source` as a live source folder.
 
 Do not use removed package commands (`pkg add`, `pkg remove`, `pkg add-source`,
-`pkg remove-source`, or `pkg search`). Edit build files manually for `--use` and
-local `--use-source`; use `pkg add-global-source` only for intentional global
-package source configuration.
+`pkg remove-source`, or `pkg search`). Edit build files manually for `--use`,
+or use `campc package add-source` / `campc package remove-source` when you need
+to update a target build file. Use `campc package add-source --global` only for
+intentional compiler-global package source configuration.
 
 When setting up a package project, name the `.campbuild` file the same as the
 package and its directory. Exclude `pub/` in the package repo's `.gitignore`;
-`campc pkg publish` writes ZIP and INI publication artifacts there, and those
+`campc package publish` writes ZIP and INI publication artifacts there, and those
 generated files should not be committed to source repos. In repos that contain
 multiple package source directories, keep one shared `pub/` directory outside
 the package source folders, and put `--pub-dir ../pub` in each package's

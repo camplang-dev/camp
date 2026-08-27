@@ -217,6 +217,8 @@ static class CampInit
 		return CommonFiles(context, "src/posix.camp", """
 			namespace Posix;
 
+			requires (SUBSYSTEM_POSIX);
+
 			@symbol("getpid")
 			public extern int getpid();
 			""", $$"""
@@ -261,6 +263,8 @@ static class CampInit
 	{
 		return CommonFiles(context, "src/windows.camp", """
 			namespace Windows;
+
+			requires (OS_WIN32);
 
 			@symbol("GetCurrentProcessId")
 			public extern uint GetCurrentProcessId();
@@ -348,7 +352,7 @@ static class CampInit
 			campc test {{context.BuildFileName}}
 			```
 
-			Choose an appropriate target when building or testing so either `POSIX` or `WINDOWS` is defined by the selected target.
+			Choose an appropriate target when building or testing so either `SUBSYSTEM_POSIX` or `OS_WIN32` is configured by the selected target.
 			""", "--artifact static\nsrc/*.camp\n");
 	}
 
@@ -363,6 +367,7 @@ static class CampInit
 				bin/
 				obj/
 				cache/
+				pub/
 				*.tmp
 				*.log
 				""")
