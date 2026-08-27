@@ -321,15 +321,30 @@ public sealed partial class BindableNodeAnalyzer
 		AnalysisScope scope = new();
 		foreach (Definition definition in ActiveDefinitions(module))
 			if (definition is NewtypeDefinition newtypeDefinition)
-				AnalyzeNewtypeSignature(newtypeDefinition, scope);
+				WithAnalysisDefinition(newtypeDefinition, () => AnalyzeNewtypeSignature(newtypeDefinition, scope));
 	}
 
 	void AnalyzeDefinition(Definition definition, AnalysisScope parentScope)
+	{
+		WithAnalysisDefinition(definition, () => AnalyzeDefinitionCore(definition, parentScope));
+	}
+
+	void WithAnalysisDefinition(Definition definition, Action action)
 	{
 		Definition? previousAnalysisDefinition = currentAnalysisDefinition;
 		currentAnalysisDefinition = definition;
 		try
 		{
+			action();
+		}
+		finally
+		{
+			currentAnalysisDefinition = previousAnalysisDefinition;
+		}
+	}
+
+	void AnalyzeDefinitionCore(Definition definition, AnalysisScope parentScope)
+	{
 			AnalyzeAttributes(definition.Attributes);
 			if (definition is not FunctionDefinition)
 				ValidateUnsupportedAttributePlacement(definition);
@@ -376,11 +391,6 @@ public sealed partial class BindableNodeAnalyzer
 					AnalyzeFunctionDefinition(functionDefinition, parentScope, containingType: null);
 					break;
 			}
-		}
-		finally
-		{
-			currentAnalysisDefinition = previousAnalysisDefinition;
-		}
 	}
 
 	void CollectAliasNames(Module module)
@@ -1173,25 +1183,29 @@ public sealed partial class BindableNodeAnalyzer
 			if (definition is not VariableDefinition variable || variable.InitialValue is null)
 				continue;
 
-			FunctionDefinition initializerContext = new()
+			WithAnalysisDefinition(variable, () =>
 			{
-				Name = "#global_initializer",
-				ResolvedType = variable.ResolvedType ?? variable.Type?.ResolvedType ?? ErrorType
-			};
-			BodyScope scope = new(null, initializerContext, containingType: null)
-			{
-				CurrentFunctionReturnType = initializerContext.ResolvedType ?? ErrorType
-			};
-			string targetType = variable.ResolvedType ?? variable.Type?.ResolvedType ?? ErrorType;
-			string initialType = BodyAnalyzeExpression(variable.InitialValue, scope, typeScope, targetType);
-			if (!IsValidFixedStorageInitializer(variable.Type, variable.InitialValue))
-			{
-				CheckAssignable(targetType, initialType, variable.InitialValue.SourceSyntax ?? variable.SourceSyntax, "Global initializer");
-				if (ContainsConstOfTypeReference(variable.Type))
-					CheckConstOfProducedResult(variable.Type, variable.InitialValue, variable.InitialValue.SourceSyntax ?? variable.SourceSyntax, "Global initializer");
-			}
-			if (!variable.IsInline)
-				ValidateStaticStorageInitializer(variable.InitialValue, variable.Name, "Global initializer");
+				FunctionDefinition initializerContext = new()
+				{
+					Name = "#global_initializer",
+					ResolvedType = variable.ResolvedType ?? variable.Type?.ResolvedType ?? ErrorType,
+					EffectiveRequirement = variable.EffectiveRequirement
+				};
+				BodyScope scope = new(null, initializerContext, containingType: null)
+				{
+					CurrentFunctionReturnType = initializerContext.ResolvedType ?? ErrorType
+				};
+				string targetType = variable.ResolvedType ?? variable.Type?.ResolvedType ?? ErrorType;
+				string initialType = BodyAnalyzeExpression(variable.InitialValue, scope, typeScope, targetType);
+				if (!IsValidFixedStorageInitializer(variable.Type, variable.InitialValue))
+				{
+					CheckAssignable(targetType, initialType, variable.InitialValue.SourceSyntax ?? variable.SourceSyntax, "Global initializer");
+					if (ContainsConstOfTypeReference(variable.Type))
+						CheckConstOfProducedResult(variable.Type, variable.InitialValue, variable.InitialValue.SourceSyntax ?? variable.SourceSyntax, "Global initializer");
+				}
+				if (!variable.IsInline)
+					ValidateStaticStorageInitializer(variable.InitialValue, variable.Name, "Global initializer");
+			});
 		}
 	}
 
@@ -1429,9 +1443,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	void AnalyzeFunctionDefinition(FunctionDefinition definition, AnalysisScope parentScope, string? containingType, bool suppressStaticThisDiagnostic = false)
 	{
-		Definition? previousAnalysisDefinition = currentAnalysisDefinition;
-		currentAnalysisDefinition = definition;
-		try
+		WithAnalysisDefinition(definition, () =>
 		{
 		AnalyzeAttributes(definition.Attributes);
 		ValidateUnsupportedFunctionAttribute(definition);
@@ -1513,11 +1525,7 @@ public sealed partial class BindableNodeAnalyzer
 			SetDefaultMemberSymbol(definition, EffectiveTypeSymbol(typeDefinition), GetCallableName(definition).TrimStart('~'));
 		else if (containingType is null)
 			SetDefaultTopLevelSymbol(definition, GetCallableName(definition));
-		}
-		finally
-		{
-			currentAnalysisDefinition = previousAnalysisDefinition;
-		}
+		});
 	}
 
 	void ValidateStaticFunctionHasNoExplicitThis(FunctionDefinition definition, bool suppressDiagnostic)

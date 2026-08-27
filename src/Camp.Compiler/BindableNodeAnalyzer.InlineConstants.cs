@@ -10,7 +10,7 @@ public sealed partial class BindableNodeAnalyzer
 	void AnalyzeInlineConstantsAndEnumValues(Module module)
 	{
 		foreach (Definition definition in ActiveDefinitions(module))
-			AnalyzeInlineConstantsAndEnumValues(definition);
+			WithAnalysisDefinition(definition, () => AnalyzeInlineConstantsAndEnumValues(definition));
 		ValidateInlineAndEnumSymbols(module);
 	}
 
@@ -48,7 +48,7 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		foreach (FieldDefinition field in fields)
 			if (field.IsInline)
-				AnalyzeInlineField(field, []);
+				WithAnalysisDefinition(field, () => AnalyzeInlineField(field, []));
 	}
 
 	void AnalyzeInlineVariable(VariableDefinition variable, HashSet<BindableNode> visiting)
@@ -73,6 +73,10 @@ public sealed partial class BindableNodeAnalyzer
 
 	void AnalyzeEnumValues(EnumDefinition enumDefinition)
 	{
+		Definition? previousAnalysisDefinition = currentAnalysisDefinition;
+		currentAnalysisDefinition = enumDefinition;
+		try
+		{
 		if (enumDefinition.UnderlyingType is null)
 		{
 			enumDefinition.UnderlyingType = new PrimitiveTypeReference
@@ -108,6 +112,11 @@ public sealed partial class BindableNodeAnalyzer
 
 			value.ConstantValue = new ConstantValue.Integer(numeric);
 			next = numeric + BigInteger.One;
+		}
+		}
+		finally
+		{
+			currentAnalysisDefinition = previousAnalysisDefinition;
 		}
 	}
 

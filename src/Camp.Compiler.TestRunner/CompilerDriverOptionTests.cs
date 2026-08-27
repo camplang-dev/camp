@@ -1009,6 +1009,36 @@ public sealed class CompilerDriverOptionTests
 	}
 
 	[Fact]
+	public void File_wide_requirements_prove_declaration_signatures_and_initializers()
+	{
+		string source = CreateTempCase("requirement_declaration_context.camp", """
+			requires (OS_WIN32);
+
+			export alias BOOL = int;
+			export alias LPARAM = nint;
+			export alias LRESULT = nint;
+			export alias WPARAM = nuint;
+			export newtype HWND: nint;
+			export newtype fn _winapi LRESULT WNDPROC(HWND hWnd, uint msg, WPARAM wParam, LPARAM lParam);
+
+			export inline uint WS_OVERLAPPED = 0x00000000;
+			export inline uint WS_CAPTION = 0x00C00000;
+			export inline uint WS_SYSMENU = 0x00080000;
+			export inline uint WS_OVERLAPPEDWINDOW = WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU;
+			export inline HWND INVALID_WINDOW = (HWND)-1;
+			""");
+
+		CompilerResult result = Execute(source, request =>
+		{
+			request.TargetName = "gcc-linux-x64";
+			request.NoStdLib = true;
+			request.Inspect = CompilerInspectMode.Declarations;
+		});
+
+		Assert.Equal(0, result.ExitCode);
+	}
+
+	[Fact]
 	public void Requirements_reject_legacy_preprocessor_conditionals_without_hiding_source()
 	{
 		string source = CreateTempCase("requirement_legacy_preprocessor.camp", """
