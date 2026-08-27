@@ -1,8 +1,16 @@
 # Source-Only Package Publishing
 
-Status: pending  
-Proposal date: 2026-08-26  
-Last updated date: 2026-08-26
+## Status
+
+Accepted.
+
+## Proposal Date
+
+2026-08-26
+
+## Last Updated Date
+
+2026-08-26
 
 ## Summary
 
