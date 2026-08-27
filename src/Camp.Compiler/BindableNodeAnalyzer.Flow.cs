@@ -37,47 +37,82 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (function.Body is null || function.EffectiveRequirement is null)
 			return false;
-		List<ConfigurationFlagExpression> requiredTerms = [];
-		CollectSimpleOrTerms(function.EffectiveRequirement, requiredTerms);
-		if (requiredTerms.Count <= 1)
+		List<ConfigurationFlagExpression> requiredCases = ExpandRequirementCases(function.EffectiveRequirement, maxCases: 64);
+		if (requiredCases.Count <= 1)
 			return false;
 		HashSet<string> covered = new(StringComparer.Ordinal);
-		CollectTerminatingRequirementBranches(function.Body.Statements, requiredTerms, covered);
-		return requiredTerms.All(term => covered.Contains(term.ToString()));
+		CollectTerminatingRequirementBranches(function.Body.Statements, requiredCases, covered);
+		return requiredCases.All(term => covered.Contains(term.ToString()));
 	}
 
-	void CollectSimpleOrTerms(ConfigurationFlagExpression expression, List<ConfigurationFlagExpression> terms)
+	List<ConfigurationFlagExpression> ExpandRequirementCases(ConfigurationFlagExpression expression, int maxCases)
 	{
-		if (expression.Kind == ConfigurationFlagExpressionKind.Or && expression.Left is not null && expression.Right is not null)
-		{
-			CollectSimpleOrTerms(expression.Left, terms);
-			CollectSimpleOrTerms(expression.Right, terms);
-			return;
-		}
-		if (expression.Kind == ConfigurationFlagExpressionKind.Flag)
-			terms.Add(expression);
+		List<ConfigurationFlagExpression> cases = [];
+		CollectRequirementCases(expression, cases, maxCases);
+		return cases;
 	}
 
-	void CollectTerminatingRequirementBranches(IEnumerable<Statement> statements, List<ConfigurationFlagExpression> requiredTerms, HashSet<string> covered)
+	void CollectRequirementCases(ConfigurationFlagExpression expression, List<ConfigurationFlagExpression> cases, int maxCases)
+	{
+		if (cases.Count > maxCases)
+			return;
+		switch (expression)
+		{
+			case { Kind: ConfigurationFlagExpressionKind.Or, Left: not null, Right: not null }:
+				CollectRequirementCases(expression.Left, cases, maxCases);
+				CollectRequirementCases(expression.Right, cases, maxCases);
+				break;
+
+			case { Kind: ConfigurationFlagExpressionKind.And, Left: not null, Right: not null }:
+			{
+				List<ConfigurationFlagExpression> leftCases = ExpandRequirementCases(expression.Left, maxCases);
+				List<ConfigurationFlagExpression> rightCases = ExpandRequirementCases(expression.Right, maxCases);
+				if (leftCases.Count == 0 || rightCases.Count == 0 || leftCases.Count * rightCases.Count > maxCases)
+				{
+					cases.Clear();
+					cases.Add(expression);
+					break;
+				}
+				foreach (ConfigurationFlagExpression left in leftCases)
+					foreach (ConfigurationFlagExpression right in rightCases)
+						cases.Add(ConfigurationFlagExpressionBinder.And(left, right) ?? ConfigurationFlagExpressionBinder.True());
+				break;
+			}
+
+			default:
+				cases.Add(expression);
+				break;
+		}
+	}
+
+	void CollectTerminatingRequirementBranches(IEnumerable<Statement> statements, List<ConfigurationFlagExpression> requiredCases, HashSet<string> covered)
 	{
 		foreach (Statement statement in statements)
 		{
 			if (statement is not IfStatement ifStatement)
 				continue;
-			CollectTerminatingRequirementBranch(ifStatement, requiredTerms, covered);
+			CollectTerminatingRequirementBranch(ifStatement, requiredCases, covered);
 		}
 	}
 
-	void CollectTerminatingRequirementBranch(IfStatement ifStatement, List<ConfigurationFlagExpression> requiredTerms, HashSet<string> covered)
+	void CollectTerminatingRequirementBranch(IfStatement ifStatement, List<ConfigurationFlagExpression> requiredCases, HashSet<string> covered)
 	{
-		if (GetPositiveRequirementProof(ifStatement.Condition) is ConfigurationFlagExpression proof && StatementTerminates(ifStatement.Body))
+		if (GetConfigurationOnlyRequirementProof(ifStatement.Condition) is ConfigurationFlagExpression proof && StatementTerminates(ifStatement.Body))
 		{
-			foreach (ConfigurationFlagExpression term in requiredTerms)
-				if (ConfigurationFlagExpressionBinder.Implies(proof, term, configurationFlags))
-					covered.Add(term.ToString());
+			foreach (ConfigurationFlagExpression requirementCase in requiredCases)
+				if (ConfigurationFlagExpressionBinder.Implies(requirementCase, proof, configurationFlags))
+					covered.Add(requirementCase.ToString());
 		}
 		if (ifStatement.ElseBody is IfStatement elseIf)
-			CollectTerminatingRequirementBranch(elseIf, requiredTerms, covered);
+			CollectTerminatingRequirementBranch(elseIf, requiredCases, covered);
+	}
+
+	ConfigurationFlagExpression? GetConfigurationOnlyRequirementProof(Expression? expression)
+	{
+		expression = UnwrapParenthesizedExpression(expression);
+		return expression is CallExpression call && TryGetConfiguredRequirement(call, out ConfigurationFlagExpression? configured)
+			? configured
+			: null;
 	}
 
 	static bool StatementTerminates(Statement? statement) =>

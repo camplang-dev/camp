@@ -1,0 +1,30 @@
+requires (SUBSYSTEM_POSIX)
+int posixValue()
+{
+	return 11;
+}
+
+requires (OS_WIN32)
+int windowsValue()
+{
+	return 22;
+}
+
+requires (SUPPORTS_TIMERS && (SUBSYSTEM_POSIX || OS_WIN32))
+int platformValue()
+{
+	if (configured(SUBSYSTEM_POSIX))
+		return posixValue();
+	if (configured(OS_WIN32))
+		return windowsValue();
+}
+
+export int main()
+{
+	int value = platformValue();
+	if (configured(SUBSYSTEM_POSIX))
+		return value == 11 ? 0 : 1;
+	if (configured(OS_WIN32))
+		return value == 22 ? 0 : 2;
+	return 3;
+}

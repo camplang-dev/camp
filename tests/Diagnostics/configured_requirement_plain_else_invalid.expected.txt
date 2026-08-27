@@ -1,0 +1,1 @@
+tests/Diagnostics/configured_requirement_plain_else_invalid.camp(20,10): error: Symbol 'windowsValue' requires configuration '(SUBSYSTEM_POSIX || OS_WIN32) && OS_WIN32'.

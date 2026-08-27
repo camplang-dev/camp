@@ -1,0 +1,21 @@
+requires (SUBSYSTEM_POSIX || OS_WIN32);
+
+requires (SUBSYSTEM_POSIX)
+int posixValue()
+{
+	return 11;
+}
+
+requires (OS_WIN32)
+int windowsValue()
+{
+	return 22;
+}
+
+int platformValue()
+{
+	if (configured(SUBSYSTEM_POSIX))
+		return posixValue();
+	else
+		return windowsValue();
+}
