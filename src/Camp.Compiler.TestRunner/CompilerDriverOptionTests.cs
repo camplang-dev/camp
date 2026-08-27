@@ -479,6 +479,35 @@ public sealed class CompilerDriverOptionTests
 	}
 
 	[Fact]
+	public void Local_and_global_symbols_take_precedence_over_configuration_flags()
+	{
+		string source = CreateTempCase("configuration_flag_symbol_precedence.camp", """
+			export inline int TRUE = 1;
+			export inline int FALSE = 0;
+
+			export int main()
+			{
+				int TRUE = 2;
+				if (TRUE != 2)
+					return 1;
+				if (FALSE != 0)
+					return 2;
+				return 0;
+			}
+			""");
+
+		CompilerResult result = Execute(source, request =>
+		{
+			request.TargetName = "gcc-linux-x64";
+			request.NoStdLib = true;
+		});
+
+		Assert.Equal(0, result.ExitCode);
+		Assert.DoesNotContain("Configuration flag 'TRUE'", result.StdErr, StringComparison.Ordinal);
+		Assert.DoesNotContain("Configuration flag 'FALSE'", result.StdErr, StringComparison.Ordinal);
+	}
+
+	[Fact]
 	public void Effective_requirements_filter_declarations_and_file_defaults()
 	{
 		string source = CreateTempCase("effective_requirements.camp", """
