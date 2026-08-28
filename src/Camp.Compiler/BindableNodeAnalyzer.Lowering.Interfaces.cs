@@ -1070,6 +1070,8 @@ public sealed partial class BindableNodeAnalyzer
 			return argument;
 
 		argument.Value = LowerExpression(argument.Value);
+		if (argument.Value is not null && (string.IsNullOrWhiteSpace(argument.ResolvedType) || argument.ResolvedType == ErrorType))
+			argument.ResolvedType = argument.Value.ResolvedType;
 		return argument;
 	}
 

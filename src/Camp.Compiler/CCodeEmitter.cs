@@ -294,7 +294,7 @@ public static class CCodeEmitter
 		{
 			if (node is LiteralExpression or AttributeConstructor or InitializerItem)
 				continue;
-			if (node.ResolvedType is string resolvedType && InvalidResolvedTypes.Contains(resolvedType))
+			if (GetEffectiveValidationResolvedType(node) is string resolvedType && InvalidResolvedTypes.Contains(resolvedType))
 			{
 				result.Diagnostics.Add($"C emission aborted because {DescribeUnresolvedNode(node)} has unresolved type '{resolvedType}'.");
 				return false;
@@ -302,6 +302,15 @@ public static class CCodeEmitter
 		}
 
 		return true;
+	}
+
+	static string? GetEffectiveValidationResolvedType(BindableNode node)
+	{
+		if (node is ArgumentExpression argument
+			&& argument.Value?.ResolvedType is string valueType
+			&& !InvalidResolvedTypes.Contains(valueType))
+			return valueType;
+		return node.ResolvedType;
 	}
 
 	static string DescribeUnresolvedNode(BindableNode node)

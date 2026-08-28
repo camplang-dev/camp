@@ -304,6 +304,37 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Assert_condition_accepts_delegate_field_invocation()
+	{
+		string source = CreateTempCase("assert_delegate_field_invocation/main.camp", """
+			using Std;
+
+			struct Policy
+			{
+				fn bool(string left, string right) equals;
+			}
+
+			bool same(string left, string right)
+			{
+				return left.compareTo(right) == 0;
+			}
+
+			@test
+			void assertionAcceptsDelegateFieldCall(thrown Assertion* assertion)
+			{
+				Policy policy = { .equals = same };
+				string value = "Camp";
+				assert(policy.equals(value, value), "delegate field call should be usable as an assertion condition");
+			}
+			""");
+
+		ProcessResult result = RunCampc("test", source, "--test-result-format", "text,json", "--target", NativeTargetForHost());
+
+		AssertCommandSucceeded(result);
+		Assert.Contains("passed: assertionAcceptsDelegateFieldCall", result.StdOut, StringComparison.Ordinal);
+	}
+
+	[Fact]
 	public void Commands_use_implicit_single_build_file_and_package_source_targets()
 	{
 		string root = TempPath("implicit-build-target");

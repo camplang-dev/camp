@@ -125,13 +125,14 @@ public sealed partial class BindableNodeAnalyzer
 				{
 					TryRewriteStaticMemberInvocation(call);
 					TryRewriteIteratorProtocolInvocation(call);
-					TryRewriteDelegateInvocation(call);
-				}
-				ExpandParamsArguments(call);
-				LowerCallArgumentConversions(call);
-				if (TryRewriteScalarMaterializedGenericReturnCall(call, out Expression? materialized))
-					return materialized;
-				return MaterializeReceiverCall(LowerUncaughtThrowingCall(call));
+				TryRewriteDelegateInvocation(call);
+			}
+			ExpandParamsArguments(call);
+			LowerCallArgumentConversions(call);
+			RefreshLoweredCallArgumentTypes(call);
+			if (TryRewriteScalarMaterializedGenericReturnCall(call, out Expression? materialized))
+				return materialized;
+			return MaterializeReceiverCall(LowerUncaughtThrowingCall(call));
 
 			case IndexExpression index:
 				if (index.Target is MemberReferenceExpression getter && IsPropertyGetterReference(getter))
@@ -229,6 +230,13 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		return expression;
+	}
+
+	static void RefreshLoweredCallArgumentTypes(CallExpression call)
+	{
+		foreach (ArgumentExpression argument in call.Arguments)
+			if (argument.Value is not null && (string.IsNullOrWhiteSpace(argument.ResolvedType) || argument.ResolvedType == ErrorType))
+				argument.ResolvedType = argument.Value.ResolvedType;
 	}
 
 	Expression? LowerReceiverExpression(Expression? expression)
