@@ -1,0 +1,59 @@
+namespace Std;
+
+@test
+void parseHelpersHandleNumbersBoundsAndFailures(thrown Assertion* assertion)
+{
+	int result1 = 0;
+	assert("123 ".tryParse(out result1) && result1 == 123, "int parser should accept trailing whitespace");
+
+	string test = "12345 1.30 .99 1_234_567_890_123_456 0xF 0x_AbCD 0xFFFF0000FFFF";
+	int testInt = 0;
+	assert(test[0..5].tryParse(out testInt) && testInt == 12345, "int parser should accept decimal slices");
+
+	int testIntFail = 77;
+	assert(!test[6..10].tryParse(out testIntFail) && testIntFail == 0, "int parser should fail and reset on floating input");
+
+	double testDouble = 0.0;
+	assert(test[6..10].tryParse(out testDouble) && testDouble > 1.29 && testDouble < 1.31, "double parser should accept decimal fractions");
+
+	double leadingDot = 0.0;
+	assert(test[11..14].tryParse(out leadingDot) && leadingDot > 0.98 && leadingDot < 1.0, "double parser should accept leading-dot fractions");
+
+	long big = 0;
+	assert(test[15..36].tryParse(out big) && big == 1234567890123456, "long parser should accept separated decimal digits");
+
+	uint hexSmall = 0;
+	assert(test[37..40].tryParse(out hexSmall) && hexSmall == 15, "uint parser should accept hexadecimal");
+
+	int hexSeparated = 0;
+	assert(test[41..48].tryParse(out hexSeparated) && hexSeparated == 0xABCD, "int parser should accept separated hexadecimal digits");
+
+	ulong hexLarge = 0;
+	assert(test[49..63].tryParse(out hexLarge) && hexLarge == 0xFFFF0000FFFF, "ulong parser should accept large hexadecimal values");
+
+	int signedMin = 0;
+	assert("-2147483648".tryParse(out signedMin) && signedMin == -2147483648, "int parser should accept int.MIN");
+
+	uint unsignedNegative = 5;
+	assert(!"-1".tryParse(out unsignedNegative) && unsignedNegative == 0, "uint parser should reject negative values and reset");
+
+	int overflow = 5;
+	assert(!"2147483648".tryParse(out overflow) && overflow == 0, "int parser should reject overflow and reset");
+
+	ulong ulongMax = 0;
+	assert("18446744073709551615".tryParse(out ulongMax) && ulongMax == 18446744073709551615, "ulong parser should accept ulong.MAX");
+
+	ulong ulongOverflow = 5;
+	assert(!"18446744073709551616".tryParse(out ulongOverflow) && ulongOverflow == 0, "ulong parser should reject overflow and reset");
+
+	double badExponent = 3.0;
+	assert(!"1.0e-10".tryParse(out badExponent) && badExponent == 0.0, "double parser should reject unsupported exponent syntax and reset");
+
+	int badComma = 3;
+	assert(!"1,000".tryParse(out badComma) && badComma == 0, "int parser should reject comma separators and reset");
+
+	int badUnderscore = 3;
+	assert(!"123_".tryParse(out badUnderscore) && badUnderscore == 0, "int parser should reject trailing separators and reset");
+
+	assert("42".tryParse(out uint declaredAge) && declaredAge == 42, "tryParse should support out variable declarations");
+}

@@ -1,0 +1,42 @@
+namespace Std;
+
+@test
+void characterRangesMinMaxToStringAndHash(thrown Assertion* assertion)
+{
+	assert(achar.MIN == (achar)0 && achar.MAX == (achar)0x7F, "achar range should match ASCII scalar range");
+	assert(char.MIN == (char)0 && char.MAX == (char)0x7F, "char range should match single-byte UTF-8 scalar range");
+	assert(wchar.MIN == (wchar)0 && wchar.MAX == (wchar)0xFFFF, "wchar range should match UTF-16 code unit range");
+	assert(uchar.MIN == (uchar)0 && uchar.MAX == (uchar)0x10FFFF, "uchar range should match Unicode scalar range");
+
+	assert(min((achar)'b', (achar)'a') == (achar)'a' && max((achar)'b', (achar)'a') == (achar)'b', "achar min/max should compare values");
+	assert(min('b', 'a') == 'a' && max('b', 'a') == 'b', "char min/max should compare values");
+	assert(min((wchar)'é', (wchar)'A') == (wchar)'A' && max((wchar)'é', (wchar)'A') == (wchar)'é', "wchar min/max should compare values");
+	assert(min((uchar)'😀', (uchar)'é') == (uchar)'é' && max((uchar)'😀', (uchar)'é') == (uchar)'😀', "uchar min/max should compare values");
+
+	auto letter = 'A'.toString();
+	auto accent = ((wchar)'é').toString();
+	auto face = '😀'.toString();
+	assert(letter.length == 1 && letter[0] == 'A', "char toString should produce one UTF-8 byte for ASCII");
+	assert(accent.length == 2 && accent.getUChar(0) == (uchar)'é', "wchar toString should encode non-ASCII as UTF-8");
+	assert(face.length == 4 && face.getUChar(0) == (uchar)'😀', "uchar toString should encode supplementary code points as UTF-8");
+
+	achar a = (achar)'A';
+	achar b = (achar)'B';
+	HashPolicy<achar> achars = achar.HASH_POLICY;
+	assert(a.hashcode() == achars.hash(a) && a.hashEquals(a) && !a.hashEquals(b) && !achars.equals(a, b), "achar hash policy should match helper methods");
+
+	char c = 'C';
+	char d = 'D';
+	HashPolicy<char> chars = char.HASH_POLICY;
+	assert(c.hashcode() == chars.hash(c) && chars.equals(c, c) && !chars.equals(c, d), "char hash policy should match helper methods");
+
+	wchar w = 'é';
+	wchar x = (wchar)'A';
+	HashPolicy<wchar> wchars = wchar.HASH_POLICY;
+	assert(w.hashcode() == wchars.hash(w) && wchars.equals(w, w) && !wchars.equals(w, x), "wchar hash policy should match helper methods");
+
+	uchar u = '😀';
+	uchar v = 'é';
+	HashPolicy<uchar> uchars = uchar.HASH_POLICY;
+	assert(u.hashcode() == uchars.hash(u) && uchars.equals(u, u) && !uchars.equals(u, v), "uchar hash policy should match helper methods");
+}

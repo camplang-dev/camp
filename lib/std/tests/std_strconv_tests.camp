@@ -1,0 +1,49 @@
+namespace Std;
+
+@test
+void stringConversionHelpersPreserveContentAndFallbacks(thrown Assertion* assertion)
+{
+	const char[] cafeUtf8 = [(char)'c', (char)'a', (char)'f', (char)0xC3, (char)0xA9];
+	const wchar[] cafeUtf16 = "caf\U000000E9";
+	const achar[] plainAscii = "plain";
+
+	string copiedUtf8 = cafeUtf8.toString();
+	wstring wideFromUtf8 = cafeUtf8.toWString();
+	astring asciiFromUtf8 = cafeUtf8.toAString();
+
+	string utf8FromWide = cafeUtf16.toString();
+	wstring copiedWide = cafeUtf16.toWString();
+	astring asciiFromWide = cafeUtf16.toAString();
+
+	string utf8FromAscii = plainAscii.toString();
+	wstring wideFromAscii = plainAscii.toWString();
+	astring copiedAscii = plainAscii.toAString();
+
+	assert(cafeUtf16.toString(buffer: default) == 5, "wide-to-UTF8 conversion should report required byte length");
+	fixed char[5] exactUtf8 = default;
+	assert(cafeUtf16.toString(buffer: exactUtf8) == 5, "wide-to-UTF8 conversion should accept exact buffers");
+	assert(exactUtf8[..].compareTo(cafeUtf8) == 0, "wide-to-UTF8 conversion should fill explicit buffers");
+
+	assert(copiedUtf8[..].compareTo(cafeUtf8) == 0, "toString should copy UTF-8 text");
+	assert(wideFromUtf8[..].compareTo(cafeUtf16) == 0, "UTF-8 toWString should preserve Unicode content");
+	assert(wideFromUtf8[..].countUChars() == 4, "UTF-8 toWString should preserve code point count");
+	assert(wideFromUtf8[..].getUChar(3) == (uchar)233, "UTF-8 toWString should preserve decoded code point values");
+	assert(asciiFromUtf8[..].compareTo("caf?") == 0, "UTF-8 toAString should use fallback for non-ASCII code points");
+
+	assert(utf8FromWide[..].compareTo(cafeUtf8) == 0, "UTF-16 toString should preserve Unicode content");
+	assert(copiedWide[..].compareTo(cafeUtf16) == 0, "toWString should copy UTF-16 text");
+	assert(asciiFromWide[..].compareTo("caf?") == 0, "UTF-16 toAString should use fallback for non-ASCII code points");
+
+	assert(utf8FromAscii[..].compareTo("plain") == 0, "ANSI toString should preserve ASCII text");
+	assert(wideFromAscii[..].compareTo("plain") == 0, "ANSI toWString should preserve ASCII text");
+	assert(copiedAscii[..].compareTo("plain") == 0, "toAString should copy ANSI text");
+
+	wstring faceWide = "a\U0001F600b";
+	const wchar[] faceSpan = { (const wchar*)faceWide, faceWide.Length };
+	string faceUtf8 = faceSpan.toString();
+	astring faceAscii = faceSpan.toAString((achar)'?');
+
+	assert(faceUtf8[..].countUChars() == 3, "UTF-16 toString should preserve supplementary code point count");
+	assert(faceUtf8[..].getUChar(1) == (uchar)128512, "UTF-16 toString should encode supplementary code points");
+	assert(faceAscii[..].compareTo("a?b") == 0, "UTF-16 toAString should use fallback for supplementary code points");
+}

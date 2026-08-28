@@ -1,0 +1,39 @@
+namespace Std;
+
+@test
+void hashPoliciesMatchPrimitiveStringAndPointerHelpers(thrown Assertion* assertion)
+{
+	HashPolicy<int> ints = int.HASH_POLICY;
+	assert(ints.hash(123) == 123.hashcode() && ints.equals(123, 123) && !ints.equals(123, 124), "int hash policy should match int helpers");
+
+	HashPolicy<short> shorts = short.HASH_POLICY;
+	assert(shorts.equals((short)-5, (short)-5) && shorts.hash((short)-5) == ((short)-5).hashcode(), "short hash policy should match short helpers");
+
+	HashPolicy<ulong> ulongs = ulong.HASH_POLICY;
+	assert(ulongs.equals((ulong)9, (ulong)9) && !ulongs.equals((ulong)9, (ulong)10), "ulong hash policy should compare ulong values");
+
+	HashPolicy<nuint> native = nuint.HASH_POLICY;
+	assert(native.equals((nuint)77, (nuint)77) && native.hash((nuint)77) == ((nuint)77).hashcode(), "nuint hash policy should match nuint helpers");
+
+	int value = 4;
+	int other = 5;
+	int* valuePtr = &value;
+	HashPolicy<int*> pointers = pointerHashPolicy<int>();
+	assert(pointers.equals(&value, &value) && !pointers.equals(&value, &other), "pointer hash policy should compare addresses");
+	assert(pointers.hash(valuePtr) == valuePtr.hashcodePointer<int>(), "pointer hash policy should match pointer hash helper");
+
+	HashPolicy<string> strings = string.HASH_POLICY;
+	string camp = "Camp";
+	string campAgain = "Camp";
+	string lowerCamp = "camp";
+	assert(strings.equals(camp, campAgain) && !strings.equals(camp, lowerCamp), "string hash policy should be case-sensitive");
+	assert(strings.hash(camp) == camp.hashcode(), "string hash policy should match string hash helper");
+
+	HashPolicy<string> insensitive = string.CASE_INSENSITIVE_HASH_POLICY;
+	string cheese = "MR_CHEESE";
+	string lowerCheese = "mr_cheese";
+	if (!insensitive.equals(cheese, lowerCheese))
+		fail("case-insensitive string policy should compare without case");
+	if (insensitive.hash(cheese) != insensitive.hash(lowerCheese))
+		fail("case-insensitive string policy should hash without case");
+}

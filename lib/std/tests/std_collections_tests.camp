@@ -1,0 +1,144 @@
+namespace Std;
+
+@test
+void hashMapSetAndListCollectionsBehaveAcrossGrowthCopyAndRemoval(within Allocator* allocator, thrown Assertion* assertion)
+{
+	auto map = within (allocator) new HashMap<string, int>(string.HASH_POLICY) finally delete;
+	map.Item["one"] = 1;
+	map.setItem("two", 2);
+	assert(map.Length == 2, "HashMap should track inserted item count");
+	assert(map.Item["one"] == 1 && map.Item["two"] == 2 && map.Item["missing"] == 0, "HashMap should read inserted and missing values");
+	assert(map.containsKey("one") && !map.containsKey("ONE"), "HashMap should use its hash policy for key lookup");
+	map.Item["one"] = 11;
+	assert(map.Item["one"] == 11 && map.Length == 2, "HashMap should update existing keys without growing length");
+	assert(map.remove("two") && !map.remove("two") && !map.containsKey("two"), "HashMap remove should report removed keys once");
+
+	auto numbers = within (allocator) new HashMap<int, int>(int.HASH_POLICY) finally delete;
+	for (int i = 0; i < 50; i++)
+		numbers.Item[i] = i * 10;
+	for (int j = 0; j < 50; j++)
+		assert(numbers.Item[j] == j * 10, "HashMap should preserve values across growth");
+	assert(numbers.Length == 50 && numbers.Capacity >= 50, "HashMap should grow capacity for many entries");
+	int removedKey = 25;
+	assert(numbers.remove(removedKey), "HashMap should remove an existing grown key");
+	assert(!numbers.containsKey(removedKey) && numbers.Item[removedKey] == 0, "HashMap should clear removed key lookup");
+	numbers.Item[removedKey] = 2500;
+	assert(numbers.Item[removedKey] == 2500, "HashMap should reuse removed key slots");
+
+	auto ci = within (allocator) new HashMap<string, int>(string.CASE_INSENSITIVE_HASH_POLICY) finally delete;
+	ci.setItem("MR_CHEESE", 34);
+	assert(ci.containsKey("mr_cheese") && ci.Item["mr_cheese"] == 34, "HashMap should support case-insensitive string policies");
+	ci.Item["mr_cheese"] = 35;
+	assert(ci.Length == 1 && ci.Item["MR_CHEESE"] == 35, "HashMap case-insensitive updates should not duplicate keys");
+	int found = 0;
+	assert(ci.tryGet("Mr_Cheese", out found) && found == 35, "HashMap tryGet should return case-insensitive values");
+	numbers.clear(true);
+	int absent = 1;
+	assert(numbers.Length == 0 && numbers.Capacity == 0 && !numbers.containsKey(absent), "HashMap clear(true) should release capacity");
+
+	auto set = within (allocator) new HashSet<int>(int.HASH_POLICY) finally delete;
+	assert(set.Length == 0 && set.Capacity == 0, "HashSet should start empty");
+	assert(set.add(10) && !set.add(10), "HashSet add should reject duplicates");
+	assert(set.contains(10) && !set.contains(11) && set.Length == 1, "HashSet should find added values only");
+	assert(set.remove(10) && !set.remove(10) && !set.contains(10), "HashSet remove should report removed values once");
+	for (int k = 0; k < 40; k++)
+		assert(set.add(k), "HashSet should add values across growth");
+	for (int m = 0; m < 40; m++)
+		assert(set.contains(m), "HashSet should preserve values across growth");
+	assert(set.Length == 40 && set.Capacity >= 40, "HashSet should grow capacity for many entries");
+	assert(set.remove(5) && !set.contains(5), "HashSet should remove grown entries");
+	assert(set.add(105) && set.contains(105), "HashSet should reuse removed entry storage");
+	int[] keys = set.copyArray();
+	assert(keys.length == set.Length, "HashSet copyArray should copy all set entries");
+	within (allocator) delete keys;
+	set.clear(true);
+	assert(set.Length == 0 && set.Capacity == 0 && !set.contains(1), "HashSet clear(true) should release capacity");
+	auto strings = within (allocator) new HashSet<string>(string.CASE_INSENSITIVE_HASH_POLICY) finally delete;
+	assert(strings.add("Alpha") && !strings.add("alpha"), "HashSet should support case-insensitive string policy");
+	assert(strings.contains("ALPHA") && !strings.contains("Beta"), "HashSet case-insensitive contains should respect policy");
+
+	auto ints = within (allocator) new List<int>() finally delete;
+	ints.add(3);
+	ints.add(1);
+	ints.add(2, 1);
+	assert(ints.Length == 3 && ints.Capacity >= 8, "List should insert values and grow initial capacity");
+	assert(ints.Item[0] == 3 && ints.Item[1] == 2 && ints.Item[2] == 1, "List indexed access should reflect insertion order");
+	ints.setItem(0, 5);
+	ints.Item[1] = 4;
+	assert(ints.getItem(0) == 5 && ints.Item[1] == 4, "List get/set helpers and properties should update values");
+	assert(ints.removeRange(1..2) == 1 && ints.Length == 2, "List removeRange should remove requested count");
+	assert(ints.remove(8) == 0 && ints.remove(^1) == 1 && ints.Length == 1, "List remove should support missing and from-end indexes");
+	ints.clear(true);
+	assert(ints.Length == 0 && ints.Capacity == 0, "List clear(true) should release capacity");
+	for (int n = 0; n < 12; n++)
+		ints.add(n);
+	assert(ints.Capacity > 8 && ints.Item[0] == 0 && ints.Item[11] == 11, "List should preserve values across growth");
+
+	auto words = within (allocator) new List<string>() finally delete;
+	words.add("one");
+	words.add("two");
+	assert(words.Length == 2 && words.Item[0].Length == 3, "List<string> should retain string values");
+	auto copy = words.copyList() finally delete;
+	assert(copy != null && copy.Length == 2 && copy.Item[1].Length == 3, "List copyList should copy string entries");
+	words.setItem(1, "changed");
+	assert(copy.Item[1].Length == 3, "List copyList should not alias element slots");
+
+	int[] inserted = [20, 21, 22];
+	ints.clear();
+	ints.add(10);
+	ints.add(30);
+	ints.addRange(inserted, 1);
+	assert(ints.Length == 5, "List addRange should insert all values");
+	assert(ints.Item[0] == 10 && ints.Item[1] == 20 && ints.Item[3] == 22 && ints.Item[4] == 30, "List addRange should preserve surrounding values");
+	int[] copied = ints.copyArray(1..4);
+	assert(copied.length == 3 && copied.elements[0] == 20 && copied.elements[2] == 22, "List copyArray(range) should copy selected range");
+	within (allocator) delete copied;
+	int[] dest = [0, 0, 0, 0, 0];
+	ints.copyTo(dest, 1, 1..4);
+	assert(dest.length == 5 && dest.elements[0] == 0 && dest.elements[1] == 20 && dest.elements[3] == 22 && dest.elements[4] == 0, "List copyTo should copy selected range to destination offset");
+	int* address = ints.getAddressOf(1);
+	assert(address != null && *address == 20, "List getAddressOf should return an element pointer");
+	ints.sort(compareCollectionTestInt);
+	assert(ints.binarySearch(22, compareCollectionTestInt) == 3, "List binarySearch should find sorted values");
+	assert(ints.binarySearch(99, compareCollectionTestInt) == -1, "List binarySearch should report missing values");
+	assert(ints.binarySearch(22, compareCollectionTestInt, 1..) == 3, "List binarySearch should support from-start ranges");
+	assert(ints.binarySearch(22, compareCollectionTestInt, 1..5) == 3, "List binarySearch should support bounded ranges");
+	int[] taken = ints.takeBuffer();
+	assert(taken.length == 5 && taken.elements[4] == 30, "List takeBuffer should return backing storage");
+	assert(ints.Length == 0 && ints.Capacity == 0, "List takeBuffer should clear the list");
+	within (allocator) delete taken;
+	string[] moreWords = ["red", "blue"];
+	words.addRange(moreWords);
+	assert(words.Length == 4 && words.Item[2].Length == 3 && words.Item[3].Length == 4, "List addRange should append string arrays");
+	string[] wordBuffer = words.takeBuffer();
+	assert(wordBuffer.length == 4 && wordBuffer.elements[0].Length == 3 && wordBuffer.elements[3].Length == 4, "List takeBuffer should work for string arrays");
+	assert(words.Length == 0 && words.Capacity == 0, "List takeBuffer should clear string lists");
+	within (allocator) delete wordBuffer;
+
+	auto lines = within (allocator) new List<const char[]>() finally delete;
+	const char[] alpha = "one";
+	const char[] beta = "two";
+	lines.add(alpha);
+	lines.add(beta);
+	assert(lengthOfCollectionTestLine(lines.getItem(0)) == 3, "List<const char[]> should preserve array length through getItem");
+	auto lineItem = lines.Item[1];
+	assert(lineItem.length == 3 && lineItem[0] == 't' && lengthOfCollectionTestLine(lineItem.trim()) == 3, "List<const char[]> should support property access and string helpers");
+	string gamma = "three";
+	lines.add(gamma);
+	auto lineItem2 = lines.Item[2];
+	assert(lineItem2.length == 5 && lineItem2[0] == 't', "List<const char[]> should accept string values");
+}
+
+int compareCollectionTestInt(in int left, in int right)
+{
+	if (left < right)
+		return -1;
+	if (left > right)
+		return 1;
+	return 0;
+}
+
+nuint lengthOfCollectionTestLine(const char[] value)
+{
+	return value.length;
+}

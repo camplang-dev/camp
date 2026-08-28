@@ -16,22 +16,22 @@ Status values:
 
 | Old lane | Old test | Classification | New location | Status | Notes |
 | --- | --- | --- | --- | --- | --- |
-| `StdRun` | `std_array_functions` | stdlib-behavior | `dev/lib/std/tests/std_array_tests.camp` | pending | Preserve copy, clear, reverse, sort, binary search, copied arrays, and overlapping copy behavior. |
-| `StdRun` | `string_functions` | stdlib-behavior | `dev/lib/std/tests/std_string_tests.camp` | pending | Preserve UTF-8 search, compare, trim, case conversion, join, embedded-null, and explicit prepared buffer behavior. |
-| `StdRun` | `wstring_functions` | stdlib-behavior | `dev/lib/std/tests/std_wstring_tests.camp` | pending | Preserve wide search, compare, trim, case conversion, join, and UTF-16 behavior. |
-| `StdRun` | `astring_functions` | stdlib-behavior | `dev/lib/std/tests/std_astring_tests.camp` | pending | Preserve ANSI search, compare, trim, case conversion, and join behavior. |
-| `StdRun` | `strconv_functions` | stdlib-behavior | `dev/lib/std/tests/std_strconv_tests.camp` | pending | Preserve UTF conversion lengths/content and ANSI fallback behavior. |
-| `StdRun` | `parse_functions` | stdlib-behavior | `dev/lib/std/tests/std_parse_tests.camp` | pending | Preserve signed, unsigned, long, ulong, and double parse success/failure behavior. |
-| `StdRun` | `hashcode_functions` | stdlib-behavior | `dev/lib/std/tests/std_hash_tests.camp` | pending | Preserve primitive, string, case-insensitive, equality, and pointer hash policy behavior. |
-| `StdRun` | `character_primitive_helpers` | stdlib-behavior | `dev/lib/std/tests/std_character_tests.camp` | pending | Preserve char-family MIN/MAX, comparisons, hash/equality, and toString behavior. |
-| `StdRun` | `math_double_min_max` | stdlib-behavior | `dev/lib/std/tests/std_numerics_tests.camp` | pending | Preserve numeric constants and min/max helpers. |
-| `StdRun` | `hashmap_collections` | stdlib-behavior | `dev/lib/std/tests/std_collections_tests.camp` | pending | Preserve HashMap insert/update/remove/clear/growth/capacity/string hash policy/tryGet behavior. |
-| `StdRun` | `hashset_collections` | stdlib-behavior | `dev/lib/std/tests/std_collections_tests.camp` | pending | Preserve HashSet add/remove/contains/clear/growth behavior. |
-| `StdRun` | `list_collections` | stdlib-behavior | `dev/lib/std/tests/std_collections_tests.camp` | pending | Preserve List add/insert/remove/index/copy/trim/growth behavior. |
-| `StdRun` | `list_char_writer` | stdlib-behavior | `dev/lib/std/tests/std_stream_tests.camp` | pending | Preserve List<char> CharWriter integration. |
-| `StdRun` | `retained_container_allocators` | stdlib-behavior | `dev/lib/std/tests/std_collections_tests.camp` | pending | Preserve retained allocator lifecycle behavior for List, HashMap, and HashSet. |
-| `StdRun` | `reader_helpers` | stdlib-behavior | `dev/lib/std/tests/std_stream_tests.camp` | pending | Preserve reader helpers, line reads, and read-to-end behavior. |
-| `StdRun` | `stream_adapters` | stdlib-behavior | `dev/lib/std/tests/std_stream_tests.camp` | pending | Preserve byte/char/wchar/achar reader/writer adapter behavior. |
+| `StdRun` | `std_array_functions` | stdlib-behavior | `dev/lib/std/tests/std_array_tests.camp` | replaced | Dense replacement passed; preserves copy, clear, reverse, sort, binary search, copied arrays, and overlapping copy behavior. |
+| `StdRun` | `string_functions` | stdlib-behavior | `dev/lib/std/tests/std_string_tests.camp` | replaced | Dense replacement passed; preserves UTF-8 search, compare, trim, case conversion, join, embedded-null, and explicit prepared buffer behavior. |
+| `StdRun` | `wstring_functions` | stdlib-behavior | `dev/lib/std/tests/std_wstring_tests.camp` | replaced | Dense replacement passed; preserves wide search, compare, trim, case conversion, join, and UTF-16 behavior. |
+| `StdRun` | `astring_functions` | stdlib-behavior | `dev/lib/std/tests/std_astring_tests.camp` | replaced | Dense replacement passed; preserves ANSI search, compare, trim, case conversion, and join behavior. |
+| `StdRun` | `strconv_functions` | stdlib-behavior | `dev/lib/std/tests/std_strconv_tests.camp` | replaced | Dense replacement passed; preserves UTF conversion lengths/content and ANSI fallback behavior. |
+| `StdRun` | `parse_functions` | stdlib-behavior | `dev/lib/std/tests/std_parse_tests.camp` | replaced | Dense replacement passed; preserves signed, unsigned, long, ulong, and double parse success/failure behavior. |
+| `StdRun` | `hashcode_functions` | stdlib-behavior | `dev/lib/std/tests/std_hash_tests.camp` | replaced | Dense replacement passed; preserves primitive, string, case-insensitive, equality, and pointer hash policy behavior. |
+| `StdRun` | `character_primitive_helpers` | stdlib-behavior | `dev/lib/std/tests/std_character_tests.camp` | replaced | Dense replacement passed; preserves char-family MIN/MAX, comparisons, hash/equality, and toString behavior. |
+| `StdRun` | `math_double_min_max` | stdlib-behavior | `dev/lib/std/tests/std_numerics_tests.camp` | replaced | Dense replacement passed; preserves numeric constants and min/max helpers. |
+| `StdRun` | `hashmap_collections` | stdlib-behavior | `dev/lib/std/tests/std_collections_tests.camp` | replaced | Dense replacement passed; preserves HashMap insert/update/remove/clear/growth/capacity/string hash policy/tryGet behavior. |
+| `StdRun` | `hashset_collections` | stdlib-behavior | `dev/lib/std/tests/std_collections_tests.camp` | replaced | Dense replacement passed; preserves HashSet add/remove/contains/clear/growth behavior. |
+| `StdRun` | `list_collections` | stdlib-behavior | `dev/lib/std/tests/std_collections_tests.camp` | replaced | Dense replacement passed; preserves List add/insert/remove/index/copy/trim/growth behavior. |
+| `StdRun` | `list_char_writer` | stdlib-behavior | `dev/lib/std/tests/std_stream_tests.camp` | replaced | Dense replacement passed; preserves List<char> CharWriter integration. |
+| `StdRun` | `retained_container_allocators` | stdlib-behavior | `dev/lib/std/tests/std_collections_tests.camp` | replaced | Dense replacement passed; preserves retained allocator lifecycle behavior for List, HashMap, and HashSet. |
+| `StdRun` | `reader_helpers` | stdlib-behavior | `dev/lib/std/tests/std_stream_tests.camp` | legacy-active | Uses FileHandle/PAL behavior; migrate with OS/PAL stdlib tests in Stage 4. |
+| `StdRun` | `stream_adapters` | stdlib-behavior | `dev/lib/std/tests/std_stream_tests.camp` | legacy-active | Existing black-box test remains active; same-module adapter lowering is not claimed as replaced in Stage 3. |
 | `StdRun` | `console_streams` | stdlib-behavior | `dev/lib/std/tests/std_console_tests.camp` | pending | Preserve Console stream adapter smoke behavior. |
 | `StdRun` | `console_trimmed_line` | stdlib-behavior | `dev/lib/std/tests/std_console_tests.camp` | pending | Preserve trimmed console line behavior without requiring interactive terminal input. |
 | `StdRun` | `environment_filesystem_runtime` | stdlib-behavior | `dev/lib/std/tests/std_io_tests.camp` | pending | Preserve current directory, executable path, environment variables, directory lifecycle, copy/move/delete/size behavior. |

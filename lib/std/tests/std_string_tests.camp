@@ -1,0 +1,56 @@
+namespace Std;
+
+@test
+void utf8StringSearchTrimCaseJoinAndEmbeddedNulls(thrown Assertion* assertion)
+{
+	string text = "  Hello, hello!  ";
+	const char[] span = text[..];
+
+	assert(text.indexOf("Hello") == 2, "indexOf should find UTF-8 string prefixes inside a string");
+	const char[] helloLower = "hello";
+	assert(text.indexOf(helloLower, true) == 2, "indexOf should support case-insensitive UTF-8 search");
+	assert(span.lastIndexOf("lo") == 12, "lastIndexOf should find UTF-8 slices");
+	assert(span.indexOf((uchar)'H') == 2, "indexOf should find UTF-8 code points");
+	assert(text.indexOf((uchar)'e') == 3, "string indexOf should find UTF-8 code points");
+	assert(text[..].indexOf((uchar)'l') == 4, "slice indexOf should find UTF-8 code points");
+	assert(span.lastIndexOf((uchar)'o') == 13, "lastIndexOf should find UTF-8 code points");
+
+	uchar[] any = [(uchar)'x', (uchar)'H'];
+	assert(span.indexOfAny(any) == 2, "indexOfAny should find any UTF-8 code point");
+	uchar[] anyLast = [(uchar)'!', (uchar)'x'];
+	assert(span.lastIndexOfAny(anyLast) == 14, "lastIndexOfAny should find any UTF-8 code point from the end");
+
+	assert(text.startsWith("  He"), "startsWith should accept string prefixes");
+	assert(span.startsWith((uchar)' '), "startsWith should accept code point prefixes");
+	assert(span.endsWith("!  "), "endsWith should accept string suffixes");
+	assert(span.endsWith((uchar)' '), "endsWith should accept code point suffixes");
+	assert(text.compareTo("  Hello, hello!  ") == 0, "compareTo should compare equal UTF-8 strings");
+
+	string accent = "caf\xC3\xA9";
+	assert(accent[..].countUChars() == 4, "countUChars should count UTF-8 code points");
+	assert(accent[..].getUChar(3) == (uchar)233, "getUChar should decode UTF-8 code points");
+	assert(accent[..].getUCharUnits(3) == 2, "getUCharUnits should report UTF-8 unit count");
+
+	assert(span.trim().length == 13, "trim should remove leading and trailing whitespace");
+	assert(span.trimStart().length == 15, "trimStart should remove leading whitespace");
+	assert(span.trimEnd().length == 15, "trimEnd should remove trailing whitespace");
+
+	string upper = span.toUppercase();
+	string lower = span.toLowercase();
+	string[] words = ["one", "two", "three"];
+	string concatenated = words.join();
+	string joined = words.join(",");
+
+	fixed char[17] explicitUpper = default;
+	assert(span.toUppercase(buffer: explicitUpper) == 17, "toUppercase should return required length for explicit buffer");
+	assert(explicitUpper[..].compareTo("  HELLO, HELLO!  ") == 0, "toUppercase should fill explicit buffers");
+
+	assert(upper[..].compareTo("  HELLO, HELLO!  ") == 0, "toUppercase should allocate uppercase text");
+	assert(lower[..].compareTo("  hello, hello!  ") == 0, "toLowercase should allocate lowercase text");
+	assert(concatenated[..].compareTo("onetwothree") == 0, "join should concatenate without separators by default");
+	assert(joined[..].compareTo("one,two,three") == 0, "join should include explicit separators");
+
+	const char[] embeddedNull = ['a', 'b', '\0', 'x', 'y'];
+	assert(embeddedNull.compareTo("ab") == 0, "compareTo should stop at embedded null");
+	assert(embeddedNull.countUChars() == 2, "countUChars should stop at embedded null");
+}

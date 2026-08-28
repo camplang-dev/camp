@@ -1,0 +1,48 @@
+namespace Std;
+
+@test
+void arrayHelpersCopySortSearchAndOverlap(within Allocator* allocator, thrown Assertion* assertion)
+{
+	int[] source = [3, 1, 2, 4];
+	int[] destination = [0, 0, 0, 0];
+
+	source.copyTo<int>(destination);
+	assert(destination[0] == 3 && destination[1] == 1 && destination[2] == 2 && destination[3] == 4, "copyTo should copy all elements");
+
+	destination.reverse<int>();
+	assert(destination[0] == 4 && destination[1] == 2 && destination[2] == 1 && destination[3] == 3, "reverse should reverse array order");
+
+	destination.sort<int>(compareArrayTestInt);
+	assert(destination[0] == 1 && destination[1] == 2 && destination[2] == 3 && destination[3] == 4, "sort should order elements using comparison callback");
+
+	assert(destination.binarySearch<int>(3, compareArrayTestInt) == 2, "binarySearch should find existing values");
+	assert(destination.binarySearch<int>(9, compareArrayTestInt) == -1, "binarySearch should report missing values");
+
+	int[] duplicated = destination.copyArray<int>();
+	assert(duplicated.length == 4, "copyArray should preserve array length");
+	assert(duplicated[0] == 1, "copyArray should copy the first value");
+	assert(duplicated[3] == 4, "copyArray should copy the last value");
+	delete duplicated;
+
+	source.clear<int>();
+	assert(source[0] == 0 && source[1] == 0 && source[2] == 0 && source[3] == 0, "clear should reset every array slot");
+
+	source.copyFrom<int>(destination);
+	assert(source[0] == 1 && source[1] == 2 && source[2] == 3 && source[3] == 4, "copyFrom should copy source values");
+
+	int[] overlap = [1, 2, 3, 4, 5];
+	overlap[..4].copyTo<int>(overlap[1..]);
+	assert(overlap[0] == 1 && overlap[1] == 1 && overlap[2] == 2 && overlap[3] == 3 && overlap[4] == 4, "copyTo should handle overlapping forward copy");
+
+	overlap[1..].copyTo<int>(overlap[..4]);
+	assert(overlap[0] == 1 && overlap[1] == 2 && overlap[2] == 3 && overlap[3] == 4 && overlap[4] == 4, "copyTo should handle overlapping backward copy");
+}
+
+int compareArrayTestInt(in int left, in int right)
+{
+	if (left < right)
+		return -1;
+	if (left > right)
+		return 1;
+	return 0;
+}

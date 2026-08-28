@@ -1,0 +1,62 @@
+namespace Std;
+
+@test
+void ansiStringSearchTrimCaseJoinAndEmbeddedNulls(thrown Assertion* assertion)
+{
+	astring text = "  Alpha, alpha!  ";
+	const achar[] span = text[..];
+	const achar[] alpha = "Alpha";
+	const achar[] alphaLower = "alpha";
+	const achar[] ha = "ha";
+	const achar[] prefix = "  Al";
+	const achar[] suffix = "!  ";
+	const achar[] original = "  Alpha, alpha!  ";
+	const achar[] upperText = "  ALPHA, ALPHA!  ";
+	const achar[] lowerText = "  alpha, alpha!  ";
+	const achar[] joinedText = "one,two,three";
+	const achar[] concatenatedText = "onetwothree";
+	const achar[] comma = ",";
+
+	assert(text.indexOf(alpha) == 2, "astring indexOf should find ANSI strings");
+	assert(text.indexOf(alphaLower, true) == 2, "astring indexOf should support case-insensitive search");
+	assert(span.lastIndexOf(ha) == 12, "astring lastIndexOf should find ANSI slices");
+	assert(span.indexOf((achar)'A') == 2, "astring indexOf should find characters");
+	assert(text.indexOf((achar)'p') == 4, "astring indexOf should find characters on strings");
+	assert(span.lastIndexOf((achar)'a') == 13, "astring lastIndexOf should find characters");
+
+	achar[] any = [(achar)'x', (achar)'A'];
+	assert(span.indexOfAny(any) == 2, "astring indexOfAny should find characters");
+	achar[] anyLast = [(achar)'!', (achar)'x'];
+	assert(span.lastIndexOfAny(anyLast) == 14, "astring lastIndexOfAny should find characters from the end");
+
+	assert(text.startsWith(prefix), "astring startsWith should accept ANSI prefixes");
+	assert(span.startsWith((achar)' '), "astring startsWith should accept character prefixes");
+	assert(span.endsWith(suffix), "astring endsWith should accept ANSI suffixes");
+	assert(span.endsWith((achar)' '), "astring endsWith should accept character suffixes");
+	assert(text.compareTo(original) == 0, "astring compareTo should compare equal strings");
+
+	assert(span.trim().length == 13, "astring trim should remove leading and trailing whitespace");
+	assert(span.trimStart().length == 15, "astring trimStart should remove leading whitespace");
+	assert(span.trimEnd().length == 15, "astring trimEnd should remove trailing whitespace");
+
+	astring copied = span.toAString();
+	astring upper = span.toUppercase();
+	astring lower = span.toLowercase();
+	astring[] words = ["one", "two", "three"];
+	astring concatenated = words.join();
+	astring joined = words.join(comma);
+
+	fixed achar[17] explicitUpper = default;
+	assert(span.toUppercase(buffer: explicitUpper) == 17, "astring toUppercase should return required length for explicit buffers");
+	assert(explicitUpper[..].compareTo(upperText) == 0, "astring toUppercase should fill explicit buffers");
+
+	assert(copied[..].compareTo(original) == 0, "toAString should copy ANSI text");
+	assert(upper[..].compareTo(upperText) == 0, "astring toUppercase should allocate uppercase text");
+	assert(lower[..].compareTo(lowerText) == 0, "astring toLowercase should allocate lowercase text");
+	assert(concatenated[..].compareTo(concatenatedText) == 0, "astring join should concatenate without separators by default");
+	assert(joined[..].compareTo(joinedText) == 0, "astring join should include explicit separators");
+
+	const achar[] embeddedNull = [(achar)'a', (achar)'b', 0, (achar)'x', (achar)'y'];
+	const achar[] ab = "ab";
+	assert(embeddedNull.compareTo(ab) == 0, "astring compareTo should stop at embedded null");
+}

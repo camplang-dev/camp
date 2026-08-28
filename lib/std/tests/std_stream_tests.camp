@@ -1,0 +1,27 @@
+namespace Std;
+
+@test
+void listCharWriterComposesTextNumbersAndRawBuffers(within Allocator* allocator, thrown Assertion* assertion)
+{
+	auto chars = within (allocator) new List<char>() finally delete;
+	CharWriter writer = chars.CharWriter;
+	writer.writeCharArray("abc");
+	assert(chars.Length == 3 && chars.Item[0] == 'a' && chars.Item[1] == 'b' && chars.Item[2] == 'c', "List<char> CharWriter should append char arrays");
+	writer.writeChar('d');
+	assert(chars.Length == 4 && chars.Item[3] == 'd', "List<char> CharWriter should append single chars");
+	char[] more = ['e', 'f', 'g'];
+	nuint written = 0;
+	assert(writer(&written, more.elements, more.length), "List<char> CharWriter callable should accept raw buffers");
+	assert(written == 3, "List<char> CharWriter callable should report written length");
+	assert(chars.Length == 7 && chars.Item[4] == 'e' && chars.Item[6] == 'g', "List<char> CharWriter callable should append raw buffers");
+
+	auto output = within (allocator) new List<char>() finally delete;
+	auto streamWriter = output.CharWriter;
+	streamWriter.write("The answer is: ");
+	streamWriter.write(42);
+	streamWriter.newLine();
+	streamWriter.writeLine("But you knew that, right?");
+	assert(output.Length == 44, "CharWriter helpers should produce the expected number of characters");
+	assert(output.Item[0] == 'T' && output.Item[15] == '4' && output.Item[16] == '2' && output.Item[17] == '\n', "CharWriter helpers should compose text, numbers, and explicit newlines");
+	assert(output.Item[18] == 'B' && output.Item[42] == '?' && output.Item[43] == '\n', "CharWriter writeLine should append the final newline");
+}

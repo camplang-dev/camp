@@ -1,0 +1,33 @@
+namespace Std;
+
+@test
+void primitiveToStringReportsLengthsAndFillsPartialBuffers(thrown Assertion* assertion)
+{
+	char[] empty = default;
+	assert('x'.toString(empty) == 1, "char toString should report required length");
+	assert(true.toString(empty) == 4, "true toString should report required length");
+	assert(false.toString(empty) == 5, "false toString should report required length");
+	assert(12345.toString(empty) == 5, "positive int toString should report required length");
+	assert((-12).toString(empty) == 3, "negative int toString should report required length");
+
+	fixed char[2] shortNumber = default;
+	char[] shortNumberSpan = shortNumber;
+	assert(12345.toString(shortNumberSpan) == 5, "number toString should report full required length for short buffers");
+	assert(shortNumber[0] == '1' && shortNumber[1] == '2', "number toString should fill partial buffers");
+
+	fixed char[3] shortText = default;
+	char[] shortTextSpan = shortText;
+	assert("abcdef".toString(shortTextSpan) == 6, "string toString should report full required length for short buffers");
+	assert(shortText[0] == 'a' && shortText[1] == 'b' && shortText[2] == 'c', "string toString should fill partial buffers");
+
+	assert(123.toString(empty) == 3, "int toString should report length with explicit empty buffer");
+	assert("abc".toString(empty) == 3, "string toString should report length with explicit empty buffer");
+
+	int seven = 7;
+	assert(seven.toString(buffer: default) == 1, "named default buffer should request required length");
+	string sevenText = seven.toString();
+	assert(sevenText.compareTo("7") == 0, "int toString should allocate text when buffer is omitted");
+
+	long min = -9223372036854775807 - 1;
+	assert(min.toString(empty) == 20, "long min toString should report full required length");
+}
