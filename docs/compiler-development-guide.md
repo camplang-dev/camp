@@ -257,6 +257,28 @@ Golden tests live under `tests`. Each `.camp` file has a committed expected
 output. Test runs write actual files first. When compiler output intentionally
 changes, inspect actual output and manually update expected files.
 
+## Standard Library Camp Tests
+
+Standard library behavior tests live under `lib/std/tests` and are compiled
+with the standard library itself. Run them through the stdlib build with
+`--nostdlib`:
+
+```sh
+campc test lib/std/std.campbuild --nostdlib
+campc cover lib/std/std.campbuild --nostdlib
+```
+
+The xUnit runner projects discovered stdlib `@test` functions as individual
+test cases while executing the native stdlib harness once per execution key.
+Use these tests for stdlib API behavior. Keep compiler diagnostics, lowering,
+C emission, API header, metadata, package, LSP, DAP, syntax-highlighting, and
+native-toolchain behavior in their existing compiler lanes.
+
+When migrating old `StdRun` behavior, update `tests/stdlib-camp-test-migration.md`
+before disabling or skipping any legacy case. Do not disable a legacy stdlib
+runtime case unless the ledger identifies replacement coverage or a deliberate
+reason to keep/skip it.
+
 ## Semantic Unit Tests
 
 Use semantic unit tests when the behavior is a small compiler fact such as a

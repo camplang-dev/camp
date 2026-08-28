@@ -86,6 +86,27 @@ changes or before larger commits.
 runtime case. If the std cache appears stale, deleting that directory forces a
 clean rebuild.
 
+## Standard Library Camp Tests
+
+Standard library API behavior is also tested in Camp source under
+`lib/std/tests/`. These tests compile with the standard library itself and run
+with `--nostdlib`:
+
+```sh
+campc test lib/std/std.campbuild --nostdlib
+campc cover lib/std/std.campbuild --nostdlib
+```
+
+The xUnit runner discovers these `@test` functions and reports them as
+individual xUnit cases. Prefer this surface for stdlib behavior. Keep compiler
+shape coverage, such as diagnostics, lowering, C output, API headers, metadata,
+tooling, package behavior, and native toolchain behavior, in the existing
+compiler lanes.
+
+The migration ledger is `tests/stdlib-camp-test-migration.md`. Update it before
+marking old `StdRun` stdlib behavior as replaced, skipped, or intentionally
+kept active.
+
 Full and targeted `vstest` runs write a timing report for golden cases and
 command-line subprocesses to `tmp/camp-test-timing.txt`. Set
 `CAMP_TEST_TIMING_TOP=<count>` to change the number of entries, set

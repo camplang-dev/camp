@@ -1113,6 +1113,14 @@ can exercise internals. External test modules are separate projects that
 reference the production module as a shared library and test only its exported
 API.
 
+Standard library behavior tests live with the standard library under
+`lib/std/tests/` and run against the stdlib module itself with `--nostdlib`.
+When adding or changing standard library behavior, prefer a dense stdlib
+`@test` that checks a coherent API area. Keep compiler-shape behavior, such as
+diagnostics, lowering, C emission, metadata, API headers, command behavior, and
+tooling behavior, in the existing compiler test lanes instead of folding it into
+stdlib tests.
+
 ## Interop
 
 Interop declarations should be narrow and explicit. Keep native spellings,
