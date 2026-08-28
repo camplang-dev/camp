@@ -1,0 +1,9 @@
+namespace Std;
+
+@test
+void consoleStreamWritersAreAvailable(thrown Assertion* assertion)
+{
+	CharWriter writer = Console.Writer;
+	CharWriter error = Console.Error;
+	assert(writer.call != default && error.call != default, "Console should expose stdout and stderr CharWriter adapters");
+}

@@ -1,0 +1,48 @@
+namespace Std;
+
+@test
+void pathLexicalHelpersMatchTargetConventions(thrown Assertion* assertion)
+{
+	if (configured(OS_WIN32))
+	{
+		assert(Path.getDirectorySeparator() == '\\', "Windows directory separator should be backslash");
+		assert(Path.getPathSeparator() == ';', "Windows path-list separator should be semicolon");
+		assert(Path.isDirectorySeparator('\\') && Path.isDirectorySeparator('/'), "Windows should accept both directory separators");
+		assert(!Path.isRooted("") && !Path.isRooted("foo\\bar"), "Windows relative paths should not be rooted");
+		assert(Path.isRooted("\\foo") && Path.isRooted("/foo") && Path.isRooted("C:foo"), "Windows rooted paths should include drive-relative and root-relative paths");
+		assert(!Path.isFullyQualified("\\foo") && !Path.isFullyQualified("C:foo"), "Windows rooted paths are not always fully qualified");
+		assert(Path.isFullyQualified("C:\\foo") && Path.isFullyQualified("C:/foo"), "Windows drive-rooted paths should be fully qualified");
+		assert(Path.isFullyQualified("\\\\server\\share") && Path.isFullyQualified("//server/share"), "Windows UNC roots should be fully qualified");
+		assert(Path.fileNameSpan("C:\\dir\\file.txt").compareTo("file.txt") == 0, "Windows fileNameSpan should return final segment");
+		assert(Path.fileNameSpan("C:\\dir\\").compareTo("") == 0, "Windows fileNameSpan should return empty for trailing separator");
+		assert(Path.directoryNameSpan("C:\\file.txt").compareTo("C:\\") == 0, "Windows directoryNameSpan should preserve root");
+		assert(Path.directoryNameSpan("C:\\dir\\file.txt").compareTo("C:\\dir") == 0, "Windows directoryNameSpan should return parent directory");
+		assert(Path.directoryNameSpan("C:foo").compareTo("C:") == 0, "Windows drive-relative path should return drive prefix");
+	}
+	else
+	{
+		assert(Path.getDirectorySeparator() == '/', "POSIX directory separator should be slash");
+		assert(Path.getPathSeparator() == ':', "POSIX path-list separator should be colon");
+		assert(Path.isDirectorySeparator('/') && !Path.isDirectorySeparator('\\'), "POSIX should only accept slash as a directory separator");
+		assert(!Path.isRooted("") && !Path.isRooted(".") && !Path.isRooted("foo/bar"), "POSIX relative paths should not be rooted");
+		assert(Path.isRooted("/foo") && Path.isRooted("//server/share"), "POSIX absolute paths should be rooted");
+		assert(!Path.isFullyQualified("foo/bar") && Path.isFullyQualified("/foo") && Path.isFullyQualified("//server/share"), "POSIX fully-qualified paths should start with slash");
+		assert(Path.fileNameSpan("dir/file.txt").compareTo("file.txt") == 0, "POSIX fileNameSpan should return final segment");
+		assert(Path.fileNameSpan("dir/").compareTo("") == 0, "POSIX fileNameSpan should return empty for trailing separator");
+		assert(Path.directoryNameSpan("/file.txt").compareTo("/") == 0, "POSIX directoryNameSpan should preserve root");
+		assert(Path.directoryNameSpan("/dir/file.txt").compareTo("/dir") == 0, "POSIX directoryNameSpan should return parent directory");
+	}
+
+	assert(Path.fileNameSpan("file.txt").compareTo("file.txt") == 0, "fileNameSpan should return standalone file names");
+	assert(Path.directoryNameSpan("file.txt").compareTo("") == 0, "directoryNameSpan should return empty for standalone files");
+	assert(Path.directoryNameSpan("dir/file.txt").compareTo("dir") == 0, "directoryNameSpan should return relative parent directory");
+	assert(Path.directoryNameSpan("dir/").compareTo("dir") == 0, "directoryNameSpan should trim trailing separator");
+	assert(Path.extensionSpan("file").compareTo("") == 0, "extensionSpan should return empty for no extension");
+	assert(Path.extensionSpan("file.txt").compareTo(".txt") == 0, "extensionSpan should include the leading dot");
+	assert(Path.extensionSpan("archive.tar.gz").compareTo(".gz") == 0, "extensionSpan should return the final extension");
+	assert(Path.extensionSpan(".bashrc").compareTo("") == 0, "extensionSpan should ignore a single leading dot");
+	assert(Path.extensionSpan(".profile.old").compareTo(".old") == 0, "extensionSpan should allow extensions after a leading-dot name");
+	assert(Path.extensionSpan("....jpg").compareTo("") == 0, "extensionSpan should ignore all-dot prefixes");
+	assert(Path.extensionSpan("file.").compareTo(".") == 0, "extensionSpan should preserve a trailing dot extension");
+	assert(Path.extensionSpan("dir.name/file.c").compareTo(".c") == 0, "extensionSpan should only inspect the final path segment");
+}

@@ -1,0 +1,93 @@
+namespace Std;
+
+@test
+void dateTimeParsingFormattingAndClockHelpers(thrown Assertion* assertion)
+{
+	Date leap = { 2024, 2, 29 };
+	assert(leap.year == 2024 && leap.month == 2 && leap.day == 29, "Date fields should preserve initializer values");
+	assert(leap.isValid() && leap.LeapYear && leap.DaysInMonth == 29, "Date should validate leap-day values");
+	assert(leap.Weekday == THURSDAY, "Date should compute weekdays");
+	Date nextDay = leap.addDays(1);
+	assert(nextDay.toString().compareTo("2024-03-01") == 0, "Date.addDays should cross month boundaries");
+	assert(leap.daysUntil(nextDay) == 1, "Date.daysUntil should report day differences");
+	Date invalidDate = { 2023, 2, 29 };
+	assert(!invalidDate.isValid(), "Date should reject invalid leap-day values");
+	assert(leap.toString().compareTo("2024-02-29") == 0, "Date.toString should format ISO dates");
+	fixed char[4] shortDateBuffer = default;
+	assert(leap.toString(buffer: shortDateBuffer) == 10, "Date.toString should report required length for short buffers");
+	assert(shortDateBuffer[0] == '2' && shortDateBuffer[1] == '0' && shortDateBuffer[2] == '2' && shortDateBuffer[3] == '4', "Date.toString should fill partial buffers");
+
+	TimeOfDay time = { 14, 5, 30, 128 };
+	assert(time.hour == 14 && time.minute == 5 && time.second == 30, "TimeOfDay fields should preserve initializer values");
+	assert(time.isValid() && time.Ms == 500, "TimeOfDay should validate and decode fraction values");
+	assert(time.SinceMidnight.Ms == 50730500, "TimeOfDay should compute duration since midnight");
+	assert(time.toString().compareTo("14:05:30.500") == 0, "TimeOfDay.toString should format fractional seconds");
+
+	UtcOffset offset = UtcOffset.fromHours((short)-4);
+	assert(offset.isValid() && offset.Hours == -4 && offset.Minutes == 0, "UtcOffset should build whole-hour offsets");
+	assert(offset.toString().compareTo("-04:00") == 0, "UtcOffset.toString should format negative offsets");
+	fixed char[3] shortOffsetBuffer = default;
+	assert(offset.toString(buffer: shortOffsetBuffer) == 6, "UtcOffset.toString should report required length for short buffers");
+	assert(shortOffsetBuffer[0] == '-' && shortOffsetBuffer[1] == '0' && shortOffsetBuffer[2] == '4', "UtcOffset.toString should fill partial buffers");
+	assert(UtcOffset.fromHours((short)9, (ushort)30).toString().compareTo("+09:30") == 0, "UtcOffset should format half-hour offsets");
+	assert(!UtcOffset.INVALID.isValid(), "UtcOffset.INVALID should not validate");
+	assert(UtcOffset.UTC.toString().compareTo("Z") == 0, "UtcOffset.UTC should format as Z");
+
+	DateTime dt = { { 2026, 6, 12 }, { 14, 5, 30, 0 } };
+	assert(dt.isValid(), "DateTime should validate valid date and time fields");
+	assert(dt.toString().compareTo("2026-06-12T14:05:30") == 0, "DateTime.toString should format ISO date-time values");
+	OffsetDateTime odt = { dt, offset };
+	assert(odt.toString().compareTo("2026-06-12T14:05:30-04:00") == 0, "OffsetDateTime.toString should include offsets");
+	Instant instant = odt.toInstant();
+	assert(instant.isValid(), "OffsetDateTime.toInstant should produce a valid instant");
+	OffsetDateTime roundTrip = instant.getOffsetDateTime(offset);
+	assert(roundTrip.isValid() && roundTrip.toString().compareTo("2026-06-12T14:05:30-04:00") == 0, "Instant should round-trip through offsets");
+
+	Instant epoch = Instant.fromUnixMs(0);
+	assert(Instant.UNIX_EPOCH.UnixMs == 0 && Instant.fromUnixMs(0).UnixMs == 0, "Instant UNIX epoch helpers should use zero milliseconds");
+	assert(epoch.toString().compareTo("1970-01-01T00:00:00Z") == 0, "Instant.toString should format UTC instants");
+	assert(Instant.fromUnixSeconds(2).getUnixMs() == 2000, "Instant.fromUnixSeconds should convert to milliseconds");
+	assert(Instant.fromUnixMs(1000).since(epoch).Ms == 1000, "Instant.since should compute elapsed duration");
+
+	TimeSpan span = TimeSpan.fromHours(44).add(TimeSpan.fromMinutes(5)).add(TimeSpan.fromSeconds(30)).add(TimeSpan.fromMs(551));
+	assert(span.toString().compareTo("44:05:30.551") == 0, "TimeSpan.toString should format long durations");
+	assert(TimeSpan.fromSeconds((long)-30).toString().compareTo("-0:00:30") == 0, "TimeSpan.toString should format negative durations");
+
+	Date parsedDate = default;
+	assert(" 2024-02-29 ".tryParse(out parsedDate), "Date parser should accept whitespace and leap days");
+	assert(parsedDate.toString().compareTo("2024-02-29") == 0, "Date parser should preserve parsed leap-day values");
+	TimeOfDay parsedTime = default;
+	assert("14:05:30.500".tryParse(out parsedTime) && parsedTime.Ms == 500, "TimeOfDay parser should parse fractional seconds");
+	DateTime parsedDateTime = default;
+	assert("2026-06-12T14:05:30".tryParse(out parsedDateTime), "DateTime parser should parse ISO local date-times");
+	assert(parsedDateTime.toString().compareTo("2026-06-12T14:05:30") == 0, "DateTime parser should preserve parsed values");
+	OffsetDateTime parsedOffsetDateTime = default;
+	assert("2026-06-12T14:05:30-04:00".tryParse(out parsedOffsetDateTime), "OffsetDateTime parser should parse ISO offsets");
+	assert(parsedOffsetDateTime.toString().compareTo("2026-06-12T14:05:30-04:00") == 0, "OffsetDateTime parser should preserve parsed offsets");
+	Instant parsedInstant = default;
+	assert("1970-01-01T00:00:01Z".tryParse(out parsedInstant) && parsedInstant.UnixMs == 1000, "Instant parser should parse UTC instants");
+	TimeSpan parsedSpan = default;
+	assert("-44:05:30.551".tryParse(out parsedSpan) && parsedSpan.Ms == -158730551, "TimeSpan parser should parse negative durations");
+	UtcOffset parsedOffset = default;
+	assert("+09:30".tryParse(out parsedOffset) && parsedOffset.TotalMinutes == 570, "UtcOffset parser should parse positive offsets");
+
+	Date failed = { 1, 1, 1 };
+	assert(Date.INVALID.year == 0 && !Date.INVALID.isValid(), "Date.INVALID should not validate");
+	assert(TimeOfDay.MIDNIGHT.hour == 0 && TimeOfDay.MIDNIGHT.isValid(), "TimeOfDay.MIDNIGHT should validate");
+	assert(!"2023-02-29".tryParse(out failed) && !failed.isValid(), "Date parser should reject invalid dates");
+	TimeOfDay failedTime = { 1, 1, 1, 1 };
+	assert(!"25:00:00".tryParse(out failedTime), "TimeOfDay parser should reject invalid times");
+	assert(failedTime.toString().compareTo("00:00:00") == 0, "TimeOfDay parser should reset failed values");
+
+	assert(Instant.utcNow().isValid(), "Instant.utcNow should return a valid instant");
+	assert(Date.today().isValid(), "Date.today should return a valid date");
+	assert(DateTime.now().isValid(), "DateTime.now should return a valid local date-time");
+	assert(toStdTimeTestDateString(DateTime.now()).length > 0, "DateTime prep forwarding should allocate text");
+	assert(OffsetDateTime.localNow().isValid(), "OffsetDateTime.localNow should return a valid offset date-time");
+	assert(OffsetDateTime.utcNow().isValid(), "OffsetDateTime.utcNow should return a valid offset date-time");
+}
+
+prep char[] toStdTimeTestDateString(DateTime date)
+{
+	return date.toString(buffer);
+}

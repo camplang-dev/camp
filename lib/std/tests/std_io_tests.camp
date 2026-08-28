@@ -1,0 +1,129 @@
+namespace Std;
+
+requires (SUPPORTS_FILES);
+
+void writeStdIoTestFile(string path, const byte[] bytes, thrown IoError error)
+{
+	FileOptions options = default;
+	FileHandle handle = FileHandle.open(path, FileAccess.WRITE, FileMode.CREATE_OR_TRUNCATE, options, catch error);
+	handle.write(bytes, catch error);
+	handle.close();
+	error = default;
+}
+
+void assertStdIoTestFile3(string path, byte a, byte b, byte c, thrown Assertion* assertion, thrown IoError error)
+{
+	FileOptions options = default;
+	FileHandle handle = FileHandle.open(path, FileAccess.READ, FileMode.OPEN_EXISTING, options, catch error);
+	byte[] buffer = stackalloc byte[4];
+	nuint readCount = 0;
+	handle.read(buffer, out readCount, catch error);
+	handle.close();
+	assert(readCount == 3, "FileHandle.read should report the number of bytes read");
+	assert(buffer[0] == a && buffer[1] == b && buffer[2] == c, "FileHandle.read should fill the requested byte buffer");
+	error = default;
+}
+
+@test
+void environmentFilesystemAndFileHandleRoundTrips(within Allocator* allocator, thrown Assertion* assertion)
+{
+	IoError error = default;
+	string root = "tmp/camp-stdlib-env-fs-test";
+	string sentinel = "tmp/camp-stdlib-env-fs-test/.camp-fs-test-root";
+	string nested = "tmp/camp-stdlib-env-fs-test/a/b";
+	string file = "tmp/camp-stdlib-env-fs-test/a/b/file.txt";
+	string copy = "tmp/camp-stdlib-env-fs-test/a/b/copy.txt";
+	string moved = "tmp/camp-stdlib-env-fs-test/a/b/moved.txt";
+	string occupied = "tmp/camp-stdlib-env-fs-test/a/b/occupied.txt";
+	string cwdTest = "tmp/camp-stdlib-cwd-test";
+
+	if (FileSystem.exists(sentinel))
+		FileSystem.deleteDirectory(root, true, catch error);
+	assert(error == default, "filesystem cleanup should succeed before the test starts");
+
+	FileSystem.createDirectory(root, true, catch error);
+	assert(error == default, "FileSystem.createDirectory should create a root test directory");
+	writeStdIoTestFile(sentinel, [(byte)'o', (byte)'k'], catch error);
+	assert(error == default, "FileHandle.write should create a sentinel file");
+	FileSystem.createDirectory(nested, true, catch error);
+	assert(error == default && FileSystem.exists(nested) && FileSystem.isDirectory(nested), "FileSystem.createDirectory should create nested directories");
+	FileSystem.createDirectory(nested, false, catch error);
+	assert(error == default, "FileSystem.createDirectory should accept an existing directory");
+
+	writeStdIoTestFile(file, [(byte)'a', (byte)'b', (byte)'c'], catch error);
+	assert(error == default, "FileHandle.write should create the content file");
+	assert(FileSystem.getSize(file, catch error) == 3 && error == default, "FileSystem.getSize should report file size");
+	assert(FileSystem.exists(file) && !FileSystem.isDirectory(file), "FileSystem probes should distinguish files from directories");
+
+	FileSystem.copyFile(file, copy, false, catch error);
+	assert(error == default, "FileSystem.copyFile should copy a file");
+	assertStdIoTestFile3(copy, (byte)'a', (byte)'b', (byte)'c', catch assertion, catch error);
+	assert(error == default, "copied file should be readable");
+
+	writeStdIoTestFile(occupied, [(byte)'x', (byte)'y', (byte)'z'], catch error);
+	FileSystem.copyFile(file, occupied, false, catch error);
+	assert(error == IoError.ALREADY_EXISTS, "FileSystem.copyFile should reject existing destinations unless overwrite is enabled");
+	error = default;
+	FileSystem.copyFile(file, occupied, true, catch error);
+	assert(error == default, "FileSystem.copyFile should overwrite when requested");
+
+	FileSystem.moveFile(copy, moved, false, catch error);
+	assert(error == default && !FileSystem.exists(copy) && FileSystem.exists(moved), "FileSystem.moveFile should move files");
+	FileSystem.moveFile(moved, occupied, false, catch error);
+	assert(error == IoError.ALREADY_EXISTS, "FileSystem.moveFile should reject existing destinations unless overwrite is enabled");
+	error = default;
+	FileSystem.moveFile(moved, occupied, true, catch error);
+	assert(error == default && !FileSystem.exists(moved), "FileSystem.moveFile should overwrite when requested");
+
+	FileSystem.deleteFile(file, catch error);
+	assert(error == default && !FileSystem.exists(file), "FileSystem.deleteFile should remove files");
+	FileSystem.deleteDirectory(root, false, catch error);
+	assert(error == IoError.DIRECTORY_NOT_EMPTY, "FileSystem.deleteDirectory should reject non-empty directories without recursive mode");
+	error = default;
+
+	auto cwd = Env.getCurrentDirectory();
+	assert(cwd.length > 0, "Env.getCurrentDirectory should return a non-empty path");
+	assert(Env.getCurrentDirectory(buffer: default) == cwd.length, "Env.getCurrentDirectory should report required buffer length");
+	char[] cwdBuffer = stackalloc char[cwd.length + 1];
+	assert(Env.getCurrentDirectory(buffer: cwdBuffer) == cwd.length, "Env.getCurrentDirectory should fill explicit buffers");
+	cwdBuffer[cwd.length] = '\0';
+	assert(cwdBuffer[..cwd.length].compareTo(cwd) == 0, "Env.getCurrentDirectory explicit buffer should match allocated result");
+	auto exe = Env.getExecutablePath();
+	assert(exe.length > 0, "Env.getExecutablePath should return a non-empty path");
+
+	Env.removeVariable("CAMP_STDLIB_ENV_TEST_VALUE", catch error);
+	assert(error == default, "Env.removeVariable should accept missing variables");
+	assert(!Env.hasVariable("CAMP_STDLIB_ENV_TEST_VALUE") && Env.getVariable("CAMP_STDLIB_ENV_TEST_VALUE").length == 0, "Env should report missing variables consistently");
+	Env.setVariable("CAMP_STDLIB_ENV_TEST_VALUE", "", catch error);
+	assert(error == default && Env.hasVariable("CAMP_STDLIB_ENV_TEST_VALUE") && Env.getVariable("CAMP_STDLIB_ENV_TEST_VALUE").length == 0, "Env should distinguish defined-empty variables with hasVariable");
+	Env.setVariable("CAMP_STDLIB_ENV_TEST_VALUE", "abc", catch error);
+	assert(error == default && Env.getVariable("CAMP_STDLIB_ENV_TEST_VALUE").compareTo("abc") == 0, "Env should round-trip variable values");
+	char[] envBuffer = stackalloc char[4];
+	assert(Env.getVariable("CAMP_STDLIB_ENV_TEST_VALUE", buffer: envBuffer) == 3 && envBuffer[..3].compareTo("abc") == 0, "Env should fill explicit variable buffers");
+	assert(Env.removeVariable("CAMP_STDLIB_ENV_TEST_VALUE", catch error) && error == default, "Env.removeVariable should report removed variables");
+	assert(!Env.removeVariable("CAMP_STDLIB_ENV_TEST_VALUE", catch error) && error == default, "Env.removeVariable should report already-missing variables");
+
+	if (FileSystem.exists(cwdTest))
+		FileSystem.deleteDirectory(cwdTest, true, catch error);
+	FileSystem.createDirectory(cwdTest, true, catch error);
+	assert(error == default, "current-directory test directory should be created");
+	Env.setCurrentDirectory(cwdTest, catch error);
+	assert(error == default, "Env.setCurrentDirectory should enter the test directory");
+	Env.setCurrentDirectory((string)cwdBuffer.elements, catch error);
+	assert(error == default, "Env.setCurrentDirectory should restore the original directory");
+	FileSystem.deleteDirectory(cwdTest, true, catch error);
+	assert(error == default, "current-directory test directory should be removed");
+
+	assert(FileSystem.exists(sentinel), "sentinel should still exist before recursive cleanup");
+	FileSystem.deleteDirectory(root, true, catch error);
+	assert(error == default && !FileSystem.exists(root), "FileSystem.deleteDirectory recursive should remove the test tree");
+}
+
+@test
+void fileOpenReportsNotFound(thrown Assertion* assertion)
+{
+	IoError error = default;
+	FileOptions options = default;
+	FileHandle.open("tmp/camp-missing-file-for-pal-test.txt", FileAccess.READ, FileMode.OPEN_EXISTING, options, catch error);
+	assert(error == IoError.NOT_FOUND, "FileHandle.open should report NOT_FOUND for missing files");
+}

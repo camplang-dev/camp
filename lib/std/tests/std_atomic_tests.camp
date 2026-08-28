@@ -1,0 +1,20 @@
+namespace Std;
+
+@test
+void atomicExchangeAndCompareExchangeSupportNativeIntsAndPointers(thrown Assertion* assertion)
+{
+	nint signedValue = 1;
+	assert(atomicExchange(&signedValue, 2) == 1 && signedValue == 2, "atomicExchange should replace signed native integers");
+	assert(atomicCompareExchange(&signedValue, 3, 4) == 2 && signedValue == 2, "atomicCompareExchange should leave signed values when expected does not match");
+	assert(atomicCompareExchange(&signedValue, 2, 5) == 2 && signedValue == 5, "atomicCompareExchange should replace signed values when expected matches");
+
+	nuint unsignedValue = 10;
+	assert(atomicExchange(&unsignedValue, 11) == 10 && unsignedValue == 11, "atomicExchange should replace unsigned native integers");
+	assert(atomicCompareExchange(&unsignedValue, 12, 13) == 11 && unsignedValue == 11, "atomicCompareExchange should leave unsigned values when expected does not match");
+	assert(atomicCompareExchange(&unsignedValue, 11, 14) == 11 && unsignedValue == 14, "atomicCompareExchange should replace unsigned values when expected matches");
+
+	void* pointerValue = null;
+	assert(atomicExchange(&pointerValue, (void*)(nint)20) == null && pointerValue == (void*)(nint)20, "atomicExchange should replace pointers");
+	assert(atomicCompareExchange(&pointerValue, (void*)(nint)21, (void*)(nint)22) == (void*)(nint)20 && pointerValue == (void*)(nint)20, "atomicCompareExchange should leave pointers when expected does not match");
+	assert(atomicCompareExchange(&pointerValue, (void*)(nint)20, (void*)(nint)23) == (void*)(nint)20 && pointerValue == (void*)(nint)23, "atomicCompareExchange should replace pointers when expected matches");
+}

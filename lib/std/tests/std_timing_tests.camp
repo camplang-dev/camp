@@ -1,0 +1,39 @@
+namespace Std;
+
+requires (SUPPORTS_TIMERS && (SUBSYSTEM_POSIX || OS_WIN32));
+
+nuint stdTimingAsyncDone = 0;
+nuint stdTimingTicks = 0;
+
+void stdTimingCompleteAsync()
+{
+	stdTimingAsyncDone = 1;
+}
+
+void stdTimingTick(TimerHandle handle)
+{
+	stdTimingTicks++;
+	if (stdTimingTicks >= 2)
+		stopTimer(handle);
+}
+
+@test
+void sleepAsyncTimersAndCancellationSmoke(within Allocator* allocator, thrown Assertion* assertion)
+{
+	stdTimingAsyncDone = 0;
+	stdTimingTicks = 0;
+
+	sleep(1);
+	sleepAsync(50, () => {
+		stdTimingCompleteAsync();
+	});
+
+	TimerHandle handle = startTimer(10, new delegate h => {
+		stdTimingTick(h);
+	});
+	assert(handle != default, "startTimer should return a non-default handle for valid intervals");
+
+	sleep(100);
+	assert(stdTimingAsyncDone == 1, "sleepAsync should invoke its completion callback");
+	assert(stdTimingTicks >= 2, "startTimer should invoke its callback until stopped");
+}
