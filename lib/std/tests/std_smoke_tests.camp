@@ -1,0 +1,8 @@
+namespace Std;
+
+@test
+void stdSelfTestSmoke(thrown Assertion* assertion)
+{
+	assertEqualInt(1 + 1, 2, "integer arithmetic should work in std self-tests");
+	assertEqualString("std", "std", "string comparison should work in std self-tests");
+}

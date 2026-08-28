@@ -752,6 +752,7 @@ static bool TryBuildRequest(string[] args, CliEnvironment environment, CommandKi
 		ApplyGlobalPragmas(environment, bag, errors);
 
 		List<string> sourceFiles = ExpandSourcePatterns(cli.Positionals, cli.ExcludePatterns, environment.WorkingDirectory, errors);
+		List<string> nativeSourceFiles = ExpandNativeSourcePatterns(cli.Positionals, cli.ExcludePatterns, environment.WorkingDirectory);
 		List<string> apiFiles = ExpandSourcePatterns(cli.ApiPatterns.Concat(bag.ApiPatterns).ToList(), [], environment.WorkingDirectory, errors);
 		HashSet<string> pragmaFilesRead = new(StringComparer.OrdinalIgnoreCase);
 		while (true)
@@ -766,6 +767,7 @@ static bool TryBuildRequest(string[] args, CliEnvironment environment, CommandKi
 
 		bag.Apply(cli, Precedence.CommandLine, "command line", errors);
 		sourceFiles = ExpandSourcePatterns(cli.Positionals, bag.ExcludePatterns, environment.WorkingDirectory, errors);
+		nativeSourceFiles = ExpandNativeSourcePatterns(cli.Positionals, bag.ExcludePatterns, environment.WorkingDirectory);
 		apiFiles = ExpandSourcePatterns(bag.ApiPatterns, [], environment.WorkingDirectory, errors);
 		if (sourceFiles.Count == 0)
 			errors.Add("At least one source file pattern is required.");
@@ -848,6 +850,7 @@ static bool TryBuildRequest(string[] args, CliEnvironment environment, CommandKi
 		if (!TryAddUseSourceRoots(bag.UseSources, environment.WorkingDirectory, request.UseSourceRoots, errors))
 			return false;
 		request.Files.AddRange(sourceFiles.Select(path => Path.GetRelativePath(projectRoot, path)));
+		request.NativeSourceFiles.AddRange(nativeSourceFiles.Select(path => Path.GetRelativePath(projectRoot, path)));
 		request.ApiFiles.AddRange(apiFiles.Select(path => Path.GetRelativePath(projectRoot, path)));
 		if (!TryBuildProjectReferences(bag.ProjectReferences, request, environment, projectReferenceStack ?? [], out List<string> projectApiHeaders, out List<string> sharedProjectApiHeaders, out List<string> projectLibraries, errors))
 			return false;
@@ -1474,6 +1477,25 @@ static bool TryBuildRequest(string[] args, CliEnvironment environment, CommandKi
 			foreach (string path in Glob.Expand(pattern, workingDirectory))
 			{
 				if (!path.EndsWith(".camp", StringComparison.OrdinalIgnoreCase))
+					continue;
+				if (excludePatterns.Any(exclude => Glob.IsMatch(Path.GetRelativePath(workingDirectory, path), exclude)))
+					continue;
+				if (seen.Add(path))
+					files.Add(path);
+			}
+		}
+		return files.OrderBy(static path => path, StringComparer.Ordinal).ToList();
+	}
+
+	static List<string> ExpandNativeSourcePatterns(List<string> patterns, List<string> excludePatterns, string workingDirectory)
+	{
+		List<string> files = [];
+		HashSet<string> seen = new(StringComparer.OrdinalIgnoreCase);
+		foreach (string pattern in patterns)
+		{
+			foreach (string path in Glob.Expand(pattern, workingDirectory))
+			{
+				if (!path.EndsWith(".c", StringComparison.OrdinalIgnoreCase))
 					continue;
 				if (excludePatterns.Any(exclude => Glob.IsMatch(Path.GetRelativePath(workingDirectory, path), exclude)))
 					continue;
@@ -2896,7 +2918,9 @@ static class PathArguments
 			|| value.Contains("?", StringComparison.Ordinal)
 			|| value.StartsWith(".", StringComparison.Ordinal)
 			|| value.EndsWith(".camp", StringComparison.OrdinalIgnoreCase)
-			|| value.EndsWith(".campbuild", StringComparison.OrdinalIgnoreCase);
+			|| value.EndsWith(".campbuild", StringComparison.OrdinalIgnoreCase)
+			|| value.EndsWith(".c", StringComparison.OrdinalIgnoreCase)
+			|| value.EndsWith(".h", StringComparison.OrdinalIgnoreCase);
 	}
 }
 
@@ -3264,7 +3288,7 @@ static class Glob
 		if (!Directory.Exists(root))
 			yield break;
 		string relativePattern = Normalize(Path.GetRelativePath(root, fullPattern));
-		foreach (string file in Directory.GetFiles(root, "*.camp", SearchOption.AllDirectories))
+		foreach (string file in Directory.GetFiles(root, "*", SearchOption.AllDirectories))
 			if (IsMatch(Normalize(Path.GetRelativePath(root, file)), relativePattern))
 				yield return file;
 	}

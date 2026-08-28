@@ -1,0 +1,22 @@
+namespace Std;
+
+@testonly
+internal void assertEqualInt(int actual, int expected, escaped string message, thrown Assertion* assertion)
+{
+	if (actual != expected)
+		fail(message);
+}
+
+@testonly
+internal void assertEqualNuint(nuint actual, nuint expected, escaped string message, thrown Assertion* assertion)
+{
+	if (actual != expected)
+		fail(message);
+}
+
+@testonly
+internal void assertEqualString(const char[] actual, const char[] expected, escaped string message, thrown Assertion* assertion)
+{
+	if (actual.compareTo(expected) != 0)
+		fail(message);
+}

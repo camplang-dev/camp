@@ -49,6 +49,56 @@ public sealed class ProjectLoaderTests
 	}
 
 	[Fact]
+	public void Project_loader_collects_native_c_sources_from_campbuild()
+	{
+		string root = CreateTempDirectory("project-loader-native-c");
+		string sourceDirectory = Path.Combine(root, "src");
+		Directory.CreateDirectory(sourceDirectory);
+		File.WriteAllText(Path.Combine(sourceDirectory, "main.camp"), "export int main() => 0;\n");
+		File.WriteAllText(Path.Combine(sourceDirectory, "pal.c"), "int pal(void) { return 0; }\n");
+		string buildFile = Path.Combine(root, "sample.campbuild");
+		File.WriteAllText(buildFile, """
+			--nostdlib
+			--artifact exec
+			src/*.camp
+			src/*.c
+			""");
+
+		CampProjectLoadResult result = CampProjectLoader.LoadBuildFile(buildFile, CreateEnvironment(root), CampProjectCommandKind.Build);
+
+		Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
+		Assert.Single(result.Request.Files);
+		Assert.Single(result.Request.NativeSourceFiles);
+		Assert.EndsWith(Path.Combine("src", "main.camp"), result.Request.Files[0], StringComparison.Ordinal);
+		Assert.EndsWith(Path.Combine("src", "pal.c"), result.Request.NativeSourceFiles[0], StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Project_loader_collects_native_c_sources_from_cli_campbuild_argument()
+	{
+		string root = CreateTempDirectory("project-loader-native-c-cli");
+		string sourceDirectory = Path.Combine(root, "src");
+		Directory.CreateDirectory(sourceDirectory);
+		File.WriteAllText(Path.Combine(sourceDirectory, "main.camp"), "export int main() => 0;\n");
+		File.WriteAllText(Path.Combine(sourceDirectory, "pal.c"), "int pal(void) { return 0; }\n");
+		string buildFile = Path.Combine(root, "sample.campbuild");
+		File.WriteAllText(buildFile, """
+			--nostdlib
+			--artifact exec
+			src/*.camp
+			src/*.c
+			""");
+
+		CampProjectLoadResult result = CampProjectLoader.Load([buildFile], CreateEnvironment(root), CampProjectCommandKind.Build);
+
+		Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
+		Assert.Single(result.Request.Files);
+		Assert.Single(result.Request.NativeSourceFiles);
+		Assert.EndsWith(Path.Combine("src", "main.camp"), result.Request.Files[0], StringComparison.Ordinal);
+		Assert.EndsWith(Path.Combine("src", "pal.c"), result.Request.NativeSourceFiles[0], StringComparison.Ordinal);
+	}
+
+	[Fact]
 	public void Project_loader_reads_configuration_flag_options()
 	{
 		string root = CreateTempDirectory("project-loader-configuration-flags");

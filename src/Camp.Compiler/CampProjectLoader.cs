@@ -137,6 +137,7 @@ public static class CampProjectLoader
 		ApplyGlobalPragmas(environment, bag, errors);
 
 		List<string> sourceFiles = ExpandSourcePatterns(cli.Positionals, cli.ExcludePatterns, environment.WorkingDirectory, errors);
+		List<string> nativeSourceFiles = ExpandNativeSourcePatterns(cli.Positionals, cli.ExcludePatterns, environment.WorkingDirectory);
 		List<string> apiFiles = ExpandSourcePatterns(cli.ApiPatterns.Concat(bag.ApiPatterns).ToList(), [], environment.WorkingDirectory, errors);
 		HashSet<string> pragmaFilesRead = new(StringComparer.OrdinalIgnoreCase);
 		while (true)
@@ -151,6 +152,7 @@ public static class CampProjectLoader
 
 		bag.Apply(cli, CampBuildOptionPrecedence.CommandLine, "command line", errors);
 		sourceFiles = ExpandSourcePatterns(cli.Positionals, bag.ExcludePatterns, environment.WorkingDirectory, errors);
+		nativeSourceFiles = ExpandNativeSourcePatterns(cli.Positionals, bag.ExcludePatterns, environment.WorkingDirectory);
 		apiFiles = ExpandSourcePatterns(bag.ApiPatterns, [], environment.WorkingDirectory, errors);
 		if (sourceFiles.Count == 0)
 			errors.Add("At least one source file pattern is required.");
@@ -219,6 +221,7 @@ public static class CampProjectLoader
 		request.UsePackages.AddRange(bag.UsePackages.Select(static package => package.ToString()));
 		AddUseSourceRoots(bag.UseSources, environment.WorkingDirectory, request.UseSourceRoots, errors);
 		request.Files.AddRange(sourceFiles.Select(path => Path.GetRelativePath(projectRoot, path)));
+		request.NativeSourceFiles.AddRange(nativeSourceFiles.Select(path => Path.GetRelativePath(projectRoot, path)));
 		request.ApiFiles.AddRange(apiFiles.Select(path => Path.GetRelativePath(projectRoot, path)));
 
 		CampProjectLoadResult result = new() { Request = request };
@@ -513,6 +516,25 @@ public static class CampProjectLoader
 			foreach (string path in CampGlob.Expand(pattern, workingDirectory))
 			{
 				if (!path.EndsWith(".camp", StringComparison.OrdinalIgnoreCase))
+					continue;
+				if (excludePatterns.Any(exclude => CampGlob.IsMatch(Path.GetRelativePath(workingDirectory, path), exclude)))
+					continue;
+				if (seen.Add(path))
+					files.Add(path);
+			}
+		}
+		return files.OrderBy(static path => path, StringComparer.Ordinal).ToList();
+	}
+
+	static List<string> ExpandNativeSourcePatterns(List<string> patterns, List<string> excludePatterns, string workingDirectory)
+	{
+		List<string> files = [];
+		HashSet<string> seen = new(StringComparer.OrdinalIgnoreCase);
+		foreach (string pattern in patterns)
+		{
+			foreach (string path in CampGlob.Expand(pattern, workingDirectory))
+			{
+				if (!path.EndsWith(".c", StringComparison.OrdinalIgnoreCase))
 					continue;
 				if (excludePatterns.Any(exclude => CampGlob.IsMatch(Path.GetRelativePath(workingDirectory, path), exclude)))
 					continue;
@@ -983,7 +1005,9 @@ static class CampPathArguments
 			|| value.Contains("?", StringComparison.Ordinal)
 			|| value.StartsWith(".", StringComparison.Ordinal)
 			|| value.EndsWith(".camp", StringComparison.OrdinalIgnoreCase)
-			|| value.EndsWith(".campbuild", StringComparison.OrdinalIgnoreCase);
+			|| value.EndsWith(".campbuild", StringComparison.OrdinalIgnoreCase)
+			|| value.EndsWith(".c", StringComparison.OrdinalIgnoreCase)
+			|| value.EndsWith(".h", StringComparison.OrdinalIgnoreCase);
 	}
 }
 

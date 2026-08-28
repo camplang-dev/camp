@@ -276,6 +276,34 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Campbuild_native_c_source_patterns_are_linked()
+	{
+		string root = TempPath("campbuild-native-c-source-patterns");
+		ResetDirectory(root);
+		Directory.CreateDirectory(Path.Combine(root, "src"));
+		File.WriteAllText(Path.Combine(root, "src", "main.camp"), """
+			@symbol("native_value")
+			extern int nativeValue();
+
+			export int main()
+			{
+				return nativeValue() == 42 ? 0 : 1;
+			}
+			""");
+		File.WriteAllText(Path.Combine(root, "src", "pal.c"), "int native_value(void) { return 42; }\n");
+		File.WriteAllText(Path.Combine(root, "app.campbuild"), """
+			--nostdlib
+			--artifact exec
+			src/*.camp
+			src/*.c
+			""");
+
+		ProcessResult result = RunCampcIn(root, "run", "app.campbuild", "--target", NativeTargetForHost(), "--out-dir", Path.Combine(root, "out"), "--name", "native_c_app");
+
+		AssertCommandSucceeded(result);
+	}
+
+	[Fact]
 	public void Commands_use_implicit_single_build_file_and_package_source_targets()
 	{
 		string root = TempPath("implicit-build-target");

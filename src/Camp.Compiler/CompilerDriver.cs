@@ -28,6 +28,7 @@ public enum DependencyLinkKind
 public sealed class CompilerRequest
 {
 	public List<string> Files { get; } = [];
+	public List<string> NativeSourceFiles { get; } = [];
 	public List<string> ApiFiles { get; } = [];
 	public List<string> AnalysisSourceFiles { get; } = [];
 	public List<string> Defines { get; } = [];
@@ -318,7 +319,7 @@ public static class CompilerDriver
 				OutputDirectory = outputDirectory,
 				ProjectName = projectName,
 				Kind = NativeBuildKind.Exec,
-				SourceFiles = [.. result.GeneratedSourceFiles, .. coverageRuntimeSources, harnessSource!],
+				SourceFiles = [.. result.GeneratedSourceFiles, .. coverageRuntimeSources, .. ResolveInputPaths(request.NativeSourceFiles), harnessSource!],
 				SourceFileStatuses = BuildSourceStatuses(result),
 				Libraries = packageLibraries.Concat(request.References.Select(reference => ResolveNativeReference(reference, compilation.Target!))).ToList(),
 				Frameworks = request.Frameworks
@@ -434,6 +435,7 @@ public static class CompilerDriver
 			}
 			List<string> inputs = [];
 			inputs.AddRange(ResolveInputPaths(request.Files));
+			inputs.AddRange(ResolveInputPaths(request.NativeSourceFiles));
 			inputs.AddRange(ResolveInputPaths(allApiFiles));
 			inputs.AddRange(packageLibraries);
 			inputs.AddRange(ResolveNativeReferenceInputs(request.References, context.Target));
@@ -1321,7 +1323,7 @@ public static class CompilerDriver
 				OutputDirectory = outputDirectory,
 				ProjectName = projectName,
 				Kind = request.BuildKind.Value,
-				SourceFiles = [.. result.GeneratedSourceFiles, .. coverageRuntimeSources],
+				SourceFiles = [.. result.GeneratedSourceFiles, .. coverageRuntimeSources, .. ResolveInputPaths(request.NativeSourceFiles)],
 				SourceFileStatuses = BuildSourceStatuses(result),
 				Libraries = packageLibraries.Concat(request.References.Select(reference => ResolveNativeReference(reference, compilation.Target!))).ToList(),
 				Frameworks = request.Frameworks

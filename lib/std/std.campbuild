@@ -1,0 +1,5 @@
+--name std
+--nostdlib
+src/*.camp
+src/*.c
+tests/*.camp
