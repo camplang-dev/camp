@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
 using Camp.Compiler;
@@ -155,6 +156,30 @@ public sealed class CampTestDiscoveryTests
 		Assert.Empty(result.Diagnostics);
 		CampTestManifestEntry allocatorExplicit = result.Manifest.Tests.Single(static test => test.Name == "allocatorExplicit");
 		Assert.Equal("valid", allocatorExplicit.RunnerSignature);
+	}
+
+	[Fact]
+	public void Manifest_json_round_trips_through_parser()
+	{
+		CampTestManifest manifest = new(CampTestManifestMode.InModule,
+		[
+			new CampTestManifestEntry("Tests::sample", "sample", "Tests::sample", "tests/sample.camp", 7, "summary text", true, "skip reason", "valid")
+		]);
+
+		bool parsed = CampTestManifestJsonSerializer.TryParse(CampTestManifestJsonSerializer.Serialize(manifest), out CampTestManifest roundTrip, out List<string> diagnostics);
+
+		Assert.True(parsed, string.Join(Environment.NewLine, diagnostics));
+		CampTestManifestEntry test = Assert.Single(roundTrip.Tests);
+		Assert.Equal(CampTestManifestMode.InModule, roundTrip.Mode);
+		Assert.Equal("Tests::sample", test.Id);
+		Assert.Equal("sample", test.Name);
+		Assert.Equal("Tests::sample", test.QualifiedName);
+		Assert.Equal("tests/sample.camp", test.Sourcefile);
+		Assert.Equal(7, test.Sourceline);
+		Assert.Equal("summary text", test.Summary);
+		Assert.True(test.Skipped);
+		Assert.Equal("skip reason", test.SkipReason);
+		Assert.Equal("valid", test.RunnerSignature);
 	}
 
 	[Fact]

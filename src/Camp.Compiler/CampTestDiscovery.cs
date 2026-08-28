@@ -395,6 +395,73 @@ public static class CampTestManifestJsonSerializer
 		string text = Encoding.UTF8.GetString(stream.ToArray()).Replace("\r\n", "\n", StringComparison.Ordinal);
 		return text.EndsWith('\n') ? text : text + "\n";
 	}
+
+	public static bool TryParse(string text, out CampTestManifest manifest, out List<string> diagnostics)
+	{
+		diagnostics = [];
+		manifest = new CampTestManifest(CampTestManifestMode.InModule, []);
+		try
+		{
+			using JsonDocument document = JsonDocument.Parse(text);
+			JsonElement root = document.RootElement;
+			if (!root.TryGetProperty("format", out JsonElement format) || format.GetString() != "camp.test-manifest")
+				diagnostics.Add("test manifest format must be camp.test-manifest.");
+			if (!root.TryGetProperty("version", out JsonElement version) || version.GetInt32() != 1)
+				diagnostics.Add("test manifest version must be 1.");
+			CampTestManifestMode mode = root.TryGetProperty("mode", out JsonElement modeElement) && modeElement.GetString() == "external"
+				? CampTestManifestMode.External
+				: CampTestManifestMode.InModule;
+			List<CampTestManifestEntry> tests = [];
+			if (root.TryGetProperty("tests", out JsonElement testsElement) && testsElement.ValueKind == JsonValueKind.Array)
+			{
+				foreach (JsonElement test in testsElement.EnumerateArray())
+				{
+					tests.Add(new CampTestManifestEntry(
+						GetString(test, "id"),
+						GetString(test, "name"),
+						GetString(test, "qualifiedName"),
+						GetString(test, "sourcefile"),
+						GetInt(test, "sourceline"),
+						GetString(test, "summary"),
+						GetBool(test, "skipped"),
+						GetNullableString(test, "skipReason"),
+						GetString(test, "runnerSignature")));
+				}
+			}
+			else
+				diagnostics.Add("test manifest must contain a tests array.");
+			manifest = new CampTestManifest(mode, tests);
+		}
+		catch (Exception ex) when (ex is JsonException or InvalidOperationException or FormatException)
+		{
+			diagnostics.Add("test manifest could not be parsed: " + ex.Message);
+		}
+		return diagnostics.Count == 0;
+	}
+
+	static string GetString(JsonElement element, string name)
+	{
+		return element.TryGetProperty(name, out JsonElement property) && property.ValueKind == JsonValueKind.String
+			? property.GetString() ?? ""
+			: "";
+	}
+
+	static string? GetNullableString(JsonElement element, string name)
+	{
+		return element.TryGetProperty(name, out JsonElement property) && property.ValueKind == JsonValueKind.String
+			? property.GetString()
+			: null;
+	}
+
+	static int GetInt(JsonElement element, string name)
+	{
+		return element.TryGetProperty(name, out JsonElement property) && property.TryGetInt32(out int value) ? value : 0;
+	}
+
+	static bool GetBool(JsonElement element, string name)
+	{
+		return element.TryGetProperty(name, out JsonElement property) && property.ValueKind == JsonValueKind.True;
+	}
 }
 
 public static class CampTestFilter
