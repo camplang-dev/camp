@@ -1174,6 +1174,24 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (!preparedExpandedReturnCalls.Contains(call))
 		{
+			AddImplicitDefaultArguments(call);
+			LowerThrowingArguments(call);
+			ExpandParamsArguments(call.Arguments);
+			AddImplicitSizeOfArguments(call);
+			AddImplicitNameOfArguments(call);
+			AddImplicitVTableOfArguments(call);
+			if (call.Target is MemberReferenceExpression { Target: Expression receiver } member
+				&& IsInstanceInvocationFunction(function)
+				&& !IsPropertyGetterReference(member)
+				&& !IsPropertySetterReference(member)
+				&& FindContainingType(function) is not InterfaceDefinition)
+			{
+				RewriteInstanceInvocation(call, member, receiver, function);
+			}
+			else
+			{
+				TryRewriteGroupedMethodInvocation(call, function);
+			}
 			for (int i = 1; i < targets.Count; i++)
 			{
 				call.Arguments.Add(new ArgumentExpression
@@ -1185,6 +1203,7 @@ public sealed partial class BindableNodeAnalyzer
 				});
 			}
 			preparedExpandedReturnCalls.Add(call);
+			AddImplicitWithinArgument(call);
 		}
 
 		statements.Add(new ExpressionStatement
@@ -2369,10 +2388,10 @@ public sealed partial class BindableNodeAnalyzer
 		if (callTargets.TryGetValue(call, out FunctionDefinition? function))
 		{
 			AddImplicitDefaultArguments(call);
-			ExpandParamsArguments(call);
+			LowerThrowingArguments(call);
+			ExpandParamsArguments(call.Arguments);
 			AddImplicitSizeOfArguments(call);
 			AddImplicitNameOfArguments(call);
-			AddImplicitWithinArgument(call);
 			AddImplicitVTableOfArguments(call);
 			if (call.Target is MemberReferenceExpression { Target: Expression receiver } member
 				&& IsInstanceInvocationFunction(function)
@@ -2396,6 +2415,7 @@ public sealed partial class BindableNodeAnalyzer
 			});
 		}
 		preparedExpandedReturnCalls.Add(call);
+		AddImplicitWithinArgument(call);
 		call.ResolvedType = shape.Components[0].Type;
 		rewritten = new ReturnStatement
 		{
@@ -2946,6 +2966,8 @@ public sealed partial class BindableNodeAnalyzer
 				ResolvedType = shape.Components[i].Type
 			});
 		}
+		preparedExpandedReturnCalls.Add(call);
+		AddImplicitWithinArgument(call);
 		currentStatementPrefix.Add(new ExpressionStatement
 		{
 			SourceSyntax = call.SourceSyntax,

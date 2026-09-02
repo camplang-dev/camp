@@ -110,24 +110,34 @@ public sealed partial class BindableNodeAnalyzer
 				}
 				else
 					call.Target = LowerExpression(call.Target);
-				AddImplicitDefaultArguments(call);
-				LowerThrowingArguments(call);
-				AddImplicitSizeOfArguments(call);
-				AddImplicitNameOfArguments(call);
-				AddImplicitWithinArgument(call);
-				AddImplicitVTableOfArguments(call);
-				NormalizeWithinArgumentOrder(call);
+				bool preparedExpandedReturnCall = preparedExpandedReturnCalls.Contains(call);
+				if (!preparedExpandedReturnCall)
+				{
+					AddImplicitDefaultArguments(call);
+					LowerThrowingArguments(call);
+					AddImplicitSizeOfArguments(call);
+					AddImplicitNameOfArguments(call);
+					AddImplicitWithinArgument(call);
+					AddImplicitVTableOfArguments(call);
+					NormalizeWithinArgumentOrder(call);
+				}
 				for (int i = 0; i < call.Arguments.Count; i++)
 					call.Arguments[i] = LowerArgument(call.Arguments[i]);
 				bool loweredInterfaceCall = LowerInterfaceCall(call);
 				bool flattenedInstanceCall = loweredInterfaceCall || TryRewriteInstanceInvocation(call);
+				if (preparedExpandedReturnCall
+					&& callTargets.TryGetValue(call, out FunctionDefinition? preparedFunction))
+				{
+					CollapseDuplicateExpandedThisComponents(call.Arguments, GetCallableParametersForCall(preparedFunction, IncludeExplicitThisArgument(call.Target, preparedFunction)));
+				}
 				if (!flattenedInstanceCall)
 				{
 					TryRewriteStaticMemberInvocation(call);
 					TryRewriteIteratorProtocolInvocation(call);
 				TryRewriteDelegateInvocation(call);
 			}
-			ExpandParamsArguments(call);
+			if (!preparedExpandedReturnCall)
+				ExpandParamsArguments(call);
 			LowerCallArgumentConversions(call);
 			RefreshLoweredCallArgumentTypes(call);
 			if (TryRewriteScalarMaterializedGenericReturnCall(call, out Expression? materialized))

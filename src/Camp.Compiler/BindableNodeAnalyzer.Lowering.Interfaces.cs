@@ -309,7 +309,13 @@ public sealed partial class BindableNodeAnalyzer
 				}
 				return;
 			}
-				if (argumentIndex < call.Arguments.Count && IsWithinArgumentAlreadySupplied(parameter, call.Arguments[argumentIndex]))
+				if (argumentIndex < call.Arguments.Count
+					&& (IsWithinArgumentAlreadySupplied(parameter, call.Arguments[argumentIndex])
+						|| IsNullArgumentExpression(call.Arguments[argumentIndex])))
+					return;
+				if (argumentIndex > 0
+					&& (IsWithinArgumentAlreadySupplied(parameter, call.Arguments[argumentIndex - 1])
+						|| IsNullArgumentExpression(call.Arguments[argumentIndex - 1])))
 					return;
 
 				if (RequiresExplicitWithinArgument(call))
@@ -409,8 +415,16 @@ public sealed partial class BindableNodeAnalyzer
 	int CountTrailingImplicitWithinBlockedArguments(CallExpression call, FunctionDefinition? function)
 	{
 		int count = CountTrailingExpandedReturnArguments(call, function);
+		if (preparedExpandedReturnCalls.Contains(call))
+			count = System.Math.Max(count, CountTrailingOutArguments(call.Arguments));
 		if (function?.IsAsync == true)
 			count = System.Math.Max(count, System.Math.Min(call.Arguments.Count, CreateAsyncCompletionSourceParameters(function).Count));
+		int index = call.Arguments.Count - count - 1;
+		while (index >= 0 && call.Arguments[index].Modifier == ArgumentModifier.Catch)
+		{
+			count++;
+			index--;
+		}
 		return count;
 	}
 

@@ -1,0 +1,14 @@
+char[] copyOne(int value, within int* allocator)
+{
+	return default;
+}
+
+char[] forwardCopy(int value, within int* allocator)
+{
+	return copyOne(value);
+}
+
+export int main()
+{
+	return 0;
+}

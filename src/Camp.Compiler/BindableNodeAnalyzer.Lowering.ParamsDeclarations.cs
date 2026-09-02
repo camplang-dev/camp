@@ -433,10 +433,10 @@ public sealed partial class BindableNodeAnalyzer
 			&& callShape.Components.Count == shape.Components.Count)
 		{
 			AddImplicitDefaultArguments(call);
-			ExpandParamsArguments(call);
+			LowerThrowingArguments(call);
+			ExpandParamsArguments(call.Arguments);
 			AddImplicitSizeOfArguments(call);
 			AddImplicitNameOfArguments(call);
-			AddImplicitWithinArgument(call);
 			AddImplicitVTableOfArguments(call);
 			if (call.Target is MemberReferenceExpression { Target: Expression receiver } member
 				&& IsInstanceInvocationFunction(function)
@@ -462,6 +462,7 @@ public sealed partial class BindableNodeAnalyzer
 				});
 			}
 			preparedExpandedReturnCalls.Add(call);
+			AddImplicitWithinArgument(call);
 			declarations.Add(new ExpressionStatement
 			{
 				SourceSyntax = declaration.SourceSyntax,

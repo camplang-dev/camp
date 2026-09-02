@@ -4,17 +4,17 @@
 /* Private file declarations. */
 void *malloc(uintptr_t size);
 static void *Allocator_alloc(Allocator *this, uintptr_t size);
-static void *duplicate(const void *values, uintptr_t values_length, uintptr_t sizeof_T, Allocator *allocator, uintptr_t *result_length);
-static void *forwardDuplicate(const void *values, uintptr_t values_length, uintptr_t sizeof_T, Allocator *allocator, uintptr_t *result_length);
+static char *duplicate(const char *values, uintptr_t values_length, Allocator *allocator, uintptr_t *result_length);
+static char *forwardDuplicate(const char *values, uintptr_t values_length, Allocator *allocator, uintptr_t *result_length);
 
 static void *Allocator_alloc(Allocator *this, uintptr_t size)
 {
 	return malloc(size);
 }
 
-static void *duplicate(const void *values, uintptr_t values_length, uintptr_t sizeof_T, Allocator *allocator, uintptr_t *result_length)
+static char *duplicate(const char *values, uintptr_t values_length, Allocator *allocator, uintptr_t *result_length)
 {
-	void *copy = (void*)(((allocator != NULL) ? Allocator_alloc(allocator, (sizeof_T * values_length)) : malloc((sizeof_T * values_length))));
+	char *copy = (char *)(((allocator != NULL) ? Allocator_alloc(allocator, (sizeof(char) * values_length)) : malloc((sizeof(char) * values_length))));
 	uintptr_t copy_length = values_length;
 	{
 		(*result_length) = copy_length;
@@ -22,20 +22,14 @@ static void *duplicate(const void *values, uintptr_t values_length, uintptr_t si
 	}
 }
 
-static void *forwardDuplicate(const void *values, uintptr_t values_length, uintptr_t sizeof_T, Allocator *allocator, uintptr_t *result_length)
+static char *forwardDuplicate(const char *values, uintptr_t values_length, Allocator *allocator, uintptr_t *result_length)
 {
-	return duplicate(values, values_length, sizeof_T, allocator, result_length);
+	return duplicate(values, values_length, allocator, result_length);
 }
 
 int main(void)
 {
-	Allocator allocator = (Allocator){0};
-	int *values = (int []){1, 2, 3};
-	uintptr_t values_length = 3;
-	int *copied;
-	uintptr_t copied_length;
-	copied = forwardDuplicate(values, values_length, sizeof(int), &allocator, &copied_length);
-	return ((copied_length == 3) ? 0 : 1);
+	return 0;
 }
 
 // file: within_expanded_return_order.h

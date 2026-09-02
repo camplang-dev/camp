@@ -1,0 +1,59 @@
+// file: within_array_return_forwarding.c
+#include "within_array_return_forwarding_private.h"
+
+/* Private file declarations. */
+static char *copyOne(int value, int *allocator, uintptr_t *result_length);
+static char *forwardCopy(int value, int *allocator, uintptr_t *result_length);
+
+static char *copyOne(int value, int *allocator, uintptr_t *result_length)
+{
+	{
+		(*result_length) = 0;
+		return 0;
+	}
+}
+
+static char *forwardCopy(int value, int *allocator, uintptr_t *result_length)
+{
+	return copyOne(value, allocator, result_length);
+}
+
+int main(void)
+{
+	return 0;
+}
+
+// file: within_array_return_forwarding.h
+#ifndef WITHIN_ARRAY_RETURN_FORWARDING_H_
+#define WITHIN_ARRAY_RETURN_FORWARDING_H_
+
+#include "within_array_return_forwarding_private.h"
+
+int main(void);
+
+#endif
+// file: within_array_return_forwarding_private.h
+#ifndef WITHIN_ARRAY_RETURN_FORWARDING_PRIVATE_H_
+#define WITHIN_ARRAY_RETURN_FORWARDING_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Layouts. */
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: within_array_return_forwarding.c
