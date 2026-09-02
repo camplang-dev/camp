@@ -1126,10 +1126,18 @@ public sealed class CommandLineTests
 
 			requires (TEST_MODULE);
 
-			byte readIt()
+			struct Assertion
+			{
+				escaped string message;
+				escaped string sourcefile;
+				uint sourceline;
+			}
+
+			@test
+			void readIt(thrown Assertion* assertion)
 			{
 				Item value = default;
-				return value.payload()[0];
+				byte b = value.payload()[0];
 			}
 			""".Replace("\r\n", "\n", StringComparison.Ordinal));
 		string appBuild = Path.Combine(appRoot, "app.campbuild");
@@ -1201,26 +1209,24 @@ public sealed class CommandLineTests
 				consume(items);
 			}
 			""".Replace("\r\n", "\n", StringComparison.Ordinal));
+		string appBuild = Path.Combine(appRoot, "app.campbuild");
+		File.WriteAllText(appBuild, """
+			--artifact none
+			--name static_api_reexport_app
+			--project-reference ../static-api-reexport-array-base/base.campbuild:static
+			--project-reference ../static-api-reexport-array-middle/middle.campbuild:static
+			main.camp
+			""".Replace("\r\n", "\n", StringComparison.Ordinal));
 
 		string target = NativeTargetForHost();
 		AssertCommandSucceeded(RunCampc("build", baseBuild, "--nostdlib", "--target", target));
 		AssertCommandSucceeded(RunCampc("build", middleBuild, "--nostdlib", "--target", target));
 		ProcessResult result = RunCampc(
 			"build",
-			appSource,
+			appBuild,
 			"--nostdlib",
-			"--artifact",
-			"none",
 			"--target",
-			target,
-			"--project-reference",
-			baseBuild + ":static",
-			"--project-reference",
-			middleBuild + ":static",
-			"--out-dir",
-			Path.Combine(appRoot, "bin"),
-			"--name",
-			"static_api_reexport_app");
+			target);
 
 		AssertCommandSucceeded(result);
 	}
