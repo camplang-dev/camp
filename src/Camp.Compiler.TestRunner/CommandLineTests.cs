@@ -855,6 +855,62 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Static_project_api_array_return_can_be_indexed_by_consumer()
+	{
+		string libraryRoot = TempPath("static-api-array-return-index-library");
+		Directory.CreateDirectory(libraryRoot);
+		string librarySource = Path.Combine(libraryRoot, "library.camp");
+		File.WriteAllText(librarySource, """
+			namespace StaticApiArrayReturnIndex;
+
+			public struct Provider
+			{
+				public const byte[] payload()
+				{
+					return default;
+				}
+			}
+			""".Replace("\r\n", "\n", StringComparison.Ordinal));
+		string libraryBuild = Path.Combine(libraryRoot, "library.campbuild");
+		File.WriteAllText(libraryBuild, """
+			--artifact static
+			--name static_api_array_return_index
+			library.camp
+			""".Replace("\r\n", "\n", StringComparison.Ordinal));
+		string appRoot = TempPath("static-api-array-return-index-app");
+		Directory.CreateDirectory(appRoot);
+		string appSource = Path.Combine(appRoot, "main.camp");
+		File.WriteAllText(appSource, """
+			using StaticApiArrayReturnIndex;
+
+			byte readFirst()
+			{
+				Provider value = default;
+				return value.payload()[0];
+			}
+			""".Replace("\r\n", "\n", StringComparison.Ordinal));
+
+		string target = NativeTargetForHost();
+		AssertCommandSucceeded(RunCampc("build", libraryBuild, "--nostdlib", "--target", target));
+		ProcessResult result = RunCampc(
+			"build",
+			appSource,
+			"--nostdlib",
+			"--artifact",
+			"none",
+			"--target",
+			target,
+			"--project-reference",
+			libraryBuild + ":static",
+			"--out-dir",
+			Path.Combine(appRoot, "bin"),
+			"--name",
+			"static_api_array_return_index_app");
+
+		AssertCommandSucceeded(result);
+	}
+
+	[Fact]
 	public void Generated_harness_tracks_interface_allocator_leaks_and_invalid_frees()
 	{
 		string source = CreateTempCase("test_harness_leak_tracking/main.camp", """
