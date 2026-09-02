@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-113.
+Next bug number: BUG-114.
 
 ## Bug Template
 
@@ -74,3 +74,34 @@ stack overflow.
 Known Impact:
 Modules cannot keep production and guarded test sources in one reusable rooted
 build file when tests exercise this common imported-array pattern.
+
+## BUG-113: Same-namespace layered API still loses an imported array projection
+
+Date/Time: 2026-09-02 19:16 EDT
+
+Summary:
+The BUG-111 correction does not cover a library, downstream library, and
+consumer that all use the same flat namespace. The downstream generated API
+still names the upstream struct's source identity for an array parameter while
+the consumer correctly sees the imported ABI projection.
+
+Steps to Reproduce:
+
+1. Build a static library that exports a struct in a namespace.
+2. Build a second static library in the same namespace that references the
+   first and exports a function accepting [const ExportedStruct[]].
+3. Rebuild both libraries with the current compiler.
+4. Build a consumer in the same namespace that references both libraries,
+   constructs an [ExportedStruct[]], and passes it to the second library.
+
+Expected:
+The downstream API preserves the upstream projected type identity and the
+consumer compiles.
+
+Actual:
+The consumer reports that its ABI-projected struct array cannot convert to the
+unprojected struct array named by the downstream API.
+
+Known Impact:
+Products whose modules intentionally share a flat namespace cannot layer public
+array-view APIs over common record types.
