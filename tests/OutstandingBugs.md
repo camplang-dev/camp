@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-112.
+Next bug number: BUG-113.
 
 ## Bug Template
 
@@ -43,3 +43,34 @@ Actual:
 Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
+
+## BUG-112: Inactive imported-result indexing overflows through a rooted build file
+
+Date/Time: 2026-09-02 19:16 EDT
+
+Summary:
+The BUG-110 correction does not cover the reusable build-file form that sets a
+parent source-file root and includes both production and conditionally inactive
+test globs. Building that project through a static reference still overflows
+while lowering indexing on an imported method result in the inactive test file.
+
+Steps to Reproduce:
+
+1. Create adjacent static-library modules using one flat namespace.
+2. In the consumer build file, set [--sourcefile-root ..], reference the first
+   module, and include both [src/*.camp] and [tests/*.camp].
+3. Begin the test file with [requires(TEST_MODULE);] and index an array returned
+   by an imported instance method.
+4. Build the consumer as a static artifact without [TEST_MODULE].
+
+Expected:
+The test file is inactive and the ordinary static build succeeds.
+
+Actual:
+Lowering repeatedly enters reference-namespace lookup, generic property lookup,
+and expanded-component indexing until the compiler terminates with a native
+stack overflow.
+
+Known Impact:
+Modules cannot keep production and guarded test sources in one reusable rooted
+build file when tests exercise this common imported-array pattern.
