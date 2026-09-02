@@ -911,7 +911,8 @@ public sealed partial class BindableNodeAnalyzer
 			ResolvedType = component.Type,
 			InitialValue = initialValue,
 			SlotLifetimeFact = source.SlotLifetimeFact,
-			ValueLifetimeFact = source.ValueLifetimeFact
+			ValueLifetimeFact = source.ValueLifetimeFact,
+			ExpandedSourceField = source
 		};
 	}
 

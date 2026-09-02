@@ -863,17 +863,20 @@ public sealed class CommandLineTests
 		File.WriteAllText(librarySource, """
 			namespace StaticApiArrayReturnIndex;
 
-			public struct Provider
+			export struct Provider
 			{
+				const byte[] bytes;
+
 				public const byte[] payload()
 				{
-					return default;
+					return this.bytes;
 				}
 			}
 			""".Replace("\r\n", "\n", StringComparison.Ordinal));
 		string libraryBuild = Path.Combine(libraryRoot, "library.campbuild");
 		File.WriteAllText(libraryBuild, """
 			--artifact static
+			--metadata export
 			--name static_api_array_return_index
 			library.camp
 			""".Replace("\r\n", "\n", StringComparison.Ordinal));
@@ -886,12 +889,29 @@ public sealed class CommandLineTests
 			byte readFirst()
 			{
 				Provider value = default;
+				const byte[] direct = value.bytes;
+				const byte[] indirect = value.payload();
 				return value.payload()[0];
 			}
 			""".Replace("\r\n", "\n", StringComparison.Ordinal));
 
 		string target = NativeTargetForHost();
 		AssertCommandSucceeded(RunCampc("build", libraryBuild, "--nostdlib", "--target", target));
+		string artifactDirectory = Path.Combine(libraryRoot, "bin", ArtifactDirectoryForHost(NativeBuildKind.Static));
+		string apiPath = Path.Combine(artifactDirectory, "static_api_array_return_index_api.camp");
+		Assert.True(File.Exists(apiPath), apiPath);
+		string api = File.ReadAllText(apiPath);
+		Assert.Contains("const byte[] bytes;", api, StringComparison.Ordinal);
+		Assert.DoesNotContain("bytes_length", api, StringComparison.Ordinal);
+		string metadataPath = Path.Combine(artifactDirectory, "static_api_array_return_index_api.json");
+		Assert.True(File.Exists(metadataPath), metadataPath);
+		using (JsonDocument metadata = JsonDocument.Parse(File.ReadAllText(metadataPath)))
+		{
+			JsonElement provider = metadata.RootElement.GetProperty("declarations").EnumerateArray().Single(static item => item.GetProperty("name").GetString() == "Provider");
+			JsonElement bytes = provider.GetProperty("fields").EnumerateArray().Single(static item => item.GetProperty("name").GetString() == "bytes");
+			Assert.Equal("const byte[]", bytes.GetProperty("type").GetString());
+			Assert.DoesNotContain(provider.GetProperty("fields").EnumerateArray(), static item => item.GetProperty("name").GetString() == "bytes_length");
+		}
 		ProcessResult result = RunCampc(
 			"build",
 			appSource,

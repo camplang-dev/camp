@@ -540,14 +540,15 @@ public sealed class BindableNodeCodeSerializer
 
 	void WriteApiStructMembers(List<FieldDefinition> fields, List<FunctionDefinition> functions)
 	{
-		foreach (FieldDefinition field in fields)
+		List<FieldDefinition> apiFields = FilterExpandedApiFields(fields
+			.Where(field => field.Modifier != FieldModifier.Static || IsVisibleInApiSurface(field))
+			.ToList());
+		foreach (FieldDefinition field in apiFields)
 		{
-			if (field.Modifier == FieldModifier.Static && !IsVisibleInApiSurface(field))
-				continue;
 			WriteFieldDefinition(field);
 		}
 
-		if (fields.Count > 0 && HasApiFunction(functions))
+		if (apiFields.Count > 0 && HasApiFunction(functions))
 			writer.WriteLine();
 		WriteApiFunctions(functions);
 	}
@@ -565,10 +566,11 @@ public sealed class BindableNodeCodeSerializer
 	void WriteApiClassMembers(ClassDefinition? definition, List<FieldDefinition> fields, List<FunctionDefinition> functions, bool allowSyntheticConstructor)
 	{
 		bool wrote = false;
-		foreach (FieldDefinition field in fields)
+		List<FieldDefinition> apiFields = FilterExpandedApiFields(fields
+			.Where(field => field.Modifier == FieldModifier.Static && IsVisibleInApiSurface(field))
+			.ToList());
+		foreach (FieldDefinition field in apiFields)
 		{
-			if (field.Modifier != FieldModifier.Static || !IsVisibleInApiSurface(field))
-				continue;
 			WriteFieldDefinition(field);
 			wrote = true;
 		}
@@ -698,6 +700,26 @@ public sealed class BindableNodeCodeSerializer
 	void WriteApiFunctions(List<FunctionDefinition> functions)
 	{
 		WriteApiAwareFunctions(functions);
+	}
+
+	static List<FieldDefinition> FilterExpandedApiFields(List<FieldDefinition> fields)
+	{
+		List<FieldDefinition> result = [];
+		FieldDefinition? lastExpandedSource = null;
+		foreach (FieldDefinition field in fields)
+		{
+			if (field.ExpandedSourceField is FieldDefinition sourceField)
+			{
+				if (ReferenceEquals(sourceField, lastExpandedSource))
+					continue;
+				result.Add(sourceField);
+				lastExpandedSource = sourceField;
+				continue;
+			}
+			lastExpandedSource = null;
+			result.Add(field);
+		}
+		return result;
 	}
 
 	void WriteApiAwareFunctions(List<FunctionDefinition> functions)

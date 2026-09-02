@@ -328,6 +328,7 @@ public class FieldDefinition : Definition
 	public TypeReference? Type { get; set; }
 	public Expression? InitialValue { get; set; }
 	public ConstantValue? ConstantValue { get; set; }
+	internal FieldDefinition? ExpandedSourceField { get; set; }
 }
 
 public class AttributeConstructor : BindableNode

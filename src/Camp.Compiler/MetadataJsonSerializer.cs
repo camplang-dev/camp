@@ -901,9 +901,9 @@ public static class MetadataJsonSerializer
 
 		void WriteFieldArray(Utf8JsonWriter json, string propertyName, IReadOnlyList<FieldDefinition> fields, bool classFields)
 		{
-			List<FieldDefinition> filtered = fields
+			List<FieldDefinition> filtered = FilterExpandedApiFields(fields
 				.Where(field => !IsGeneratedDefinition(field) && ShouldEmitFieldMember(field, classFields))
-				.ToList();
+				.ToList());
 			if (filtered.Count == 0)
 				return;
 
@@ -914,6 +914,26 @@ public static class MetadataJsonSerializer
 				emitted.Add(field);
 			}
 			json.WriteEndArray();
+		}
+
+		static List<FieldDefinition> FilterExpandedApiFields(List<FieldDefinition> fields)
+		{
+			List<FieldDefinition> result = [];
+			FieldDefinition? lastExpandedSource = null;
+			foreach (FieldDefinition field in fields)
+			{
+				if (field.ExpandedSourceField is FieldDefinition sourceField)
+				{
+					if (ReferenceEquals(sourceField, lastExpandedSource))
+						continue;
+					result.Add(sourceField);
+					lastExpandedSource = sourceField;
+					continue;
+				}
+				lastExpandedSource = null;
+				result.Add(field);
+			}
+			return result;
 		}
 
 		void WriteFunctionArray(Utf8JsonWriter json, string propertyName, IReadOnlyList<FunctionDefinition> functions)
