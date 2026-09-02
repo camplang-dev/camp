@@ -101,49 +101,6 @@ passed directly to array-accepting APIs. Waystone test modules commonly pass
 `WirEmitResult.bytes` this way, preventing binder tests and potentially other
 downstream suites from compiling.
 
-## BUG-092: Multiple `null` arguments can suppress the implicit `within` argument
-
-Status: Open
-
-The call-argument lowering fix for `null` retains a single `null` in its
-declared position, but a call with multiple `null` arguments can omit the
-implicit `within` argument entirely.
-
-Generalized repro:
-
-```camp
-void consume(int* first, int value, int* second, within int* allocator)
-{
-}
-
-void consumeOne(int* first, int value, within int* allocator)
-{
-}
-
-void forward(within int* allocator)
-{
-	consume(null, 7, null);
-	consumeOne(null, 7);
-}
-
-export int main()
-{
-	return 0;
-}
-```
-
-Expected: generated calls are `consume(NULL, 7, NULL, allocator)` and
-`consumeOne(NULL, 7, allocator)`.
-
-Actual: the first generated call is `consume(NULL, 7, NULL)`, omitting the
-allocator, while the single-null control call is correctly emitted as
-`consumeOne(NULL, 7, allocator)`. Native compilation diagnoses the first call
-as having too few arguments.
-
-Known impact: allocator-aware calls containing two nullable arguments cannot be
-lowered reliably. Waystone runtime entry calls use this shape, preventing the
-runtime and its dependent module suites from compiling.
-
 ## ~~BUG-088: API emission suppresses valid source-authored `destroy` methods~~
 
 Status: Fixed

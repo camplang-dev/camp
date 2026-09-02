@@ -6,6 +6,16 @@ struct LocalAllocator
 
 int hasAllocator(within LocalAllocator* allocator) => allocator == null ? 0 : 1;
 
+int consume(int* first, int value, int* second, within LocalAllocator* allocator)
+{
+	return first == null && value == 7 && second == null && allocator != null ? 1 : 0;
+}
+
+int consumeOne(int* first, int value, within LocalAllocator* allocator)
+{
+	return first == null && value == 11 && allocator != null ? 1 : 0;
+}
+
 export int main()
 {
 	LocalAllocator local = LocalAllocator();
@@ -17,7 +27,9 @@ export int main()
 	within (allocator)
 	{
 		total += hasAllocator();
+		total += consume(null, 7, null);
+		total += consumeOne(null, 11);
 	}
 
-	return total - 2;
+	return total - 4;
 }

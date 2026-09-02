@@ -3,10 +3,22 @@
 
 /* Private file declarations. */
 static int hasAllocator(LocalAllocator *allocator);
+static int consume(int *first, int value, int *second, LocalAllocator *allocator);
+static int consumeOne(int *first, int value, LocalAllocator *allocator);
 
 static int hasAllocator(LocalAllocator *allocator)
 {
 	return ((allocator == NULL) ? 0 : 1);
+}
+
+static int consume(int *first, int value, int *second, LocalAllocator *allocator)
+{
+	return (((((first == NULL) && (value == 7)) && (second == NULL)) && (allocator != NULL)) ? 1 : 0);
+}
+
+static int consumeOne(int *first, int value, LocalAllocator *allocator)
+{
+	return ((((first == NULL) && (value == 11)) && (allocator != NULL)) ? 1 : 0);
 }
 
 int main(void)
@@ -21,9 +33,11 @@ int main(void)
 		LocalAllocator *_allocator1 = allocator;
 		{
 			total += hasAllocator(_allocator1);
+			total += consume(NULL, 7, NULL, _allocator1);
+			total += consumeOne(NULL, 11, _allocator1);
 		}
 	}
-	return (total - 2);
+	return (total - 4);
 }
 
 // file: within_parameter_context.h

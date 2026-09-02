@@ -310,12 +310,10 @@ public sealed partial class BindableNodeAnalyzer
 				return;
 			}
 				if (argumentIndex < call.Arguments.Count
-					&& (IsWithinArgumentAlreadySupplied(parameter, call.Arguments[argumentIndex])
-						|| IsNullArgumentExpression(call.Arguments[argumentIndex])))
+					&& IsWithinArgumentAlreadySupplied(parameter, call.Arguments[argumentIndex]))
 					return;
 				if (argumentIndex > 0
-					&& (IsWithinArgumentAlreadySupplied(parameter, call.Arguments[argumentIndex - 1])
-						|| IsNullArgumentExpression(call.Arguments[argumentIndex - 1])))
+					&& IsWithinArgumentAlreadySupplied(parameter, call.Arguments[argumentIndex - 1]))
 					return;
 
 				if (RequiresExplicitWithinArgument(call))
