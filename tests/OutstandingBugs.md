@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-111.
+Next bug number: BUG-112.
 
 ## Bug Template
 
@@ -77,3 +77,34 @@ overflow.
 Known Impact:
 Reusable build files containing guarded tests cannot be built normally through
 static project references when the modules use the same flat namespace.
+
+## BUG-111: Layered API still loses an imported struct array's projected identity
+
+Date/Time: 2026-09-02 18:42 EDT
+
+Summary:
+The layered static-library form of the imported struct-array projection failure
+remains after the BUG-108 correction. A second library that publicly accepts an
+array of a struct owned by its dependency emits an API type that its consumer's
+correctly projected array cannot satisfy.
+
+Steps to Reproduce:
+
+1. Build a static library that exports a struct.
+2. Build a second static library that references the first and exports a
+   function accepting [const ExportedStruct[]].
+3. Rebuild both libraries with the current compiler.
+4. Build a consumer that references both libraries, constructs an
+   [ExportedStruct[]], and passes it to the second library's function.
+
+Expected:
+The second library's generated API preserves the imported struct's projected
+identity, and the consumer compiles.
+
+Actual:
+The consumer reports that its ABI-projected struct array cannot convert to the
+source-level struct array named by the second library's generated API.
+
+Known Impact:
+Layered modules cannot expose array views of record types owned by an upstream
+module, blocking otherwise valid reusable APIs and their tests.
