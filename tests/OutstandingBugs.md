@@ -1,6 +1,53 @@
 # Outstanding Bugs
 
-Next bug number: BUG-091.
+Next bug number: BUG-092.
+
+## BUG-091: Implicit `within` is emitted before explicit arguments for an array-returning call
+
+Status: Open
+
+When an array-returning callable has an ordinary parameter followed by a
+`within` parameter, forwarding its result from another allocator-aware callable
+lowers the implicit allocator before the ordinary argument. The generated call
+does not match the generated declaration.
+
+Generalized repro:
+
+```camp
+requires (TEST_MODULE);
+
+using Std;
+
+char[] copyOne(int value, within allocator)
+{
+	char[] buffer = new char[1];
+	buffer[0] = (char)value;
+	return buffer;
+}
+
+char[] forwardCopy(int value, within allocator)
+{
+	return copyOne(value);
+}
+
+@test void implicitWithinFollowsExplicitArgumentForArrayResult(
+	within Allocator* allocator,
+	thrown Assertion*)
+{
+	char[] result = forwardCopy(65) finally delete;
+	assert(result.length == 1);
+	assert(result[0] == 'A');
+}
+```
+
+Expected: generated C calls `copyOne(value, allocator, result_length)`.
+
+Actual: generated C calls `copyOne(allocator, value, result_length)`. Native
+compilation fails because the first two arguments have incompatible types.
+
+Known impact: canonical implicit allocation propagation cannot be used when a
+pointer-bearing array result is forwarded with explicit arguments. This blocks
+the Waystone WIRS disassembler and similar allocator-aware forwarding paths.
 
 ## BUG-090: An ordinary `null` argument is consumed as the implicit `within` argument
 
