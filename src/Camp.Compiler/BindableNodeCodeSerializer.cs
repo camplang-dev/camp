@@ -834,7 +834,7 @@ public sealed class BindableNodeCodeSerializer
 			if (definition.IteratorKind != IteratorKind.None)
 				writer.Write($"{Lower(definition.IteratorKind)} ");
 			if (!TryWriteApiInterfaceAccessorReturnType(definition))
-				WriteTypeOrResolved(definition.ReturnType, definition.ResolvedType);
+				WriteFunctionReturnType(definition);
 			writer.Write(" ");
 			WriteOutOfScopeOwnerPrefix(definition);
 			writer.Write(definition.Name);
@@ -1697,6 +1697,17 @@ public sealed class BindableNodeCodeSerializer
 		return true;
 	}
 
+	void WriteFunctionReturnType(FunctionDefinition definition)
+	{
+		if (apiHeader && definition.ExpandedSourceReturnType is TypeReference sourceReturnType)
+		{
+			WriteType(sourceReturnType);
+			return;
+		}
+
+		WriteTypeOrResolved(definition.ReturnType, definition.ResolvedType);
+	}
+
 	void WriteGenericParameters(List<GenericParameter> parameters)
 	{
 		if (parameters.Count == 0)
@@ -1766,6 +1777,8 @@ public sealed class BindableNodeCodeSerializer
 		ParameterDefinition? lastExpandedSource = null;
 		foreach (ParameterDefinition parameter in parameters)
 		{
+			if (parameter.IsExpandedReturnComponent)
+				continue;
 			if (parameter.ExpandedSourceParameter is ParameterDefinition sourceParameter)
 			{
 				if (ReferenceEquals(sourceParameter, lastExpandedSource))

@@ -256,6 +256,7 @@ public class FunctionDefinition : Definition
 	public string FullCallableName { get; set; } = "";
 	public TypeReference? ReturnType { get; set; }
 	internal bool UsesPrepReturnSyntax { get; set; }
+	internal TypeReference? ExpandedSourceReturnType { get; set; }
 	public TypeReference? CallableAscriptionType { get; set; }
 	public NewtypeDefinition? CallableAscriptionNewtype { get; set; }
 	public string? InterfaceImplementationSlotName { get; set; }
@@ -294,6 +295,7 @@ public class ParameterDefinition : Definition
 	public TypeReference? Type { get; set; }
 	public Expression? DefaultValue { get; set; }
 	internal ParameterDefinition? ExpandedSourceParameter { get; set; }
+	internal bool IsExpandedReturnComponent { get; set; }
 }
 
 public class ThisParameterDefinition : ParameterDefinition

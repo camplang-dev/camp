@@ -103,13 +103,15 @@ public sealed partial class BindableNodeAnalyzer
 		if (shape.Components.Count == 0)
 			return;
 
+		TypeReference sourceReturnType = function.ReturnType;
 		expandedReturnShapes[function] = shape;
+		function.ExpandedSourceReturnType = sourceReturnType;
 		ParamsComponent first = shape.Components[0];
 		function.ReturnType = new NamedTypeReference
 		{
-			Name = GetTypeReferenceName(function.ReturnType) ?? first.Type,
+			Name = GetTypeReferenceName(sourceReturnType) ?? first.Type,
 			ResolvedType = first.Type,
-			SourceSyntax = function.ReturnType.SourceSyntax
+			SourceSyntax = sourceReturnType.SourceSyntax
 		};
 		function.ResolvedType = first.Type;
 
@@ -125,7 +127,8 @@ public sealed partial class BindableNodeAnalyzer
 				Internal = function.Internal,
 				Modifier = ParameterModifier.Out,
 				Type = new NamedTypeReference { Name = component.Type, ResolvedType = component.Type },
-				ResolvedType = component.Type
+				ResolvedType = component.Type,
+				IsExpandedReturnComponent = true
 			});
 		}
 	}

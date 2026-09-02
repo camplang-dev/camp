@@ -43,37 +43,3 @@ Actual:
 Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
-
-## BUG-098: Camp API headers retain synthetic array-result length parameters
-
-Date/Time: 2026-09-02 14:09 EDT
-
-Summary:
-Camp API headers generated for static project references preserve an array
-return type but also expose the generated ABI length-result parameter. Canonical
-metadata and API semantics require source-level result spelling and exclude
-generated expanded-form components from the Camp API.
-
-Steps to Reproduce:
-
-1. Create a static library project with a public method such as
-   `public const byte[] payload()`.
-2. Build the library and inspect its generated `_api.camp` file.
-3. Reference the library's `.campbuild` from a second Camp project and call
-   `value.payload()` without arguments.
-4. Build the consuming project.
-
-Expected:
-The Camp API header declares the original parameterless array-returning method,
-and the consumer binds the source-level call. The generated result-length
-component remains an implementation detail of native ABI emission.
-
-Actual:
-The Camp API header declares an array return together with an additional
-`out nuint result_length` parameter. The consuming source call fails because it
-does not provide that synthetic parameter.
-
-Known Impact:
-Array-returning public APIs cannot be called naturally across a `.campbuild`
-reference. Supplying the generated length parameter would expose an alpha-only
-ABI detail in otherwise valid Camp source.

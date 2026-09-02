@@ -799,6 +799,62 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Static_project_api_header_preserves_array_return_without_synthetic_length()
+	{
+		string source = CreateTempCase("static_api_array_return/library.camp", """
+			namespace StaticApiArrayReturn;
+
+			public const byte[] payload()
+			{
+				return default;
+			}
+			""");
+		string outDir = TempPath("static-api-array-return-out");
+
+		ProcessResult result = RunCampc(
+			"build",
+			source,
+			"--nostdlib",
+			"--artifact",
+			"static",
+			"--target",
+			NativeTargetForHost(),
+			"--out-dir",
+			outDir,
+			"--name",
+			"static_api_array_return");
+
+		AssertCommandSucceeded(result);
+		string apiPath = Path.Combine(outDir, ArtifactDirectoryForHost(NativeBuildKind.Static), "static_api_array_return_api.camp");
+		Assert.True(File.Exists(apiPath), apiPath);
+		string api = File.ReadAllText(apiPath);
+		Assert.Contains("public extern const byte[] payload();", api, StringComparison.Ordinal);
+		Assert.DoesNotContain("result_length", api, StringComparison.Ordinal);
+
+		string consumer = CreateTempCase("static_api_array_return_consumer/main.camp", """
+			using StaticApiArrayReturn;
+
+			void callPayload()
+			{
+				const byte[] value = payload();
+			}
+			""");
+		ProcessResult consumerResult = RunCampc(
+			"build",
+			consumer,
+			"--nostdlib",
+			"--artifact",
+			"none",
+			"--api",
+			apiPath,
+			"--out-dir",
+			TempPath("static-api-array-return-consumer-out"),
+			"--name",
+			"static_api_array_return_consumer");
+		AssertCommandSucceeded(consumerResult);
+	}
+
+	[Fact]
 	public void Generated_harness_tracks_interface_allocator_leaks_and_invalid_frees()
 	{
 		string source = CreateTempCase("test_harness_leak_tracking/main.camp", """
