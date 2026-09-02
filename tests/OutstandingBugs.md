@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-105.
+Next bug number: BUG-106.
 
 ## Bug Template
 
@@ -117,3 +117,42 @@ Consumers of static Camp project references cannot pass locally constructed
 arrays of imported structs through otherwise natural Camp APIs. Reconstructing
 or naming the generated ABI projection in Camp source would expose an
 implementation detail and is not an acceptable library workaround.
+
+## BUG-105: Imported interface parameters omit class-to-interface conversion
+
+Date/Time: 2026-09-02 16:30 EDT
+
+Summary:
+When a function imported from a static Camp project accepts an interface-instance
+pointer, passing a pointer to a local class that implements the interface does
+not emit the required class-to-interface conversion. Generated C passes the
+class pointer directly to the imported interface ABI parameter, causing invalid
+dispatch at runtime.
+
+Steps to Reproduce:
+
+1. Create a library project exporting an interface and a public function that
+   accepts a pointer to that interface.
+2. Build the library as a static artifact and reference its [.campbuild] from a
+   consuming project.
+3. In the consumer, declare a class that implements the imported interface and
+   provides all required implementation methods.
+4. Allocate an instance of the class and pass its pointer directly to the
+   imported function.
+5. Invoke an interface method through the received parameter.
+
+Expected:
+The class pointer is converted to the class's interface-instance pointer before
+the imported call, matching the behavior of calls to functions compiled in the
+same module. Interface dispatch reaches the implementation method.
+
+Actual:
+Generated C passes the class pointer directly where the imported function
+expects the interface-instance pointer representation. The build can complete
+without a diagnostic, but the first interface dispatch dereferences invalid or
+null vtable state and terminates with an access violation.
+
+Known Impact:
+Camp modules cannot safely pass local interface implementations to APIs imported
+through static project references. This is a silent ABI mismatch and blocks
+interface-based extension points across module boundaries.
