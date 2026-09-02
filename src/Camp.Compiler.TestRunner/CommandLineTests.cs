@@ -872,6 +872,10 @@ public sealed class CommandLineTests
 					return this.bytes;
 				}
 			}
+
+			export void consume(const Provider[] providers)
+			{
+			}
 			""".Replace("\r\n", "\n", StringComparison.Ordinal));
 		string libraryBuild = Path.Combine(libraryRoot, "library.campbuild");
 		File.WriteAllText(libraryBuild, """
@@ -891,8 +895,30 @@ public sealed class CommandLineTests
 				Provider value = default;
 				const byte[] direct = value.bytes;
 				const byte[] indirect = value.payload();
+				Provider[] providers = [ value ];
+				consume(providers);
 				return value.payload()[0];
 			}
+			""".Replace("\r\n", "\n", StringComparison.Ordinal));
+		string appGuardedSource = Path.Combine(appRoot, "guarded.camp");
+		File.WriteAllText(appGuardedSource, """
+			using StaticApiArrayReturnIndex;
+
+			requires (TEST_MODULE);
+
+			byte readGuarded()
+			{
+				Provider value = default;
+				return value.payload()[0];
+			}
+			""".Replace("\r\n", "\n", StringComparison.Ordinal));
+		string appBuild = Path.Combine(appRoot, "app.campbuild");
+		File.WriteAllText(appBuild, """
+			--artifact static
+			--name static_api_array_return_index_app
+			--project-reference ../static-api-array-return-index-library/library.campbuild:static
+			main.camp
+			guarded.camp
 			""".Replace("\r\n", "\n", StringComparison.Ordinal));
 
 		string target = NativeTargetForHost();
@@ -914,10 +940,76 @@ public sealed class CommandLineTests
 		}
 		ProcessResult result = RunCampc(
 			"build",
+			appBuild,
+			"--nostdlib",
+			"--target",
+			target);
+
+		AssertCommandSucceeded(result);
+	}
+
+	[Fact]
+	public void Static_project_interface_arguments_are_converted_in_consumers()
+	{
+		string libraryRoot = TempPath("static-api-interface-argument-library");
+		Directory.CreateDirectory(libraryRoot);
+		string librarySource = Path.Combine(libraryRoot, "library.camp");
+		File.WriteAllText(librarySource, """
+			namespace StaticApiInterfaceArgument;
+
+			export interface Sink
+			{
+				void write(int value);
+			}
+
+			export void send(Sink* sink)
+			{
+				sink.write(7);
+			}
+			""".Replace("\r\n", "\n", StringComparison.Ordinal));
+		string libraryBuild = Path.Combine(libraryRoot, "library.campbuild");
+		File.WriteAllText(libraryBuild, """
+			--artifact static
+			--name static_api_interface_argument
+			library.camp
+			""".Replace("\r\n", "\n", StringComparison.Ordinal));
+		string appRoot = TempPath("static-api-interface-argument-app");
+		Directory.CreateDirectory(appRoot);
+		string appSource = Path.Combine(appRoot, "main.camp");
+		File.WriteAllText(appSource, """
+			using StaticApiInterfaceArgument;
+
+			@symbol("malloc")
+			extern void* malloc(nuint size);
+			@symbol("free")
+			extern void free(void* ptr);
+
+			class LocalSink: Sink
+			{
+				int value;
+
+				void write(int value): Sink.write
+				{
+					this.value = value;
+				}
+			}
+
+			export int main()
+			{
+				auto sink = within (default) new LocalSink() finally delete;
+				send(sink);
+				return 0;
+			}
+			""".Replace("\r\n", "\n", StringComparison.Ordinal));
+
+		string target = NativeTargetForHost();
+		AssertCommandSucceeded(RunCampc("build", libraryBuild, "--nostdlib", "--target", target));
+		ProcessResult result = RunCampc(
+			"build",
 			appSource,
 			"--nostdlib",
 			"--artifact",
-			"none",
+			"static",
 			"--target",
 			target,
 			"--project-reference",
@@ -925,7 +1017,78 @@ public sealed class CommandLineTests
 			"--out-dir",
 			Path.Combine(appRoot, "bin"),
 			"--name",
-			"static_api_array_return_index_app");
+			"static_api_interface_argument_app");
+
+		AssertCommandSucceeded(result);
+		string mainC = Path.Combine(appRoot, "bin", ArtifactDirectoryForHost(NativeBuildKind.Static), "build", "main.c");
+		Assert.True(File.Exists(mainC), mainC);
+		string emitted = File.ReadAllText(mainC);
+		Assert.Contains("StaticApiInterfaceArgument_send(LocalSink_getSink(sink));", emitted, StringComparison.Ordinal);
+		Assert.DoesNotContain("StaticApiInterfaceArgument_send(sink);", emitted, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Static_project_c_api_forwards_private_pointer_field_types()
+	{
+		string libraryRoot = TempPath("static-api-private-pointer-field-library");
+		Directory.CreateDirectory(libraryRoot);
+		string librarySource = Path.Combine(libraryRoot, "library.camp");
+		File.WriteAllText(librarySource, """
+			namespace StaticApiPrivatePointerField;
+
+			class Storage
+			{
+				int value;
+			}
+
+			public struct Holder
+			{
+				Storage* storage;
+			}
+
+			public Holder create()
+			{
+				return default;
+			}
+			""".Replace("\r\n", "\n", StringComparison.Ordinal));
+		string libraryBuild = Path.Combine(libraryRoot, "library.campbuild");
+		File.WriteAllText(libraryBuild, """
+			--artifact static
+			--name static_api_private_pointer_field
+			library.camp
+			""".Replace("\r\n", "\n", StringComparison.Ordinal));
+		string appRoot = TempPath("static-api-private-pointer-field-app");
+		Directory.CreateDirectory(appRoot);
+		string appSource = Path.Combine(appRoot, "main.camp");
+		File.WriteAllText(appSource, """
+			using StaticApiPrivatePointerField;
+
+			void callCreate()
+			{
+				Holder holder = create();
+			}
+			""".Replace("\r\n", "\n", StringComparison.Ordinal));
+
+		string target = NativeTargetForHost();
+		AssertCommandSucceeded(RunCampc("build", libraryBuild, "--nostdlib", "--target", target));
+		string apiPath = Path.Combine(libraryRoot, "bin", ArtifactDirectoryForHost(NativeBuildKind.Static), "static_api_private_pointer_field_api.h");
+		Assert.True(File.Exists(apiPath), apiPath);
+		string api = File.ReadAllText(apiPath);
+		Assert.Contains("typedef struct StaticApiPrivatePointerFieldStorage StaticApiPrivatePointerFieldStorage;", api, StringComparison.Ordinal);
+		ProcessResult result = RunCampc(
+			"build",
+			appSource,
+			"--nostdlib",
+			"--artifact",
+			"static",
+			"--target",
+			target,
+			"--project-reference",
+			libraryBuild + ":static",
+			"--out-dir",
+			Path.Combine(appRoot, "bin"),
+			"--name",
+			"static_api_private_pointer_field_app");
 
 		AssertCommandSucceeded(result);
 	}

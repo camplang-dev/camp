@@ -1108,8 +1108,9 @@ public static class CCodeEmitter
 				.Where(type => type.Export is not null || includePublic && type.Public is not null)
 				.ToList();
 			List<TypeDefinition> apiTypes = includePublic ? IncludeApiLayoutDependencies(exportedTypes, definitions) : exportedTypes;
+			List<TypeDefinition> opaquePointerTypes = includePublic ? IncludeApiOpaquePointerDependencies(apiTypes, definitions) : [];
 
-			foreach (TypeDefinition type in apiTypes)
+			foreach (TypeDefinition type in ConcatDistinctTypeDefinitions(apiTypes, opaquePointerTypes))
 			{
 				if (type is ClassDefinition or InterfaceDefinition or StructDefinition)
 				{
@@ -1146,6 +1147,54 @@ public static class CCodeEmitter
 			}
 
 			return wrote;
+		}
+
+		static List<TypeDefinition> ConcatDistinctTypeDefinitions(List<TypeDefinition> first, List<TypeDefinition> second)
+		{
+			List<TypeDefinition> result = [];
+			HashSet<TypeDefinition> seen = new(ReferenceEqualityComparer.Instance);
+			foreach (TypeDefinition type in first)
+				if (seen.Add(type))
+					result.Add(type);
+			foreach (TypeDefinition type in second)
+				if (seen.Add(type))
+					result.Add(type);
+			return result;
+		}
+
+		List<TypeDefinition> IncludeApiOpaquePointerDependencies(List<TypeDefinition> apiTypes, List<Definition> definitions)
+		{
+			Dictionary<string, TypeDefinition> byName = definitions.OfType<TypeDefinition>()
+				.Where(static type => !string.IsNullOrWhiteSpace(type.Name))
+				.ToDictionary(static type => type.Name, StringComparer.Ordinal);
+			HashSet<TypeDefinition> selected = new(apiTypes, ReferenceEqualityComparer.Instance);
+			List<TypeDefinition> result = [];
+
+			foreach (TypeDefinition current in apiTypes)
+			{
+				IEnumerable<FieldDefinition> fields = current switch
+				{
+					StructDefinition structure => structure.Fields.Where(static field => field.Modifier != FieldModifier.Static),
+					ClassDefinition classDefinition => GetClassLayoutFields(classDefinition),
+					_ => []
+				};
+				foreach (FieldDefinition field in fields)
+				{
+					foreach (string dependencyName in GetPointerTypeDependencyNames(field.Type))
+					{
+						if (!byName.TryGetValue(dependencyName, out TypeDefinition? dependency)
+							|| selected.Contains(dependency)
+							|| dependency is not (ClassDefinition or InterfaceDefinition or StructDefinition))
+						{
+							continue;
+						}
+						selected.Add(dependency);
+						result.Add(dependency);
+					}
+				}
+			}
+
+			return result;
 		}
 
 		List<TypeDefinition> IncludeApiLayoutDependencies(List<TypeDefinition> exportedTypes, List<Definition> definitions)
@@ -1237,6 +1286,117 @@ public static class CCodeEmitter
 					yield break;
 				case UnscopedTypeReference unscoped:
 					foreach (string dependency in GetByValueTypeDependencyNames(unscoped.Type))
+						yield return dependency;
+					yield break;
+			}
+		}
+
+		IEnumerable<string> GetPointerTypeDependencyNames(TypeReference? type)
+		{
+			switch (type)
+			{
+				case null:
+					yield break;
+				case PointerTypeReference pointer:
+					foreach (string dependency in GetNamedTypeDependencyNames(pointer.ElementType))
+						yield return dependency;
+					yield break;
+				case ArrayTypeReference array:
+					foreach (string dependency in GetNamedTypeDependencyNames(array.ElementType))
+						yield return dependency;
+					yield break;
+				case AttributedTypeReference attributed:
+					foreach (string dependency in GetPointerTypeDependencyNames(attributed.Type))
+						yield return dependency;
+					yield break;
+				case GenericTypeReference generic:
+					foreach (string dependency in GetPointerTypeDependencyNames(generic.Type))
+						yield return dependency;
+					foreach (TypeReference argument in generic.TypeArguments)
+						foreach (string dependency in GetPointerTypeDependencyNames(argument))
+							yield return dependency;
+					yield break;
+				case FixedArrayTypeReference fixedArray:
+					foreach (string dependency in GetPointerTypeDependencyNames(fixedArray.ElementType))
+						yield return dependency;
+					yield break;
+				case OptionalTypeReference optional:
+					foreach (string dependency in GetPointerTypeDependencyNames(optional.ElementType))
+						yield return dependency;
+					yield break;
+				case ConstTypeReference constant:
+					foreach (string dependency in GetPointerTypeDependencyNames(constant.Type))
+						yield return dependency;
+					yield break;
+				case ConstOfTypeReference constOf:
+					foreach (string dependency in GetPointerTypeDependencyNames(constOf.Type))
+						yield return dependency;
+					yield break;
+				case VolatileTypeReference vol:
+					foreach (string dependency in GetPointerTypeDependencyNames(vol.Type))
+						yield return dependency;
+					yield break;
+				case EscapedTypeReference escaped:
+					foreach (string dependency in GetPointerTypeDependencyNames(escaped.Type))
+						yield return dependency;
+					yield break;
+				case ScopedTypeReference scoped:
+					foreach (string dependency in GetPointerTypeDependencyNames(scoped.Type))
+						yield return dependency;
+					yield break;
+				case UnscopedTypeReference unscoped:
+					foreach (string dependency in GetPointerTypeDependencyNames(unscoped.Type))
+						yield return dependency;
+					yield break;
+			}
+		}
+
+		IEnumerable<string> GetNamedTypeDependencyNames(TypeReference? type)
+		{
+			switch (type)
+			{
+				case null:
+					yield break;
+				case TypeDefinitionReference { Definition: TypeDefinition dependency }:
+					yield return dependency.Name;
+					yield break;
+				case TypeDefinitionReference reference:
+					if (!string.IsNullOrWhiteSpace(reference.Name))
+						yield return reference.Name;
+					yield break;
+				case NamedTypeReference named:
+					yield return named.Name;
+					yield break;
+				case GenericTypeReference generic:
+					foreach (string dependency in GetNamedTypeDependencyNames(generic.Type))
+						yield return dependency;
+					yield break;
+				case AttributedTypeReference attributed:
+					foreach (string dependency in GetNamedTypeDependencyNames(attributed.Type))
+						yield return dependency;
+					yield break;
+				case ConstTypeReference constant:
+					foreach (string dependency in GetNamedTypeDependencyNames(constant.Type))
+						yield return dependency;
+					yield break;
+				case ConstOfTypeReference constOf:
+					foreach (string dependency in GetNamedTypeDependencyNames(constOf.Type))
+						yield return dependency;
+					yield break;
+				case VolatileTypeReference vol:
+					foreach (string dependency in GetNamedTypeDependencyNames(vol.Type))
+						yield return dependency;
+					yield break;
+				case EscapedTypeReference escaped:
+					foreach (string dependency in GetNamedTypeDependencyNames(escaped.Type))
+						yield return dependency;
+					yield break;
+				case ScopedTypeReference scoped:
+					foreach (string dependency in GetNamedTypeDependencyNames(scoped.Type))
+						yield return dependency;
+					yield break;
+				case UnscopedTypeReference unscoped:
+					foreach (string dependency in GetNamedTypeDependencyNames(unscoped.Type))
 						yield return dependency;
 					yield break;
 			}

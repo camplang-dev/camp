@@ -494,7 +494,11 @@ public sealed partial class BindableNodeAnalyzer
 			return LowerInterfaceConversionToTarget(value, resolvedTargetInterface, targetResolvedType);
 		}
 		if (!TryGetInterfacePointerDefinition(targetPointer, out InterfaceDefinition? targetInterface) || targetInterface is null)
+		{
+			if (TryGetInterfacePointerDefinition(targetResolvedType, out InterfaceDefinition? resolvedTargetInterface) && resolvedTargetInterface is not null)
+				return LowerInterfaceConversionToTarget(value, resolvedTargetInterface, targetResolvedType);
 			return value;
+		}
 
 		return LowerInterfaceConversionToTarget(value, targetInterface, targetPointer.ResolvedType ?? targetResolvedType);
 	}
