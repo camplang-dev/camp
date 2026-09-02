@@ -288,24 +288,13 @@ public sealed partial class BindableNodeAnalyzer
 		if (HasExplicitWithinArgument(call.Arguments))
 			return;
 
-		int index = CountArgumentsBeforeWithinParameter(function, call.Target);
 		foreach (ParameterDefinition parameter in function.Parameters)
 		{
-			if (parameter.Modifier == ParameterModifier.Thrown)
-			{
-				if (index < call.Arguments.Count && call.Arguments[index].Modifier == ArgumentModifier.Catch)
-					index++;
-				continue;
-			}
-
 			if (parameter.Modifier != ParameterModifier.Within && parameter is not WithinParameterDefinition)
 				continue;
 
-			List<ParameterDefinition> callableParameters = GetCallableParametersForCall(function, IncludeExplicitThisArgument(call.Target, function));
-			int argumentIndex = FindArgumentIndexForCallableParameter(call.Arguments, callableParameters, index);
-			int trailingExpandedReturnArguments = System.Math.Max(CountTrailingExpandedReturnArguments(call, function), CountTrailingOutArguments(call.Arguments));
-			if (trailingExpandedReturnArguments > 0)
-				argumentIndex = System.Math.Min(argumentIndex, System.Math.Max(0, call.Arguments.Count - trailingExpandedReturnArguments));
+			int trailingExpandedReturnArguments = CountTrailingExpandedReturnArguments(call, function);
+			int argumentIndex = System.Math.Max(0, call.Arguments.Count - trailingExpandedReturnArguments);
 			int suppliedWithinIndex = FindSuppliedWithinArgumentIndex(parameter, call.Arguments);
 			if (suppliedWithinIndex >= 0)
 			{
@@ -364,19 +353,6 @@ public sealed partial class BindableNodeAnalyzer
 
 		RemoveDuplicateWithinArguments(within, call.Arguments);
 		RemoveNullBeforeCapturedAllocator(call.Arguments);
-		int suppliedWithinIndex = FindSuppliedWithinArgumentIndex(within, call.Arguments);
-		if (suppliedWithinIndex <= 0)
-			return;
-
-		int insertionIndex = suppliedWithinIndex;
-		while (insertionIndex > 0 && call.Arguments[insertionIndex - 1].Modifier == ArgumentModifier.Out)
-			insertionIndex--;
-		if (insertionIndex == suppliedWithinIndex)
-			return;
-
-		ArgumentExpression supplied = call.Arguments[suppliedWithinIndex];
-		call.Arguments.RemoveAt(suppliedWithinIndex);
-		call.Arguments.Insert(insertionIndex, supplied);
 	}
 
 	void RemoveDuplicateWithinArguments(ParameterDefinition parameter, List<ArgumentExpression> arguments)
@@ -437,11 +413,6 @@ public sealed partial class BindableNodeAnalyzer
 			if (IsWithinArgumentAlreadySupplied(parameter, arguments[i]))
 				return i;
 		return -1;
-	}
-
-	int CountArgumentsBeforeWithinParameter(FunctionDefinition function, Expression? callTarget)
-	{
-		return GetCallableParametersForCall(function, IncludeExplicitThisArgument(callTarget, function)).Count;
 	}
 
 	static bool HasExplicitWithinArgument(List<ArgumentExpression> arguments)

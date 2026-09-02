@@ -1,0 +1,18 @@
+using Std;
+
+int produceValue(out int output, within allocator)
+{
+	output = 7;
+	return 9;
+}
+
+export int main()
+{
+	int value;
+	value = produceValue(out int output);
+	if (value != 9)
+		return 1;
+	if (output != 7)
+		return 2;
+	return 0;
+}
