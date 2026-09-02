@@ -14,7 +14,42 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-096.
+Next bug number: BUG-097.
+
+## BUG-096: Test allocator rejects a live allocation after its address is reused
+
+Status: Open
+
+The test runner records every allocation in a newest-first linked list and
+looks up allocations by returning the first record whose pointer value matches.
+When a live allocation is moved by `realloc` to an address previously used by a
+newer, freed allocation, both records have the same pointer value. A later
+`realloc` or `free` finds the newer freed record instead of the older live
+record and incorrectly reports that the live pointer was already freed.
+
+Generalized repro:
+
+1. Run a tracked Camp test that keeps a growable allocation alive while making
+   and releasing temporary allocations through the same test allocator.
+2. Grow the live allocation repeatedly so the host allocator moves it into an
+   address formerly occupied by one of the newer temporary allocations.
+3. Grow or release that live allocation again.
+
+Expected: allocation lookup selects the live record for the reused address, so
+the valid `realloc` or `free` succeeds.
+
+Actual: allocation lookup selects the newer freed record and reports
+`memory-invalid-realloc` or `memory-invalid-free`. A rejected `realloc` returns
+null to the program under test, so the program can observe truncated or missing
+data before the test runner reports the allocator error.
+
+The behavior was verified under the debugger at the rejected `realloc`: the
+allocation history contained two records for the requested pointer, with the
+first record marked freed and a later record of the same size marked live.
+
+Known impact: allocator-intensive tests can fail or execute incorrectly after
+ordinary host-allocator address reuse, even when the code under test has valid
+allocation ownership.
 
 ## ~~BUG-088: API emission suppresses valid source-authored `destroy` methods~~
 
