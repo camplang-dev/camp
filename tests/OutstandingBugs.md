@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-099.
+Next bug number: BUG-100.
 
 ## Bug Template
 
@@ -43,3 +43,40 @@ Actual:
 Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
+
+## BUG-099: Conditional implementing types fail availability conformance
+
+Date/Time: 2026-09-02 15:15 EDT
+
+Summary:
+A type under a file-wide availability requirement cannot implement an
+always-available abstract class or interface. Its otherwise unconditional
+overrides are reported as less available than the inherited members, including
+when the conditional declarations are inactive in the current build.
+
+Steps to Reproduce:
+
+1. Declare an always-available public abstract class with a public abstract
+   method in a library source file.
+2. In another source file, add a file-wide `requires (TEST_MODULE);` and declare
+   a concrete test helper derived from that class with an unconditional
+   `override` of the method.
+3. Include both files in the library `.campbuild`.
+4. Build that library as a production static project reference.
+
+Expected:
+The conditional concrete type and its implementation are absent when its
+requirement is false. Where the containing type is available, an override with
+no stronger declaration requirement covers the inherited slot throughout the
+type's availability domain.
+
+Actual:
+The production dependency build reports that the override must be at least as
+available as the inherited member, then reports that the concrete class does
+not implement the abstract member.
+
+Known Impact:
+Test helper types guarded by the required file-level `TEST_MODULE` condition
+prevent their owning libraries from being consumed as production
+`.campbuild` references. Moving the helper into production source would weaken
+the intended test-module boundary.
