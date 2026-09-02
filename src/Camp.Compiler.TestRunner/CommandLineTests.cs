@@ -956,6 +956,14 @@ public sealed class CommandLineTests
 		Assert.NotEqual(0, invalid.ExitCode);
 		Assert.Contains("failed: HarnessLeakCli::doubleFree", invalid.StdOut, StringComparison.Ordinal);
 		Assert.Contains("invalid allocator free: pointer was already freed", invalid.StdOut, StringComparison.Ordinal);
+
+		string harnessSource = Path.Combine(cleanOut, ArtifactDirectoryForHost(null, CompilerCommandMode.Test), "build", "harness_clean_memory_test_harness.c");
+		Assert.True(File.Exists(harnessSource), harnessSource);
+		string harness = File.ReadAllText(harnessSource);
+		Assert.Contains("camp_test_memory_find_live", harness, StringComparison.Ordinal);
+		Assert.Contains("camp_test_memory_find_any", harness, StringComparison.Ordinal);
+		Assert.Contains("CampTestAllocation *record = camp_test_memory_find_live(ptr);", harness, StringComparison.Ordinal);
+		Assert.Contains("CampTestAllocation *history = camp_test_memory_find_any(ptr);", harness, StringComparison.Ordinal);
 	}
 
 	[Fact]
