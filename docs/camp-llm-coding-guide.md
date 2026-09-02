@@ -704,9 +704,13 @@ Rules of thumb:
 ```camp
 export Buffer* createBuffer(nuint capacity, within allocator)
 {
-    return within(allocator) new Buffer(capacity);
+    return within (allocator) new Buffer(capacity);
 }
 ```
+
+`within` is an expression/statement context, not a call-argument modifier. Write
+`within (allocator) createBuffer(4096)`, not
+`createBuffer(within allocator)`.
 
 Use `finally` for deterministic cleanup when a function can leave through
 multiple paths:

@@ -288,7 +288,6 @@ the explicit `index, count` values.
 | `target(a, name: value)` | Positional and named arguments may be mixed |
 | `target(out value)` | Caller-provided success result slot |
 | `target(catch error)` | Caller-provided thrown/error slot |
-| `target(within allocator)` | Explicit allocator context argument |
 | `target<T>(value)` | Explicit generic argument |
 | `target(value)` | Generic arguments may be inferred when possible |
 | `target(sizeof(T))` | Explicit generic size capability |
@@ -300,7 +299,7 @@ Default arguments are inserted from the static signature being called.
 ```camp
 connect(host, port: 443, useTls: true);
 file.read(buffer, out bytesRead, catch error);
-copy = values.copyArray(within allocator);
+copy = within (allocator) values.copyArray();
 ```
 
 Overload selector parameters participate in Camp's intentionally limited

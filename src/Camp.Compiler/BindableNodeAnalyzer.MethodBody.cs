@@ -3205,6 +3205,7 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (argument.Value is WithinExpression { Expression: null } within)
 		{
+			Report(GetRange(argument.SourceSyntax ?? within.SourceSyntax), "A within context cannot be supplied as a call argument; prefix the call with a `within (allocator)` expression or place it inside a `within (allocator)` statement.");
 			string contextType = BodyAnalyzeExpression(within.Context, scope, typeScope, targetType);
 			argument.ResolvedType = argument.Type?.ResolvedType ?? contextType;
 			return argument.ResolvedType;
@@ -3602,7 +3603,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	int GetAsyncVisibleArgumentCount(FunctionDefinition function, bool includeExplicitThis)
 	{
-		int visibleCount = function.Parameters.Count(static parameter => parameter.Modifier != ParameterModifier.Thrown);
+		int visibleCount = function.Parameters.Count(static parameter => parameter.Modifier != ParameterModifier.Thrown && !IsWithinParameter(parameter));
 		if (includeExplicitThis && GetExplicitThisParameter(function) is null && IsInstanceFunction(function))
 			visibleCount++;
 		return visibleCount;

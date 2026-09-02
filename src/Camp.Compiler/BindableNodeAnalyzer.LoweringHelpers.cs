@@ -255,7 +255,12 @@ public sealed partial class BindableNodeAnalyzer
 
 	static ParameterDefinition? GetWithinParameter(FunctionDefinition function)
 	{
-		foreach (ParameterDefinition parameter in function.Parameters)
+		return GetWithinParameter(function.Parameters);
+	}
+
+	static ParameterDefinition? GetWithinParameter(List<ParameterDefinition> parameters)
+	{
+		foreach (ParameterDefinition parameter in parameters)
 		{
 			if (parameter.Modifier == ParameterModifier.Within || parameter is WithinParameterDefinition)
 				return parameter;

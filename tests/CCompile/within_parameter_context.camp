@@ -12,12 +12,12 @@ export int main()
 	LocalAllocator* allocator = &local;
 	int total = 0;
 
-	total += within(default) hasAllocator();
-	total += hasAllocator(within null);
+	total += within (default) hasAllocator();
+	total += within (allocator) hasAllocator();
 	within (allocator)
 	{
 		total += hasAllocator();
 	}
 
-	return total - 1;
+	return total - 2;
 }

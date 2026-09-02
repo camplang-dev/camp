@@ -151,5 +151,5 @@ static class Console
 	public static char readChar() => Console.Reader.readChar(catch _);
 	
 	/// Reads one line from standard input.
-	public static escaped string readLine(within allocator) => Console.Reader.readLine(within allocator, catch _);
+	public static escaped string readLine(within allocator) => within (allocator) Console.Reader.readLine(catch _);
 }

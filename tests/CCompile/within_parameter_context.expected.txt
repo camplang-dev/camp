@@ -15,14 +15,15 @@ int main(void)
 	LocalAllocator *allocator = &local;
 	int total = 0;
 	total += hasAllocator(NULL);
-	total += hasAllocator(NULL);
+	LocalAllocator *_allocator0 = allocator;
+	total += hasAllocator(_allocator0);
 	{
-		LocalAllocator *_allocator0 = allocator;
+		LocalAllocator *_allocator1 = allocator;
 		{
-			total += hasAllocator(_allocator0);
+			total += hasAllocator(_allocator1);
 		}
 	}
-	return (total - 1);
+	return (total - 2);
 }
 
 // file: within_parameter_context.h

@@ -1144,7 +1144,7 @@ public sealed class CommandLineTests
 			@test
 			void leaksFromCoveredCode(within allocator, thrown Assertion* assertion)
 			{
-				createLeakedBox(within allocator);
+				within (allocator) createLeakedBox();
 			}
 			""");
 		string outDir = TempPath("coverage-harness-leaks-out");
@@ -1189,7 +1189,7 @@ public sealed class CommandLineTests
 			@test
 			void leaksFromTestBody(within allocator, thrown Assertion* assertion)
 			{
-				coveredLibraryCode(within allocator);
+				within (allocator) coveredLibraryCode();
 				auto leaked = new byte[8];
 			}
 			""");
@@ -1555,7 +1555,7 @@ public sealed class CommandLineTests
 			{
 				assert(sumGenerated() == 6);
 				assert(lambdaValue() == 10);
-				assert(constructedValue(within allocator) == 5);
+				assert(within (allocator) constructedValue() == 5);
 			}
 			""");
 		string outDir = TempPath("coverage-lowered-bodies-out");

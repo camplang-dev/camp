@@ -1,0 +1,12 @@
+#within explicit
+
+struct Allocator
+{
+}
+
+void needs(within allocator) {}
+
+export void main()
+{
+	needs();
+}

@@ -339,7 +339,7 @@ escaped string readCopy(CharReader this, bool stopAtNewline, within allocator, t
 		{
 			if (length + 1 >= capacity)
 			{
-				buffer = CharReader_growBuffer(buffer, length, capacity, within allocator, catch error);
+				buffer = within (allocator) CharReader_growBuffer(buffer, length, capacity, catch error);
 				if (error != default)
 					return null;
 				capacity = capacity == 0 ? 64 : capacity * 2;
@@ -355,7 +355,7 @@ escaped string readCopy(CharReader this, bool stopAtNewline, within allocator, t
 	
 	if (length + 1 >= capacity)
 	{
-		buffer = CharReader_growBuffer(buffer, length, capacity, within allocator, catch error);
+		buffer = within (allocator) CharReader_growBuffer(buffer, length, capacity, catch error);
 		if (error != default)
 			return null;
 	}
@@ -391,12 +391,12 @@ public char readChar(CharReader this, thrown IoError error)
 
 public escaped string readLine(CharReader this, within allocator, thrown IoError error)
 {
-	return this.readCopy(true, within allocator, catch error);
+	return within (allocator) this.readCopy(true, catch error);
 }
 
 public escaped string readToEnd(CharReader this, within allocator, thrown IoError error)
 {
-	return this.readCopy(false, within allocator, catch error);
+	return within (allocator) this.readCopy(false, catch error);
 }
 
 // public void writeStringAsync(AsyncCharWriter this, const char[] value, thrown IoError error);

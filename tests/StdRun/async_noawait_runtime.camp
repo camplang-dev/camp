@@ -41,7 +41,7 @@ void completeProperty(void* context, int value)
 export int main()
 {
 	answerAsync(complete, null);
-	answerWithAllocatorAsync(within null, completeAllocator, null);
+	within (default) answerWithAllocatorAsync(completeAllocator, null);
 	auto box = new Box();
 	box.Value(completeProperty, null);
 	return observed == 42 && allocatorObserved == 7 && propertyObserved == 5 ? 0 : 1;

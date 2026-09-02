@@ -595,7 +595,7 @@ char *readText(
 The caller decides the allocation context:
 
 ```camp
-string text = FileHandle.readText(handle, within arena, catch error)
+string text = within (arena) FileHandle.readText(handle, catch error)
 	finally delete;
 ```
 

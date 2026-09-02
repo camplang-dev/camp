@@ -1,0 +1,1 @@
+tests/Diagnostics/within_parameter_missing_context.camp(11,7): error: Call requires a within context for parameter 'allocator'; prefix the call with a `within (allocator)` expression or place it inside a `within (allocator)` statement.

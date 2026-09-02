@@ -310,7 +310,7 @@ the iterator:
 ```camp
 iter byte openBytes(const char[] path, within allocator, thrown OpenError error)
 {
-	return openOwnedByteIterator(path, within allocator);
+	return within (allocator) openOwnedByteIterator(path);
 }
 ```
 

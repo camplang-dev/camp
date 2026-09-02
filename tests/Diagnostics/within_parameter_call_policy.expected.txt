@@ -1,1 +1,1 @@
-tests/Diagnostics/within_parameter_call_policy.camp(12,7): error: Call requires a within context for parameter 'allocator'; use within(allocator), within(default), or pass within null explicitly.
+tests/Diagnostics/within_parameter_call_policy.camp(14,8): error: A within context cannot be supplied as a call argument; prefix the call with a `within (allocator)` expression or place it inside a `within (allocator)` statement.

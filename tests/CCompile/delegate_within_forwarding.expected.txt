@@ -17,7 +17,8 @@ static int __camp_delegate_callbackFn(void *arg0, int *arg1)
 
 static int invoke(int (* callback)(void *arg0, int *arg1), void *callback_context, int *allocator)
 {
-	return callback(callback_context, allocator);
+	int *_allocator0 = allocator;
+	return callback(callback_context, _allocator0);
 }
 
 static int callbackFn(int *allocator)
@@ -28,7 +29,8 @@ static int callbackFn(int *allocator)
 static int main(void)
 {
 	int alloc = 0;
-	int result = invoke(__camp_delegate_callbackFn, NULL, &alloc);
+	int *_allocator1 = &alloc;
+	int result = invoke(__camp_delegate_callbackFn, NULL, _allocator1);
 	return (result - 7);
 }
 

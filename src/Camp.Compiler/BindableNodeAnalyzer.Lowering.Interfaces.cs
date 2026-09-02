@@ -280,20 +280,21 @@ public sealed partial class BindableNodeAnalyzer
 
 	void AddImplicitWithinArgument(CallExpression call)
 	{
-		if (!callTargets.TryGetValue(call, out FunctionDefinition? function) || !HasWithinParameter(function))
+		FunctionDefinition? function = callTargets.TryGetValue(call, out FunctionDefinition? foundFunction) ? foundFunction : null;
+		List<ParameterDefinition>? sourceParameters = function is not null
+			? function.Parameters
+			: callableInvocationParameters.TryGetValue(call, out List<ParameterDefinition>? foundParameters) ? foundParameters : null;
+		if (sourceParameters is null || !HasWithinParameter(sourceParameters))
 			return;
-		if (function.IsAsync)
-			return;
-
 		if (HasExplicitWithinArgument(call.Arguments))
 			return;
 
-		foreach (ParameterDefinition parameter in function.Parameters)
+		foreach (ParameterDefinition parameter in sourceParameters)
 		{
 			if (parameter.Modifier != ParameterModifier.Within && parameter is not WithinParameterDefinition)
 				continue;
 
-			int trailingExpandedReturnArguments = CountTrailingExpandedReturnArguments(call, function);
+			int trailingExpandedReturnArguments = CountTrailingImplicitWithinBlockedArguments(call, function);
 			int argumentIndex = System.Math.Max(0, call.Arguments.Count - trailingExpandedReturnArguments);
 			int suppliedWithinIndex = FindSuppliedWithinArgumentIndex(parameter, call.Arguments);
 			if (suppliedWithinIndex >= 0)
@@ -314,7 +315,7 @@ public sealed partial class BindableNodeAnalyzer
 				if (RequiresExplicitWithinArgument(call))
 				{
 					string parameterName = string.IsNullOrWhiteSpace(parameter.Name) ? "allocator" : parameter.Name;
-					Report(GetRange(call.SourceSyntax ?? call.Target?.SourceSyntax), $"Call requires a within context for parameter '{parameterName}'; use within(allocator), within(default), or pass within null explicitly.");
+					Report(GetRange(call.SourceSyntax ?? call.Target?.SourceSyntax), $"Call requires a within context for parameter '{parameterName}'; prefix the call with a `within (allocator)` expression or place it inside a `within (allocator)` statement.");
 					return;
 				}
 
@@ -328,6 +329,14 @@ public sealed partial class BindableNodeAnalyzer
 			}
 		}
 
+	static bool HasWithinParameter(List<ParameterDefinition> parameters)
+	{
+		foreach (ParameterDefinition parameter in parameters)
+			if (parameter.Modifier == ParameterModifier.Within || parameter is WithinParameterDefinition)
+				return true;
+		return false;
+	}
+
 		bool RequiresExplicitWithinArgument(CallExpression call)
 		{
 			if (currentWithinContext is not null || currentDefaultWithinContextDepth > 0)
@@ -340,14 +349,15 @@ public sealed partial class BindableNodeAnalyzer
 				&& policy == WithinAllocationPolicy.Explicit;
 		}
 
-		void NormalizeWithinArgumentOrder(CallExpression call)
+	void NormalizeWithinArgumentOrder(CallExpression call)
 	{
-		if (!callTargets.TryGetValue(call, out FunctionDefinition? function) || !HasWithinParameter(function))
+		FunctionDefinition? function = callTargets.TryGetValue(call, out FunctionDefinition? foundFunction) ? foundFunction : null;
+		List<ParameterDefinition>? sourceParameters = function is not null
+			? function.Parameters
+			: callableInvocationParameters.TryGetValue(call, out List<ParameterDefinition>? foundParameters) ? foundParameters : null;
+		if (sourceParameters is null || !HasWithinParameter(sourceParameters))
 			return;
-		if (function.IsAsync)
-			return;
-
-		ParameterDefinition? within = GetWithinParameter(function);
+		ParameterDefinition? within = GetWithinParameter(sourceParameters);
 		if (within is null)
 			return;
 
@@ -387,12 +397,21 @@ public sealed partial class BindableNodeAnalyzer
 		}
 	}
 
-	int CountTrailingExpandedReturnArguments(CallExpression call, FunctionDefinition function)
+	int CountTrailingExpandedReturnArguments(CallExpression call, FunctionDefinition? function)
 	{
-		if (!TryGetExpandedReturnShape(call, function, out ParamsComponentShape shape)
+		if (function is null
+			|| !TryGetExpandedReturnShape(call, function, out ParamsComponentShape shape)
 			|| shape.Components.Count <= 1)
 			return 0;
 		return shape.Components.Count - 1;
+	}
+
+	int CountTrailingImplicitWithinBlockedArguments(CallExpression call, FunctionDefinition? function)
+	{
+		int count = CountTrailingExpandedReturnArguments(call, function);
+		if (function?.IsAsync == true)
+			count = System.Math.Max(count, System.Math.Min(call.Arguments.Count, CreateAsyncCompletionSourceParameters(function).Count));
+		return count;
 	}
 
 	static int CountTrailingOutArguments(List<ArgumentExpression> arguments)

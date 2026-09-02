@@ -12,6 +12,5 @@ export void main()
 {
 	needs();
 	within(default) needs();
-	needs(within null);
 	ordinary();
 }

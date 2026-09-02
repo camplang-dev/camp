@@ -3,7 +3,7 @@ extern void free(void* ptr);
 
 int invoke(delegate int(within int* allocator) callback, within int* allocator)
 {
-	return callback(within allocator);
+	return within (allocator) callback();
 }
 
 int callbackFn(within int* allocator)
@@ -14,6 +14,6 @@ int callbackFn(within int* allocator)
 int main()
 {
 	int alloc = 0;
-	int result = invoke(callbackFn, within &alloc);
+	int result = within (&alloc) invoke(callbackFn);
 	return result - 7;
 }
