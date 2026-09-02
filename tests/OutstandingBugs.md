@@ -118,33 +118,33 @@ Static libraries cannot reliably re-export APIs containing arrays of structs
 owned by their dependencies. This prevents ordinary layered module APIs from
 representing collections of shared record types.
 
-## BUG-109: Public member of internal type leaks into the generated C API
+## BUG-109: Public member may expose an internal receiver type
 
 Date/Time: 2026-09-02 18:19 EDT
 
 Summary:
-The native API header exports a public instance method declared on an internal
-struct even though the struct itself is correctly omitted. The resulting
-function prototype names an undeclared receiver type and makes every native
-consumer of the header fail to compile.
+The compiler accepts a public instance method declared on an internal struct.
+This violates public-signature visibility because the method's implicit [this]
+parameter has the less-visible struct type. Analysis should reject this in the
+same way as any other public parameter whose type is less than public.
 
 Steps to Reproduce:
 
 1. Declare an internal struct in a static library.
 2. Give the struct a public instance method.
-3. Build the library and reference it from a second static library.
-4. Compile the generated native source for the consuming library.
+3. Build the library.
 
 Expected:
-Members whose containing type is not externally visible are omitted from every
-exported API representation, regardless of the member's explicit visibility.
+Analysis reports that the public method exposes a type with less than public
+visibility through its implicit [this] parameter. API generation is not
+attempted.
 
 Actual:
-The generated C API header includes the public method prototype but omits the
-internal receiver struct declaration. The native compiler reports an unknown
-type name for the receiver.
+Analysis accepts the declaration. Native API generation then emits the public
+method prototype while omitting the internal receiver struct declaration, and
+the native compiler eventually reports an unknown type name.
 
 Known Impact:
-An internal implementation type with a public member can silently produce an
-invalid static-library API header and prevent otherwise unrelated downstream
+An invalid visibility combination is not diagnosed at its declaration and can
+silently produce a broken static-library API header, preventing downstream
 modules from compiling.
