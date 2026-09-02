@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-097.
+Next bug number: BUG-098.
 
 ## Bug Template
 
@@ -43,3 +43,38 @@ Actual:
 Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
+
+## BUG-097: Camp API headers lower array parameters to ABI components
+
+Date/Time: 2026-09-02 13:48 EDT
+
+Summary:
+Camp API headers generated for static project references serialize an array
+parameter as separate pointer and length parameters. Canonical metadata and API
+semantics require a Camp API header to preserve the source-level array parameter;
+only native C emission should expand it into ABI components.
+
+Steps to Reproduce:
+
+1. Create a static library project with a public function such as
+   `public void consume(const byte[] source, byte[] destination)`.
+2. Build the library and inspect its generated `_api.camp` file.
+3. Reference the library's `.campbuild` from a second Camp project and call
+   `consume(source, destination)` with arrays.
+4. Build the consuming project.
+
+Expected:
+The Camp API header declares the original two array parameters, and the consumer
+binds the two-argument source-level call. Pointer/length expansion occurs only
+when the native ABI is emitted.
+
+Actual:
+The Camp API header declares four parameters: a pointer and length for each
+source array parameter. The consuming source call fails with conversion and
+missing-argument diagnostics.
+
+Known Impact:
+Static `.campbuild` references cannot naturally consume public Camp APIs that
+accept arrays. Callers can use the generated pointer/length shape explicitly,
+but that leaks an alpha ABI-lowering defect into source and is not an acceptable
+long-term workaround.
