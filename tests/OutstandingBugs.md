@@ -1,6 +1,148 @@
 # Outstanding Bugs
 
-Next bug number: BUG-092.
+Next bug number: BUG-095.
+
+## BUG-094: Nested expanded-result calls omit the inner result length
+
+Status: Open
+
+When an array-returning call is used directly as the array argument of another
+call, lowering does not create or forward storage for the inner call's expanded
+result length. The outer call therefore receives no length corresponding to its
+array input, and the inner call is itself missing its required result-length
+argument.
+
+Generalized repro:
+
+```camp
+scoped const char[] inner(const char[] text)
+{
+	return text;
+}
+
+scoped const char[] outer(const char[] text)
+{
+	return text;
+}
+
+void assign(const char[] text)
+{
+	const char[] value = outer(inner(text));
+}
+
+export int main()
+{
+	return 0;
+}
+```
+
+Expected: lowering materializes the pointer and length returned by `inner`,
+then passes both as the input pointer and length of `outer`.
+
+Actual: generated C contains
+`outer(inner(text, text_length), &value_length)`. The declaration for `inner`
+requires a third result-length argument, and `outer` receives the outer result
+length where its input length belongs. Native compilation fails.
+
+Known impact: nested calls over borrowed array views cannot compile. Waystone's
+WIRS parser uses helpers such as `[stripComment(...).trim()]` and is prevented
+from compiling.
+
+## BUG-093: Cross-file array fields omit their length when passed as arguments
+
+Status: Open
+
+When an array-valued struct field declared in one source file is passed to a
+call in another source file, lowering emits the array pointer but omits its
+expanded length argument. The same pattern lowers correctly when the struct and
+caller are in one file.
+
+Generalized repro using one build with two source files:
+
+```camp
+// holder.camp
+using Std;
+
+public struct Holder
+{
+	byte[] bytes;
+}
+
+public byte[] copyBytes(const byte[] input, int mode, within allocator)
+{
+	return default;
+}
+```
+
+```camp
+// caller.camp
+using Std;
+
+byte[] assignCopy(Holder holder, within allocator)
+{
+	byte[] output = copyBytes(holder.bytes, 1);
+	return output;
+}
+
+export int main()
+{
+	return 0;
+}
+```
+
+Expected: the generated call includes
+`copyBytes(holder.bytes, holder.bytes_length, 1, allocator, &output_length)`.
+
+Actual: the generated call omits `holder.bytes_length`, leaving four arguments
+for a five-parameter generated declaration. Native compilation fails.
+
+Known impact: array fields of public cross-file result structures cannot be
+passed directly to array-accepting APIs. Waystone test modules commonly pass
+`WirEmitResult.bytes` this way, preventing binder tests and potentially other
+downstream suites from compiling.
+
+## BUG-092: Multiple `null` arguments can suppress the implicit `within` argument
+
+Status: Open
+
+The call-argument lowering fix for `null` retains a single `null` in its
+declared position, but a call with multiple `null` arguments can omit the
+implicit `within` argument entirely.
+
+Generalized repro:
+
+```camp
+void consume(int* first, int value, int* second, within int* allocator)
+{
+}
+
+void consumeOne(int* first, int value, within int* allocator)
+{
+}
+
+void forward(within int* allocator)
+{
+	consume(null, 7, null);
+	consumeOne(null, 7);
+}
+
+export int main()
+{
+	return 0;
+}
+```
+
+Expected: generated calls are `consume(NULL, 7, NULL, allocator)` and
+`consumeOne(NULL, 7, allocator)`.
+
+Actual: the first generated call is `consume(NULL, 7, NULL)`, omitting the
+allocator, while the single-null control call is correctly emitted as
+`consumeOne(NULL, 7, allocator)`. Native compilation diagnoses the first call
+as having too few arguments.
+
+Known impact: allocator-aware calls containing two nullable arguments cannot be
+lowered reliably. Waystone runtime entry calls use this shape, preventing the
+runtime and its dependent module suites from compiling.
 
 ## ~~BUG-088: API emission suppresses valid source-authored `destroy` methods~~
 
