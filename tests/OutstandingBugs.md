@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-108.
+Next bug number: BUG-109.
 
 ## Bug Template
 
@@ -83,3 +83,37 @@ Project families that intentionally use one flat namespace across multiple Camp
 modules cannot include guarded tests exercising imported array-view APIs in
 their reusable build files. Static downstream project references consequently
 cannot build those modules normally.
+
+## BUG-108: Re-exported imported struct arrays retain the unprojected element type
+
+Date/Time: 2026-09-02 18:05 EDT
+
+Summary:
+A public function in one static library cannot expose an array parameter whose
+element struct is imported from another static library. The generated API for
+the downstream library retains the source-level element identity while the
+consumer's array literal uses the imported ABI projection, and the two types do
+not convert.
+
+Steps to Reproduce:
+
+1. Create a static library that exports a struct.
+2. Create a second static library that references the first and exports a
+   function accepting [const ExportedStruct[]].
+3. Create a consumer that references both libraries, constructs an
+   [ExportedStruct[]], and passes it to the second library's function.
+4. Build the consumer.
+
+Expected:
+The second library's public API preserves the imported struct's projected
+identity, and the consumer can pass an array of that struct.
+
+Actual:
+The consumer reports that its ABI-projected struct array cannot convert to an
+array of the source-level struct type. Rebuilding both static libraries with the
+current compiler does not change the result.
+
+Known Impact:
+Static libraries cannot reliably re-export APIs containing arrays of structs
+owned by their dependencies. This prevents ordinary layered module APIs from
+representing collections of shared record types.
