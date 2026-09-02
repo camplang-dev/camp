@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-104.
+Next bug number: BUG-105.
 
 ## Bug Template
 
@@ -80,3 +80,40 @@ Known Impact:
 A reusable [.campbuild] cannot safely include guarded tests that exercise this
 valid imported API pattern. Consequently, downstream static project references
 cannot build the dependency even though its own test configuration passes.
+
+## BUG-104: Imported struct array literals use the projected ABI type
+
+Date/Time: 2026-09-02 16:25 EDT
+
+Summary:
+An explicitly typed array literal whose element is a public struct imported
+from a static Camp project is lowered as an array of the struct's generated C
+ABI projection. Passing that array to an imported function expecting the
+natural Camp struct array is then rejected as a conversion between two
+different element types.
+
+Steps to Reproduce:
+
+1. Create a library project that exports a public struct and a public function
+   accepting [const Item[]].
+2. Build the library as a static artifact and reference its [.campbuild] from a
+   consuming project.
+3. In the consumer, initialize [Item[] items = [ { ... } ];].
+4. Pass [items] to the imported function.
+
+Expected:
+The literal has type [Item[]], and the argument converts to [const Item[]] using
+the natural imported Camp type. ABI projection is confined to generated native
+boundary code.
+
+Actual:
+The literal is materialized as an array whose element type is the generated
+namespace-prefixed ABI struct. The call is rejected with a diagnostic equivalent
+to [Argument cannot convert 'NamespaceItem[]' to 'const Item[]']. The generated
+Camp API itself declares the natural [Item] type correctly.
+
+Known Impact:
+Consumers of static Camp project references cannot pass locally constructed
+arrays of imported structs through otherwise natural Camp APIs. Reconstructing
+or naming the generated ABI projection in Camp source would expose an
+implementation detail and is not an acceptable library workaround.
