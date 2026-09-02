@@ -7,7 +7,104 @@ public sealed partial class BindableNodeAnalyzer
 	void AnalyzeExportVisibility(Module module)
 	{
 		foreach (Definition definition in ActiveDefinitions(module))
+		{
 			AnalyzeExportVisibility(definition, containingTypeExported: false);
+			AnalyzePublicVisibility(definition, containingType: null);
+		}
+	}
+
+	void AnalyzePublicVisibility(Definition definition, TypeDefinition? containingType)
+	{
+		if (definition.Public is not null)
+		{
+			if (containingType is not null && !IsPublicApiType(containingType))
+				Report(GetNameRange(definition), $"Public member '{definition.Name}' exposes non-public type '{containingType.Name}'.");
+			foreach (TypeReference consumedType in GetVisibleTypesForPublicDeclaration(definition))
+				CheckPublicTypeUse(definition, consumedType);
+		}
+
+		switch (definition)
+		{
+			case ClassDefinition classDefinition:
+				foreach (FieldDefinition field in classDefinition.Fields)
+					AnalyzePublicVisibility(field, classDefinition);
+				foreach (FunctionDefinition function in classDefinition.Functions)
+					AnalyzePublicVisibility(function, classDefinition);
+				break;
+
+			case StaticClassDefinition staticClassDefinition:
+				foreach (FieldDefinition field in staticClassDefinition.Fields)
+					AnalyzePublicVisibility(field, null);
+				foreach (FunctionDefinition function in staticClassDefinition.Functions)
+					AnalyzePublicVisibility(function, null);
+				break;
+
+			case StructDefinition structDefinition:
+				foreach (FieldDefinition field in structDefinition.Fields)
+					AnalyzePublicVisibility(field, structDefinition);
+				foreach (FunctionDefinition function in structDefinition.Functions)
+					AnalyzePublicVisibility(function, structDefinition);
+				break;
+
+			case InterfaceDefinition interfaceDefinition:
+				foreach (FunctionDefinition function in interfaceDefinition.Functions)
+					AnalyzePublicVisibility(function, interfaceDefinition);
+				break;
+
+			case NewtypeDefinition newtypeDefinition:
+				foreach (FieldDefinition field in newtypeDefinition.Fields)
+					AnalyzePublicVisibility(field, newtypeDefinition);
+				foreach (FunctionDefinition function in newtypeDefinition.Functions)
+					AnalyzePublicVisibility(function, newtypeDefinition);
+				break;
+		}
+	}
+
+	static bool IsPublicApiType(TypeDefinition definition)
+	{
+		return definition.Export is not null || definition.Public is not null;
+	}
+
+	IEnumerable<TypeReference> GetVisibleTypesForPublicDeclaration(Definition definition)
+	{
+		switch (definition)
+		{
+			case VariableDefinition variable:
+				if (variable.Type is not null)
+					yield return variable.Type;
+				break;
+			case FieldDefinition field:
+				if (field.Type is not null)
+					yield return field.Type;
+				break;
+			case FunctionDefinition function:
+				foreach (TypeReference type in GetVisibleTypes(function))
+					yield return type;
+				break;
+		}
+	}
+
+	void CheckPublicTypeUse(Definition publicDeclaration, TypeReference? type)
+	{
+		if (type is null)
+			return;
+
+		foreach (TypeDefinition definition in GetDefinitionTypes(type))
+		{
+			if (!IsPublicApiType(definition))
+				Report(GetRange(type.SourceSyntax), $"Public declaration '{publicDeclaration.Name}' exposes non-public type '{definition.Name}'.");
+		}
+
+		foreach (NamedTypeReference named in GetNamedTypes(type))
+		{
+			if (!TryGetNamedTypeDefinition(named, out TypeDefinition? definition))
+				continue;
+			if (definition is null)
+				continue;
+
+			if (!IsPublicApiType(definition))
+				Report(GetRange(named.SourceSyntax), $"Public declaration '{publicDeclaration.Name}' exposes non-public type '{definition.Name}'.");
+		}
 	}
 
 	void AnalyzeExportVisibility(Definition definition, bool containingTypeExported)

@@ -1094,6 +1094,168 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Static_project_same_namespace_inactive_imported_array_indexing_compiles()
+	{
+		string libraryRoot = TempPath("static-api-same-namespace-inactive-index-library");
+		Directory.CreateDirectory(libraryRoot);
+		string librarySource = Path.Combine(libraryRoot, "library.camp");
+		File.WriteAllText(librarySource, """
+			namespace StaticApiSameNamespace;
+
+			export struct Item
+			{
+				const byte[] bytes;
+
+				public const byte[] payload()
+				{
+					return this.bytes;
+				}
+			}
+			""".Replace("\r\n", "\n", StringComparison.Ordinal));
+		string libraryBuild = Path.Combine(libraryRoot, "library.campbuild");
+		File.WriteAllText(libraryBuild, """
+			--artifact static
+			--name static_api_same_namespace_index
+			library.camp
+			""".Replace("\r\n", "\n", StringComparison.Ordinal));
+		string appRoot = TempPath("static-api-same-namespace-inactive-index-app");
+		Directory.CreateDirectory(appRoot);
+		string appSource = Path.Combine(appRoot, "main.camp");
+		File.WriteAllText(appSource, """
+			namespace StaticApiSameNamespace;
+
+			requires (TEST_MODULE);
+
+			byte readIt()
+			{
+				Item value = default;
+				return value.payload()[0];
+			}
+			""".Replace("\r\n", "\n", StringComparison.Ordinal));
+		string appBuild = Path.Combine(appRoot, "app.campbuild");
+		File.WriteAllText(appBuild, """
+			--artifact static
+			--name static_api_same_namespace_index_app
+			--project-reference ../static-api-same-namespace-inactive-index-library/library.campbuild:static
+			main.camp
+			""".Replace("\r\n", "\n", StringComparison.Ordinal));
+
+		string target = NativeTargetForHost();
+		AssertCommandSucceeded(RunCampc("build", libraryBuild, "--nostdlib", "--target", target));
+		ProcessResult result = RunCampc("build", appBuild, "--nostdlib", "--target", target);
+
+		AssertCommandSucceeded(result);
+	}
+
+	[Fact]
+	public void Static_project_reexported_imported_struct_arrays_compile_for_consumers()
+	{
+		string baseRoot = TempPath("static-api-reexport-array-base");
+		Directory.CreateDirectory(baseRoot);
+		string baseSource = Path.Combine(baseRoot, "base.camp");
+		File.WriteAllText(baseSource, """
+			namespace StaticApiReexportBase;
+
+			export struct Item
+			{
+				int value;
+				const byte[] bytes;
+			}
+			""".Replace("\r\n", "\n", StringComparison.Ordinal));
+		string baseBuild = Path.Combine(baseRoot, "base.campbuild");
+		File.WriteAllText(baseBuild, """
+			--artifact static
+			--name static_api_reexport_base
+			base.camp
+			""".Replace("\r\n", "\n", StringComparison.Ordinal));
+		string middleRoot = TempPath("static-api-reexport-array-middle");
+		Directory.CreateDirectory(middleRoot);
+		string middleSource = Path.Combine(middleRoot, "middle.camp");
+		File.WriteAllText(middleSource, """
+			using StaticApiReexportBase;
+
+			namespace StaticApiReexportMiddle;
+
+			export void consume(const Item[] items)
+			{
+			}
+			""".Replace("\r\n", "\n", StringComparison.Ordinal));
+		string middleBuild = Path.Combine(middleRoot, "middle.campbuild");
+		File.WriteAllText(middleBuild, """
+			--artifact static
+			--name static_api_reexport_middle
+			--project-reference ../static-api-reexport-array-base/base.campbuild:static
+			middle.camp
+			""".Replace("\r\n", "\n", StringComparison.Ordinal));
+		string appRoot = TempPath("static-api-reexport-array-app");
+		Directory.CreateDirectory(appRoot);
+		string appSource = Path.Combine(appRoot, "main.camp");
+		File.WriteAllText(appSource, """
+			using StaticApiReexportBase;
+			using StaticApiReexportMiddle;
+
+			void run()
+			{
+				Item value = default;
+				Item[] items = [ value ];
+				consume(items);
+			}
+			""".Replace("\r\n", "\n", StringComparison.Ordinal));
+
+		string target = NativeTargetForHost();
+		AssertCommandSucceeded(RunCampc("build", baseBuild, "--nostdlib", "--target", target));
+		AssertCommandSucceeded(RunCampc("build", middleBuild, "--nostdlib", "--target", target));
+		ProcessResult result = RunCampc(
+			"build",
+			appSource,
+			"--nostdlib",
+			"--artifact",
+			"none",
+			"--target",
+			target,
+			"--project-reference",
+			baseBuild + ":static",
+			"--project-reference",
+			middleBuild + ":static",
+			"--out-dir",
+			Path.Combine(appRoot, "bin"),
+			"--name",
+			"static_api_reexport_app");
+
+		AssertCommandSucceeded(result);
+	}
+
+	[Fact]
+	public void Public_instance_members_on_non_public_types_are_rejected()
+	{
+		string source = CreateTempCase("public_member_non_public_receiver/main.camp", """
+			namespace PublicMemberReceiver;
+
+			internal struct Hidden
+			{
+				public int value()
+				{
+					return 1;
+				}
+			}
+			""");
+
+		ProcessResult result = RunCampc(
+			"build",
+			source,
+			"--nostdlib",
+			"--artifact",
+			"static",
+			"--target",
+			NativeTargetForHost(),
+			"--name",
+			"public_member_non_public_receiver");
+
+		Assert.NotEqual(0, result.ExitCode);
+		Assert.Contains("Public member 'value' exposes non-public type 'Hidden'.", result.StdErr, StringComparison.Ordinal);
+	}
+
+	[Fact]
 	public void Generated_harness_tracks_interface_allocator_leaks_and_invalid_frees()
 	{
 		string source = CreateTempCase("test_harness_leak_tracking/main.camp", """
