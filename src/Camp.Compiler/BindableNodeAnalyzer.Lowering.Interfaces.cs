@@ -430,7 +430,6 @@ public sealed partial class BindableNodeAnalyzer
 		return argument.Value is WithinExpression
 			|| IsCurrentWithinArgument(argument)
 			|| IsCapturedAllocatorArgument(argument)
-			|| IsNullArgumentExpression(argument)
 			|| IsGeneratedHiddenForwardingArgumentFor(parameter, argument);
 	}
 

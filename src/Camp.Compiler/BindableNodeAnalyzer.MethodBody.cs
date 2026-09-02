@@ -4401,15 +4401,6 @@ public sealed partial class BindableNodeAnalyzer
 				return true;
 			}
 		}
-		else if (IsNullArgumentExpression(argument))
-		{
-			parameterIndex = FindNextUnsuppliedParameter(callableParameters, suppliedParameters, parameter => IsWithinParameter(parameter) || IsUponParameter(parameter));
-			if (parameterIndex >= 0)
-			{
-				suppliedParameters[parameterIndex] = true;
-				return true;
-			}
-		}
 		else if (GetGeneratedHiddenForwardingArgumentName(argument) is string generatedHiddenName
 			&& TryBindGeneratedHiddenForwardingArgument(generatedHiddenName, callableParameters, suppliedParameters, out parameterIndex))
 		{

@@ -513,7 +513,7 @@ public sealed partial class BindableNodeAnalyzer
 			return;
 		if (HasProvidedExpandedComponentArgument(call.Arguments, callableParameters))
 			callableParameters = ExpandCallableParametersForDefaultBinding(callableParameters);
-		if (function is not null && (call.Arguments.Count > callableParameters.Count || HasExplicitHiddenArgument(call.Arguments) || HasWithinParameter(function) && call.Arguments.Exists(IsNullArgumentExpression)))
+		if (function is not null && (call.Arguments.Count > callableParameters.Count || HasExplicitHiddenArgument(call.Arguments)))
 			AddExplicitHiddenParameters(function.Parameters, callableParameters);
 
 		bool[] suppliedParameters = new bool[callableParameters.Count];

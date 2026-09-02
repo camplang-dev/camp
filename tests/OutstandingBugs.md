@@ -49,43 +49,6 @@ Known impact: canonical implicit allocation propagation cannot be used when a
 pointer-bearing array result is forwarded with explicit arguments. This blocks
 the Waystone WIRS disassembler and similar allocator-aware forwarding paths.
 
-## BUG-090: An ordinary `null` argument is consumed as the implicit `within` argument
-
-Status: Open
-
-When a call supplies `null` for an ordinary pointer parameter and the selected
-callable also has a later `within` parameter, call lowering consumes the `null`
-as the hidden within argument. The ordinary pointer argument disappears and
-the remaining arguments shift left.
-
-Generalized repro:
-
-```camp
-requires (TEST_MODULE);
-
-using Std;
-
-void consumeOptional(int* optional, int value, within allocator)
-{
-}
-
-@test void nullOrdinaryArgumentPrecedesImplicitWithin(
-	within Allocator* allocator)
-{
-	consumeOptional(null, 7);
-}
-```
-
-Expected: generated C calls `consumeOptional(NULL, 7, allocator)`.
-
-Actual: generated C calls `consumeOptional(7, NULL)`. Native compilation then
-fails because the declaration requires three arguments. More complex signature
-shapes may instead produce type confusion or runtime corruption.
-
-Known impact: allocator-aware callables cannot safely receive literal `null`
-for an ordinary pointer parameter. This blocks canonical implicit within
-propagation in APIs with optional pointer arguments.
-
 ## ~~BUG-088: API emission suppresses valid source-authored `destroy` methods~~
 
 Status: Fixed

@@ -1,0 +1,15 @@
+using Std;
+
+int consumeOptional(int* optional, int value, within allocator)
+{
+	if (optional != null)
+		return 1;
+	if (value != 7)
+		return 2;
+	return 0;
+}
+
+export int main()
+{
+	return consumeOptional(null, 7);
+}
