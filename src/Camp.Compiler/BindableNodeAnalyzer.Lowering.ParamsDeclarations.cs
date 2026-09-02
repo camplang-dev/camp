@@ -432,23 +432,35 @@ public sealed partial class BindableNodeAnalyzer
 				|| TryUseTargetShapeForGenericExpandedReturn(function, shape, out callShape))
 			&& callShape.Components.Count == shape.Components.Count)
 		{
-			AddImplicitDefaultArguments(call);
-			LowerThrowingArguments(call);
-			ExpandParamsArguments(call.Arguments);
-			AddImplicitSizeOfArguments(call);
-			AddImplicitNameOfArguments(call);
-			AddImplicitVTableOfArguments(call);
-			if (call.Target is MemberReferenceExpression { Target: Expression receiver } member
-				&& IsInstanceInvocationFunction(function)
-				&& !IsPropertyGetterReference(member)
-				&& !IsPropertySetterReference(member)
-				&& FindContainingType(function) is not InterfaceDefinition)
+			List<Statement>? previousPrefix = currentStatementPrefix;
+			List<Statement>? previousSuffix = currentStatementSuffix;
+			currentStatementPrefix = declarations;
+			currentStatementSuffix = [];
+			try
 			{
-				RewriteInstanceInvocation(call, member, receiver, function);
+				AddImplicitDefaultArguments(call);
+				LowerThrowingArguments(call);
+				ExpandParamsArguments(call.Arguments);
+				AddImplicitSizeOfArguments(call);
+				AddImplicitNameOfArguments(call);
+				AddImplicitVTableOfArguments(call);
+				if (call.Target is MemberReferenceExpression { Target: Expression receiver } member
+					&& IsInstanceInvocationFunction(function)
+					&& !IsPropertyGetterReference(member)
+					&& !IsPropertySetterReference(member)
+					&& FindContainingType(function) is not InterfaceDefinition)
+				{
+					RewriteInstanceInvocation(call, member, receiver, function);
+				}
+				else
+				{
+					TryRewriteGroupedMethodInvocation(call, function);
+				}
 			}
-			else
+			finally
 			{
-				TryRewriteGroupedMethodInvocation(call, function);
+				currentStatementPrefix = previousPrefix;
+				currentStatementSuffix = previousSuffix;
 			}
 			((DeclarationStatement)declarations[componentDeclarationStart]).InitialValue = null;
 			for (int i = 1; i < targets.Count; i++)
@@ -481,7 +493,19 @@ public sealed partial class BindableNodeAnalyzer
 			&& TryGetCallableExpandedReturnShape(callableCall, shape, out ParamsComponentShape callableReturnShape)
 			&& callableReturnShape.Components.Count == shape.Components.Count)
 		{
-			ExpandParamsArguments(callableCall);
+			List<Statement>? previousPrefix = currentStatementPrefix;
+			List<Statement>? previousSuffix = currentStatementSuffix;
+			currentStatementPrefix = declarations;
+			currentStatementSuffix = [];
+			try
+			{
+				ExpandParamsArguments(callableCall);
+			}
+			finally
+			{
+				currentStatementPrefix = previousPrefix;
+				currentStatementSuffix = previousSuffix;
+			}
 			((DeclarationStatement)declarations[componentDeclarationStart]).InitialValue = null;
 			for (int i = 1; i < targets.Count; i++)
 			{

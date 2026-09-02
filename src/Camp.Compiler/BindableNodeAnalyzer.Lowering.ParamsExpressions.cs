@@ -1174,36 +1174,48 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (!preparedExpandedReturnCalls.Contains(call))
 		{
-			AddImplicitDefaultArguments(call);
-			LowerThrowingArguments(call);
-			ExpandParamsArguments(call.Arguments);
-			AddImplicitSizeOfArguments(call);
-			AddImplicitNameOfArguments(call);
-			AddImplicitVTableOfArguments(call);
-			if (call.Target is MemberReferenceExpression { Target: Expression receiver } member
-				&& IsInstanceInvocationFunction(function)
-				&& !IsPropertyGetterReference(member)
-				&& !IsPropertySetterReference(member)
-				&& FindContainingType(function) is not InterfaceDefinition)
+			List<Statement>? previousPrefix = currentStatementPrefix;
+			List<Statement>? previousSuffix = currentStatementSuffix;
+			currentStatementPrefix = statements;
+			currentStatementSuffix = [];
+			try
 			{
-				RewriteInstanceInvocation(call, member, receiver, function);
-			}
-			else
-			{
-				TryRewriteGroupedMethodInvocation(call, function);
-			}
-			for (int i = 1; i < targets.Count; i++)
-			{
-				call.Arguments.Add(new ArgumentExpression
+				AddImplicitDefaultArguments(call);
+				LowerThrowingArguments(call);
+				ExpandParamsArguments(call.Arguments);
+				AddImplicitSizeOfArguments(call);
+				AddImplicitNameOfArguments(call);
+				AddImplicitVTableOfArguments(call);
+				if (call.Target is MemberReferenceExpression { Target: Expression receiver } member
+					&& IsInstanceInvocationFunction(function)
+					&& !IsPropertyGetterReference(member)
+					&& !IsPropertySetterReference(member)
+					&& FindContainingType(function) is not InterfaceDefinition)
 				{
-					SourceSyntax = assignment.SourceSyntax,
-					Modifier = ArgumentModifier.Out,
-					Value = LowerExpression(CloneParamsExpansionExpression(targets[i])),
-					ResolvedType = shape.Components[i].Type
-				});
+					RewriteInstanceInvocation(call, member, receiver, function);
+				}
+				else
+				{
+					TryRewriteGroupedMethodInvocation(call, function);
+				}
+				for (int i = 1; i < targets.Count; i++)
+				{
+					call.Arguments.Add(new ArgumentExpression
+					{
+						SourceSyntax = assignment.SourceSyntax,
+						Modifier = ArgumentModifier.Out,
+						Value = LowerExpression(CloneParamsExpansionExpression(targets[i])),
+						ResolvedType = shape.Components[i].Type
+					});
+				}
+				preparedExpandedReturnCalls.Add(call);
+				AddImplicitWithinArgument(call);
 			}
-			preparedExpandedReturnCalls.Add(call);
-			AddImplicitWithinArgument(call);
+			finally
+			{
+				currentStatementPrefix = previousPrefix;
+				currentStatementSuffix = previousSuffix;
+			}
 		}
 
 		statements.Add(new ExpressionStatement
@@ -1354,8 +1366,16 @@ public sealed partial class BindableNodeAnalyzer
 				return true;
 
 			case MemberReferenceExpression { Target: not null } member
+				when TryCreateExpandedFieldPairComponentExpressions(member.Target, member.Name, out components):
+				return true;
+
+			case MemberReferenceExpression { Target: not null } member
 				when TryCreateParamsMemberComponentExpression(member, out Expression? component):
 				components.Add(component);
+				return true;
+
+			case MemberExpression { Target: not null } member
+				when TryCreateExpandedFieldPairComponentExpressions(member.Target, member.Name, out components):
 				return true;
 
 			case MemberExpression { Target: not null } member
@@ -1500,6 +1520,49 @@ public sealed partial class BindableNodeAnalyzer
 	bool TryCreateSourceMemberParamsComponentExpressions(MemberExpression member, out List<Expression> components)
 	{
 		return TryCreateSourceMemberParamsComponentExpressions(member.Target, member.Name, member.ResolvedType, member.SourceSyntax, out components);
+	}
+
+	bool TryCreateExpandedFieldPairComponentExpressions(Expression target, string name, out List<Expression> components)
+	{
+		components = [];
+		string targetTypeName = BaseTypeName(TryGetPointerElementType(target.ResolvedType ?? "") ?? target.ResolvedType ?? "");
+		if (string.IsNullOrWhiteSpace(targetTypeName)
+			|| !typeDefinitions.TryGetValue(targetTypeName, out TypeDefinition? type)
+			|| TryFindField(type, name) is not FieldDefinition valueField
+			|| !TryGetParamsComponentShape(valueField.Type, valueField.ResolvedType, valueField.Name, out ParamsComponentShape shape)
+			|| shape.Components.Count <= 1)
+			return false;
+
+		foreach (ParamsComponent component in shape.Components)
+		{
+			components.Add(new MemberExpression
+			{
+				SourceSyntax = target.SourceSyntax,
+				Target = CloneParamsExpansionExpression(target),
+				Name = component.ExpandedName,
+				ResolvedType = component.Type
+			});
+		}
+		return true;
+	}
+
+	static FieldDefinition? TryFindField(TypeDefinition type, string name)
+	{
+		foreach (FieldDefinition field in GetFieldsForParamsExpansion(type))
+			if (field.Name == name)
+				return field;
+		return null;
+	}
+
+	static IEnumerable<FieldDefinition> GetFieldsForParamsExpansion(TypeDefinition type)
+	{
+		return type switch
+		{
+			ClassDefinition classDefinition => classDefinition.Fields,
+			StructDefinition structDefinition => structDefinition.Fields,
+			NewtypeDefinition newtypeDefinition => newtypeDefinition.Fields,
+			_ => []
+		};
 	}
 
 	bool TryCreateSourceMemberParamsComponentExpressions(MemberExpression member, string? paramsType, out List<Expression> components)
@@ -2946,6 +3009,13 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			RewriteInstanceInvocation(call, member, receiver, function);
 		}
+
+		AddImplicitDefaultArguments(call);
+		LowerThrowingArguments(call);
+		ExpandParamsArguments(call.Arguments);
+		AddImplicitSizeOfArguments(call);
+		AddImplicitNameOfArguments(call);
+		AddImplicitVTableOfArguments(call);
 
 		List<DeclarationTarget> targets = [];
 		for (int i = 0; i < shape.Components.Count; i++)

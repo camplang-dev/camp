@@ -1,0 +1,26 @@
+struct Holder
+{
+	byte[] bytes;
+}
+
+void consume(const byte[] input, int mode)
+{
+}
+
+scoped const char[] inner(const char[] text)
+{
+	return text;
+}
+
+scoped const char[] outer(const char[] text)
+{
+	return text;
+}
+
+export int main()
+{
+	Holder holder = default;
+	consume(holder.bytes, 1);
+	const char[] value = outer(inner("abc"));
+	return value.length == 3 ? 0 : 1;
+}

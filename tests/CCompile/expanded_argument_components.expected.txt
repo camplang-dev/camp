@@ -1,0 +1,81 @@
+// file: expanded_argument_components.c
+#include "expanded_argument_components_private.h"
+
+/* Private file declarations. */
+static void consume(const uint8_t *input, uintptr_t input_length, int mode);
+static const char *inner(const char *text, uintptr_t text_length, uintptr_t *result_length);
+static const char *outer(const char *text, uintptr_t text_length, uintptr_t *result_length);
+
+static void consume(const uint8_t *input, uintptr_t input_length, int mode)
+{
+}
+
+static const char *inner(const char *text, uintptr_t text_length, uintptr_t *result_length)
+{
+	{
+		(*result_length) = text_length;
+		return (const char *)(text);
+	}
+}
+
+static const char *outer(const char *text, uintptr_t text_length, uintptr_t *result_length)
+{
+	{
+		(*result_length) = text_length;
+		return (const char *)(text);
+	}
+}
+
+int main(void)
+{
+	Holder holder = (Holder){0};
+	consume(holder.bytes, holder.bytes_length, 1);
+	const char *value;
+	uintptr_t value_length;
+	const char *_elements0;
+	uintptr_t _length1;
+	_elements0 = inner("abc", 3, &_length1);
+	value = outer(_elements0, _length1, &value_length);
+	return ((value_length == 3) ? 0 : 1);
+}
+
+// file: expanded_argument_components.h
+#ifndef EXPANDED_ARGUMENT_COMPONENTS_H_
+#define EXPANDED_ARGUMENT_COMPONENTS_H_
+
+#include "expanded_argument_components_private.h"
+
+int main(void);
+
+#endif
+// file: expanded_argument_components_private.h
+#ifndef EXPANDED_ARGUMENT_COMPONENTS_PRIVATE_H_
+#define EXPANDED_ARGUMENT_COMPONENTS_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct Holder Holder;
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Layouts. */
+struct Holder
+{
+	uint8_t *bytes;
+	uintptr_t bytes_length;
+};
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: expanded_argument_components.c
