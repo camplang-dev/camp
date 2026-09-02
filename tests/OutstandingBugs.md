@@ -1,6 +1,90 @@
 # Outstanding Bugs
 
-Next bug number: BUG-089.
+Next bug number: BUG-091.
+
+## BUG-090: An ordinary `null` argument is consumed as the implicit `within` argument
+
+Status: Open
+
+When a call supplies `null` for an ordinary pointer parameter and the selected
+callable also has a later `within` parameter, call lowering consumes the `null`
+as the hidden within argument. The ordinary pointer argument disappears and
+the remaining arguments shift left.
+
+Generalized repro:
+
+```camp
+requires (TEST_MODULE);
+
+using Std;
+
+void consumeOptional(int* optional, int value, within allocator)
+{
+}
+
+@test void nullOrdinaryArgumentPrecedesImplicitWithin(
+	within Allocator* allocator)
+{
+	consumeOptional(null, 7);
+}
+```
+
+Expected: generated C calls `consumeOptional(NULL, 7, allocator)`.
+
+Actual: generated C calls `consumeOptional(7, NULL)`. Native compilation then
+fails because the declaration requires three arguments. More complex signature
+shapes may instead produce type confusion or runtime corruption.
+
+Known impact: allocator-aware callables cannot safely receive literal `null`
+for an ordinary pointer parameter. This blocks canonical implicit within
+propagation in APIs with optional pointer arguments.
+
+## BUG-089: Implicit `within` forwarding is emitted before an explicit `out` argument
+
+Status: Open
+
+When a callable declares an ordinary `out` parameter before a `within`
+parameter, an implicit within context is bound to the correct source call but
+lowered into the wrong ABI position. The generated call passes the allocator
+where the `out` pointer belongs and passes the `out` pointer where the allocator
+belongs.
+
+Generalized repro:
+
+```camp
+requires (TEST_MODULE);
+
+using Std;
+
+int produceValue(out int output, within allocator)
+{
+	output = 7;
+	return 9;
+}
+
+@test void withinAfterOutUsesDeclaredAbiOrder(
+	within Allocator* allocator,
+	thrown Assertion*)
+{
+	int output;
+	int value = produceValue(out output);
+	assert(value == 9);
+	assert(output == 7);
+}
+```
+
+Expected: generated C calls `produceValue(&output, allocator)`, matching the
+generated declaration and the source parameter order.
+
+Actual: generated C calls `produceValue(allocator, (StdAllocator ***)&output)`.
+The first assertion can pass because the return value is unaffected, but the
+`out` value is not written correctly. With nontrivial allocator use this can
+corrupt memory or crash.
+
+Known impact: allocator-aware helpers that combine `out` results with implicit
+within forwarding cannot be called safely. This affects canonical allocator
+propagation in library and test code; callers must not rely on the alpha
+compiler's generated output for this signature shape.
 
 ## ~~BUG-088: API emission suppresses valid source-authored `destroy` methods~~
 
