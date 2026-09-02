@@ -293,6 +293,7 @@ public class ParameterDefinition : Definition
 	public string? LifetimeBinding { get; set; }
 	public TypeReference? Type { get; set; }
 	public Expression? DefaultValue { get; set; }
+	internal ParameterDefinition? ExpandedSourceParameter { get; set; }
 }
 
 public class ThisParameterDefinition : ParameterDefinition

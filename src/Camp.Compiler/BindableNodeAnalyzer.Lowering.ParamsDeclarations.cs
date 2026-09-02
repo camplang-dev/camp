@@ -884,7 +884,8 @@ public sealed partial class BindableNodeAnalyzer
 			ResolvedType = component.Type,
 			DefaultValue = component.SourceParameter?.DefaultValue ?? (inheritDefaultValue ? source.DefaultValue : null),
 			SlotLifetimeFact = source.SlotLifetimeFact,
-			ValueLifetimeFact = source.ValueLifetimeFact
+			ValueLifetimeFact = source.ValueLifetimeFact,
+			ExpandedSourceParameter = source
 		};
 	}
 

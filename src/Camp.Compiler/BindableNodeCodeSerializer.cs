@@ -1763,8 +1763,18 @@ public sealed class BindableNodeCodeSerializer
 	static List<ParameterDefinition> FilterApiParameters(List<ParameterDefinition> parameters)
 	{
 		List<ParameterDefinition> result = [];
+		ParameterDefinition? lastExpandedSource = null;
 		foreach (ParameterDefinition parameter in parameters)
 		{
+			if (parameter.ExpandedSourceParameter is ParameterDefinition sourceParameter)
+			{
+				if (ReferenceEquals(sourceParameter, lastExpandedSource))
+					continue;
+				result.Add(sourceParameter);
+				lastExpandedSource = sourceParameter;
+				continue;
+			}
+			lastExpandedSource = null;
 			ParameterDefinition? previous = result.Count == 0 ? null : result[^1];
 			if (IsGeneratedCallableContextParameter(parameter, previous))
 				continue;
