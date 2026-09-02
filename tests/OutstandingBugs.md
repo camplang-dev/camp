@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-102.
+Next bug number: BUG-103.
 
 ## Bug Template
 
@@ -82,3 +82,44 @@ when those views are derived from expanded array fields. Assigning the returned
 array to a local before indexing may avoid this compiler path, but changing valid
 consumer code would conceal a compiler crash and is not an acceptable library
 workaround.
+
+## BUG-102: Generated Camp APIs do not preserve expanded public struct fields
+
+Date/Time: 2026-09-02 16:04 EDT
+
+Summary:
+The Camp API generated for a static project flattens an expanded public struct
+field, such as an array, into its ABI component fields. A Camp project that
+references the static project consequently sees the pointer and length storage
+instead of the public Camp field declared by the library.
+
+Steps to Reproduce:
+
+1. Create a library project that exports a public struct containing a public or
+   module-consumable [byte[] bytes] field.
+2. Build the library as a static artifact with generated Camp API metadata.
+3. Reference the library [.campbuild] from a second Camp project.
+4. In the consumer, initialize the exported struct, read [value.bytes] as a
+   [byte[]], or use an array of the exported struct as a function argument.
+5. Build or test the consuming project.
+
+Expected:
+The generated Camp API preserves the source-level expanded field shape for Camp
+consumers while independently representing its pointer and length components at
+the C ABI boundary. Source-level reads, initializers, and function arguments use
+the original exported Camp type.
+
+Actual:
+The generated Camp API declares separate [byte* bytes] and
+[nuint bytes_length] fields. Reading [value.bytes] therefore has type [byte*],
+and uses of arrays containing the imported struct can expose projected ABI type
+names rather than the source-level struct type. Valid consumer code fails with
+conversion diagnostics such as [byte*] to [byte[]] or an array of the projected
+struct type to an array of the source-level type.
+
+Known Impact:
+Static Camp project references cannot preserve natural public APIs for structs
+with expanded fields. This blocks module isolation for libraries that return
+owned buffers or expose array views through result structs. Manually rebuilding
+arrays from ABI component fields in consumers would leak ABI lowering into Camp
+source and is not an acceptable workaround.
