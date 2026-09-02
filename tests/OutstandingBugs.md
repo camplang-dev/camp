@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-106.
+Next bug number: BUG-107.
 
 ## Bug Template
 
@@ -156,3 +156,39 @@ Known Impact:
 Camp modules cannot safely pass local interface implementations to APIs imported
 through static project references. This is a silent ABI mismatch and blocks
 interface-based extension points across module boundaries.
+
+## BUG-106: C API omits opaque declarations for private pointer field types
+
+Date/Time: 2026-09-02 16:36 EDT
+
+Summary:
+When a public struct contains a pointer field whose pointee is a non-public
+class, the generated C API header uses the lowered pointee type without emitting
+an opaque forward declaration for it. A downstream generated C translation unit
+that includes the API header consequently fails to compile with an unknown type.
+
+Steps to Reproduce:
+
+1. Create a library project with a non-public class named [Storage].
+2. Export a public struct containing a [Storage* storage] field while keeping the
+   field and storage implementation non-public at the Camp source level.
+3. Build the library as a static artifact with generated Camp and C API metadata.
+4. Reference the library [.campbuild] from another Camp project and compile that
+   project's generated C.
+
+Expected:
+The public struct layout retains the pointer field required by the ABI, and the
+generated C API header emits an opaque declaration such as a typedef for
+[Storage] without exposing its fields. The generated Camp API may likewise keep
+the pointee opaque and non-public.
+
+Actual:
+The C API header emits the public struct field using the lowered [Storage*] type
+but emits no declaration for [Storage]. Native compilation fails with an
+[unknown type name] diagnostic in the generated API header.
+
+Known Impact:
+Static Camp project consumers cannot use public value types that retain typed
+pointers to private implementation storage. Exposing the storage type publicly
+or erasing it to [void*] would unnecessarily weaken source-level encapsulation
+and type safety.
