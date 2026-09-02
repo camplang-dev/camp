@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-103.
+Next bug number: BUG-104.
 
 ## Bug Template
 
@@ -43,3 +43,40 @@ Actual:
 Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
+
+## BUG-103: Inactive imported array indexing overflows the compiler stack
+
+Date/Time: 2026-09-02 16:24 EDT
+
+Summary:
+Directly indexing an array returned by an imported struct instance method can
+overflow the compiler stack when the containing source file is disabled by a
+file-level requirement. The same expression compiles and runs when that
+requirement is enabled.
+
+Steps to Reproduce:
+
+1. Create a static library project that exports a struct containing an array
+   field and an instance method returning an array derived from that field.
+2. Create a consuming project with a source file beginning with
+   [requires(TEST_MODULE);].
+3. In that file, index the imported method result with an expression such as
+   [value.payload()[index]].
+4. Confirm that testing the consuming project with [TEST_MODULE] active passes.
+5. Build the consuming project as a static artifact with [TEST_MODULE]
+   inactive while leaving the guarded test source in its [.campbuild].
+
+Expected:
+Both configurations compile successfully. The inactive file contributes no
+executable test declarations to the static artifact, and lowering any retained
+conditional representation terminates normally.
+
+Actual:
+The active test configuration succeeds. The inactive static build enters
+unbounded recursion through expanded-component indexing and generic property
+lookup during expression lowering, then terminates with a native stack overflow.
+
+Known Impact:
+A reusable [.campbuild] cannot safely include guarded tests that exercise this
+valid imported API pattern. Consequently, downstream static project references
+cannot build the dependency even though its own test configuration passes.
