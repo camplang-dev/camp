@@ -1097,8 +1097,9 @@ public sealed class CommandLineTests
 	public void Static_project_same_namespace_inactive_imported_array_indexing_compiles()
 	{
 		string libraryRoot = TempPath("static-api-same-namespace-inactive-index-library");
-		Directory.CreateDirectory(libraryRoot);
-		string librarySource = Path.Combine(libraryRoot, "library.camp");
+		Directory.CreateDirectory(Path.Combine(libraryRoot, "src"));
+		Directory.CreateDirectory(Path.Combine(libraryRoot, "tests"));
+		string librarySource = Path.Combine(libraryRoot, "src", "library.camp");
 		File.WriteAllText(librarySource, """
 			namespace StaticApiSameNamespace;
 
@@ -1116,12 +1117,19 @@ public sealed class CommandLineTests
 		File.WriteAllText(libraryBuild, """
 			--artifact static
 			--name static_api_same_namespace_index
-			library.camp
+			--sourcefile-root ..
+			src/*.camp
+			tests/*.camp
 			""".Replace("\r\n", "\n", StringComparison.Ordinal));
 		string appRoot = TempPath("static-api-same-namespace-inactive-index-app");
-		Directory.CreateDirectory(appRoot);
-		string appSource = Path.Combine(appRoot, "main.camp");
+		Directory.CreateDirectory(Path.Combine(appRoot, "src"));
+		Directory.CreateDirectory(Path.Combine(appRoot, "tests"));
+		string appSource = Path.Combine(appRoot, "src", "main.camp");
 		File.WriteAllText(appSource, """
+			namespace StaticApiSameNamespace;
+			""".Replace("\r\n", "\n", StringComparison.Ordinal));
+		string appTestSource = Path.Combine(appRoot, "tests", "main_tests.camp");
+		File.WriteAllText(appTestSource, """
 			namespace StaticApiSameNamespace;
 
 			requires (TEST_MODULE);
@@ -1144,8 +1152,10 @@ public sealed class CommandLineTests
 		File.WriteAllText(appBuild, """
 			--artifact static
 			--name static_api_same_namespace_index_app
+			--sourcefile-root ..
 			--project-reference ../static-api-same-namespace-inactive-index-library/library.campbuild:static
-			main.camp
+			src/*.camp
+			tests/*.camp
 			""".Replace("\r\n", "\n", StringComparison.Ordinal));
 
 		string target = NativeTargetForHost();
@@ -1162,7 +1172,7 @@ public sealed class CommandLineTests
 		Directory.CreateDirectory(baseRoot);
 		string baseSource = Path.Combine(baseRoot, "base.camp");
 		File.WriteAllText(baseSource, """
-			namespace StaticApiReexportBase;
+			namespace StaticApiReexportFlat;
 
 			export struct Item
 			{
@@ -1180,9 +1190,7 @@ public sealed class CommandLineTests
 		Directory.CreateDirectory(middleRoot);
 		string middleSource = Path.Combine(middleRoot, "middle.camp");
 		File.WriteAllText(middleSource, """
-			using StaticApiReexportBase;
-
-			namespace StaticApiReexportMiddle;
+			namespace StaticApiReexportFlat;
 
 			export void consume(const Item[] items)
 			{
@@ -1199,8 +1207,7 @@ public sealed class CommandLineTests
 		Directory.CreateDirectory(appRoot);
 		string appSource = Path.Combine(appRoot, "main.camp");
 		File.WriteAllText(appSource, """
-			using StaticApiReexportBase;
-			using StaticApiReexportMiddle;
+			namespace StaticApiReexportFlat;
 
 			void run()
 			{
