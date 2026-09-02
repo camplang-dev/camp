@@ -1,6 +1,70 @@
 # Outstanding Bugs
 
-Next bug number: BUG-095.
+Before adding a bug, verify the behavior against the language semantics and
+confirm that it is in fact a bug. The explanation should include repro
+instructions and should be written in general terms, without reference to a
+particular file, package, or product.
+
+Bugs should be added to this file one at a time. After each bug is added, commit
+`OutstandingBugs.md` to the repo and include the new bug number in the commit
+message.
+
+When committing a change that fixes a bug, or is related to a bug, reference the
+bug number in the commit message. The final commit that fixes a bug, or the only
+commit if there is just one, should delete the bug from this file and include
+that `OutstandingBugs.md` change in the same commit.
+
+Next bug number: BUG-096.
+
+## BUG-095: Cross-file `string` conversion omits the array length argument
+
+Status: Open
+
+When a `string` expression is passed to a `const char[]` parameter declared in
+another source file, lowering emits the string pointer but omits its expanded
+length argument. A following array argument is expanded normally, so every
+subsequent argument shifts into the wrong generated parameter.
+
+Generalized repro using one build with two source files:
+
+```camp
+// callee.camp
+using Std;
+
+public char[] copyText(const char[] name, const char[] source, within allocator)
+{
+	return default;
+}
+```
+
+```camp
+// caller.camp
+using Std;
+
+void assign(within allocator)
+{
+	string name = "name";
+	const char[] source = "source";
+	char[] result = copyText(name, source);
+	delete result;
+}
+
+export int main()
+{
+	return 0;
+}
+```
+
+Expected: the generated call includes
+`copyText(name, name_length, source, source_length, allocator, &result_length)`.
+
+Actual: the generated call omits `name_length`, leaving five arguments for a
+six-parameter generated declaration. Native compilation fails.
+
+Known impact: APIs in another source file cannot reliably accept `string`
+values through ordinary `const char[]` parameters. This prevents the current
+Waystone C99 CLI from compiling its cross-file diagnostic-rendering calls and
+can corrupt similar calls that happen to remain C-compatible after shifting.
 
 ## ~~BUG-088: API emission suppresses valid source-authored `destroy` methods~~
 
