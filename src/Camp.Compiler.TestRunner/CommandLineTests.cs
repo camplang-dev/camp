@@ -1832,6 +1832,52 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Cross_file_string_to_const_char_array_call_emits_length_argument()
+	{
+		string root = TempPath("cross-file-string-array-call");
+		ResetDirectory(root);
+		Directory.CreateDirectory(Path.Combine(root, "src"));
+		string buildFile = Path.Combine(root, "bug095.campbuild");
+		File.WriteAllText(buildFile, """
+			--name bug095
+			--artifact exec
+			src/*.camp
+			""");
+		File.WriteAllText(Path.Combine(root, "src", "callee.camp"), """
+			using Std;
+
+			public char[] copyText(const char[] name, const char[] source, within allocator)
+			{
+				return (new) source.toString();
+			}
+			""");
+		File.WriteAllText(Path.Combine(root, "src", "caller.camp"), """
+			using Std;
+
+			void assign(within allocator)
+			{
+				string name = "name";
+				const char[] source = "source";
+				char[] result = copyText(name, source);
+				delete result;
+			}
+
+			export int main(string[] args)
+			{
+				return 0;
+			}
+			""");
+
+		string outDir = Path.Combine(root, "out");
+		ProcessResult result = RunCampc("build", buildFile, "--target", NativeTargetForHost(), "--out-dir", outDir);
+
+		AssertCommandSucceeded(result);
+		string callerSource = Assert.Single(Directory.GetFiles(outDir, "caller.c", SearchOption.AllDirectories));
+		string generated = File.ReadAllText(callerSource);
+		Assert.Contains("copyText(name, StdString_getLength(name), source, source_length, allocator, &result_length)", generated, StringComparison.Ordinal);
+	}
+
+	[Fact]
 	public void Dump_lowering_prints_to_stdout()
 	{
 		ProcessResult result = RunCampc("dump", "lowering", "tests/Lowering/default_arguments.camp", "--nostdlib");

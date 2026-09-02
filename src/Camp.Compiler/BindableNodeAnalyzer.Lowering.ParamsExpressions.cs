@@ -919,13 +919,15 @@ public sealed partial class BindableNodeAnalyzer
 			return false;
 		if (TryGetParamsComponentShape(null, argument.Value.ResolvedType, "value", out _))
 			return false;
-		if (GetPrimitiveStringElementType(argument.Value.ResolvedType ?? argument.ResolvedType) is not string stringElement)
+		if (GetPrimitiveStringArgumentElementType(argument.Value, argument.ResolvedType) is not string stringElement)
 			return false;
 		if (!PrimitiveStringArrayArgumentTargetMatches(callableParameters, index, stringElement))
 			return false;
 
 		Expression value = CaptureRepeatedParamsSourceExpression(argument.Value, "stringValue");
+		Expression lengthSource = WithPrimitiveStringResolvedType(value, stringElement);
 		Expression? length = CreateLengthExpression(value, argument.SourceSyntax);
+		length ??= CreateLengthExpression(lengthSource, argument.SourceSyntax);
 		if (length is null)
 			return false;
 		length = LowerExpression(length) ?? length;
@@ -933,6 +935,28 @@ public sealed partial class BindableNodeAnalyzer
 		components.Add(value);
 		components.Add(length);
 		return true;
+	}
+
+	static string? GetPrimitiveStringArgumentElementType(Expression value, string? argumentType)
+	{
+		if (GetPrimitiveStringElementType(value.ResolvedType ?? argumentType) is string element)
+			return element;
+		if (value is VariableReferenceExpression { Variable: DeclarationTarget { Type.ResolvedType: string declarationType } }
+			&& GetPrimitiveStringElementType(declarationType) is string declarationElement)
+			return declarationElement;
+		return null;
+	}
+
+	Expression WithPrimitiveStringResolvedType(Expression value, string stringElement)
+	{
+		Expression clone = CloneParamsExpansionExpression(value) ?? value;
+		clone.ResolvedType = stringElement switch
+		{
+			"wchar" => "wstring",
+			"achar" => "astring",
+			_ => "string"
+		};
+		return clone;
 	}
 
 	bool PrimitiveStringArrayArgumentTargetMatches(List<ParameterDefinition> callableParameters, int index, string stringElement)

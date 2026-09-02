@@ -5334,7 +5334,23 @@ public static class CCodeEmitter
 					continue;
 				}
 				ParameterDefinition? parameter = parameterIndex < parameters.Count ? parameters[parameterIndex] : null;
-				arguments.Add(FormatArgumentValue(orderedCallArguments[i], parameter, genericSubstitutions));
+				ArgumentExpression argument = orderedCallArguments[i];
+				if (orderedCallArguments.Count < parameters.Count
+					&& TryFormatPrimitiveStringArrayArgument(
+					argument,
+					i + 1 < orderedCallArguments.Count ? orderedCallArguments[i + 1] : null,
+					parameters,
+					parameterIndex,
+					genericSubstitutions,
+					out string? stringArgument,
+					out string? lengthArgument))
+				{
+					arguments.Add(stringArgument);
+					arguments.Add(lengthArgument);
+					parameterIndex += 2;
+					continue;
+				}
+				arguments.Add(FormatArgumentValue(argument, parameter, genericSubstitutions));
 				parameterIndex++;
 			}
 			if (TryRepairFormattedInterfaceSlotCallTarget(call, target, out string repairedTarget))
@@ -5933,6 +5949,139 @@ public static class CCodeEmitter
 			}
 
 			return false;
+		}
+
+		bool TryFormatPrimitiveStringArrayArgument(
+			ArgumentExpression argument,
+			ArgumentExpression? nextArgument,
+			List<ParameterDefinition> parameters,
+			int parameterIndex,
+			Dictionary<string, string> genericSubstitutions,
+			out string value,
+			out string length)
+		{
+			value = "";
+			length = "";
+			if (argument.Modifier != ArgumentModifier.None
+				|| argument.Value is null
+				|| parameterIndex + 1 >= parameters.Count)
+				return false;
+			ParameterDefinition parameter = parameters[parameterIndex];
+			if (!TryGetPrimitiveStringArrayAbiElement(parameter, parameters[parameterIndex + 1], out string elementType))
+				return false;
+
+			string actualType = argument.Value.ResolvedType ?? argument.ResolvedType ?? "";
+			if (!PrimitiveStringStorageTypeMatchesElement(actualType, elementType))
+				return false;
+
+			value = FormatArgumentValue(argument, parameter, genericSubstitutions);
+			if (nextArgument is not null
+				&& (ArgumentIsProvidedExpandedLength(argument.Value, nextArgument.Value, parameter.Name + "_length")
+					|| FormatExpression(nextArgument.Value) == PrimitiveStringLengthFunction(elementType) + "(" + value + ")"))
+			{
+				value = "";
+				return false;
+			}
+			length = PrimitiveStringLengthFunction(elementType) + "(" + value + ")";
+			return true;
+		}
+
+		static bool TryGetPrimitiveStringArrayAbiElement(ParameterDefinition valueParameter, ParameterDefinition lengthParameter, out string elementType)
+		{
+			elementType = "";
+			if (valueParameter.ResolvedType is not string pointerType || !TryGetPointerElementType(pointerType, out string pointerElement))
+				return false;
+			if (!HasTopLevelConstForC(pointerElement))
+				return false;
+			string unqualifiedElement = StripTypeQualifiers(pointerElement);
+			if (unqualifiedElement is not ("char" or "wchar" or "achar"))
+				return false;
+			string lengthType = StripTypeQualifiers(lengthParameter.ResolvedType ?? "");
+			if (lengthType is not ("nuint" or "nint" or "uint" or "int" or "ulong" or "long" or "ushort" or "short"))
+				return false;
+			elementType = unqualifiedElement;
+			return true;
+		}
+
+		static bool PrimitiveStringStorageTypeMatchesElement(string type, string elementType)
+		{
+			type = StripTypeQualifiers(type);
+			if (IsPrimitiveStringResolvedName(type))
+			{
+				return type switch
+				{
+					"wstring" => elementType == "wchar",
+					"astring" => elementType == "achar",
+					_ => elementType == "char"
+				};
+			}
+			if (!TryGetPointerElementType(type, out string? pointerElement))
+				return false;
+			return StripTypeQualifiers(pointerElement) == elementType && HasTopLevelConstForC(pointerElement);
+		}
+
+		string PrimitiveStringLengthFunction(string elementType)
+		{
+			string primitiveStringType = elementType switch
+			{
+				"wchar" => "wstring",
+				"achar" => "astring",
+				_ => "string"
+			};
+			foreach (FunctionDefinition function in GetAllFunctions(GetDefinitions()))
+			{
+				if (function.Name != "getLength")
+					continue;
+				List<ParameterDefinition> parameters = GetCallableParametersForCall(function);
+				if (parameters.Count != 1)
+					continue;
+				if ((parameters[0].ResolvedType ?? parameters[0].Type?.ResolvedType) != primitiveStringType)
+					continue;
+				return CName(function);
+			}
+			return PrimitiveStringLengthFunctionFallback(elementType);
+		}
+
+		static string PrimitiveStringLengthFunctionFallback(string elementType)
+		{
+			return elementType switch
+			{
+				"wchar" => "WString_getLength",
+				"achar" => "AString_getLength",
+				_ => "String_getLength"
+			};
+		}
+
+		static bool ArgumentIsProvidedExpandedLength(Expression? value, Expression? next, string lengthName)
+		{
+			if (next is NamedExpression named && named.Name == lengthName)
+				return true;
+			if (next is VariableReferenceExpression { Variable: Definition definition } && (definition.Name == lengthName || definition.Symbol == lengthName))
+				return true;
+			if (next is VariableReferenceExpression { Variable: DeclarationTarget target } && target.Names.Contains(lengthName))
+				return true;
+			if (next is MemberExpression { Name: "length" } member && ArgumentExpressionsReferenceSameValue(value, member.Target))
+				return true;
+			if (next is CallExpression { Target: MemberReferenceExpression { Name: "getLength", Target: Expression receiver } } && ArgumentExpressionsReferenceSameValue(value, receiver))
+				return true;
+			if (next is CallExpression { Target: NamedExpression { Name: "getLength" }, Arguments.Count: > 0 } call && ArgumentExpressionsReferenceSameValue(value, call.Arguments[0].Value))
+				return true;
+			if (next is CallExpression { Target: VariableReferenceExpression { Variable: FunctionDefinition { Name: "getLength" } }, Arguments.Count: > 0 } functionCall
+				&& ArgumentExpressionsReferenceSameValue(value, functionCall.Arguments[0].Value))
+				return true;
+			return false;
+		}
+
+		static bool ArgumentExpressionsReferenceSameValue(Expression? left, Expression? right)
+		{
+			if (ReferenceEquals(left, right))
+				return true;
+			return left switch
+			{
+				VariableReferenceExpression leftVariable when right is VariableReferenceExpression rightVariable => ReferenceEquals(leftVariable.Variable, rightVariable.Variable),
+				NamedExpression leftNamed when right is NamedExpression rightNamed => leftNamed.Name == rightNamed.Name && leftNamed.Qualifiers.SequenceEqual(rightNamed.Qualifiers),
+				_ => false
+			};
 		}
 
 		static bool TryGetExpandedArrayElementType(string? resolvedType, out string elementType)

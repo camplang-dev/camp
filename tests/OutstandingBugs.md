@@ -16,56 +16,6 @@ that `OutstandingBugs.md` change in the same commit.
 
 Next bug number: BUG-096.
 
-## BUG-095: Cross-file `string` conversion omits the array length argument
-
-Status: Open
-
-When a `string` expression is passed to a `const char[]` parameter declared in
-another source file, lowering emits the string pointer but omits its expanded
-length argument. A following array argument is expanded normally, so every
-subsequent argument shifts into the wrong generated parameter.
-
-Generalized repro using one build with two source files:
-
-```camp
-// callee.camp
-using Std;
-
-public char[] copyText(const char[] name, const char[] source, within allocator)
-{
-	return default;
-}
-```
-
-```camp
-// caller.camp
-using Std;
-
-void assign(within allocator)
-{
-	string name = "name";
-	const char[] source = "source";
-	char[] result = copyText(name, source);
-	delete result;
-}
-
-export int main()
-{
-	return 0;
-}
-```
-
-Expected: the generated call includes
-`copyText(name, name_length, source, source_length, allocator, &result_length)`.
-
-Actual: the generated call omits `name_length`, leaving five arguments for a
-six-parameter generated declaration. Native compilation fails.
-
-Known impact: APIs in another source file cannot reliably accept `string`
-values through ordinary `const char[]` parameters. This prevents the current
-Waystone C99 CLI from compiling its cross-file diagnostic-rendering calls and
-can corrupt similar calls that happen to remain C-compatible after shifting.
-
 ## ~~BUG-088: API emission suppresses valid source-authored `destroy` methods~~
 
 Status: Fixed
