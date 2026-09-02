@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-100.
+Next bug number: BUG-101.
 
 ## Bug Template
 
@@ -43,3 +43,36 @@ Actual:
 Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
+
+## BUG-100: Indexing an imported array-returning call overflows the compiler stack
+
+Date/Time: 2026-09-02 15:48 EDT
+
+Summary:
+Lowering an index expression whose receiver is an array returned by a public
+method imported through a static project reference recurses indefinitely in
+expression lowering. The compiler terminates with a native stack overflow
+instead of compiling the valid source or reporting a diagnostic.
+
+Steps to Reproduce:
+
+1. Create a static library with a public struct method such as
+   `public const byte[] payload()`.
+2. Reference that library's `.campbuild` from a second project.
+3. In the consumer, evaluate an indexed call result such as
+   `value.payload()[0]`.
+4. Build or test the consuming project.
+
+Expected:
+The imported source-level array result is lowered once into its ABI components,
+and the index expression reads the requested element.
+
+Actual:
+The compiler repeatedly enters `LowerExpression` through indexed params/array
+component expansion until the native process reports a stack overflow and
+aborts. No Camp diagnostic is produced.
+
+Known Impact:
+Valid public array-returning APIs cannot be indexed directly by consumers using
+static `.campbuild` references. Because the compiler crashes without a
+diagnostic, callers cannot safely rely on this source pattern.
