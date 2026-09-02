@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-114.
+Next bug number: BUG-115.
 
 ## Bug Template
 
@@ -43,3 +43,37 @@ Actual:
 Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
+
+## BUG-114: Leading file requirement still overflows imported-result indexing
+
+Date/Time: 2026-09-02 19:58 EDT
+
+Summary:
+An inactive test source still overflows lowering when its file-level
+[requires(TEST_MODULE);] directive correctly precedes the namespace declaration.
+The otherwise equivalent case with the namespace declaration before [requires]
+succeeds, but that arrangement does not exercise a leading file requirement.
+
+Steps to Reproduce:
+
+1. Create adjacent static-library modules that use the same flat namespace and
+   include [src/*.camp] and [tests/*.camp] from reusable build files.
+2. In the consumer test file, put [requires(TEST_MODULE);] on the first line,
+   followed by the namespace declaration.
+3. In that test file, index an array returned by an imported instance method.
+4. Build the consumer as a static artifact without [TEST_MODULE].
+5. Compare with a fixture that places the namespace declaration before the
+   [requires] directive.
+
+Expected:
+The leading file requirement makes the test source inactive and the static
+build succeeds without lowering its body.
+
+Actual:
+The leading-requirement form recursively enters imported property/index
+lowering until the compiler terminates with a native stack overflow. The
+namespace-first fixture succeeds.
+
+Known Impact:
+The canonical guarded-test layout cannot be included safely in reusable module
+build files when a test contains this imported-array pattern.
