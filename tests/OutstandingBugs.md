@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-109.
+Next bug number: BUG-110.
 
 ## Bug Template
 
@@ -117,3 +117,34 @@ Known Impact:
 Static libraries cannot reliably re-export APIs containing arrays of structs
 owned by their dependencies. This prevents ordinary layered module APIs from
 representing collections of shared record types.
+
+## BUG-109: Public member of internal type leaks into the generated C API
+
+Date/Time: 2026-09-02 18:19 EDT
+
+Summary:
+The native API header exports a public instance method declared on an internal
+struct even though the struct itself is correctly omitted. The resulting
+function prototype names an undeclared receiver type and makes every native
+consumer of the header fail to compile.
+
+Steps to Reproduce:
+
+1. Declare an internal struct in a static library.
+2. Give the struct a public instance method.
+3. Build the library and reference it from a second static library.
+4. Compile the generated native source for the consuming library.
+
+Expected:
+Members whose containing type is not externally visible are omitted from every
+exported API representation, regardless of the member's explicit visibility.
+
+Actual:
+The generated C API header includes the public method prototype but omits the
+internal receiver struct declaration. The native compiler reports an unknown
+type name for the receiver.
+
+Known Impact:
+An internal implementation type with a public member can silently produce an
+invalid static-library API header and prevent otherwise unrelated downstream
+modules from compiling.
