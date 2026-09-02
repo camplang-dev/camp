@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-107.
+Next bug number: BUG-108.
 
 ## Bug Template
 
@@ -43,3 +43,43 @@ Actual:
 Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
+
+## BUG-107: Inactive imported indexing overflows when modules share a namespace
+
+Date/Time: 2026-09-02 17:46 EDT
+
+Summary:
+The inactive imported-array indexing failure addressed by BUG-103 still
+overflows the compiler stack when the referenced library and consuming module
+declare the same namespace. The repaired case succeeds when the consumer uses a
+different namespace and imports the library namespace with [using].
+
+Steps to Reproduce:
+
+1. Create a static library project whose source declares a namespace and exports
+   a struct containing an array plus an instance method returning that array.
+2. Create a consuming project whose source declares the same namespace as the
+   library and references the library [.campbuild].
+3. Include a source file beginning with [requires(TEST_MODULE);] and directly
+   index the imported method result with [value.payload()[index]].
+4. Build the consuming project as a static artifact with [TEST_MODULE]
+   inactive.
+5. Compare with an otherwise equivalent consumer in a different namespace that
+   uses the library namespace explicitly.
+
+Expected:
+Both namespace arrangements compile successfully. Sharing a namespace across
+separate modules does not merge their module visibility or change expression
+lowering.
+
+Actual:
+The different-namespace case succeeds. The shared-namespace case enters
+unbounded recursion through reference-namespace lookup, generic property lookup,
+and expanded-component indexing during lowering, then terminates with a native
+stack overflow.
+
+Known Impact:
+Project families that intentionally use one flat namespace across multiple Camp
+modules cannot include guarded tests exercising imported array-view APIs in
+their reusable build files. Static downstream project references consequently
+cannot build those modules normally.
