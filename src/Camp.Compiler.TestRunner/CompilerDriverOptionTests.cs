@@ -860,6 +860,32 @@ public sealed class CompilerDriverOptionTests
 				}
 			}
 			""");
+		string conditionalImplementation = CreateTempCase("requirement_conditional_implementation.camp", """
+			abstract class Base
+			{
+				abstract int draw();
+			}
+
+			interface IRequired
+			{
+				void run();
+			}
+
+			requires (TEST_MODULE)
+			{
+				sealed class TestDerived: Base, IRequired
+				{
+					override int draw()
+					{
+						return 2;
+					}
+
+					void run(): IRequired
+					{
+					}
+				}
+			}
+			""");
 
 		CompilerResult linuxResult = Execute(conditionalAbstract, request =>
 		{
@@ -879,12 +905,19 @@ public sealed class CompilerDriverOptionTests
 			request.NoStdLib = true;
 			request.Inspect = CompilerInspectMode.Declarations;
 		});
+		CompilerResult conditionalImplementationResult = Execute(conditionalImplementation, request =>
+		{
+			request.TargetName = "gcc-linux-x64";
+			request.NoStdLib = true;
+			request.Inspect = CompilerInspectMode.Declarations;
+		});
 
 		Assert.Equal(0, linuxResult.ExitCode);
 		Assert.NotEqual(0, windowsResult.ExitCode);
 		Assert.Contains("must use override to implement inherited abstract member 'draw()'", windowsResult.StdErr, StringComparison.Ordinal);
 		Assert.NotEqual(0, overrideResult.ExitCode);
 		Assert.Contains("must be at least as available as inherited member", overrideResult.StdErr, StringComparison.Ordinal);
+		Assert.Equal(0, conditionalImplementationResult.ExitCode);
 	}
 
 	[Fact]
