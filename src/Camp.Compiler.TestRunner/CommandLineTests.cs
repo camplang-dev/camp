@@ -377,6 +377,164 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Native_value_struct_delegate_host_does_not_corrupt_text_parsing()
+	{
+		string root = TempPath("native-value-struct-delegate-host-text-parsing");
+		ResetDirectory(root);
+		Directory.CreateDirectory(Path.Combine(root, "src"));
+		File.WriteAllText(Path.Combine(root, "src", "main.camp"), """
+			using Std;
+
+			struct ImportCall
+			{
+				uint value;
+			}
+
+			newtype delegate bool ImportResolver(ImportCall* call);
+
+			class Resolver
+			{
+				bool called;
+
+				bool resolve(ImportCall* call)
+				{
+					this.called = true;
+					return true;
+				}
+			}
+
+			struct CallbackHost
+			{
+				ImportResolver resolve;
+				void* targetContext;
+			}
+
+			struct ParseResult
+			{
+				bool ok;
+				fixed char[256] sourceName;
+				uint sourceNameLength;
+			}
+
+			export int main()
+			{
+				const char[] source = "INIT 8 { 0: BYTE { 1, 2 } | 4: ZERO 2 }";
+				byte[] bytes = new byte[source.length];
+				for (nuint index = 0; index < source.length; index++)
+					bytes[index] = (byte)source[index];
+
+				Resolver* resolver = new Resolver();
+				CallbackHost host = { resolver.resolve };
+				ParseResult parsed = runFromBytes(host, bytes);
+				delete resolver;
+				delete bytes;
+				return parsed.ok ? 0 : 1;
+			}
+
+			ParseResult runFromBytes(CallbackHost host, byte[] bytes)
+			{
+				ParseResult result = default;
+				char[] text = new char[bytes.length];
+				for (nuint index = 0; index < bytes.length; index++)
+					text[index] = (char)bytes[index];
+
+				result.ok = parseInitializer(host, text);
+				delete text;
+				return result;
+			}
+
+			bool parseInitializer(CallbackHost host, const char[] text)
+			{
+				nuint open = findChar(text, '{');
+				nuint close = text.length;
+				nuint prefixStart = 5;
+				nuint prefixEnd = open;
+				while (prefixEnd > prefixStart && text[prefixEnd - 1] == ' ')
+					prefixEnd--;
+
+				uint sizeValue = 0;
+				if (!text[prefixStart..prefixEnd].tryParse(out sizeValue))
+					return false;
+
+				nuint size = sizeValue;
+				byte[] output = new byte[size];
+				bool[] initialized = new bool[size];
+				for (nuint index = 0; index < size; index++)
+				{
+					output[index] = 0;
+					initialized[index] = false;
+				}
+
+				const char[] body = text[open + 1..close - 1];
+				nuint cursor = 0;
+				while (cursor < body.length)
+				{
+					while (cursor < body.length && (body[cursor] == ' ' || body[cursor] == '|'))
+						cursor++;
+					if (cursor >= body.length)
+						break;
+
+					nuint colon = cursor;
+					while (colon < body.length && body[colon] != ':')
+						colon++;
+
+					uint offsetValue = 0;
+					if (!body[cursor..colon].trim().tryParse(out offsetValue))
+						return false;
+					nuint offset = offsetValue;
+
+					nuint fragmentStart = colon + 1;
+					nuint fragmentEnd = fragmentStart;
+					while (fragmentEnd < body.length && body[fragmentEnd] != '|')
+						fragmentEnd++;
+
+					const char[] initializer = body[fragmentStart..fragmentEnd].trim();
+					bool zero = initializer.startsWith("ZERO ");
+					nuint fragmentLength = 2;
+					if (offset + fragmentLength > output.length)
+						return false;
+
+					for (nuint index = 0; index < fragmentLength; index++)
+					{
+						if (initialized[offset + index])
+						{
+							ImportCall call = { 1 };
+							host.resolve(&call);
+							return false;
+						}
+
+						initialized[offset + index] = true;
+						output[offset + index] = zero ? 0 : (byte)(index + 1);
+					}
+
+					cursor = fragmentEnd + 1;
+				}
+
+				bool result = output[0] == 1 && output[1] == 2 && output[4] == 0 && output[5] == 0;
+				delete initialized;
+				delete output;
+				return result;
+			}
+
+			nuint findChar(const char[] text, char value)
+			{
+				for (nuint index = 0; index < text.length; index++)
+					if (text[index] == value)
+						return index;
+				return text.length;
+			}
+			""");
+		File.WriteAllText(Path.Combine(root, "app.campbuild"), """
+			--artifact exec
+			src/*.camp
+			""");
+
+		ProcessResult result = RunCampcIn(root, "run", "app.campbuild", "--target", NativeTargetForHost(), "--out-dir", Path.Combine(root, "out"), "--name", "host_text_parsing");
+
+		AssertCommandSucceeded(result);
+	}
+
+	[Fact]
 	public void Assert_condition_accepts_delegate_field_invocation()
 	{
 		string source = CreateTempCase("assert_delegate_field_invocation/main.camp", """

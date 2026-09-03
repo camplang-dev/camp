@@ -73,37 +73,3 @@ Known Impact:
 Code using a conditional expression to select a slice is unsafe until fixed.
 An equivalent branch that calls the consumer separately for each selected slice
 avoids the faulty lowering.
-
-## BUG-118: Windows call path can corrupt parsed text after a value-struct argument
-
-Date/Time: 2026-09-03 17:53 America/Toronto
-
-Summary:
-On the Windows native target, a method that accepts a value-struct callback
-host together with normal arguments can alter the subsequent behavior of a
-file-to-text parsing path. A valid source document with two non-overlapping
-offset initializers is rejected as overlapping. The same call path and source
-work on macOS and Linux, and the direct parser API works on Windows.
-
-Steps to Reproduce:
-
-1. Read an ASCII source file into a byte array and convert it to a same-length
-   character array by assigning each byte to the corresponding character.
-2. Call a parser through a method that also receives a value struct containing
-   a callback pointer.
-3. Parse two non-overlapping initializer ranges at offsets zero and four, then
-   compile and run for the Windows x64 native target.
-
-Expected:
-The parser observes the second offset as four and accepts the non-overlapping
-ranges, independent of the additional value-struct argument.
-
-Actual:
-The Windows executable reports an overlap at the second initializer range even
-though compilation produces no diagnostic. The equivalent macOS and Linux
-executables accept the source, as does the direct parser call on Windows.
-
-Known Impact:
-Windows command or service entrypoints that accept callback-host structs can
-silently misparse valid text after file conversion. Do not change the parser's
-normal range-validation semantics to avoid this defect.
