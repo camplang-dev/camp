@@ -1113,8 +1113,10 @@ public sealed class CommandLineTests
 			""".Replace("\r\n", "\n", StringComparison.Ordinal));
 
 		string target = NativeTargetForHost();
-		ProcessResult build = RunCampcIn(appRoot, "build", "app.campbuild", "--nostdlib", "--target", target);
+		ProcessResult build = RunCampcIn(appRoot, "build", "app.campbuild", "--nostdlib", "--target", target, "--verbose");
 		AssertCommandSucceeded(build);
+		Assert.Equal(1, CountOccurrences(build.StdOut, "project reference alpha_static_a: rebuilding"));
+		Assert.Contains("project reference alpha_static_a: reused", build.StdOut, StringComparison.Ordinal);
 
 		string artifactDirectory = ArtifactDirectoryForHost(NativeBuildKind.Static);
 		string aArchive = NativeArtifactPathForTarget(target, NativeBuildKind.Static, Path.Combine(aRoot, "bin", artifactDirectory), "alpha_static_a");
@@ -1142,13 +1144,20 @@ public sealed class CommandLineTests
 			}
 			""".Replace("\r\n", "\n", StringComparison.Ordinal));
 
-		ProcessResult rebuild = RunCampcIn(appRoot, "build", "app.campbuild", "--nostdlib", "--target", target);
+		ProcessResult rebuild = RunCampcIn(appRoot, "build", "app.campbuild", "--nostdlib", "--target", target, "--verbose");
 		AssertCommandSucceeded(rebuild);
+		Assert.Equal(1, CountOccurrences(rebuild.StdOut, "project reference alpha_static_a: rebuilding"));
+		Assert.Contains("project reference alpha_static_a: reused", rebuild.StdOut, StringComparison.Ordinal);
 		Assert.True(File.GetLastWriteTimeUtc(aArchive) > oldAArchiveTime, "Expected changed upstream project A to rebuild its archive.");
 		Assert.Equal(oldBArchiveTime, File.GetLastWriteTimeUtc(bArchive));
 		Assert.True(File.GetLastWriteTimeUtc(appExecutable) > oldAppTime, "Expected final executable to relink when upstream project A changes.");
 		ProcessResult rerun = RunExecutable(appExecutable);
 		Assert.Equal(56, rerun.ExitCode);
+
+		Thread.Sleep(1200);
+		ProcessResult current = RunCampcIn(appRoot, "build", "app.campbuild", "--nostdlib", "--target", target, "--verbose");
+		AssertCommandSucceeded(current);
+		Assert.DoesNotContain("rebuilding", current.StdOut, StringComparison.Ordinal);
 	}
 
 	[Fact]

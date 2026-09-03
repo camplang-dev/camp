@@ -177,13 +177,44 @@ public static class NativeBuildDriver
 		if (options.Kind == NativeBuildKind.Static)
 			return "";
 
-		List<string> values = options.Libraries.Select(Quote).ToList();
+		List<string> values = [];
+		string staticExtension = options.Target.Capabilities.GetArtifactValue("static_ext", ".a");
+		bool useGnuArchiveGroups = options.Target.Capabilities.GetCapabilityValue("gnu_archive_groups").Equals("true", StringComparison.OrdinalIgnoreCase);
+		List<string> groupedStaticLibraries = options.Libraries.Where(library => IsStaticArchiveReference(library, staticExtension)).ToList();
+		if (useGnuArchiveGroups && groupedStaticLibraries.Count >= 2)
+		{
+			bool emittedGroup = false;
+			foreach (string library in options.Libraries)
+			{
+				if (!IsStaticArchiveReference(library, staticExtension))
+				{
+					values.Add(Quote(library));
+					continue;
+				}
+				if (emittedGroup)
+					continue;
+				values.Add("-Wl,--start-group");
+				values.AddRange(groupedStaticLibraries.Select(Quote));
+				values.Add("-Wl,--end-group");
+				emittedGroup = true;
+			}
+		}
+		else
+		{
+			values.AddRange(options.Libraries.Select(Quote));
+		}
 		foreach (string framework in options.Frameworks)
 		{
 			values.Add("-framework");
 			values.Add(Quote(framework));
 		}
 		return string.Join(" ", values);
+	}
+
+	static bool IsStaticArchiveReference(string library, string staticExtension)
+	{
+		return Path.IsPathRooted(library)
+			&& library.EndsWith(staticExtension, StringComparison.OrdinalIgnoreCase);
 	}
 
 	static void DeleteExistingStaticArchive(string output, NativeBuildResult result)

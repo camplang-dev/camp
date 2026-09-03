@@ -724,8 +724,9 @@ sealed class CampCli
 		return workingDirectory;
 	}
 
-static bool TryBuildRequest(string[] args, CliEnvironment environment, CommandKind command, out CompilerRequest? request, out List<string> errors, List<string>? projectReferenceStack = null, string? explicitProjectRoot = null)
+static bool TryBuildRequest(string[] args, CliEnvironment environment, CommandKind command, out CompilerRequest? request, out List<string> errors, List<string>? projectReferenceStack = null, string? explicitProjectRoot = null, ProjectReferenceBuildCache? projectReferenceCache = null)
 	{
+		projectReferenceCache ??= new ProjectReferenceBuildCache();
 		request = null;
 		errors = [];
 		if (command is CommandKind.Build or CommandKind.Run or CommandKind.Test or CommandKind.Cover or CommandKind.Dump
@@ -852,7 +853,7 @@ static bool TryBuildRequest(string[] args, CliEnvironment environment, CommandKi
 		request.Files.AddRange(sourceFiles.Select(path => Path.GetRelativePath(projectRoot, path)));
 		request.NativeSourceFiles.AddRange(nativeSourceFiles.Select(path => Path.GetRelativePath(projectRoot, path)));
 		request.ApiFiles.AddRange(apiFiles.Select(path => Path.GetRelativePath(projectRoot, path)));
-		if (!TryBuildProjectReferences(bag.ProjectReferences, request, environment, projectReferenceStack ?? [], out List<string> projectApiHeaders, out List<string> sharedProjectApiHeaders, out List<string> projectLibraries, errors))
+		if (!TryBuildProjectReferences(bag.ProjectReferences, request, environment, projectReferenceStack ?? [], projectReferenceCache, out List<string> projectApiHeaders, out List<string> sharedProjectApiHeaders, out List<string> projectLibraries, errors))
 			return false;
 		request.ApiFiles.AddRange(projectApiHeaders);
 		request.SharedLibraryApiHeaders.AddRange(sharedProjectApiHeaders);
@@ -885,7 +886,7 @@ static bool TryBuildRequest(string[] args, CliEnvironment environment, CommandKi
 		};
 	}
 
-	static bool TryBuildProjectReferences(IReadOnlyList<string> projectReferences, CompilerRequest consumerRequest, CliEnvironment environment, List<string> projectReferenceStack, out List<string> apiHeaders, out List<string> sharedApiHeaders, out List<string> libraries, List<string> errors)
+	static bool TryBuildProjectReferences(IReadOnlyList<string> projectReferences, CompilerRequest consumerRequest, CliEnvironment environment, List<string> projectReferenceStack, ProjectReferenceBuildCache cache, out List<string> apiHeaders, out List<string> sharedApiHeaders, out List<string> libraries, List<string> errors)
 	{
 		apiHeaders = [];
 		sharedApiHeaders = [];
@@ -959,6 +960,21 @@ static bool TryBuildRequest(string[] args, CliEnvironment environment, CommandKi
 				? consumerRequest.TargetName + (instrumentForCoverage ? "_COVER" : "")
 				: BuildArtifactLayout.GetArtifactDirectoryName(target, referenceBuildKind, consumerRequest.ProfileName, instrumentForCoverage ? CompilerCommandMode.Cover : CompilerCommandMode.Build);
 			string projectOutputDirectory = Path.Combine(projectDirectory, "bin", artifactDirectory);
+			ProjectReferenceBuildKey cacheKey = new(
+				canonicalBuildFile,
+				effectiveLinkKind,
+				consumerRequest.TargetName,
+				consumerRequest.ProfileName,
+				string.Join('\u001f', consumerRequest.Variants),
+				instrumentForCoverage,
+				requireLibrary);
+			if (cache.TryGet(cacheKey, out ProjectReferenceResolution? cachedResolution) && cachedResolution is not null)
+			{
+				if (consumerRequest.Verbose)
+					Console.Out.WriteLine($"{projectReference}: project reference {cachedResolution.ProjectName}: reused");
+				AddProjectReferenceResolution(consumerRequest, effectiveLinkKind, cachedResolution, apiHeaders, sharedApiHeaders, libraries);
+				continue;
+			}
 			projectArgs = RemoveProjectReferenceOverrideOptions(projectArgs);
 			projectArgs.AddRange(["--target", consumerRequest.TargetName]);
 			projectArgs.AddRange(["--profile", consumerRequest.ProfileName]);
@@ -978,7 +994,7 @@ static bool TryBuildRequest(string[] args, CliEnvironment environment, CommandKi
 				RuntimeRoot = environment.RuntimeRoot,
 				HomeDirectory = environment.HomeDirectory
 			};
-			if (!TryBuildRequest(projectArgs.ToArray(), projectEnvironment, CommandKind.Build, out CompilerRequest? projectRequest, out List<string> projectErrors, childStack, projectDirectory))
+			if (!TryBuildRequest(projectArgs.ToArray(), projectEnvironment, CommandKind.Build, out CompilerRequest? projectRequest, out List<string> projectErrors, childStack, projectDirectory, cache))
 			{
 				foreach (string projectError in projectErrors)
 					errors.Add($"{projectReference}: {projectError}");
@@ -994,16 +1010,9 @@ static bool TryBuildRequest(string[] args, CliEnvironment environment, CommandKi
 			{
 				if (consumerRequest.Verbose)
 					Console.Out.WriteLine($"{projectReference}: project reference {ProjectReferenceOutputName(projectRequest, canonicalBuildFile)}: current");
-				apiHeaders.Add(currentApiHeader);
-				if (effectiveLinkKind == DependencyLinkKind.Shared)
-					sharedApiHeaders.Add(currentApiHeader);
-				if (currentLibrary is not null)
-					AddUniquePath(libraries, currentLibrary);
-				foreach (string reference in projectRequest.References)
-				{
-					if (referenceBuildKind == NativeBuildKind.Static || IsSharedDependencyReference(reference, target))
-						AddUniquePath(libraries, reference);
-				}
+				ProjectReferenceResolution resolution = CreateProjectReferenceResolution(projectRequest, canonicalBuildFile, effectiveLinkKind, referenceBuildKind, target, currentApiHeader, currentLibrary, coverageMap: null);
+				cache.Add(cacheKey, resolution);
+				AddProjectReferenceResolution(consumerRequest, effectiveLinkKind, resolution, apiHeaders, sharedApiHeaders, libraries);
 				continue;
 			}
 			if (consumerRequest.Verbose)
@@ -1052,16 +1061,9 @@ static bool TryBuildRequest(string[] args, CliEnvironment environment, CommandKi
 				}
 				AddUniquePath(consumerRequest.CoverageMapInputs, coverageMap);
 			}
-			apiHeaders.Add(apiHeader);
-			if (effectiveLinkKind == DependencyLinkKind.Shared)
-				sharedApiHeaders.Add(apiHeader);
-			if (library is not null)
-				AddUniquePath(libraries, library);
-			foreach (string reference in projectRequest.References)
-			{
-				if (referenceBuildKind == NativeBuildKind.Static || target is not null && IsSharedDependencyReference(reference, target))
-					AddUniquePath(libraries, reference);
-			}
+			ProjectReferenceResolution builtResolution = CreateProjectReferenceResolution(projectRequest, canonicalBuildFile, effectiveLinkKind, referenceBuildKind, target, apiHeader, library, coverageMap);
+			cache.Add(cacheKey, builtResolution);
+			AddProjectReferenceResolution(consumerRequest, effectiveLinkKind, builtResolution, apiHeaders, sharedApiHeaders, libraries);
 		}
 		if (coverageMode)
 		{
@@ -1072,6 +1074,41 @@ static bool TryBuildRequest(string[] args, CliEnvironment environment, CommandKi
 			}
 		}
 		return errors.Count == 0;
+	}
+
+	static ProjectReferenceResolution CreateProjectReferenceResolution(CompilerRequest projectRequest, string buildFile, DependencyLinkKind effectiveLinkKind, NativeBuildKind referenceBuildKind, TargetDefinition? target, string apiHeader, string? library, string? coverageMap)
+	{
+		List<string> apiHeaders = [Path.GetFullPath(apiHeader)];
+		List<string> sharedApiHeaders = [];
+		if (effectiveLinkKind == DependencyLinkKind.Shared)
+			AddUniquePath(sharedApiHeaders, apiHeader);
+		List<string> libraries = [];
+		if (library is not null)
+			AddUniquePath(libraries, library);
+		foreach (string reference in projectRequest.References)
+		{
+			if (referenceBuildKind == NativeBuildKind.Static || target is not null && IsSharedDependencyReference(reference, target))
+				AddUniquePath(libraries, reference);
+		}
+		return new ProjectReferenceResolution(
+			ProjectReferenceOutputName(projectRequest, buildFile),
+			apiHeaders,
+			sharedApiHeaders,
+			libraries,
+			coverageMap is null ? null : Path.GetFullPath(coverageMap));
+	}
+
+	static void AddProjectReferenceResolution(CompilerRequest consumerRequest, DependencyLinkKind effectiveLinkKind, ProjectReferenceResolution resolution, List<string> apiHeaders, List<string> sharedApiHeaders, List<string> libraries)
+	{
+		foreach (string apiHeader in resolution.ApiHeaders)
+			AddUniquePath(apiHeaders, apiHeader);
+		if (effectiveLinkKind == DependencyLinkKind.Shared)
+			foreach (string sharedApiHeader in resolution.SharedApiHeaders.Count > 0 ? resolution.SharedApiHeaders : resolution.ApiHeaders)
+				AddUniquePath(sharedApiHeaders, sharedApiHeader);
+		foreach (string library in resolution.LinkArtifacts)
+			AddUniquePath(libraries, library);
+		if (resolution.CoverageMap is not null)
+			AddUniquePath(consumerRequest.CoverageMapInputs, resolution.CoverageMap);
 	}
 
 	static bool TryGetCurrentProjectReferenceArtifacts(CompilerRequest projectRequest, string buildFile, string outputDirectory, NativeBuildKind buildKind, TargetDefinition target, string baseCampBuildPath, string globalCampBuildPath, bool requireLibrary, out string apiHeader, out string? library)
@@ -1093,18 +1130,27 @@ static bool TryBuildRequest(string[] args, CliEnvironment environment, CommandKi
 		string nativeArtifact = NativeBuildDriver.GetArtifactPath(nativeOptions);
 		library = requireLibrary ? NativeBuildDriver.GetLinkArtifactPath(nativeOptions) : null;
 
-		List<string> outputs = [apiHeader, cApiHeader, metadata];
+		List<string> requiredOutputs = [apiHeader, cApiHeader, metadata];
+		List<string> freshnessOutputs = [];
 		if (requireLibrary)
 		{
 			if (library is not null && !File.Exists(library))
 				return false;
-			outputs.Add(nativeArtifact);
+			requiredOutputs.Add(nativeArtifact);
+			freshnessOutputs.Add(nativeArtifact);
 			if (library is not null && !string.Equals(nativeArtifact, library, StringComparison.OrdinalIgnoreCase))
-				outputs.Add(library!);
+			{
+				requiredOutputs.Add(library!);
+				freshnessOutputs.Add(library!);
+			}
 		}
 
+		if (requiredOutputs.Any(static output => !File.Exists(output)))
+			return false;
+		if (freshnessOutputs.Count == 0)
+			freshnessOutputs.AddRange(requiredOutputs);
 		List<string> inputs = GetProjectReferenceCacheInputs(projectRequest, buildFile, target, baseCampBuildPath, globalCampBuildPath, buildKind).ToList();
-		return OutputsAreCurrent(outputs, inputs);
+		return OutputsAreCurrent(freshnessOutputs, inputs);
 	}
 
 	static string ProjectReferenceOutputName(CompilerRequest projectRequest, string buildFile)
@@ -3395,6 +3441,37 @@ sealed record ProjectReferenceSpec(string Path, DependencyLinkKind? LinkKind)
 			return false;
 		string suffix = value[(colon + 1)..];
 		return suffix.Length > 0 && suffix.IndexOfAny([System.IO.Path.DirectorySeparatorChar, System.IO.Path.AltDirectorySeparatorChar, '/', '\\']) < 0;
+	}
+}
+
+sealed record ProjectReferenceBuildKey(
+	string BuildFile,
+	DependencyLinkKind LinkKind,
+	string TargetName,
+	string ProfileName,
+	string Variants,
+	bool CoverageInstrumented,
+	bool RequireLibrary);
+
+sealed record ProjectReferenceResolution(
+	string ProjectName,
+	IReadOnlyList<string> ApiHeaders,
+	IReadOnlyList<string> SharedApiHeaders,
+	IReadOnlyList<string> LinkArtifacts,
+	string? CoverageMap);
+
+sealed class ProjectReferenceBuildCache
+{
+	readonly Dictionary<ProjectReferenceBuildKey, ProjectReferenceResolution> resolutions = new();
+
+	public bool TryGet(ProjectReferenceBuildKey key, out ProjectReferenceResolution? resolution)
+	{
+		return resolutions.TryGetValue(key, out resolution);
+	}
+
+	public void Add(ProjectReferenceBuildKey key, ProjectReferenceResolution resolution)
+	{
+		resolutions[key] = resolution;
 	}
 }
 
