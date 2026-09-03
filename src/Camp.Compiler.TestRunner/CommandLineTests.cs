@@ -305,6 +305,78 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Native_bool_array_range_tracking_preserves_explicit_initialization()
+	{
+		string root = TempPath("native-bool-array-range-tracking");
+		ResetDirectory(root);
+		Directory.CreateDirectory(Path.Combine(root, "src"));
+		File.WriteAllText(Path.Combine(root, "src", "main.camp"), """
+			export int main()
+			{
+				return verifyRanges() ? 0 : 1;
+			}
+
+			bool verifyRanges()
+			{
+				byte[] output = new byte[8] finally delete;
+				bool[] initialized = new bool[8] finally delete;
+
+				for (nuint index = 0; index < initialized.length; index++)
+				{
+					output[index] = 0;
+					initialized[index] = false;
+				}
+
+				byte[] first = new byte[2] finally delete;
+				first[0] = 1;
+				first[1] = 2;
+				if (!copyRange(output, initialized, 0, first))
+					return false;
+
+				byte[] second = new byte[2] finally delete;
+				second[0] = 3;
+				second[1] = 4;
+				if (!copyRange(output, initialized, 4, second))
+					return false;
+
+				return output[0] == 1
+					&& output[1] == 2
+					&& output[4] == 3
+					&& output[5] == 4
+					&& !initialized[2]
+					&& !initialized[3]
+					&& !initialized[6]
+					&& !initialized[7];
+			}
+
+			bool copyRange(byte[] output, bool[] initialized, nuint offset, byte[] values)
+			{
+				if (offset + values.length > output.length)
+					return false;
+
+				for (nuint index = 0; index < values.length; index++)
+				{
+					if (initialized[offset + index])
+						return false;
+
+					initialized[offset + index] = true;
+					output[offset + index] = values[index];
+				}
+
+				return true;
+			}
+			""");
+		File.WriteAllText(Path.Combine(root, "app.campbuild"), """
+			--artifact exec
+			src/*.camp
+			""");
+
+		ProcessResult result = RunCampcIn(root, "run", "app.campbuild", "--target", NativeTargetForHost(), "--out-dir", Path.Combine(root, "out"), "--name", "bool_range_tracking");
+
+		AssertCommandSucceeded(result);
+	}
+
+	[Fact]
 	public void Assert_condition_accepts_delegate_field_invocation()
 	{
 		string source = CreateTempCase("assert_delegate_field_invocation/main.camp", """
