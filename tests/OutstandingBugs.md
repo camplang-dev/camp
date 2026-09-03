@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-117.
+Next bug number: BUG-118.
 
 ## Bug Template
 
@@ -73,3 +73,35 @@ Known Impact:
 Code using a conditional expression to select a slice is unsafe until fixed.
 An equivalent branch that calls the consumer separately for each selected slice
 avoids the faulty lowering.
+
+## BUG-117: Windows lowering corrupts nested boolean-array initialization state
+
+Date/Time: 2026-09-03 17:14 America/Toronto
+
+Summary:
+On the Windows native target, code that tracks covered ranges in a newly
+allocated boolean array can observe entries as already set when they have not
+been written. The same source behaves correctly on macOS and Linux. Compilation
+completes without a diagnostic, so this is a silent lowering or generated-C
+defect rather than a source availability error.
+
+Steps to Reproduce:
+
+1. In a method with a `within` allocator, allocate a byte array and a same-size
+   boolean array, and initialize every boolean entry to `false`.
+2. Parse two non-overlapping byte ranges, one at offset zero and one at a later
+   offset, checking `covered[offset + index]` before assigning it `true`.
+3. Compile and run the program for the Windows x64 native target.
+
+Expected:
+The second non-overlapping range observes only `false` entries and succeeds.
+
+Actual:
+The Windows executable reports an overlap while processing the second range.
+The equivalent native executables on macOS and Linux succeed.
+
+Known Impact:
+Range-validation and similar boolean-array tracking logic can reject valid
+input on Windows despite compiling successfully. Do not rewrite the source to
+avoid the normal array pattern; the lowering must preserve the language's
+array semantics.
