@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-115.
+Next bug number: BUG-116.
 
 ## Bug Template
 
@@ -43,3 +43,41 @@ Actual:
 Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
+
+## BUG-115: Inactive interface implementation body is still lowered
+
+Date/Time: 2026-09-02 20:17 EDT
+
+Summary:
+A file-wide false [requires] condition does not prevent lowering of a helper
+class that implements an interface declared by an active source file in the
+same module. An array-index expression in the inactive implementation body is
+repeatedly lowered until the compiler exhausts its native stack.
+
+Steps to Reproduce:
+
+1. Create a static-library project containing active production sources and a
+   test source included by the same build file.
+2. Declare an interface in an active source with a method that accepts a byte
+   slice.
+3. Begin the test source with [requires(TEST_MODULE);], then declare a class
+   implementing that interface.
+4. In the implementation method, copy bytes in a loop using an indexed field
+   slice as the source expression.
+5. Build the project as a static artifact without defining [TEST_MODULE].
+
+Expected:
+The file-wide requirement makes every declaration and body in the test source
+inactive. The static library builds without lowering the implementation body.
+
+Actual:
+Lowering enters the inactive implementation body and repeatedly lowers the
+indexed expression until the compiler terminates with a native stack overflow.
+Building the same production sources without the guarded test source succeeds.
+
+Known Impact:
+Reusable module build files cannot include guarded tests containing this
+interface-helper pattern, so downstream static project references cannot build
+the affected module. Moving the namespace statement before [requires] happens
+to avoid the failure but should be semantically irrelevant and violates the
+beta repository convention for guarded test files.
