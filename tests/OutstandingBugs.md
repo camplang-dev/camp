@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-119.
+Next bug number: BUG-120.
 
 ## Bug Template
 
@@ -73,3 +73,36 @@ Known Impact:
 Code using a conditional expression to select a slice is unsafe until fixed.
 An equivalent branch that calls the consumer separately for each selected slice
 avoids the faulty lowering.
+
+## BUG-119: Incremental build succeeds without restoring missing native output
+
+Date/Time: 2026-09-03 18:28 America/Toronto
+
+Summary:
+The incremental native build cache can report a project current after its
+declared native output directory has been moved aside. The build command exits
+successfully but does not recreate the requested executable, library, or test
+result artifact. This makes a clean-output rebuild impossible without changing
+unrelated source timestamps.
+
+Steps to Reproduce:
+
+1. Build a response-file project that emits a native artifact.
+2. Move only its ignored output directory to a temporary sibling location.
+3. Run the same `campc build` or `campc test` command without changing source
+   files or the response file.
+
+Expected:
+The missing declared artifact marks the project dirty and the compiler
+recreates the output directory and requested artifact.
+
+Actual:
+The compiler returns success while leaving the output path absent. An
+`--out-dir` attempt cannot redirect the response-file output because the
+compiler diagnoses the duplicate option.
+
+Known Impact:
+Fresh-output validation, recovery after generated-artifact cleanup, and
+reproducible target testing cannot rely on the normal build command. Do not
+modify source only to force a rebuild; artifact presence must participate in
+freshness evaluation.
