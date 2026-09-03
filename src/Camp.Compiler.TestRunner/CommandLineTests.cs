@@ -4316,7 +4316,7 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
-	public void Project_reference_skips_native_static_library_when_outputs_are_current()
+	public void Project_reference_reuses_current_native_static_library_and_rebuilds_missing_outputs()
 	{
 		string root = TempPath("project-reference-static-current");
 		if (Directory.Exists(root))
@@ -4345,53 +4345,71 @@ public sealed class CommandLineTests
 			""");
 		AssertCommandSucceeded(RunCampcIn(libraryRoot, "restore", "sample-lib.campbuild"));
 		string app = Path.Combine(appRoot, "app.camp");
-			File.WriteAllText(app, """
-				#build --nostdlib
-				#build --name sample-app
+		File.WriteAllText(app, """
+			#build --nostdlib
+			#build --name sample-app
 
-				export int main()
-				{
-					return add(20, 22) - 42;
-				}
+			export int main()
+			{
+				return add(20, 22) - 42;
+			}
 			""");
-			string target = NativeTargetForHost();
-			string outDir = Path.Combine(appRoot, "bin");
-			string referenceOutputDirectory = Path.Combine(libraryRoot, "bin", ArtifactDirectoryForTarget(target, NativeBuildKind.Static));
-			string libraryPath = NativeArtifactPathForTarget(target, NativeBuildKind.Static, referenceOutputDirectory, "sample-lib");
+		string target = NativeTargetForHost();
+		string outDir = Path.Combine(appRoot, "bin");
+		string referenceOutputDirectory = Path.Combine(libraryRoot, "bin", ArtifactDirectoryForTarget(target, NativeBuildKind.Static));
+		string libraryPath = NativeArtifactPathForTarget(target, NativeBuildKind.Static, referenceOutputDirectory, "sample-lib");
 
-			ProcessResult first = RunCampc(
-				"build",
-				app,
-				"--target",
-				target,
-				"--verbose",
-				"--project-reference",
-				libraryRoot + ":static",
-				"--out-dir",
-				outDir);
+		ProcessResult first = RunCampc(
+			"build",
+			app,
+			"--target",
+			target,
+			"--verbose",
+			"--project-reference",
+			libraryRoot + ":static",
+			"--out-dir",
+			outDir);
 
-			AssertCommandSucceeded(first);
-			Assert.Contains(libraryRoot + ":static: generated:", first.StdOut, StringComparison.Ordinal);
-			Assert.True(File.Exists(libraryPath));
-			DateTime currentOutputTime = DateTime.UtcNow.AddSeconds(5);
-			foreach (string output in Directory.GetFiles(referenceOutputDirectory))
-				File.SetLastWriteTimeUtc(output, currentOutputTime);
-			DateTime firstLibraryWrite = File.GetLastWriteTimeUtc(libraryPath);
+		AssertCommandSucceeded(first);
+		Assert.Contains(libraryRoot + ":static: generated:", first.StdOut, StringComparison.Ordinal);
+		Assert.True(File.Exists(libraryPath));
+		DateTime currentOutputTime = DateTime.UtcNow.AddSeconds(5);
+		foreach (string output in Directory.GetFiles(referenceOutputDirectory))
+			File.SetLastWriteTimeUtc(output, currentOutputTime);
+		DateTime firstLibraryWrite = File.GetLastWriteTimeUtc(libraryPath);
 
-			ProcessResult second = RunCampc(
-				"build",
-				app,
-				"--target",
-				target,
-				"--verbose",
-				"--project-reference",
-				libraryRoot + ":static",
-				"--out-dir",
-				outDir);
+		ProcessResult second = RunCampc(
+			"build",
+			app,
+			"--target",
+			target,
+			"--verbose",
+			"--project-reference",
+			libraryRoot + ":static",
+			"--out-dir",
+			outDir);
 
-			AssertCommandSucceeded(second);
-			Assert.DoesNotContain(libraryRoot + ":static: generated:", second.StdOut, StringComparison.Ordinal);
+		AssertCommandSucceeded(second);
+		Assert.DoesNotContain(libraryRoot + ":static: generated:", second.StdOut, StringComparison.Ordinal);
 		Assert.Equal(firstLibraryWrite, File.GetLastWriteTimeUtc(libraryPath));
+
+		string movedOutputDirectory = Path.Combine(libraryRoot, "bin-moved");
+		Directory.Move(Path.Combine(libraryRoot, "bin"), movedOutputDirectory);
+
+		ProcessResult third = RunCampc(
+			"build",
+			app,
+			"--target",
+			target,
+			"--verbose",
+			"--project-reference",
+			libraryRoot + ":static",
+			"--out-dir",
+			outDir);
+
+		AssertCommandSucceeded(third);
+		Assert.Contains(libraryRoot + ":static: generated:", third.StdOut, StringComparison.Ordinal);
+		Assert.True(File.Exists(libraryPath));
 	}
 
 	[Fact]
