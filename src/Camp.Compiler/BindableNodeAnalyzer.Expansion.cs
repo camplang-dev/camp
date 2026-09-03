@@ -10,6 +10,8 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		foreach (Definition definition in ActiveDefinitions(module).ToArray())
 		{
+			if (!IsActiveDefinition(definition))
+				continue;
 			if (definition is ClassDefinition classDefinition && IsVirtualClassParticipant(classDefinition))
 				GenerateVirtualClassDeclarations(module, classDefinition);
 		}
@@ -357,12 +359,16 @@ public sealed partial class BindableNodeAnalyzer
 		Dictionary<string, InterfaceDefinition> interfaces = [];
 		foreach (Definition definition in ActiveDefinitions(module))
 		{
+			if (!IsActiveDefinition(definition))
+				continue;
 			if (definition is InterfaceDefinition interfaceDefinition && !string.IsNullOrWhiteSpace(interfaceDefinition.Name))
 				interfaces[interfaceDefinition.Name] = interfaceDefinition;
 		}
 
 		foreach (Definition definition in ActiveDefinitions(module).ToArray())
 		{
+			if (!IsActiveDefinition(definition))
+				continue;
 			if (definition is ClassDefinition classDefinition)
 				GenerateClassInterfaceDeclarations(module, classDefinition, interfaces);
 			else if (definition is StructDefinition structDefinition)
@@ -1796,7 +1802,11 @@ public sealed partial class BindableNodeAnalyzer
 	void GenerateLifecycleMethods(Module module)
 	{
 		foreach (Definition definition in ActiveDefinitions(module))
+		{
+			if (!IsActiveDefinition(definition))
+				continue;
 			GenerateLifecycleMethods(definition);
+		}
 	}
 
 	void GenerateLifecycleMethods(Definition definition)

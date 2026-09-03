@@ -1112,6 +1112,11 @@ public sealed class CommandLineTests
 					return this.bytes;
 				}
 			}
+
+			public interface ByteSink
+			{
+				void write(const byte[] bytes);
+			}
 			""".Replace("\r\n", "\n", StringComparison.Ordinal));
 		string libraryBuild = Path.Combine(libraryRoot, "library.campbuild");
 		File.WriteAllText(libraryBuild, """
@@ -1139,6 +1144,17 @@ public sealed class CommandLineTests
 				escaped string message;
 				escaped string sourcefile;
 				uint sourceline;
+			}
+
+			class TestSink: ByteSink
+			{
+				byte[] bytes;
+
+				void write(const byte[] value): ByteSink
+				{
+					for (nuint i = 0; i < value.length; i++)
+						this.bytes[i] = value[i];
+				}
 			}
 
 			@test

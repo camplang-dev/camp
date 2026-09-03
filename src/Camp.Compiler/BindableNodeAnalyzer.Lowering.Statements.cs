@@ -68,6 +68,9 @@ public sealed partial class BindableNodeAnalyzer
 
 	void RewriteFunction(FunctionDefinition function, TypeDefinition? containingType)
 	{
+		if (!IsActiveDefinition(function))
+			return;
+
 		foreach (ParameterDefinition parameter in function.Parameters)
 			parameter.DefaultValue = LowerExpression(parameter.DefaultValue);
 

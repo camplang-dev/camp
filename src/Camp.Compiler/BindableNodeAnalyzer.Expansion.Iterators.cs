@@ -20,6 +20,8 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		foreach (Definition definition in ActiveDefinitions(module).ToArray())
 		{
+			if (!IsActiveDefinition(definition))
+				continue;
 			switch (definition)
 			{
 				case FunctionDefinition function:
