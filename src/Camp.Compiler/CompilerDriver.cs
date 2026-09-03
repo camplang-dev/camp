@@ -426,31 +426,47 @@ public static class CompilerDriver
 				SourceFiles = []
 			};
 			string artifact = NativeBuildDriver.GetArtifactPath(buildOptions);
-			List<string> outputs = [artifact];
+			List<string> freshnessOutputs = [artifact];
+			List<string> requiredOutputs = [artifact];
 			if (request.BuildKind is NativeBuildKind.Static or NativeBuildKind.Shared)
 			{
-				outputs.Add(Path.Combine(outputDirectory, projectName + "_api.camp"));
-				outputs.Add(Path.Combine(outputDirectory, projectName + "_api.h"));
-				outputs.Add(Path.Combine(outputDirectory, projectName + "_api.json"));
+				requiredOutputs.Add(Path.Combine(outputDirectory, projectName + "_api.camp"));
+				requiredOutputs.Add(Path.Combine(outputDirectory, projectName + "_api.h"));
+				requiredOutputs.Add(Path.Combine(outputDirectory, projectName + "_api.json"));
 			}
+			if (request.BuildKind == NativeBuildKind.Shared && NativeBuildDriver.GetSharedImportLibraryPath(buildOptions) is string sharedImportLibrary)
+			{
+				freshnessOutputs.Add(sharedImportLibrary);
+				requiredOutputs.Add(sharedImportLibrary);
+			}
+			foreach (string output in requiredOutputs)
+				if (!File.Exists(output))
+				{
+					if (request.Verbose)
+						OutLine("top-level artifact: rebuilding because " + output + " is missing");
+					return false;
+				}
 			List<string> inputs = [];
 			inputs.AddRange(ResolveInputPaths(request.Files));
 			inputs.AddRange(ResolveInputPaths(request.NativeSourceFiles));
 			inputs.AddRange(ResolveInputPaths(allApiFiles));
-			inputs.AddRange(packageLibraries);
-			inputs.AddRange(ResolveNativeReferenceInputs(request.References, context.Target));
+			if (request.BuildKind != NativeBuildKind.Static)
+			{
+				inputs.AddRange(packageLibraries);
+				inputs.AddRange(ResolveNativeReferenceInputs(request.References, context.Target));
+			}
 			if (File.Exists(context.Target.Path))
 				inputs.Add(context.Target.Path);
 			if (!string.IsNullOrWhiteSpace(Environment.ProcessPath) && File.Exists(Environment.ProcessPath))
 				inputs.Add(Environment.ProcessPath);
-			if (!OutputsAreCurrent(outputs, inputs, out string? freshnessReason))
+			if (!OutputsAreCurrent(freshnessOutputs, inputs, out string? freshnessReason))
 			{
 				if (request.Verbose)
 					OutLine("top-level artifact: rebuilding because " + freshnessReason);
 				return false;
 			}
 			using IDisposable _ = timing.Begin("top-level artifact freshness", "freshness", "current");
-			foreach (string output in outputs)
+			foreach (string output in requiredOutputs)
 				AddGeneratedFile(output, BuildFileWriteStatus.Unchanged);
 			return true;
 		}
@@ -1325,7 +1341,9 @@ public static class CompilerDriver
 				Kind = request.BuildKind.Value,
 				SourceFiles = [.. result.GeneratedSourceFiles, .. coverageRuntimeSources, .. ResolveInputPaths(request.NativeSourceFiles)],
 				SourceFileStatuses = BuildSourceStatuses(result),
-				Libraries = packageLibraries.Concat(request.References.Select(reference => ResolveNativeReference(reference, compilation.Target!))).ToList(),
+				Libraries = request.BuildKind == NativeBuildKind.Static
+					? []
+					: packageLibraries.Concat(request.References.Select(reference => ResolveNativeReference(reference, compilation.Target!))).ToList(),
 				Frameworks = request.Frameworks
 			};
 			NativeBuildResult build;
@@ -1341,7 +1359,8 @@ public static class CompilerDriver
 			{
 				AddGeneratedFile(generated, BuildFileWriteStatus.Changed);
 			}
-			if (!TryCopySharedRuntimeReferences(compilation.Target!, outputDirectory, packageLibraries.Concat(request.References.Select(reference => ResolveNativeReference(reference, compilation.Target!)))))
+			if (request.BuildKind != NativeBuildKind.Static
+				&& !TryCopySharedRuntimeReferences(compilation.Target!, outputDirectory, packageLibraries.Concat(request.References.Select(reference => ResolveNativeReference(reference, compilation.Target!)))))
 				return 1;
 			if (!TryRefreshGeneratedOutputs(GetTopLevelFreshnessOutputs(buildOptions)))
 				return 1;
@@ -1353,12 +1372,6 @@ public static class CompilerDriver
 			yield return NativeBuildDriver.GetArtifactPath(buildOptions);
 			if (buildOptions.Kind == NativeBuildKind.Shared)
 				yield return NativeBuildDriver.GetSharedImportLibraryPath(buildOptions);
-			if (buildOptions.Kind is NativeBuildKind.Static or NativeBuildKind.Shared)
-			{
-				yield return Path.Combine(buildOptions.OutputDirectory, buildOptions.ProjectName + "_api.camp");
-				yield return Path.Combine(buildOptions.OutputDirectory, buildOptions.ProjectName + "_api.h");
-				yield return Path.Combine(buildOptions.OutputDirectory, buildOptions.ProjectName + "_api.json");
-			}
 		}
 
 		string ResolveArtifactOutputDirectory(Compilation compilation)

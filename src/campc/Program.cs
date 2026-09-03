@@ -1103,7 +1103,7 @@ static bool TryBuildRequest(string[] args, CliEnvironment environment, CommandKi
 				outputs.Add(library!);
 		}
 
-		List<string> inputs = GetProjectReferenceCacheInputs(projectRequest, buildFile, target, baseCampBuildPath, globalCampBuildPath).ToList();
+		List<string> inputs = GetProjectReferenceCacheInputs(projectRequest, buildFile, target, baseCampBuildPath, globalCampBuildPath, buildKind).ToList();
 		return OutputsAreCurrent(outputs, inputs);
 	}
 
@@ -1167,7 +1167,7 @@ static bool TryBuildRequest(string[] args, CliEnvironment environment, CommandKi
 		return false;
 	}
 
-	static IEnumerable<string> GetProjectReferenceCacheInputs(CompilerRequest projectRequest, string buildFile, TargetDefinition target, string baseCampBuildPath, string globalCampBuildPath)
+	static IEnumerable<string> GetProjectReferenceCacheInputs(CompilerRequest projectRequest, string buildFile, TargetDefinition target, string baseCampBuildPath, string globalCampBuildPath, NativeBuildKind buildKind)
 	{
 		yield return buildFile;
 		if (File.Exists(baseCampBuildPath))
@@ -1180,11 +1180,12 @@ static bool TryBuildRequest(string[] args, CliEnvironment environment, CommandKi
 			yield return input;
 		foreach (string input in projectRequest.SharedLibraryApiHeaders)
 			yield return input;
-		foreach (string reference in projectRequest.References)
-		{
-			if (Path.IsPathRooted(reference) && (File.Exists(reference) || Directory.Exists(reference)))
-				yield return reference;
-		}
+		if (buildKind != NativeBuildKind.Static)
+			foreach (string reference in projectRequest.References)
+			{
+				if (Path.IsPathRooted(reference) && (File.Exists(reference) || Directory.Exists(reference)))
+					yield return reference;
+			}
 		if (File.Exists(target.Path))
 			yield return target.Path;
 		if (!string.IsNullOrWhiteSpace(Environment.ProcessPath) && File.Exists(Environment.ProcessPath))
@@ -1234,8 +1235,11 @@ static bool TryBuildRequest(string[] args, CliEnvironment environment, CommandKi
 
 	static void AddUniquePath(List<string> paths, string path)
 	{
-		if (!paths.Any(existing => string.Equals(Path.GetFullPath(existing), Path.GetFullPath(path), StringComparison.OrdinalIgnoreCase)))
-			paths.Add(path);
+		string fullPath = Path.GetFullPath(path);
+		int existingIndex = paths.FindIndex(existing => string.Equals(Path.GetFullPath(existing), fullPath, StringComparison.OrdinalIgnoreCase));
+		if (existingIndex >= 0)
+			paths.RemoveAt(existingIndex);
+		paths.Add(fullPath);
 	}
 
 	static TargetDefinition? TryGetTargetDefinition(CompilerRequest request, CliEnvironment environment, List<string> errors)

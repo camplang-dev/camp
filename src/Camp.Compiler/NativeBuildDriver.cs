@@ -156,11 +156,12 @@ public static class NativeBuildDriver
 			if (!File.Exists(objectPath) || outputTime < File.GetLastWriteTimeUtc(objectPath))
 				return false;
 		}
-		foreach (string library in options.Libraries)
-		{
-			if (Path.IsPathRooted(library) && File.Exists(library) && outputTime < File.GetLastWriteTimeUtc(library))
-				return false;
-		}
+		if (options.Kind != NativeBuildKind.Static)
+			foreach (string library in options.Libraries)
+			{
+				if (Path.IsPathRooted(library) && File.Exists(library) && outputTime < File.GetLastWriteTimeUtc(library))
+					return false;
+			}
 		return true;
 	}
 
@@ -173,6 +174,9 @@ public static class NativeBuildDriver
 
 	static string BuildLinkLibraries(NativeBuildOptions options)
 	{
+		if (options.Kind == NativeBuildKind.Static)
+			return "";
+
 		List<string> values = options.Libraries.Select(Quote).ToList();
 		foreach (string framework in options.Frameworks)
 		{

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Text.Json;
 using Xunit;
 
@@ -1025,6 +1026,129 @@ public sealed class CommandLineTests
 		string emitted = File.ReadAllText(mainC);
 		Assert.Contains("StaticApiInterfaceArgument_send(LocalSink_getSink(sink));", emitted, StringComparison.Ordinal);
 		Assert.DoesNotContain("StaticApiInterfaceArgument_send(sink);", emitted, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Static_project_reference_graph_links_transitives_without_embedding_archives()
+	{
+		string root = TempPath("static-project-reference-graph");
+		string aRoot = Path.Combine(root, "a");
+		string bRoot = Path.Combine(root, "b");
+		string cRoot = Path.Combine(root, "c");
+		string appRoot = Path.Combine(root, "app");
+		Directory.CreateDirectory(aRoot);
+		Directory.CreateDirectory(bRoot);
+		Directory.CreateDirectory(cRoot);
+		Directory.CreateDirectory(appRoot);
+
+		string aSource = Path.Combine(aRoot, "a.camp");
+		File.WriteAllText(aSource, """
+			namespace AlphaStaticA;
+
+			export int aValue()
+			{
+				return 2;
+			}
+			""".Replace("\r\n", "\n", StringComparison.Ordinal));
+		string aBuild = Path.Combine(aRoot, "a.campbuild");
+		File.WriteAllText(aBuild, """
+			--artifact static
+			--name alpha_static_a
+			a.camp
+			""".Replace("\r\n", "\n", StringComparison.Ordinal));
+
+		string bSource = Path.Combine(bRoot, "b.camp");
+		File.WriteAllText(bSource, """
+			using AlphaStaticA;
+			namespace AlphaStaticB;
+
+			export int bValue()
+			{
+				return aValue() + 20;
+			}
+			""".Replace("\r\n", "\n", StringComparison.Ordinal));
+		string bBuild = Path.Combine(bRoot, "b.campbuild");
+		File.WriteAllText(bBuild, """
+			--artifact static
+			--name alpha_static_b
+			--project-reference ../a/a.campbuild:static
+			b.camp
+			""".Replace("\r\n", "\n", StringComparison.Ordinal));
+
+		string cSource = Path.Combine(cRoot, "c.camp");
+		File.WriteAllText(cSource, """
+			using AlphaStaticA;
+			namespace AlphaStaticC;
+
+			export int cValue()
+			{
+				return aValue() + 30;
+			}
+			""".Replace("\r\n", "\n", StringComparison.Ordinal));
+		string cBuild = Path.Combine(cRoot, "c.campbuild");
+		File.WriteAllText(cBuild, """
+			--artifact static
+			--name alpha_static_c
+			--project-reference ../a/a.campbuild:static
+			c.camp
+			""".Replace("\r\n", "\n", StringComparison.Ordinal));
+
+		string appSource = Path.Combine(appRoot, "app.camp");
+		File.WriteAllText(appSource, """
+			using AlphaStaticB;
+			using AlphaStaticC;
+
+			export int main()
+			{
+				return bValue() + cValue();
+			}
+			""".Replace("\r\n", "\n", StringComparison.Ordinal));
+		string appBuild = Path.Combine(appRoot, "app.campbuild");
+		File.WriteAllText(appBuild, """
+			--artifact exec
+			--name alpha_static_app
+			--project-reference ../b/b.campbuild:static
+			--project-reference ../c/c.campbuild:static
+			app.camp
+			""".Replace("\r\n", "\n", StringComparison.Ordinal));
+
+		string target = NativeTargetForHost();
+		ProcessResult build = RunCampcIn(appRoot, "build", "app.campbuild", "--nostdlib", "--target", target);
+		AssertCommandSucceeded(build);
+
+		string artifactDirectory = ArtifactDirectoryForHost(NativeBuildKind.Static);
+		string aArchive = NativeArtifactPathForTarget(target, NativeBuildKind.Static, Path.Combine(aRoot, "bin", artifactDirectory), "alpha_static_a");
+		string bArchive = NativeArtifactPathForTarget(target, NativeBuildKind.Static, Path.Combine(bRoot, "bin", artifactDirectory), "alpha_static_b");
+		string cArchive = NativeArtifactPathForTarget(target, NativeBuildKind.Static, Path.Combine(cRoot, "bin", artifactDirectory), "alpha_static_c");
+		AssertArchiveOwnsOnly(aArchive, "a");
+		AssertArchiveOwnsOnly(bArchive, "b");
+		AssertArchiveOwnsOnly(cArchive, "c");
+
+		string appDirectory = Path.Combine(appRoot, "bin", ArtifactDirectoryForHost(NativeBuildKind.Exec));
+		string appExecutable = NativeArtifactPathForTarget(target, NativeBuildKind.Exec, appDirectory, "alpha_static_app");
+		ProcessResult run = RunExecutable(appExecutable);
+		Assert.Equal(54, run.ExitCode);
+
+		DateTime oldAArchiveTime = File.GetLastWriteTimeUtc(aArchive);
+		DateTime oldBArchiveTime = File.GetLastWriteTimeUtc(bArchive);
+		DateTime oldAppTime = File.GetLastWriteTimeUtc(appExecutable);
+		Thread.Sleep(1200);
+		File.WriteAllText(aSource, """
+			namespace AlphaStaticA;
+
+			export int aValue()
+			{
+				return 3;
+			}
+			""".Replace("\r\n", "\n", StringComparison.Ordinal));
+
+		ProcessResult rebuild = RunCampcIn(appRoot, "build", "app.campbuild", "--nostdlib", "--target", target);
+		AssertCommandSucceeded(rebuild);
+		Assert.True(File.GetLastWriteTimeUtc(aArchive) > oldAArchiveTime, "Expected changed upstream project A to rebuild its archive.");
+		Assert.Equal(oldBArchiveTime, File.GetLastWriteTimeUtc(bArchive));
+		Assert.True(File.GetLastWriteTimeUtc(appExecutable) > oldAppTime, "Expected final executable to relink when upstream project A changes.");
+		ProcessResult rerun = RunExecutable(appExecutable);
+		Assert.Equal(56, rerun.ExitCode);
 	}
 
 	[Fact]
@@ -6928,6 +7052,25 @@ public sealed class CommandLineTests
 		Assert.True(
 			output.Contains("generated: " + filename, StringComparison.Ordinal) || output.Contains("unchanged: " + filename, StringComparison.Ordinal),
 			$"Expected verbose output to mention generated or unchanged artifact '{filename}'.\nSTDOUT:\n{output}");
+	}
+
+	static void AssertArchiveOwnsOnly(string archivePath, string owningSourceName)
+	{
+		Assert.True(File.Exists(archivePath), archivePath);
+		string objectExtension = OperatingSystem.IsWindows() ? ".obj" : ".o";
+		List<string> members = GetArchiveMembers(archivePath).Select(Path.GetFileName).OfType<string>().Where(member => !string.IsNullOrWhiteSpace(member)).ToList();
+		Assert.Contains(owningSourceName + objectExtension, members);
+		foreach (string sourceName in new[] { "a", "b", "c" }.Where(name => name != owningSourceName))
+			Assert.DoesNotContain(sourceName + objectExtension, members);
+	}
+
+	static IReadOnlyList<string> GetArchiveMembers(string archivePath)
+	{
+		ProcessResult result = OperatingSystem.IsWindows()
+			? RunProcess("lib", ["/nologo", "/LIST", archivePath], FindRepositoryRoot())
+			: RunProcess("ar", ["-t", archivePath], FindRepositoryRoot());
+		AssertCommandSucceeded(result);
+		return result.StdOut.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 	}
 
 	static string NativeTargetForHost()
