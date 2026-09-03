@@ -44,15 +44,16 @@ Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
 
-## BUG-114: Leading file requirement still overflows imported-result indexing
+## BUG-114: Prelude ordering changes inactive imported-result lowering
 
 Date/Time: 2026-09-02 19:58 EDT
 
 Summary:
-An inactive test source still overflows lowering when its file-level
-[requires(TEST_MODULE);] directive correctly precedes the namespace declaration.
-The otherwise equivalent case with the namespace declaration before [requires]
-succeeds, but that arrangement does not exercise a leading file requirement.
+An inactive test source overflows lowering when its file-level
+[requires(TEST_MODULE);] directive precedes the namespace declaration. The
+semantically equivalent case with the namespace declaration before [requires]
+succeeds. Both declarations are valid source-prelude constructs, and Camp does
+not require them to appear in either order.
 
 Steps to Reproduce:
 
@@ -66,8 +67,8 @@ Steps to Reproduce:
    [requires] directive.
 
 Expected:
-The leading file requirement makes the test source inactive and the static
-build succeeds without lowering its body.
+Both source-prelude orderings make the test source inactive and produce the
+same successful static build without lowering its body.
 
 Actual:
 The leading-requirement form recursively enters imported property/index
@@ -75,5 +76,7 @@ lowering until the compiler terminates with a native stack overflow. The
 namespace-first fixture succeeds.
 
 Known Impact:
-The canonical guarded-test layout cannot be included safely in reusable module
-build files when a test contains this imported-array pattern.
+The guarded-test layout required by beta repository policy cannot be included
+safely in reusable module build files when a test contains this imported-array
+pattern. Reordering the prelude happens to avoid the failure, but should not
+change compiler behavior and violates that repository convention.
