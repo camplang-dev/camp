@@ -1130,9 +1130,9 @@ public sealed class CommandLineTests
 			""".Replace("\r\n", "\n", StringComparison.Ordinal));
 		string appTestSource = Path.Combine(appRoot, "tests", "main_tests.camp");
 		File.WriteAllText(appTestSource, """
-			namespace StaticApiSameNamespace;
-
 			requires (TEST_MODULE);
+
+			namespace StaticApiSameNamespace;
 
 			struct Assertion
 			{
