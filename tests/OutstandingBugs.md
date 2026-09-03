@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-116.
+Next bug number: BUG-117.
 
 ## Bug Template
 
@@ -43,3 +43,33 @@ Actual:
 Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
+
+## BUG-116: Conditional expression can leave a slice result uninitialized
+
+Date/Time: 2026-09-03 America/Toronto
+
+Summary:
+A conditional expression whose branches produce borrowed array slices can lower
+to generated C that declares the result slice without assigning either branch.
+The resulting program may read an invalid pointer and crash despite compiling
+without a diagnostic.
+
+Steps to Reproduce:
+
+1. Declare a local borrowed array-slice variable initialized by a conditional
+   expression whose two branches are distinct slices of a source array.
+2. Pass that local to another method.
+3. Compile and run the program.
+
+Expected:
+The generated program assigns the selected branch slice, preserving its pointer
+and length, and the called method receives that selected slice.
+
+Actual:
+The generated C declares the slice local but leaves its pointer and length
+uninitialized before passing it to the called method. The executable can crash.
+
+Known Impact:
+Code using a conditional expression to select a slice is unsafe until fixed.
+An equivalent branch that calls the consumer separately for each selected slice
+avoids the faulty lowering.
