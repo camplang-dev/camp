@@ -196,37 +196,3 @@ Known Impact:
 Projects cannot expose a type with a simple name already exported by a static
 dependency. Until fixed, use a distinct public simple name at the product
 boundary and document the name as a bootstrap-compiler workaround.
-
-## BUG-129: Parameter documentation corrupts generated Camp API headers
-
-Date/Time: 2026-09-04 15:00 America/Toronto
-
-Summary:
-When an exported Camp method has parameter documentation, the generated Camp
-API header serializes that documentation as an `@summary` attribute inside the
-method's parameter list. A consuming static project then cannot parse the
-header, even though the producer project itself builds successfully.
-
-Steps to Reproduce:
-
-1. Create a static Camp producer project that exports a method with an ordinary
-   parameter, and document that parameter with a `/// - parameterName:` entry.
-2. Build the producer so that it emits its Camp API header.
-3. Create a second Camp project with a static project reference to the producer
-   and build the consumer.
-4. Inspect the producer API header used by the consumer.
-
-Expected:
-The generated header preserves parameter documentation using valid metadata or
-otherwise omits it from the source declaration. The consumer parses the header
-and builds successfully.
-
-Actual:
-The generated header places an attribute before the parameter type, for example
-`method(@summary("Parameter documentation.") int value)`. The Camp parser reports
-`Expected ')'` and related declaration errors while compiling the consumer.
-
-Known Impact:
-Any exported API with parameter documentation can make static consumers fail to
-build. Until fixed, producer APIs must omit parameter documentation entries,
-which conflicts with the documented public-API documentation convention.

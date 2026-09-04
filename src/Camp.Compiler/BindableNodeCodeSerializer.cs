@@ -1864,7 +1864,7 @@ public sealed class BindableNodeCodeSerializer
 
 	void WriteParameter(ParameterDefinition parameter)
 	{
-		WriteAttributes(parameter.Attributes, inline: true);
+		WriteParameterAttributes(parameter.Attributes);
 		if (parameter.IsOverloadSelector)
 			writer.Write("overload ");
 		bool isWithin = parameter.Modifier == ParameterModifier.Within || parameter is WithinParameterDefinition;
@@ -1931,6 +1931,30 @@ public sealed class BindableNodeCodeSerializer
 			writer.Write(" = ");
 			WriteExpression(parameter.DefaultValue);
 		}
+	}
+
+	void WriteParameterAttributes(List<AttributeConstructor> attributes)
+	{
+		if (!apiHeader)
+		{
+			WriteAttributes(attributes, inline: true);
+			return;
+		}
+
+		List<AttributeConstructor> emittedAttributes = [.. attributes.Where(static attribute => !IsDocumentationAttribute(attribute))];
+		WriteAttributes(emittedAttributes, inline: true);
+	}
+
+	static bool IsDocumentationAttribute(AttributeConstructor attribute)
+	{
+		return AttributeNameEquals(attribute.Name, "@summary")
+			|| AttributeNameEquals(attribute.Name, "@remarks")
+			|| AttributeNameEquals(attribute.Name, "@returns")
+			|| AttributeNameEquals(attribute.Name, "@example")
+			|| AttributeNameEquals(attribute.Name, "@see")
+			|| AttributeNameEquals(attribute.Name, "@deprecated")
+			|| AttributeNameEquals(attribute.Name, "@overload")
+			|| AttributeNameEquals(attribute.Name, "@category");
 	}
 
 	void WriteTypeOrResolved(TypeReference? type, string? resolvedType)

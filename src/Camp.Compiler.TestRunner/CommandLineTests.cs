@@ -1030,7 +1030,7 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
-	public void Static_project_api_header_preserves_parameter_documentation()
+	public void Static_project_api_header_omits_parameter_documentation()
 	{
 		string source = CreateTempCase("static_api_parameter_documentation/library.camp", """
 			namespace StaticApiParameterDocumentation;
@@ -1062,7 +1062,8 @@ public sealed class CommandLineTests
 		Assert.True(File.Exists(apiPath), apiPath);
 		string api = File.ReadAllText(apiPath);
 		Assert.Contains("""@summary("Measures text.")""", api, StringComparison.Ordinal);
-		Assert.Contains("""export extern nuint measure(@summary("Text to measure.") const char[] text);""", api, StringComparison.Ordinal);
+		Assert.Contains("""export extern nuint measure(const char[] text);""", api, StringComparison.Ordinal);
+		Assert.DoesNotContain("""@summary("Text to measure.") const char[] text""", api, StringComparison.Ordinal);
 
 		string consumer = CreateTempCase("static_api_parameter_documentation_consumer/main.camp", """
 			using StaticApiParameterDocumentation;
