@@ -303,6 +303,12 @@ public sealed partial class BindableNodeAnalyzer
 
 		foreach (ParameterDefinition parameter in function.Parameters)
 		{
+			// An implicit `within allocator` is compiler context, not a caller-authored
+			// exported type reference. Its standard-library allocator type need not be
+			// re-exported for an API header to describe the context.
+			if (parameter is WithinParameterDefinition)
+				continue;
+
 			if (parameter.Type is not null)
 				yield return parameter.Type;
 

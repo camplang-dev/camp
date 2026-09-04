@@ -3919,7 +3919,7 @@ public sealed class CommandLineTests
 		File.WriteAllText(Path.Combine(librarySource, "library.camp"), """
 			namespace AllocatorLifecycle;
 
-			public escaped class Owner
+			export escaped class Owner
 			{
 				public int value()
 				{
@@ -3947,8 +3947,8 @@ public sealed class CommandLineTests
 
 		AssertCommandSucceeded(result);
 		string api = File.ReadAllText(Path.Combine(libraryRoot, "bin", ArtifactDirectoryForTarget(target, NativeBuildKind.Static), "allocator-lifecycle-lib_api.camp"));
-		Assert.Contains("public extern Owner(within allocator);", api, StringComparison.Ordinal);
-		Assert.Contains("public extern ~Owner(within allocator);", api, StringComparison.Ordinal);
+		Assert.Contains("export extern Owner(within allocator);", api, StringComparison.Ordinal);
+		Assert.Contains("export extern ~Owner(within allocator);", api, StringComparison.Ordinal);
 	}
 
 	[Fact]
