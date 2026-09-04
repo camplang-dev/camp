@@ -1391,6 +1391,113 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Static_project_reference_rebuilds_dirty_transitive_archive()
+	{
+		string root = TempPath("static-project-reference-dirty-archive");
+		string aRoot = Path.Combine(root, "a");
+		string bRoot = Path.Combine(root, "b");
+		string appRoot = Path.Combine(root, "app");
+		Directory.CreateDirectory(aRoot);
+		Directory.CreateDirectory(bRoot);
+		Directory.CreateDirectory(appRoot);
+
+		string aSource = Path.Combine(aRoot, "a.camp");
+		File.WriteAllText(aSource, """
+			namespace DirtyStaticA;
+
+			export int aValue()
+			{
+				return 2;
+			}
+			""".Replace("\r\n", "\n", StringComparison.Ordinal));
+		string aBuild = Path.Combine(aRoot, "a.campbuild");
+		File.WriteAllText(aBuild, """
+			--artifact static
+			--name dirty_static_a
+			a.camp
+			""".Replace("\r\n", "\n", StringComparison.Ordinal));
+
+		string bSource = Path.Combine(bRoot, "b.camp");
+		File.WriteAllText(bSource, """
+			using DirtyStaticA;
+			namespace DirtyStaticB;
+
+			export int bValue()
+			{
+				return aValue() + 20;
+			}
+			""".Replace("\r\n", "\n", StringComparison.Ordinal));
+		string bBuild = Path.Combine(bRoot, "b.campbuild");
+		File.WriteAllText(bBuild, """
+			--artifact static
+			--name dirty_static_b
+			--project-reference ../a/a.campbuild:static
+			b.camp
+			""".Replace("\r\n", "\n", StringComparison.Ordinal));
+
+		string appSource = Path.Combine(appRoot, "app.camp");
+		File.WriteAllText(appSource, """
+			using DirtyStaticA;
+			using DirtyStaticB;
+
+			export int main()
+			{
+				return aValue() + bValue();
+			}
+			""".Replace("\r\n", "\n", StringComparison.Ordinal));
+		string appBuild = Path.Combine(appRoot, "app.campbuild");
+		File.WriteAllText(appBuild, """
+			--artifact exec
+			--name dirty_static_app
+			--project-reference ../b/b.campbuild:static
+			--project-reference ../a/a.campbuild:static
+			app.camp
+			""".Replace("\r\n", "\n", StringComparison.Ordinal));
+
+		string target = NativeTargetForHost();
+		ProcessResult build = RunCampcIn(appRoot, "build", "app.campbuild", "--nostdlib", "--target", target, "--verbose");
+		AssertCommandSucceeded(build);
+
+		string staticArtifactDirectory = ArtifactDirectoryForHost(NativeBuildKind.Static);
+		string aArchive = NativeArtifactPathForTarget(target, NativeBuildKind.Static, Path.Combine(aRoot, "bin", staticArtifactDirectory), "dirty_static_a");
+		string bArchive = NativeArtifactPathForTarget(target, NativeBuildKind.Static, Path.Combine(bRoot, "bin", staticArtifactDirectory), "dirty_static_b");
+		AssertArchiveOwnsOnly(aArchive, "a");
+		AssertArchiveOwnsOnly(bArchive, "b");
+
+		string objectExtension = OperatingSystem.IsWindows() ? ".obj" : ".o";
+		string aObject = Path.Combine(aRoot, "bin", staticArtifactDirectory, "build", "a" + objectExtension);
+		string bObject = Path.Combine(bRoot, "bin", staticArtifactDirectory, "build", "b" + objectExtension);
+		ProcessResult dirtyArchive = OperatingSystem.IsWindows()
+			? RunProcess("lib", ["/nologo", "/OUT:" + bArchive, bObject, aObject], FindRepositoryRoot())
+			: RunProcess("ar", ["r", bArchive, aObject], FindRepositoryRoot());
+		AssertCommandSucceeded(dirtyArchive);
+		Assert.Contains("a" + objectExtension, GetArchiveMembers(bArchive).Select(Path.GetFileName));
+
+		DateTime oldBArchiveTime = File.GetLastWriteTimeUtc(bArchive);
+		Thread.Sleep(1200);
+		File.WriteAllText(aSource, """
+			namespace DirtyStaticA;
+
+			export int aValue()
+			{
+				return 3;
+			}
+			""".Replace("\r\n", "\n", StringComparison.Ordinal));
+
+		ProcessResult rebuild = RunCampcIn(appRoot, "build", "app.campbuild", "--nostdlib", "--target", target, "--verbose");
+		AssertCommandSucceeded(rebuild);
+		Assert.Contains("project reference dirty_static_a: rebuilding", rebuild.StdOut, StringComparison.Ordinal);
+		Assert.Contains("project reference dirty_static_b: rebuilding", rebuild.StdOut, StringComparison.Ordinal);
+		Assert.True(File.GetLastWriteTimeUtc(bArchive) > oldBArchiveTime, "Expected project B to rebuild because its archive contained a stale transitive object.");
+		AssertArchiveOwnsOnly(bArchive, "b");
+
+		string appDirectory = Path.Combine(appRoot, "bin", ArtifactDirectoryForHost(NativeBuildKind.Exec));
+		string appExecutable = NativeArtifactPathForTarget(target, NativeBuildKind.Exec, appDirectory, "dirty_static_app");
+		ProcessResult rerun = RunExecutable(appExecutable);
+		Assert.Equal(26, rerun.ExitCode);
+	}
+
+	[Fact]
 	public void Static_project_c_api_forwards_private_pointer_field_types()
 	{
 		string libraryRoot = TempPath("static-api-private-pointer-field-library");

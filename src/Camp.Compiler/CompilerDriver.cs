@@ -446,6 +446,16 @@ public static class CompilerDriver
 						OutLine("top-level artifact: rebuilding because " + output + " is missing");
 					return false;
 				}
+			if (request.BuildKind == NativeBuildKind.Static)
+			{
+				IReadOnlyList<string> expectedObjects = GetExpectedTopLevelObjectPaths(context.Target, buildDirectory);
+				if (!NativeBuildDriver.StaticArchiveContainsOnlyObjects(buildOptions, artifact, expectedObjects))
+				{
+					if (request.Verbose)
+						OutLine("top-level artifact: rebuilding because static archive contains stale object members");
+					return false;
+				}
+			}
 			List<string> inputs = [];
 			inputs.AddRange(ResolveInputPaths(request.Files));
 			inputs.AddRange(ResolveInputPaths(request.NativeSourceFiles));
@@ -1365,6 +1375,19 @@ public static class CompilerDriver
 			if (!TryRefreshGeneratedOutputs(GetTopLevelFreshnessOutputs(buildOptions)))
 				return 1;
 			return 0;
+		}
+
+		IReadOnlyList<string> GetExpectedTopLevelObjectPaths(TargetDefinition target, string buildDirectory)
+		{
+			string objectExtension = target.Capabilities.GetArtifactValue("object_ext", ".o");
+			List<string> objects = [];
+			foreach (string source in ResolveInputPaths(request.Files).Concat(ResolveInputPaths(request.NativeSourceFiles)))
+			{
+				if (source.EndsWith("_api.camp", StringComparison.OrdinalIgnoreCase))
+					continue;
+				objects.Add(Path.Combine(buildDirectory, Path.GetFileNameWithoutExtension(source) + objectExtension));
+			}
+			return objects;
 		}
 
 		static IEnumerable<string?> GetTopLevelFreshnessOutputs(NativeBuildOptions buildOptions)

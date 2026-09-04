@@ -1147,10 +1147,32 @@ static bool TryBuildRequest(string[] args, CliEnvironment environment, CommandKi
 
 		if (requiredOutputs.Any(static output => !File.Exists(output)))
 			return false;
+		if (requireLibrary && buildKind == NativeBuildKind.Static)
+		{
+			IReadOnlyList<string> expectedObjects = GetExpectedProjectReferenceObjectPaths(projectRequest, nativeOptions.BuildDirectory, target);
+			if (!NativeBuildDriver.StaticArchiveContainsOnlyObjects(nativeOptions, nativeArtifact, expectedObjects))
+				return false;
+		}
 		if (freshnessOutputs.Count == 0)
 			freshnessOutputs.AddRange(requiredOutputs);
 		List<string> inputs = GetProjectReferenceCacheInputs(projectRequest, buildFile, target, baseCampBuildPath, globalCampBuildPath, buildKind).ToList();
 		return OutputsAreCurrent(freshnessOutputs, inputs);
+	}
+
+	static IReadOnlyList<string> GetExpectedProjectReferenceObjectPaths(CompilerRequest projectRequest, string buildDirectory, TargetDefinition target)
+	{
+		string objectExtension = target.Capabilities.GetArtifactValue("object_ext", ".o");
+		List<string> objects = [];
+		foreach (string source in projectRequest.Files.Concat(projectRequest.NativeSourceFiles))
+		{
+			if (source == "-")
+				continue;
+			string fullPath = Path.GetFullPath(source, projectRequest.WorkingDirectory);
+			if (fullPath.EndsWith("_api.camp", StringComparison.OrdinalIgnoreCase))
+				continue;
+			objects.Add(Path.Combine(buildDirectory, Path.GetFileNameWithoutExtension(fullPath) + objectExtension));
+		}
+		return objects;
 	}
 
 	static string ProjectReferenceOutputName(CompilerRequest projectRequest, string buildFile)

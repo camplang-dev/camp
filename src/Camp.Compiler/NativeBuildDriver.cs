@@ -77,7 +77,7 @@ public static class NativeBuildDriver
 
 		string output = GetArtifactPath(options);
 		string? sharedImportLibrary = options.Kind == NativeBuildKind.Shared ? GetSharedImportLibraryPath(options) : null;
-		if (CanReuseNativeArtifact(options, output, sharedImportLibrary, objects))
+		if (CanReuseNativeArtifact(options, output, sharedImportLibrary, objects, toolchainEnvironment))
 		{
 			result.GeneratedFiles.Add(output);
 			if (options.Kind == NativeBuildKind.Shared)
@@ -144,7 +144,7 @@ public static class NativeBuildDriver
 		return File.Exists(source) && objectTime >= File.GetLastWriteTimeUtc(source);
 	}
 
-	static bool CanReuseNativeArtifact(NativeBuildOptions options, string output, string? sharedImportLibrary, IReadOnlyList<string> objects)
+	static bool CanReuseNativeArtifact(NativeBuildOptions options, string output, string? sharedImportLibrary, IReadOnlyList<string> objects, IReadOnlyDictionary<string, string>? toolchainEnvironment)
 	{
 		if (!File.Exists(output))
 			return false;
@@ -162,7 +162,123 @@ public static class NativeBuildDriver
 				if (Path.IsPathRooted(library) && File.Exists(library) && outputTime < File.GetLastWriteTimeUtc(library))
 					return false;
 			}
+		if (options.Kind == NativeBuildKind.Static && !StaticArchiveContainsOnlyObjects(options, output, objects, toolchainEnvironment))
+			return false;
 		return true;
+	}
+
+	public static bool StaticArchiveContainsOnlyObjects(NativeBuildOptions options, string archivePath, IReadOnlyList<string> objects)
+	{
+		if (!TryResolveToolchainEnvironment(options, new NativeBuildResult(), out IReadOnlyDictionary<string, string>? toolchainEnvironment))
+			return false;
+		return StaticArchiveContainsOnlyObjects(options, archivePath, objects, toolchainEnvironment);
+	}
+
+	static bool StaticArchiveContainsOnlyObjects(NativeBuildOptions options, string archivePath, IReadOnlyList<string> objects, IReadOnlyDictionary<string, string>? toolchainEnvironment)
+	{
+		if (!File.Exists(archivePath))
+			return false;
+		if (!TryListStaticArchiveMembers(options, archivePath, toolchainEnvironment, out List<string>? members))
+			return false;
+
+		Dictionary<string, int> expected = CountObjectBasenames(objects);
+		Dictionary<string, int> actual = CountObjectBasenames(members!);
+		if (expected.Count != actual.Count)
+			return false;
+		foreach ((string name, int count) in expected)
+			if (!actual.TryGetValue(name, out int actualCount) || actualCount != count)
+				return false;
+		return true;
+	}
+
+	static Dictionary<string, int> CountObjectBasenames(IEnumerable<string> paths)
+	{
+		Dictionary<string, int> result = new(StringComparer.OrdinalIgnoreCase);
+		foreach (string path in paths)
+		{
+			string name = Path.GetFileName(path.Replace('\\', Path.DirectorySeparatorChar).Replace('/', Path.DirectorySeparatorChar));
+			if (string.IsNullOrWhiteSpace(name) || IsArchiveSymbolMember(name))
+				continue;
+			result[name] = result.TryGetValue(name, out int count) ? count + 1 : 1;
+		}
+		return result;
+	}
+
+	static bool IsArchiveSymbolMember(string name)
+	{
+		return name.StartsWith("__.SYMDEF", StringComparison.Ordinal)
+			|| name is "/" or "//";
+	}
+
+	static bool TryListStaticArchiveMembers(NativeBuildOptions options, string archivePath, IReadOnlyDictionary<string, string>? toolchainEnvironment, out List<string>? members)
+	{
+		members = null;
+		string command = BuildArchiveListCommand(options, archivePath);
+		ProcessStartInfo info = new()
+		{
+			FileName = OperatingSystem.IsWindows() ? "cmd.exe" : "/bin/sh",
+			WorkingDirectory = options.BuildDirectory,
+			RedirectStandardError = true,
+			RedirectStandardOutput = true,
+			UseShellExecute = false
+		};
+		if (toolchainEnvironment is not null)
+		{
+			foreach ((string key, string value) in toolchainEnvironment)
+				info.Environment[key] = value;
+		}
+		if (OperatingSystem.IsWindows())
+		{
+			info.Arguments = "/S /C \"" + command + "\"";
+		}
+		else
+		{
+			info.ArgumentList.Add("-c");
+			info.ArgumentList.Add(command);
+		}
+
+		using Process process = new() { StartInfo = info };
+		try
+		{
+			process.Start();
+		}
+		catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
+		{
+			return false;
+		}
+
+		Task<string> stdoutTask = process.StandardOutput.ReadToEndAsync();
+		Task<string> stderrTask = process.StandardError.ReadToEndAsync();
+		if (!process.WaitForExit(30000))
+		{
+			try
+			{
+				process.Kill(entireProcessTree: true);
+			}
+			catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
+			{
+			}
+			return false;
+		}
+		string stdout = stdoutTask.GetAwaiter().GetResult();
+		_ = stderrTask.GetAwaiter().GetResult();
+		if (process.ExitCode != 0)
+			return false;
+		members = stdout
+			.Replace("\r\n", "\n", StringComparison.Ordinal)
+			.Replace('\r', '\n')
+			.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+			.ToList();
+		return true;
+	}
+
+	static string BuildArchiveListCommand(NativeBuildOptions options, string archivePath)
+	{
+		string ar = Quote(options.Target.Capabilities.GetTool("ar"));
+		string archive = Quote(archivePath);
+		if (options.Target.Capabilities.GetCapabilityValue("compiler").Equals("msvc", StringComparison.OrdinalIgnoreCase))
+			return $"{ar} /nologo /LIST {archive}";
+		return $"{ar} -t {archive}";
 	}
 
 	public static bool IsValidFrameworkName(string name)
