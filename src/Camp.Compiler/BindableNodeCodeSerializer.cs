@@ -595,7 +595,7 @@ public sealed class BindableNodeCodeSerializer
 			writer.Write("extern ");
 			writer.Write(definition!.Name);
 			if (LifecycleAllocatorPolicy.SyntheticConstructorUsesAllocator(currentModule, definition, functions, retainsAllocator, ApiAllocatorTypeAvailable()))
-				writer.WriteLine("(within allocator);");
+				writer.WriteLine(retainsAllocator ? "(within this.allocator);" : "(within allocator);");
 			else
 				writer.WriteLine("();");
 			wrote = true;
