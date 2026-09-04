@@ -913,6 +913,8 @@ public sealed partial class BindableNodeAnalyzer
 		clone.Modifier = source.Modifier;
 		clone.IsOverloadSelector = source.IsOverloadSelector;
 		clone.IsAwaitWith = source.IsAwaitWith;
+		clone.RetainsAllocator = source.RetainsAllocator;
+		clone.RetainedAllocatorFieldName = source.RetainedAllocatorFieldName;
 		clone.LifetimeBinding = source.LifetimeBinding;
 		clone.Type = CloneProjectionTypeReference(source.Type);
 		clone.DefaultValue = source.DefaultValue;
