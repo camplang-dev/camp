@@ -1914,6 +1914,8 @@ public sealed class BindableNodeCodeSerializer
 					writer.Write(lifetime);
 					writer.Write(" ");
 				}
+				if (withinParameter.RetainsAllocator)
+					writer.Write("this.");
 				writer.Write(parameter.Name);
 			}
 			else
