@@ -1030,6 +1030,65 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Static_project_api_header_preserves_parameter_documentation()
+	{
+		string source = CreateTempCase("static_api_parameter_documentation/library.camp", """
+			namespace StaticApiParameterDocumentation;
+
+			/// Measures text.
+			/// - text: Text to measure.
+			export nuint measure(const char[] text)
+			{
+				return text.length;
+			}
+			""");
+		string outDir = TempPath("static-api-parameter-documentation-out");
+
+		ProcessResult result = RunCampc(
+			"build",
+			source,
+			"--nostdlib",
+			"--artifact",
+			"static",
+			"--target",
+			NativeTargetForHost(),
+			"--out-dir",
+			outDir,
+			"--name",
+			"static_api_parameter_documentation");
+
+		AssertCommandSucceeded(result);
+		string apiPath = Path.Combine(outDir, ArtifactDirectoryForHost(NativeBuildKind.Static), "static_api_parameter_documentation_api.camp");
+		Assert.True(File.Exists(apiPath), apiPath);
+		string api = File.ReadAllText(apiPath);
+		Assert.Contains("""@summary("Measures text.")""", api, StringComparison.Ordinal);
+		Assert.Contains("""export extern nuint measure(@summary("Text to measure.") const char[] text);""", api, StringComparison.Ordinal);
+
+		string consumer = CreateTempCase("static_api_parameter_documentation_consumer/main.camp", """
+			using StaticApiParameterDocumentation;
+
+			void callMeasure()
+			{
+				const char[] text = default;
+				nuint length = measure(text);
+			}
+			""");
+		ProcessResult consumerResult = RunCampc(
+			"build",
+			consumer,
+			"--nostdlib",
+			"--artifact",
+			"none",
+			"--api",
+			apiPath,
+			"--out-dir",
+			TempPath("static-api-parameter-documentation-consumer-out"),
+			"--name",
+			"static_api_parameter_documentation_consumer");
+		AssertCommandSucceeded(consumerResult);
+	}
+
+	[Fact]
 	public void Static_project_api_header_preserves_array_return_without_synthetic_length()
 	{
 		string source = CreateTempCase("static_api_array_return/library.camp", """
