@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-127.
+Next bug number: BUG-128.
 
 ## Bug Template
 
@@ -196,3 +196,37 @@ Known Impact:
 Projects cannot expose a type with a simple name already exported by a static
 dependency. Until fixed, use a distinct public simple name at the product
 boundary and document the name as a bootstrap-compiler workaround.
+
+## BUG-127: Private-header changes do not invalidate dependent native objects
+
+Date/Time: 2026-09-04 12:29 America/Toronto
+
+Summary:
+An incremental native build can reuse object files compiled against an older
+generated private header after the source-level layout of a file-internal struct
+changes. The generated C source and private header are current, but the linked
+program contains callers that use field offsets from the former layout.
+
+Steps to Reproduce:
+
+1. Declare a file-internal struct that is shared by functions in multiple source
+   files, and build a native test executable that calls those functions.
+2. Change the struct layout, such as by changing the length of a fixed-array
+   field, and rebuild incrementally.
+3. Run a test that initializes the struct in one source file and reads a field in
+   another source file; compare the generated C/header with the linked behavior
+   or inspect the fault under a debugger.
+
+Expected:
+Every native object that includes the changed generated private header is
+invalidated and rebuilt, so all source files use the current struct layout.
+
+Actual:
+At least one dependent object can be reused. A zero-initialized struct then
+appears to have garbage in fields following the changed member, and the program
+can access invalid memory or crash.
+
+Known Impact:
+Incremental native builds are unsafe after changing a shared file-internal type
+layout. A clean native rebuild avoids the stale-object mismatch, but relying on
+manual cleanup is not a viable incremental-build contract.
