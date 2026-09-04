@@ -2091,6 +2091,7 @@ public sealed partial class BindableNodeAnalyzer
 	FunctionDefinition CreateImplicitExportedDestroyMethod(ClassDefinition type, IReadOnlyList<FunctionDefinition> functions)
 	{
 		FunctionDefinition method = generatedDeclarations.Function(GeneratedDeclarationCategory.Lifecycle, "implicit exported destroy helper", type);
+		method.SourceSyntax = type.SourceSyntax;
 		method.Name = DestroyMethodName;
 		method.Symbol = $"{EffectiveTypeSymbol(type)}_{DestroyMethodName}";
 		method.Export = type.Export;
@@ -2101,6 +2102,34 @@ public sealed partial class BindableNodeAnalyzer
 		bool retainsAllocator = LifecycleAllocatorPolicy.RetainsAllocator(functions);
 		if (LifecycleAllocatorPolicy.ImplicitDestroyHelperUsesAllocator(currentModule, type, functions, retainsAllocator, SourceAllocatorTypeAvailable()))
 			method.Parameters.Add(CreateAllocatorParameter());
+		method.Body = new BlockStatement
+		{
+			ResolvedType = "void"
+		};
+		DeclarationStatement? resolvedAllocatorLocal = null;
+		if (retainsAllocator
+			&& LifecycleAllocatorPolicy.GetRetainedAllocatorParameter(functions) is ParameterDefinition retainedAllocator
+			&& TryGetRetainedAllocatorField(type, retainedAllocator, out FieldDefinition? retainedField))
+		{
+			resolvedAllocatorLocal = CreateResolvedAllocatorLocal(
+				CreateRetainedAllocatorFieldReference(type, retainedField, type.SourceSyntax));
+			method.Body.Statements.Add(resolvedAllocatorLocal);
+		}
+		else if (GetAllocatorParameter(method) is ParameterDefinition allocatorParameter)
+		{
+			resolvedAllocatorLocal = CreateResolvedAllocatorLocal(allocatorParameter);
+			method.Body.Statements.Add(resolvedAllocatorLocal);
+		}
+		method.Body.Statements.Add(new ExpressionStatement
+		{
+			SourceSyntax = type.SourceSyntax,
+			ResolvedType = "void",
+			Expression = CreateFreeCall(
+				new ThisExpression { SourceSyntax = type.SourceSyntax, ResolvedType = $"{type.Name}*" },
+				resolvedAllocatorLocal is null ? null : CreateVariableReference(
+					resolvedAllocatorLocal.Target,
+					resolvedAllocatorLocal.Target.ResolvedType ?? GetAllocatorParameter(method)?.ResolvedType ?? "Allocator*"))
+		});
 		return method;
 	}
 
