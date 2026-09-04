@@ -161,8 +161,16 @@ public sealed partial class BindableNodeAnalyzer
 
 				function.Body = new BlockStatement { ResolvedType = "void" };
 				ParameterDefinition? allocatorParameter = GetAllocatorParameter(function);
+				ParameterDefinition? retainedAllocator = LifecycleAllocatorPolicy.GetRetainedAllocatorParameter(classDefinition.Functions);
 				DeclarationStatement? resolvedAllocatorLocal = null;
-				if (allocatorParameter is not null)
+				if (retainedAllocator is not null
+					&& TryGetRetainedAllocatorField(classDefinition, retainedAllocator, out FieldDefinition? retainedField))
+				{
+					resolvedAllocatorLocal = CreateResolvedAllocatorLocal(
+						CreateRetainedAllocatorFieldReference(classDefinition, retainedField, function.SourceSyntax));
+					function.Body.Statements.Add(resolvedAllocatorLocal);
+				}
+				else if (allocatorParameter is not null)
 				{
 					resolvedAllocatorLocal = CreateResolvedAllocatorLocal(allocatorParameter);
 					function.Body.Statements.Add(resolvedAllocatorLocal);
