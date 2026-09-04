@@ -1251,7 +1251,9 @@ public static class CompilerDriver
 					ProjectName = packageName,
 					Kind = nativeBuildKind ?? NativeBuildKind.Static,
 					SourceFiles = emission.GeneratedSourceFiles.Concat(nativeSourceFiles).ToList(),
-					SourceFileStatuses = BuildSourceStatuses(emission)
+					SourceFileStatuses = BuildSourceStatuses(emission),
+					HeaderFiles = BuildHeaderFiles(emission),
+					HeaderFileStatuses = BuildHeaderStatuses(emission)
 				});
 			}
 			foreach (string diagnostic in build.Diagnostics)
@@ -1352,6 +1354,8 @@ public static class CompilerDriver
 				Kind = request.BuildKind.Value,
 				SourceFiles = [.. result.GeneratedSourceFiles, .. coverageRuntimeSources, .. ResolveInputPaths(request.NativeSourceFiles)],
 				SourceFileStatuses = BuildSourceStatuses(result),
+				HeaderFiles = BuildHeaderFiles(result),
+				HeaderFileStatuses = BuildHeaderStatuses(result),
 				Libraries = request.BuildKind == NativeBuildKind.Static
 					? []
 					: packageLibraries.Concat(request.References.Select(reference => ResolveNativeReference(reference, compilation.Target!))).ToList(),
@@ -2498,6 +2502,22 @@ public static class CompilerDriver
 				statuses[path] = status;
 			foreach ((string path, BuildFileWriteStatus status) in generatedFileStatuses)
 				if (Path.GetExtension(path).Equals(".c", StringComparison.OrdinalIgnoreCase))
+					statuses[path] = status;
+			return statuses;
+		}
+
+		static List<string> BuildHeaderFiles(CEmissionResult emission)
+		{
+			return emission.FileStatuses.Keys
+				.Where(static path => Path.GetExtension(path).Equals(".h", StringComparison.OrdinalIgnoreCase))
+				.ToList();
+		}
+
+		static Dictionary<string, BuildFileWriteStatus> BuildHeaderStatuses(CEmissionResult emission)
+		{
+			Dictionary<string, BuildFileWriteStatus> statuses = new(StringComparer.OrdinalIgnoreCase);
+			foreach ((string path, BuildFileWriteStatus status) in emission.FileStatuses)
+				if (Path.GetExtension(path).Equals(".h", StringComparison.OrdinalIgnoreCase))
 					statuses[path] = status;
 			return statuses;
 		}

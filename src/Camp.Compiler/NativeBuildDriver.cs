@@ -27,6 +27,8 @@ public sealed class NativeBuildOptions
 	public required NativeBuildKind Kind { get; init; }
 	public required IReadOnlyList<string> SourceFiles { get; init; }
 	public IReadOnlyDictionary<string, BuildFileWriteStatus> SourceFileStatuses { get; init; } = new Dictionary<string, BuildFileWriteStatus>(StringComparer.OrdinalIgnoreCase);
+	public IReadOnlyList<string> HeaderFiles { get; init; } = [];
+	public IReadOnlyDictionary<string, BuildFileWriteStatus> HeaderFileStatuses { get; init; } = new Dictionary<string, BuildFileWriteStatus>(StringComparer.OrdinalIgnoreCase);
 	public IReadOnlyList<string> Libraries { get; init; } = [];
 	public IReadOnlyList<string> Frameworks { get; init; } = [];
 }
@@ -141,6 +143,15 @@ public static class NativeBuildDriver
 		if (options.SourceFileStatuses.TryGetValue(source, out BuildFileWriteStatus status) && status == BuildFileWriteStatus.Changed)
 			return false;
 		DateTime objectTime = File.GetLastWriteTimeUtc(objectPath);
+		foreach (string header in options.HeaderFiles)
+		{
+			if (!File.Exists(header))
+				return false;
+			if (options.HeaderFileStatuses.TryGetValue(header, out BuildFileWriteStatus headerStatus) && headerStatus == BuildFileWriteStatus.Changed)
+				return false;
+			if (objectTime < File.GetLastWriteTimeUtc(header))
+				return false;
+		}
 		return File.Exists(source) && objectTime >= File.GetLastWriteTimeUtc(source);
 	}
 
