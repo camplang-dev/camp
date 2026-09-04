@@ -1933,8 +1933,9 @@ public sealed partial class BindableNodeAnalyzer
 			SourceSyntax = classDefinition.SourceSyntax,
 			ResolvedType = "void"
 		};
-		if (GetDirectBaseClass(classDefinition) is ClassDefinition baseClass
-			&& BaseConstructorsRequireWithin(baseClass))
+		if ((GetDirectBaseClass(classDefinition) is ClassDefinition baseClass
+				&& BaseConstructorsRequireWithin(baseClass))
+			|| LifecycleAllocatorPolicy.SyntheticConstructorUsesAllocator(currentModule, classDefinition, classDefinition.Functions, policyAllocatorAvailable: SourceAllocatorTypeAvailable()))
 		{
 			method.Parameters.Add(CreateAllocatorParameter());
 		}

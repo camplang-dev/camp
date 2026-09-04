@@ -2137,9 +2137,20 @@ public static class MetadataJsonSerializer
 
 		bool MetadataAllocatorTypeAvailable()
 		{
+			if (!compilation.NoStdLib)
+				return true;
+
 			foreach (Definition definition in ActiveDefinitions())
 				if (definition is TypeDefinition { Name: "Allocator" })
 					return true;
+			foreach (SourceFile file in compilation.Files)
+			{
+				if (file.BindableTree is not Module fileModule)
+					continue;
+				foreach (Definition definition in fileModule.Definitions)
+					if (definition is TypeDefinition { Name: "Allocator" })
+						return true;
+			}
 			return false;
 		}
 

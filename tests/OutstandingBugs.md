@@ -196,33 +196,3 @@ Known Impact:
 Projects cannot expose a type with a simple name already exported by a static
 dependency. Until fixed, use a distinct public simple name at the product
 boundary and document the name as a bootstrap-compiler workaround.
-
-## BUG-125: Static dependency API omits the allocator type for escaped owners
-
-Date/Time: 2026-09-04 03:19 America/Toronto
-
-Summary:
-An exported escaped class in a static project dependency can emit `within
-Allocator` in its generated API header without making that allocator type
-available to the consuming module. A consumer cannot compile even though both
-projects build independently.
-
-Steps to Reproduce:
-
-1. Create a static project dependency that exports an escaped class.
-2. Build that dependency so its generated API header contains the class
-   constructor and ownership methods.
-3. Add a second project that references the dependency statically and build it.
-
-Expected:
-The generated API includes or imports the allocator type required by the
-escaped owner ABI, and the consuming project compiles.
-
-Actual:
-The consuming build reports that the exported escaped declaration exposes a
-non-exported type named `Allocator`.
-
-Known Impact:
-Public escaped owners cannot safely cross a static project boundary. This
-blocks ordinary modular API design; replacing ownership with opaque numeric
-handles is only a temporary workaround and should not dictate product APIs.

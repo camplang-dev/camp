@@ -14,6 +14,7 @@ public sealed class BindableNodeCodeSerializerOptions
 	public CampApiSurfaceKind ApiSurface { get; set; } = CampApiSurfaceKind.Export;
 	public bool ApiDefinitionsAlreadyFiltered { get; set; }
 	public IReadOnlyList<Definition> ApiReferenceDefinitions { get; set; } = [];
+	public bool? ApiAllocatorTypeAvailable { get; set; }
 }
 
 public enum CampApiSurfaceKind
@@ -30,6 +31,7 @@ public sealed class BindableNodeCodeSerializer
 	readonly CampApiSurfaceKind apiSurface;
 	readonly bool apiDefinitionsAlreadyFiltered;
 	readonly IReadOnlyList<Definition> apiReferenceDefinitions;
+	readonly bool? apiAllocatorTypeAvailable;
 	readonly Dictionary<BindableNode, string> generatedNames = new();
 	Module? currentModule;
 	string? currentOutputNamespace;
@@ -47,6 +49,7 @@ public sealed class BindableNodeCodeSerializer
 		apiSurface = options?.ApiSurface ?? CampApiSurfaceKind.Export;
 		apiDefinitionsAlreadyFiltered = options?.ApiDefinitionsAlreadyFiltered ?? false;
 		apiReferenceDefinitions = options?.ApiReferenceDefinitions ?? [];
+		apiAllocatorTypeAvailable = options?.ApiAllocatorTypeAvailable;
 	}
 
 	public static void Serialize(BindableNode node, TextWriter writer, BindableNodeCodeSerializerOptions? options = null)
@@ -2241,6 +2244,8 @@ public sealed class BindableNodeCodeSerializer
 
 	bool ApiAllocatorTypeAvailable()
 	{
+		if (apiAllocatorTypeAvailable is bool value)
+			return value;
 		foreach (TypeDefinition typeDefinition in ApiTypeDefinitions())
 			if (typeDefinition.Name == "Allocator")
 				return true;

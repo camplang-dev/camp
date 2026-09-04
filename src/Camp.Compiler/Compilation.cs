@@ -25,6 +25,7 @@ public sealed class Compilation
 	public SourcefilePathMode SourcefilePathMode { get; set; } = SourcefilePathMode.Relative;
 	public string SourcefileDefaultRoot { get; set; } = "";
 	public List<string> SourcefileRoots { get; } = [];
+	public bool NoStdLib { get; set; }
 	public HashSet<string> PreprocessorSymbols { get; } = new(System.StringComparer.Ordinal);
 	public HashSet<string> TargetOwnedPreprocessorSymbols { get; } = new(System.StringComparer.Ordinal);
 	public ConfigurationFlagSet ConfigurationFlags { get; set; } = new();

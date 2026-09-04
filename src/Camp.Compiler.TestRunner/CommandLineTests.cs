@@ -3908,6 +3908,50 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Static_project_reference_preserves_allocator_lifecycle_constructor_shape()
+	{
+		string root = TempPath("project-reference-allocator-lifecycle");
+		string libraryRoot = Path.Combine(root, "library");
+		string librarySource = Path.Combine(libraryRoot, "src");
+		string appRoot = Path.Combine(root, "app");
+		Directory.CreateDirectory(librarySource);
+		Directory.CreateDirectory(appRoot);
+		File.WriteAllText(Path.Combine(librarySource, "library.camp"), """
+			namespace AllocatorLifecycle;
+
+			public escaped class Owner
+			{
+				public int value()
+				{
+					return 7;
+				}
+			}
+			""");
+		File.WriteAllText(Path.Combine(libraryRoot, "library.campbuild"), """
+			--name allocator-lifecycle-lib
+			src/*.camp
+			""");
+		string app = Path.Combine(appRoot, "app.camp");
+		File.WriteAllText(app, """
+			using AllocatorLifecycle;
+
+			export int main(string[] args)
+			{
+				auto owner = new Owner() finally delete;
+				return owner.value() - 7;
+			}
+			""");
+		string target = NativeTargetForHost();
+
+		ProcessResult result = RunCampc("build", app, "--target", target, "--project-reference", libraryRoot + ":static", "--out-dir", Path.Combine(appRoot, "bin"));
+
+		AssertCommandSucceeded(result);
+		string api = File.ReadAllText(Path.Combine(libraryRoot, "bin", ArtifactDirectoryForTarget(target, NativeBuildKind.Static), "allocator-lifecycle-lib_api.camp"));
+		Assert.Contains("public extern Owner(within allocator);", api, StringComparison.Ordinal);
+		Assert.Contains("public extern ~Owner(within allocator);", api, StringComparison.Ordinal);
+	}
+
+	[Fact]
 	public void Api_header_emits_source_authored_destroy_method()
 	{
 		string root = TempPath("api-source-authored-destroy");
