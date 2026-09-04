@@ -1,0 +1,31 @@
+extern void* malloc(nuint size);
+extern void free(void* ptr);
+
+static class Sequences
+{
+	static struct iter int values()
+	{
+		yield 1;
+		yield 2;
+	}
+
+	static class iter int escapedValues(int first)
+	{
+		yield first;
+		yield first + 1;
+	}
+}
+
+int sumStaticIteratorGenerators()
+{
+	int total = 0;
+	{
+		foreach (int value in Sequences.values())
+			total += value;
+	}
+	{
+		foreach (int value in Sequences.escapedValues(3))
+			total += value;
+	}
+	return total;
+}

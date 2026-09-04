@@ -196,30 +196,3 @@ Known Impact:
 Projects cannot expose a type with a simple name already exported by a static
 dependency. Until fixed, use a distinct public simple name at the product
 boundary and document the name as a bootstrap-compiler workaround.
-
-## BUG-130: Native C emission rejects iterator yield statements
-
-Date/Time: 2026-09-04 America/Toronto
-
-Summary:
-The compiler accepts a source-level iterator declaration, but native C emission
-can reject its `yield` statement rather than lowering the iterator state
-machine. This prevents an executable or test project from using a valid iterator
-even when the iterator only yields a simple value.
-
-Steps to Reproduce:
-
-1. Declare a `class iter` or `struct iter` method whose body contains `yield`.
-2. Build or test the enclosing project with the native C emitter.
-
-Expected:
-The compiler lowers the iterator state machine and emits compilable native C.
-
-Actual:
-Compilation fails with `C emission does not yet support statement node
-YieldStatement.`
-
-Known Impact:
-Native projects cannot introduce source-level iterator implementations until
-this is fixed. A callback or indexed collection can avoid the unsupported
-lowering, but cannot provide iterator cleanup and streaming behavior directly.

@@ -1,0 +1,200 @@
+// file: static_class_iterator_generators.c
+#include "static_class_iterator_generators_private.h"
+
+/* Private file declarations. */
+void *malloc(uintptr_t size);
+void free(void *ptr);
+static Sequences_valuesIter Sequences_values(void);
+static Sequences_escapedValuesIter *Sequences_escapedValues(int first);
+static int sumStaticIteratorGenerators(void);
+static bool Sequences_valuesIter_next(Sequences_valuesIter *this, int *current);
+static void Sequences_valuesIter_destroy(Sequences_valuesIter *this);
+static bool Sequences_valuesIter_op_iter(void *ctx, int *current);
+static bool Sequences_escapedValuesIter_next(Sequences_escapedValuesIter *this, int *current);
+static void Sequences_escapedValuesIter_destroy(Sequences_escapedValuesIter *this);
+static bool Sequences_escapedValuesIter_op_iter(void *ctx, int *current);
+
+static Sequences_valuesIter Sequences_values(void)
+{
+	return (Sequences_valuesIter){ .__state = 0 };
+}
+
+static Sequences_escapedValuesIter *Sequences_escapedValues(int first)
+{
+	Sequences_escapedValuesIter *_iter0 = (Sequences_escapedValuesIter *)(malloc(sizeof(Sequences_escapedValuesIter)));
+	if ((_iter0 != NULL))
+	{
+		*_iter0 = (Sequences_escapedValuesIter){0};
+	}
+	if ((_iter0 != NULL))
+	{
+		_iter0->__state = 0;
+		_iter0->first = first;
+	}
+	return _iter0;
+}
+
+static int sumStaticIteratorGenerators(void)
+{
+	int total = 0;
+	{
+		{
+			Sequences_valuesIter _foreachIter1 = Sequences_values();
+			int _foreachCurrent2 = 0;
+			while (Sequences_valuesIter_next(&_foreachIter1, &_foreachCurrent2))
+			{
+				int value = _foreachCurrent2;
+				total += value;
+__foreach_continue3: ;
+			}
+			Sequences_valuesIter_destroy(&_foreachIter1);
+__foreach_break4: ;
+		}
+	}
+	{
+		{
+			Sequences_escapedValuesIter *_foreachIter5 = Sequences_escapedValues(3);
+			int _foreachCurrent6 = 0;
+			while (Sequences_escapedValuesIter_next(_foreachIter5, &_foreachCurrent6))
+			{
+				int value = _foreachCurrent6;
+				total += value;
+__foreach_continue7: ;
+			}
+			Sequences_escapedValuesIter_destroy(_foreachIter5);
+__foreach_break8: ;
+		}
+	}
+	return total;
+}
+
+static bool Sequences_valuesIter_next(Sequences_valuesIter *this, int *current)
+{
+	if ((this->__state == -1))
+	{
+		return false;
+	}
+	if ((this->__state == 1))
+	{
+		goto __iter_resume1;
+	}
+	if ((this->__state == 2))
+	{
+		goto __iter_resume2;
+	}
+	*current = 1;
+	this->__state = 1;
+	return true;
+__iter_resume1: ;
+	;
+	*current = 2;
+	this->__state = 2;
+	return true;
+__iter_resume2: ;
+	;
+	this->__state = -1;
+	return false;
+}
+
+static void Sequences_valuesIter_destroy(Sequences_valuesIter *this)
+{
+	if ((this->__state != -1))
+	{
+		this->__state = -1;
+	}
+}
+
+static bool Sequences_valuesIter_op_iter(void *ctx, int *current)
+{
+	Sequences_valuesIter *state = (Sequences_valuesIter *)(ctx);
+	if ((current == NULL))
+	{
+		Sequences_valuesIter_destroy(state);
+		return false;
+	}
+	return Sequences_valuesIter_next(state, current);
+}
+
+static bool Sequences_escapedValuesIter_next(Sequences_escapedValuesIter *this, int *current)
+{
+	if ((this->__state == -1))
+	{
+		return false;
+	}
+	if ((this->__state == 1))
+	{
+		goto __iter_resume1;
+	}
+	if ((this->__state == 2))
+	{
+		goto __iter_resume2;
+	}
+	*current = this->first;
+	this->__state = 1;
+	return true;
+__iter_resume1: ;
+	;
+	*current = (this->first + 1);
+	this->__state = 2;
+	return true;
+__iter_resume2: ;
+	;
+	this->__state = -1;
+	return false;
+}
+
+static void Sequences_escapedValuesIter_destroy(Sequences_escapedValuesIter *this)
+{
+	if ((this->__state != -1))
+	{
+		this->__state = -1;
+	}
+	free((void *)(this));
+}
+
+static bool Sequences_escapedValuesIter_op_iter(void *ctx, int *current)
+{
+	Sequences_escapedValuesIter *state = (Sequences_escapedValuesIter *)(ctx);
+	if ((current == NULL))
+	{
+		Sequences_escapedValuesIter_destroy(state);
+		return false;
+	}
+	return Sequences_escapedValuesIter_next(state, current);
+}
+
+// file: static_class_iterator_generators_private.h
+#ifndef STATIC_CLASS_ITERATOR_GENERATORS_PRIVATE_H_
+#define STATIC_CLASS_ITERATOR_GENERATORS_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct Sequences_valuesIter Sequences_valuesIter;
+typedef struct Sequences_escapedValuesIter Sequences_escapedValuesIter;
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Layouts. */
+struct Sequences_valuesIter
+{
+	int __state;
+};
+struct Sequences_escapedValuesIter
+{
+	int __state;
+	int first;
+};
+
+/* Function declarations. */
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: static_class_iterator_generators.c

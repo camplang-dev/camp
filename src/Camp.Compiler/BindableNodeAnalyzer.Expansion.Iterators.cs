@@ -33,6 +33,11 @@ public sealed partial class BindableNodeAnalyzer
 						GenerateIteratorDeclaration(module, function, classDefinition);
 					break;
 
+				case StaticClassDefinition staticClassDefinition:
+					foreach (FunctionDefinition function in staticClassDefinition.Functions.ToArray())
+						GenerateIteratorDeclaration(module, function, containingType: null, containingStaticClassName: staticClassDefinition.Name);
+					break;
+
 				case StructDefinition structDefinition:
 					foreach (FunctionDefinition function in structDefinition.Functions.ToArray())
 						GenerateIteratorDeclaration(module, function, structDefinition);
@@ -56,7 +61,7 @@ public sealed partial class BindableNodeAnalyzer
 		}
 	}
 
-	void GenerateIteratorDeclaration(Module module, FunctionDefinition function, TypeDefinition? containingType)
+	void GenerateIteratorDeclaration(Module module, FunctionDefinition function, TypeDefinition? containingType, string? containingStaticClassName = null)
 	{
 		if (function.IteratorKind == IteratorKind.None)
 			return;
@@ -80,7 +85,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (invalidGeneratorParameters)
 			return;
 
-		string stateName = GetIteratorStateTypeName(function, containingType);
+		string stateName = GetIteratorStateTypeName(function, containingType, containingStaticClassName);
 		if (typeDefinitions.ContainsKey(stateName))
 		{
 			Report(GetNameRange(function), $"Iterator state type '{stateName}' is already declared.");
@@ -2338,10 +2343,14 @@ public sealed partial class BindableNodeAnalyzer
 		return null;
 	}
 
-	static string GetIteratorStateTypeName(FunctionDefinition function, TypeDefinition? containingType)
+	static string GetIteratorStateTypeName(FunctionDefinition function, TypeDefinition? containingType, string? containingStaticClassName = null)
 	{
 		string baseName = function.Name.TrimStart('~') + "Iter";
-		return containingType is null ? baseName : containingType.Name + "_" + baseName;
+		if (containingType is not null)
+			return containingType.Name + "_" + baseName;
+		if (!string.IsNullOrWhiteSpace(containingStaticClassName))
+			return containingStaticClassName + "_" + baseName;
+		return baseName;
 	}
 
 	string ResolvedTypeForIteratorExpansion(TypeReference? type, string? resolvedType)
