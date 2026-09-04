@@ -95,11 +95,6 @@ public sealed partial class BindableNodeAnalyzer
 					Report(GetRange(parameter.SourceSyntax), "Only class constructors may retain allocator parameters.");
 					continue;
 				}
-				if (classDefinition.Extern is not null)
-				{
-					Report(GetRange(parameter.SourceSyntax), "Extern class constructors may not retain allocator parameters.");
-					continue;
-				}
 				if (classDefinition.IsShadow)
 				{
 					Report(GetRange(parameter.SourceSyntax), "Shadow class constructors may not retain allocator parameters.");
