@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-126.
+Next bug number: BUG-127.
 
 ## Bug Template
 
@@ -196,3 +196,38 @@ Known Impact:
 Projects cannot expose a type with a simple name already exported by a static
 dependency. Until fixed, use a distinct public simple name at the product
 boundary and document the name as a bootstrap-compiler workaround.
+
+## BUG-126: Allocator-bearing API headers cannot be consumed through a static reference
+
+Date/Time: 2026-09-04 04:16 America/Toronto
+
+Summary:
+An API header for an exported escaped owner can correctly preserve its
+synthetic `within Allocator` lifecycle shape, but a consumer of that header as
+a static project reference rejects the exported declaration because `Allocator`
+is not exported. This prevents an allocator-aware public API from crossing a
+normal static module boundary.
+
+Steps to Reproduce:
+
+1. Create a static library that exports an escaped class whose constructor
+   captures `within this.allocator`.
+2. Build the library with the standard library enabled so it produces a Camp
+   API header containing the synthetic allocator lifecycle signature.
+3. Create a second static library that references the first library through
+   its `.campbuild` project reference and build the consumer.
+
+Expected:
+The consumer accepts the generated API header. Standard-library `Allocator` is
+available wherever the normal standard library is available, and the generated
+lifecycle signature remains usable across the static module boundary.
+
+Actual:
+The consumer reports that the exported escaped class exposes non-exported type
+`Allocator` at the generated constructor declaration.
+
+Known Impact:
+Allocator-aware escaped owners cannot currently form a public static-library
+API without either suppressing their allocator lifecycle shape or introducing a
+separate re-export alias. Both change the intended API design, so the affected
+compiler modules cannot complete their static service integration until fixed.
