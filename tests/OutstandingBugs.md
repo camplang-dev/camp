@@ -103,3 +103,34 @@ Known Impact:
 Implementations cannot use a re-export alias as a source type until this is
 fixed. Use the original dependency type name internally and reserve the
 re-export for an exported signature that requires the dependency ABI type.
+
+## BUG-122: Slice-returning accessor can omit the generated result length
+
+Date/Time: 2026-09-04 00:50 America/Toronto
+
+Summary:
+A method that returns a borrowed array slice from an owned null-terminated
+string can lower to C without assigning the generated result-length out
+parameter. The call is accepted, but a consumer that iterates the slice can
+receive an arbitrary length and access invalid memory.
+
+Steps to Reproduce:
+
+1. Store an owned `string` in an escaped class.
+2. Declare an accessor returning `const char[]` whose body returns that string.
+3. Pass the accessor result to a method that iterates the returned slice, then
+   compile and run the program.
+
+Expected:
+The accessor returns both the string pointer and the correct slice length, so
+the consumer iterates only the characters in the owned string.
+
+Actual:
+The generated C returns the pointer but leaves the result-length out parameter
+unassigned. The consumer can receive a large arbitrary length and crash while
+reading past the string.
+
+Known Impact:
+Borrowed slice accessors over owned strings are unsafe until fixed. Return
+`string` from the accessor when a null-terminated path or similar value is
+appropriate; callers can then pass it directly to slice-taking operations.
