@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-128.
+Next bug number: BUG-129.
 
 ## Bug Template
 
@@ -196,3 +196,38 @@ Known Impact:
 Projects cannot expose a type with a simple name already exported by a static
 dependency. Until fixed, use a distinct public simple name at the product
 boundary and document the name as a bootstrap-compiler workaround.
+
+## BUG-128: Test build can reuse objects older than a changed private header
+
+Date/Time: 2026-09-04 12:57 America/Toronto
+
+Summary:
+An incremental test build can regenerate a module's shared private C header
+after a private type layout changes but reuse native objects and a test
+executable that predate the changed header. The test runner then executes stale
+native code even though Camp emission processed the current sources.
+
+Steps to Reproduce:
+
+1. Build and run a module's Camp tests so its generated C, private header,
+   native objects, and test executable are cached.
+2. Change only the field layout of a private type used across multiple source
+   files, causing the shared private header but not every generated C source to
+   change.
+3. Run one filtered test incrementally with the native test runner.
+4. Compare the private header, native-object, and executable modification
+   times, or observe the layout used by the running executable.
+
+Expected:
+Every native source that includes the changed private header is recompiled and
+the test executable is relinked before the test runs.
+
+Actual:
+The private header is newer than the reused native objects, and the test
+executable is not relinked. The runner reports results from the stale
+executable.
+
+Known Impact:
+Incremental test results are not trustworthy after a private generated-header
+change. A clean native build avoids the stale objects, but consumers that rely
+on correct incremental invalidation have no low-cost workaround.
