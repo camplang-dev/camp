@@ -321,6 +321,8 @@ public static class CompilerDriver
 				Kind = NativeBuildKind.Exec,
 				SourceFiles = [.. result.GeneratedSourceFiles, .. coverageRuntimeSources, .. ResolveInputPaths(request.NativeSourceFiles), harnessSource!],
 				SourceFileStatuses = BuildSourceStatuses(result),
+				HeaderFiles = BuildHeaderFiles(result),
+				HeaderFileStatuses = BuildHeaderStatuses(result),
 				Libraries = packageLibraries.Concat(request.References.Select(reference => ResolveNativeReference(reference, compilation.Target!))).ToList(),
 				Frameworks = request.Frameworks
 			};

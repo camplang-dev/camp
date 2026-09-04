@@ -4020,6 +4020,71 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Test_build_rebuilds_objects_when_private_header_changes()
+	{
+		string root = TempPath("test-private-header-incremental");
+		string sourceRoot = Path.Combine(root, "src");
+		Directory.CreateDirectory(sourceRoot);
+		string producer = Path.Combine(sourceRoot, "producer.camp");
+		string consumer = Path.Combine(sourceRoot, "consumer.camp");
+		string project = Path.Combine(root, "app.campbuild");
+		File.WriteAllText(project, """
+			--name private-header-test-incremental
+			src/*.camp
+			""");
+		File.WriteAllText(producer, """
+			internal struct SharedData
+			{
+				fixed byte[4] padding;
+				int value;
+			}
+
+			internal SharedData makeData()
+			{
+				SharedData data = {};
+				data.value = 9;
+				return data;
+			}
+			""");
+		File.WriteAllText(consumer, """
+			internal int readData(SharedData data)
+			{
+				return data.value;
+			}
+
+			@test
+			void readsSharedData(thrown Assertion* assertion)
+			{
+				SharedData data = makeData();
+				assert(readData(data) == 9);
+			}
+			""");
+		string target = NativeTargetForHost();
+
+		ProcessResult firstRun = RunCampcIn(root, "test", "app.campbuild", "--target", target, "--out-dir", Path.Combine(root, "bin"));
+
+		AssertCommandSucceeded(firstRun);
+		File.WriteAllText(producer, """
+			internal struct SharedData
+			{
+				fixed byte[16] padding;
+				int value;
+			}
+
+			internal SharedData makeData()
+			{
+				SharedData data = {};
+				data.value = 9;
+				return data;
+			}
+			""");
+
+		ProcessResult secondRun = RunCampcIn(root, "test", "app.campbuild", "--target", target, "--out-dir", Path.Combine(root, "bin"), "--filter", "readsSharedData");
+
+		AssertCommandSucceeded(secondRun);
+	}
+
+	[Fact]
 	public void Api_header_emits_source_authored_destroy_method()
 	{
 		string root = TempPath("api-source-authored-destroy");
