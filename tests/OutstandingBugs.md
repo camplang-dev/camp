@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-129.
+Next bug number: BUG-130.
 
 ## Bug Template
 
@@ -196,3 +196,32 @@ Known Impact:
 Projects cannot expose a type with a simple name already exported by a static
 dependency. Until fixed, use a distinct public simple name at the product
 boundary and document the name as a bootstrap-compiler workaround.
+
+## BUG-129: Exported parameter documentation corrupts generated Camp API headers
+
+Date/Time: 2026-09-04 America/Toronto
+
+Summary:
+When an exported Camp method has `- parameter:` documentation entries, generated
+Camp API-header output inserts `@summary(...)` attributes directly between method
+parameters. A consuming static-project build then fails to parse that generated
+header.
+
+Steps to Reproduce:
+
+1. Export a method with a `const char[]` parameter and a `- parameter:` doc entry.
+2. Build it as a static dependency and consume it from another Camp project.
+3. Inspect the generated `_api.camp` header or compile the consumer.
+
+Expected:
+Parameter documentation is represented in valid API metadata/header syntax and
+the generated header can be compiled by a consuming project.
+
+Actual:
+The generated header places an `@summary(...)` attribute inside the parameter
+list, producing parser errors such as `Expected ')'` in the consuming build.
+
+Known Impact:
+Exported beta APIs cannot use parameter-list documentation entries while built
+with this bootstrap. Keep required parameter detail in the declaration's
+`@remarks` text until the header generator is fixed.
