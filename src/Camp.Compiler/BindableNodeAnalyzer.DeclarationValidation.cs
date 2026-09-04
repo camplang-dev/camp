@@ -224,7 +224,7 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			if (field.SourceSyntax is null)
 				continue;
-			if (field.Modifier != FieldModifier.Static)
+			if (field.Modifier != FieldModifier.Static && field.GeneratedInfo?.Category != GeneratedDeclarationCategory.Lifecycle)
 				Report(GetNameRange(field), "Extern classes may not declare instance fields.");
 		}
 
