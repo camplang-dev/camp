@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-121.
+Next bug number: BUG-122.
 
 ## Bug Template
 
@@ -73,3 +73,33 @@ Known Impact:
 Code using a conditional expression to select a slice is unsafe until fixed.
 An equivalent branch that calls the consumer separately for each selected slice
 avoids the faulty lowering.
+
+## BUG-121: Re-exported dependency types are misnamed in module source
+
+Date/Time: 2026-09-03 America/Toronto
+
+Summary:
+Using a dependency type through its local name after an `export Type as Alias`
+declaration can emit a doubly prefixed C type name. The source declaration is
+accepted, but the generated C cannot compile because the emitted type name was
+never declared.
+
+Steps to Reproduce:
+
+1. In a namespace, write `export Std::Allocator as LocalAllocator;`.
+2. Declare a local `LocalAllocator*` variable or parameter.
+3. Build the module with the native C emitter.
+
+Expected:
+The generated C uses the declared ABI spelling for the re-exported allocator
+type and compiles successfully.
+
+Actual:
+The generated C uses an undeclared double-prefixed type such as
+`NamespaceLocalAllocator` when the available declaration is the standard
+allocator ABI type.
+
+Known Impact:
+Implementations cannot use a re-export alias as a source type until this is
+fixed. Use the original dependency type name internally and reserve the
+re-export for an exported signature that requires the dependency ABI type.
