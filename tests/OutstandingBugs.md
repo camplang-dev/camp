@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-133.
+Next bug number: BUG-134.
 
 ## Bug Template
 
@@ -224,3 +224,37 @@ compile.
 Known Impact:
 Native code using this cleanup-and-return shape cannot compile. Close the
 resource explicitly on each return path until the lowering is fixed.
+
+## BUG-133: String-field array expansion adds an extra optional argument
+
+Date/Time: 2026-09-05 America/Toronto
+
+Summary:
+A same-class call that passes a `string` field to a `const char[]` parameter
+and explicitly supplies the remaining optional arguments can emit one extra
+default argument in C. The Camp source is accepted, but native C compilation
+fails because the generated call has too many arguments.
+
+Steps to Reproduce:
+
+1. Declare a struct containing a `string` field.
+2. Declare a class method whose first parameter is `const char[]` and whose
+   later parameters have defaults.
+3. From another method in the same class, call the first method with the
+   struct's string field and explicitly pass every later argument.
+4. Build the project with the native C emitter.
+
+Expected:
+The string field expands to the pointer and length components required by the
+array parameter, and the generated call contains exactly the explicitly
+supplied later arguments.
+
+Actual:
+The generated C appends another default argument after the explicitly supplied
+arguments. Clang reports that the call has one more argument than the generated
+function accepts.
+
+Known Impact:
+Native builds cannot use this call shape. Route both public entry points through
+a non-defaulted helper, or otherwise avoid combining the string-field expansion
+with optional parameters at the affected call site.
