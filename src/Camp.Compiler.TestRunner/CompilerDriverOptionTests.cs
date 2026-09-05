@@ -1199,7 +1199,7 @@ public sealed class CompilerDriverOptionTests
 			return "gcc-linux-x64";
 		if (!OperatingSystem.IsWindows())
 			return "clang-macos-x64";
-		return "msvc-windows-" + MsvcEnvironment.TargetArchitecture;
+		return CompilerDefaults.TargetName;
 	}
 
 	static string FindRepositoryRoot()
