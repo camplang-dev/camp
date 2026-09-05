@@ -258,3 +258,56 @@ Known Impact:
 Native builds cannot use this call shape. Route both public entry points through
 a non-defaulted helper, or otherwise avoid combining the string-field expansion
 with optional parameters at the affected call site.
+
+## BUG-134: Loop-local `finally` cleanup can inject an unintended return
+
+Date/Time: 2026-09-05 America/Toronto
+
+Summary:
+A value-returning method that creates a `finally`-owned local inside a loop can
+lower an implicit default return at the cleanup boundary. The generated method
+returns after the first iteration even though the Camp source contains no
+return in the loop.
+
+Steps to Reproduce:
+
+1. Compile and run this Camp test with the native test runner:
+
+   ```camp
+   class Owner
+   {
+   }
+
+   int runLoop()
+   {
+       int count = 0;
+       for (int index = 0; index < 2; index++)
+       {
+           Owner* owner = new Owner() finally delete;
+           count++;
+       }
+       return count;
+   }
+
+   @test
+   void loopCleanupDoesNotReturn(thrown Assertion*)
+   {
+       assert(runLoop() == 2);
+   }
+   ```
+
+2. Inspect the generated C for `runLoop` or observe the failed assertion.
+
+Expected:
+Each iteration destroys its local owner, the loop completes twice, and the
+method returns `2`.
+
+Actual:
+The generated C assigns a default return value and branches through the local
+cleanup label at the end of the first iteration. It then returns from the
+method, so the loop does not complete.
+
+Known Impact:
+Loop-local `finally` ownership is unsafe in value-returning methods because it
+can change control flow. Explicitly destroy the local at the end of the loop
+iteration until the cleanup lowering is fixed.
