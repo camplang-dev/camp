@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-131.
+Next bug number: BUG-132.
 
 ## Bug Template
 
@@ -196,3 +196,31 @@ Known Impact:
 Projects cannot expose a type with a simple name already exported by a static
 dependency. Until fixed, use a distinct public simple name at the product
 boundary and document the name as a bootstrap-compiler workaround.
+
+## BUG-131: Value-returning method with `finally` can omit its C result local
+
+Date/Time: 2026-09-04 America/Toronto
+
+Summary:
+A method that returns a value through multiple error paths while using a
+`finally` cleanup statement can emit C references to the generated return local
+without declaring that local. The Camp source is accepted, but native C
+compilation fails.
+
+Steps to Reproduce:
+
+1. Declare a value-returning method that opens a resource, registers a `finally`
+   cleanup, and has early error returns plus a successful value return.
+2. Build the enclosing project with the native C emitter.
+
+Expected:
+The generated C declares and assigns the method's return local on every path,
+then performs cleanup before returning it.
+
+Actual:
+The generated C references an undeclared local such as `_return30` and fails to
+compile.
+
+Known Impact:
+Native code using this cleanup-and-return shape cannot compile. Close the
+resource explicitly on each return path until the lowering is fixed.
