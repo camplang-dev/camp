@@ -224,3 +224,32 @@ compile.
 Known Impact:
 Native code using this cleanup-and-return shape cannot compile. Close the
 resource explicitly on each return path until the lowering is fixed.
+
+## BUG-132: Configuration-guarded Camp test can leave a dangling test-harness entry
+
+Date/Time: 2026-09-05 America/Toronto
+
+Summary:
+A top-level Camp `@test` nested in a `requires (FLAG)` scope can be discovered
+by the generated test harness while its implementation is omitted under the
+same enabled configuration. The native test link then fails with an undefined
+test symbol instead of producing a runnable configured test.
+
+Steps to Reproduce:
+
+1. Declare a module-owned Boolean configuration flag with a false default.
+2. Put an `@test` declaration inside `requires (FLAG) { ... }`.
+3. Run `campc test` for the project while configuring that flag true.
+
+Expected:
+The configured test declaration and its generated harness entry are emitted
+together, and the test runs normally.
+
+Actual:
+The generated harness references an undefined native test symbol and the linker
+fails.
+
+Known Impact:
+Configuration-gated tests cannot currently provide an optional test lane. Keep
+an optional fixture in a separate test project until test discovery and
+configuration lowering agree.
