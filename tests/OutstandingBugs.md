@@ -224,38 +224,3 @@ compile.
 Known Impact:
 Native code using this cleanup-and-return shape cannot compile. Close the
 resource explicitly on each return path until the lowering is fixed.
-
-## BUG-132: Configuration changes can leave guarded test C stale
-
-Date/Time: 2026-09-05 09:20 EDT
-
-Summary:
-Changing a declared configuration flag between test runs can reuse generated C
-that was produced under the earlier configuration. A test guarded by that flag
-is then present in the newly generated test harness but absent from the stale
-test object, causing a native link failure.
-
-Steps to Reproduce:
-
-1. Create a test project that declares a feature flag and contains a file-wide
-   `requires (TEST_MODULE);` followed by an `@test` inside
-   `requires (FEATURE) { ... }`.
-2. Run `campc test` without configuring `FEATURE`, using the project's normal
-   output directory.
-3. Run `campc test` again for the same project and output directory with
-   `--configure FEATURE`.
-
-Expected:
-The configuration change invalidates generated source as needed, so the guarded
-test implementation and test harness agree and the configured test runs.
-
-Actual:
-The harness references the guarded test, but the generated test object omits
-it. Native linking fails with an unresolved symbol for that test. Repeating the
-configured run in a fresh output directory succeeds.
-
-Known Impact:
-Optional configured `@test` fixtures cannot safely share an incrementally
-reused output directory with the normal configuration. Until fixed, use a
-separate project/output directory for such a fixture or perform the configured
-run with a fresh output directory.

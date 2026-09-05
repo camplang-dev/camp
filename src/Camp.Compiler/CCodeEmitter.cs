@@ -542,6 +542,10 @@ public static class CCodeEmitter
 		builder.AppendLine("build=" + options.BuildKind?.ToString());
 		builder.AppendLine("coverage=" + (options.CoverageMapBuilder is not null).ToString(CultureInfo.InvariantCulture));
 		builder.AppendLine("exec-wrapper=" + options.EmitExecMainWrapper.ToString(CultureInfo.InvariantCulture));
+		foreach ((string name, ConfigurationFlagDeclaration declaration) in compilation.ConfigurationFlags.Declarations.OrderBy(static item => item.Key, StringComparer.Ordinal))
+			builder.AppendLine("declare=" + name + "|" + declaration.AmbientValue.ToString(CultureInfo.InvariantCulture) + "|" + declaration.Owner);
+		foreach ((string name, ConfigurationFlagConfiguration configuration) in compilation.ConfigurationFlags.Configurations.OrderBy(static item => item.Key, StringComparer.Ordinal))
+			builder.AppendLine("configure=" + name + "|" + configuration.Value.ToString(CultureInfo.InvariantCulture) + "|" + configuration.Owner);
 		foreach (string input in GetGeneratedOutputInputs(compilation))
 			builder.AppendLine(input);
 		return builder.ToString();

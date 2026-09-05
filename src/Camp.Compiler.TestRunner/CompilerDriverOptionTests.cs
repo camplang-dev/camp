@@ -238,6 +238,8 @@ public sealed class CompilerDriverOptionTests
 	public void Configured_required_tests_emit_matching_harness_and_implementation()
 	{
 		string source = CreateTempCase("configured_required_test_harness.camp", """
+			requires (TEST_MODULE);
+
 			struct Assertion
 			{
 				escaped string message;
@@ -254,6 +256,14 @@ public sealed class CompilerDriverOptionTests
 			}
 			""");
 
+		CompilerResult disabled = Execute(source, request =>
+		{
+			request.TargetName = NativeTargetForHost();
+			request.NoStdLib = true;
+			request.CommandMode = CompilerCommandMode.Test;
+			request.DeclarationParticipationMode = DeclarationParticipationMode.TestModule;
+			request.ConfigurationFlagDeclarations.Add("APP_TEST_LANE=false");
+		});
 		CompilerResult enabled = Execute(source, request =>
 		{
 			request.TargetName = NativeTargetForHost();
@@ -263,20 +273,12 @@ public sealed class CompilerDriverOptionTests
 			request.ConfigurationFlagDeclarations.Add("APP_TEST_LANE=false");
 			request.ConfigurationFlagConfigurations.Add("APP_TEST_LANE");
 		});
-		CompilerResult disabled = Execute(source, request =>
-		{
-			request.TargetName = NativeTargetForHost();
-			request.NoStdLib = true;
-			request.CommandMode = CompilerCommandMode.Test;
-			request.DeclarationParticipationMode = DeclarationParticipationMode.TestModule;
-			request.ConfigurationFlagDeclarations.Add("APP_TEST_LANE=false");
-		});
 
+		Assert.Equal(0, disabled.ExitCode);
+		Assert.Contains("camp test: no selected tests", disabled.StdOut, StringComparison.Ordinal);
 		Assert.Equal(0, enabled.ExitCode);
 		Assert.Contains("passed: configuredTestRuns", enabled.StdOut, StringComparison.Ordinal);
 		Assert.DoesNotContain("undefined", enabled.StdErr, StringComparison.OrdinalIgnoreCase);
-		Assert.Equal(0, disabled.ExitCode);
-		Assert.Contains("camp test: no selected tests", disabled.StdOut, StringComparison.Ordinal);
 	}
 
 	[Fact]
