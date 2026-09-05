@@ -235,6 +235,51 @@ public sealed class CompilerDriverOptionTests
 	}
 
 	[Fact]
+	public void Configured_required_tests_emit_matching_harness_and_implementation()
+	{
+		string source = CreateTempCase("configured_required_test_harness.camp", """
+			struct Assertion
+			{
+				escaped string message;
+				escaped string sourcefile;
+				uint sourceline;
+			}
+
+			requires (APP_TEST_LANE)
+			{
+				@test
+				void configuredTestRuns(thrown Assertion* assertion)
+				{
+				}
+			}
+			""");
+
+		CompilerResult enabled = Execute(source, request =>
+		{
+			request.TargetName = NativeTargetForHost();
+			request.NoStdLib = true;
+			request.CommandMode = CompilerCommandMode.Test;
+			request.DeclarationParticipationMode = DeclarationParticipationMode.TestModule;
+			request.ConfigurationFlagDeclarations.Add("APP_TEST_LANE=false");
+			request.ConfigurationFlagConfigurations.Add("APP_TEST_LANE");
+		});
+		CompilerResult disabled = Execute(source, request =>
+		{
+			request.TargetName = NativeTargetForHost();
+			request.NoStdLib = true;
+			request.CommandMode = CompilerCommandMode.Test;
+			request.DeclarationParticipationMode = DeclarationParticipationMode.TestModule;
+			request.ConfigurationFlagDeclarations.Add("APP_TEST_LANE=false");
+		});
+
+		Assert.Equal(0, enabled.ExitCode);
+		Assert.Contains("passed: configuredTestRuns", enabled.StdOut, StringComparison.Ordinal);
+		Assert.DoesNotContain("undefined", enabled.StdErr, StringComparison.OrdinalIgnoreCase);
+		Assert.Equal(0, disabled.ExitCode);
+		Assert.Contains("camp test: no selected tests", disabled.StdOut, StringComparison.Ordinal);
+	}
+
+	[Fact]
 	public void Requires_is_contextual_and_not_statement_syntax()
 	{
 		string contextual = CreateTempCase("requires_contextual_keyword.camp", """
@@ -1146,6 +1191,15 @@ public sealed class CompilerDriverOptionTests
 		Directory.CreateDirectory(Path.GetDirectoryName(path)!);
 		File.WriteAllText(path, text.Replace("\r\n", "\n", StringComparison.Ordinal));
 		return path;
+	}
+
+	static string NativeTargetForHost()
+	{
+		if (OperatingSystem.IsLinux())
+			return "gcc-linux-x64";
+		if (!OperatingSystem.IsWindows())
+			return "clang-macos-x64";
+		return "msvc-windows-" + MsvcEnvironment.TargetArchitecture;
 	}
 
 	static string FindRepositoryRoot()
