@@ -697,6 +697,9 @@ Rules of thumb:
   `within` context or owning type.
 - Pair `new`, stackalloc instance construction, or native allocation with the corresponding `delete`,
   destructor, cleanup API, or `finally` block.
+- `delete nullPointer` is a no-op. The null check belongs to the `delete`
+  operation before destructor dispatch, vtable access, or freeing; do not make
+  destructor bodies or generated delete helpers generally null-tolerant.
 - Treat old `init` source as pre-Proposal-016 code. Rewrite it to
   constructor-shaped `Type(args)`, `stackalloc`, `new`, or `fixed` based on the
   storage intent instead of preserving `init`.

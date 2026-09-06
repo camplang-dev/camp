@@ -1,0 +1,40 @@
+int observed = 0;
+
+class PlainOwner
+{
+	int value;
+
+	~PlainOwner()
+	{
+		observed += this.value;
+	}
+}
+
+abstract class VirtualOwner
+{
+	virtual ~VirtualOwner()
+	{
+		observed += 100;
+	}
+}
+
+sealed class VirtualChild: VirtualOwner
+{
+	int value;
+
+	override ~VirtualChild()
+	{
+		observed += this.value;
+	}
+}
+
+export int main()
+{
+	PlainOwner* plain = null;
+	delete plain;
+
+	VirtualOwner* virtualOwner = null;
+	delete virtualOwner;
+
+	return observed;
+}

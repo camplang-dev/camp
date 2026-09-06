@@ -921,9 +921,50 @@ public sealed partial class BindableNodeAnalyzer
 		return RewriteDeleteExpression(expression, suppressDeallocate: false);
 	}
 
-	Expression RewriteStackAllocDeleteExpression(Expression? expression)
+	Statement RewriteDeleteStatement(DeleteStatement deleteStatement, bool suppressDeallocate)
 	{
-		return RewriteDeleteExpression(expression, suppressDeallocate: true);
+		if (deleteStatement.Expression is NamedExpression { Qualifiers.Count: 0, Name: "base" })
+			return new ExpressionStatement
+			{
+				SourceSyntax = deleteStatement.SourceSyntax,
+				ResolvedType = "void",
+				Expression = RewriteDeleteExpression(deleteStatement.Expression, suppressDeallocate)
+			};
+
+		if (deleteStatement.Expression is WithinExpression { Expression: not null } within)
+		{
+			bool defaultWithin = within.Context is DefaultWithinContextExpression;
+			Expression? allocator = defaultWithin ? null : LowerExpression(within.Context);
+			Expression? previousWithinContext = currentWithinContext;
+			int previousDefaultWithinContextDepth = currentDefaultWithinContextDepth;
+			currentWithinContext = defaultWithin ? null : CaptureWithinContext(allocator, within.SourceSyntax);
+			if (defaultWithin)
+				currentDefaultWithinContextDepth++;
+
+			DeleteStatement innerDelete = new()
+			{
+				SourceSyntax = deleteStatement.SourceSyntax,
+				Expression = within.Expression
+			};
+			Statement result = RewriteDeleteStatement(innerDelete, suppressDeallocate);
+
+			currentWithinContext = previousWithinContext;
+			currentDefaultWithinContextDepth = previousDefaultWithinContextDepth;
+			return result;
+		}
+
+		Expression? target = LowerExpression(deleteStatement.Expression);
+		DeleteOperation operation = CreateDeleteOperation(target, deleteStatement.Expression, suppressDeallocate, captureTarget: true);
+		ExpressionStatement body = new()
+		{
+			SourceSyntax = deleteStatement.SourceSyntax,
+			ResolvedType = "void",
+			Expression = operation.Expression
+		};
+
+		return operation.NullGuardTarget is null
+			? body
+			: CreateNotNullGuard(operation.NullGuardTarget, body, deleteStatement.SourceSyntax);
 	}
 
 	Expression RewriteDeleteExpression(Expression? expression, bool suppressDeallocate)
@@ -933,20 +974,27 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (expression is WithinExpression { Expression: not null } within)
 		{
-				bool defaultWithin = within.Context is DefaultWithinContextExpression;
-				Expression? allocator = defaultWithin ? null : LowerExpression(within.Context);
-				Expression? previousWithinContext = currentWithinContext;
-				int previousDefaultWithinContextDepth = currentDefaultWithinContextDepth;
-				currentWithinContext = defaultWithin ? null : CaptureWithinContext(allocator, within.SourceSyntax);
-				if (defaultWithin)
-					currentDefaultWithinContextDepth++;
-				Expression result = RewriteDeleteExpression(within.Expression, suppressDeallocate);
-				currentWithinContext = previousWithinContext;
-				currentDefaultWithinContextDepth = previousDefaultWithinContextDepth;
-				return result;
-			}
+			bool defaultWithin = within.Context is DefaultWithinContextExpression;
+			Expression? allocator = defaultWithin ? null : LowerExpression(within.Context);
+			Expression? previousWithinContext = currentWithinContext;
+			int previousDefaultWithinContextDepth = currentDefaultWithinContextDepth;
+			currentWithinContext = defaultWithin ? null : CaptureWithinContext(allocator, within.SourceSyntax);
+			if (defaultWithin)
+				currentDefaultWithinContextDepth++;
+			Expression result = RewriteDeleteExpression(within.Expression, suppressDeallocate);
+			currentWithinContext = previousWithinContext;
+			currentDefaultWithinContextDepth = previousDefaultWithinContextDepth;
+			return result;
+		}
 
 		Expression? target = LowerExpression(expression);
+		return CreateDeleteOperation(target, expression, suppressDeallocate, captureTarget: false).Expression;
+	}
+
+	readonly record struct DeleteOperation(Expression Expression, Expression? NullGuardTarget);
+
+	DeleteOperation CreateDeleteOperation(Expression? target, Expression? sourceExpression, bool suppressDeallocate, bool captureTarget)
+	{
 		string targetType = target?.ResolvedType ?? ErrorType;
 		string? elementType = TryGetPointerElementType(targetType);
 		string? primitiveStringElementType = GetPrimitiveStringElementType(targetType);
@@ -971,26 +1019,43 @@ public sealed partial class BindableNodeAnalyzer
 			opDelete = FindDeleteMethod(deletedType);
 		}
 
-		SyntaxNode? reportSyntax = target?.SourceSyntax ?? expression?.SourceSyntax;
+		SyntaxNode? reportSyntax = target?.SourceSyntax ?? sourceExpression?.SourceSyntax;
 		if (!isPointer && !isThisPointer && !isArray && opDelete is null)
 			Report(reportSyntax, $"delete requires a pointer or a type with a destructor, not '{targetType}'.");
 		if (deletedDefinition is ClassDefinition { Extern: not null } && opDelete is null)
 			Report(reportSyntax, $"delete requires an explicit destructor for extern class '{deletedDefinition.Name}'.");
 		if (target is null)
-			return new LiteralExpression { Kind = LiteralKind.Null, Text = "null", ResolvedType = "void" };
+			return new DeleteOperation(new LiteralExpression { Kind = LiteralKind.Null, Text = "null", ResolvedType = "void" }, null);
 
 		if (isArray)
 		{
 			if (suppressDeallocate)
-				return new LiteralExpression { Kind = LiteralKind.Null, Text = "null", ResolvedType = "void" };
-			return CreateFreeCall(CreateArrayElementsAccess(target));
+				return new DeleteOperation(new LiteralExpression { Kind = LiteralKind.Null, Text = "null", ResolvedType = "void" }, null);
+			Expression elements = CreateArrayElementsAccess(target);
+			if (captureTarget)
+				elements = CaptureDeleteTarget(elements, "deleteElements");
+			return new DeleteOperation(CreateFreeCall(elements), captureTarget ? elements : null);
 		}
 
+		if (captureTarget && (isPointer || isThisPointer))
+			target = CaptureDeleteTarget(target, "deleteTarget");
 		bool deallocate = opDelete?.Name != DestroyMethodName
 			&& !suppressDeallocate
 			&& (isPointer || isThisPointer)
 			&& deletedDefinition is not ClassDefinition { Extern: not null };
-		return CreateDeleteExpression(target, opDelete, deallocate);
+		return new DeleteOperation(CreateDeleteExpression(target, opDelete, deallocate), captureTarget && (isPointer || isThisPointer) ? target : null);
+	}
+
+	Expression CaptureDeleteTarget(Expression target, string prefix)
+	{
+		if (currentStatementPrefix is null)
+			return target;
+
+		string targetType = target.ResolvedType ?? ErrorType;
+		DeclarationStatement local = CreateGeneratedLocal(NewGeneratedLocalName(prefix), targetType, TypeReferenceForResolvedName(targetType), target);
+		local.SourceSyntax = target.SourceSyntax;
+		currentStatementPrefix.Add(local);
+		return CreateVariableReference(local.Target, targetType, target.SourceSyntax);
 	}
 
 	FunctionDefinition? FindCallableDeleteMethod(TypeDefinition type, SyntaxNode? referenceSyntax)

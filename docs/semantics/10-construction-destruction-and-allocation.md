@@ -264,10 +264,17 @@ the free surface.
 The `delete` sequence is conceptually:
 
 1. validate the target value and lifetime;
-2. dispatch or call the correct destructor when required;
-3. free storage through the allocator/free path associated with the value;
-4. avoid double cleanup on transfer paths where `finally` cleanup already owns
+2. if the target is a null pointer, do nothing;
+3. dispatch or call the correct destructor when required;
+4. free storage through the allocator/free path associated with the value;
+5. avoid double cleanup on transfer paths where `finally` cleanup already owns
    the value.
+
+Null safety belongs to the `delete` operation, not to destructor bodies or
+generated destructor helpers. A destructor, `_op_delete` helper, or virtual
+destructor slot is called only for a non-null target and may assume it received
+a valid object receiver. For virtual class destruction, the null check must
+occur before reading a vtable slot from the target.
 
 For extern classes, `delete` requires an explicit destructor because the
 compiler cannot infer native ownership semantics. For class hierarchies,

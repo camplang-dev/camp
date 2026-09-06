@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-137.
+Next bug number: BUG-138.
 
 ## Bug Template
 
@@ -223,30 +223,3 @@ Known Impact:
 Native compilation fails for this otherwise valid source shape. Rename the
 local array to something other than `result` until generated identifier
 collision handling is fixed.
-
-## BUG-137: Deleting a null class pointer can call its destructor with null
-
-Date/Time: 2026-09-06 America/Toronto
-
-Summary:
-An explicit `delete` of a nullable class pointer can lower to an unconditional
-destructor call followed by free. When the pointer is null, generated native
-code dereferences null in the destructor instead of treating deletion as a
-no-op.
-
-Steps to Reproduce:
-
-1. Declare a class with a destructor that accesses one of its fields.
-2. Leave a pointer to that class null and execute `delete pointer`.
-3. Run the native build result.
-
-Expected:
-Deleting a null owner pointer is a no-op.
-
-Actual:
-The generated native code invokes the destructor with a null receiver and the
-process terminates with a segmentation fault.
-
-Known Impact:
-Any nullable owner field deleted without a preceding null check can crash at
-runtime. Guard the delete with `if (pointer != null)` until lowering is fixed.

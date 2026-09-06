@@ -271,18 +271,8 @@ public sealed partial class BindableNodeAnalyzer
 						Expression = CreateDeleteShadowExpression(deleteStatement.SourceSyntax)
 					});
 				if (deleteStatement.IsStackAllocCleanup)
-					return WithPendingCleanups(new ExpressionStatement
-					{
-						SourceSyntax = deleteStatement.SourceSyntax,
-						ResolvedType = "void",
-						Expression = RewriteStackAllocDeleteExpression(deleteStatement.Expression)
-					});
-				return WithPendingCleanups(new ExpressionStatement
-				{
-					SourceSyntax = deleteStatement.SourceSyntax,
-					ResolvedType = "void",
-					Expression = RewriteDeleteExpression(deleteStatement.Expression)
-				});
+					return WithPendingCleanups(RewriteDeleteStatement(deleteStatement, suppressDeallocate: true));
+				return WithPendingCleanups(RewriteDeleteStatement(deleteStatement, suppressDeallocate: false));
 
 			case TryStatement tryStatement:
 				return RewriteTryStatement(tryStatement);
