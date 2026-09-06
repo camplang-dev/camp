@@ -425,6 +425,21 @@ public sealed partial class BindableNodeAnalyzer
 			declarations.Add(componentDeclaration);
 			targets.Add(componentDeclaration.Target);
 		}
+		if (initialValue is not null
+			&& shape.Kind == ParamsComponentShapeKind.Array
+			&& shape.Components.Count == 2
+			&& TryGetArrayElementType(shape.TypeName) is string arrayElementType
+			&& TryGetParamsArrayConstruction(initialValue, out ConstructionExpression arrayConstruction)
+			&& HasEmptyInitializer(arrayConstruction))
+		{
+			AddDynamicArrayDefaultInitialization(
+				declarations,
+				targets[0],
+				shape.Components[0].Type,
+				CreateVariableReference(targets[1], shape.Components[1].Type, declaration.SourceSyntax),
+				arrayElementType,
+				arrayConstruction.SourceSyntax ?? declaration.SourceSyntax);
+		}
 		if (materializedGenericReturnInitializer && initialValue is CallExpression materializedCall)
 		{
 			AppendMaterializedGenericReturnAssignments(materializedCall, shape, targets, declarations, declaration.SourceSyntax);

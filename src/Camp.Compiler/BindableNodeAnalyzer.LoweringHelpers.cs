@@ -603,6 +603,80 @@ public sealed partial class BindableNodeAnalyzer
 		};
 	}
 
+	static bool HasEmptyInitializer(ConstructionExpression construction)
+	{
+		return construction.Initializer is { Items.Count: 0 };
+	}
+
+	void AddDynamicArrayDefaultInitialization(List<Statement> statements, DeclarationTarget elementsTarget, string elementsType, Expression length, string elementType, SyntaxNode? syntax)
+	{
+		DeclarationStatement index = CreateGeneratedLocal(NewGeneratedLocalName("arrayInitIndex"), "nuint", NuintType(), NumberLiteral("0", "nuint"));
+		statements.Add(index);
+
+		Expression IndexReference()
+		{
+			return CreateVariableReference(index.Target, "nuint", syntax);
+		}
+
+		Expression ElementsReference()
+		{
+			return CreateVariableReference(elementsTarget, elementsType, syntax);
+		}
+
+		BlockStatement body = new() { SourceSyntax = syntax, ResolvedType = "void" };
+		body.Statements.Add(CreateAssignmentStatement(
+			new IndexExpression
+			{
+				SourceSyntax = syntax,
+				Target = ElementsReference(),
+				ResolvedType = elementType,
+				Arguments =
+				{
+					new ArgumentExpression
+					{
+						SourceSyntax = syntax,
+						Value = IndexReference(),
+						ResolvedType = "nuint"
+					}
+				}
+			},
+			new DefaultExpression
+			{
+				SourceSyntax = syntax,
+				Type = TypeReferenceForResolvedName(elementType),
+				ResolvedType = elementType
+			},
+			elementType,
+			syntax));
+		body.Statements.Add(new ExpressionStatement
+		{
+			SourceSyntax = syntax,
+			ResolvedType = "void",
+			Expression = new PostfixUpdateExpression
+			{
+				SourceSyntax = syntax,
+				Expression = IndexReference(),
+				Operator = UpdateOperator.Increment,
+				ResolvedType = "nuint"
+			}
+		});
+
+		statements.Add(new WhileStatement
+		{
+			SourceSyntax = syntax,
+			ResolvedType = "void",
+			Condition = new BinaryExpression
+			{
+				SourceSyntax = syntax,
+				Left = IndexReference(),
+				Operator = BinaryOperator.LessThan,
+				Right = length,
+				ResolvedType = "bool"
+			},
+			Body = body
+		});
+	}
+
 	Expression? CurrentAllocator()
 	{
 		return currentWithinContext;

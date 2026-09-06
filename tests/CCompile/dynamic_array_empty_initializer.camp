@@ -1,0 +1,20 @@
+#within explicit
+
+export extern void* malloc(nuint size);
+export extern void free(void* ptr);
+
+struct Pair
+{
+	uint left;
+	uint right;
+}
+
+export int main()
+{
+	uint[] values = within(default) new uint[4] {} finally delete;
+	Pair* pair = within(default) new Pair[2] {} finally delete;
+
+	values[0] = 10;
+	pair[1].right = 20;
+	return (int)(values[0] + pair[1].right);
+}

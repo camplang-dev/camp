@@ -1431,6 +1431,16 @@ public sealed partial class BindableNodeAnalyzer
 
 		declaration.InitialValue = CreateAllocCall(construction.Type, allocationAllocator, construction.SourceSyntax ?? declaration.SourceSyntax, construction.ElementCount);
 		statements.Add(declaration);
+		if (HasEmptyInitializer(construction))
+		{
+			AddDynamicArrayDefaultInitialization(
+				statements,
+				declaration.Target,
+				declaration.Target.ResolvedType ?? declaration.Target.Type?.ResolvedType ?? ErrorType,
+				construction.ElementCount,
+				construction.Type.ResolvedType ?? ErrorType,
+				construction.SourceSyntax ?? declaration.SourceSyntax);
+		}
 
 		if (finallyCleanup && currentCleanupScopes.Count > 0)
 		{
