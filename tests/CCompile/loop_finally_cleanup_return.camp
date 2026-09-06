@@ -1,0 +1,22 @@
+export extern void* malloc(nuint size);
+export extern void free(void* ptr);
+
+class Owner
+{
+}
+
+int runLoop()
+{
+	int count = 0;
+	for (int index = 0; index < 2; index++)
+	{
+		Owner* owner = new Owner() finally delete;
+		count++;
+	}
+	return count;
+}
+
+export int main()
+{
+	return runLoop();
+}

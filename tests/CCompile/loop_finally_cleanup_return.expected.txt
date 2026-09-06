@@ -1,0 +1,84 @@
+// file: loop_finally_cleanup_return.c
+#include "loop_finally_cleanup_return_private.h"
+
+/* Private file declarations. */
+static int runLoop(void);
+
+static int runLoop(void)
+{
+	int count = 0;
+	{
+		for (int index = 0; (index < 2); index++)
+		{
+			Owner *_finally3 = 0;
+			bool _cleanupActive4 = false;
+			Owner *_created2;
+			_created2 = (Owner *)(malloc(sizeof(Owner)));
+			if ((_created2 != NULL))
+			{
+				*_created2 = (Owner){0};
+			}
+			_finally3 = _created2;
+			_cleanupActive4 = true;
+			Owner *owner = _finally3;
+			count++;
+			if (_cleanupActive4)
+			{
+				free((void *)(_finally3));
+				_cleanupActive4 = false;
+			}
+__for_continue0: ;
+		}
+__for_break1: ;
+	}
+	return count;
+}
+
+int main(void)
+{
+	return runLoop();
+}
+
+// file: loop_finally_cleanup_return.h
+#ifndef LOOP_FINALLY_CLEANUP_RETURN_H_
+#define LOOP_FINALLY_CLEANUP_RETURN_H_
+
+#include "loop_finally_cleanup_return_private.h"
+
+void *malloc(uintptr_t size);
+void free(void *ptr);
+int main(void);
+
+#endif
+// file: loop_finally_cleanup_return_private.h
+#ifndef LOOP_FINALLY_CLEANUP_RETURN_PRIVATE_H_
+#define LOOP_FINALLY_CLEANUP_RETURN_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct Owner Owner;
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Layouts. */
+struct Owner
+{
+	char _camp_empty;
+};
+
+/* Function declarations. */
+void *malloc(uintptr_t size);
+void free(void *ptr);
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: loop_finally_cleanup_return.c
