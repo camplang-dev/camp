@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-134.
+Next bug number: BUG-137.
 
 ## Bug Template
 
@@ -311,3 +311,82 @@ Known Impact:
 Loop-local `finally` ownership is unsafe in value-returning methods because it
 can change control flow. Explicitly destroy the local at the end of the loop
 iteration until the cleanup lowering is fixed.
+
+## BUG-135: Array-return local can collide with generated result-length parameter
+
+Date/Time: 2026-09-06 America/Toronto
+
+Summary:
+A function returning an array can emit an invalid C redeclaration when a local
+array is named `result`. The generated array-return ABI already uses
+`result_length` as an output parameter, while lowering the local also creates a
+local named `result_length`.
+
+Steps to Reproduce:
+
+1. Compile this Camp function through the native C backend:
+
+   ```camp
+   byte[] copyBytes(const byte[] source, within allocator)
+   {
+       byte[] result = new byte[source.length];
+       return result;
+   }
+   ```
+
+2. Compile the generated C.
+
+Expected:
+The local array length and the hidden array-return length output use distinct C
+identifiers, and the generated C compiles.
+
+Actual:
+The generated C function receives `uintptr_t *result_length`, then redeclares
+`uintptr_t result_length = source_length`. Clang reports a redefinition with a
+different type and an invalid pointer-to-integer assignment.
+
+Known Impact:
+Native compilation fails for this otherwise valid source shape. Rename the
+local array to something other than `result` until generated identifier
+collision handling is fixed.
+
+## BUG-136: Empty dynamic-array initializer does not initialize elements
+
+Date/Time: 2026-09-06 America/Toronto
+
+Summary:
+A dynamic allocation written as `new T[count] {}` is accepted, but the native
+C emitter allocates the backing storage without initializing its elements. The
+same spelling communicates an initialized array and is relied upon for zeroed
+numeric slots and default-initialized aggregate fields.
+
+Steps to Reproduce:
+
+1. Compile and run this Camp test with the native test runner:
+
+   ```camp
+   @test
+   void emptyDynamicArrayInitializerInitializesElements(thrown Assertion*)
+   {
+       uint[] values = new uint[4] {} finally delete;
+       for (nuint index = 0; index < values.length; index++)
+           assert(values[index] == 0);
+   }
+   ```
+
+2. Inspect the generated C for the allocation if the assertion happens to pass
+   because the allocator returned previously cleared memory.
+
+Expected:
+The empty initializer initializes every dynamic-array element to its default
+value, so every element of `values` is zero.
+
+Actual:
+The generated C calls `malloc(sizeof(uint32_t) * 4)` and performs no element
+initialization. Reading the elements observes indeterminate storage and can
+produce nondeterministic failures or invalid memory access.
+
+Known Impact:
+Dynamic arrays whose initial contents matter cannot rely on `{}`. Explicitly
+initialize every element after allocation until native lowering supplies the
+declared initialization semantics.
