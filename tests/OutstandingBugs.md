@@ -135,36 +135,6 @@ Borrowed slice accessors over owned strings are unsafe until fixed. Return
 `string` from the accessor when a null-terminated path or similar value is
 appropriate; callers can then pass it directly to slice-taking operations.
 
-## BUG-123: Guarded expression can evaluate an underflowing array index early
-
-Date/Time: 2026-09-04 01:15 America/Toronto
-
-Summary:
-A boolean expression that first guards an unsigned index and then reads a
-preceding array element can lower to C that evaluates the indexed element into
-a temporary before evaluating the guard. A zero index can therefore underflow
-and crash even though the source condition would be false.
-
-Steps to Reproduce:
-
-1. Declare an unsigned loop index and an array.
-2. Test `index != 0 && array[index - 1] == array[index]` in one condition.
-3. Execute the condition with `index` equal to zero.
-
-Expected:
-The left operand prevents evaluation of the indexed right operand when the
-index is zero, so the condition evaluates false without accessing the array.
-
-Actual:
-The generated C creates temporaries for both array expressions before the
-short-circuit condition. It reads `array[index - 1]` with an underflowed index
-and can fault.
-
-Known Impact:
-Guarded index expressions are unsafe when the guarded expression can underflow
-or otherwise be invalid. Place the guard in a separate branch before evaluating
-the indexed expression.
-
 ## BUG-124: Local namespace type can be shadowed by an imported same-named type
 
 Date/Time: 2026-09-04 02:52 America/Toronto

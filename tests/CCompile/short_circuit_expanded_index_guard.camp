@@ -1,0 +1,25 @@
+struct Entry
+{
+	const char[] name;
+}
+
+bool sameAsPrevious(Entry[] entries, nuint index)
+{
+	return index != 0 && equalLength(getName(entries[index - 1]), getName(entries[index]));
+}
+
+bool equalLength(const char[] left, const char[] right)
+{
+	return left.length == right.length;
+}
+
+const char[] getName(Entry entry)
+{
+	return entry.name;
+}
+
+export int main()
+{
+	Entry[] entries = default;
+	return sameAsPrevious(entries, 0) ? 1 : 0;
+}

@@ -205,6 +205,9 @@ public sealed partial class BindableNodeAnalyzer
 			case FinallyCleanupExpression finallyCleanup:
 				return RewriteFinallyCleanupExpression(finallyCleanup);
 
+			case BinaryExpression { Operator: BinaryOperator.LogicalAnd or BinaryOperator.LogicalOr } binary:
+				return LowerShortCircuitExpression(binary);
+
 			case BinaryExpression binary:
 				binary.Left = LowerScalarExpression(binary.Left);
 				binary.Right = LowerScalarExpression(binary.Right);
@@ -305,6 +308,83 @@ public sealed partial class BindableNodeAnalyzer
 			&& components.Count > 1)
 			return LowerExpression(components[0]);
 		return lowered;
+	}
+
+	Expression? LowerShortCircuitExpression(BinaryExpression binary)
+	{
+		if (currentStatementPrefix is null || currentStatementSuffix is null)
+		{
+			binary.Left = LowerScalarExpression(binary.Left);
+			binary.Right = LowerScalarExpression(binary.Right);
+			return binary;
+		}
+
+		List<Statement>? outerPrefix = currentStatementPrefix;
+		List<Statement>? outerSuffix = currentStatementSuffix;
+
+		List<Statement> leftPrefix = [];
+		List<Statement> leftSuffix = [];
+		currentStatementPrefix = leftPrefix;
+		currentStatementSuffix = leftSuffix;
+		Expression? left = LowerScalarExpression(binary.Left);
+
+		List<Statement> rightPrefix = [];
+		List<Statement> rightSuffix = [];
+		currentStatementPrefix = rightPrefix;
+		currentStatementSuffix = rightSuffix;
+		Expression? right = LowerScalarExpression(binary.Right);
+
+		currentStatementPrefix = outerPrefix;
+		currentStatementSuffix = outerSuffix;
+
+		if (rightPrefix.Count == 0 && rightSuffix.Count == 0)
+		{
+			outerPrefix.AddRange(leftPrefix);
+			outerSuffix.AddRange(leftSuffix);
+			binary.Left = left;
+			binary.Right = right;
+			return binary;
+		}
+
+		string valueType = binary.ResolvedType ?? "bool";
+		outerPrefix.AddRange(leftPrefix);
+		DeclarationStatement local = CreateGeneratedLocal(NewGeneratedLocalName("condition"), valueType, TypeReferenceForResolvedName(valueType), left);
+		outerPrefix.Add(local);
+		outerPrefix.AddRange(leftSuffix);
+
+		List<Statement> branchStatements = [];
+		branchStatements.AddRange(rightPrefix);
+		branchStatements.Add(new ExpressionStatement
+		{
+			SourceSyntax = binary.SourceSyntax,
+			ResolvedType = "void",
+			Expression = new AssignmentExpression
+			{
+				SourceSyntax = binary.SourceSyntax,
+				Target = CreateVariableReference(local.Target, valueType),
+				Operator = AssignmentOperator.Assign,
+				Value = right,
+				ResolvedType = valueType
+			}
+		});
+		branchStatements.AddRange(rightSuffix);
+
+		outerPrefix.Add(new IfStatement
+		{
+			SourceSyntax = binary.SourceSyntax,
+			ResolvedType = "void",
+			Condition = binary.Operator == BinaryOperator.LogicalAnd
+				? CreateVariableReference(local.Target, valueType)
+				: new UnaryExpression
+				{
+					SourceSyntax = binary.SourceSyntax,
+					Operator = UnaryOperator.LogicalNot,
+					Operand = CreateVariableReference(local.Target, valueType),
+					ResolvedType = "bool"
+				},
+			Body = CreateBlock(branchStatements)
+		});
+		return CreateVariableReference(local.Target, valueType);
 	}
 
 	bool TryRewriteMaterializedGenericIndexedMemberAccess(MemberExpression member, out Expression expression)

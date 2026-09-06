@@ -1,0 +1,84 @@
+// file: short_circuit_expanded_index_guard.c
+#include "short_circuit_expanded_index_guard_private.h"
+
+/* Private file declarations. */
+static bool sameAsPrevious(Entry *entries, uintptr_t entries_length, uintptr_t index);
+static bool equalLength(const char *left, uintptr_t left_length, const char *right, uintptr_t right_length);
+static const char *getName(Entry entry, uintptr_t *result_length);
+
+static bool sameAsPrevious(Entry *entries, uintptr_t entries_length, uintptr_t index)
+{
+	bool _condition4 = (index != 0);
+	if (_condition4)
+	{
+		const char *_elements0;
+		uintptr_t _length1;
+		_elements0 = getName(entries[(index - 1)], &_length1);
+		const char *_elements2;
+		uintptr_t _length3;
+		_elements2 = getName(entries[index], &_length3);
+		_condition4 = equalLength(_elements0, _length1, _elements2, _length3);
+	}
+	return _condition4;
+}
+
+static bool equalLength(const char *left, uintptr_t left_length, const char *right, uintptr_t right_length)
+{
+	return (left_length == right_length);
+}
+
+static const char *getName(Entry entry, uintptr_t *result_length)
+{
+	{
+		(*result_length) = entry.name_length;
+		return entry.name;
+	}
+}
+
+int main(void)
+{
+	Entry *entries = 0;
+	uintptr_t entries_length = 0;
+	return (sameAsPrevious(entries, entries_length, 0) ? 1 : 0);
+}
+
+// file: short_circuit_expanded_index_guard.h
+#ifndef SHORT_CIRCUIT_EXPANDED_INDEX_GUARD_H_
+#define SHORT_CIRCUIT_EXPANDED_INDEX_GUARD_H_
+
+#include "short_circuit_expanded_index_guard_private.h"
+
+int main(void);
+
+#endif
+// file: short_circuit_expanded_index_guard_private.h
+#ifndef SHORT_CIRCUIT_EXPANDED_INDEX_GUARD_PRIVATE_H_
+#define SHORT_CIRCUIT_EXPANDED_INDEX_GUARD_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct Entry Entry;
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Layouts. */
+struct Entry
+{
+	const char *name;
+	uintptr_t name_length;
+};
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: short_circuit_expanded_index_guard.c
