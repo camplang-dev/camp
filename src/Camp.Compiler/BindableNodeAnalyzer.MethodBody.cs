@@ -1971,7 +1971,31 @@ public sealed partial class BindableNodeAnalyzer
 	bool TryGetNamedExpressionTypeDefinition(NamedExpression named, out TypeDefinition? typeDefinition)
 	{
 		if (named.Qualifiers.Count == 0)
-			return typeDefinitions.TryGetValue(named.Name, out typeDefinition);
+		{
+			foreach (TypeDefinition candidate in allTypeDefinitions)
+			{
+				if (candidate.Name == named.Name
+					&& IsDefinitionInReferenceNamespace(candidate, named.SourceSyntax)
+					&& IsUnqualifiedDefinitionVisible(candidate, named.SourceSyntax))
+				{
+					typeDefinition = candidate;
+					return true;
+				}
+			}
+
+			foreach (TypeDefinition candidate in allTypeDefinitions)
+			{
+				if (candidate.Name == named.Name && IsUnqualifiedDefinitionVisible(candidate, named.SourceSyntax))
+				{
+					typeDefinition = candidate;
+					return true;
+				}
+			}
+
+			typeDefinition = null;
+			return false;
+		}
+
 		foreach (TypeDefinition candidate in allTypeDefinitions)
 		{
 			if (candidate.Name != named.Name)
@@ -2082,13 +2106,13 @@ public sealed partial class BindableNodeAnalyzer
 
 			if (typeDefinitions.TryGetValue(alias.ResolvedTargetName, out TypeDefinition? aliasType))
 			{
-				TypeDefinitionReference aliasReference = new()
-				{
-					SourceSyntax = named.SourceSyntax,
-					Name = aliasType.Name,
-					Definition = aliasType,
-					ResolvedType = aliasType.ResolvedType ?? aliasType.Name
-				};
+			TypeDefinitionReference aliasReference = new()
+			{
+				SourceSyntax = named.SourceSyntax,
+				Name = aliasType.Name,
+				Definition = aliasType,
+				ResolvedType = ResolvedNominalTypeName(aliasType)
+			};
 				TypeReferenceExpression aliasExpression = new()
 				{
 					SourceSyntax = named.SourceSyntax,
@@ -2113,7 +2137,7 @@ public sealed partial class BindableNodeAnalyzer
 				SourceSyntax = named.SourceSyntax,
 				Name = typeDefinition.Name,
 				Definition = typeDefinition,
-				ResolvedType = typeDefinition.ResolvedType ?? typeDefinition.Name
+				ResolvedType = ResolvedNominalTypeName(typeDefinition)
 			};
 			TypeReferenceExpression expression = new()
 			{
@@ -6725,7 +6749,7 @@ public sealed partial class BindableNodeAnalyzer
 			SourceSyntax = named.SourceSyntax,
 			Name = typeDefinition.Name,
 			Definition = typeDefinition,
-			ResolvedType = AddTypeArguments(typeDefinition.Name, typeArguments)
+			ResolvedType = AddTypeArguments(ResolvedNominalTypeName(typeDefinition), typeArguments)
 		};
 		foreach (TypeReference argument in typeArguments)
 			typeReference.TypeArguments.Add(argument);

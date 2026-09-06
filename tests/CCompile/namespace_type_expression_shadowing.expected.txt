@@ -1,0 +1,68 @@
+// file: namespace_type_expression_shadowing.c
+#include "namespace_type_expression_shadowing_private.h"
+
+/* Private file declarations. */
+static int Local_localMarker(void);
+static int Local_getLocalValue(LocalCatalog value);
+
+static int Local_localMarker(void)
+{
+	return 11;
+}
+
+int Local_main(void)
+{
+	LocalCatalog catalog = (LocalCatalog){0};
+	catalog.localValue = 7;
+	return (Local_getLocalValue(catalog) + Local_localMarker());
+}
+
+static int Local_getLocalValue(LocalCatalog value)
+{
+	return value.localValue;
+}
+
+// file: namespace_type_expression_shadowing.h
+#ifndef NAMESPACE_TYPE_EXPRESSION_SHADOWING_H_
+#define NAMESPACE_TYPE_EXPRESSION_SHADOWING_H_
+
+#include "namespace_type_expression_shadowing_private.h"
+
+int Local_main(void);
+
+#endif
+// file: namespace_type_expression_shadowing_private.h
+#ifndef NAMESPACE_TYPE_EXPRESSION_SHADOWING_PRIVATE_H_
+#define NAMESPACE_TYPE_EXPRESSION_SHADOWING_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct DependencyCatalog DependencyCatalog;
+typedef struct LocalCatalog LocalCatalog;
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Layouts. */
+struct DependencyCatalog
+{
+	int dependencyValue;
+};
+struct LocalCatalog
+{
+	int localValue;
+};
+
+/* Function declarations. */
+int Local_main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: namespace_type_expression_shadowing.c

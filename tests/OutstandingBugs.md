@@ -104,38 +104,6 @@ Implementations cannot use a re-export alias as a source type until this is
 fixed. Use the original dependency type name internally and reserve the
 re-export for an exported signature that requires the dependency ABI type.
 
-## BUG-124: Local namespace type can be shadowed by an imported same-named type
-
-Date/Time: 2026-09-04 02:52 America/Toronto
-
-Summary:
-A type declared in the current namespace can be resolved as an imported type
-with the same simple name. This occurs even when the local declaration is
-explicitly qualified with its namespace, so member accesses bind against the
-wrong type or fail.
-
-Steps to Reproduce:
-
-1. Create a static project dependency that exports a type named `Catalog` in
-   one namespace.
-2. In a consuming project, declare a distinct `Catalog` type in a different
-   namespace with a field or method not present on the dependency type.
-3. Access that local member from the locally declared type, including through
-   an explicit namespace qualification.
-
-Expected:
-The current namespace declaration has its own identity and wins ordinary
-lookup; explicit qualification resolves that declaration directly.
-
-Actual:
-The compiler resolves the use as the imported same-named type and reports that
-the local field or method does not exist.
-
-Known Impact:
-Projects cannot expose a type with a simple name already exported by a static
-dependency. Until fixed, use a distinct public simple name at the product
-boundary and document the name as a bootstrap-compiler workaround.
-
 ## BUG-131: Value-returning method with `finally` can omit its C result local
 
 Date/Time: 2026-09-04 America/Toronto

@@ -1,0 +1,32 @@
+namespace Dependency;
+
+public struct Catalog
+{
+	int dependencyValue;
+}
+
+namespace Local;
+
+using Dependency;
+
+public struct Catalog
+{
+	int localValue;
+
+	static int localMarker()
+	{
+		return 11;
+	}
+}
+
+export int main()
+{
+	Local::Catalog catalog = default;
+	catalog.localValue = 7;
+	return getLocalValue(catalog) + Local::Catalog.localMarker();
+}
+
+int getLocalValue(Local::Catalog value)
+{
+	return value.localValue;
+}
