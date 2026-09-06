@@ -161,6 +161,26 @@ The generated C appends another default argument after the explicitly supplied
 arguments. Clang reports that the call has one more argument than the generated
 function accepts.
 
+Additional exact repro (2026-09-06):
+
+```camp
+uint make(char[] output, const byte[] hash,
+    const char[] identity = "textlib",
+    const char[] version = "1.2.0") => 0;
+
+void reproduce()
+{
+    fixed char[160] output = default;
+    fixed byte[32] hash = default;
+    make(output, hash, "other", "1.2.0");
+}
+```
+
+The generated C call ends with the explicit `"1.2.0", 5` pair followed by an
+extra `"1.2.0"` default pointer. Thus the failure is not limited to a `string`
+field receiver; fixed-array expansion followed by explicitly supplied defaulted
+slice parameters also reproduces it.
+
 Known Impact:
 Native builds cannot use this call shape. Route both public entry points through
 a non-defaulted helper, or otherwise avoid combining the string-field expansion
@@ -203,3 +223,30 @@ Known Impact:
 Native compilation fails for this otherwise valid source shape. Rename the
 local array to something other than `result` until generated identifier
 collision handling is fixed.
+
+## BUG-137: Deleting a null class pointer can call its destructor with null
+
+Date/Time: 2026-09-06 America/Toronto
+
+Summary:
+An explicit `delete` of a nullable class pointer can lower to an unconditional
+destructor call followed by free. When the pointer is null, generated native
+code dereferences null in the destructor instead of treating deletion as a
+no-op.
+
+Steps to Reproduce:
+
+1. Declare a class with a destructor that accesses one of its fields.
+2. Leave a pointer to that class null and execute `delete pointer`.
+3. Run the native build result.
+
+Expected:
+Deleting a null owner pointer is a no-op.
+
+Actual:
+The generated native code invokes the destructor with a null receiver and the
+process terminates with a segmentation fault.
+
+Known Impact:
+Any nullable owner field deleted without a preceding null check can crash at
+runtime. Guard the delete with `if (pointer != null)` until lowering is fixed.
