@@ -4676,7 +4676,7 @@ public static class CCodeEmitter
 				StackAllocExpression stackAlloc => FormatAlloca(FormatExpression(stackAlloc.Size)),
 				CallExpression call => FormatCallExpression(call),
 				IndexExpression index => FormatIndexExpression(index),
-				MemberExpression member => FormatExpandedThisComponent(member) ?? FormatCallableCallComponent(member.Target, member.Name) ?? FormatInterfaceSlotMember(member.Target, member.Name) ?? FormatMemberTarget(member.Target) + (IsPointerMemberTarget(member.Target) ? "->" : ".") + SanitizeIdentifier(member.Name),
+				MemberExpression member => FormatPrimitiveStringLengthMember(member) ?? FormatExpandedThisComponent(member) ?? FormatCallableCallComponent(member.Target, member.Name) ?? FormatInterfaceSlotMember(member.Target, member.Name) ?? FormatMemberTarget(member.Target) + (IsPointerMemberTarget(member.Target) ? "->" : ".") + SanitizeIdentifier(member.Name),
 				MemberReferenceExpression member => FormatMemberReference(member),
 				UnaryExpression unary => FormatUnaryExpression(unary),
 				PostfixUpdateExpression postfix => FormatExpression(postfix.Expression) + FormatUpdateOperator(postfix.Operator),
@@ -7956,6 +7956,20 @@ public static class CCodeEmitter
 		string? FormatExpandedThisComponent(MemberExpression member)
 		{
 			return FormatExpandedThisComponent(member.Target, member.Name);
+		}
+
+		string? FormatPrimitiveStringLengthMember(MemberExpression member)
+		{
+			if (member.Name != "length" || member.Target?.ResolvedType is not string targetType)
+				return null;
+
+			return StripTypeQualifiers(targetType) switch
+			{
+				"string" => PrimitiveStringLengthFunction("char") + "(" + FormatExpression(member.Target) + ")",
+				"wstring" => PrimitiveStringLengthFunction("wchar") + "(" + FormatExpression(member.Target) + ")",
+				"astring" => PrimitiveStringLengthFunction("achar") + "(" + FormatExpression(member.Target) + ")",
+				_ => null
+			};
 		}
 
 		string? FormatExpandedThisComponent(Expression? target, string name)

@@ -1,0 +1,21 @@
+class Holder
+{
+	string text;
+}
+
+nuint getLength(string this)
+{
+	return 5;
+}
+
+const char[] getText(Holder* this)
+{
+	return this.text;
+}
+
+export int main()
+{
+	Holder holder = default;
+	holder.text = "hello";
+	return (int)holder.getText().length;
+}

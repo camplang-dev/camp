@@ -1,0 +1,70 @@
+// file: string_field_slice_accessor.c
+#include "string_field_slice_accessor_private.h"
+
+/* Private file declarations. */
+static uintptr_t String_getLength(const char *this);
+static const char *Holder_getText(Holder *this, uintptr_t *result_length);
+
+static uintptr_t String_getLength(const char *this)
+{
+	return 5;
+}
+
+static const char *Holder_getText(Holder *this, uintptr_t *result_length)
+{
+	{
+		const char *_stringValue0 = this->text;
+		(*result_length) = String_getLength(_stringValue0);
+		return (const char *)(_stringValue0);
+	}
+}
+
+int main(void)
+{
+	Holder holder = (Holder){0};
+	holder.text = "hello";
+	const char *_elements1;
+	uintptr_t _length2;
+	_elements1 = Holder_getText(&holder, &_length2);
+	return (int)(_length2);
+}
+
+// file: string_field_slice_accessor.h
+#ifndef STRING_FIELD_SLICE_ACCESSOR_H_
+#define STRING_FIELD_SLICE_ACCESSOR_H_
+
+#include "string_field_slice_accessor_private.h"
+
+int main(void);
+
+#endif
+// file: string_field_slice_accessor_private.h
+#ifndef STRING_FIELD_SLICE_ACCESSOR_PRIVATE_H_
+#define STRING_FIELD_SLICE_ACCESSOR_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct Holder Holder;
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Layouts. */
+struct Holder
+{
+	const char *text;
+};
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: string_field_slice_accessor.c

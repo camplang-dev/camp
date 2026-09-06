@@ -2415,8 +2415,17 @@ public sealed partial class BindableNodeAnalyzer
 				currentStatementPrefix = previousStatementPrefix;
 			}
 		}
-		if (!TryCreateParamsComponentExpressions(expression, out List<Expression> components) || components.Count != shape.Components.Count)
+		List<Expression> components;
+		if (expression is not null
+			&& TryCreatePrimitiveStringArrayInitialValues(expression, shape, statements, out List<Expression?> primitiveStringComponents)
+			&& primitiveStringComponents.All(static component => component is not null))
+		{
+			components = primitiveStringComponents.Select(static component => component!).ToList();
+		}
+		else if (!TryCreateParamsComponentExpressions(expression, out components) || components.Count != shape.Components.Count)
+		{
 			return false;
+		}
 
 		for (int i = 1; i < components.Count; i++)
 		{
