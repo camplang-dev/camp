@@ -180,8 +180,9 @@ public sealed partial class BindableNodeAnalyzer
 			return null;
 
 		List<ParameterDefinition> parameters = [];
+		int index = shape.Kind == "fn" ? 0 : 1;
 		foreach (string parameterType in GetExpandedCallableParameterTypes(GetSourceCallableParameterTypes(shape)))
-			parameters.Add(CreateCallableShapeParameter(parameterType));
+			parameters.Add(CreateCallableShapeParameter(parameterType, "arg" + index++.ToString(System.Globalization.CultureInfo.InvariantCulture)));
 		return parameters;
 	}
 
@@ -202,7 +203,7 @@ public sealed partial class BindableNodeAnalyzer
 			|| type.EndsWith(" this", System.StringComparison.Ordinal);
 	}
 
-	static ParameterDefinition CreateCallableShapeParameter(string parameterType)
+	static ParameterDefinition CreateCallableShapeParameter(string parameterType, string name = "")
 	{
 		string typeName = parameterType.Trim();
 		ParameterModifier modifier = ParameterModifier.None;
@@ -239,6 +240,8 @@ public sealed partial class BindableNodeAnalyzer
 
 		return new ParameterDefinition
 		{
+			Name = name,
+			Symbol = name,
 			Modifier = modifier,
 			ResolvedType = typeName,
 			Type = new NamedTypeReference { Name = typeName, ResolvedType = typeName }

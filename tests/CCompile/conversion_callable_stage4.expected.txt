@@ -6,7 +6,7 @@ static int plusOne(int value);
 static int plusLong(int64_t value);
 static int consumeConst(const int *value);
 static int readScoped(int *value);
-static void acceptEscaped(int (* reader)(int *camp));
+static void acceptEscaped(int (* reader)(int *arg0));
 
 static int plusOne(int value)
 {
@@ -28,19 +28,19 @@ static int readScoped(int *value)
 	return *value;
 }
 
-static void acceptEscaped(int (* reader)(int *camp))
+static void acceptEscaped(int (* reader)(int *arg0))
 {
 }
 
 int main(void)
 {
-	int (* plus)(int camp) = plusOne;
+	int (* plus)(int arg0) = plusOne;
 	void (* raw)(void) = (void (*)(void))(plus);
-	int (* restored)(int camp) = (int (*)(int arg0))(raw);
+	int (* restored)(int arg0) = (int (*)(int arg0))(raw);
 	uintptr_t erased = (uintptr_t)(raw);
-	int (* restoredAgain)(int camp) = (int (*)(int arg0))(erased);
-	int (* rewritten)(int camp) = (int (*)(int arg0))(plusLong);
-	int (* mutableInput)(int *camp) = (int (*)(int *arg0))consumeConst;
+	int (* restoredAgain)(int arg0) = (int (*)(int arg0))(erased);
+	int (* rewritten)(int arg0) = (int (*)(int arg0))(plusLong);
+	int (* mutableInput)(int *arg0) = (int (*)(int *arg0))consumeConst;
 	acceptEscaped((int (*)(int *arg0))(int (*)(int *arg0))(readScoped));
 	int value = 5;
 	int total = (((restored(1) + restoredAgain(1)) + rewritten(1)) + mutableInput(&value));

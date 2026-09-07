@@ -1,0 +1,83 @@
+// file: callable_unnamed_parameter_names.c
+#include "callable_unnamed_parameter_names_private.h"
+
+/* Private file declarations. */
+static bool invokeFunction(bool (* callback)(First *arg0, Second *arg1), First *first, Second *second);
+static bool invokeDelegate(PairPredicate callback, void *callback_context, First *first, Second *second);
+static bool bothPresent(First *first, Second *second);
+static bool main_lambda0(void *_context, First *firstValue, Second *secondValue);
+
+static bool invokeFunction(bool (* callback)(First *arg0, Second *arg1), First *first, Second *second)
+{
+	return callback(first, second);
+}
+
+static bool invokeDelegate(PairPredicate callback, void *callback_context, First *first, Second *second)
+{
+	return callback(callback_context, first, second);
+}
+
+static bool bothPresent(First *first, Second *second)
+{
+	return ((first != 0) && (second != 0));
+}
+
+int main(void)
+{
+	First first = (First){ 0 };
+	Second second = (Second){ 0 };
+	bool (* predicate)(void *arg0, First *arg1, Second *arg2) = main_lambda0;
+	void *predicate_context = NULL;
+	return ((invokeFunction((bool (*)(First *arg0, Second *arg1))bothPresent, &first, &second) && invokeDelegate((PairPredicate)predicate, predicate_context, &first, &second)) ? 0 : 1);
+}
+
+static bool main_lambda0(void *_context, First *firstValue, Second *secondValue)
+{
+	return ((firstValue != 0) && (secondValue != 0));
+}
+
+// file: callable_unnamed_parameter_names.h
+#ifndef CALLABLE_UNNAMED_PARAMETER_NAMES_H_
+#define CALLABLE_UNNAMED_PARAMETER_NAMES_H_
+
+#include "callable_unnamed_parameter_names_private.h"
+
+int main(void);
+
+#endif
+// file: callable_unnamed_parameter_names_private.h
+#ifndef CALLABLE_UNNAMED_PARAMETER_NAMES_PRIVATE_H_
+#define CALLABLE_UNNAMED_PARAMETER_NAMES_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct First First;
+typedef struct Second Second;
+
+/* Enums. */
+
+/* Newtypes. */
+typedef bool (* PairPredicate)(void *context, First *arg1, Second *arg2);
+
+/* Layouts. */
+struct First
+{
+	char _camp_empty;
+};
+struct Second
+{
+	char _camp_empty;
+};
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: callable_unnamed_parameter_names.c

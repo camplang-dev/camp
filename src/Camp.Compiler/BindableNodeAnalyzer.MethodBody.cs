@@ -3754,7 +3754,7 @@ public sealed partial class BindableNodeAnalyzer
 
 		List<ParameterDefinition> parameters = TryGetCallableNewtypeParameters(callableType, call.Arguments, out List<ParameterDefinition>? newtypeParameters)
 			? newtypeParameters!
-			: CreateStructuralCallableParameters(GetSourceCallableParameterTypes(callable));
+			: CreateStructuralCallableParameters(GetSourceCallableParameterTypes(callable), callable.Kind == "fn" ? 0 : 1);
 
 		callableInvocationParameters[call] = parameters;
 		CallArgumentBinding binding = new();
@@ -3864,9 +3864,10 @@ public sealed partial class BindableNodeAnalyzer
 		return clone;
 	}
 
-	static List<ParameterDefinition> CreateStructuralCallableParameters(List<string> parameterTypes)
+	static List<ParameterDefinition> CreateStructuralCallableParameters(List<string> parameterTypes, int firstSourceIndex = 0)
 	{
 		List<ParameterDefinition> parameters = [];
+		int index = firstSourceIndex;
 		foreach (string parameterType in parameterTypes)
 		{
 			string typeName = parameterType;
@@ -3901,12 +3902,16 @@ public sealed partial class BindableNodeAnalyzer
 				modifier = ParameterModifier.Prep;
 				typeName = typeName[5..].TrimStart();
 			}
+			string name = "arg" + index.ToString(System.Globalization.CultureInfo.InvariantCulture);
 			parameters.Add(new ParameterDefinition
 			{
+				Name = name,
+				Symbol = name,
 				Modifier = modifier,
 				ResolvedType = typeName,
 				Type = new NamedTypeReference { Name = typeName, ResolvedType = typeName }
 			});
+			index++;
 		}
 		return parameters;
 	}
@@ -6144,7 +6149,7 @@ public sealed partial class BindableNodeAnalyzer
 
 		List<ParameterDefinition> parameters = TryGetCallableNewtypeParameters(callableType, call.Arguments, out List<ParameterDefinition>? newtypeParameters)
 			? newtypeParameters!
-			: CreateStructuralCallableParameters(GetSourceCallableParameterTypes(callable));
+			: CreateStructuralCallableParameters(GetSourceCallableParameterTypes(callable), callable.Kind == "fn" ? 0 : 1);
 		if (!HasAwaitableCallback(parameters) || !TryGetAwaitableCallbackSuccessType(parameters, out returnType))
 			return false;
 

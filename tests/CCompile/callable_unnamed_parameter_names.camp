@@ -1,0 +1,32 @@
+struct First
+{
+}
+
+struct Second
+{
+}
+
+newtype delegate bool PairPredicate(First*, Second*);
+
+bool invokeFunction(fn bool(First*, Second*) callback, First* first, Second* second)
+{
+	return callback(arg0: first, arg1: second);
+}
+
+bool invokeDelegate(PairPredicate callback, First* first, Second* second)
+{
+	return callback(arg1: first, arg2: second);
+}
+
+bool bothPresent(First* first, Second* second)
+{
+	return first != default && second != default;
+}
+
+export int main()
+{
+	First first = { };
+	Second second = { };
+	PairPredicate predicate = (First* firstValue, Second* secondValue) => firstValue != default && secondValue != default;
+	return invokeFunction(bothPresent, &first, &second) && invokeDelegate(predicate, &first, &second) ? 0 : 1;
+}

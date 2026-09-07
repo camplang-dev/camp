@@ -8302,12 +8302,13 @@ public static class CCodeEmitter
 			List<(string Type, string Name)> types = [];
 			if (callable.Kind is CallableKind.Delegate or CallableKind.Once or CallableKind.Async)
 				types.Add((GetCallableContextType(parameters), "context"));
+			int parameterIndex = callable.Kind == CallableKind.Function ? 0 : 1;
 			foreach (ParameterDefinition parameter in parameters)
 			{
 				if (parameter is ThisParameterDefinition)
 					continue;
 
-				string name = CName(parameter);
+				string name = CallableParameterName(parameter, parameterIndex++);
 				string parameterType = parameter.ResolvedType ?? parameter.Type?.ResolvedType ?? "";
 				if (TryGetArrayElementOnly(parameterType, out string arrayElementType))
 				{
@@ -8354,6 +8355,14 @@ public static class CCodeEmitter
 				}, name));
 			}
 			return types;
+		}
+
+		static string CallableParameterName(ParameterDefinition parameter, int parameterIndex)
+		{
+			string sourceName = string.IsNullOrWhiteSpace(parameter.Symbol) ? parameter.Name : parameter.Symbol;
+			return string.IsNullOrWhiteSpace(sourceName)
+				? "arg" + parameterIndex.ToString(CultureInfo.InvariantCulture)
+				: SanitizeIdentifier(sourceName);
 		}
 
 		static string GetCallableContextType(List<ParameterDefinition> parameters)

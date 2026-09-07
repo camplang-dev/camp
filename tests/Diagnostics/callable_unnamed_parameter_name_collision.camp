@@ -1,0 +1,23 @@
+struct First
+{
+}
+
+struct Second
+{
+}
+
+void badFunction(fn bool(First*, Second* arg0) callback)
+{
+}
+
+void badDelegate(delegate bool(First*, Second* arg1) callback)
+{
+}
+
+void badContext(delegate bool(First* context) callback)
+{
+}
+
+void badExpandedComponent(fn void(char[], nuint arg0_length) callback)
+{
+}

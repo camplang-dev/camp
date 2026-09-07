@@ -30,6 +30,42 @@ Any compiler path that compares callables should use the shared callable-shape
 service or an equivalent centralized helper. Do not compare callable strings by
 ad hoc splitting in a feature-specific pass.
 
+### Anonymous Callable Parameter Names
+
+Anonymous callable types may omit formal parameter names, but the compiler still
+assigns source-level names to those parameters. These names are part of the
+callable surface used for named argument binding when a callable value is
+invoked.
+
+For a `fn` type, an unnamed formal parameter is named `argX`, where `X` is the
+zero-based formal parameter index:
+
+```camp
+fn bool(int, string text)
+```
+
+has formal parameter names `arg0` and `text`.
+
+For context-bearing callable families (`delegate`, `once`, `async`, and iterator
+protocol callables), slot 0 is reserved for the hidden context parameter named
+`context`. User-visible formal parameters therefore begin at `arg1`:
+
+```camp
+delegate void(int, string text)
+```
+
+has source formal parameter names `arg1` and `text`; the hidden context is not a
+source argument and cannot be supplied by a caller.
+
+Name assignment is deterministic and happens before parameter-name collision
+validation. Explicitly naming one parameter does not change the `argX` index
+chosen for any other unnamed parameter. If a compiler-assigned name collides
+with an explicitly named parameter, a hidden context name, or another parameter
+or expanded parameter component in the same callable signature, the compiler
+must report a diagnostic. It must not choose an alternate generated name to
+avoid the collision, because doing so would change the names accepted by named
+argument syntax.
+
 ## Shape Expansion
 
 Callable comparison must account for expanded forms. A source parameter such as

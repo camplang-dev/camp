@@ -222,6 +222,7 @@ public sealed partial class BindableNodeAnalyzer
 			case CallableTypeReference callable:
 				ValidateCallableSpec(callable);
 				ValidateCallableUponParameters(callable);
+				NormalizeAnonymousCallableParameterNames(callable.Parameters, callable.Kind == CallableKind.Function ? 0 : 1);
 				AnalyzeOptionalType(callable.ReturnType, scope);
 				ValidateNoDirectFixedArrayType(callable.ReturnType, callable.ReturnType?.SourceSyntax ?? callable.SourceSyntax, "a callable return type");
 				foreach (ParameterDefinition parameter in callable.Parameters)
@@ -229,14 +230,17 @@ public sealed partial class BindableNodeAnalyzer
 					AnalyzeParameterDefinition(parameter, scope);
 					ValidateNoDirectFixedArrayType(parameter.Type, parameter.Type?.SourceSyntax ?? parameter.SourceSyntax, "a callable parameter type");
 				}
+				ValidateAnonymousCallableParameterNames(callable.Parameters, callable.Kind != CallableKind.Function);
 				ValidatePrepParameterList(callable.Parameters, callable.ReturnType, callable.SourceSyntax, "callable signature", callable.Kind == CallableKind.Once);
 				type.ResolvedType = FormatTypeReference(type);
 				break;
 
 			case IterTypeReference iter:
+				NormalizeAnonymousCallableParameterNames(iter.Parameters, 1);
 				AnalyzeOptionalType(iter.ElementType, scope);
 				ValidateNoDirectFixedArrayType(iter.ElementType, iter.ElementType?.SourceSyntax ?? iter.SourceSyntax, "an iterator yield type");
 				ValidateIteratorType(iter, scope);
+				ValidateAnonymousCallableParameterNames(iter.Parameters, hasHiddenContext: true);
 				type.ResolvedType = FormatTypeReference(type);
 				break;
 
@@ -262,6 +266,83 @@ public sealed partial class BindableNodeAnalyzer
 				type.ResolvedType = ErrorType;
 				break;
 		}
+	}
+
+	void NormalizeAnonymousCallableParameterNames(List<ParameterDefinition> parameters, int firstSourceIndex)
+	{
+		int index = firstSourceIndex;
+		foreach (ParameterDefinition parameter in parameters)
+		{
+			if (parameter is ThisParameterDefinition)
+				continue;
+
+			if (string.IsNullOrWhiteSpace(parameter.Name) && string.IsNullOrWhiteSpace(parameter.Symbol))
+			{
+				parameter.Name = $"arg{index}";
+				parameter.Symbol = parameter.Name;
+			}
+			index++;
+		}
+	}
+
+	void ValidateAnonymousCallableParameterNames(List<ParameterDefinition> parameters, bool hasHiddenContext)
+	{
+		Dictionary<string, ParameterDefinition?> symbols = new(StringComparer.Ordinal);
+		Dictionary<string, string> componentSymbols = new(StringComparer.Ordinal);
+		if (hasHiddenContext)
+			symbols["context"] = null;
+
+		foreach (ParameterDefinition parameter in parameters)
+		{
+			if (parameter is ThisParameterDefinition or WithinParameterDefinition)
+				continue;
+
+			string name = parameter.Name;
+			if (string.IsNullOrWhiteSpace(name))
+				continue;
+
+			if (componentSymbols.TryGetValue(name, out string? componentOwner))
+				Report(GetNameRange(parameter) ?? GetRange(parameter.SourceSyntax), $"Symbol '{name}' is already declared in this callable signature as a component of '{componentOwner}'.");
+
+			if (symbols.TryGetValue(name, out ParameterDefinition? previous))
+			{
+				if (previous is null)
+				{
+					Report(GetNameRange(parameter) ?? GetRange(parameter.SourceSyntax), $"Callable parameter name '{name}' conflicts with the hidden context parameter.");
+				}
+				else if (IsCompilerNamedCallableParameter(parameter) || IsCompilerNamedCallableParameter(previous))
+				{
+					Report(GetNameRange(parameter) ?? GetRange(parameter.SourceSyntax), $"Callable parameter name '{name}' conflicts with a compiler-assigned name for an unnamed callable parameter.");
+				}
+				else
+				{
+					Report(GetNameRange(parameter) ?? GetRange(parameter.SourceSyntax), $"Duplicate callable parameter name '{name}'.");
+				}
+			}
+			else
+			{
+				symbols[name] = parameter;
+			}
+
+			foreach (string componentName in GetPotentialParamsComponentNames(parameter.Type, parameter.ResolvedType, parameter.Name))
+			{
+				if (componentName == parameter.Name)
+					continue;
+				if (symbols.ContainsKey(componentName) || componentSymbols.ContainsKey(componentName))
+					Report(GetNameRange(parameter) ?? GetRange(parameter.SourceSyntax), $"Symbol '{componentName}' is already declared in this callable signature as a component of '{parameter.Name}'.");
+				else
+					componentSymbols[componentName] = parameter.Name;
+			}
+		}
+	}
+
+	static bool IsCompilerNamedCallableParameter(ParameterDefinition parameter)
+	{
+		return parameter.SourceSyntax switch
+		{
+			ValueParameterSyntax { Identifier: null } => true,
+			_ => false
+		};
 	}
 
 	void ValidateCallableUponParameters(CallableTypeReference callable)

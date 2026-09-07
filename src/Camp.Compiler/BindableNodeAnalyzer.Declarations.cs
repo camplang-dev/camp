@@ -766,6 +766,7 @@ public sealed partial class BindableNodeAnalyzer
 		AnalyzeGenericParameters(definition.GenericParameters, scope);
 		RegisterParameterLifetimeAnchors(definition.Parameters, scope);
 		AnalyzeOptionalType(definition.UnderlyingType, scope);
+		NormalizeCallableNewtypeParameterNames(definition);
 		if (ContainsThisTypeReference(definition.UnderlyingType))
 			Report(GetRange(definition.UnderlyingType?.SourceSyntax ?? definition.SourceSyntax), "'this' may be used only as a plain method return type.");
 
@@ -779,9 +780,28 @@ public sealed partial class BindableNodeAnalyzer
 		ValidateSourceCaptureDefaultValues(definition.Parameters);
 		ValidateCallableNewtypeThisParameter(definition);
 		ValidateCallableNewtypeUponParameters(definition);
+		ValidateCallableNewtypeParameterNames(definition);
 		ValidateNewtypeConstOfAnchors(definition);
 
 		return scope;
+	}
+
+	void NormalizeCallableNewtypeParameterNames(NewtypeDefinition definition)
+	{
+		string family = GetCallableNewtypeFamily(definition);
+		if (family == "value")
+			return;
+
+		NormalizeAnonymousCallableParameterNames(definition.Parameters, family == "fn" ? 0 : 1);
+	}
+
+	void ValidateCallableNewtypeParameterNames(NewtypeDefinition definition)
+	{
+		string family = GetCallableNewtypeFamily(definition);
+		if (family == "value")
+			return;
+
+		ValidateAnonymousCallableParameterNames(definition.Parameters, family != "fn");
 	}
 
 	void ValidateCallableNewtypeUponParameters(NewtypeDefinition definition)

@@ -1,0 +1,4 @@
+tests/Diagnostics/callable_unnamed_parameter_name_collision.camp(9,42): error: Callable parameter name 'arg0' conflicts with a compiler-assigned name for an unnamed callable parameter.
+tests/Diagnostics/callable_unnamed_parameter_name_collision.camp(13,48): error: Callable parameter name 'arg1' conflicts with a compiler-assigned name for an unnamed callable parameter.
+tests/Diagnostics/callable_unnamed_parameter_name_collision.camp(17,38): error: Callable parameter name 'context' conflicts with the hidden context parameter.
+tests/Diagnostics/callable_unnamed_parameter_name_collision.camp(21,49): error: Symbol 'arg0_length' is already declared in this callable signature as a component of 'arg0'.
