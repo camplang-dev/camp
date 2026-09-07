@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-141.
+Next bug number: BUG-142.
 
 ## Bug Template
 
@@ -269,3 +269,50 @@ later declarations have `finally` cleanup. This can hide the original
 diagnostic and makes failure paths dependent on incidental stack contents.
 Declaring the owned local as `default` before the possible failure and assigning
 it afterward avoids the uninitialized cleanup until lowering is corrected.
+
+## BUG-141: Aggregate return storage is undeclared with a later `finally` array
+
+Date/Time: 2026-09-07 15:48 EDT
+
+Summary:
+A function returning a struct can emit invalid C when it has return paths before
+and after a later owned array local declared with `finally delete`. The cleanup
+lowering assigns aggregate return values through a generated return temporary,
+but that temporary is never declared.
+
+Steps to Reproduce:
+
+1. Compile this Camp source through the native C backend:
+
+   ```camp
+   struct Result
+   {
+       int value;
+   }
+
+   Result reproduce(bool early, bool later, within allocator)
+   {
+       if (early)
+           return { 1 };
+       int[] values = new int[1] finally delete;
+       if (later)
+           return { 2 };
+       return { 3 };
+   }
+   ```
+
+2. Compile the generated C.
+
+Expected:
+The generated function declares aggregate return storage, performs cleanup on
+every applicable path, and returns the selected `Result` value.
+
+Actual:
+The generated cleanup paths assign and return a generated `_return...`
+identifier that was never declared. The native compiler reports use of an
+undeclared identifier.
+
+Known Impact:
+Valid aggregate-returning functions with this cleanup shape cannot complete a
+native build. Explicitly delete the array on each post-allocation return path
+instead of using `finally delete` until cleanup lowering is corrected.
