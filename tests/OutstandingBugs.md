@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-145.
+Next bug number: BUG-147.
 
 ## Bug Template
 
@@ -262,3 +262,46 @@ Known Impact:
 An array-returning helper with this parameter shape can crash any native caller
 that uses its implicit allocation context. Return a small result struct carrying
 the status and array until argument lowering preserves the declared order.
+
+## BUG-146: Conditional expression eagerly evaluates a nullable receiver branch
+
+Date/Time: 2026-09-07 19:05 EDT
+
+Summary:
+A conditional expression that selects an alternate result when a receiver is
+null can still lower a method call on that null receiver before evaluating the
+condition. The source expression is required to avoid dereferencing the null
+branch, but generated native code performs the dereference unconditionally.
+
+Steps to Reproduce:
+
+1. Compile and run this Camp source through the native C backend:
+
+   ```camp
+   class Value
+   {
+       int getNumber() => 1;
+   }
+
+   int reproduce(Value* value) => value == null ? 0 : value.getNumber();
+
+   @test
+   void nullBranchDoesNotCallMember(within Allocator* allocator, thrown Assertion*)
+   {
+       assert(reproduce(null) == 0);
+   }
+   ```
+
+2. Run the generated native test artifact.
+
+Expected:
+The null condition selects `0` and does not call `getNumber`.
+
+Actual:
+The generated native code evaluates the member call before selecting the
+conditional result, dereferences null, and exits with an access violation.
+
+Known Impact:
+Nullable receivers inside conditional expressions can crash native artifacts.
+Use an explicit `if`/`return` guard before the member call until lowering keeps
+conditional branches lazy.
