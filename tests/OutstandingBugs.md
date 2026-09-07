@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-138.
+Next bug number: BUG-139.
 
 ## Bug Template
 
@@ -223,3 +223,42 @@ Known Impact:
 Native compilation fails for this otherwise valid source shape. Rename the
 local array to something other than `result` until generated identifier
 collision handling is fixed.
+
+## BUG-138: Function-pointer parameter placeholders collide in generated C
+
+Date/Time: 2026-09-06 20:47 America/Toronto
+
+Summary:
+A function signature containing a plain function-pointer parameter whose
+callable type has two or more parameters can emit the same placeholder name for
+every callable parameter. The Camp source is accepted, but the generated C
+function-pointer declaration is invalid because its parameter names collide.
+
+Steps to Reproduce:
+
+1. Compile a Camp declaration whose parameter is a plain function pointer with
+   at least two parameters, for example:
+
+   ```camp
+   struct First { }
+   struct Second { }
+
+   bool invoke(fn bool(First*, Second*) callback) => false;
+   ```
+
+2. Build the generated C with a conforming C compiler.
+
+Expected:
+The generated function-pointer parameter either omits nested parameter names or
+assigns each nested parameter a distinct valid C identifier.
+
+Actual:
+The generated declaration names both nested parameters `camp`, producing a
+shape such as `bool (*callback)(First *camp, Second *camp)`. Clang rejects the
+declaration with `error: redefinition of parameter 'camp'`.
+
+Known Impact:
+Native builds fail when an API accepts a multi-parameter plain function pointer.
+Wrapping the callable arguments in one struct parameter avoids the malformed C
+declaration, but changes the intended Camp API and is not an acceptable durable
+substitute for correct lowering.
