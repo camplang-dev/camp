@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-139.
+Next bug number: BUG-140.
 
 ## Bug Template
 
@@ -223,3 +223,49 @@ Known Impact:
 Native compilation fails for this otherwise valid source shape. Rename the
 local array to something other than `result` until generated identifier
 collision handling is fixed.
+
+## BUG-139: Early cleanup can access a later uninitialized `finally` local
+
+Date/Time: 2026-09-06 America/Toronto
+
+Summary:
+An early cleanup transfer caused by a thrown failure can execute cleanup for a
+local declared later in the function. The generated C does not give that later
+local a cleanup-active guard or initialize its storage before the earlier
+failure point, so cleanup reads an indeterminate pointer and may call a
+destructor through it.
+
+Steps to Reproduce:
+
+1. Compile and run a test with a failing operation before a later owned local:
+
+   ```camp
+   class Resource { }
+
+   @test
+   void reproduce(within Allocator* allocator, thrown Assertion*)
+   {
+       assert(false);
+       Resource* resource = new Resource() finally delete;
+   }
+   ```
+
+2. Inspect the generated C cleanup path or run it with an uninitialized stack
+   slot that contains a non-null value.
+
+Expected:
+Cleanup runs only for declarations whose initialization completed. A transfer
+before `resource` is declared must not inspect or destroy `resource`.
+
+Actual:
+The assertion failure jumps to a shared cleanup label that tests and deletes
+the uninitialized generated `resource` local. In the observed native test this
+masked the original assertion as exit code 139, with a destructor receiving
+the indeterminate pointer `0x2d`.
+
+Known Impact:
+Ordinary thrown failures can become undefined behavior or native crashes when
+later declarations have `finally` cleanup. This can hide the original
+diagnostic and makes failure paths dependent on incidental stack contents.
+Declaring the owned local as `default` before the possible failure and assigning
+it afterward avoids the uninitialized cleanup until lowering is corrected.
