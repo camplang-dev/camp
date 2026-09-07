@@ -362,7 +362,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (exitScope.ReturnTarget is null)
 		{
 			DeclarationStatement returnLocal = CreateGeneratedLocal(NewGeneratedLocalName("return"), returnType, new NamedTypeReference { Name = returnType, ResolvedType = returnType }, new DefaultExpression { ResolvedType = returnType });
-			currentStatementPrefix?.Add(returnLocal);
+			exitScope.PreludeStatements.Add(returnLocal);
 			exitScope.ReturnTarget = returnLocal.Target;
 		}
 

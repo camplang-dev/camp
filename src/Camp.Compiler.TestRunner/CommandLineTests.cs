@@ -377,6 +377,146 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Native_conditional_slice_initializer_preserves_selected_array_view()
+	{
+		string root = TempPath("native-conditional-slice-initializer");
+		ResetDirectory(root);
+		Directory.CreateDirectory(Path.Combine(root, "src"));
+		File.WriteAllText(Path.Combine(root, "src", "main.camp"), """
+			export int main()
+			{
+				fixed byte[4] source = default;
+				source[0] = 1;
+				source[1] = 2;
+				source[2] = 3;
+				source[3] = 4;
+				byte[] selected = true ? source[1..3] : source[0..2];
+				if (selected.length != 2)
+					return 1;
+				return selected[0] == 2 && selected[1] == 3 ? 0 : 2;
+			}
+			""");
+		File.WriteAllText(Path.Combine(root, "app.campbuild"), """
+			--nostdlib
+			--artifact exec
+			src/*.camp
+			""");
+
+		ProcessResult result = RunCampcIn(root, "run", "app.campbuild", "--target", NativeTargetForHost(), "--out-dir", Path.Combine(root, "out"), "--name", "conditional_slice_initializer");
+
+		AssertCommandSucceeded(result);
+	}
+
+	[Fact]
+	public void Native_cleanup_return_declares_result_storage_outside_nested_cleanup_exit()
+	{
+		string root = TempPath("native-cleanup-return-storage");
+		ResetDirectory(root);
+		Directory.CreateDirectory(Path.Combine(root, "src"));
+		File.WriteAllText(Path.Combine(root, "src", "main.camp"), """
+			export int main()
+			{
+				return choose(true) == 1 && choose(false) == 2 ? 0 : 1;
+			}
+
+			int choose(bool early)
+			{
+				int[] values = new int[1] finally delete;
+				if (early)
+				{
+					return 1;
+				}
+				return 2;
+			}
+			""");
+		File.WriteAllText(Path.Combine(root, "app.campbuild"), """
+			--artifact exec
+			src/*.camp
+			""");
+
+		ProcessResult result = RunCampcIn(root, "run", "app.campbuild", "--target", NativeTargetForHost(), "--out-dir", Path.Combine(root, "out"), "--name", "cleanup_return_storage");
+
+		AssertCommandSucceeded(result);
+	}
+
+	[Fact]
+	public void Expanded_return_result_component_name_collision_reports_source_error()
+	{
+		string source = CreateTempCase("expanded_return_result_collision/main.camp", """
+			byte[] copyBytes(const byte[] source, within allocator)
+			{
+				byte[] result = new byte[source.length];
+				return result;
+			}
+			""");
+
+		ProcessResult result = RunCampc("build", source, "--artifact", "none");
+
+		Assert.NotEqual(0, result.ExitCode);
+		Assert.Contains("Symbol 'result_length' is already declared in this scope as a component of 'result'.", result.StdErr, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Native_expanded_argument_default_binding_does_not_append_supplied_defaults()
+	{
+		string root = TempPath("native-expanded-default-binding");
+		ResetDirectory(root);
+		Directory.CreateDirectory(Path.Combine(root, "src"));
+		File.WriteAllText(Path.Combine(root, "src", "main.camp"), """
+			export int main()
+			{
+				fixed char[160] output = default;
+				fixed byte[32] hash = default;
+				return make(output, hash, "other", "1.2.0") == 7 ? 0 : 1;
+			}
+
+			uint make(char[] output, const byte[] hash,
+				const char[] identity = "textlib",
+				const char[] version = "1.2.0")
+			{
+				if (output.length != 160 || hash.length != 32)
+					return 1;
+				if (identity.length != 5 || version.length != 5)
+					return 2;
+				return 7;
+			}
+			""");
+		File.WriteAllText(Path.Combine(root, "app.campbuild"), """
+			--nostdlib
+			--artifact exec
+			src/*.camp
+			""");
+
+		ProcessResult result = RunCampcIn(root, "run", "app.campbuild", "--target", NativeTargetForHost(), "--out-dir", Path.Combine(root, "out"), "--name", "expanded_default_binding");
+
+		AssertCommandSucceeded(result);
+	}
+
+	[Fact]
+	public void Test_cleanup_does_not_delete_later_uninitialized_finally_local_after_early_failure()
+	{
+		string source = CreateTempCase("early_cleanup_later_finally/main.camp", """
+			class Resource
+			{
+			}
+
+			@test
+			void failsBeforeLaterFinally(within Allocator* allocator, thrown Assertion*)
+			{
+				assert(false);
+				Resource* resource = new Resource() finally delete;
+			}
+			""");
+		string outDir = TempPath("early-cleanup-later-finally-out");
+
+		ProcessResult result = RunCampc("test", source, "--target", NativeTargetForHost(), "--out-dir", outDir, "--name", "early_cleanup_later_finally");
+
+		Assert.Equal(1, result.ExitCode);
+		Assert.Contains("failed: failsBeforeLaterFinally", result.StdOut, StringComparison.Ordinal);
+		Assert.DoesNotContain("exit code 139", result.StdOut + result.StdErr, StringComparison.Ordinal);
+	}
+
+	[Fact]
 	public void Native_value_struct_delegate_host_does_not_corrupt_text_parsing()
 	{
 		string root = TempPath("native-value-struct-delegate-host-text-parsing");

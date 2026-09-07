@@ -56,6 +56,7 @@ public sealed partial class BindableNodeAnalyzer
 					RegisterBodySymbol(scope, parameter.Name, parameterType, parameter, parameter.Type, parameterType);
 				}
 			}
+			RegisterExpandedReturnComponentSymbols(function, scope);
 			scope.CurrentWithinContextLifetimeFact = GetWithinParameter(function)?.ValueLifetimeFact ?? GetWithinParameter(function)?.SlotLifetimeFact;
 
 			function.Body.ResolvedType = "void";
@@ -71,6 +72,31 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			currentAnalysisFunction = previousAnalysisFunction;
 			currentAnalysisContainingType = previousAnalysisContainingType;
+		}
+	}
+
+	void RegisterExpandedReturnComponentSymbols(FunctionDefinition function, BodyScope scope)
+	{
+		string? returnType = IsLifecycleFunction(function) ? "void" : function.ResolvedType ?? function.ReturnType?.ResolvedType;
+		if (returnType == "void"
+			|| function.ReturnType is null
+			|| !TryGetParamsComponentShape(function.ReturnType, returnType, "result", out ParamsComponentShape shape)
+			|| shape.Components.Count <= 1)
+		{
+			return;
+		}
+
+		foreach (ParamsComponent component in shape.Components)
+		{
+			if (component.ExpandedName == "result")
+				continue;
+			if (scope.Symbols.ContainsKey(component.ExpandedName) || scope.TryLookupComponent(component.ExpandedName, out _))
+			{
+				Report(GetRange(function.SourceSyntax), $"Symbol '{component.ExpandedName}' is already declared in this scope as a component of 'result'.");
+				continue;
+			}
+			scope.ComponentSymbols[component.ExpandedName] = "result";
+			scope.ComponentSymbolTypes[component.ExpandedName] = new BodyComponentSymbol(component.Name, component.ExpandedName, component.Type, "result");
 		}
 	}
 

@@ -1043,6 +1043,9 @@ public sealed partial class BindableNodeAnalyzer
 			&& shape.Components.Count == 2)
 			return true;
 
+		if (TryGetFixedArrayShape(type, out _, out _))
+			return true;
+
 		return false;
 	}
 
