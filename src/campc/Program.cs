@@ -968,11 +968,20 @@ static bool TryBuildRequest(string[] args, CliEnvironment environment, CommandKi
 				string.Join('\u001f', consumerRequest.Variants),
 				instrumentForCoverage,
 				requireLibrary);
-			if (cache.TryGet(cacheKey, out ProjectReferenceResolution? cachedResolution) && cachedResolution is not null)
+			if (cache.TryGet(cacheKey, out ProjectReferenceBuildEntry? cachedEntry) && cachedEntry is not null)
 			{
-				if (consumerRequest.Verbose)
-					Console.Out.WriteLine($"{projectReference}: project reference {cachedResolution.ProjectName}: reused");
-				AddProjectReferenceResolution(consumerRequest, effectiveLinkKind, cachedResolution, apiHeaders, sharedApiHeaders, libraries);
+				if (cachedEntry.Resolution is not null)
+				{
+					if (consumerRequest.Verbose)
+						Console.Out.WriteLine($"{projectReference}: project reference {cachedEntry.Resolution.ProjectName}: reused");
+					AddProjectReferenceResolution(consumerRequest, effectiveLinkKind, cachedEntry.Resolution, apiHeaders, sharedApiHeaders, libraries);
+				}
+				else if (cachedEntry.Failure is not null)
+				{
+					if (consumerRequest.Verbose)
+						Console.Out.WriteLine($"{projectReference}: project reference {cachedEntry.Failure.ProjectName}: reused failed result");
+					AddProjectReferenceFailure(projectReference, cachedEntry.Failure, errors);
+				}
 				continue;
 			}
 			projectArgs = RemoveProjectReferenceOverrideOptions(projectArgs);
@@ -1036,6 +1045,7 @@ static bool TryBuildRequest(string[] args, CliEnvironment environment, CommandKi
 					errors.Add(result.StdErr.TrimEnd());
 				if (!string.IsNullOrWhiteSpace(result.StdOut))
 					errors.Add(result.StdOut.TrimEnd());
+				cache.Add(cacheKey, CreateProjectReferenceFailure(projectRequest, canonicalBuildFile, result));
 				continue;
 			}
 
@@ -1074,6 +1084,22 @@ static bool TryBuildRequest(string[] args, CliEnvironment environment, CommandKi
 			}
 		}
 		return errors.Count == 0;
+	}
+
+	static ProjectReferenceFailure CreateProjectReferenceFailure(CompilerRequest projectRequest, string buildFile, CompilerResult result)
+	{
+		List<string> details = [];
+		if (!string.IsNullOrWhiteSpace(result.StdErr))
+			details.Add(result.StdErr.TrimEnd());
+		if (!string.IsNullOrWhiteSpace(result.StdOut))
+			details.Add(result.StdOut.TrimEnd());
+		return new ProjectReferenceFailure(ProjectReferenceOutputName(projectRequest, buildFile), details);
+	}
+
+	static void AddProjectReferenceFailure(string projectReference, ProjectReferenceFailure failure, List<string> errors)
+	{
+		errors.Add($"{projectReference}: project reference build failed.");
+		errors.AddRange(failure.Details);
 	}
 
 	static ProjectReferenceResolution CreateProjectReferenceResolution(CompilerRequest projectRequest, string buildFile, DependencyLinkKind effectiveLinkKind, NativeBuildKind referenceBuildKind, TargetDefinition? target, string apiHeader, string? library, string? coverageMap)
@@ -3482,18 +3508,42 @@ sealed record ProjectReferenceResolution(
 	IReadOnlyList<string> LinkArtifacts,
 	string? CoverageMap);
 
+sealed record ProjectReferenceFailure(
+	string ProjectName,
+	IReadOnlyList<string> Details);
+
+sealed record ProjectReferenceBuildEntry(
+	ProjectReferenceResolution? Resolution,
+	ProjectReferenceFailure? Failure)
+{
+	public static ProjectReferenceBuildEntry Succeeded(ProjectReferenceResolution resolution)
+	{
+		return new ProjectReferenceBuildEntry(resolution, null);
+	}
+
+	public static ProjectReferenceBuildEntry Failed(ProjectReferenceFailure failure)
+	{
+		return new ProjectReferenceBuildEntry(null, failure);
+	}
+}
+
 sealed class ProjectReferenceBuildCache
 {
-	readonly Dictionary<ProjectReferenceBuildKey, ProjectReferenceResolution> resolutions = new();
+	readonly Dictionary<ProjectReferenceBuildKey, ProjectReferenceBuildEntry> entries = new();
 
-	public bool TryGet(ProjectReferenceBuildKey key, out ProjectReferenceResolution? resolution)
+	public bool TryGet(ProjectReferenceBuildKey key, out ProjectReferenceBuildEntry? entry)
 	{
-		return resolutions.TryGetValue(key, out resolution);
+		return entries.TryGetValue(key, out entry);
 	}
 
 	public void Add(ProjectReferenceBuildKey key, ProjectReferenceResolution resolution)
 	{
-		resolutions[key] = resolution;
+		entries[key] = ProjectReferenceBuildEntry.Succeeded(resolution);
+	}
+
+	public void Add(ProjectReferenceBuildKey key, ProjectReferenceFailure failure)
+	{
+		entries[key] = ProjectReferenceBuildEntry.Failed(failure);
 	}
 }
 

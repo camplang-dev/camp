@@ -1451,6 +1451,72 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Static_project_reference_graph_reuses_failed_transitive_build()
+	{
+		string root = TempPath("static-project-reference-failed-graph");
+		string aRoot = Path.Combine(root, "a");
+		string bRoot = Path.Combine(root, "b");
+		string appRoot = Path.Combine(root, "app");
+		Directory.CreateDirectory(aRoot);
+		Directory.CreateDirectory(bRoot);
+		Directory.CreateDirectory(appRoot);
+
+		File.WriteAllText(Path.Combine(aRoot, "a.camp"), """
+			namespace FailedStaticA;
+
+			export int aValue()
+			{
+				return missingValue();
+			}
+			""".Replace("\r\n", "\n", StringComparison.Ordinal));
+		File.WriteAllText(Path.Combine(aRoot, "a.campbuild"), """
+			--artifact static
+			--name failed_static_a
+			a.camp
+			""".Replace("\r\n", "\n", StringComparison.Ordinal));
+
+		File.WriteAllText(Path.Combine(bRoot, "b.camp"), """
+			using FailedStaticA;
+			namespace FailedStaticB;
+
+			export int bValue()
+			{
+				return aValue() + 20;
+			}
+			""".Replace("\r\n", "\n", StringComparison.Ordinal));
+		File.WriteAllText(Path.Combine(bRoot, "b.campbuild"), """
+			--artifact static
+			--name failed_static_b
+			--project-reference ../a/a.campbuild:static
+			b.camp
+			""".Replace("\r\n", "\n", StringComparison.Ordinal));
+
+		File.WriteAllText(Path.Combine(appRoot, "app.camp"), """
+			using FailedStaticA;
+			using FailedStaticB;
+
+			export int main()
+			{
+				return aValue() + bValue();
+			}
+			""".Replace("\r\n", "\n", StringComparison.Ordinal));
+		File.WriteAllText(Path.Combine(appRoot, "app.campbuild"), """
+			--artifact exec
+			--name failed_static_app
+			--project-reference ../a/a.campbuild:static
+			--project-reference ../b/b.campbuild:static
+			app.camp
+			""".Replace("\r\n", "\n", StringComparison.Ordinal));
+
+		ProcessResult build = RunCampcIn(appRoot, "build", "app.campbuild", "--nostdlib", "--target", NativeTargetForHost(), "--verbose");
+
+		Assert.NotEqual(0, build.ExitCode);
+		Assert.Equal(1, CountOccurrences(build.StdOut, "project reference failed_static_a: rebuilding"));
+		Assert.Contains("project reference failed_static_a: reused failed result", build.StdOut, StringComparison.Ordinal);
+		Assert.Contains("missingValue", build.StdErr + build.StdOut, StringComparison.Ordinal);
+	}
+
+	[Fact]
 	public void Static_project_reference_rebuilds_dirty_transitive_archive()
 	{
 		string root = TempPath("static-project-reference-dirty-archive");
