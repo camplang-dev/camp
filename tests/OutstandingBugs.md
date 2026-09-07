@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-143.
+Next bug number: BUG-144.
 
 ## Bug Template
 
@@ -165,3 +165,53 @@ Loops that use `finally` ownership can silently skip later iterations. Declare
 the owner outside the loop when practical, or use an explicit nested scope with
 deterministic deletion after each iteration until loop cleanup lowering is
 corrected.
+
+## BUG-143: Test construction of an internal class doubles its emitted name
+
+Date/Time: 2026-09-07 17:03 EDT
+
+Summary:
+When a test source constructs an `internal` class declared in another source
+file of the same module, native lowering can emit a doubled namespace prefix
+for the constructor call. The class is correctly visible to the test source,
+but the generated C calls an undeclared constructor symbol.
+
+Steps to Reproduce:
+
+1. Put this declaration in one source file of a Camp module:
+
+   ```camp
+   namespace Sample;
+   internal sealed class TraceSink
+   {
+       TraceSink() { }
+   }
+   ```
+
+2. Put this maintained `@test` in another source file of the same module:
+
+   ```camp
+   requires (TEST_MODULE);
+   namespace Sample;
+   @test void reproduce(within Allocator* allocator, thrown Assertion*)
+   {
+       TraceSink* sink = new TraceSink() finally delete;
+       assert(sink != null);
+   }
+   ```
+
+3. Compile the module's native test artifact.
+
+Expected:
+The generated test calls the constructor using the same emitted symbol declared
+for `TraceSink`.
+
+Actual:
+The generated C can call an undeclared doubled name such as
+`SampleSampleTraceSink_op_initnew`, while the declared symbol has only one
+namespace prefix. Clang rejects the test artifact.
+
+Known Impact:
+Valid same-module tests cannot instantiate internal helper classes. Keep the
+test operation behind a same-file helper or avoid direct construction until
+constructor name lowering is corrected.
