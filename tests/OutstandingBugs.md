@@ -215,3 +215,50 @@ Known Impact:
 Valid same-module tests cannot instantiate internal helper classes. Keep the
 test operation behind a same-file helper or avoid direct construction until
 constructor name lowering is corrected.
+
+## BUG-145: Implicit allocator is reordered for an array return with one `out` parameter
+
+Date/Time: 2026-09-07 18:45 EDT
+
+Summary:
+When a function returns an array, accepts one ordinary `out` parameter, and
+accepts a trailing `within` parameter, a caller that relies on the implicit
+current allocation context can lower the `within` argument in the `out` slot.
+The generated native call then treats the output address as an allocator,
+causing an invalid memory access.
+
+Steps to Reproduce:
+
+1. Compile and run this Camp source through the native C backend:
+
+   ```camp
+   byte[] reproduce(out int status, within allocator)
+   {
+       status = 0;
+       return new byte[1];
+   }
+
+   @test
+   void callReproduce(within Allocator* allocator, thrown Assertion*)
+   {
+       int status = 1;
+       byte[] value = reproduce(out status) finally delete;
+       assert(status == 0 && value.length == 1);
+   }
+   ```
+
+2. Run the generated native test artifact.
+
+Expected:
+The implicit allocation context is passed to the `within` parameter and the
+address of `status` is passed to the `out` parameter, so the test completes.
+
+Actual:
+The generated call passes the allocator where the output address belongs and
+passes the output address where the allocator belongs. The callee dereferences
+the invalid allocator value and the test exits with signal 139.
+
+Known Impact:
+An array-returning helper with this parameter shape can crash any native caller
+that uses its implicit allocation context. Return a small result struct carrying
+the status and array until argument lowering preserves the declared order.
