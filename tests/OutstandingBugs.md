@@ -229,15 +229,22 @@ collision handling is fixed.
 Date/Time: 2026-09-06 20:47 America/Toronto
 
 Summary:
-A function signature containing a plain function-pointer parameter whose
-callable type has two or more parameters can emit the same placeholder name for
-every callable parameter. The Camp source is accepted, but the generated C
+Since alpha commit `bcbe0710` ("Fix expanded lambda callable lowering", 2026-06-28),
+a function signature containing a plain function-pointer parameter whose nested
+callable parameters are unnamed can emit the same fallback name for every
+callable parameter. The Camp source is accepted, but the generated C
 function-pointer declaration is invalid because its parameter names collide.
+
+This is a regression in the named-declarator callable-emission branch. Other
+paths already generate distinct `arg0`, `arg1`, ... names, and the pre-regression
+formatter deduplicated these names. Multi-argument callable newtypes and
+delegate callbacks have therefore continued to compile; this branch had no
+C-compiling coverage for an unnamed, directly spelled `fn` parameter.
 
 Steps to Reproduce:
 
 1. Compile a Camp declaration whose parameter is a plain function pointer with
-   at least two parameters, for example:
+   at least two unnamed nested parameters, for example:
 
    ```camp
    struct First { }
@@ -258,7 +265,8 @@ shape such as `bool (*callback)(First *camp, Second *camp)`. Clang rejects the
 declaration with `error: redefinition of parameter 'camp'`.
 
 Known Impact:
-Native builds fail when an API accepts a multi-parameter plain function pointer.
-Wrapping the callable arguments in one struct parameter avoids the malformed C
-declaration, but changes the intended Camp API and is not an acceptable durable
+Native builds fail when an API accepts a multi-parameter plain function pointer
+with unnamed nested parameters. Supplying distinct Camp names for the nested
+parameters avoids this particular malformed declaration, as does wrapping the
+callable arguments in one struct parameter, but neither is an acceptable durable
 substitute for correct lowering.
