@@ -323,11 +323,12 @@ public sealed partial class BindableNodeAnalyzer
 					return;
 				}
 
+				Expression withinArgument = CurrentWithinArgument(call.SourceSyntax ?? call.Target?.SourceSyntax);
 				call.Arguments.Insert(argumentIndex, new ArgumentExpression
 				{
 					SourceSyntax = call.SourceSyntax ?? call.Target?.SourceSyntax,
-					Value = CurrentWithinArgument(call.SourceSyntax ?? call.Target?.SourceSyntax),
-					ResolvedType = currentWithinContext?.ResolvedType ?? "#NULL"
+					Value = withinArgument,
+					ResolvedType = withinArgument.ResolvedType
 			});
 			return;
 			}

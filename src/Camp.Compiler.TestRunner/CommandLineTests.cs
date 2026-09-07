@@ -517,6 +517,47 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Native_nested_command_dispatch_preserves_implicit_within_allocator()
+	{
+		string source = CreateTempCase("nested_within_command_dispatch/main.camp", """
+			char[] copyText(const char[] name, const char[] source, within allocator)
+			{
+				char[] copy = new char[source.length];
+				return copy;
+			}
+
+			int selectedCommand(const char[] name, const char[] source, within allocator)
+			{
+				char[] copy = copyText(name, source) finally delete;
+				return copy.length == source.length ? 0 : 1;
+			}
+
+			int dispatch(int command, const char[] name, const char[] source, within allocator)
+			{
+				switch (command)
+				{
+					case 1:
+						return selectedCommand(name, source);
+					default:
+						return 2;
+				}
+			}
+
+			@test
+			void nestedDispatchKeepsAllocator(within Allocator* allocator, thrown Assertion*)
+			{
+				assert(dispatch(1, "cmd", "dispatch") == 0);
+			}
+			""");
+		string outDir = TempPath("nested-within-command-dispatch-out");
+
+		ProcessResult result = RunCampc("test", source, "--target", NativeTargetForHost(), "--out-dir", outDir, "--name", "nested_within_command_dispatch");
+
+		AssertCommandSucceeded(result);
+		Assert.Contains("passed: nestedDispatchKeepsAllocator", result.StdOut, StringComparison.Ordinal);
+	}
+
+	[Fact]
 	public void Native_value_struct_delegate_host_does_not_corrupt_text_parsing()
 	{
 		string root = TempPath("native-value-struct-delegate-host-text-parsing");

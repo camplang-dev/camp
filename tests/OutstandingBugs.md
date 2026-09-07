@@ -215,32 +215,3 @@ Known Impact:
 Valid same-module tests cannot instantiate internal helper classes. Keep the
 test operation behind a same-file helper or avoid direct construction until
 constructor name lowering is corrected.
-
-## BUG-144: `within` allocator is corrupted through a nested command dispatch
-
-Date/Time: 2026-09-07 17:25 EDT
-
-Summary:
-A `within` allocator can be corrupted when a command dispatcher calls a nested
-function that then calls another `within`-aware helper. The helper receives a
-non-null invalid allocator pointer and crashes while allocating, although a
-direct call to that helper with the same caller allocator succeeds.
-
-Steps to Reproduce:
-
-1. Create a `within`-aware helper that allocates a copied string.
-2. Call it from a second `within`-aware function selected by a `switch` in a
-   third `within`-aware command dispatcher.
-3. Invoke the dispatcher from a test with a valid allocator.
-
-Expected:
-Every nested call receives the original valid allocator context.
-
-Actual:
-The generated native call can pass an invalid non-null allocator address. The
-callee crashes while evaluating the allocator's `alloc` slot.
-
-Known Impact:
-Nested CLI command handlers that perform owned allocations can crash before
-returning a status. Keep the command path out of qualification until allocator
-context lowering is corrected.

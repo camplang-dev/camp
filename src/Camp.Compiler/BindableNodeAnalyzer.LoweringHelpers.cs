@@ -679,12 +679,12 @@ public sealed partial class BindableNodeAnalyzer
 
 	Expression? CurrentAllocator()
 	{
-		return currentWithinContext;
+		return CloneParamsExpansionExpression(currentWithinContext) ?? currentWithinContext;
 	}
 
 	Expression CurrentWithinArgument(SyntaxNode? syntax = null)
 	{
-		return currentWithinContext ?? new LiteralExpression
+		return CloneParamsExpansionExpression(currentWithinContext) ?? new LiteralExpression
 		{
 			SourceSyntax = syntax,
 			Kind = LiteralKind.Null,
