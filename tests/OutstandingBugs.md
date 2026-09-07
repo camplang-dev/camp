@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-142.
+Next bug number: BUG-143.
 
 ## Bug Template
 
@@ -120,3 +120,48 @@ Known Impact:
 Valid aggregate-returning functions with this cleanup shape cannot complete a
 native build. Explicitly delete the array on each post-allocation return path
 instead of using `finally delete` until cleanup lowering is corrected.
+
+## BUG-142: `finally` owner in a loop returns after the first iteration
+
+Date/Time: 2026-09-07 16:52 EDT
+
+Summary:
+An owner declared with `finally delete` inside a loop body can cause the native
+C lowering to return from the containing function after the first iteration.
+The source has no return statement in the loop. Cleanup must end the local
+owner's iteration scope and then continue the loop.
+
+Steps to Reproduce:
+
+1. Compile and run this Camp source through the native C backend:
+
+   ```camp
+   int reproduce(within allocator)
+   {
+       int completed = 0;
+       for (int index = 0; index < 4; index++)
+       {
+           int[] values = new int[1] finally delete;
+           values[0] = index;
+           completed++;
+       }
+       return completed;
+   }
+   ```
+
+2. Inspect the generated C or observe the returned value.
+
+Expected:
+`reproduce` destroys each iteration's local array and returns `4` after all four
+iterations.
+
+Actual:
+The generated C emits `return _return...;` after cleanup at the end of the
+first loop body, so the function returns the default result before the loop
+continues.
+
+Known Impact:
+Loops that use `finally` ownership can silently skip later iterations. Declare
+the owner outside the loop when practical, or use an explicit nested scope with
+deterministic deletion after each iteration until loop cleanup lowering is
+corrected.
