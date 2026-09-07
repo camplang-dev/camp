@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-140.
+Next bug number: BUG-141.
 
 ## Bug Template
 
@@ -269,3 +269,42 @@ later declarations have `finally` cleanup. This can hide the original
 diagnostic and makes failure paths dependent on incidental stack contents.
 Declaring the owned local as `default` before the possible failure and assigning
 it afterward avoids the uninitialized cleanup until lowering is corrected.
+
+## BUG-140: Failed project references are rebuilt once per dependency path
+
+Date/Time: 2026-09-07 10:57 EDT
+
+Summary:
+A project-reference build failure is not memoized within one compiler command.
+When a project is reachable through more than one path in the static-reference
+graph, the compiler analyzes that same failing project again for each path.
+The duplicated work grows with the graph and can make a build appear hung when
+the failing project is large.
+
+Steps to Reproduce:
+
+1. Create static library project `a` with a deterministic semantic error, such
+   as a function body that calls an undefined symbol.
+2. Create static library project `b` with
+   `--project-reference ../a/a.campbuild:static`.
+3. Create executable project `app` with static project references to both `a`
+   and `b`.
+4. Run `campc build app/app.campbuild --verbose --timing`.
+5. Count the `project reference a: rebuilding` lines and the timed analyses of
+   project `a`.
+
+Expected:
+The compiler analyzes `a` once, caches its failed resolution for the remainder
+of the command, and reports the original diagnostic through every dependent
+path without repeating semantic analysis.
+
+Actual:
+The compiler prints `project reference a: rebuilding` twice and performs two
+complete analyses of `a`: once for the direct reference and again through `b`.
+Additional dependency paths cause additional rebuild attempts.
+
+Known Impact:
+A single error in a large, widely referenced module can multiply diagnostic
+latency by minutes and look like a nonterminating bootstrap build. Building the
+failing project directly exposes the diagnostic after one analysis; fixing that
+diagnostic also avoids the repeated work.
