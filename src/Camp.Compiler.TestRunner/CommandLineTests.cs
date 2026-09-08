@@ -4361,6 +4361,40 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Exported_class_private_constructor_lifecycle_helpers_remain_private()
+	{
+		string root = TempPath("exported-class-private-constructor-lifecycle");
+		string sourceRoot = Path.Combine(root, "src");
+		Directory.CreateDirectory(sourceRoot);
+		File.WriteAllText(Path.Combine(sourceRoot, "library.camp"), """
+			namespace Repro;
+
+			escaped class Hidden
+			{
+			}
+
+			export escaped class Public
+			{
+				Public(escaped Hidden* hidden, within this.allocator)
+				{
+				}
+			}
+			""");
+		File.WriteAllText(Path.Combine(root, "library.campbuild"), """
+			--name private-constructor-lifecycle
+			src/*.camp
+			""");
+		string target = NativeTargetForHost();
+
+		ProcessResult result = RunCampc("build", Path.Combine(root, "library.campbuild"), "--target", target);
+
+		AssertCommandSucceeded(result);
+		string api = File.ReadAllText(Path.Combine(root, "bin", ArtifactDirectoryForTarget(target, NativeBuildKind.Static), "private-constructor-lifecycle_api.camp"));
+		Assert.DoesNotContain("op_initnew", api, StringComparison.Ordinal);
+		Assert.DoesNotContain("create", api, StringComparison.Ordinal);
+	}
+
+	[Fact]
 	public void Native_build_rebuilds_objects_when_private_header_changes()
 	{
 		string root = TempPath("native-private-header-incremental");

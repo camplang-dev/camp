@@ -1951,7 +1951,6 @@ public sealed partial class BindableNodeAnalyzer
 		method.Export = constructor.Export;
 		method.Public = constructor.Public;
 		method.Internal = constructor.Internal;
-		ApplyOwnerVisibilityToGeneratedLifecycleMethod(type, method);
 		method.Extern = constructor.Extern;
 		method.ReturnType = VoidType();
 		method.ResolvedType = "void";
@@ -1979,7 +1978,6 @@ public sealed partial class BindableNodeAnalyzer
 		method.Export = constructor.Export;
 		method.Public = constructor.Public;
 		method.Internal = constructor.Internal;
-		ApplyOwnerVisibilityToGeneratedLifecycleMethod(type, method);
 		method.Extern = constructor.Extern;
 		method.Modifier = FunctionModifier.Static;
 		method.ReturnType = PointerTo(CloneType(typeReference)!);

@@ -239,68 +239,6 @@ the source program does not execute it. Split the false guard into an early
 return, then evaluate the expression unconditionally only on the remaining
 path until lowering preserves branch evaluation order.
 
-## BUG-149: Exported class promotes file-private constructor lifecycle helpers
-
-Date/Time: 2026-09-08 06:43 EDT
-
-Summary:
-An explicit file-private constructor on an exported class is expanded into
-exported `op_initnew` and `create` declarations. This both changes the declared
-visibility and causes an erroneous exported-API diagnostic when the constructor
-uses a file-private implementation type. The corresponding explicit `internal`
-constructor does not receive this incorrect export projection.
-
-Steps to Reproduce:
-
-1. Save this source as `repro.camp`:
-
-   ```camp
-   namespace Repro;
-
-   escaped class Hidden
-   {
-   }
-
-   export escaped class Public
-   {
-       Public(escaped Hidden* hidden, within this.allocator)
-       {
-       }
-   }
-   ```
-
-2. Save this project as `repro.campbuild` beside it:
-
-   ```text
-   --sourcefile-root .
-   --out-dir bin
-   --name repro
-   repro.camp
-   ```
-
-3. Run `campc build repro.campbuild` with
-   `v0.11.0-preview.1+f6feb41bd542c54884c9c29eded7db3575a22da4`.
-
-Expected:
-The explicit constructor and its generated lifecycle declarations remain
-file-private. The project builds because no exported declaration exposes
-`Hidden`.
-
-Actual:
-Compilation fails at the constructor parameter with:
-
-```text
-error: Exported declaration 'op_initnew' exposes non-exported type 'Hidden'.
-error: Exported declaration 'create' exposes non-exported type 'Hidden'.
-```
-
-Known Impact:
-Exported classes cannot keep constructors that mention file-private
-implementation types file-private. Declaring the constructor `internal` is a
-safe but broader-visibility workaround; it unnecessarily exposes construction
-within the whole module. This file-private case remains reproducible after the
-fix for BUG-143's internal-lifecycle visibility case.
-
 ## BUG-150: Conditional slice return omits the returned length
 
 Date/Time: 2026-09-08 08:01 EDT
