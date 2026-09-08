@@ -209,59 +209,6 @@ Nullable receivers inside conditional expressions can crash native artifacts.
 Use an explicit `if`/`return` guard before the member call until lowering keeps
 conditional branches lazy.
 
-## BUG-147: Successful nested `finally` scope returns before outer cleanup
-
-Date/Time: 2026-09-07 19:33 EDT
-
-Summary:
-When a function owns a resource with `finally delete`, enters a nested scope
-that owns another resource with `finally delete`, and completes the nested
-scope with a `return`, native lowering can return immediately after the nested
-cleanup. This bypasses the outer cleanup that must run before the function
-returns.
-
-Steps to Reproduce:
-
-1. Compile and run this Camp source through the native C backend:
-
-   ```camp
-   class Value { }
-
-   int reproduce(bool nested, within allocator)
-   {
-       Value* outer = new Value() finally delete;
-       if (nested)
-       {
-           Value* inner = new Value() finally delete;
-           return 1;
-       }
-       return 2;
-   }
-
-   @test
-   void nestedReturnCleansBothOwners(within Allocator* allocator,
-       thrown Assertion*)
-   {
-       assert(reproduce(true) == 1);
-   }
-   ```
-
-2. Run the generated native test artifact with allocation tracking enabled.
-
-Expected:
-Both `inner` and `outer` are destroyed before `reproduce` returns.
-
-Actual:
-Generated C performs the inner cleanup and returns its generated temporary
-directly from the nested scope. The outer cleanup label is bypassed, leaving
-the outer allocation live.
-
-Known Impact:
-Any successful return from a nested `finally` scope can leak outer owned
-resources. Restructure the function so the nested scope records a result and
-falls through to the outer cleanup, or use explicit deterministic deletion
-before returning, until cleanup lowering chains through every enclosing scope.
-
 ## BUG-148: Conditional return expression is evaluated when its branch is false
 
 Date/Time: 2026-09-07 20:18 EDT

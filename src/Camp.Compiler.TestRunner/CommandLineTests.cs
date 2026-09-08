@@ -622,6 +622,40 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Native_nested_finally_return_cleans_outer_owner()
+	{
+		string source = CreateTempCase("nested_finally_return_cleanup/main.camp", """
+			class Value
+			{
+			}
+
+			int reproduce(bool nested, within allocator)
+			{
+				Value* outer = new Value() finally delete;
+				if (nested)
+				{
+					Value* inner = new Value() finally delete;
+					return 1;
+				}
+				return 2;
+			}
+
+			@test
+			void nestedReturnCleansBothOwners(within Allocator* allocator, thrown Assertion*)
+			{
+				assert(reproduce(true) == 1);
+			}
+			""");
+		string outDir = TempPath("nested-finally-return-cleanup-out");
+
+		ProcessResult result = RunCampc("test", source, "--target", NativeTargetForHost(), "--out-dir", outDir, "--name", "nested_finally_return_cleanup");
+
+		AssertCommandSucceeded(result);
+		Assert.Contains("passed: nestedReturnCleansBothOwners", result.StdOut, StringComparison.Ordinal);
+		Assert.DoesNotContain("memory leak", result.StdOut, StringComparison.Ordinal);
+	}
+
+	[Fact]
 	public void Native_value_struct_delegate_host_does_not_corrupt_text_parsing()
 	{
 		string root = TempPath("native-value-struct-delegate-host-text-parsing");

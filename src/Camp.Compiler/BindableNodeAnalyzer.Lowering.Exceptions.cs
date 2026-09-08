@@ -309,7 +309,6 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			if (returnStatement.SkipPendingCleanups)
 				return returnStatement;
-			exitScope.ExitLabelName ??= NewGeneratedLabelName("cleanup");
 			return CreateCleanupReturnTransfer(returnStatement, exitScope);
 		}
 		return transfer;
@@ -356,7 +355,11 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		string returnType = currentRewriteFunction?.ResolvedType ?? "void";
 		if (returnType == "void")
-			return new GotoStatement { TargetName = exitScope.ExitLabelName, ResolvedType = "void" };
+		{
+			List<Statement> voidStatements = GetPendingCleanups();
+			voidStatements.Add(new ReturnStatement { ResolvedType = "void", SkipPendingCleanups = true });
+			return CreateBlock(voidStatements);
+		}
 
 		exitScope.ReturnType = returnType;
 		if (exitScope.ReturnTarget is null)
@@ -366,7 +369,7 @@ public sealed partial class BindableNodeAnalyzer
 			exitScope.ReturnTarget = returnLocal.Target;
 		}
 
-		return CreateBlock(
+		List<Statement> statements =
 		[
 			new ExpressionStatement
 			{
@@ -378,9 +381,16 @@ public sealed partial class BindableNodeAnalyzer
 					Value = returnStatement.Expression ?? new DefaultExpression { ResolvedType = returnType },
 					ResolvedType = returnType
 				}
-			},
-			new GotoStatement { TargetName = exitScope.ExitLabelName, ResolvedType = "void" }
-		]);
+			}
+		];
+		statements.AddRange(GetPendingCleanups());
+		statements.Add(new ReturnStatement
+		{
+			ResolvedType = "void",
+			Expression = CreateVariableReference(exitScope.ReturnTarget, returnType),
+			SkipPendingCleanups = true
+		});
+		return CreateBlock(statements);
 	}
 
 	CleanupScope? GetCleanupExitScope()
