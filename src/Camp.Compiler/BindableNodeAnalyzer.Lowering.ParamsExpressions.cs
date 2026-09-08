@@ -1236,6 +1236,7 @@ public sealed partial class BindableNodeAnalyzer
 					});
 				}
 				preparedExpandedReturnCalls.Add(call);
+				expandedReturnTrailingOutArgumentCounts[call] = System.Math.Max(0, targets.Count - 1);
 				AddImplicitWithinArgument(call);
 			}
 			finally
@@ -2514,6 +2515,7 @@ public sealed partial class BindableNodeAnalyzer
 			});
 		}
 		preparedExpandedReturnCalls.Add(call);
+		expandedReturnTrailingOutArgumentCounts[call] = System.Math.Max(0, shape.Components.Count - 1);
 		AddImplicitWithinArgument(call);
 		call.ResolvedType = shape.Components[0].Type;
 		rewritten = new ReturnStatement
@@ -3073,6 +3075,7 @@ public sealed partial class BindableNodeAnalyzer
 			});
 		}
 		preparedExpandedReturnCalls.Add(call);
+		expandedReturnTrailingOutArgumentCounts[call] = System.Math.Max(0, targets.Count - 1);
 		AddImplicitWithinArgument(call);
 		currentStatementPrefix.Add(new ExpressionStatement
 		{

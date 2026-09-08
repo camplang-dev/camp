@@ -414,8 +414,8 @@ public sealed partial class BindableNodeAnalyzer
 	int CountTrailingImplicitWithinBlockedArguments(CallExpression call, FunctionDefinition? function)
 	{
 		int count = CountTrailingExpandedReturnArguments(call, function);
-		if (preparedExpandedReturnCalls.Contains(call))
-			count = System.Math.Max(count, CountTrailingOutArguments(call.Arguments));
+		if (expandedReturnTrailingOutArgumentCounts.TryGetValue(call, out int generatedReturnOutArguments))
+			count = System.Math.Max(count, generatedReturnOutArguments);
 		if (function?.IsAsync == true)
 			count = System.Math.Max(count, System.Math.Min(call.Arguments.Count, CreateAsyncCompletionSourceParameters(function).Count));
 		int index = call.Arguments.Count - count - 1;
@@ -423,18 +423,6 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			count++;
 			index--;
-		}
-		return count;
-	}
-
-	static int CountTrailingOutArguments(List<ArgumentExpression> arguments)
-	{
-		int count = 0;
-		for (int i = arguments.Count - 1; i >= 0; i--)
-		{
-			if (arguments[i].Modifier != ArgumentModifier.Out)
-				break;
-			count++;
 		}
 		return count;
 	}

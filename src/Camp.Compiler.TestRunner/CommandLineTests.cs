@@ -558,6 +558,32 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Native_array_return_with_out_parameter_preserves_implicit_within_slot()
+	{
+		string source = CreateTempCase("array_return_out_within/main.camp", """
+			byte[] reproduce(out int status, within allocator)
+			{
+				status = 0;
+				return new byte[1];
+			}
+
+			@test
+			void callReproduce(within Allocator* allocator, thrown Assertion*)
+			{
+				int status = 1;
+				byte[] value = reproduce(out status) finally delete;
+				assert(status == 0 && value.length == 1);
+			}
+			""");
+		string outDir = TempPath("array-return-out-within-out");
+
+		ProcessResult result = RunCampc("test", source, "--target", NativeTargetForHost(), "--out-dir", outDir, "--name", "array_return_out_within");
+
+		AssertCommandSucceeded(result);
+		Assert.Contains("passed: callReproduce", result.StdOut, StringComparison.Ordinal);
+	}
+
+	[Fact]
 	public void Native_value_struct_delegate_host_does_not_corrupt_text_parsing()
 	{
 		string root = TempPath("native-value-struct-delegate-host-text-parsing");

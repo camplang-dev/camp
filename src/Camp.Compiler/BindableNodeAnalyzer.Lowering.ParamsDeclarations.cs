@@ -492,6 +492,7 @@ public sealed partial class BindableNodeAnalyzer
 				});
 			}
 			preparedExpandedReturnCalls.Add(call);
+			expandedReturnTrailingOutArgumentCounts[call] = System.Math.Max(0, targets.Count - 1);
 			AddImplicitWithinArgument(call);
 			declarations.Add(new ExpressionStatement
 			{
