@@ -1826,6 +1826,78 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Static_project_reference_api_headers_follow_dependency_order()
+	{
+		string root = TempPath("static-project-reference-api-header-order");
+		string baseRoot = Path.Combine(root, "base");
+		string middleRoot = Path.Combine(root, "middle");
+		string appRoot = Path.Combine(root, "app");
+		Directory.CreateDirectory(baseRoot);
+		Directory.CreateDirectory(middleRoot);
+		Directory.CreateDirectory(appRoot);
+
+		File.WriteAllText(Path.Combine(baseRoot, "base.camp"), """
+			namespace HeaderOrder;
+
+			export struct BaseValue
+			{
+				int value;
+			}
+			""".Replace("\r\n", "\n", StringComparison.Ordinal));
+		File.WriteAllText(Path.Combine(baseRoot, "base.campbuild"), """
+			--nostdlib
+			--artifact static
+			--name base
+			base.camp
+			""".Replace("\r\n", "\n", StringComparison.Ordinal));
+
+		File.WriteAllText(Path.Combine(middleRoot, "middle.camp"), """
+			namespace HeaderOrder;
+
+			export struct MiddleValue
+			{
+				BaseValue value;
+			}
+			""".Replace("\r\n", "\n", StringComparison.Ordinal));
+		File.WriteAllText(Path.Combine(middleRoot, "middle.campbuild"), """
+			--nostdlib
+			--artifact static
+			--name middle
+			--project-reference ../base/base.campbuild:static
+			middle.camp
+			""".Replace("\r\n", "\n", StringComparison.Ordinal));
+
+		File.WriteAllText(Path.Combine(appRoot, "app.camp"), """
+			namespace HeaderOrder;
+
+			export int main()
+			{
+				MiddleValue value = default;
+				return value.value.value;
+			}
+			""".Replace("\r\n", "\n", StringComparison.Ordinal));
+		File.WriteAllText(Path.Combine(appRoot, "app.campbuild"), """
+			--nostdlib
+			--artifact exec
+			--name header_order_app
+			--project-reference ../middle/middle.campbuild:static
+			--project-reference ../base/base.campbuild:static
+			app.camp
+			""".Replace("\r\n", "\n", StringComparison.Ordinal));
+
+		ProcessResult build = RunCampcIn(appRoot, "build", "app.campbuild", "--target", NativeTargetForHost());
+
+		AssertCommandSucceeded(build);
+		string privateHeader = Path.Combine(appRoot, "bin", ArtifactDirectoryForHost(NativeBuildKind.Exec), "build", "header_order_app_private.h");
+		string emitted = File.ReadAllText(privateHeader);
+		int baseInclude = emitted.IndexOf("#include \"base_api.h\"", StringComparison.Ordinal);
+		int middleInclude = emitted.IndexOf("#include \"middle_api.h\"", StringComparison.Ordinal);
+		Assert.True(baseInclude >= 0, emitted);
+		Assert.True(middleInclude >= 0, emitted);
+		Assert.True(baseInclude < middleInclude, emitted);
+	}
+
+	[Fact]
 	public void Static_project_reference_rebuilds_dirty_transitive_archive()
 	{
 		string root = TempPath("static-project-reference-dirty-archive");

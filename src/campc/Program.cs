@@ -1104,10 +1104,15 @@ static bool TryBuildRequest(string[] args, CliEnvironment environment, CommandKi
 
 	static ProjectReferenceResolution CreateProjectReferenceResolution(CompilerRequest projectRequest, string buildFile, DependencyLinkKind effectiveLinkKind, NativeBuildKind referenceBuildKind, TargetDefinition? target, string apiHeader, string? library, string? coverageMap)
 	{
-		List<string> apiHeaders = [Path.GetFullPath(apiHeader)];
+		List<string> apiHeaders = [];
+		foreach (string dependencyApiHeader in projectRequest.ApiFiles)
+			AddUniquePathPreservingFirst(apiHeaders, Path.GetFullPath(dependencyApiHeader, projectRequest.WorkingDirectory));
+		AddUniquePathPreservingFirst(apiHeaders, apiHeader);
 		List<string> sharedApiHeaders = [];
+		foreach (string sharedApiHeader in projectRequest.SharedLibraryApiHeaders)
+			AddUniquePathPreservingFirst(sharedApiHeaders, Path.GetFullPath(sharedApiHeader, projectRequest.WorkingDirectory));
 		if (effectiveLinkKind == DependencyLinkKind.Shared)
-			AddUniquePath(sharedApiHeaders, apiHeader);
+			AddUniquePathPreservingFirst(sharedApiHeaders, apiHeader);
 		List<string> libraries = [];
 		if (library is not null)
 			AddUniquePath(libraries, library);
@@ -1127,10 +1132,10 @@ static bool TryBuildRequest(string[] args, CliEnvironment environment, CommandKi
 	static void AddProjectReferenceResolution(CompilerRequest consumerRequest, DependencyLinkKind effectiveLinkKind, ProjectReferenceResolution resolution, List<string> apiHeaders, List<string> sharedApiHeaders, List<string> libraries)
 	{
 		foreach (string apiHeader in resolution.ApiHeaders)
-			AddUniquePath(apiHeaders, apiHeader);
+			AddUniquePathPreservingFirst(apiHeaders, apiHeader);
 		if (effectiveLinkKind == DependencyLinkKind.Shared)
 			foreach (string sharedApiHeader in resolution.SharedApiHeaders.Count > 0 ? resolution.SharedApiHeaders : resolution.ApiHeaders)
-				AddUniquePath(sharedApiHeaders, sharedApiHeader);
+				AddUniquePathPreservingFirst(sharedApiHeaders, sharedApiHeader);
 		foreach (string library in resolution.LinkArtifacts)
 			AddUniquePath(libraries, library);
 		if (resolution.CoverageMap is not null)
@@ -1333,6 +1338,14 @@ static bool TryBuildRequest(string[] args, CliEnvironment environment, CommandKi
 		int existingIndex = paths.FindIndex(existing => string.Equals(Path.GetFullPath(existing), fullPath, StringComparison.OrdinalIgnoreCase));
 		if (existingIndex >= 0)
 			paths.RemoveAt(existingIndex);
+		paths.Add(fullPath);
+	}
+
+	static void AddUniquePathPreservingFirst(List<string> paths, string path)
+	{
+		string fullPath = Path.GetFullPath(path);
+		if (paths.Any(existing => string.Equals(Path.GetFullPath(existing), fullPath, StringComparison.OrdinalIgnoreCase)))
+			return;
 		paths.Add(fullPath);
 	}
 
