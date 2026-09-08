@@ -1951,6 +1951,7 @@ public sealed partial class BindableNodeAnalyzer
 		method.Export = constructor.Export;
 		method.Public = constructor.Public;
 		method.Internal = constructor.Internal;
+		ApplyOwnerVisibilityToGeneratedLifecycleMethod(type, method);
 		method.Extern = constructor.Extern;
 		method.ReturnType = VoidType();
 		method.ResolvedType = "void";
@@ -1978,6 +1979,7 @@ public sealed partial class BindableNodeAnalyzer
 		method.Export = constructor.Export;
 		method.Public = constructor.Public;
 		method.Internal = constructor.Internal;
+		ApplyOwnerVisibilityToGeneratedLifecycleMethod(type, method);
 		method.Extern = constructor.Extern;
 		method.Modifier = FunctionModifier.Static;
 		method.ReturnType = PointerTo(CloneType(typeReference)!);
@@ -2063,6 +2065,7 @@ public sealed partial class BindableNodeAnalyzer
 		method.Export = destructor.Export;
 		method.Public = destructor.Public;
 		method.Internal = destructor.Internal;
+		ApplyOwnerVisibilityToGeneratedLifecycleMethod(type, method);
 		method.Extern = destructor.Extern;
 		method.Modifier = GetDeleteMethodModifier(destructor);
 		method.ReturnType = VoidType();
@@ -2081,6 +2084,7 @@ public sealed partial class BindableNodeAnalyzer
 		method.Export = destructor.Export;
 		method.Public = destructor.Public;
 		method.Internal = destructor.Internal;
+		ApplyOwnerVisibilityToGeneratedLifecycleMethod(type, method);
 		method.Extern = destructor.Extern;
 		method.ReturnType = VoidType();
 		method.ResolvedType = "void";
@@ -2123,6 +2127,7 @@ public sealed partial class BindableNodeAnalyzer
 		method.Export = destructor.Export;
 		method.Public = destructor.Public;
 		method.Internal = destructor.Internal;
+		ApplyOwnerVisibilityToGeneratedLifecycleMethod(type, method);
 		method.Extern = destructor.Extern;
 		method.ReturnType = VoidType();
 		method.ResolvedType = "void";
@@ -2166,6 +2171,15 @@ public sealed partial class BindableNodeAnalyzer
 				resolvedAllocatorLocal is null ? null : CreateVariableReference(resolvedAllocatorLocal.Target, resolvedAllocatorLocal.Target.ResolvedType ?? GetAllocatorParameter(method)?.ResolvedType ?? "Allocator*"))
 		});
 		return method;
+	}
+
+	static void ApplyOwnerVisibilityToGeneratedLifecycleMethod(TypeDefinition type, FunctionDefinition method)
+	{
+		if (method.Export is not null || method.Public is not null || method.Internal is not null)
+			return;
+		method.Export = type.Export;
+		method.Public = type.Public;
+		method.Internal = type.Internal;
 	}
 
 	ExpressionStatement? CreateRetainedAllocatorAssignment(TypeDefinition type, FunctionDefinition constructor, FunctionDefinition initNew)

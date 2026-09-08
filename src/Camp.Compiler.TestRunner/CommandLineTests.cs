@@ -584,6 +584,44 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Native_test_can_construct_cross_file_internal_class()
+	{
+		string root = TempPath("cross-file-internal-test-construction");
+		ResetDirectory(root);
+		Directory.CreateDirectory(Path.Combine(root, "src"));
+		string buildFile = Path.Combine(root, "app.campbuild");
+		File.WriteAllText(buildFile, """
+			--name cross_file_internal_test_construction
+			--artifact static
+			src/*.camp
+			""");
+		File.WriteAllText(Path.Combine(root, "src", "helper.camp"), """
+			namespace Sample;
+			internal sealed class TraceSink
+			{
+				TraceSink() { }
+			}
+			""");
+		File.WriteAllText(Path.Combine(root, "src", "test.camp"), """
+			requires (TEST_MODULE);
+			namespace Sample;
+
+			@test
+			void constructInternal(within Allocator* allocator, thrown Assertion*)
+			{
+				TraceSink* sink = new TraceSink() finally delete;
+				assert(sink != null);
+			}
+			""");
+		string outDir = Path.Combine(root, "out");
+
+		ProcessResult result = RunCampc("test", buildFile, "--target", NativeTargetForHost(), "--out-dir", outDir);
+
+		AssertCommandSucceeded(result);
+		Assert.Contains("passed: Sample::constructInternal", result.StdOut, StringComparison.Ordinal);
+	}
+
+	[Fact]
 	public void Native_value_struct_delegate_host_does_not_corrupt_text_parsing()
 	{
 		string root = TempPath("native-value-struct-delegate-host-text-parsing");
