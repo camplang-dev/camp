@@ -1898,6 +1898,74 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Transitive_project_reference_api_type_does_not_shadow_same_simple_name_source_type()
+	{
+		string root = TempPath("transitive-api-type-source-shadow");
+		string foreignRoot = Path.Combine(root, "foreign");
+		string bridgeRoot = Path.Combine(root, "bridge");
+		string consumerRoot = Path.Combine(root, "consumer");
+		Directory.CreateDirectory(foreignRoot);
+		Directory.CreateDirectory(bridgeRoot);
+		Directory.CreateDirectory(consumerRoot);
+
+		File.WriteAllText(Path.Combine(foreignRoot, "foreign.camp"), """
+			namespace Foreign;
+
+			public struct Thing
+			{
+				int visible;
+			}
+			""".Replace("\r\n", "\n", StringComparison.Ordinal));
+		File.WriteAllText(Path.Combine(foreignRoot, "foreign.campbuild"), """
+			--nostdlib
+			--artifact static
+			--name foreign
+			foreign.camp
+			""".Replace("\r\n", "\n", StringComparison.Ordinal));
+
+		File.WriteAllText(Path.Combine(bridgeRoot, "bridge.camp"), """
+			namespace Bridge;
+
+			public Foreign::Thing borrowThing(Foreign::Thing value)
+			{
+				return value;
+			}
+			""".Replace("\r\n", "\n", StringComparison.Ordinal));
+		File.WriteAllText(Path.Combine(bridgeRoot, "bridge.campbuild"), """
+			--nostdlib
+			--artifact static
+			--name bridge
+			--project-reference ../foreign/foreign.campbuild:static
+			bridge.camp
+			""".Replace("\r\n", "\n", StringComparison.Ordinal));
+
+		File.WriteAllText(Path.Combine(consumerRoot, "consumer.camp"), """
+			namespace Local;
+
+			public struct Thing
+			{
+				int hidden;
+
+				public int getHidden()
+				{
+					return this.hidden;
+				}
+			}
+			""".Replace("\r\n", "\n", StringComparison.Ordinal));
+		File.WriteAllText(Path.Combine(consumerRoot, "consumer.campbuild"), """
+			--nostdlib
+			--artifact none
+			--name consumer
+			--project-reference ../bridge/bridge.campbuild:static
+			consumer.camp
+			""".Replace("\r\n", "\n", StringComparison.Ordinal));
+
+		ProcessResult build = RunCampcIn(consumerRoot, "build", "consumer.campbuild", "--target", NativeTargetForHost());
+
+		AssertCommandSucceeded(build);
+	}
+
+	[Fact]
 	public void Static_project_reference_rebuilds_dirty_transitive_archive()
 	{
 		string root = TempPath("static-project-reference-dirty-archive");

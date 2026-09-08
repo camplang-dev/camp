@@ -1459,8 +1459,9 @@ public sealed partial class BindableNodeAnalyzer
 	void AnalyzeFunctionDefinition(FunctionDefinition definition, AnalysisScope parentScope, string? containingType, bool suppressStaticThisDiagnostic = false)
 	{
 		TypeDefinition? previousAnalysisContainingType = currentAnalysisContainingType;
-		if (containingType is not null && typeDefinitions.TryGetValue(containingType, out TypeDefinition? owner))
-			currentAnalysisContainingType = owner;
+		TypeDefinition? containingTypeDefinition = TryGetContainingTypeDefinition(definition, containingType);
+		if (containingTypeDefinition is not null)
+			currentAnalysisContainingType = containingTypeDefinition;
 		try
 		{
 		WithAnalysisDefinition(definition, () =>
@@ -1523,9 +1524,10 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (containingType is not null && (GetExplicitThisParameter(definition) ?? definition.EffectiveThisParameter) is ThisParameterDefinition memberThisParameter)
 		{
-			string receiverType = typeDefinitions.TryGetValue(containingType, out TypeDefinition? owner) && owner is NewtypeDefinition
-				? containingType
-				: $"{containingType}*";
+			string ownerType = containingTypeDefinition is not null ? ResolvedNominalTypeName(containingTypeDefinition) : containingType;
+			string receiverType = containingTypeDefinition is NewtypeDefinition
+				? ownerType
+				: $"{ownerType}*";
 			memberThisParameter.ResolvedType = ApplyThisDeclarators(receiverType, memberThisParameter);
 		}
 		FinalizeThisReturnType(definition, containingType);
@@ -1551,6 +1553,16 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			currentAnalysisContainingType = previousAnalysisContainingType;
 		}
+	}
+
+	TypeDefinition? TryGetContainingTypeDefinition(FunctionDefinition definition, string? containingType)
+	{
+		if (containingType is null)
+			return null;
+		if (typeDefinitions.TryGetValue(containingType, out TypeDefinition? owner))
+			return owner;
+		TypeDefinition? found = FindContainingType(definition);
+		return found is not null && found.Name == containingType ? found : null;
 	}
 
 	void ValidateStaticFunctionHasNoExplicitThis(FunctionDefinition definition, bool suppressDiagnostic)
