@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-148.
+Next bug number: BUG-149.
 
 ## Bug Template
 
@@ -358,3 +358,43 @@ Any successful return from a nested `finally` scope can leak outer owned
 resources. Restructure the function so the nested scope records a result and
 falls through to the outer cleanup, or use explicit deterministic deletion
 before returning, until cleanup lowering chains through every enclosing scope.
+
+## BUG-148: Conditional return expression is evaluated when its branch is false
+
+Date/Time: 2026-09-07 20:18 EDT
+
+Summary:
+An expression used as the return value of a conditional branch can be lowered
+before the branch condition is tested. This violates the source control flow:
+side effects in the return expression occur even when the branch is false.
+
+Steps to Reproduce:
+
+1. Compile a method with this shape:
+
+   ```camp
+   bool appendWhenRequested(bool requested, char[] output, uint* offset)
+   {
+       if (requested)
+           return append(output, offset, " ") && append(output, offset, "spec");
+       return true;
+   }
+   ```
+
+   Here `append` advances `offset` and writes to `output`.
+2. Call `appendWhenRequested(false, ...)` and inspect the output and offset.
+
+Expected:
+Neither `append` call executes, and the method returns `true` without changing
+the caller-owned output.
+
+Actual:
+The generated C can evaluate the `append` conjunction before it tests
+`requested`, leaving the output changed even though it returns `true` from the
+false branch.
+
+Known Impact:
+Any conditionally returned expression with side effects can run on a path where
+the source program does not execute it. Split the false guard into an early
+return, then evaluate the expression unconditionally only on the remaining
+path until lowering preserves branch evaluation order.
