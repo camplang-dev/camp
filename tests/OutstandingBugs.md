@@ -146,54 +146,6 @@ the owner outside the loop when practical, or use an explicit nested scope with
 deterministic deletion after each iteration until loop cleanup lowering is
 corrected.
 
-## BUG-146: Conditional expression eagerly evaluates a nullable receiver branch
-
-Date/Time: 2026-09-07 19:05 EDT
-
-Status:
-More information required - cannot reproduce on current HEAD using the listed
-repro instructions. Do not mark fixed until a reproducible case is found or the
-original failure is otherwise confirmed resolved.
-
-Summary:
-A conditional expression that selects an alternate result when a receiver is
-null can still lower a method call on that null receiver before evaluating the
-condition. The source expression is required to avoid dereferencing the null
-branch, but generated native code performs the dereference unconditionally.
-
-Steps to Reproduce:
-
-1. Compile and run this Camp source through the native C backend:
-
-   ```camp
-   class Value
-   {
-       int getNumber() => 1;
-   }
-
-   int reproduce(Value* value) => value == null ? 0 : value.getNumber();
-
-   @test
-   void nullBranchDoesNotCallMember(within Allocator* allocator, thrown Assertion*)
-   {
-       assert(reproduce(null) == 0);
-   }
-   ```
-
-2. Run the generated native test artifact.
-
-Expected:
-The null condition selects `0` and does not call `getNumber`.
-
-Actual:
-The generated native code evaluates the member call before selecting the
-conditional result, dereferences null, and exits with an access violation.
-
-Known Impact:
-Nullable receivers inside conditional expressions can crash native artifacts.
-Use an explicit `if`/`return` guard before the member call until lowering keeps
-conditional branches lazy.
-
 ## BUG-148: Conditional return expression is evaluated when its branch is false
 
 Date/Time: 2026-09-07 20:18 EDT
@@ -284,6 +236,10 @@ Steps to Reproduce:
    `v0.11.0-preview.1+f6feb41bd542c54884c9c29eded7db3575a22da4`.
 4. Inspect the generated C for `value` if needed. The function returns the
    selected pointer but does not assign `*result_length`.
+
+Reverified:
+The same one-test project fails with `result.length == 1` on
+`v0.11.0-preview.1+fa0831480d5257e71b4a22833363a33291010bbd`.
 
 Expected:
 The conditional expression returns both components of the selected slice, and
