@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-153.
+Next bug number: BUG-154.
 
 ## Bug Template
 
@@ -190,3 +190,85 @@ Any conditionally returned expression with side effects can run on a path where
 the source program does not execute it. Split the false guard into an early
 return, then evaluate the expression unconditionally only on the remaining
 path until lowering preserves branch evaluation order.
+
+## BUG-153: Transitive API type shadows same-namespace source type declared in another file
+
+Date/Time: 2026-09-08 17:33 EDT
+
+Summary:
+After transitive static-project API files are propagated to a consumer, a public
+type from a transitive API can still shadow a same-simple-name source type in the
+consumer's own namespace when the source type and its use are in different
+files. The BUG-152 fix resolves the equivalent same-file member-receiver case,
+but cross-file source lookup binds the use to the unrelated transitive type.
+
+Steps to Reproduce:
+
+1. Create a `foreign` static project containing:
+
+   ```camp
+   namespace Foreign;
+
+   public struct Thing
+   {
+       int visible;
+   }
+   ```
+
+2. Create a `bridge` static project that references `foreign` and exposes its
+   type from a public signature:
+
+   ```camp
+   namespace Bridge;
+
+   public Foreign::Thing borrowThing(Foreign::Thing value) => value;
+   ```
+
+3. Create a `consumer` static project that references only `bridge`. Put its
+   source type in `types.camp`:
+
+   ```camp
+   namespace Local;
+
+   public struct Thing
+   {
+       int hidden;
+   }
+   ```
+
+4. Put the use in a separate `consumer.camp` file in the same project and
+   namespace:
+
+   ```camp
+   namespace Local;
+
+   public int readHidden(Thing value) => value.hidden;
+   ```
+
+5. With bootstrap version
+   `v0.11.0-preview.1+569989e2a1915841b0f7144dffe39b629348ac93`, build the
+   consumer:
+
+   ```sh
+   campc build consumer.campbuild --artifact none
+   ```
+
+6. As a control, remove the `bridge` project reference and build the same two
+   consumer source files again; that build succeeds.
+
+Expected:
+Within namespace `Local`, the unqualified name `Thing` resolves to
+`Local::Thing` regardless of which consumer source file declares it. An
+unimported transitive `Foreign::Thing` must not participate in simple-name
+resolution. The build succeeds.
+
+Actual:
+The compiler reports `Member 'hidden' could not be found on type 'Thing'` at
+`value.hidden`. The same consumer files compile when the unrelated transitive
+reference is absent.
+
+Known Impact:
+Valid multi-file projects can fail based on unrelated type names present in
+transitive APIs. Co-locating callers and types, qualifying ordinary
+same-namespace references, or renaming declarations can mask the failure, but
+each workaround distorts normal source organization or API design.
