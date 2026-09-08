@@ -8092,7 +8092,8 @@ public static class CCodeEmitter
 
 		static string GetImplicitThisResolvedType(TypeDefinition type)
 		{
-			return type is NewtypeDefinition ? type.Name : type.Name + "*";
+			string name = BindableNodeAnalyzer.EffectiveTypeSymbol(type);
+			return type is NewtypeDefinition ? name : name + "*";
 		}
 
 		static bool NeedsAbiThisFixup(FunctionDefinition function)

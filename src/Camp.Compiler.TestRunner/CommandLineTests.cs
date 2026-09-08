@@ -2038,6 +2038,84 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Generated_lifecycle_receiver_uses_local_type_when_transitive_api_has_same_simple_name()
+	{
+		string root = TempPath("transitive-api-lifecycle-receiver-shadow");
+		string foreignRoot = Path.Combine(root, "foreign");
+		string bridgeRoot = Path.Combine(root, "bridge");
+		string consumerRoot = Path.Combine(root, "consumer");
+		Directory.CreateDirectory(foreignRoot);
+		Directory.CreateDirectory(bridgeRoot);
+		Directory.CreateDirectory(consumerRoot);
+
+		File.WriteAllText(Path.Combine(foreignRoot, "foreign.camp"), """
+			namespace Foreign;
+
+			public escaped class Catalog
+			{
+				uint value;
+
+				public uint getValue() => this.value;
+			}
+			""".Replace("\r\n", "\n", StringComparison.Ordinal));
+		File.WriteAllText(Path.Combine(foreignRoot, "foreign.campbuild"), """
+			--artifact static
+			--name foreign
+			foreign.camp
+			""".Replace("\r\n", "\n", StringComparison.Ordinal));
+
+		File.WriteAllText(Path.Combine(bridgeRoot, "bridge.camp"), """
+			namespace Bridge;
+
+			public Foreign::Catalog* borrowCatalog(Foreign::Catalog* value) => value;
+			""".Replace("\r\n", "\n", StringComparison.Ordinal));
+		File.WriteAllText(Path.Combine(bridgeRoot, "bridge.campbuild"), """
+			--artifact static
+			--name bridge
+			--project-reference ../foreign/foreign.campbuild:static
+			bridge.camp
+			""".Replace("\r\n", "\n", StringComparison.Ordinal));
+
+		File.WriteAllText(Path.Combine(consumerRoot, "consumer.camp"), """
+			namespace Local;
+
+			export escaped class Catalog
+			{
+				uint hidden;
+
+				Catalog(uint hidden, within this.allocator)
+				{
+					this.hidden = hidden;
+				}
+
+				public ~Catalog()
+				{
+					this.hidden = 0;
+				}
+
+				public uint getHidden() => this.hidden;
+			}
+			""".Replace("\r\n", "\n", StringComparison.Ordinal));
+		File.WriteAllText(Path.Combine(consumerRoot, "consumer.campbuild"), """
+			--artifact static
+			--name consumer
+			--project-reference ../bridge/bridge.campbuild:static
+			consumer.camp
+			""".Replace("\r\n", "\n", StringComparison.Ordinal));
+
+		string target = NativeTargetForHost();
+		ProcessResult build = RunCampcIn(consumerRoot, "build", "consumer.campbuild", "--target", target);
+
+		AssertCommandSucceeded(build);
+		string generated = File.ReadAllText(Path.Combine(consumerRoot, "bin",
+			ArtifactDirectoryForTarget(target, NativeBuildKind.Static), "build", "consumer.c"));
+		Assert.Contains("LocalCatalog_op_initnew(LocalCatalog *this", generated, StringComparison.Ordinal);
+		Assert.Contains("LocalCatalog_op_delete(LocalCatalog *this", generated, StringComparison.Ordinal);
+		Assert.Contains("LocalCatalog_destroy(LocalCatalog *this", generated, StringComparison.Ordinal);
+		Assert.DoesNotContain("LocalCatalog_op_initnew(ForeignCatalog *this", generated, StringComparison.Ordinal);
+	}
+
+	[Fact]
 	public void Static_project_reference_rebuilds_dirty_transitive_archive()
 	{
 		string root = TempPath("static-project-reference-dirty-archive");
