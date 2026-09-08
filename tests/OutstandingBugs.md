@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-154.
+Next bug number: BUG-155.
 
 ## Bug Template
 
@@ -190,3 +190,95 @@ Any conditionally returned expression with side effects can run on a path where
 the source program does not execute it. Split the false guard into an early
 return, then evaluate the expression unconditionally only on the remaining
 path until lowering preserves branch evaluation order.
+
+## BUG-154: Generated lifecycle receiver uses unrelated transitive class type
+
+Date/Time: 2026-09-08 18:07 EDT
+
+Summary:
+When a project declares a class whose simple name matches a public class in an
+unrelated transitive API namespace, native C lowering can assign the transitive
+class type to the generated constructor and destructor receivers. Ordinary
+methods on the same local class use the correct receiver. Source compilation
+with `--artifact none` succeeds, but the generated C is invalid.
+
+Steps to Reproduce:
+
+1. Create a `foreign` static project containing:
+
+   ```camp
+   namespace Foreign;
+
+   public escaped class Catalog
+   {
+       uint value;
+
+       public uint getValue() => this.value;
+   }
+   ```
+
+2. Create a `bridge` static project that references `foreign` and exposes the
+   class through a public signature:
+
+   ```camp
+   namespace Bridge;
+
+   public Foreign::Catalog* borrowCatalog(Foreign::Catalog* value) => value;
+   ```
+
+3. Create a `consumer` static project that references only `bridge` and
+   contains:
+
+   ```camp
+   namespace Local;
+
+   export escaped class Catalog
+   {
+       uint hidden;
+
+       Catalog(uint hidden, within this.allocator)
+       {
+           this.hidden = hidden;
+       }
+
+       public ~Catalog()
+       {
+           this.hidden = 0;
+       }
+
+       public uint getHidden() => this.hidden;
+   }
+   ```
+
+4. With bootstrap version
+   `v0.11.0-preview.1+0158c82a20d953832fb6e88f56ff59fc68b994c4`, run:
+
+   ```sh
+   campc build consumer.campbuild --artifact none
+   campc build consumer.campbuild
+   ```
+
+Expected:
+Both builds succeed. Every generated function for `Local::Catalog`, including
+its constructor and destructor lifecycle functions, uses `LocalCatalog*` for
+the receiver.
+
+Actual:
+The source-only build succeeds. Native compilation fails because generated C
+contains signatures equivalent to:
+
+```c
+static void LocalCatalog_op_initnew(ForeignCatalog *this, ...);
+void LocalCatalog_op_delete(ForeignCatalog *this);
+void LocalCatalog_destroy(ForeignCatalog *this);
+```
+
+The ordinary generated getter correctly uses `const LocalCatalog *this`.
+Clang reports incomplete-type member accesses and incompatible pointer types
+when the local constructor is called.
+
+Known Impact:
+Valid native builds fail when generated class lifecycle methods encounter an
+unrelated same-simple-name class from a transitive API. Renaming or qualifying
+the local class cannot correct compiler-generated receiver types and would make
+API design depend on unrelated dependencies.
