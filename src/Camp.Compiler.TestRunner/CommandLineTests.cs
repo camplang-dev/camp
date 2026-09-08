@@ -6484,6 +6484,40 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Export_projection_name_cannot_be_used_as_source_type()
+	{
+		string root = TempPath("export-projection-source-type-diagnostic");
+		Directory.CreateDirectory(Path.Combine(root, "src"));
+		string buildFile = Path.Combine(root, "alias-app.campbuild");
+		File.WriteAllText(buildFile, """
+			--name alias-app
+			--artifact none
+			src/*.camp
+			""");
+		File.WriteAllText(Path.Combine(root, "src", "main.camp"), """
+			namespace Sample;
+
+			export Std::Allocator as LocalAllocator;
+
+			export int main(string[] args)
+			{
+				LocalAllocator* allocator = null;
+				return allocator == null ? 0 : 1;
+			}
+			""");
+
+		ProcessResult result = RunCampc(
+			"build",
+			buildFile,
+			"--out-dir",
+			TempPath("export-projection-source-type-diagnostic-out"));
+
+		Assert.NotEqual(0, result.ExitCode);
+		Assert.Contains("Export projection name 'LocalAllocator' is only used by the exported API surface", result.StdErr, StringComparison.Ordinal);
+		Assert.Contains("use the source type name 'Std::Allocator'", result.StdErr, StringComparison.Ordinal);
+	}
+
+	[Fact]
 	public void Shared_library_api_header_uses_source_type_names_in_delegate_parameters()
 	{
 		string dependencyApi = CreateTempCase("shared_api_delegate_parameter/win32_api.camp", """

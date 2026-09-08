@@ -1163,6 +1163,9 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (TryGetNamedTypeDefinition(named, out TypeDefinition? definition) && definition is not null)
 		{
+			if (ReportIfExportProjectionSourceTypeReference(definition, named.SourceSyntax))
+				return $"{UnresolvedType}({sourceName})";
+
 			if (named.Qualifiers.Count == 0 && !IsDefinitionVisible(definition, named.SourceSyntax))
 			{
 				ReportNotExported(definition, named.SourceSyntax, "Type");

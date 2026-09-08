@@ -491,6 +491,27 @@ public sealed partial class BindableNodeAnalyzer
 		return false;
 	}
 
+	bool ReportIfExportProjectionSourceTypeReference(TypeDefinition definition, SyntaxNode? referenceSyntax)
+	{
+		if (definition.IsApiHeader)
+			return false;
+		if (definition.GeneratedInfo is not { Source: TypeDefinition source } generated
+			|| !generated.Reason.StartsWith("export projection for ", StringComparison.Ordinal))
+			return false;
+
+		string sourceName = FormatSourceTypeName(source);
+		Report(GetRange(referenceSyntax), $"Export projection name '{definition.Name}' is only used by the exported API surface; use the source type name '{sourceName}' within this module.");
+		return true;
+	}
+
+	string FormatSourceTypeName(TypeDefinition definition)
+	{
+		string? namespaceName = GetDefinitionNamespace(definition);
+		return string.IsNullOrWhiteSpace(namespaceName)
+			? definition.Name
+			: namespaceName + "::" + definition.Name;
+	}
+
 	bool SourceAllocatorTypeAvailable()
 	{
 		foreach (TypeDefinition candidate in allTypeDefinitions)

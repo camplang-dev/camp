@@ -286,6 +286,10 @@ declarations at the narrowest visibility that works:
 - Export projections (`export Type { ... } as ExternalName;`) expose a selected
   external view of a `public` declaration. Use them when designing a shared
   library API that should differ from the internal Camp shape.
+- An export projection's `as ExternalName` is not a source alias inside the
+  producing module. Implementation code must keep using the original type or
+  symbol name, such as `Std::Allocator`, even when the exported API presents it
+  under a different projected name.
 - `extern` declares a symbol implemented outside Camp.
 - `@symbol("name")` controls native ABI spelling for symbol-bearing declarations:
   functions, methods, exported globals, static fields, inline constants,

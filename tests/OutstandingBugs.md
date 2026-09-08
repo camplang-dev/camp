@@ -44,36 +44,6 @@ Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
 
-## BUG-121: Re-exported dependency types are misnamed in module source
-
-Date/Time: 2026-09-03 America/Toronto
-
-Summary:
-Using a dependency type through its local name after an `export Type as Alias`
-declaration can emit a doubly prefixed C type name. The source declaration is
-accepted, but the generated C cannot compile because the emitted type name was
-never declared.
-
-Steps to Reproduce:
-
-1. In a namespace, write `export Std::Allocator as LocalAllocator;`.
-2. Declare a local `LocalAllocator*` variable or parameter.
-3. Build the module with the native C emitter.
-
-Expected:
-The generated C uses the declared ABI spelling for the re-exported allocator
-type and compiles successfully.
-
-Actual:
-The generated C uses an undeclared double-prefixed type such as
-`NamespaceLocalAllocator` when the available declaration is the standard
-allocator ABI type.
-
-Known Impact:
-Implementations cannot use a re-export alias as a source type until this is
-fixed. Use the original dependency type name internally and reserve the
-re-export for an exported signature that requires the dependency ABI type.
-
 ## BUG-141: Aggregate return storage is undeclared with a later `finally` array
 
 Date/Time: 2026-09-07 15:48 EDT

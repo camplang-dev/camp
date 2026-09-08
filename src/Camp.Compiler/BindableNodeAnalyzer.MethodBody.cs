@@ -2152,6 +2152,9 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (TryGetNamedExpressionTypeDefinition(named, out TypeDefinition? typeDefinition) && typeDefinition is not null)
 		{
+			if (ReportIfExportProjectionSourceTypeReference(typeDefinition, named.SourceSyntax))
+				return ErrorType;
+
 			if (named.Qualifiers.Count == 0 && !IsDefinitionVisible(typeDefinition, named.SourceSyntax))
 			{
 				ReportNotExported(typeDefinition, named.SourceSyntax, "Type");
@@ -6767,6 +6770,8 @@ public sealed partial class BindableNodeAnalyzer
 			type = staticClassExpression.ResolvedType ?? ErrorType;
 			return true;
 		}
+		if (ReportIfExportProjectionSourceTypeReference(typeDefinition, named.SourceSyntax))
+			return true;
 		if (named.Qualifiers.Count == 0 && !IsDefinitionVisible(typeDefinition, named.SourceSyntax))
 		{
 			ReportNotExported(typeDefinition, named.SourceSyntax, "Type");
