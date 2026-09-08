@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-150.
+Next bug number: BUG-151.
 
 ## Bug Template
 
@@ -300,3 +300,65 @@ implementation types file-private. Declaring the constructor `internal` is a
 safe but broader-visibility workaround; it unnecessarily exposes construction
 within the whole module. This file-private case remains reproducible after the
 fix for BUG-143's internal-lifecycle visibility case.
+
+## BUG-150: Conditional slice return omits the returned length
+
+Date/Time: 2026-09-08 08:01 EDT
+
+Summary:
+A function returning an array slice through a conditional expression can emit
+the selected data pointer without assigning the companion result length. The
+native caller consequently observes a zero-length nonempty slice. This violates
+the array-return ABI, which requires the elements and length components to be
+returned together.
+
+Steps to Reproduce:
+
+1. Save this source as `repro.camp`:
+
+   ```camp
+   requires (TEST_MODULE);
+
+   namespace Repro;
+
+   string text = "A";
+
+   const char[] value() => text == null ? "" : text;
+
+   @test
+   void conditionalSliceReturnPreservesLength(thrown Assertion*)
+   {
+       const char[] result = value();
+       assert(result.length == 1);
+   }
+   ```
+
+2. Save this project as `repro.campbuild` beside it:
+
+   ```text
+   --sourcefile-root .
+   --out-dir bin
+   --name repro
+   repro.camp
+   ```
+
+3. Run `campc test repro.campbuild` with
+   `v0.11.0-preview.1+f6feb41bd542c54884c9c29eded7db3575a22da4`.
+4. Inspect the generated C for `value` if needed. The function returns the
+   selected pointer but does not assign `*result_length`.
+
+Expected:
+The conditional expression returns both components of the selected slice, and
+the test observes `result.length == 1`.
+
+Actual:
+The generated function returns the pointer to `"A"` without setting the result
+length. The test observes a zero-length slice and fails. Callers that assume a
+non-null pointer has a valid length may instead fail later or access invalid
+state.
+
+Known Impact:
+Conditional expressions cannot safely be used as the return expression for an
+array or slice result. An explicit `if` with a direct return in each branch is a
+safe, low-debt workaround until array-return lowering assigns both ABI
+components on every return path.
