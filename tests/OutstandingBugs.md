@@ -48,6 +48,11 @@ Known Impact:
 
 Date/Time: 2026-09-07 15:48 EDT
 
+Status:
+More information required - cannot reproduce on current HEAD using the listed
+repro instructions. Do not mark fixed until a reproducible case is found or the
+original failure is otherwise confirmed resolved.
+
 Summary:
 A function returning a struct can emit invalid C when it has return paths before
 and after a later owned array local declared with `finally delete`. The cleanup
@@ -95,6 +100,11 @@ instead of using `finally delete` until cleanup lowering is corrected.
 
 Date/Time: 2026-09-07 16:52 EDT
 
+Status:
+More information required - cannot reproduce on current HEAD using the listed
+repro instructions. Do not mark fixed until a reproducible case is found or the
+original failure is otherwise confirmed resolved.
+
 Summary:
 An owner declared with `finally delete` inside a loop body can cause the native
 C lowering to return from the containing function after the first iteration.
@@ -140,6 +150,11 @@ corrected.
 
 Date/Time: 2026-09-07 19:05 EDT
 
+Status:
+More information required - cannot reproduce on current HEAD using the listed
+repro instructions. Do not mark fixed until a reproducible case is found or the
+original failure is otherwise confirmed resolved.
+
 Summary:
 A conditional expression that selects an alternate result when a receiver is
 null can still lower a method call on that null receiver before evaluating the
@@ -182,6 +197,11 @@ conditional branches lazy.
 ## BUG-148: Conditional return expression is evaluated when its branch is false
 
 Date/Time: 2026-09-07 20:18 EDT
+
+Status:
+More information required - cannot reproduce on current HEAD using the listed
+repro instructions. Do not mark fixed until a reproducible case is found or the
+original failure is otherwise confirmed resolved.
 
 Summary:
 An expression used as the return value of a conditional branch can be lowered
