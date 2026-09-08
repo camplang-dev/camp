@@ -467,9 +467,15 @@ public sealed partial class BindableNodeAnalyzer
 
 	string ResolvedNominalTypeName(TypeDefinition definition)
 	{
-		return string.IsNullOrWhiteSpace(definition.Symbol)
-			? SymbolNameService.DefaultTypeSymbol(GetDefinitionNamespace(definition), definition.Name)
-			: definition.Symbol;
+		if (definition.SymbolOverridden || !string.IsNullOrWhiteSpace(definition.DefaultSymbol))
+			return string.IsNullOrWhiteSpace(definition.Symbol)
+				? SymbolNameService.DefaultTypeSymbol(GetDefinitionNamespace(definition), definition.Name)
+				: definition.Symbol;
+
+		if (!string.IsNullOrWhiteSpace(definition.Symbol) && definition.Symbol != definition.Name)
+			return definition.Symbol;
+
+		return SymbolNameService.DefaultTypeSymbol(GetDefinitionNamespace(definition), definition.Name);
 	}
 
 	bool TryGetTypeDefinitionByResolvedName(string? name, out TypeDefinition? definition)
