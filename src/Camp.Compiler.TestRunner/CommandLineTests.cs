@@ -408,6 +408,36 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Native_conditional_slice_return_preserves_selected_array_view()
+	{
+		string root = TempPath("native-conditional-slice-return");
+		ResetDirectory(root);
+		Directory.CreateDirectory(Path.Combine(root, "src"));
+		File.WriteAllText(Path.Combine(root, "src", "main.camp"), """
+			requires (TEST_MODULE);
+
+			string text = "A";
+
+			const char[] value() => text == null ? "" : text;
+
+			@test
+			void conditionalSliceReturnPreservesLength(thrown Assertion*)
+			{
+				const char[] result = value();
+				assert(result.length == 1);
+			}
+			""");
+		File.WriteAllText(Path.Combine(root, "app.campbuild"), """
+			--artifact exec
+			src/*.camp
+			""");
+
+		ProcessResult result = RunCampcIn(root, "test", "app.campbuild", "--target", NativeTargetForHost(), "--out-dir", Path.Combine(root, "out"), "--name", "conditional_slice_return");
+
+		AssertCommandSucceeded(result);
+	}
+
+	[Fact]
 	public void Native_cleanup_return_declares_result_storage_outside_nested_cleanup_exit()
 	{
 		string root = TempPath("native-cleanup-return-storage");

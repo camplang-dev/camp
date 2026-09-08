@@ -1485,8 +1485,12 @@ public sealed partial class BindableNodeAnalyzer
 	bool TryCreateConditionalParamsComponentExpressions(ConditionalExpression conditional, out List<Expression> components)
 	{
 		components = [];
-		if (!TryCreateParamsComponentExpressions(conditional.WhenTrue, out List<Expression> trueComponents)
-			|| !TryCreateParamsComponentExpressions(conditional.WhenFalse, out List<Expression> falseComponents)
+		if (conditional.WhenTrue is null || conditional.WhenFalse is null)
+			return false;
+		if ((!TryCreateParamsComponentExpressions(conditional.WhenTrue, out List<Expression> trueComponents)
+				&& !TryCreatePrimitiveStringParamsComponentExpressions(conditional.WhenTrue, out trueComponents))
+			|| (!TryCreateParamsComponentExpressions(conditional.WhenFalse, out List<Expression> falseComponents)
+				&& !TryCreatePrimitiveStringParamsComponentExpressions(conditional.WhenFalse, out falseComponents))
 			|| trueComponents.Count == 0
 			|| trueComponents.Count != falseComponents.Count)
 		{
@@ -2420,20 +2424,35 @@ public sealed partial class BindableNodeAnalyzer
 			}
 		}
 		List<Expression> components;
-		if (expression is not null
-			&& TryCreatePrimitiveStringArrayInitialValues(expression, shape, statements, out List<Expression?> primitiveStringComponents)
-			&& primitiveStringComponents.All(static component => component is not null))
+		List<Statement>? previousComponentStatementPrefix = currentStatementPrefix;
+		try
 		{
-			components = primitiveStringComponents.Select(static component => component!).ToList();
+			currentStatementPrefix = statements;
+			if (expression is not null
+				&& TryCreatePrimitiveStringArrayInitialValues(expression, shape, statements, out List<Expression?> primitiveStringComponents)
+				&& primitiveStringComponents.All(static component => component is not null))
+			{
+				components = primitiveStringComponents.Select(static component => component!).ToList();
+			}
+			else if (expression is not null
+				&& TryCreatePrimitiveStringParamsComponentExpressions(expression, out components)
+				&& components.Count == shape.Components.Count)
+			{
+			}
+			else if (!TryCreateParamsComponentExpressions(expression, out components) || components.Count != shape.Components.Count)
+			{
+				return false;
+			}
 		}
-		else if (!TryCreateParamsComponentExpressions(expression, out components) || components.Count != shape.Components.Count)
+		finally
 		{
-			return false;
+			currentStatementPrefix = previousComponentStatementPrefix;
 		}
 
 		for (int i = 1; i < components.Count; i++)
 		{
-			Expression value = CastExpandedReturnComponent(components[i], shape.Components[i].Type, statement.SourceSyntax);
+			Expression loweredComponent = LowerExpression(components[i]) ?? components[i];
+			Expression value = CastExpandedReturnComponent(loweredComponent, shape.Components[i].Type, statement.SourceSyntax);
 			ParameterDefinition parameter = currentRewriteFunction.Parameters[^ (components.Count - i)];
 			statements.Add(new ExpressionStatement
 			{
@@ -2449,7 +2468,8 @@ public sealed partial class BindableNodeAnalyzer
 				}
 			});
 		}
-		Expression result = CastExpandedReturnComponent(components[0], shape.Components[0].Type, statement.SourceSyntax);
+		Expression loweredResult = LowerExpression(components[0]) ?? components[0];
+		Expression result = CastExpandedReturnComponent(loweredResult, shape.Components[0].Type, statement.SourceSyntax);
 		statements.Add(new ReturnStatement
 		{
 			SourceSyntax = statement.SourceSyntax,
@@ -2680,6 +2700,30 @@ public sealed partial class BindableNodeAnalyzer
 
 		pointerType = AddPointer(elementType);
 		lengthType = isConst ? "const nuint" : "nuint";
+		return true;
+	}
+
+	bool TryCreatePrimitiveStringParamsComponentExpressions(Expression expression, out List<Expression> components)
+	{
+		components = [];
+		if (expression is LiteralExpression or NameOfExpression)
+			return false;
+		if (TryGetParamsComponentShape(null, expression.ResolvedType, "value", out _))
+			return false;
+		if (GetPrimitiveStringElementType(expression.ResolvedType) is not string stringElement)
+			return false;
+
+		Expression value = currentStatementPrefix is not null
+			? CaptureRepeatedParamsSourceExpression(expression, "stringValue")
+			: expression;
+		Expression lengthSource = WithPrimitiveStringResolvedType(value, stringElement);
+		Expression? length = CreateLengthExpression(value, expression.SourceSyntax);
+		length ??= CreateLengthExpression(lengthSource, expression.SourceSyntax);
+		if (length is null)
+			return false;
+
+		components.Add(value);
+		components.Add(length);
 		return true;
 	}
 
