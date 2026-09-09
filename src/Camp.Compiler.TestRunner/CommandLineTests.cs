@@ -1095,6 +1095,54 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Test_run_only_reuses_a_validated_all_tests_harness_and_selects_at_runtime()
+	{
+		string source = CreateTempCase("test-run-only/main.camp", """
+			namespace ReuseCli;
+
+			@test
+			void first(thrown Assertion* assertion)
+			{
+			}
+
+			@test
+			void second(thrown Assertion* assertion)
+			{
+			}
+			""");
+		string outDir = TempPath("test-run-only-out");
+		string target = NativeTargetForHost();
+
+		ProcessResult build = RunCampc("test", source, "--target", target, "--out-dir", outDir, "--name", "test_run_only", "--filter", "ReuseCli::first");
+		AssertCommandSucceeded(build);
+		Assert.Contains("passed: ReuseCli::first", build.StdOut, StringComparison.Ordinal);
+		Assert.DoesNotContain("passed: ReuseCli::second", build.StdOut, StringComparison.Ordinal);
+
+		string artifactDirectory = Path.Combine(outDir, ArtifactDirectoryForHost(null, CompilerCommandMode.Test));
+		string harnessPath = Path.Combine(artifactDirectory, "build", "test_run_only_test_harness.c");
+		string cachePath = Path.Combine(artifactDirectory, "test_run_only.camp-test-run-cache.json");
+		Assert.True(File.Exists(cachePath));
+		string harness = File.ReadAllText(harnessPath);
+		Assert.Contains("ReuseCli::first", harness, StringComparison.Ordinal);
+		Assert.Contains("ReuseCli::second", harness, StringComparison.Ordinal);
+
+		ProcessResult reuse = RunCampc("test", source, "--target", target, "--out-dir", outDir, "--name", "test_run_only", "--run-only", "--filter", "ReuseCli::second");
+		AssertCommandSucceeded(reuse);
+		Assert.Contains("passed: ReuseCli::second", reuse.StdOut, StringComparison.Ordinal);
+		Assert.DoesNotContain("passed: ReuseCli::first", reuse.StdOut, StringComparison.Ordinal);
+		Assert.Equal(harness, File.ReadAllText(harnessPath));
+
+		ProcessResult empty = RunCampc("test", source, "--target", target, "--out-dir", outDir, "--name", "test_run_only", "--run-only", "--filter", "ReuseCli::missing");
+		AssertCommandSucceeded(empty);
+		Assert.Contains("test summary: 0 passed, 0 failed, 0 skipped, 0 invalid, 0 error, 0 total", empty.StdOut, StringComparison.Ordinal);
+
+		File.AppendAllText(source, "\n// invalidate reusable test build\n");
+		ProcessResult stale = RunCampc("test", source, "--target", target, "--out-dir", outDir, "--name", "test_run_only", "--run-only");
+		Assert.NotEqual(0, stale.ExitCode);
+		Assert.Contains("changed", stale.StdErr, StringComparison.Ordinal);
+	}
+
+	[Fact]
 	public void Generated_harness_reports_failures_skips_invalid_tests_and_source_capture()
 	{
 		string source = CreateTempCase("test_harness_outcomes/main.camp", """

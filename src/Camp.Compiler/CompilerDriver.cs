@@ -63,6 +63,7 @@ public sealed class CompilerRequest
 	public bool Verbose { get; set; }
 	public bool ColorOutput { get; set; }
 	public bool ListTests { get; set; }
+	public bool TestRunOnly { get; set; }
 	public bool IgnoreLeaks { get; set; }
 	public List<string> TestFilters { get; } = [];
 	public string? TestOutputDir { get; set; }
@@ -181,6 +182,8 @@ public static class CompilerDriver
 			}
 			if (!ValidateFrameworks(context!.Target))
 				return 1;
+			if (request.TestRunOnly)
+				return RunReusableTestHarness(context.Target);
 
 			bool requireNativeLibraries = request.BuildKind is not null || request.CommandMode is CompilerCommandMode.Test or CompilerCommandMode.Cover;
 			List<string> packageApiHeaders = [];
@@ -257,7 +260,7 @@ public static class CompilerDriver
 			string projectName = string.IsNullOrWhiteSpace(request.ProjectName) ? CCodeEmitter.GetProjectName(compilation.Files) : request.ProjectName!;
 			string testOutputDirectory = ResolveTestOutputDirectory(outputDirectory);
 			string coverageOutputDirectory = ResolveCoverageOutputDirectory(outputDirectory);
-			if (!TryEmitTestManifestArtifact(discovery.Manifest, testOutputDirectory, projectName))
+			if (!TryEmitTestManifestArtifact(discovery.Manifest, testOutputDirectory, projectName, out string? manifestPath))
 				return 1;
 
 			IReadOnlyList<CampTestManifestEntry> selectedTests = CampTestFilter.Apply(discovery.Manifest.Tests, request.TestFilters);
@@ -308,7 +311,7 @@ public static class CompilerDriver
 			}
 
 			CampCoverageMap? coverageMap = coverageMapBuilder?.ToMap();
-			if (!TryEmitTestHarnessSource(buildDirectory, projectName, selectedTests, coverageMap, out string? harnessSource))
+			if (!TryEmitTestHarnessSource(buildDirectory, projectName, discovery.Manifest.Tests, coverageMap, out string? harnessSource))
 				return 1;
 
 			NativeBuildOptions buildOptions = new()
@@ -342,7 +345,10 @@ public static class CompilerDriver
 			Dictionary<string, string> coverageCountPaths = request.CommandMode == CompilerCommandMode.Cover
 				? CreateCoverageCountPaths(coverageMapPaths, buildDirectory)
 				: [];
-			CampTestResults testResults = RunTestHarness(NativeBuildDriver.GetArtifactPath(buildOptions), buildDirectory, selectedTests, coverageCountPaths);
+			string executablePath = NativeBuildDriver.GetArtifactPath(buildOptions);
+			if (request.CommandMode == CompilerCommandMode.Test)
+				TryWriteTestRunCache(outputDirectory, projectName, executablePath, manifestPath!, compilation, packageLibraries);
+			CampTestResults testResults = RunTestHarness(executablePath, buildDirectory, selectedTests, GetTestIndexes(discovery.Manifest.Tests, selectedTests), coverageCountPaths);
 			if (writeJson && !TryEmitTestResultsArtifact(testResults, testOutputDirectory, projectName))
 				return 1;
 			bool coverageSucceeded = true;
@@ -1621,9 +1627,9 @@ public static class CompilerDriver
 			return true;
 		}
 
-		bool TryEmitTestManifestArtifact(CampTestManifest manifest, string outputDirectory, string projectName)
+		bool TryEmitTestManifestArtifact(CampTestManifest manifest, string outputDirectory, string projectName, out string? manifestPath)
 		{
-			string manifestPath = Path.Combine(outputDirectory, projectName + ".camp-test-manifest.json");
+			manifestPath = Path.Combine(outputDirectory, projectName + ".camp-test-manifest.json");
 			try
 			{
 				Directory.CreateDirectory(outputDirectory);
@@ -1632,10 +1638,68 @@ public static class CompilerDriver
 			catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
 			{
 				ErrorLine($"{manifestPath}: {ex.Message}");
+				manifestPath = null;
 				return false;
 			}
 
 			return true;
+		}
+
+		int RunReusableTestHarness(TargetDefinition target)
+		{
+			if (request.CommandMode != CompilerCommandMode.Test)
+				return Error("--run-only can only be used with test.");
+			if (request.EmitDebugInfo)
+				return Error("--run-only cannot be combined with --debug-info.");
+			string projectName = GetRequestProjectName();
+			string outputDirectory = ResolveArtifactOutputDirectory(target, buildKind: null, request.ProfileName);
+			string buildDirectory = Path.Combine(outputDirectory, "build");
+			string cachePath = GetTestRunCachePath(outputDirectory, projectName);
+			if (!CampTestRunCache.TryReadValidated(cachePath, request, target, out CampTestRunCacheRecord? cache, out string? reason))
+				return Error("--run-only cannot reuse this test build: " + reason + ". Run campc test without --run-only first.");
+			if (!CampTestManifestJsonSerializer.TryParse(File.ReadAllText(cache!.ManifestPath), out CampTestManifest manifest, out List<string> diagnostics))
+				return Error("--run-only cannot read the cached test manifest: " + string.Join(" ", diagnostics));
+			IReadOnlyList<CampTestManifestEntry> selectedTests = CampTestFilter.Apply(manifest.Tests, request.TestFilters);
+			if (request.ListTests)
+			{
+				foreach (CampTestManifestEntry test in selectedTests)
+					OutLine(test.Id);
+				return 0;
+			}
+			if (!TryGetTestResultOutputFormat(out bool writeText, out bool writeJson))
+				return 1;
+			CampTestResults testResults = RunTestHarness(cache.ExecutablePath, buildDirectory, selectedTests, GetTestIndexes(manifest.Tests, selectedTests), new Dictionary<string, string>());
+			if (writeJson && !TryEmitTestResultsArtifact(testResults, ResolveTestOutputDirectory(outputDirectory), projectName))
+				return 1;
+			if (writeText)
+				stdout.Append(CampTestResultsTextFormatter.Format(testResults, request.ColorOutput));
+			return TestResultsSucceeded(testResults) ? 0 : 1;
+		}
+
+		void TryWriteTestRunCache(string outputDirectory, string projectName, string executablePath, string manifestPath, Compilation compilation, IReadOnlyList<string> packageLibraries)
+		{
+			List<string> inputs = compilation.Files
+				.Select(static file => file.FullPath)
+				.Where(static path => !string.IsNullOrWhiteSpace(path))
+				.Select(static path => path!)
+				.ToList();
+			inputs.AddRange(ResolveInputPaths(request.NativeSourceFiles));
+			inputs.AddRange(packageLibraries);
+			inputs.AddRange(request.References.Select(reference => ResolveNativeReference(reference, compilation.Target!)));
+			inputs.Add(compilation.Target!.Path);
+			if (!string.IsNullOrWhiteSpace(Environment.ProcessPath))
+				inputs.Add(Environment.ProcessPath!);
+			CampTestRunCacheRecord cache = CampTestRunCache.Create(request, compilation.Target!, executablePath, manifestPath, inputs);
+			if (!CampTestRunCache.TryWrite(GetTestRunCachePath(outputDirectory, projectName), cache, out string? error))
+				ErrorLine("test run cache: " + error);
+		}
+
+		static string GetTestRunCachePath(string outputDirectory, string projectName) => Path.Combine(outputDirectory, projectName + ".camp-test-run-cache.json");
+
+		static IReadOnlyList<int> GetTestIndexes(IReadOnlyList<CampTestManifestEntry> allTests, IReadOnlyList<CampTestManifestEntry> selectedTests)
+		{
+			HashSet<string> selectedIds = selectedTests.Select(static test => test.Id).ToHashSet(StringComparer.Ordinal);
+			return allTests.Select((test, index) => (test, index)).Where(pair => selectedIds.Contains(pair.test.Id)).Select(static pair => pair.index).ToList();
 		}
 
 		bool TryEmitTestHarnessSource(string outputDirectory, string projectName, IReadOnlyList<CampTestManifestEntry> tests, CampCoverageMap? coverageMap, out string? harnessSource)
@@ -1869,7 +1933,7 @@ public static class CompilerDriver
 				: Path.GetFileNameWithoutExtension(fileName);
 		}
 
-		CampTestResults RunTestHarness(string executablePath, string buildDirectory, IReadOnlyList<CampTestManifestEntry> selectedTests, IReadOnlyDictionary<string, string> coverageCountPaths)
+		CampTestResults RunTestHarness(string executablePath, string buildDirectory, IReadOnlyList<CampTestManifestEntry> selectedTests, IReadOnlyList<int> selectedIndexes, IReadOnlyDictionary<string, string> coverageCountPaths)
 		{
 			string eventPath = Path.Combine(buildDirectory, Path.GetFileNameWithoutExtension(executablePath) + ".camp-test-events.tsv");
 			try
@@ -1888,6 +1952,9 @@ public static class CompilerDriver
 					UseShellExecute = false
 				};
 				info.ArgumentList.Add(eventPath);
+				info.ArgumentList.Add("--camp-selected");
+				foreach (int index in selectedIndexes)
+					info.ArgumentList.Add(index.ToString(CultureInfo.InvariantCulture));
 				foreach ((string name, string path) in coverageCountPaths)
 					info.Environment[name] = path;
 				using Process process = new() { StartInfo = info };

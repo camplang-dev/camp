@@ -161,6 +161,20 @@ public static class CampTestHarnessGenerator
 		builder.AppendLine("\treturn ((double)(clock() - start) * 1000.0) / (double)CLOCKS_PER_SEC;");
 		builder.AppendLine("}");
 		builder.AppendLine();
+		builder.AppendLine("static int camp_is_selected(int index, int argc, char **argv)");
+		builder.AppendLine("{");
+		builder.AppendLine("\tif (argc <= 2)");
+		builder.AppendLine("\t\treturn 1;");
+		builder.AppendLine("\tfor (int argument = 3; argument < argc; argument++)");
+		builder.AppendLine("\t{");
+		builder.AppendLine("\t\tchar *end = 0;");
+		builder.AppendLine("\t\tlong requested = strtol(argv[argument], &end, 10);");
+		builder.AppendLine("\t\tif (argv[argument][0] != 0 && *end == 0 && requested == index)");
+		builder.AppendLine("\t\t\treturn 1;");
+		builder.AppendLine("\t}");
+		builder.AppendLine("\treturn 0;");
+		builder.AppendLine("}");
+		builder.AppendLine();
 		builder.AppendLine("int main(int argc, char **argv)");
 		builder.AppendLine("{");
 		builder.AppendLine("\tFILE *camp_events = 0;");
@@ -174,20 +188,24 @@ public static class CampTestHarnessGenerator
 		builder.AppendLine("\t\t}");
 		builder.AppendLine("\t}");
 		builder.AppendLine("\tint failed = 0;");
+		builder.AppendLine("\tint selected_index = 0;");
 		if (tests.Count == 0)
 			builder.AppendLine("\tif (camp_events == 0) printf(\"camp test: no selected tests\\n\");");
 		builder.AppendLine("\tfor (int i = 0; i < camp_test_count; i++)");
 		builder.AppendLine("\t{");
+		builder.AppendLine("\t\tif (!camp_is_selected(i, argc, argv))");
+		builder.AppendLine("\t\t\tcontinue;");
 		builder.AppendLine("\t\tconst CampTestCase *test = &camp_tests[i];");
+		builder.AppendLine("\t\tint result_index = selected_index++;");
 		builder.AppendLine("\t\tclock_t start = clock();");
 		builder.AppendLine("\t\tif (test->skipped)");
 		builder.AppendLine("\t\t{");
-		builder.AppendLine("\t\t\tcamp_record_simple(camp_events, test, i, \"skipped\", camp_elapsed_ms(start));");
+		builder.AppendLine("\t\t\tcamp_record_simple(camp_events, test, result_index, \"skipped\", camp_elapsed_ms(start));");
 		builder.AppendLine("\t\t\tcontinue;");
 		builder.AppendLine("\t\t}");
 		builder.AppendLine("\t\tif (!test->valid || test->function == 0)");
 		builder.AppendLine("\t\t{");
-		builder.AppendLine("\t\t\tcamp_record_simple(camp_events, test, i, \"invalid\", camp_elapsed_ms(start));");
+		builder.AppendLine("\t\t\tcamp_record_simple(camp_events, test, result_index, \"invalid\", camp_elapsed_ms(start));");
 		builder.AppendLine("\t\t\tfailed++;");
 		builder.AppendLine("\t\t\tcontinue;");
 		builder.AppendLine("\t\t}");
@@ -198,28 +216,28 @@ public static class CampTestHarnessGenerator
 		builder.AppendLine("\t\tdouble duration_ms = camp_elapsed_ms(start);");
 		builder.AppendLine("\t\tif (failure != 0)");
 		builder.AppendLine("\t\t{");
-		builder.AppendLine("\t\t\tcamp_record_failure(camp_events, test, i, duration_ms, failure);");
+		builder.AppendLine("\t\t\tcamp_record_failure(camp_events, test, result_index, duration_ms, failure);");
 		builder.AppendLine("\t\t\tfailed++;");
 		builder.AppendLine("\t\t\tcontinue;");
 		builder.AppendLine("\t\t}");
 		builder.AppendLine("\t\tif (memory.has_error)");
 		builder.AppendLine("\t\t{");
-		builder.AppendLine("\t\t\tcamp_record_memory_failure(camp_events, test, i, duration_ms, &memory);");
+		builder.AppendLine("\t\t\tcamp_record_memory_failure(camp_events, test, result_index, duration_ms, &memory);");
 		builder.AppendLine("\t\t\tfailed++;");
 		builder.AppendLine("\t\t\tcontinue;");
 		builder.AppendLine("\t\t}");
 		builder.AppendLine("\t\tif (memory.has_leak)");
 		builder.AppendLine("\t\t{");
 		if (ignoreLeaks)
-			builder.AppendLine("\t\t\tcamp_record_ignored_leak(camp_events, test, i, duration_ms, &memory);");
+			builder.AppendLine("\t\t\tcamp_record_ignored_leak(camp_events, test, result_index, duration_ms, &memory);");
 		else
 		{
-			builder.AppendLine("\t\t\tcamp_record_memory_failure(camp_events, test, i, duration_ms, &memory);");
+			builder.AppendLine("\t\t\tcamp_record_memory_failure(camp_events, test, result_index, duration_ms, &memory);");
 			builder.AppendLine("\t\t\tfailed++;");
 		}
 		builder.AppendLine("\t\t\tcontinue;");
 		builder.AppendLine("\t\t}");
-		builder.AppendLine("\t\tcamp_record_passed_memory(camp_events, test, i, duration_ms, &memory);");
+		builder.AppendLine("\t\tcamp_record_passed_memory(camp_events, test, result_index, duration_ms, &memory);");
 		builder.AppendLine("\t}");
 		builder.AppendLine("\tif (camp_events != 0)");
 		builder.AppendLine("\t\tfclose(camp_events);");
