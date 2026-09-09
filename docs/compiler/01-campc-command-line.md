@@ -121,6 +121,8 @@ sources again. The compiler validates the target/profile/options, compiler
 binary, executable, manifest, and content fingerprints of the files used by the
 original build. It rejects a stale or missing build; refresh it with ordinary
 `campc test` after changing source, dependencies, compiler, or build options.
+`--run-only` is valid only for `test` and cannot be combined with
+`--debug-info`.
 
 If a runnable `@test` declares a runner-supplied `within allocator` slot and
 that slot has the standard interface-shaped `Allocator*` contract, the harness
@@ -342,8 +344,13 @@ These options are accepted by `test` and `cover` only:
 |---|---|
 | `--list` | List selected test manifest IDs and stop after discovery. |
 | `--filter` | Select tests by exact name or wildcard pattern. May be repeated. |
-| `--run-only` | Run a validated existing `test` harness without recompiling; rejected when the prior build is absent or stale. |
 | `--ignore-leaks` | Report harness-allocator leaks without making leak-only tests fail. Invalid allocator operations still fail. |
+
+This option is accepted by `test` only:
+
+| Option | Meaning |
+|---|---|
+| `--run-only` | Run a validated existing test harness without recompiling; rejected when the prior build is absent or stale, and incompatible with `--debug-info`. |
 
 These options are accepted by `build`, `run`, `test`, and `cover`:
 

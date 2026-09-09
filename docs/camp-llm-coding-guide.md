@@ -1112,7 +1112,8 @@ and `campc cover`; it reports leaks but does not make leak-only tests fail.
 After a normal test build, use `campc test --run-only --filter ...` for repeated
 filter changes when the source and build configuration are unchanged. It
 validates the prior harness and refuses stale output; use ordinary `campc test`
-after an edit.
+after an edit. `--run-only` is available for `test`, not `cover`, and cannot be
+combined with `--debug-info`.
 
 Use `assert(condition)` for ordinary checks and `fail(message)` for an explicit
 failure. These functions capture expression text, source file, and source line
