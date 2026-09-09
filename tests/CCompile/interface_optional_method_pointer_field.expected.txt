@@ -94,7 +94,11 @@ int main(void)
 	}
 	Widget_setHost(widget, Host_getIHost(_created2));
 	int result = Widget_transform(widget, 2);
-	free((void *)(widget));
+	Widget *_deleteTarget3 = widget;
+	if ((_deleteTarget3 != NULL))
+	{
+		free((void *)(_deleteTarget3));
+	}
 	return (result - 8);
 }
 

@@ -40,7 +40,11 @@ void run(void)
 	{
 		Logger_op_initnew(logger);
 	}
-	(Logger_op_delete(logger), free((void *)(logger)));
+	Logger *_deleteTarget1 = logger;
+	if ((_deleteTarget1 != NULL))
+	{
+		(Logger_op_delete(_deleteTarget1), free((void *)(_deleteTarget1)));
+	}
 }
 
 // file: lifecycle_delete.h

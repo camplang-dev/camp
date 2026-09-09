@@ -31,9 +31,9 @@ static void fail(Err *error)
 
 static int (* makeBlockAdder(int offset, void **result_context))(void *arg0, int arg1)
 {
-	makeBlockAdder_lambdaContext0 *_lambdaContext0 = (makeBlockAdder_lambdaContext0 *)(malloc(sizeof(makeBlockAdder_lambdaContext0)));
-	_lambdaContext0->capture0_offset = offset;
 	{
+		makeBlockAdder_lambdaContext0 *_lambdaContext0 = (makeBlockAdder_lambdaContext0 *)(malloc(sizeof(makeBlockAdder_lambdaContext0)));
+		_lambdaContext0->capture0_offset = offset;
 		(*result_context) = (void *)(_lambdaContext0);
 		return makeBlockAdder_lambda0;
 	}
@@ -41,11 +41,11 @@ static int (* makeBlockAdder(int offset, void **result_context))(void *arg0, int
 
 static uintptr_t (* makeSpanLength(const char *span, uintptr_t span_length, void **result_context))(void *arg0)
 {
-	makeSpanLength_lambdaContext1 *_lambdaContext5 = (makeSpanLength_lambdaContext1 *)(malloc(sizeof(makeSpanLength_lambdaContext1)));
-	_lambdaContext5->capture0_span = span;
-	_lambdaContext5->capture1_span_length = span_length;
 	{
-		(*result_context) = (void *)(_lambdaContext5);
+		makeSpanLength_lambdaContext1 *_lambdaContext4 = (makeSpanLength_lambdaContext1 *)(malloc(sizeof(makeSpanLength_lambdaContext1)));
+		_lambdaContext4->capture0_span = span;
+		_lambdaContext4->capture1_span_length = span_length;
+		(*result_context) = (void *)(_lambdaContext4);
 		return makeSpanLength_lambda1;
 	}
 }
@@ -65,9 +65,9 @@ static uintptr_t Array_countWhere(void *this, uintptr_t this_length, bool (* pre
 			{
 				count++;
 			}
-__for_continue6: ;
+__for_continue5: ;
 		}
-__for_break7: ;
+__for_break6: ;
 	}
 	return count;
 }
@@ -93,12 +93,20 @@ int main(void)
 	void *adder_context;
 	adder = makeBlockAdder(3, &adder_context);
 	int total = adder(adder_context, 7);
-	free((void *)(adder_context));
+	void *_deleteTarget7 = adder_context;
+	if ((_deleteTarget7 != NULL))
+	{
+		free((void *)(_deleteTarget7));
+	}
 	uintptr_t (* length)(void *arg0);
 	void *length_context;
 	length = makeSpanLength("hello", 5, &length_context);
 	total = (total + (int)(length(length_context)));
-	free((void *)(length_context));
+	void *_deleteTarget8 = length_context;
+	if ((_deleteTarget8 != NULL))
+	{
+		free((void *)(_deleteTarget8));
+	}
 	Box *box = (Box *)(malloc(sizeof(Box)));
 	if ((box != NULL))
 	{
@@ -106,26 +114,30 @@ int main(void)
 	}
 	box->value = 20;
 	total = (total + invoke((int (*)(void *arg0, int arg1))Box_add, (Box *)(box), 2));
-	free((void *)(box));
+	Box *_deleteTarget9 = box;
+	if ((_deleteTarget9 != NULL))
+	{
+		free((void *)(_deleteTarget9));
+	}
 	int threshold = 2;
 	int *values = (int []){1, 2, 3, 4};
 	uintptr_t values_length = 4;
-	main_lambdaContext2 *_lambdaContext8 = (main_lambdaContext2 *)(malloc(sizeof(main_lambdaContext2)));
-	_lambdaContext8->capture0_threshold = threshold;
-	total = (total + (int)(Array_countWhere(values, values_length, (bool (*)(void *arg0, void *arg1))main_lambda2, _lambdaContext8, sizeof(int))));
-	main_lambdaContext3 *_lambdaContext9 = (main_lambdaContext3 *)(malloc(sizeof(main_lambdaContext3)));
-	_lambdaContext9->capture0_threshold = threshold;
+	main_lambdaContext2 *_lambdaContext10 = (main_lambdaContext2 *)(malloc(sizeof(main_lambdaContext2)));
+	_lambdaContext10->capture0_threshold = threshold;
+	total = (total + (int)(Array_countWhere(values, values_length, (bool (*)(void *arg0, void *arg1))main_lambda2, _lambdaContext10, sizeof(int))));
+	main_lambdaContext3 *_lambdaContext11 = (main_lambdaContext3 *)(malloc(sizeof(main_lambdaContext3)));
+	_lambdaContext11->capture0_threshold = threshold;
 	{
-		filterIter _foreachIter10 = IntArray_filter(values, values_length, (bool (*)(void *arg0, int *arg1))main_lambda3, _lambdaContext9);
-		int _foreachCurrent11 = 0;
-		while (filterIter_next(&_foreachIter10, &_foreachCurrent11))
+		filterIter _foreachIter12 = IntArray_filter(values, values_length, (bool (*)(void *arg0, int *arg1))main_lambda3, _lambdaContext11);
+		int _foreachCurrent13 = 0;
+		while (filterIter_next(&_foreachIter12, &_foreachCurrent13))
 		{
-			int item = _foreachCurrent11;
+			int item = _foreachCurrent13;
 			total = (total + item);
-__foreach_continue12: ;
+__foreach_continue14: ;
 		}
-		filterIter_destroy(&_foreachIter10);
-__foreach_break13: ;
+		filterIter_destroy(&_foreachIter12);
+__foreach_break15: ;
 	}
 	{
 		Err e;
@@ -133,18 +145,18 @@ __foreach_break13: ;
 			fail(&e);
 			if ((e != 0))
 			{
-				goto __catch16;
+				goto __catch18;
 			}
 		}
-		goto __try_done14;
-__catch16: ;
+		goto __try_done16;
+__catch18: ;
 		{
-			main_lambdaContext4 *_lambdaContext17 = (main_lambdaContext4 *)(malloc(sizeof(main_lambdaContext4)));
-			_lambdaContext17->capture0_e = e;
-			total = (total + invoke0((int (*)(void *arg0))main_lambda4, _lambdaContext17));
+			main_lambdaContext4 *_lambdaContext19 = (main_lambdaContext4 *)(malloc(sizeof(main_lambdaContext4)));
+			_lambdaContext19->capture0_e = e;
+			total = (total + invoke0((int (*)(void *arg0))main_lambda4, _lambdaContext19));
 		}
-		goto __try_done14;
-__try_done14: ;
+		goto __try_done16;
+__try_done16: ;
 	}
 	return ((total == 58) ? 0 : 1);
 }
@@ -172,9 +184,9 @@ static bool filterIter_next(filterIter *this, int *current)
 __iter_resume1: ;
 				;
 			}
-__for_continue18: ;
+__for_continue20: ;
 		}
-__for_break19: ;
+__for_break21: ;
 	}
 	this->__state = -1;
 	return false;
@@ -208,14 +220,12 @@ static int makeBlockAdder_lambda0(void *_context, int value)
 		{
 			{
 				_return3 = (doubled + lambdaContext->capture0_offset);
-				goto __cleanup4;
+				{
+					int ignored = doubled;
+				}
+				return _return3;
 			}
 		}
-__cleanup4: ;
-		{
-			int ignored = doubled;
-		}
-		return _return3;
 	}
 }
 

@@ -20,7 +20,11 @@ int main(void)
 	const char *widgetName = Widget_getName((const Widget *)(widget));
 	const char *gaugeName = Widget_getName((const Widget *)(gauge));
 	bool ok = ((widgetName[0] == 'G') && (gaugeName[0] == 'G'));
-	free((void *)(gauge));
+	Gauge *_deleteTarget2 = gauge;
+	if ((_deleteTarget2 != NULL))
+	{
+		free((void *)(_deleteTarget2));
+	}
 	return (ok ? 0 : 1);
 }
 

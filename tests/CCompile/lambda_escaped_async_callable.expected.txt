@@ -10,9 +10,9 @@ static void makeAdder_lambda0(void *_context, int value, void (* complete)(void 
 
 static void (* makeAdder(int amount, void **result_context))(void *arg0, int arg1, void (* arg2)(void *arg0, int arg1, CalcError arg2), void *arg3)
 {
-	makeAdder_lambdaContext0 *_lambdaContext0 = (makeAdder_lambdaContext0 *)(malloc(sizeof(makeAdder_lambdaContext0)));
-	_lambdaContext0->capture0_amount = amount;
 	{
+		makeAdder_lambdaContext0 *_lambdaContext0 = (makeAdder_lambdaContext0 *)(malloc(sizeof(makeAdder_lambdaContext0)));
+		_lambdaContext0->capture0_amount = amount;
 		(*result_context) = (void *)(_lambdaContext0);
 		return makeAdder_lambda0;
 	}
@@ -24,10 +24,10 @@ static void accept(void (* callback)(void *arg0, int arg1, void (* arg2)(void *a
 
 int main(void)
 {
-	void (* _call1)(void *arg0, int arg1, void (* arg2)(void *arg0, int arg1, CalcError arg2), void *arg3);
-	void *_context2;
-	_call1 = makeAdder(4, &_context2);
-	accept((void (*)(void *arg0, int arg1, void (* arg2)(void *arg0, int arg1, CalcError arg2), void *arg3))_call1, _context2);
+	void (* _call2)(void *arg0, int arg1, void (* arg2)(void *arg0, int arg1, CalcError arg2), void *arg3);
+	void *_context3;
+	_call2 = makeAdder(4, &_context3);
+	accept((void (*)(void *arg0, int arg1, void (* arg2)(void *arg0, int arg1, CalcError arg2), void *arg3))_call2, _context3);
 	return 0;
 }
 
@@ -42,7 +42,11 @@ static void makeAdder_lambda0(void *_context, int value, void (* complete)(void 
 	{
 		complete(complete_context, (value + lambdaContext->capture0_amount), CalcError_ERR_NONE);
 	}
-	free((void *)(lambdaContext));
+	makeAdder_lambdaContext0 *_deleteTarget1 = lambdaContext;
+	if ((_deleteTarget1 != NULL))
+	{
+		free((void *)(_deleteTarget1));
+	}
 }
 
 // file: lambda_escaped_async_callable.h

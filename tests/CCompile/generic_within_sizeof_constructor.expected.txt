@@ -50,7 +50,11 @@ static void run(void)
 				*box = (Box){0};
 				Box_op_initnew(box, sizeof(int), _allocator1);
 			}
-			((_allocator1 != NULL) ? Arena_free(_allocator1, (void *)(box)) : free((void *)(box)));
+			Box *_deleteTarget2 = box;
+			if ((_deleteTarget2 != NULL))
+			{
+				((_allocator1 != NULL) ? Arena_free(_allocator1, (void *)(_deleteTarget2)) : free((void *)(_deleteTarget2)));
+			}
 		}
 	}
 }

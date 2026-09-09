@@ -62,8 +62,16 @@ static int main(void)
 		*generatedBase = (DerivedWithGeneratedConstructor){0};
 	}
 	int result = BaseWithArgument_getValue((const BaseWithArgument *)(explicitBase));
-	free((void *)(explicitBase));
-	free((void *)(generatedBase));
+	DerivedWithExplicitBase *_deleteTarget2 = explicitBase;
+	if ((_deleteTarget2 != NULL))
+	{
+		free((void *)(_deleteTarget2));
+	}
+	DerivedWithGeneratedConstructor *_deleteTarget3 = generatedBase;
+	if ((_deleteTarget3 != NULL))
+	{
+		free((void *)(_deleteTarget3));
+	}
 	return (result - 11);
 }
 

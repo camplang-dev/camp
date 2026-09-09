@@ -43,7 +43,11 @@ int main(void)
 	uintptr_t copied_length;
 	copied = Array_copyArray(values, values_length, sizeof(int), &copied_length);
 	int result = copied[1];
-	free((void *)(copied));
+	int *_deleteElements2 = copied;
+	if ((_deleteElements2 != NULL))
+	{
+		free((void *)(_deleteElements2));
+	}
 	return result;
 }
 

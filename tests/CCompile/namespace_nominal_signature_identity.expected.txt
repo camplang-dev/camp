@@ -67,7 +67,11 @@ static void Win32FormsPropertyBag_ensureEntryCapacity(Win32FormsPropertyBag *thi
 		this->entries = (Win32FormsPropertyEntry *)(Win32Forms_malloc((sizeof(Win32FormsPropertyEntry) * newLength)));
 		this->entries_length = newLength;
 	}
-	Win32Forms_free((void *)(oldEntries));
+	Win32FormsPropertyEntry *_deleteElements0 = oldEntries;
+	if ((_deleteElements0 != NULL))
+	{
+		Win32Forms_free((void *)(_deleteElements0));
+	}
 }
 
 static void Win32FormsPropertyBag_ensureReleaseCapacity(Win32FormsPropertyBag *this, uintptr_t newLength)
@@ -75,10 +79,14 @@ static void Win32FormsPropertyBag_ensureReleaseCapacity(Win32FormsPropertyBag *t
 	void (* *oldFunctions)(Win32FormsRefCounted *arg0) = this->releaseFunctions;
 	uintptr_t oldFunctions_length = this->releaseFunctions_length;
 	{
-		this->releaseFunctions = (void (* *)(Win32FormsRefCounted *camp))(Win32Forms_malloc((sizeof(void (*)(Win32FormsRefCounted *arg0)) * newLength)));
+		this->releaseFunctions = (void (* *)(Win32FormsRefCounted *arg0))(Win32Forms_malloc((sizeof(void (*)(Win32FormsRefCounted *arg0)) * newLength)));
 		this->releaseFunctions_length = newLength;
 	}
-	Win32Forms_free((void *)(oldFunctions));
+	void (* *_deleteElements1)(Win32FormsRefCounted *arg0) = oldFunctions;
+	if ((_deleteElements1 != NULL))
+	{
+		Win32Forms_free((void *)(_deleteElements1));
+	}
 }
 
 static int Win32Forms_main(void)
@@ -90,7 +98,11 @@ static int Win32Forms_main(void)
 	}
 	Win32FormsPropertyBag_ensureEntryCapacity(bag, 1);
 	Win32FormsPropertyBag_ensureReleaseCapacity(bag, 1);
-	Win32Forms_free((void *)(bag));
+	Win32FormsPropertyBag *_deleteTarget2 = bag;
+	if ((_deleteTarget2 != NULL))
+	{
+		Win32Forms_free((void *)(_deleteTarget2));
+	}
 	return 0;
 }
 

@@ -3,22 +3,22 @@
 
 /* Private file declarations. */
 static int SourceBoundary_increment(int value);
-static int (* SourceBoundary_getIncrement)(int camp)(void);
+static int (* SourceBoundary_getIncrement)(int arg0)(void);
 
 static int SourceBoundary_increment(int value)
 {
 	return (value + 1);
 }
 
-static int (* SourceBoundary_getIncrement)(int camp)(void)
+static int (* SourceBoundary_getIncrement)(int arg0)(void)
 {
 	return SourceBoundary_increment;
 }
 
 int SourceBoundary_main(void)
 {
-	int (* f)(int camp) = SourceBoundary_increment;
-	int (* g)(int camp) = SourceBoundary_getIncrement();
+	int (* f)(int arg0) = SourceBoundary_increment;
+	int (* g)(int arg0) = SourceBoundary_getIncrement();
 	return ((((SourceBoundary_increment(1) + SourceBoundary_increment(2)) + SourceBoundary_increment(3)) + f(4)) + g(5));
 }
 

@@ -44,7 +44,7 @@
         <FunctionDefinition InvokerName="write" ReceiverLifetimeBinding="scoped:default receiver" Name="write" Symbol="PrepReturnSurfaceWriter_write" Namespace="PrepReturnSurface" ResolvedType="nuint">
           <ReturnType Type="NUInt" ResolvedType="nuint" />
           <Parameters>
-            <ThisParameterDefinition LifetimeBinding="scoped:default parameter" Name="this" Symbol="this" Namespace="PrepReturnSurface" ResolvedType="const Writer*" />
+            <ThisParameterDefinition LifetimeBinding="scoped:default parameter" Name="this" Symbol="this" Namespace="PrepReturnSurface" ResolvedType="const PrepReturnSurfaceWriter*" />
             <ParameterDefinition Modifier="Prep" LifetimeBinding="scoped:default parameter" Name="buffer" Symbol="buffer" Namespace="PrepReturnSurface" ResolvedType="char[]">
               <Type Type="ArrayTypeReference" ResolvedType="char[]">
                 <ElementType Type="Char" ResolvedType="char" />
@@ -60,7 +60,7 @@
         <FunctionDefinition InvokerName="writeMethod" ReceiverLifetimeBinding="scoped:default receiver" Name="writeMethod" Symbol="PrepReturnSurfaceConcreteWriter_writeMethod" Namespace="PrepReturnSurface" Extern="" ResolvedType="nuint">
           <ReturnType Type="NUInt" ResolvedType="nuint" />
           <Parameters>
-            <ThisParameterDefinition LifetimeBinding="scoped:default parameter" Name="this" Symbol="this" Namespace="PrepReturnSurface" ResolvedType="const ConcreteWriter*" />
+            <ThisParameterDefinition LifetimeBinding="scoped:default parameter" Name="this" Symbol="this" Namespace="PrepReturnSurface" ResolvedType="const PrepReturnSurfaceConcreteWriter*" />
             <ParameterDefinition Modifier="Prep" LifetimeBinding="scoped:default parameter" Name="buffer" Symbol="buffer" Namespace="PrepReturnSurface" ResolvedType="char[]">
               <Type Type="ArrayTypeReference" ResolvedType="char[]">
                 <ElementType Type="Char" ResolvedType="char" />

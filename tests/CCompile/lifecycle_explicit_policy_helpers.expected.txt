@@ -16,8 +16,9 @@ static void Allocator_free(Allocator *this, void *ptr)
 	free(ptr);
 }
 
-void Allocator_op_initnew(Allocator *this)
+void Allocator_op_initnew(Allocator *this, Allocator *allocator)
 {
+	Allocator *resolvedAllocator = allocator;
 }
 
 Allocator *Allocator_create(Allocator *allocator)
@@ -27,7 +28,7 @@ Allocator *Allocator_create(Allocator *allocator)
 	if ((_created0 != NULL))
 	{
 		*_created0 = (Allocator){0};
-		Allocator_op_initnew(_created0);
+		Allocator_op_initnew(_created0, allocator);
 	}
 	return _created0;
 }
@@ -38,8 +39,9 @@ void Allocator_destroy(Allocator *this, Allocator *allocator)
 	((resolvedAllocator != NULL) ? Allocator_free(resolvedAllocator, (void *)(this)) : free((void *)(this)));
 }
 
-void Widget_op_initnew(Widget *this)
+void Widget_op_initnew(Widget *this, Allocator *allocator)
 {
+	Allocator *resolvedAllocator = allocator;
 }
 
 Widget *Widget_create(Allocator *allocator)
@@ -49,7 +51,7 @@ Widget *Widget_create(Allocator *allocator)
 	if ((_created1 != NULL))
 	{
 		*_created1 = (Widget){0};
-		Widget_op_initnew(_created1);
+		Widget_op_initnew(_created1, allocator);
 	}
 	return _created1;
 }
@@ -68,12 +70,16 @@ static int run(Allocator *allocator)
 	if ((_created3 != NULL))
 	{
 		*_created3 = (Widget){0};
-		Widget_op_initnew(_created3);
+		Widget_op_initnew(_created3, _allocator2);
 	}
 	Widget *widget = _created3;
+	Widget *_deleteTarget5 = widget;
 	{
 		Allocator *_allocator4 = allocator;
-		((_allocator4 != NULL) ? Allocator_free(_allocator4, (void *)(widget)) : free((void *)(widget)));
+		if ((_deleteTarget5 != NULL))
+		{
+			((_allocator4 != NULL) ? Allocator_free(_allocator4, (void *)(_deleteTarget5)) : free((void *)(_deleteTarget5)));
+		}
 	}
 	return 0;
 }
@@ -91,10 +97,10 @@ int main(void)
 
 void *malloc(uintptr_t size);
 void free(void *ptr);
-void Allocator_op_initnew(Allocator *this);
+void Allocator_op_initnew(Allocator *this, Allocator *allocator);
 Allocator *Allocator_create(Allocator *allocator);
 void Allocator_destroy(Allocator *this, Allocator *allocator);
-void Widget_op_initnew(Widget *this);
+void Widget_op_initnew(Widget *this, Allocator *allocator);
 Widget *Widget_create(Allocator *allocator);
 void Widget_destroy(Widget *this, Allocator *allocator);
 int main(void);
@@ -129,10 +135,10 @@ struct Widget
 /* Function declarations. */
 void *malloc(uintptr_t size);
 void free(void *ptr);
-void Allocator_op_initnew(Allocator *this);
+void Allocator_op_initnew(Allocator *this, Allocator *allocator);
 Allocator *Allocator_create(Allocator *allocator);
 void Allocator_destroy(Allocator *this, Allocator *allocator);
-void Widget_op_initnew(Widget *this);
+void Widget_op_initnew(Widget *this, Allocator *allocator);
 Widget *Widget_create(Allocator *allocator);
 void Widget_destroy(Widget *this, Allocator *allocator);
 int main(void);

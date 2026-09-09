@@ -45,7 +45,11 @@ static Buffer *Buffer_create(int length, Allocator *allocator)
 
 static void Buffer_op_delete(Buffer *this, Allocator *allocator)
 {
-	((allocator != NULL) ? Allocator_free(allocator, (void *)(this->item)) : free((void *)(this->item)));
+	int *_deleteTarget2 = this->item;
+	if ((_deleteTarget2 != NULL))
+	{
+		((allocator != NULL) ? Allocator_free(allocator, (void *)(_deleteTarget2)) : free((void *)(_deleteTarget2)));
+	}
 }
 
 static void Buffer_destroy(Buffer *this, Allocator *allocator)
@@ -89,18 +93,22 @@ static int main(void)
 {
 	Allocator *arena = NULL;
 	{
-		Allocator *_allocator2 = arena;
+		Allocator *_allocator3 = arena;
 		{
-			Holder *holder = (Holder *)(((_allocator2 != NULL) ? Allocator_alloc(_allocator2, sizeof(Holder)) : malloc(sizeof(Holder))));
+			Holder *holder = (Holder *)(((_allocator3 != NULL) ? Allocator_alloc(_allocator3, sizeof(Holder)) : malloc(sizeof(Holder))));
 			if ((holder != NULL))
 			{
 				*holder = (Holder){0};
-				Holder_op_initnew(holder, _allocator2);
+				Holder_op_initnew(holder, _allocator3);
 			}
-			(Holder_op_delete(holder, _allocator2), ((_allocator2 != NULL) ? Allocator_free(_allocator2, (void *)(holder)) : free((void *)(holder))));
+			Holder *_deleteTarget4 = holder;
+			if ((_deleteTarget4 != NULL))
+			{
+				(Holder_op_delete(_deleteTarget4, _allocator3), ((_allocator3 != NULL) ? Allocator_free(_allocator3, (void *)(_deleteTarget4)) : free((void *)(_deleteTarget4))));
+			}
 			Buffer local;
-			Buffer_op_initnew(&local, 2, _allocator2);
-			Buffer_op_delete(&local, _allocator2);
+			Buffer_op_initnew(&local, 2, _allocator3);
+			Buffer_op_delete(&local, _allocator3);
 		}
 	}
 	return 0;

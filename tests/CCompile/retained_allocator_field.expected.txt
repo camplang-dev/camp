@@ -58,7 +58,11 @@ static int main(void)
 				Retained_op_initnew(retained, _allocator1);
 			}
 			int result = Retained_getValue((const Retained *)(retained));
-			((_allocator1 != NULL) ? Allocator_free(_allocator1, (void *)(retained)) : free((void *)(retained)));
+			Retained *_deleteTarget2 = retained;
+			if ((_deleteTarget2 != NULL))
+			{
+				((_allocator1 != NULL) ? Allocator_free(_allocator1, (void *)(_deleteTarget2)) : free((void *)(_deleteTarget2)));
+			}
 			return (result - 7);
 		}
 	}

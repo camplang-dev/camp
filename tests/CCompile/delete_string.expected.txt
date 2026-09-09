@@ -10,22 +10,26 @@ static void deleteFinally(void);
 static void deleteNow(void)
 {
 	const char *text = (const char*)(malloc(16));
-	free((void *)(text));
+	const char *_deleteTarget0 = text;
+	if ((_deleteTarget0 != NULL))
+	{
+		free((void *)(_deleteTarget0));
+	}
 }
 
 static void deleteFinally(void)
 {
-	void *_finally0 = 0;
-	bool _cleanupActive1 = false;
-	_finally0 = malloc(16);
-	_cleanupActive1 = true;
-	const char *text = (const char*)(_finally0);
+	void *_finally1 = 0;
+	bool _cleanupActive2 = false;
+	_finally1 = malloc(16);
+	_cleanupActive2 = true;
+	const char *text = (const char*)(_finally1);
 	const char *__discard1;
 	__discard1 = text;
-	if (_cleanupActive1)
+	if (_cleanupActive2)
 	{
-		free((void *)(_finally0));
-		_cleanupActive1 = false;
+		free((void *)(_finally1));
+		_cleanupActive2 = false;
 	}
 }
 

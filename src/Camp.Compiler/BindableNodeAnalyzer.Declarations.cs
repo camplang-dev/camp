@@ -95,13 +95,18 @@ public sealed partial class BindableNodeAnalyzer
 					Report(GetRange(parameter.SourceSyntax), "Only class constructors may retain allocator parameters.");
 					continue;
 				}
-				if (classDefinition.IsShadow)
-				{
-					Report(GetRange(parameter.SourceSyntax), "Shadow class constructors may not retain allocator parameters.");
-					continue;
-				}
-				if (parameter.SourceSyntax is WithinParameterSyntax { LifetimeKeyword: not null })
-					Report(GetRange(parameter.SourceSyntax), "Retained allocator parameters may not declare an explicit lifetime.");
+					if (classDefinition.IsShadow)
+					{
+						Report(GetRange(parameter.SourceSyntax), "Shadow class constructors may not retain allocator parameters.");
+						continue;
+					}
+					if (classDefinition.Extern is not null && !DefinitionComesFromApiHeader(classDefinition))
+					{
+						Report(GetRange(parameter.SourceSyntax), "Extern class constructors may not retain allocator parameters.");
+						continue;
+					}
+					if (parameter.SourceSyntax is WithinParameterSyntax { LifetimeKeyword: not null })
+						Report(GetRange(parameter.SourceSyntax), "Retained allocator parameters may not declare an explicit lifetime.");
 				if (HasDirectClassBase(classDefinition))
 					Report(GetRange(parameter.SourceSyntax), "Derived class constructors may not retain allocator parameters.");
 				if (retained is not null)
@@ -150,6 +155,13 @@ public sealed partial class BindableNodeAnalyzer
 		foreach (ParameterDefinition parameter in function.Parameters)
 			if (parameter.RetainsAllocator)
 				yield return parameter;
+	}
+
+	bool DefinitionComesFromApiHeader(Definition definition)
+	{
+		return GetRange(definition.SourceSyntax) is TokenRange range
+			&& currentModule?.SourceFiles.TryGetValue(range.Sequence, out SourceFile? file) == true
+			&& file.IsApiHeader;
 	}
 
 	bool HasDirectClassBase(ClassDefinition definition)

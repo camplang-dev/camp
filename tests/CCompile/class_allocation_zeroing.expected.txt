@@ -49,8 +49,16 @@ int main(void)
 		return 2;
 	}
 	int result = (Zeroed_getValue((const Zeroed *)(direct)) + Zeroed_getValue((const Zeroed *)(helper)));
-	free((void *)(direct));
-	free((void *)(helper));
+	Zeroed *_deleteTarget1 = direct;
+	if ((_deleteTarget1 != NULL))
+	{
+		free((void *)(_deleteTarget1));
+	}
+	Zeroed *_deleteTarget2 = helper;
+	if ((_deleteTarget2 != NULL))
+	{
+		free((void *)(_deleteTarget2));
+	}
 	return result;
 }
 

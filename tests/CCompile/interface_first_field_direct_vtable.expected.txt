@@ -82,7 +82,11 @@ static int main(void)
 		Pair_op_initnew(pair, 10);
 	}
 	int result = (readFirst(Pair_getIFirst(pair)) + readSecond(Pair_getISecond(pair)));
-	free((void *)(pair));
+	Pair *_deleteTarget1 = pair;
+	if ((_deleteTarget1 != NULL))
+	{
+		free((void *)(_deleteTarget1));
+	}
 	return (result - 21);
 }
 

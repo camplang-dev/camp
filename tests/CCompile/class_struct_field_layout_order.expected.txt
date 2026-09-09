@@ -34,7 +34,11 @@ static int main(void)
 		Holder_op_initnew(holder, 42);
 	}
 	int result = (holder->value.number + holder->wrapper.value.number);
-	free((void *)(holder));
+	Holder *_deleteTarget1 = holder;
+	if ((_deleteTarget1 != NULL))
+	{
+		free((void *)(_deleteTarget1));
+	}
 	return (result - 85);
 }
 

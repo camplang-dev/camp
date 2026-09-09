@@ -19,7 +19,11 @@ int main(void)
 {
 	Opaque *value = Opaque_create();
 	Opaque_helper(value);
-	Opaque_destroy(value);
+	Opaque *_deleteTarget0 = value;
+	if ((_deleteTarget0 != NULL))
+	{
+		Opaque_destroy(_deleteTarget0);
+	}
 	return 0;
 }
 

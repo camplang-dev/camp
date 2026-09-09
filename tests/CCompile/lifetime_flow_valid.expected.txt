@@ -32,7 +32,11 @@ int main(void)
 	{
 		*ptr = (Widget){0};
 	}
-	free((void *)(ptr));
+	Widget *_deleteTarget0 = ptr;
+	if ((_deleteTarget0 != NULL))
+	{
+		free((void *)(_deleteTarget0));
+	}
 	return 0;
 }
 

@@ -111,9 +111,21 @@ static int main(void)
 				*generatedDerived = (GeneratedDerived){0};
 				GeneratedDerived_op_initnew(generatedDerived, _allocator3);
 			}
-			((_allocator3 != NULL) ? Allocator_free(_allocator3, (void *)(implicitDerived)) : free((void *)(implicitDerived)));
-			((_allocator3 != NULL) ? Allocator_free(_allocator3, (void *)(explicitDerived)) : free((void *)(explicitDerived)));
-			((_allocator3 != NULL) ? Allocator_free(_allocator3, (void *)(generatedDerived)) : free((void *)(generatedDerived)));
+			ImplicitDerived *_deleteTarget4 = implicitDerived;
+			if ((_deleteTarget4 != NULL))
+			{
+				((_allocator3 != NULL) ? Allocator_free(_allocator3, (void *)(_deleteTarget4)) : free((void *)(_deleteTarget4)));
+			}
+			ExplicitDerived *_deleteTarget5 = explicitDerived;
+			if ((_deleteTarget5 != NULL))
+			{
+				((_allocator3 != NULL) ? Allocator_free(_allocator3, (void *)(_deleteTarget5)) : free((void *)(_deleteTarget5)));
+			}
+			GeneratedDerived *_deleteTarget6 = generatedDerived;
+			if ((_deleteTarget6 != NULL))
+			{
+				((_allocator3 != NULL) ? Allocator_free(_allocator3, (void *)(_deleteTarget6)) : free((void *)(_deleteTarget6)));
+			}
 		}
 	}
 	return 0;

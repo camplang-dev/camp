@@ -18,7 +18,11 @@ int main(void)
 		*button = (Button){0};
 	}
 	accept((Control *)button);
-	free((void *)(button));
+	Button *_deleteTarget0 = button;
+	if ((_deleteTarget0 != NULL))
+	{
+		free((void *)(_deleteTarget0));
+	}
 	return 0;
 }
 

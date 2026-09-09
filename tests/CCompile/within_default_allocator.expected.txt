@@ -4,28 +4,36 @@
 
 int main(void)
 {
-	uint8_t *_finally0 = 0;
-	bool _cleanupActive1 = false;
+	uint8_t *_finally1 = 0;
+	bool _cleanupActive2 = false;
+	int _return3 = 0;
 	uint8_t *bytes = (uint8_t *)(malloc((sizeof(uint8_t) * 4)));
 	uintptr_t bytes_length = 4;
 	bytes[0] = 7;
-	free((void *)(bytes));
+	uint8_t *_deleteElements0 = bytes;
+	if ((_deleteElements0 != NULL))
+	{
+		free((void *)(_deleteElements0));
+	}
 	uint8_t *other = (uint8_t *)(malloc((sizeof(uint8_t) * 1)));
 	uintptr_t other_length = 1;
-	_finally0 = other;
-	_cleanupActive1 = true;
-	_finally0;
+	_finally1 = other;
+	_cleanupActive2 = true;
+	_finally1;
 	other[0] = 3;
-	int _return3 = 0;
 	{
 		_return3 = 0;
-		goto __cleanup2;
+		if (_cleanupActive2)
+		{
+			free((void *)(_finally1));
+			_cleanupActive2 = false;
+		}
+		return _return3;
 	}
-__cleanup2: ;
-	if (_cleanupActive1)
+	if (_cleanupActive2)
 	{
-		free((void *)(_finally0));
-		_cleanupActive1 = false;
+		free((void *)(_finally1));
+		_cleanupActive2 = false;
 	}
 	return _return3;
 }

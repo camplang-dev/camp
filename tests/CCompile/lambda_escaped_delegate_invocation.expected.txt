@@ -9,9 +9,9 @@ static int makeCounter_lambda0(void *_context);
 
 static int (* makeCounter(int start, void **result_context))(void *arg0)
 {
-	makeCounter_lambdaContext0 *_lambdaContext0 = (makeCounter_lambdaContext0 *)(malloc(sizeof(makeCounter_lambdaContext0)));
-	_lambdaContext0->capture0_start = start;
 	{
+		makeCounter_lambdaContext0 *_lambdaContext0 = (makeCounter_lambdaContext0 *)(malloc(sizeof(makeCounter_lambdaContext0)));
+		_lambdaContext0->capture0_start = start;
 		(*result_context) = (void *)(_lambdaContext0);
 		return makeCounter_lambda0;
 	}
@@ -23,7 +23,11 @@ int main(void)
 	void *callback_context;
 	callback = makeCounter(7, &callback_context);
 	int result = callback(callback_context);
-	free((void *)(callback_context));
+	void *_deleteTarget1 = callback_context;
+	if ((_deleteTarget1 != NULL))
+	{
+		free((void *)(_deleteTarget1));
+	}
 	return ((result == 7) ? 0 : 1);
 }
 

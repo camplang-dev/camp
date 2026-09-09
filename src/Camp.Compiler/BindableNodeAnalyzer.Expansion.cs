@@ -1994,6 +1994,7 @@ public sealed partial class BindableNodeAnalyzer
 		method.Export = constructor.Export;
 		method.Public = constructor.Public;
 		method.Internal = constructor.Internal;
+		ApplyOwnerVisibilityToGeneratedLifecycleMethod(type, method);
 		method.Extern = constructor.Extern;
 		method.ReturnType = VoidType();
 		method.ResolvedType = "void";
@@ -2021,6 +2022,7 @@ public sealed partial class BindableNodeAnalyzer
 		method.Export = constructor.Export;
 		method.Public = constructor.Public;
 		method.Internal = constructor.Internal;
+		ApplyOwnerVisibilityToGeneratedLifecycleMethod(type, method);
 		method.Extern = constructor.Extern;
 		method.Modifier = FunctionModifier.Static;
 		method.ReturnType = PointerTo(CloneType(typeReference)!);
@@ -2216,11 +2218,48 @@ public sealed partial class BindableNodeAnalyzer
 
 	static void ApplyOwnerVisibilityToGeneratedLifecycleMethod(TypeDefinition type, FunctionDefinition method)
 	{
-		if (method.Export is not null || method.Public is not null || method.Internal is not null)
-			return;
-		method.Export = type.Export;
-		method.Public = type.Public;
-		method.Internal = type.Internal;
+		string? visibility = VisibilityName(method) ?? VisibilityName(type);
+		if (VisibilityName(method) is not null)
+			visibility = CombinedLifecycleHelperVisibility(type, method);
+		method.Export = visibility == "export" ? method.Export ?? type.Export ?? "export" : null;
+		method.Public = visibility == "public" ? method.Public ?? type.Public ?? "public" : null;
+		method.Internal = visibility == "internal" ? method.Internal ?? type.Internal ?? "internal" : null;
+	}
+
+	static string? CombinedLifecycleHelperVisibility(TypeDefinition type, FunctionDefinition method)
+	{
+		int typeRank = VisibilityRank(type);
+		int methodRank = VisibilityRank(method);
+		int rank = Math.Min(typeRank, methodRank);
+		return rank switch
+		{
+			3 => "export",
+			2 => "public",
+			1 => "internal",
+			_ => null
+		};
+	}
+
+	static int VisibilityRank(Definition definition)
+	{
+		if (definition.Export is not null)
+			return 3;
+		if (definition.Public is not null)
+			return 2;
+		if (definition.Internal is not null)
+			return 1;
+		return 0;
+	}
+
+	static string? VisibilityName(Definition definition)
+	{
+		if (definition.Export is not null)
+			return "export";
+		if (definition.Public is not null)
+			return "public";
+		if (definition.Internal is not null)
+			return "internal";
+		return null;
 	}
 
 	ExpressionStatement? CreateRetainedAllocatorAssignment(TypeDefinition type, FunctionDefinition constructor, FunctionDefinition initNew)

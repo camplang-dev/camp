@@ -7,5 +7,5 @@ export struct Message
 
 export interface IControlHost
 {
-	nint handleWndProc(const Message* message, delegate nint(const Message* ) baseWndProc) = default;
+	nint handleWndProc(const Message* message, delegate nint(const Message* arg1) baseWndProc) = default;
 }

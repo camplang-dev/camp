@@ -4,5 +4,5 @@ export enum RangeError : uint
 	InvalidRange
 }
 
-export newtype iter(int, thrown RangeError error) RangeReader();
-export extern iter(int, thrown RangeError error) getRange();
+export newtype iter(int arg1, thrown RangeError arg2) RangeReader();
+export extern iter(int arg1, thrown RangeError arg2) getRange();

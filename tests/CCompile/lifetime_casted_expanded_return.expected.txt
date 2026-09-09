@@ -24,10 +24,10 @@ static void *trustLocal(void *value, uintptr_t value_length, uintptr_t sizeof_T,
 
 static void *trustCall(void *value, uintptr_t value_length, uintptr_t sizeof_T, uintptr_t *result_length)
 {
-	void *_elements0;
-	uintptr_t _length1;
-	_elements0 = inner(value, value_length, sizeof_T, &_length1);
 	{
+		void *_elements0;
+		uintptr_t _length1;
+		_elements0 = inner(value, value_length, sizeof_T, &_length1);
 		(*result_length) = _length1;
 		return (void*)(_elements0);
 	}

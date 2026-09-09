@@ -40,7 +40,11 @@ static int main(void)
 	char text[4] = "abcd";
 	writeSlice((ArraySink *)sink, ((char *)(text) + 0), 4, 3);
 	int result = ((sink->total == 3) ? 0 : 1);
-	free((void *)(sink));
+	CountingSink *_deleteTarget0 = sink;
+	if ((_deleteTarget0 != NULL))
+	{
+		free((void *)(_deleteTarget0));
+	}
 	return result;
 }
 

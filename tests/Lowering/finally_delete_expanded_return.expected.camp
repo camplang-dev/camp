@@ -5,17 +5,18 @@ void consume(const char* value, nuint value_length)
 }
 char[] take(nuint length, out nuint result_length)
 {
-	char* result = (char*)malloc(sizeof(char) * length);
-	nuint result_length = length;
+	char* value = (char*)malloc(sizeof(char) * length);
+	nuint value_length = length;
 	{
-		result_length = result_length;
-		return result;
+		result_length = value_length;
+		return value;
 	}
 }
 export int main()
 {
 	char* __local0 = default;
 	bool __local1 = false;
+	int __local2 = default;
 	char* local;
 	nuint local_length;
 	local = take(3, out local_length);
@@ -23,21 +24,25 @@ export int main()
 	__local1 = true;
 	__local0;
 	consume(local, local_length);
-	char* __local2;
-	nuint __local3;
-	__local2 = take(4, out __local3);
-	consume(__local2, __local3);
-	int __local4 = default;
+	char* __local3;
+	nuint __local4;
+	__local3 = take(4, out __local4);
+	consume(__local3, __local4);
 	{
-		__local4 = 0;
-		goto __cleanup4;
+		__local2 = 0;
+		free((void*)__local3);
+		if (__local1)
+		{
+			free((void*)__local0);
+			__local1 = false;
+		}
+		return __local2;
 	}
-	__cleanup4:
-	free((void*)__local2);
+	free((void*)__local3);
 	if (__local1)
 	{
 		free((void*)__local0);
 		__local1 = false;
 	}
-	return __local4;
+	return __local2;
 }

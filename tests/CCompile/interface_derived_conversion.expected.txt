@@ -59,7 +59,11 @@ static int main(void)
 	result += readValue(assigned);
 	result += readValue(BaseCounter_getIValue((BaseCounter *)(counter)));
 	result += readValue(asValue(counter));
-	free((void *)(counter));
+	DerivedCounter *_deleteTarget0 = counter;
+	if ((_deleteTarget0 != NULL))
+	{
+		free((void *)(_deleteTarget0));
+	}
 	return (result - 28);
 }
 

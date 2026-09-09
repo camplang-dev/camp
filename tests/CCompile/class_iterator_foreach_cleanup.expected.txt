@@ -40,17 +40,13 @@ static int firstValue(void)
 			int value = _foreachCurrent2;
 			{
 				_return5 = value;
-				goto __cleanup6;
+				valuesIter_destroy(_foreachIter1);
+				return _return5;
 			}
 __foreach_continue3: ;
 		}
 		valuesIter_destroy(_foreachIter1);
-		goto __foreach_done7;
-__cleanup6: ;
-		valuesIter_destroy(_foreachIter1);
-		return _return5;
 __foreach_break4: ;
-__foreach_done7: ;
 	}
 	return 0;
 }

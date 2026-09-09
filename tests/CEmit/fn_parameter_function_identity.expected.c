@@ -3,13 +3,13 @@
 
 /* Private file declarations. */
 static void releaseThing(void *context);
-static void add(void (* callback)(void *camp));
+static void add(void (* callback)(void *arg0));
 
 static void releaseThing(void *context)
 {
 }
 
-static void add(void (* callback)(void *camp))
+static void add(void (* callback)(void *arg0))
 {
 }
 

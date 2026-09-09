@@ -16,7 +16,11 @@ int main(void)
 	}
 	p->x = 7;
 	Processor_scale((const Processor *)(p));
-	free((void *)(p));
+	Processor *_deleteTarget0 = p;
+	if ((_deleteTarget0 != NULL))
+	{
+		free((void *)(_deleteTarget0));
+	}
 	return 0;
 }
 

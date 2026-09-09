@@ -7,8 +7,8 @@ void consume(const char[] value)
 
 char[] take(nuint length)
 {
-	char[] result = new char[length];
-	return result;
+	char[] value = new char[length];
+	return value;
 }
 
 export int main()

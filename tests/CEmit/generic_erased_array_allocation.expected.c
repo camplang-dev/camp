@@ -31,7 +31,11 @@ static Buffer *Buffer_create(uintptr_t sizeof_T)
 
 static void Buffer_op_delete(Buffer *this)
 {
-	free((void *)(this->items));
+	void *_deleteElements1 = this->items;
+	if ((_deleteElements1 != NULL))
+	{
+		free((void *)(_deleteElements1));
+	}
 }
 
 static void Buffer_destroy(Buffer *this)
@@ -48,7 +52,11 @@ void make(void)
 		*buffer = (Buffer){0};
 		Buffer_op_initnew(buffer, sizeof(int));
 	}
-	(Buffer_op_delete(buffer), free((void *)(buffer)));
+	Buffer *_deleteTarget2 = buffer;
+	if ((_deleteTarget2 != NULL))
+	{
+		(Buffer_op_delete(_deleteTarget2), free((void *)(_deleteTarget2)));
+	}
 }
 
 // file: generic_erased_array_allocation.h

@@ -79,7 +79,11 @@ int main(void)
 	{
 		return 4;
 	}
-	free((void *)(set));
+	HashSet *_deleteTarget1 = set;
+	if ((_deleteTarget1 != NULL))
+	{
+		free((void *)(_deleteTarget1));
+	}
 	return 0;
 }
 

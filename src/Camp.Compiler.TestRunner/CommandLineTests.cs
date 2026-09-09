@@ -7062,7 +7062,7 @@ public sealed class CommandLineTests
 
 		AssertCommandSucceeded(result);
 		string apiHeader = File.ReadAllText(Path.Combine(outDir, ArtifactDirectoryForHost(NativeBuildKind.Shared), "shared_api_delegate_parameter_api.camp"));
-		Assert.Contains("delegate nint(const Message*) baseWndProc", apiHeader, StringComparison.Ordinal);
+		Assert.Contains("delegate nint(const Message* arg1) baseWndProc", apiHeader, StringComparison.Ordinal);
 		Assert.DoesNotContain("Win32FormsMessage", apiHeader, StringComparison.Ordinal);
 		Assert.Contains("selectObject(Win32::HDC this, overload Win32::HFONT font)", apiHeader, StringComparison.Ordinal);
 		Assert.DoesNotContain("global::HDC", apiHeader, StringComparison.Ordinal);
@@ -7079,7 +7079,6 @@ public sealed class CommandLineTests
 		string consumer = CreateTempCase("shared_api_delegate_parameter_consumer/main.camp", $$"""
 			#build --nostdlib
 			#build --artifact none
-			#build --api {{dependencyApi.Replace('\\', '/')}}
 			#build --project-reference "{{projectFile.Replace('\\', '/')}}"
 
 			using Win32;
@@ -7165,7 +7164,6 @@ public sealed class CommandLineTests
 		string consumer = CreateTempCase("shared_api_global_selector_overloads_consumer/main.camp", $$"""
 			#build --nostdlib
 			#build --artifact none
-			#build --api {{dependencyApi.Replace('\\', '/')}}
 			#build --project-reference "{{projectFile.Replace('\\', '/')}}"
 
 			using Win32::Forms;

@@ -26,7 +26,11 @@ int main(void)
 	int total = (Pair_getValue(&pair) + Pair_getValue(&constPair));
 	total += (Holder_getValue((const Holder *)(holder)) + Holder_getValue(constHolder));
 	total += (Count_getValue(count) + Count_getValue(constCount));
-	free((void *)(holder));
+	Holder *_deleteTarget1 = holder;
+	if ((_deleteTarget1 != NULL))
+	{
+		free((void *)(_deleteTarget1));
+	}
 	return ((total == 150) ? 0 : 1);
 }
 

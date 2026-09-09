@@ -58,7 +58,11 @@ static int main(void)
 	int v = readValue(Counter_getIValue((const Counter *)(c)));
 	v += readValue(Counter_getIValue((const Counter *)(c)));
 	v += readValue(Counter_getIValue((const Counter *)(c)));
-	free((void *)(c));
+	Counter *_deleteTarget1 = c;
+	if ((_deleteTarget1 != NULL))
+	{
+		free((void *)(_deleteTarget1));
+	}
 	return (v - 30);
 }
 

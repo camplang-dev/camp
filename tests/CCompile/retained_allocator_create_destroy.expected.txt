@@ -64,7 +64,11 @@ static void Retained_op_initnew(Retained *this, Allocator *allocator)
 		*inner = (Inner){0};
 		Inner_op_initnew(inner);
 	}
-	(Inner_op_delete(inner), ((resolvedAllocator != NULL) ? Allocator_free(resolvedAllocator, (void *)(inner)) : free((void *)(inner))));
+	Inner *_deleteTarget2 = inner;
+	if ((_deleteTarget2 != NULL))
+	{
+		(Inner_op_delete(_deleteTarget2), ((resolvedAllocator != NULL) ? Allocator_free(resolvedAllocator, (void *)(_deleteTarget2)) : free((void *)(_deleteTarget2))));
+	}
 }
 
 static Retained *Retained_create(Allocator *allocator)
@@ -95,9 +99,9 @@ static int main(void)
 {
 	Allocator *allocator = NULL;
 	{
-		Allocator *_allocator2 = allocator;
+		Allocator *_allocator3 = allocator;
 		{
-			Retained *retained = Retained_create(_allocator2);
+			Retained *retained = Retained_create(_allocator3);
 			Retained_destroy(retained);
 		}
 	}

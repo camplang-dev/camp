@@ -10,7 +10,11 @@ void NativeChild_destroy(NativeChild *this);
 int main(void)
 {
 	NativeChild *child = NativeChild_create();
-	NativeChild_destroy(child);
+	NativeChild *_deleteTarget0 = child;
+	if ((_deleteTarget0 != NULL))
+	{
+		NativeChild_destroy(_deleteTarget0);
+	}
 	return 0;
 }
 

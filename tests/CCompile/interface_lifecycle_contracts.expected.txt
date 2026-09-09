@@ -117,7 +117,11 @@ static int main(void)
 				managed->_vt = &_ManagedClass__vt;
 				ManagedClass_op_initnew(managed, _allocator2);
 			}
-			(ManagedClass_op_delete(managed, _allocator2), ((_allocator2 != NULL) ? Allocator_free(_allocator2, (void *)(managed)) : free((void *)(managed))));
+			ManagedClass *_deleteTarget3 = managed;
+			if ((_deleteTarget3 != NULL))
+			{
+				(ManagedClass_op_delete(_deleteTarget3, _allocator2), ((_allocator2 != NULL) ? Allocator_free(_allocator2, (void *)(_deleteTarget3)) : free((void *)(_deleteTarget3))));
+			}
 			ManagedStruct local;
 			ManagedStruct_op_initnew(&local, _allocator2);
 			ManagedStruct_op_delete(&local, _allocator2);

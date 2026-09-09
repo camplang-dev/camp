@@ -3,6 +3,9 @@ extern void free(void* ptr);
 
 class Allocator
 {
+	void free(void* ptr)
+	{
+	}
 }
 
 export class ConstructorWithin

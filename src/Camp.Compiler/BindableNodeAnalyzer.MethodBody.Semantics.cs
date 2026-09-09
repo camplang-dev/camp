@@ -2331,10 +2331,11 @@ public sealed partial class BindableNodeAnalyzer
 
 	IEnumerable<FunctionDefinition> LookupOutOfScopeStaticFunctions(string ownerName, string name, SyntaxNode? referenceSyntax)
 	{
+		string sourceOwnerName = SourceOwnerNameForStaticLookup(ownerName);
 		foreach (Definition definition in ActiveCurrentDefinitions())
 		{
 			if (definition is FunctionDefinition function
-				&& function.OutOfScopeOwnerName == ownerName
+				&& function.OutOfScopeOwnerName == sourceOwnerName
 				&& (function.Name == name || GetCallableName(function) == name)
 				&& function.Modifier == FunctionModifier.Static
 				&& IsDefinitionVisible(function, referenceSyntax))
@@ -2628,16 +2629,24 @@ public sealed partial class BindableNodeAnalyzer
 
 	IEnumerable<VariableDefinition> LookupOutOfScopeStaticVariables(string ownerName, string name, SyntaxNode? referenceSyntax)
 	{
+		string sourceOwnerName = SourceOwnerNameForStaticLookup(ownerName);
 		foreach (Definition definition in ActiveCurrentDefinitions())
 		{
 			if (definition is VariableDefinition variable
-				&& variable.OutOfScopeOwnerName == ownerName
+				&& variable.OutOfScopeOwnerName == sourceOwnerName
 				&& variable.Name == name
 				&& IsDefinitionVisible(variable, referenceSyntax))
 			{
 				yield return variable;
 			}
 		}
+	}
+
+	string SourceOwnerNameForStaticLookup(string ownerName)
+	{
+		return typeDefinitions.TryGetValue(ownerName, out TypeDefinition? type)
+			? type.Name
+			: ownerName;
 	}
 
 	void ReportConstructedGenericStaticMemberAccess(string targetType, TypeDefinition type, string memberName, SyntaxNode? referenceSyntax)

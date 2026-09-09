@@ -2505,11 +2505,11 @@ public sealed partial class BindableNodeAnalyzer
 			return false;
 		}
 
-		if (callTargets.TryGetValue(call, out FunctionDefinition? function))
-		{
-			AddImplicitDefaultArguments(call);
-			LowerThrowingArguments(call);
-			ExpandParamsArguments(call.Arguments);
+			if (callTargets.TryGetValue(call, out FunctionDefinition? function))
+			{
+				AddImplicitDefaultArguments(call);
+				LowerThrowingArguments(call);
+				ExpandParamsArguments(call.Arguments);
 			AddImplicitSizeOfArguments(call);
 			AddImplicitNameOfArguments(call);
 			AddImplicitVTableOfArguments(call);
@@ -2519,9 +2519,13 @@ public sealed partial class BindableNodeAnalyzer
 				&& !IsPropertySetterReference(member)
 				&& FindContainingType(function) is not InterfaceDefinition)
 			{
-				RewriteInstanceInvocation(call, member, receiver, function);
+					RewriteInstanceInvocation(call, member, receiver, function);
+				}
 			}
-		}
+			else
+			{
+				TryRewriteDelegateInvocation(call);
+			}
 
 		for (int i = 1; i < shape.Components.Count; i++)
 		{
@@ -3082,17 +3086,21 @@ public sealed partial class BindableNodeAnalyzer
 		if (currentStatementPrefix is null || shape.Components.Count == 0)
 			return false;
 		callTargets.TryGetValue(call, out FunctionDefinition? function);
-		if (function is not null
-			&& call.Target is MemberReferenceExpression { Target: Expression receiver } member
-			&& IsInstanceInvocationFunction(function)
-			&& !IsPropertyGetterReference(member)
-			&& !IsPropertySetterReference(member)
+			if (function is not null
+				&& call.Target is MemberReferenceExpression { Target: Expression receiver } member
+				&& IsInstanceInvocationFunction(function)
+				&& !IsPropertyGetterReference(member)
+				&& !IsPropertySetterReference(member)
 			&& FindContainingType(function) is not InterfaceDefinition)
-		{
-			RewriteInstanceInvocation(call, member, receiver, function);
-		}
+			{
+				RewriteInstanceInvocation(call, member, receiver, function);
+			}
+			else if (function is null)
+			{
+				TryRewriteDelegateInvocation(call);
+			}
 
-		AddImplicitDefaultArguments(call);
+			AddImplicitDefaultArguments(call);
 		LowerThrowingArguments(call);
 		ExpandParamsArguments(call.Arguments);
 		AddImplicitSizeOfArguments(call);
