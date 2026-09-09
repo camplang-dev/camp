@@ -82,6 +82,12 @@ public sealed partial class BindableNodeAnalyzer
 	readonly Dictionary<TypeReference, TypeReference> typeRewrites = [];
 	readonly Dictionary<FunctionDefinition, ParameterDefinition> materializedGenericReturnParameters = [];
 	readonly HashSet<NewtypeDefinition> analyzedNewtypeSignatures = [];
+	readonly Dictionary<(InterfaceDefinition Definition, int Version), List<InterfaceDefinition>> interfaceAndBaseInterfaceCache = [];
+	readonly Dictionary<(TypeDefinition Type, FunctionDefinition InterfaceMember, int Version), FunctionDefinition?> interfaceImplementationMethodCache = [];
+	readonly Dictionary<(FunctionDefinition Function, bool IncludeLifecycleWithin), MethodSignature> methodSignatureCache = [];
+	readonly Dictionary<(InterfaceDefinition Owner, FunctionDefinition Member), string> interfaceEntryCallableTypeCache = [];
+	readonly Dictionary<(InterfaceImplementationLowering Implementation, InterfaceDefinition EntryInterface, FunctionDefinition Member), FunctionDefinition?> interfaceThunkFunctionCache = [];
+	int interfaceGenerationCacheVersion;
 	SourcefilePathMapper? sourcefilePathMapper;
 	readonly TargetDefinition? selectedTarget;
 	readonly ConfigurationFlagSet configurationFlags;

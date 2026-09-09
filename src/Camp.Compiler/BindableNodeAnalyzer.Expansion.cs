@@ -356,6 +356,12 @@ public sealed partial class BindableNodeAnalyzer
 
 	void GenerateInterfaceDeclarations(Module module)
 	{
+		interfaceGenerationCacheVersion++;
+		interfaceAndBaseInterfaceCache.Clear();
+		interfaceImplementationMethodCache.Clear();
+		methodSignatureCache.Clear();
+		interfaceEntryCallableTypeCache.Clear();
+		interfaceThunkFunctionCache.Clear();
 		Dictionary<string, InterfaceDefinition> interfaces = [];
 		foreach (Definition definition in ActiveDefinitions(module))
 		{
@@ -1136,6 +1142,9 @@ public sealed partial class BindableNodeAnalyzer
 
 	bool TryFindInterfaceThunkFunction(InterfaceImplementationLowering implementation, InterfaceDefinition entryInterface, FunctionDefinition member, out FunctionDefinition? function)
 	{
+		(InterfaceImplementationLowering Implementation, InterfaceDefinition EntryInterface, FunctionDefinition Member) key = (implementation, entryInterface, member);
+		if (interfaceThunkFunctionCache.TryGetValue(key, out function))
+			return function is not null;
 		foreach ((FunctionDefinition candidate, InterfaceThunkLowering lowering) in interfaceThunkLowerings)
 		{
 			if (ReferenceEquals(lowering.Implementation, implementation)
@@ -1143,11 +1152,13 @@ public sealed partial class BindableNodeAnalyzer
 				&& ReferenceEquals(lowering.Member, member))
 			{
 				function = candidate;
+				interfaceThunkFunctionCache[key] = function;
 				return true;
 			}
 		}
 
 		function = null;
+		interfaceThunkFunctionCache[key] = null;
 		return false;
 	}
 
@@ -1473,11 +1484,17 @@ public sealed partial class BindableNodeAnalyzer
 
 	IEnumerable<InterfaceDefinition> GetInterfaceAndBaseInterfaces(InterfaceDefinition definition, Dictionary<string, InterfaceDefinition> interfaces)
 	{
+		(InterfaceDefinition Definition, int Version) key = (definition, interfaceGenerationCacheVersion);
+		if (interfaceAndBaseInterfaceCache.TryGetValue(key, out List<InterfaceDefinition>? cached))
+			return cached;
 		HashSet<InterfaceDefinition> seen = [];
+		List<InterfaceDefinition> result = [];
 		foreach (InterfaceDefinition baseInterface in GetBaseInterfacesForGeneration(definition, interfaces, seen))
-			yield return baseInterface;
+			result.Add(baseInterface);
 		if (seen.Add(definition))
-			yield return definition;
+			result.Add(definition);
+		interfaceAndBaseInterfaceCache[key] = result;
+		return result;
 	}
 
 	IEnumerable<InterfaceDefinition> GetBaseInterfacesForGeneration(InterfaceDefinition definition, Dictionary<string, InterfaceDefinition> interfaces, HashSet<InterfaceDefinition> seen)
@@ -1495,14 +1512,24 @@ public sealed partial class BindableNodeAnalyzer
 
 	FunctionDefinition? FindImplementationMethod(TypeDefinition type, FunctionDefinition interfaceMember)
 	{
+		(TypeDefinition Type, FunctionDefinition InterfaceMember, int Version) key = (type, interfaceMember, interfaceGenerationCacheVersion);
+		if (interfaceImplementationMethodCache.TryGetValue(key, out FunctionDefinition? cached))
+			return cached;
 		foreach (FunctionDefinition function in GetFunctions(type))
 		{
-			if (IsInterfaceLifecycleMember(interfaceMember) && BuildMethodSignature(function, includeLifecycleWithin: true).Equals(BuildMethodSignature(interfaceMember, includeLifecycleWithin: true)))
+			if (IsInterfaceLifecycleMember(interfaceMember) && GetCachedMethodSignature(function, includeLifecycleWithin: true).Equals(GetCachedMethodSignature(interfaceMember, includeLifecycleWithin: true)))
+			{
+				interfaceImplementationMethodCache[key] = function;
 				return function;
+			}
 
 			if (IsMarkedInterfaceImplementation(function, interfaceMember))
+			{
+				interfaceImplementationMethodCache[key] = function;
 				return function;
+			}
 		}
+		interfaceImplementationMethodCache[key] = null;
 		return null;
 	}
 
@@ -1514,8 +1541,8 @@ public sealed partial class BindableNodeAnalyzer
 				return true;
 			return GetCallableName(function.InterfaceImplementationMember) == GetCallableName(interfaceMember)
 				&& MethodSignatureCompatibleWithConstOfVariance(
-					BuildMethodSignature(function.InterfaceImplementationMember, includeLifecycleWithin: IsInterfaceLifecycleMember(interfaceMember)),
-					BuildMethodSignature(interfaceMember, includeLifecycleWithin: IsInterfaceLifecycleMember(interfaceMember)),
+					GetCachedMethodSignature(function.InterfaceImplementationMember, includeLifecycleWithin: IsInterfaceLifecycleMember(interfaceMember)),
+					GetCachedMethodSignature(interfaceMember, includeLifecycleWithin: IsInterfaceLifecycleMember(interfaceMember)),
 					compareName: function.InterfaceImplementationSlotName is null);
 		}
 
@@ -1527,9 +1554,20 @@ public sealed partial class BindableNodeAnalyzer
 		string slotName = function.InterfaceImplementationSlotName ?? GetCallableName(function);
 		return slotName == GetCallableName(interfaceMember)
 			&& MethodSignatureCompatibleWithConstOfVariance(
-				BuildMethodSignature(function, includeLifecycleWithin: IsInterfaceLifecycleMember(interfaceMember)),
-				BuildMethodSignature(interfaceMember, includeLifecycleWithin: IsInterfaceLifecycleMember(interfaceMember)),
+				GetCachedMethodSignature(function, includeLifecycleWithin: IsInterfaceLifecycleMember(interfaceMember)),
+				GetCachedMethodSignature(interfaceMember, includeLifecycleWithin: IsInterfaceLifecycleMember(interfaceMember)),
 				compareName: function.InterfaceImplementationSlotName is null);
+	}
+
+	MethodSignature GetCachedMethodSignature(FunctionDefinition function, bool includeLifecycleWithin)
+	{
+		(FunctionDefinition Function, bool IncludeLifecycleWithin) key = (function, includeLifecycleWithin);
+		if (!methodSignatureCache.TryGetValue(key, out MethodSignature signature))
+		{
+			signature = BuildMethodSignature(function, includeLifecycleWithin);
+			methodSignatureCache[key] = signature;
+		}
+		return signature;
 	}
 
 	static void EnsureImplementationMethodSymbol(TypeDefinition type, FunctionDefinition function)
@@ -1583,8 +1621,11 @@ public sealed partial class BindableNodeAnalyzer
 		return CloneType(member.ReturnType) ?? VoidType();
 	}
 
-	static string BuildInterfaceEntryCallableType(InterfaceDefinition owner, FunctionDefinition member)
+	string BuildInterfaceEntryCallableType(InterfaceDefinition owner, FunctionDefinition member)
 	{
+		(InterfaceDefinition Owner, FunctionDefinition Member) key = (owner, member);
+		if (interfaceEntryCallableTypeCache.TryGetValue(key, out string? cached))
+			return cached;
 		List<string> parameters = [];
 		if (member.Modifier != FunctionModifier.Constructor)
 			parameters.Add($"{owner.Name}**");
@@ -1595,7 +1636,9 @@ public sealed partial class BindableNodeAnalyzer
 			parameters.Add(GetParameterTypeNames([parameter]).FirstOrDefault() ?? ErrorType);
 		}
 		string returnType = member.Modifier == FunctionModifier.Constructor ? "any" : member.ResolvedType ?? ErrorType;
-		return $"fn {returnType}({string.Join(", ", parameters)})";
+		string result = $"fn {returnType}({string.Join(", ", parameters)})";
+		interfaceEntryCallableTypeCache[key] = result;
+		return result;
 	}
 
 	static string InterfaceFieldName(InterfaceDefinition interfaceDefinition)

@@ -114,6 +114,8 @@ public static class NativeBuildDriver
 			["import_library"] = Quote(sharedImportLibrary ?? "")
 		}))
 			return result;
+		if (options.Kind == NativeBuildKind.Static)
+			WriteStaticArchiveObjectManifest(output, objects);
 
 		result.GeneratedFiles.Add(output);
 		if (options.Kind == NativeBuildKind.Shared)
@@ -189,6 +191,8 @@ public static class NativeBuildDriver
 	{
 		if (!File.Exists(archivePath))
 			return false;
+		if (StaticArchiveManifestContainsOnlyObjects(archivePath, objects))
+			return true;
 		if (!TryListStaticArchiveMembers(options, archivePath, toolchainEnvironment, out List<string>? members))
 			return false;
 
@@ -199,7 +203,55 @@ public static class NativeBuildDriver
 		foreach ((string name, int count) in expected)
 			if (!actual.TryGetValue(name, out int actualCount) || actualCount != count)
 				return false;
+		WriteStaticArchiveObjectManifest(archivePath, objects);
 		return true;
+	}
+
+	static string GetStaticArchiveObjectManifestPath(string archivePath)
+	{
+		return archivePath + ".objects";
+	}
+
+	static bool StaticArchiveManifestContainsOnlyObjects(string archivePath, IReadOnlyList<string> objects)
+	{
+		string manifestPath = GetStaticArchiveObjectManifestPath(archivePath);
+		try
+		{
+			if (!File.Exists(manifestPath))
+				return false;
+			if (File.GetLastWriteTimeUtc(manifestPath) < File.GetLastWriteTimeUtc(archivePath))
+				return false;
+			string[] lines = File.ReadAllLines(manifestPath);
+			if (lines.Length == 0 || lines[0] != "camp-static-archive-objects-v1")
+				return false;
+			Dictionary<string, int> expected = CountObjectBasenames(objects);
+			Dictionary<string, int> actual = CountObjectBasenames(lines.Skip(1));
+			if (expected.Count != actual.Count)
+				return false;
+			foreach ((string name, int count) in expected)
+				if (!actual.TryGetValue(name, out int actualCount) || actualCount != count)
+					return false;
+			return true;
+		}
+		catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
+		{
+			return false;
+		}
+	}
+
+	static void WriteStaticArchiveObjectManifest(string archivePath, IReadOnlyList<string> objects)
+	{
+		string manifestPath = GetStaticArchiveObjectManifestPath(archivePath);
+		try
+		{
+			using StreamWriter writer = new(manifestPath, append: false, Encoding.UTF8);
+			writer.WriteLine("camp-static-archive-objects-v1");
+			foreach (string objectPath in objects.Select(static path => Path.GetFileName(path)).OrderBy(static path => path, StringComparer.OrdinalIgnoreCase))
+				writer.WriteLine(objectPath);
+		}
+		catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
+		{
+		}
 	}
 
 	static Dictionary<string, int> CountObjectBasenames(IEnumerable<string> paths)
@@ -350,6 +402,9 @@ public static class NativeBuildDriver
 		{
 			if (File.Exists(output))
 				File.Delete(output);
+			string manifest = GetStaticArchiveObjectManifestPath(output);
+			if (File.Exists(manifest))
+				File.Delete(manifest);
 		}
 		catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
 		{

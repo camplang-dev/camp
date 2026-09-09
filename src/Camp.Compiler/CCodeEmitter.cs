@@ -1890,6 +1890,8 @@ public static class CCodeEmitter
             public Dictionary<SourceFile, List<Definition>> DefinitionsByFile { get; } = [];
             public Dictionary<FunctionDefinition, SourceFile> FunctionOwners { get; } = [];
             public Dictionary<FieldDefinition, TypeDefinition> FieldOwners { get; } = [];
+            public Dictionary<Definition, List<FunctionDefinition>> FunctionsByDefinition { get; } = new(ReferenceEqualityComparer.Instance);
+            public Dictionary<Definition, List<FieldDefinition>> StaticFieldsByDefinition { get; } = new(ReferenceEqualityComparer.Instance);
             public Dictionary<string, TypeDefinition> TypesByName { get; } = new(StringComparer.Ordinal);
             public Dictionary<string, TypeDefinition> TypesByCName { get; } = new(StringComparer.Ordinal);
             public Dictionary<string, TypeDefinition> TypesBySymbol { get; } = new(StringComparer.Ordinal);
@@ -1923,12 +1925,19 @@ public static class CCodeEmitter
             {
                 switch (definition)
                 {
+                    case FunctionDefinition function:
+                        FunctionsByDefinition[definition] = [function];
+                        break;
                     case StaticClassDefinition staticClassDefinition:
+                        FunctionsByDefinition[definition] = [.. staticClassDefinition.Functions];
+                        StaticFieldsByDefinition[definition] = staticClassDefinition.Fields.Where(static field => field.Modifier == FieldModifier.Static).ToList();
                         if (owner is not null)
                             foreach (FunctionDefinition function in staticClassDefinition.Functions)
                                 FunctionOwners[function] = owner;
                         break;
                     case TypeDefinition type:
+                        FunctionsByDefinition[definition] = GetTypeFunctions(type).ToList();
+                        StaticFieldsByDefinition[definition] = GetTypeFields(type).Where(static field => field.Modifier == FieldModifier.Static).ToList();
                         if (owner is not null)
                             foreach (FunctionDefinition function in GetTypeFunctions(type))
                                 FunctionOwners[function] = owner;
@@ -1952,18 +1961,13 @@ public static class CCodeEmitter
             }
         }
 
-        static IEnumerable<FunctionDefinition> GetAllFunctions(IEnumerable<Definition> definitions)
+        IEnumerable<FunctionDefinition> GetAllFunctions(IEnumerable<Definition> definitions)
         {
             foreach (Definition definition in definitions)
             {
-                if (definition is FunctionDefinition function)
-                    yield return function;
-                else if (definition is StaticClassDefinition staticClassDefinition)
-                    foreach (FunctionDefinition staticClassFunction in staticClassDefinition.Functions)
-                        yield return staticClassFunction;
-                else if (definition is TypeDefinition type)
-                    foreach (FunctionDefinition typeFunction in GetTypeFunctions(type))
-                        yield return typeFunction;
+                if (index.FunctionsByDefinition.TryGetValue(definition, out List<FunctionDefinition>? functions))
+                    foreach (FunctionDefinition function in functions)
+                        yield return function;
             }
         }
 
@@ -2031,19 +2035,13 @@ public static class CCodeEmitter
         {
             foreach (Definition definition in definitions)
             {
-                if (definition is StaticClassDefinition staticClassDefinition)
+                if (!index.StaticFieldsByDefinition.TryGetValue(definition, out List<FieldDefinition>? fields))
+                    continue;
+                foreach (FieldDefinition field in SelectedFields(fields))
                 {
-                    foreach (FieldDefinition field in SelectedFields(staticClassDefinition.Fields))
-                        if (field.Modifier == FieldModifier.Static)
-                            yield return field;
-                    continue;
-                }
-
-                if (definition is not TypeDefinition type)
-                    continue;
-                foreach (FieldDefinition field in SelectedFields(GetTypeFields(type)))
                     if (field.Modifier == FieldModifier.Static)
                         yield return field;
+                }
             }
         }
 
