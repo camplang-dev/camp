@@ -160,10 +160,67 @@ public sealed class CommandLineTests
 
 		AssertCommandSucceeded(result);
 		Assert.Contains("Timing: build project", result.StdErr, StringComparison.Ordinal);
+		Assert.Contains("Timing: cli build", result.StdErr, StringComparison.Ordinal);
+		Assert.Contains("request and project references", result.StdErr, StringComparison.Ordinal);
+		Assert.Contains("compiler build", result.StdErr, StringComparison.Ordinal);
+		Assert.Contains("C source/header emission", result.StdErr, StringComparison.Ordinal);
+		Assert.Contains("emitter index construction", result.StdErr, StringComparison.Ordinal);
+		Assert.Contains("source file emission", result.StdErr, StringComparison.Ordinal);
+		Assert.Contains("source file body definitions", result.StdErr, StringComparison.Ordinal);
 		Assert.True(File.Exists(timingOutput));
+		string timingJson = File.ReadAllText(timingOutput);
+		Assert.Contains("\"name\": \"C source/header emission\"", timingJson, StringComparison.Ordinal);
+		Assert.Contains("\"name\": \"emitter index construction\"", timingJson, StringComparison.Ordinal);
 		using JsonDocument document = JsonDocument.Parse(File.ReadAllText(timingOutput));
 		Assert.Equal("build", document.RootElement.GetProperty("metadata").GetProperty("command").GetString());
 		Assert.True(document.RootElement.GetProperty("elapsedMilliseconds").GetDouble() >= 0);
+	}
+
+	[Fact]
+	public void Build_timing_expands_current_project_references()
+	{
+		string root = TempPath("project-reference-timing");
+		string libraryRoot = Path.Combine(root, "lib");
+		string appRoot = Path.Combine(root, "app");
+		Directory.CreateDirectory(Path.Combine(libraryRoot, "src"));
+		Directory.CreateDirectory(Path.Combine(appRoot, "src"));
+		File.WriteAllText(Path.Combine(libraryRoot, "src", "lib.camp"), """
+			namespace TimingLib;
+
+			public int value()
+			{
+				return 42;
+			}
+			""");
+		File.WriteAllText(Path.Combine(libraryRoot, "lib.campbuild"), """
+			--artifact static
+			--name timing_lib
+			src/*.camp
+			""");
+		File.WriteAllText(Path.Combine(appRoot, "src", "main.camp"), """
+			using TimingLib;
+
+			export int main()
+			{
+				return value();
+			}
+			""");
+		File.WriteAllText(Path.Combine(appRoot, "app.campbuild"), """
+			--artifact none
+			--name timing_app
+			--project-reference ../lib/lib.campbuild:static
+			src/*.camp
+			""");
+
+		ProcessResult initial = RunCampcIn(appRoot, "build", "app.campbuild", "--target", NativeTargetForHost(), "--out-dir", Path.Combine(appRoot, "out"));
+		AssertCommandSucceeded(initial);
+
+		ProcessResult current = RunCampcIn(appRoot, "build", "app.campbuild", "--target", NativeTargetForHost(), "--out-dir", Path.Combine(appRoot, "out"), "--timing");
+		AssertCommandSucceeded(current);
+		Assert.Contains("project-reference loop", current.StdErr, StringComparison.Ordinal);
+		Assert.Contains("project reference ", current.StdErr, StringComparison.Ordinal);
+		Assert.Contains("lib.campbuild:static", current.StdErr, StringComparison.Ordinal);
+		Assert.Contains("freshness check", current.StdErr, StringComparison.Ordinal);
 	}
 
 	[Fact]
