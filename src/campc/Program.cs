@@ -12,3422 +12,3564 @@ using Camp.Compiler;
 CliEnvironment environment = CliEnvironment.Create();
 List<string> startupErrors = [];
 string[] expandedArgs = ShouldDeferBuildLikeResponseExpansion(args)
-	? args
-	: ResponseFileExpander.Expand(args, environment.WorkingDirectory, startupErrors).ToArray();
+    ? args
+    : ResponseFileExpander.Expand(args, environment.WorkingDirectory, startupErrors).ToArray();
 if (startupErrors.Count > 0)
 {
-	foreach (string error in startupErrors)
-		Console.Error.WriteLine(error);
-	return 1;
+    foreach (string error in startupErrors)
+        Console.Error.WriteLine(error);
+    return 1;
 }
 if (IsVersionRequest(expandedArgs))
 {
-	Console.Out.WriteLine(GetVersionText());
-	return 0;
+    Console.Out.WriteLine(GetVersionText());
+    return 0;
 }
 if (ShouldBypassRootParserForBuildLike(args))
-	return CampCli.Run(args, environment);
+    return CampCli.Run(args, environment);
 RootCommand rootCommand = BuildCommandTree(environment, expandedArgs);
 int exitCode = ContainsRemovedOption(expandedArgs) ? CampCli.Run(expandedArgs, environment) : rootCommand.Parse(expandedArgs).Invoke();
 return exitCode;
 
 static bool IsVersionRequest(string[] args)
 {
-	return args is ["--version"];
+    return args is ["--version"];
 }
 
 static bool ShouldDeferBuildLikeResponseExpansion(string[] args) =>
-	args.Length > 0 && args[0] is "build" or "run" or "test" or "cover" or "dump" or "restore";
+    args.Length > 0 && args[0] is "build" or "run" or "test" or "cover" or "dump" or "restore";
 
 static bool ShouldBypassRootParserForBuildLike(string[] args) =>
-	ShouldDeferBuildLikeResponseExpansion(args) && !args.Skip(1).Any(static arg => arg is "--help" or "-h" or "-?" or "help");
+    ShouldDeferBuildLikeResponseExpansion(args) && !args.Skip(1).Any(static arg => arg is "--help" or "-h" or "-?" or "help");
 
 static string GetVersionText()
 {
-	if (CampBuildInfo.IsReleaseBuild)
-		return StripLeadingVersionPrefix(CampBuildInfo.Version);
-	return string.IsNullOrWhiteSpace(CampBuildInfo.Commit) || CampBuildInfo.Commit == "unknown"
-		? CampBuildInfo.Version
-		: CampBuildInfo.Version + "+" + CampBuildInfo.Commit;
+    if (CampBuildInfo.IsReleaseBuild)
+        return StripLeadingVersionPrefix(CampBuildInfo.Version);
+    return string.IsNullOrWhiteSpace(CampBuildInfo.Commit) || CampBuildInfo.Commit == "unknown"
+        ? CampBuildInfo.Version
+        : CampBuildInfo.Version + "+" + CampBuildInfo.Commit;
 }
 
 static string StripLeadingVersionPrefix(string version)
 {
-	return version.StartsWith("v", StringComparison.OrdinalIgnoreCase) && version.Length > 1 && char.IsDigit(version[1])
-		? version[1..]
-		: version;
+    return version.StartsWith("v", StringComparison.OrdinalIgnoreCase) && version.Length > 1 && char.IsDigit(version[1])
+        ? version[1..]
+        : version;
 }
 
 static bool ContainsRemovedOption(string[] args)
 {
-	return args.Any(static arg => arg is "--inspect" or "--build" or "-b" or "--emit-metadata" or "--memory-model" or "--build-dir");
+    return args.Any(static arg => arg is "--inspect" or "--build" or "-b" or "--emit-metadata" or "--memory-model" or "--build-dir");
 }
 
 static RootCommand BuildCommandTree(CliEnvironment environment, string[] originalArgs)
 {
-	RootCommand root = new("Camp compiler");
-	root.SetAction(_ => CampCli.Run(originalArgs, environment));
+    RootCommand root = new("Camp compiler");
+    root.SetAction(_ => CampCli.Run(originalArgs, environment));
 
-	Command init = new("init", "Initialize a Camp project.");
-	init.Arguments.Add(new Argument<string?>("name")
-	{
-		Description = "Project directory/name.",
-		Arity = ArgumentArity.ZeroOrOne
-	});
-	init.Options.Add(new Option<string?>("--template") { Description = "Template: app, static, shared, posix-api, windows-api, or wrapper." });
-	init.Options.Add(new Option<bool>("--list") { Description = "List built-in templates." });
-	init.SetAction(_ => CampCli.Run(originalArgs, environment));
-	root.Subcommands.Add(init);
+    Command init = new("init", "Initialize a Camp project.");
+    init.Arguments.Add(new Argument<string?>("name")
+    {
+        Description = "Project directory/name.",
+        Arity = ArgumentArity.ZeroOrOne
+    });
+    init.Options.Add(new Option<string?>("--template") { Description = "Template: app, static, shared, posix-api, windows-api, or wrapper." });
+    init.Options.Add(new Option<bool>("--list") { Description = "List built-in templates." });
+    init.SetAction(_ => CampCli.Run(originalArgs, environment));
+    root.Subcommands.Add(init);
 
-	Command build = new("build", "Compile, emit C, and optionally build a native artifact.");
-	build.Arguments.Add(SourcePatternsArgument());
-	AddBuildOptions(build, buildOnly: true, testRunnerOptions: false);
-	build.SetAction(_ => CampCli.Run(originalArgs, environment));
-	root.Subcommands.Add(build);
+    Command build = new("build", "Compile, emit C, and optionally build a native artifact.");
+    build.Arguments.Add(SourcePatternsArgument());
+    AddBuildOptions(build, buildOnly: true, testRunnerOptions: false);
+    build.SetAction(_ => CampCli.Run(originalArgs, environment));
+    root.Subcommands.Add(build);
 
-	Command run = new("run", "Build an executable and run it.");
-	run.Arguments.Add(SourcePatternsArgument());
-	AddBuildOptions(run, buildOnly: true, testRunnerOptions: false);
-	run.SetAction(_ => CampCli.Run(originalArgs, environment));
-	root.Subcommands.Add(run);
+    Command run = new("run", "Build an executable and run it.");
+    run.Arguments.Add(SourcePatternsArgument());
+    AddBuildOptions(run, buildOnly: true, testRunnerOptions: false);
+    run.SetAction(_ => CampCli.Run(originalArgs, environment));
+    root.Subcommands.Add(run);
 
-	Command dump = new("dump", "Print compiler intermediate output.");
-	dump.Arguments.Add(new Argument<string>("kind")
-	{
-		Description = "Dump kind: tokens, declarations, lowering, or metadata."
-	});
-	dump.Arguments.Add(SourcePatternsArgument());
-	AddBuildOptions(dump, buildOnly: false, testRunnerOptions: false);
-	dump.SetAction(_ => CampCli.Run(originalArgs, environment));
-	root.Subcommands.Add(dump);
+    Command dump = new("dump", "Print compiler intermediate output.");
+    dump.Arguments.Add(new Argument<string>("kind")
+    {
+        Description = "Dump kind: tokens, declarations, lowering, or metadata."
+    });
+    dump.Arguments.Add(SourcePatternsArgument());
+    AddBuildOptions(dump, buildOnly: false, testRunnerOptions: false);
+    dump.SetAction(_ => CampCli.Run(originalArgs, environment));
+    root.Subcommands.Add(dump);
 
-	Command test = new("test", "Build and run Camp tests.");
-	test.Arguments.Add(SourcePatternsArgument());
-	AddBuildOptions(test, buildOnly: true, testRunnerOptions: true);
-	test.SetAction(_ => CampCli.Run(originalArgs, environment));
-	root.Subcommands.Add(test);
+    Command test = new("test", "Build and run Camp tests.");
+    test.Arguments.Add(SourcePatternsArgument());
+    AddBuildOptions(test, buildOnly: true, testRunnerOptions: true);
+    test.SetAction(_ => CampCli.Run(originalArgs, environment));
+    root.Subcommands.Add(test);
 
-	Command cover = new("cover", "Build and run Camp tests with source coverage.");
-	cover.Arguments.Add(SourcePatternsArgument());
-	AddBuildOptions(cover, buildOnly: true, testRunnerOptions: true);
-	AddCoverageOptions(cover);
-	cover.SetAction(_ => CampCli.Run(originalArgs, environment));
-	root.Subcommands.Add(cover);
+    Command cover = new("cover", "Build and run Camp tests with source coverage.");
+    cover.Arguments.Add(SourcePatternsArgument());
+    AddBuildOptions(cover, buildOnly: true, testRunnerOptions: true);
+    AddCoverageOptions(cover);
+    cover.SetAction(_ => CampCli.Run(originalArgs, environment));
+    root.Subcommands.Add(cover);
 
-	Command restore = new("restore", "Restore source-only package dependencies.");
-	restore.Arguments.Add(SourcePatternsArgument());
-	restore.Options.Add(new Option<List<string>>("--upgrade")
-	{
-		Description = "Upgrade all packages or one direct package dependency.",
-		Arity = ArgumentArity.ZeroOrMore,
-		AllowMultipleArgumentsPerToken = true
-	});
-	restore.Options.Add(new Option<bool>("--only-local") { Description = "Ignore compiler base/global package sources and use only local project package sources." });
-	restore.SetAction(_ => CampCli.Run(originalArgs, environment));
-	root.Subcommands.Add(restore);
+    Command restore = new("restore", "Restore source-only package dependencies.");
+    restore.Arguments.Add(SourcePatternsArgument());
+    restore.Options.Add(new Option<List<string>>("--upgrade")
+    {
+        Description = "Upgrade all packages or one direct package dependency.",
+        Arity = ArgumentArity.ZeroOrMore,
+        AllowMultipleArgumentsPerToken = true
+    });
+    restore.Options.Add(new Option<bool>("--only-local") { Description = "Ignore compiler base/global package sources and use only local project package sources." });
+    restore.SetAction(_ => CampCli.Run(originalArgs, environment));
+    root.Subcommands.Add(restore);
 
-	Command package = new("package", "Manage source-only package publishing and caches.");
-	AddPackageCommands(package, originalArgs, environment);
-	root.Subcommands.Add(package);
+    Command package = new("package", "Manage source-only package publishing and caches.");
+    AddPackageCommands(package, originalArgs, environment);
+    root.Subcommands.Add(package);
 
-	Command help = new("help", "Show help for campc or a command.");
-	help.Arguments.Add(new Argument<string?>("command")
-	{
-		Description = "Command to describe.",
-		Arity = ArgumentArity.ZeroOrOne
-	});
-	help.SetAction(parseResult =>
-	{
-		string? command = parseResult.GetValue<string?>("command");
-		string[] helpArgs = string.IsNullOrWhiteSpace(command) ? ["--help"] : [command!, "--help"];
-		return root.Parse(helpArgs).Invoke();
-	});
-	root.Subcommands.Add(help);
+    Command help = new("help", "Show help for campc or a command.");
+    help.Arguments.Add(new Argument<string?>("command")
+    {
+        Description = "Command to describe.",
+        Arity = ArgumentArity.ZeroOrOne
+    });
+    help.SetAction(parseResult =>
+    {
+        string? command = parseResult.GetValue<string?>("command");
+        string[] helpArgs = string.IsNullOrWhiteSpace(command) ? ["--help"] : [command!, "--help"];
+        return root.Parse(helpArgs).Invoke();
+    });
+    root.Subcommands.Add(help);
 
-	return root;
+    return root;
 }
 
 static Argument<List<string>> SourcePatternsArgument()
 {
-	return new Argument<List<string>>("pattern.camp")
-	{
-		Description = "Source file paths or glob patterns.",
-		Arity = ArgumentArity.ZeroOrMore
-	};
+    return new Argument<List<string>>("pattern.camp")
+    {
+        Description = "Source file paths or glob patterns.",
+        Arity = ArgumentArity.ZeroOrMore
+    };
 }
 
 static void AddBuildOptions(Command command, bool buildOnly, bool testRunnerOptions)
 {
-	command.Options.Add(new Option<List<string>>("--api")
-	{
-		Description = "Load Camp API/header files for analysis.",
-		Arity = ArgumentArity.ZeroOrMore,
-		AllowMultipleArgumentsPerToken = true
-	});
-	command.Options.Add(new Option<List<string>>("--exclude")
-	{
-		Description = "Exclude source file patterns.",
-		Arity = ArgumentArity.ZeroOrMore,
-		AllowMultipleArgumentsPerToken = true
-	});
-	command.Options.Add(new Option<string?>("--target", "-t") { Description = "Select the target." });
-	command.Options.Add(new Option<string?>("--profile", "-p") { Description = "Select DEBUG or RELEASE profile." });
-	command.Options.Add(new Option<List<string>>("--variant")
-	{
-		Description = "Select target variants.",
-		Arity = ArgumentArity.ZeroOrMore,
-		AllowMultipleArgumentsPerToken = true
-	});
-	command.Options.Add(new Option<bool>("--verbose", "-v") { Description = "Print generated artifact paths." });
-	command.Options.Add(new Option<bool>("--timing") { Description = "Print build timing information to stderr." });
-	command.Options.Add(new Option<string?>("--timing-output") { Description = "Write build timing information as JSON." });
-	command.Options.Add(new Option<List<string>>("--declare", "-d")
-	{
-		Description = "Declare module-owned configuration flags, optionally as NAME=true or NAME=false.",
-		Arity = ArgumentArity.ZeroOrMore,
-		AllowMultipleArgumentsPerToken = true
-	});
-	command.Options.Add(new Option<List<string>>("--configure", "-c")
-	{
-		Description = "Configure declared non-target-owned flags, optionally as NAME=true or NAME=false.",
-		Arity = ArgumentArity.ZeroOrMore,
-		AllowMultipleArgumentsPerToken = true
-	});
-	command.Options.Add(new Option<List<string>>("--requires")
-	{
-		Description = "Add module-level configuration requirement expressions.",
-		Arity = ArgumentArity.ZeroOrMore,
-		AllowMultipleArgumentsPerToken = true
-	});
-	command.Options.Add(new Option<bool>("--explicit-requires") { Description = "Require explicit availability requirements for ambient true capability use." });
-	command.Options.Add(new Option<bool>("--implicit-requires") { Description = "Allow implicit ambient requirements." });
-	command.Options.Add(new Option<string?>("--emit") { Description = "Select the emitter, currently c99." });
-	command.Options.Add(new Option<bool>("--debug-info") { Description = "Emit Camp debug metadata and native debug line information." });
-	command.Options.Add(new Option<bool>("--nostdlib") { Description = "Do not include the standard library package." });
-	command.Options.Add(new Option<List<string>>("--reference", "-r")
-	{
-		Description = "Reference a native static library during linking.",
-		Arity = ArgumentArity.ZeroOrMore,
-		AllowMultipleArgumentsPerToken = true
-	});
-	command.Options.Add(new Option<string>("--use", "-u")
-	{
-		Description = "Use an installed package, as package, package@version, package/version, or with :api, :static, or :shared.",
-		Arity = ArgumentArity.ExactlyOne,
-		AllowMultipleArgumentsPerToken = false
-	});
-	command.Options.Add(new Option<string[]>("--use-source")
-	{
-		Description = "Define a package source name and path or URL.",
-		Arity = new ArgumentArity(2, 2),
-		AllowMultipleArgumentsPerToken = true
-	});
-	command.Options.Add(new Option<List<string>>("--project-reference")
-	{
-		Description = "Build and reference another Camp project response file.",
-		Arity = ArgumentArity.ZeroOrMore,
-		AllowMultipleArgumentsPerToken = true
-	});
-	command.Options.Add(new Option<string?>("--metadata") { Description = "Emit metadata: none, export, public, or all." });
-	command.Options.Add(new Option<bool>("--explicit-within") { Description = "Require source-level new/delete to use an explicit within context." });
-	command.Options.Add(new Option<bool>("--implicit-within") { Description = "Allow source-level new/delete to use the default allocator without an explicit within context." });
-	command.Options.Add(new Option<string?>("--sourcefile-paths") { Description = "Source capture file paths: relative or absolute." });
-	command.Options.Add(new Option<List<string>>("--sourcefile-root")
-	{
-		Description = "Root for relative caller(sourcefile) paths.",
-		Arity = ArgumentArity.ZeroOrMore,
-		AllowMultipleArgumentsPerToken = true
-	});
+    command.Options.Add(new Option<List<string>>("--api")
+    {
+        Description = "Load Camp API/header files for analysis.",
+        Arity = ArgumentArity.ZeroOrMore,
+        AllowMultipleArgumentsPerToken = true
+    });
+    command.Options.Add(new Option<List<string>>("--exclude")
+    {
+        Description = "Exclude source file patterns.",
+        Arity = ArgumentArity.ZeroOrMore,
+        AllowMultipleArgumentsPerToken = true
+    });
+    command.Options.Add(new Option<string?>("--target", "-t") { Description = "Select the target." });
+    command.Options.Add(new Option<string?>("--profile", "-p") { Description = "Select DEBUG or RELEASE profile." });
+    command.Options.Add(new Option<List<string>>("--variant")
+    {
+        Description = "Select target variants.",
+        Arity = ArgumentArity.ZeroOrMore,
+        AllowMultipleArgumentsPerToken = true
+    });
+    command.Options.Add(new Option<bool>("--verbose", "-v") { Description = "Print generated artifact paths." });
+    command.Options.Add(new Option<bool>("--timing") { Description = "Print build timing information to stderr." });
+    command.Options.Add(new Option<string?>("--timing-output") { Description = "Write build timing information as JSON." });
+    command.Options.Add(new Option<List<string>>("--declare", "-d")
+    {
+        Description = "Declare module-owned configuration flags, optionally as NAME=true or NAME=false.",
+        Arity = ArgumentArity.ZeroOrMore,
+        AllowMultipleArgumentsPerToken = true
+    });
+    command.Options.Add(new Option<List<string>>("--configure", "-c")
+    {
+        Description = "Configure declared non-target-owned flags, optionally as NAME=true or NAME=false.",
+        Arity = ArgumentArity.ZeroOrMore,
+        AllowMultipleArgumentsPerToken = true
+    });
+    command.Options.Add(new Option<List<string>>("--requires")
+    {
+        Description = "Add module-level configuration requirement expressions.",
+        Arity = ArgumentArity.ZeroOrMore,
+        AllowMultipleArgumentsPerToken = true
+    });
+    command.Options.Add(new Option<bool>("--explicit-requires") { Description = "Require explicit availability requirements for ambient true capability use." });
+    command.Options.Add(new Option<bool>("--implicit-requires") { Description = "Allow implicit ambient requirements." });
+    command.Options.Add(new Option<string?>("--emit") { Description = "Select the emitter, currently c99." });
+    command.Options.Add(new Option<bool>("--debug-info") { Description = "Emit Camp debug metadata and native debug line information." });
+    command.Options.Add(new Option<bool>("--nostdlib") { Description = "Do not include the standard library package." });
+    command.Options.Add(new Option<List<string>>("--reference", "-r")
+    {
+        Description = "Reference a native static library during linking.",
+        Arity = ArgumentArity.ZeroOrMore,
+        AllowMultipleArgumentsPerToken = true
+    });
+    command.Options.Add(new Option<string>("--use", "-u")
+    {
+        Description = "Use an installed package, as package, package@version, package/version, or with :api, :static, or :shared.",
+        Arity = ArgumentArity.ExactlyOne,
+        AllowMultipleArgumentsPerToken = false
+    });
+    command.Options.Add(new Option<string[]>("--use-source")
+    {
+        Description = "Define a package source name and path or URL.",
+        Arity = new ArgumentArity(2, 2),
+        AllowMultipleArgumentsPerToken = true
+    });
+    command.Options.Add(new Option<List<string>>("--project-reference")
+    {
+        Description = "Build and reference another Camp project response file.",
+        Arity = ArgumentArity.ZeroOrMore,
+        AllowMultipleArgumentsPerToken = true
+    });
+    command.Options.Add(new Option<string?>("--metadata") { Description = "Emit metadata: none, export, public, or all." });
+    command.Options.Add(new Option<bool>("--explicit-within") { Description = "Require source-level new/delete to use an explicit within context." });
+    command.Options.Add(new Option<bool>("--implicit-within") { Description = "Allow source-level new/delete to use the default allocator without an explicit within context." });
+    command.Options.Add(new Option<string?>("--sourcefile-paths") { Description = "Source capture file paths: relative or absolute." });
+    command.Options.Add(new Option<List<string>>("--sourcefile-root")
+    {
+        Description = "Root for relative caller(sourcefile) paths.",
+        Arity = ArgumentArity.ZeroOrMore,
+        AllowMultipleArgumentsPerToken = true
+    });
 
-	if (!buildOnly)
-		return;
+    if (!buildOnly)
+        return;
 
-	command.Options.Add(new Option<string?>("--test-output-dir") { Description = "Directory for test manifest and result artifacts." });
-	command.Options.Add(new Option<string?>("--test-result-format") { Description = "Test result output format: text, json, or text,json." });
-	if (testRunnerOptions)
-	{
-		command.Options.Add(new Option<bool>("--list") { Description = "List discovered tests and stop." });
-		command.Options.Add(new Option<bool>("--ignore-leaks") { Description = "Report tracked leaks without failing leak-only tests." });
-		command.Options.Add(new Option<List<string>>("--filter")
-		{
-			Description = "Select tests by exact name or wildcard pattern.",
-			Arity = ArgumentArity.ZeroOrMore,
-			AllowMultipleArgumentsPerToken = true
-		});
-	}
+    command.Options.Add(new Option<string?>("--test-output-dir") { Description = "Directory for test manifest and result artifacts." });
+    command.Options.Add(new Option<string?>("--test-result-format") { Description = "Test result output format: text, json, or text,json." });
+    if (testRunnerOptions)
+    {
+        command.Options.Add(new Option<bool>("--list") { Description = "List discovered tests and stop." });
+        command.Options.Add(new Option<bool>("--ignore-leaks") { Description = "Report tracked leaks without failing leak-only tests." });
+        command.Options.Add(new Option<List<string>>("--filter")
+        {
+            Description = "Select tests by exact name or wildcard pattern.",
+            Arity = ArgumentArity.ZeroOrMore,
+            AllowMultipleArgumentsPerToken = true
+        });
+    }
 
-	command.Options.Add(new Option<List<string>>("--framework", "-f")
-	{
-		Description = "Link a native framework during native builds.",
-		Arity = ArgumentArity.ZeroOrMore,
-		AllowMultipleArgumentsPerToken = true
-	});
-	command.Options.Add(new Option<string?>("--artifact") { Description = "Native artifact: exec, static, shared, only-static, only-shared, or none." });
-	command.Options.Add(new Option<string?>("--name") { Description = "Artifact/project name without extension." });
-	command.Options.Add(new Option<string?>("--subsystem") { Description = "Native subsystem, currently windows." });
-	command.Options.Add(new Option<string?>("--out-dir") { Description = "Directory for final artifacts." });
-	command.Options.Add(new Option<string?>("--pub-dir") { Description = "Package publication root directory. Ignored except by package publish." });
+    command.Options.Add(new Option<List<string>>("--framework", "-f")
+    {
+        Description = "Link a native framework during native builds.",
+        Arity = ArgumentArity.ZeroOrMore,
+        AllowMultipleArgumentsPerToken = true
+    });
+    command.Options.Add(new Option<string?>("--artifact") { Description = "Native artifact: exec, static, shared, only-static, only-shared, or none." });
+    command.Options.Add(new Option<string?>("--name") { Description = "Artifact/project name without extension." });
+    command.Options.Add(new Option<string?>("--subsystem") { Description = "Native subsystem, currently windows." });
+    command.Options.Add(new Option<string?>("--out-dir") { Description = "Directory for final artifacts." });
+    command.Options.Add(new Option<string?>("--pub-dir") { Description = "Package publication root directory. Ignored except by package publish." });
 }
 
 static void AddCoverageOptions(Command command)
 {
-	command.Options.Add(new Option<string?>("--coverage-format") { Description = "Coverage output format: json, lcov, or json,lcov." });
-	command.Options.Add(new Option<string?>("--coverage-output-dir") { Description = "Directory for coverage map and result artifacts." });
-	command.Options.Add(new Option<List<string>>("--coverage-subject")
-	{
-		Description = "Coverage subject: self or a shared project-reference name.",
-		Arity = ArgumentArity.ZeroOrMore,
-		AllowMultipleArgumentsPerToken = true
-	});
+    command.Options.Add(new Option<string?>("--coverage-format") { Description = "Coverage output format: json, lcov, or json,lcov." });
+    command.Options.Add(new Option<string?>("--coverage-output-dir") { Description = "Directory for coverage map and result artifacts." });
+    command.Options.Add(new Option<List<string>>("--coverage-subject")
+    {
+        Description = "Coverage subject: self or a shared project-reference name.",
+        Arity = ArgumentArity.ZeroOrMore,
+        AllowMultipleArgumentsPerToken = true
+    });
 }
 
 static void AddPackageCommands(Command package, string[] originalArgs, CliEnvironment environment)
 {
-	Command listSources = new("list-sources", "List configured package sources.");
-	listSources.Arguments.Add(new Argument<List<string>>("target") { Arity = ArgumentArity.ZeroOrMore });
-	listSources.Options.Add(new Option<bool>("--global") { Description = "Target compiler-global package source configuration." });
-	listSources.SetAction(_ => CampCli.Run(originalArgs, environment));
-	package.Subcommands.Add(listSources);
+    Command listSources = new("list-sources", "List configured package sources.");
+    listSources.Arguments.Add(new Argument<List<string>>("target") { Arity = ArgumentArity.ZeroOrMore });
+    listSources.Options.Add(new Option<bool>("--global") { Description = "Target compiler-global package source configuration." });
+    listSources.SetAction(_ => CampCli.Run(originalArgs, environment));
+    package.Subcommands.Add(listSources);
 
-	Command addSource = new("add-source", "Add a named package source.");
-	addSource.Arguments.Add(new Argument<string>("name"));
-	addSource.Arguments.Add(new Argument<string>("path-or-url"));
-	addSource.Arguments.Add(new Argument<List<string>>("target") { Arity = ArgumentArity.ZeroOrMore });
-	addSource.Options.Add(new Option<bool>("--global") { Description = "Target compiler-global package source configuration." });
-	addSource.SetAction(_ => CampCli.Run(originalArgs, environment));
-	package.Subcommands.Add(addSource);
+    Command addSource = new("add-source", "Add a named package source.");
+    addSource.Arguments.Add(new Argument<string>("name"));
+    addSource.Arguments.Add(new Argument<string>("path-or-url"));
+    addSource.Arguments.Add(new Argument<List<string>>("target") { Arity = ArgumentArity.ZeroOrMore });
+    addSource.Options.Add(new Option<bool>("--global") { Description = "Target compiler-global package source configuration." });
+    addSource.SetAction(_ => CampCli.Run(originalArgs, environment));
+    package.Subcommands.Add(addSource);
 
-	Command removeSource = new("remove-source", "Remove a named package source.");
-	removeSource.Arguments.Add(new Argument<string>("name"));
-	removeSource.Arguments.Add(new Argument<List<string>>("target") { Arity = ArgumentArity.ZeroOrMore });
-	removeSource.Options.Add(new Option<bool>("--global") { Description = "Target compiler-global package source configuration." });
-	removeSource.SetAction(_ => CampCli.Run(originalArgs, environment));
-	package.Subcommands.Add(removeSource);
+    Command removeSource = new("remove-source", "Remove a named package source.");
+    removeSource.Arguments.Add(new Argument<string>("name"));
+    removeSource.Arguments.Add(new Argument<List<string>>("target") { Arity = ArgumentArity.ZeroOrMore });
+    removeSource.Options.Add(new Option<bool>("--global") { Description = "Target compiler-global package source configuration." });
+    removeSource.SetAction(_ => CampCli.Run(originalArgs, environment));
+    package.Subcommands.Add(removeSource);
 
-	Command install = new("install", "Install a source-only package into the package cache.");
-	install.Arguments.Add(new Argument<string>("package"));
-	install.Arguments.Add(new Argument<List<string>>("target") { Arity = ArgumentArity.ZeroOrMore });
-	install.Options.Add(new Option<bool>("--global") { Description = "Install into the compiler package root." });
-	install.Options.Add(new Option<bool>("--dry-run") { Description = "Print the planned cache operation without changing files." });
-	install.SetAction(_ => CampCli.Run(originalArgs, environment));
-	package.Subcommands.Add(install);
+    Command install = new("install", "Install a source-only package into the package cache.");
+    install.Arguments.Add(new Argument<string>("package"));
+    install.Arguments.Add(new Argument<List<string>>("target") { Arity = ArgumentArity.ZeroOrMore });
+    install.Options.Add(new Option<bool>("--global") { Description = "Install into the compiler package root." });
+    install.Options.Add(new Option<bool>("--dry-run") { Description = "Print the planned cache operation without changing files." });
+    install.SetAction(_ => CampCli.Run(originalArgs, environment));
+    package.Subcommands.Add(install);
 
-	Command uninstall = new("uninstall", "Remove a package from the package cache.");
-	uninstall.Arguments.Add(new Argument<string>("package"));
-	uninstall.Arguments.Add(new Argument<List<string>>("target") { Arity = ArgumentArity.ZeroOrMore });
-	uninstall.Options.Add(new Option<bool>("--global") { Description = "Remove from the compiler package root." });
-	uninstall.Options.Add(new Option<bool>("--dry-run") { Description = "Print the planned cache operation without changing files." });
-	uninstall.SetAction(_ => CampCli.Run(originalArgs, environment));
-	package.Subcommands.Add(uninstall);
+    Command uninstall = new("uninstall", "Remove a package from the package cache.");
+    uninstall.Arguments.Add(new Argument<string>("package"));
+    uninstall.Arguments.Add(new Argument<List<string>>("target") { Arity = ArgumentArity.ZeroOrMore });
+    uninstall.Options.Add(new Option<bool>("--global") { Description = "Remove from the compiler package root." });
+    uninstall.Options.Add(new Option<bool>("--dry-run") { Description = "Print the planned cache operation without changing files." });
+    uninstall.SetAction(_ => CampCli.Run(originalArgs, environment));
+    package.Subcommands.Add(uninstall);
 
-	Command publish = new("publish", "Publish a source-only package archive.");
-	publish.Arguments.Add(new Argument<string>("version"));
-	publish.Arguments.Add(new Argument<string?>("target-file") { Arity = ArgumentArity.ZeroOrOne });
-	publish.Options.Add(new Option<string?>("--name") { Description = "Package name when it cannot be inferred." });
-	publish.Options.Add(new Option<string?>("--pub-dir") { Description = "Output package publication root directory." });
-	publish.Options.Add(new Option<bool>("--dry-run") { Description = "Print the planned publication without changing files." });
-	publish.SetAction(_ => CampCli.Run(originalArgs, environment));
-	package.Subcommands.Add(publish);
+    Command publish = new("publish", "Publish a source-only package archive.");
+    publish.Arguments.Add(new Argument<string>("version"));
+    publish.Arguments.Add(new Argument<string?>("target-file") { Arity = ArgumentArity.ZeroOrOne });
+    publish.Options.Add(new Option<string?>("--name") { Description = "Package name when it cannot be inferred." });
+    publish.Options.Add(new Option<string?>("--pub-dir") { Description = "Output package publication root directory." });
+    publish.Options.Add(new Option<bool>("--dry-run") { Description = "Print the planned publication without changing files." });
+    publish.SetAction(_ => CampCli.Run(originalArgs, environment));
+    package.Subcommands.Add(publish);
 }
 
 sealed class CampCli
 {
-	public static int Run(string[] args, CliEnvironment environment)
-	{
-		if (args.Length == 0)
-			return Error("A command is required. Expected init, package, restore, build, dump, run, test, or cover.");
-
-		return args[0] switch
-		{
-			"init" => CampInit.Run(args[1..], environment),
-			"build" => RunBuild(args[1..], environment),
-			"run" => RunRun(args[1..], environment),
-			"test" => RunBuildLike(args[1..], environment, CommandKind.Test),
-			"cover" => RunBuildLike(args[1..], environment, CommandKind.Cover),
-			"dump" => RunDump(args[1..], environment),
-			"restore" => RunRestore(args[1..], environment),
-			"package" => PackageCommands.Run(args[1..], environment),
-			"--inspect" or "--build" or "-b" => Error("The root compiler command has been replaced by subcommands. Use 'campc dump ...' or 'campc build ...'."),
-			_ when args[0].StartsWith("-", StringComparison.Ordinal) => Error($"Unknown command '{args[0]}'. Use init, package, restore, build, dump, run, test, or cover."),
-			_ => Error($"Unknown command '{args[0]}'. Use init, package, restore, build, dump, run, test, or cover.")
-		};
-	}
-
-	static int RunBuild(string[] args, CliEnvironment environment)
-	{
-		Stopwatch total = Stopwatch.StartNew();
-		Stopwatch requestPreparation = Stopwatch.StartNew();
-		if (!TryBuildRequest(args, environment, CommandKind.Build, out CompilerRequest? request, out List<string> errors))
-			return PrintErrors(errors);
-		requestPreparation.Stop();
-
-		Stopwatch compilerBuild = Stopwatch.StartNew();
-		CompilerResult result = CompilerDriver.Execute(request!);
-		compilerBuild.Stop();
-		total.Stop();
-		Console.Out.Write(result.StdOut);
-		Console.Error.Write(result.StdErr);
-		WriteCliTiming(request!, CommandKind.Build, total.Elapsed, result.ExitCode, [
-			new("request and project references", requestPreparation.Elapsed),
-			new("compiler build", compilerBuild.Elapsed)
-		]);
-		return result.ExitCode;
-	}
-
-	static int RunBuildLike(string[] args, CliEnvironment environment, CommandKind command)
-	{
-		Stopwatch total = Stopwatch.StartNew();
-		Stopwatch requestPreparation = Stopwatch.StartNew();
-		if (!TryBuildRequest(args, environment, command, out CompilerRequest? request, out List<string> errors))
-			return PrintErrors(errors);
-		requestPreparation.Stop();
-
-		Stopwatch compilerBuild = Stopwatch.StartNew();
-		CompilerResult result = CompilerDriver.Execute(request!);
-		compilerBuild.Stop();
-		total.Stop();
-		Console.Out.Write(result.StdOut);
-		Console.Error.Write(result.StdErr);
-		WriteCliTiming(request!, command, total.Elapsed, result.ExitCode, [
-			new("request and project references", requestPreparation.Elapsed),
-			new("compiler build", compilerBuild.Elapsed)
-		]);
-		return result.ExitCode;
-	}
-
-	static int RunRun(string[] args, CliEnvironment environment)
-	{
-		int separator = Array.IndexOf(args, "--");
-		string[] buildArgs = separator >= 0 ? args[..separator] : args;
-		string[] programArgs = separator >= 0 ? args[(separator + 1)..] : [];
-
-		Stopwatch total = Stopwatch.StartNew();
-		Stopwatch requestPreparation = Stopwatch.StartNew();
-		if (!TryBuildRequest(buildArgs, environment, CommandKind.Run, out CompilerRequest? request, out List<string> errors))
-			return PrintErrors(errors);
-		requestPreparation.Stop();
-
-		if (request!.BuildKind is not (NativeBuildKind.Exec or NativeBuildKind.WinExe))
-			return Error("run requires --artifact exec.");
-
-		Stopwatch compilerBuild = Stopwatch.StartNew();
-		CompilerResult result = CompilerDriver.Execute(request);
-		compilerBuild.Stop();
-		Console.Error.Write(result.StdErr);
-		if (result.ExitCode != 0)
-		{
-			total.Stop();
-			Console.Out.Write(result.StdOut);
-			WriteCliTiming(request, CommandKind.Run, total.Elapsed, result.ExitCode, [
-				new("request and project references", requestPreparation.Elapsed),
-				new("compiler build", compilerBuild.Elapsed)
-			]);
-			return result.ExitCode;
-		}
-
-		Stopwatch executableResolution = Stopwatch.StartNew();
-		string? executable = TryGetRunExecutable(request, environment, out string? executableError);
-		executableResolution.Stop();
-		if (executable is null)
-		{
-			total.Stop();
-			WriteCliTiming(request, CommandKind.Run, total.Elapsed, exitCode: 1, [
-				new("request and project references", requestPreparation.Elapsed),
-				new("compiler build", compilerBuild.Elapsed),
-				new("resolve executable", executableResolution.Elapsed)
-			]);
-			return Error(executableError ?? "run could not find the generated executable.");
-		}
-
-		string extension = Path.GetExtension(executable);
-		ProcessStartInfo info = new()
-		{
-			FileName = extension.Equals(".wasm", StringComparison.OrdinalIgnoreCase) ? "wasmtime" : extension.Equals(".js", StringComparison.OrdinalIgnoreCase) ? "node" : executable,
-			WorkingDirectory = environment.WorkingDirectory,
-			UseShellExecute = false
-		};
-		if (extension.Equals(".wasm", StringComparison.OrdinalIgnoreCase) || extension.Equals(".js", StringComparison.OrdinalIgnoreCase))
-			info.ArgumentList.Add(executable);
-		foreach (string argument in programArgs)
-			info.ArgumentList.Add(argument);
-
-		using Process process = new() { StartInfo = info };
-		Stopwatch executableRun = Stopwatch.StartNew();
-		try
-		{
-			process.Start();
-			process.WaitForExit();
-			executableRun.Stop();
-			total.Stop();
-			WriteCliTiming(request, CommandKind.Run, total.Elapsed, process.ExitCode, [
-				new("request and project references", requestPreparation.Elapsed),
-				new("compiler build", compilerBuild.Elapsed),
-				new("resolve executable", executableResolution.Elapsed),
-				new("run executable", executableRun.Elapsed)
-			]);
-			return process.ExitCode;
-		}
-		catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
-		{
-			executableRun.Stop();
-			total.Stop();
-			WriteCliTiming(request, CommandKind.Run, total.Elapsed, exitCode: 1, [
-				new("request and project references", requestPreparation.Elapsed),
-				new("compiler build", compilerBuild.Elapsed),
-				new("resolve executable", executableResolution.Elapsed),
-				new("run executable", executableRun.Elapsed)
-			]);
-			return Error(ex.Message);
-		}
-	}
-
-	static void WriteCliTiming(CompilerRequest request, CommandKind command, TimeSpan total, int exitCode, IReadOnlyList<CliTimingPhase> phases)
-	{
-		if (!request.TimingEnabled)
-			return;
-		string commandName = command.ToString().ToLowerInvariant();
-		string projectName = string.IsNullOrWhiteSpace(request.ProjectName)
-			? GetDefaultProjectNameFromRequest(request)
-			: request.ProjectName!;
-		string status = exitCode == 0 ? "success" : "failed";
-		Console.Error.WriteLine($"Timing: cli {commandName} {projectName} {FormatTimingSeconds(total)} {status}");
-		foreach (CliTimingPhase phase in phases)
-			Console.Error.WriteLine($"  {phase.Name} {FormatTimingSeconds(phase.Elapsed)}");
-	}
-
-	static string FormatTimingSeconds(TimeSpan elapsed)
-	{
-		return (elapsed.TotalMilliseconds / 1000.0).ToString("0.000", CultureInfo.InvariantCulture) + "s";
-	}
-
-	readonly record struct CliTimingPhase(string Name, TimeSpan Elapsed);
-
-	static string? TryGetRunExecutable(CompilerRequest request, CliEnvironment environment, out string? error)
-	{
-		error = null;
-		List<string> errors = [];
-		TargetDefinition? target = TryGetTargetDefinition(request, environment, errors);
-		if (target is null)
-		{
-			error = string.Join(Environment.NewLine, errors);
-			return null;
-		}
-
-		string outputPrefix = string.IsNullOrWhiteSpace(request.OutDir)
-			? GetDefaultArtifactDirectoryFromRequest(request)
-			: request.OutDir!;
-		string outputRoot = Path.GetFullPath(outputPrefix, request.WorkingDirectory);
-		string outputDirectory = request.OutDirIsDirect || IsDirectRunOutputPath(outputPrefix)
-			? outputRoot
-			: Path.Combine(outputRoot, BuildArtifactLayout.GetArtifactDirectoryName(target, request.BuildKind, request.ProfileName, request.CommandMode));
-		string projectName = string.IsNullOrWhiteSpace(request.ProjectName)
-			? GetDefaultProjectNameFromRequest(request)
-			: request.ProjectName!;
-		string executable = NativeBuildDriver.GetArtifactPath(new NativeBuildOptions
-		{
-			Target = target,
-			ProfileName = request.ProfileName,
-			BuildDirectory = Path.Combine(outputDirectory, "build"),
-			OutputDirectory = outputDirectory,
-			ProjectName = projectName,
-			Kind = request.BuildKind!.Value,
-			SourceFiles = []
-		});
-		if (!File.Exists(executable))
-		{
-			error = $"run could not find the generated executable: {executable}";
-			return null;
-		}
-		return executable;
-	}
-
-	static string GetDefaultArtifactDirectoryFromRequest(CompilerRequest request)
-	{
-		string? firstSource = request.Files.FirstOrDefault(static file => file != "-");
-		if (string.IsNullOrWhiteSpace(firstSource))
-			return Path.Combine(request.WorkingDirectory, "bin");
-		string full = Path.GetFullPath(firstSource, request.WorkingDirectory);
-		string? directory = Path.GetDirectoryName(full);
-		return Path.Combine(string.IsNullOrWhiteSpace(directory) ? request.WorkingDirectory : directory, "bin");
-	}
-
-	static string GetDefaultProjectNameFromRequest(CompilerRequest request)
-	{
-		string? firstSource = request.Files.FirstOrDefault(static file => file != "-");
-		return string.IsNullOrWhiteSpace(firstSource)
-			? "stdin"
-			: SanitizeIdentifier(Path.GetFileNameWithoutExtension(firstSource));
-	}
-
-	static string SanitizeIdentifier(string value)
-	{
-		StringBuilder builder = new();
-		foreach (char ch in value)
-			builder.Append(char.IsLetterOrDigit(ch) ? ch : '_');
-		return builder.ToString();
-	}
-
-	static bool IsDirectRunOutputPath(string value)
-	{
-		string normalized = value.Replace('\\', '/');
-		return normalized == "." || normalized.EndsWith("/.", StringComparison.Ordinal);
-	}
-
-	static string? ResolveOptionalPath(string? value, string baseDirectory)
-	{
-		return string.IsNullOrWhiteSpace(value) ? null : ResolvePath(value, baseDirectory);
-	}
-
-	static string ResolvePath(string value, string baseDirectory)
-	{
-		if (IsDirectRunOutputPath(value))
-		{
-			string prefix = value[..^1];
-			string resolved = Path.IsPathRooted(prefix) ? prefix : Path.GetFullPath(prefix, baseDirectory);
-			return Path.Combine(resolved, ".");
-		}
-		return Path.IsPathRooted(value) ? value : Path.GetFullPath(value, baseDirectory);
-	}
-
-	static string ResolvePathLike(string value, string baseDirectory)
-	{
-		return PathArguments.LooksLikePath(value) ? ResolvePath(value, baseDirectory) : value;
-	}
-
-	static bool TryApplyImplicitBuildTarget(string[] args, CliEnvironment environment, out string[] updatedArgs, List<string> errors)
-	{
-		updatedArgs = args;
-		if (HasBuildTargetOrSourceArgument(args, environment.WorkingDirectory))
-			return true;
-		if (!TryResolveImplicitCampbuildTarget(environment.WorkingDirectory, out string? buildFile, out string? error))
-		{
-			errors.Add(error!);
-			return false;
-		}
-		updatedArgs = [buildFile!, .. args];
-		return true;
-	}
-
-	static bool HasBuildTargetOrSourceArgument(IReadOnlyList<string> args, string workingDirectory)
-	{
-		for (int i = 0; i < args.Count; i++)
-		{
-			string token = args[i];
-			if (token.StartsWith("-", StringComparison.Ordinal))
-			{
-				i += ResponseFileExpander.OptionValueCountForBuildRequest(token);
-				continue;
-			}
-			return true;
-		}
-		return false;
-	}
-
-	public static bool TryResolveImplicitCampbuildTarget(string workingDirectory, out string? buildFile, out string? error)
-	{
-		buildFile = null;
-		error = null;
-		string[] campbuildFiles = Directory.GetFiles(workingDirectory, "*.campbuild").OrderBy(static path => path, StringComparer.Ordinal).ToArray();
-		string[] campFiles = Directory.GetFiles(workingDirectory, "*.camp").OrderBy(static path => path, StringComparer.Ordinal).ToArray();
-		if (campFiles.Length > 0)
-		{
-			error = "Specify a .campbuild file or source file. The current directory contains .camp source files, so no implicit .campbuild target was selected.";
-			return false;
-		}
-		if (campbuildFiles.Length == 0)
-		{
-			error = "Specify a .campbuild file or source file. The current directory does not contain a .campbuild file.";
-			return false;
-		}
-		if (campbuildFiles.Length > 1)
-		{
-			error = "Specify a .campbuild file. The current directory contains multiple .campbuild files.";
-			return false;
-		}
-		buildFile = campbuildFiles[0];
-		return true;
-	}
-
-	static int RunDump(string[] args, CliEnvironment environment)
-	{
-		if (args.Length == 0)
-			return Error("dump requires a dump kind: tokens, declarations, lowering, or metadata.");
-
-		CompilerInspectMode? inspect = ParseDumpKind(args[0]);
-		if (inspect is null)
-			return Error($"Dump kind '{args[0]}' is not valid. Expected tokens, declarations, lowering, or metadata.");
-
-		if (!TryBuildRequest(args[1..], environment, CommandKind.Dump, out CompilerRequest? request, out List<string> errors))
-			return PrintErrors(errors);
-
-		request!.Inspect = inspect;
-		if (inspect == CompilerInspectMode.Metadata && request.EmitMetadata is null)
-			request.EmitMetadata = MetadataVisibility.Export;
-
-		CompilerResult result = CompilerDriver.Execute(request);
-		Console.Out.Write(result.StdOut);
-		Console.Error.Write(result.StdErr);
-		return result.ExitCode;
-	}
-
-	static int RunRestore(string[] args, CliEnvironment environment)
-	{
-		PrintPackagePreviewWarning();
-		List<string> errors = [];
-		List<string> sourceArgs = [];
-		string? upgrade = null;
-		bool onlyLocal = false;
-		for (int i = 0; i < args.Length; i++)
-		{
-			if (args[i] == "--upgrade")
-			{
-				if (i + 1 < args.Length && !args[i + 1].StartsWith("-", StringComparison.Ordinal))
-					upgrade = args[++i];
-				else
-					upgrade = "";
-				continue;
-			}
-			if (args[i] == "--only-local")
-			{
-				onlyLocal = true;
-				continue;
-			}
-			sourceArgs.Add(args[i]);
-		}
-		if (!TryApplyImplicitBuildTarget(sourceArgs.ToArray(), environment, out string[] resolvedSourceArgs, errors))
-			return PrintErrors(errors);
-		sourceArgs = [.. resolvedSourceArgs];
-		string? buildFile = TryGetBuildFileArgument(sourceArgs, environment.WorkingDirectory);
-		string? buildFileProjectRoot = buildFile is null ? null : Path.GetDirectoryName(buildFile);
-		sourceArgs = ResponseFileExpander.ExpandBareBuildFiles(sourceArgs, environment.WorkingDirectory, errors);
-		if (upgrade is not null && upgrade.Length > 0 && !PackageDependencySpec.TryParse(upgrade, out _, out string? upgradeError))
-			errors.Add(upgradeError!);
-		BuildOptionBag bag = new();
-		if (!onlyLocal)
-			ApplyCompilerPackageSourcePragmas(environment, bag, errors, includeGlobal: true);
-		ParsedOptions restoreOptions = CommandLineOptionParser.Parse(sourceArgs, allowPositionals: true, errors);
-		bag.Apply(restoreOptions, Precedence.Local, "restore", errors);
-		foreach (string file in ExpandSourcePatterns(sourceArgs, [], environment.WorkingDirectory, errors))
-			ApplyFilePragmas(file, environment, bag, Precedence.Local, errors);
-		if (errors.Count > 0)
-			return PrintErrors(errors);
-
-		string projectRoot = buildFileProjectRoot ?? GetSourceProjectRoot(ExpandSourcePatterns(sourceArgs, [], environment.WorkingDirectory, errors), environment.WorkingDirectory);
-		return PackageCommands.Restore(bag.UsePackages, bag.UseSources, upgrade, environment, projectRoot);
-	}
-
-	static string GetSourceProjectRoot(IReadOnlyList<string> sourceFiles, string workingDirectory)
-	{
-		string? firstSource = sourceFiles.FirstOrDefault(static file => file != "-");
-		if (!string.IsNullOrWhiteSpace(firstSource))
-			return Path.GetDirectoryName(Path.GetFullPath(firstSource, workingDirectory)) ?? workingDirectory;
-		return workingDirectory;
-	}
-
-static bool TryBuildRequest(string[] args, CliEnvironment environment, CommandKind command, out CompilerRequest? request, out List<string> errors, List<string>? projectReferenceStack = null, string? explicitProjectRoot = null, ProjectReferenceBuildCache? projectReferenceCache = null)
-	{
-		projectReferenceCache ??= new ProjectReferenceBuildCache();
-		request = null;
-		errors = [];
-		if (command is CommandKind.Build or CommandKind.Run or CommandKind.Test or CommandKind.Cover or CommandKind.Dump
-			&& !TryApplyImplicitBuildTarget(args, environment, out args, errors))
-			return false;
-		string? buildFile = command is CommandKind.Build or CommandKind.Run or CommandKind.Test or CommandKind.Cover or CommandKind.Dump
-			? TryGetBuildFileArgument(args, environment.WorkingDirectory)
-			: null;
-	string? buildFileProjectRoot = explicitProjectRoot ?? (buildFile is null ? null : Path.GetDirectoryName(buildFile));
-		string? defaultOutDir = command is CommandKind.Build or CommandKind.Run or CommandKind.Test or CommandKind.Cover && buildFileProjectRoot is not null
-			? Path.Combine(buildFileProjectRoot, "bin")
-			: null;
-
-		if (command is CommandKind.Build or CommandKind.Run or CommandKind.Test or CommandKind.Cover or CommandKind.Dump)
-			args = ResponseFileExpander.ExpandBareBuildFiles(args, environment.WorkingDirectory, errors).ToArray();
-		if (errors.Count > 0)
-			return false;
-
-		ParsedOptions cli = CommandLineOptionParser.Parse(args, allowPositionals: true, errors);
-		if (errors.Count > 0)
-			return false;
-
-		BuildOptionBag bag = new();
-		ApplyGlobalPragmas(environment, bag, errors);
-
-		List<string> sourceFiles = ExpandSourcePatterns(cli.Positionals, cli.ExcludePatterns, environment.WorkingDirectory, errors);
-		List<string> nativeSourceFiles = ExpandNativeSourcePatterns(cli.Positionals, cli.ExcludePatterns, environment.WorkingDirectory);
-		List<string> apiFiles = ExpandSourcePatterns(cli.ApiPatterns.Concat(bag.ApiPatterns).ToList(), [], environment.WorkingDirectory, errors);
-		HashSet<string> pragmaFilesRead = new(StringComparer.OrdinalIgnoreCase);
-		while (true)
-		{
-			List<string> filesToRead = sourceFiles.Concat(apiFiles).Where(pragmaFilesRead.Add).ToList();
-			if (filesToRead.Count == 0)
-				break;
-			foreach (string file in filesToRead)
-				ApplyFilePragmas(file, environment, bag, Precedence.Local, errors);
-			apiFiles = ExpandSourcePatterns(cli.ApiPatterns.Concat(bag.ApiPatterns).ToList(), [], environment.WorkingDirectory, errors);
-		}
-
-		bag.Apply(cli, Precedence.CommandLine, "command line", errors);
-		sourceFiles = ExpandSourcePatterns(cli.Positionals, bag.ExcludePatterns, environment.WorkingDirectory, errors);
-		nativeSourceFiles = ExpandNativeSourcePatterns(cli.Positionals, bag.ExcludePatterns, environment.WorkingDirectory);
-		apiFiles = ExpandSourcePatterns(bag.ApiPatterns, [], environment.WorkingDirectory, errors);
-		if (sourceFiles.Count == 0)
-			errors.Add("At least one source file pattern is required.");
-		string projectRoot = buildFileProjectRoot ?? GetSourceProjectRoot(sourceFiles, environment.WorkingDirectory);
-		string sourcefileDefaultRoot = buildFileProjectRoot ?? projectRoot;
-
-		if (command == CommandKind.Dump && bag.HasBuildOnlyOptions)
-			errors.Add("dump does not accept --framework, --artifact, --name, --subsystem, or --out-dir.");
-		if (command == CommandKind.Dump && bag.HasTestResultOptions)
-			errors.Add("dump does not accept --test-output-dir or --test-result-format.");
-		if (command != CommandKind.Cover && bag.HasCoverageOptions)
-			errors.Add("--coverage-format, --coverage-output-dir, and --coverage-subject can only be used with cover.");
-		if (command is not (CommandKind.Test or CommandKind.Cover) && bag.ListTests)
-			errors.Add("--list can only be used with test or cover.");
-		if (command is not (CommandKind.Test or CommandKind.Cover) && bag.TestFilters.Count > 0)
-			errors.Add("--filter can only be used with test or cover.");
-		if (command is not (CommandKind.Test or CommandKind.Cover) && bag.IgnoreLeaks)
-			errors.Add("--ignore-leaks can only be used with test or cover.");
-		if (bag.SubsystemName is not null && bag.SubsystemName != "windows")
-			errors.Add($"Subsystem '{bag.SubsystemName}' is not valid. Expected windows.");
-		if (bag.SubsystemName is not null && bag.ArtifactSpecified && bag.ArtifactKind is not NativeBuildKind.Exec)
-			errors.Add("--subsystem can only be used with --artifact exec.");
-		if (command == CommandKind.Run)
-		{
-			if (!bag.ArtifactSpecified)
-				bag.SetArtifact(NativeBuildKind.Exec, "run default", errors);
-			else if (bag.ArtifactKind is not NativeBuildKind.Exec)
-				errors.Add("run requires --artifact exec.");
-		}
-		if (errors.Count > 0)
-			return false;
-
-		request = new CompilerRequest
-		{
-			RuntimeRoot = environment.RuntimeRoot,
-			WorkingDirectory = projectRoot,
-			TargetName = bag.TargetName ?? CompilerDefaults.TargetName,
-			ProfileName = bag.ProfileName ?? "DEBUG",
-			EmitKind = bag.EmitKind ?? "c99",
-			BuildKind = bag.ArtifactKind,
-			InferBuildKind = command == CommandKind.Build && !bag.ArtifactSpecified,
-			WithinPolicyBuildKind = bag.ArtifactKind,
-			InferWithinPolicyBuildKind = command is CommandKind.Test or CommandKind.Cover && !bag.ArtifactSpecified,
-			CommandMode = GetCompilerCommandMode(command),
-			DeclarationParticipationMode = command is CommandKind.Test or CommandKind.Cover ? DeclarationParticipationMode.TestModule : DeclarationParticipationMode.Production,
-			CoverageInstrumentationMode = CoverageInstrumentationMode.Disabled,
-			EmitDebugInfo = bag.DebugInfo,
-			EmitMetadata = bag.MetadataVisibility,
-			OutDir = ResolveOptionalPath(bag.OutDir, environment.WorkingDirectory) ?? defaultOutDir,
-			OutDirIsDirect = bag.OutDir is not null && IsDirectRunOutputPath(bag.OutDir),
-			ProjectName = bag.ProjectName,
-			SubsystemName = bag.SubsystemName,
-			NoStdLib = bag.NoStdLib,
-			WithinAllocationPolicy = bag.WithinAllocationPolicy,
-			SourcefilePathMode = bag.SourcefilePathMode,
-			SourcefileDefaultRoot = sourcefileDefaultRoot,
-			Verbose = bag.Verbose,
-			TimingEnabled = bag.TimingEnabled,
-			TimingOutput = ResolveOptionalPath(bag.TimingOutput, environment.WorkingDirectory),
-			ColorOutput = !Console.IsOutputRedirected,
-			ListTests = bag.ListTests,
-			IgnoreLeaks = bag.IgnoreLeaks,
-			TestOutputDir = ResolveOptionalPath(bag.TestOutputDir, environment.WorkingDirectory),
-			TestResultFormat = bag.TestResultFormat,
-			CoverageOutputDir = ResolveOptionalPath(bag.CoverageOutputDir, environment.WorkingDirectory),
-			CoverageFormat = bag.CoverageFormat
-		};
-		request.SourcefileRoots.AddRange(bag.SourcefileRoots.Select(root => ResolvePath(root, environment.WorkingDirectory)));
-		request.TestFilters.AddRange(bag.TestFilters);
-		request.CoverageSubjects.AddRange(bag.CoverageSubjects);
-		request.Defines.AddRange(bag.Defines);
-		request.ConfigurationFlagDeclarations.AddRange(bag.ConfigurationFlagDeclarations);
-		request.ConfigurationFlagConfigurations.AddRange(bag.ConfigurationFlagConfigurations);
-		request.ConfigurationRequirements.AddRange(bag.ConfigurationRequirements);
-		request.ConfigurationRequirementPolicy = bag.ConfigurationRequirementPolicy;
-		request.Variants.AddRange(bag.Variants);
-		request.References.AddRange(bag.References.Select(reference => ResolvePathLike(reference, environment.WorkingDirectory)));
-		request.Frameworks.AddRange(bag.Frameworks);
-		request.UsePackages.AddRange(bag.UsePackages.Select(static package => package.ToString()));
-		if (!TryAddUseSourceRoots(bag.UseSources, environment.WorkingDirectory, request.UseSourceRoots, errors))
-			return false;
-		request.Files.AddRange(sourceFiles.Select(path => Path.GetRelativePath(projectRoot, path)));
-		request.NativeSourceFiles.AddRange(nativeSourceFiles.Select(path => Path.GetRelativePath(projectRoot, path)));
-		request.ApiFiles.AddRange(apiFiles.Select(path => Path.GetRelativePath(projectRoot, path)));
-		if (!TryBuildProjectReferences(bag.ProjectReferences, request, environment, projectReferenceStack ?? [], projectReferenceCache, out List<string> projectApiHeaders, out List<string> sharedProjectApiHeaders, out List<string> projectLibraries, errors))
-			return false;
-		request.ApiFiles.AddRange(projectApiHeaders);
-		request.SharedLibraryApiHeaders.AddRange(sharedProjectApiHeaders);
-		request.References.AddRange(projectLibraries);
-		if (command == CommandKind.Cover && !TryApplyRootCoverageSubject(request, bag.ProjectReferences.Count, errors))
-			return false;
-		return true;
-	}
-
-	static bool TryAddUseSourceRoots(IEnumerable<PackageSourceSpec> sources, string workingDirectory, List<string> destination, List<string> errors)
-	{
-		foreach (PackageSourceSpec source in sources)
-		{
-			if (string.IsNullOrWhiteSpace(source.Path))
-				continue;
-			destination.Add(source.Path!);
-		}
-		return true;
-	}
-
-	static CompilerCommandMode GetCompilerCommandMode(CommandKind command)
-	{
-		return command switch
-		{
-			CommandKind.Run => CompilerCommandMode.Run,
-			CommandKind.Dump => CompilerCommandMode.Dump,
-			CommandKind.Test => CompilerCommandMode.Test,
-			CommandKind.Cover => CompilerCommandMode.Cover,
-			_ => CompilerCommandMode.Build
-		};
-	}
-
-	static bool TryBuildProjectReferences(IReadOnlyList<string> projectReferences, CompilerRequest consumerRequest, CliEnvironment environment, List<string> projectReferenceStack, ProjectReferenceBuildCache cache, out List<string> apiHeaders, out List<string> sharedApiHeaders, out List<string> libraries, List<string> errors)
-	{
-		apiHeaders = [];
-		sharedApiHeaders = [];
-		libraries = [];
-		bool requireLibrary = consumerRequest.BuildKind is not null
-			|| consumerRequest.InferBuildKind
-			|| consumerRequest.CommandMode is CompilerCommandMode.Test or CompilerCommandMode.Cover;
-		bool coverageMode = consumerRequest.CommandMode == CompilerCommandMode.Cover;
-		int sharedCoverageCandidateCount = coverageMode
-			? projectReferences.Select(static reference => ProjectReferenceSpec.Parse(reference)).Count(static spec => spec.LinkKind.GetValueOrDefault(DependencyLinkKind.Shared) == DependencyLinkKind.Shared)
-			: 0;
-		HashSet<string> matchedCoverageSubjects = new(StringComparer.Ordinal);
-		if (coverageMode
-			&& consumerRequest.CoverageSubjects.Count == 0
-			&& sharedCoverageCandidateCount > 1)
-		{
-			errors.Add("External coverage with multiple shared project references requires --coverage-subject.");
-			return false;
-		}
-		foreach (string projectReference in projectReferences)
-		{
-			ProjectReferenceSpec referenceSpec = ProjectReferenceSpec.Parse(projectReference);
-			DependencyLinkKind effectiveLinkKind = referenceSpec.LinkKind.GetValueOrDefault(DependencyLinkKind.Shared);
-			NativeBuildKind referenceBuildKind = effectiveLinkKind switch
-			{
-				DependencyLinkKind.Shared => NativeBuildKind.Shared,
-				DependencyLinkKind.Static => NativeBuildKind.Static,
-				_ => throw new ArgumentOutOfRangeException(nameof(effectiveLinkKind), effectiveLinkKind, null)
-			};
-			if (!TryResolveProjectReference(referenceSpec.Path, environment.WorkingDirectory, out string? buildFile, out string? error))
-			{
-				errors.Add(error!);
-				continue;
-			}
-			string canonicalBuildFile = Path.GetFullPath(buildFile!);
-			int cycleStart = projectReferenceStack.FindIndex(path => string.Equals(path, canonicalBuildFile, StringComparison.OrdinalIgnoreCase));
-			if (cycleStart >= 0)
-			{
-				errors.Add("Project reference cycle detected: " + FormatProjectReferenceCycle(projectReferenceStack, canonicalBuildFile, cycleStart));
-				continue;
-			}
-
-			List<string> responseErrors = [];
-			List<string> projectArgs = ResponseFileExpander.Expand(["@" + canonicalBuildFile], environment.WorkingDirectory, responseErrors);
-			errors.AddRange(responseErrors);
-			if (responseErrors.Count > 0)
-				continue;
-			List<string> referenceOptionErrors = [];
-			ParsedOptions referenceOptions = CommandLineOptionParser.Parse(projectArgs, allowPositionals: true, referenceOptionErrors);
-			errors.AddRange(referenceOptionErrors.Select(error => $"{referenceSpec.Path}: {error}"));
-			if (referenceOptionErrors.Count > 0)
-				continue;
-			if (referenceOptions.ArtifactRestriction is DependencyLinkKind restriction && restriction != effectiveLinkKind)
-			{
-				errors.Add($"{referenceSpec.Path}: project reference requires {restriction.ToString().ToLowerInvariant()} linking but was requested as {effectiveLinkKind.ToString().ToLowerInvariant()}.");
-				continue;
-			}
-
-			string projectDirectory = Path.GetDirectoryName(canonicalBuildFile)!;
-			string coverageSubjectName = ProjectReferenceOutputName(referenceOptions, canonicalBuildFile);
-			bool instrumentForCoverage = ShouldInstrumentProjectReferenceForCoverage(consumerRequest, coverageSubjectName, effectiveLinkKind, sharedCoverageCandidateCount);
-			if (consumerRequest.CoverageSubjects.Contains(coverageSubjectName, StringComparer.Ordinal))
-				matchedCoverageSubjects.Add(coverageSubjectName);
-			if (coverageMode && consumerRequest.CoverageSubjects.Contains(coverageSubjectName, StringComparer.Ordinal) && effectiveLinkKind != DependencyLinkKind.Shared)
-			{
-				errors.Add($"Coverage subject '{coverageSubjectName}' must be referenced as a shared library.");
-				continue;
-			}
-			TargetDefinition? target = TryGetTargetDefinition(consumerRequest, environment, errors);
-			string artifactDirectory = target is null
-				? consumerRequest.TargetName + (instrumentForCoverage ? "_COVER" : "")
-				: BuildArtifactLayout.GetArtifactDirectoryName(target, referenceBuildKind, consumerRequest.ProfileName, instrumentForCoverage ? CompilerCommandMode.Cover : CompilerCommandMode.Build);
-			string projectOutputDirectory = Path.Combine(projectDirectory, "bin", artifactDirectory);
-			ProjectReferenceBuildKey cacheKey = new(
-				canonicalBuildFile,
-				effectiveLinkKind,
-				consumerRequest.TargetName,
-				consumerRequest.ProfileName,
-				string.Join('\u001f', consumerRequest.Variants),
-				instrumentForCoverage,
-				requireLibrary);
-			if (cache.TryGet(cacheKey, out ProjectReferenceBuildEntry? cachedEntry) && cachedEntry is not null)
-			{
-				if (cachedEntry.Resolution is not null)
-				{
-					if (consumerRequest.Verbose)
-						Console.Out.WriteLine($"{projectReference}: project reference {cachedEntry.Resolution.ProjectName}: reused");
-					AddProjectReferenceResolution(consumerRequest, effectiveLinkKind, cachedEntry.Resolution, apiHeaders, sharedApiHeaders, libraries);
-				}
-				else if (cachedEntry.Failure is not null)
-				{
-					if (consumerRequest.Verbose)
-						Console.Out.WriteLine($"{projectReference}: project reference {cachedEntry.Failure.ProjectName}: reused failed result");
-					AddProjectReferenceFailure(projectReference, cachedEntry.Failure, errors);
-				}
-				continue;
-			}
-			projectArgs = RemoveProjectReferenceOverrideOptions(projectArgs);
-			projectArgs.AddRange(["--target", consumerRequest.TargetName]);
-			projectArgs.AddRange(["--profile", consumerRequest.ProfileName]);
-			if (consumerRequest.Variants.Count > 0)
-				projectArgs.AddRange(["--variant", .. consumerRequest.Variants]);
-			if (consumerRequest.Verbose)
-				projectArgs.Add("--verbose");
-			if (consumerRequest.TimingEnabled)
-				projectArgs.Add("--timing");
-			projectArgs.AddRange(["--artifact", referenceBuildKind == NativeBuildKind.Shared ? "shared" : "static"]);
-			projectArgs.AddRange(["--out-dir", Path.Combine(projectOutputDirectory, ".")]);
-
-			List<string> childStack = [.. projectReferenceStack, canonicalBuildFile];
-			CliEnvironment projectEnvironment = new()
-			{
-				WorkingDirectory = projectDirectory,
-				RuntimeRoot = environment.RuntimeRoot,
-				HomeDirectory = environment.HomeDirectory
-			};
-			if (!TryBuildRequest(projectArgs.ToArray(), projectEnvironment, CommandKind.Build, out CompilerRequest? projectRequest, out List<string> projectErrors, childStack, projectDirectory, cache))
-			{
-				foreach (string projectError in projectErrors)
-					errors.Add($"{projectReference}: {projectError}");
-				continue;
-			}
-			projectRequest!.OutDir = projectOutputDirectory;
-			projectRequest.OutDirIsDirect = true;
-
-			if (instrumentForCoverage)
-				projectRequest.CoverageInstrumentationMode = CoverageInstrumentationMode.ProductionSubject;
-
-			if (!instrumentForCoverage && target is not null && TryGetCurrentProjectReferenceArtifacts(projectRequest, canonicalBuildFile, projectOutputDirectory, referenceBuildKind, target, environment.BaseCampBuildPath, environment.GlobalCampBuildPath, requireLibrary, out string? currentApiHeader, out string? currentLibrary))
-			{
-				if (consumerRequest.Verbose)
-					Console.Out.WriteLine($"{projectReference}: project reference {ProjectReferenceOutputName(projectRequest, canonicalBuildFile)}: current");
-				ProjectReferenceResolution resolution = CreateProjectReferenceResolution(projectRequest, canonicalBuildFile, effectiveLinkKind, referenceBuildKind, target, currentApiHeader, currentLibrary, coverageMap: null);
-				cache.Add(cacheKey, resolution);
-				AddProjectReferenceResolution(consumerRequest, effectiveLinkKind, resolution, apiHeaders, sharedApiHeaders, libraries);
-				continue;
-			}
-			if (consumerRequest.Verbose)
-				Console.Out.WriteLine($"{projectReference}: project reference {ProjectReferenceOutputName(projectRequest, canonicalBuildFile)}: rebuilding");
-
-			CompilerResult result = CompilerDriver.Execute(projectRequest);
-			WriteProjectReferenceOutput(projectReference, result.StdOut);
-			string expectedApiHeader = Path.Combine(projectOutputDirectory, ProjectReferenceOutputName(projectRequest, canonicalBuildFile) + "_api.camp");
-			string? apiHeader = result.GeneratedFiles.FirstOrDefault(path => string.Equals(Path.GetFullPath(path), Path.GetFullPath(expectedApiHeader), StringComparison.OrdinalIgnoreCase));
-			string? library = result.GeneratedFiles.FirstOrDefault(path => IsNativeLibrary(path, consumerRequest.TargetName, consumerRequest.RuntimeRoot, referenceBuildKind));
-			string? coverageMap = result.GeneratedFiles.FirstOrDefault(static path => path.EndsWith(".camp-coverage-map.csv", StringComparison.OrdinalIgnoreCase));
-			if (result.ExitCode != 0)
-			{
-				if (!requireLibrary && apiHeader is not null)
-				{
-					apiHeaders.Add(apiHeader);
-					continue;
-				}
-				errors.Add($"{projectReference}: project reference build failed.");
-				if (!string.IsNullOrWhiteSpace(result.StdErr))
-					errors.Add(result.StdErr.TrimEnd());
-				if (!string.IsNullOrWhiteSpace(result.StdOut))
-					errors.Add(result.StdOut.TrimEnd());
-				cache.Add(cacheKey, CreateProjectReferenceFailure(projectRequest, canonicalBuildFile, result));
-				continue;
-			}
-
-			if (apiHeader is null && File.Exists(expectedApiHeader))
-				apiHeader = expectedApiHeader;
-			if (library is null && requireLibrary && Directory.Exists(projectOutputDirectory))
-				library = Directory.EnumerateFiles(projectOutputDirectory)
-					.FirstOrDefault(path => IsNativeLibrary(path, consumerRequest.TargetName, consumerRequest.RuntimeRoot, referenceBuildKind));
-
-			if (apiHeader is null || requireLibrary && library is null)
-			{
-				errors.Add(requireLibrary
-					? $"{referenceSpec.Path}: project reference did not produce a Camp API header and {effectiveLinkKind.ToString().ToLowerInvariant()} library."
-					: $"{referenceSpec.Path}: project reference did not produce a Camp API header.");
-				continue;
-			}
-			if (instrumentForCoverage)
-			{
-				if (coverageMap is null)
-				{
-					errors.Add($"{referenceSpec.Path}: instrumented coverage subject did not produce a coverage map.");
-					continue;
-				}
-				AddUniquePath(consumerRequest.CoverageMapInputs, coverageMap);
-			}
-			ProjectReferenceResolution builtResolution = CreateProjectReferenceResolution(projectRequest, canonicalBuildFile, effectiveLinkKind, referenceBuildKind, target, apiHeader, library, coverageMap);
-			cache.Add(cacheKey, builtResolution);
-			AddProjectReferenceResolution(consumerRequest, effectiveLinkKind, builtResolution, apiHeaders, sharedApiHeaders, libraries);
-		}
-		if (coverageMode)
-		{
-			foreach (string subject in consumerRequest.CoverageSubjects.Where(static subject => subject != "self"))
-			{
-				if (!matchedCoverageSubjects.Contains(subject))
-					errors.Add($"Coverage subject '{subject}' could not be matched to a shared project reference.");
-			}
-		}
-		return errors.Count == 0;
-	}
-
-	static ProjectReferenceFailure CreateProjectReferenceFailure(CompilerRequest projectRequest, string buildFile, CompilerResult result)
-	{
-		List<string> details = [];
-		if (!string.IsNullOrWhiteSpace(result.StdErr))
-			details.Add(result.StdErr.TrimEnd());
-		if (!string.IsNullOrWhiteSpace(result.StdOut))
-			details.Add(result.StdOut.TrimEnd());
-		return new ProjectReferenceFailure(ProjectReferenceOutputName(projectRequest, buildFile), details);
-	}
-
-	static void AddProjectReferenceFailure(string projectReference, ProjectReferenceFailure failure, List<string> errors)
-	{
-		errors.Add($"{projectReference}: project reference build failed.");
-		errors.AddRange(failure.Details);
-	}
-
-	static ProjectReferenceResolution CreateProjectReferenceResolution(CompilerRequest projectRequest, string buildFile, DependencyLinkKind effectiveLinkKind, NativeBuildKind referenceBuildKind, TargetDefinition? target, string apiHeader, string? library, string? coverageMap)
-	{
-		List<string> apiHeaders = [];
-		foreach (string dependencyApiHeader in projectRequest.ApiFiles)
-			AddUniquePathPreservingFirst(apiHeaders, Path.GetFullPath(dependencyApiHeader, projectRequest.WorkingDirectory));
-		AddUniquePathPreservingFirst(apiHeaders, apiHeader);
-		List<string> sharedApiHeaders = [];
-		foreach (string sharedApiHeader in projectRequest.SharedLibraryApiHeaders)
-			AddUniquePathPreservingFirst(sharedApiHeaders, Path.GetFullPath(sharedApiHeader, projectRequest.WorkingDirectory));
-		if (effectiveLinkKind == DependencyLinkKind.Shared)
-			AddUniquePathPreservingFirst(sharedApiHeaders, apiHeader);
-		List<string> libraries = [];
-		if (library is not null)
-			AddUniquePath(libraries, library);
-		foreach (string reference in projectRequest.References)
-		{
-			if (referenceBuildKind == NativeBuildKind.Static || target is not null && IsSharedDependencyReference(reference, target))
-				AddUniquePath(libraries, reference);
-		}
-		return new ProjectReferenceResolution(
-			ProjectReferenceOutputName(projectRequest, buildFile),
-			apiHeaders,
-			sharedApiHeaders,
-			libraries,
-			coverageMap is null ? null : Path.GetFullPath(coverageMap));
-	}
-
-	static void AddProjectReferenceResolution(CompilerRequest consumerRequest, DependencyLinkKind effectiveLinkKind, ProjectReferenceResolution resolution, List<string> apiHeaders, List<string> sharedApiHeaders, List<string> libraries)
-	{
-		foreach (string apiHeader in resolution.ApiHeaders)
-			AddUniquePathPreservingFirst(apiHeaders, apiHeader);
-		if (effectiveLinkKind == DependencyLinkKind.Shared)
-			foreach (string sharedApiHeader in resolution.SharedApiHeaders.Count > 0 ? resolution.SharedApiHeaders : resolution.ApiHeaders)
-				AddUniquePathPreservingFirst(sharedApiHeaders, sharedApiHeader);
-		foreach (string library in resolution.LinkArtifacts)
-			AddUniquePath(libraries, library);
-		if (resolution.CoverageMap is not null)
-			AddUniquePath(consumerRequest.CoverageMapInputs, resolution.CoverageMap);
-	}
-
-	static bool TryGetCurrentProjectReferenceArtifacts(CompilerRequest projectRequest, string buildFile, string outputDirectory, NativeBuildKind buildKind, TargetDefinition target, string baseCampBuildPath, string globalCampBuildPath, bool requireLibrary, out string apiHeader, out string? library)
-	{
-		string projectName = ProjectReferenceOutputName(projectRequest, buildFile);
-		apiHeader = Path.Combine(outputDirectory, projectName + "_api.camp");
-		string cApiHeader = Path.Combine(outputDirectory, projectName + "_api.h");
-		string metadata = Path.Combine(outputDirectory, projectName + "_api.json");
-		NativeBuildOptions nativeOptions = new()
-		{
-			Target = target,
-			ProfileName = projectRequest.ProfileName,
-			BuildDirectory = Path.Combine(outputDirectory, "build"),
-			OutputDirectory = outputDirectory,
-			ProjectName = projectName,
-			Kind = buildKind,
-			SourceFiles = []
-		};
-		string nativeArtifact = NativeBuildDriver.GetArtifactPath(nativeOptions);
-		library = requireLibrary ? NativeBuildDriver.GetLinkArtifactPath(nativeOptions) : null;
-
-		List<string> requiredOutputs = [apiHeader, cApiHeader, metadata];
-		List<string> freshnessOutputs = [];
-		if (requireLibrary)
-		{
-			if (library is not null && !File.Exists(library))
-				return false;
-			requiredOutputs.Add(nativeArtifact);
-			freshnessOutputs.Add(nativeArtifact);
-			if (library is not null && !string.Equals(nativeArtifact, library, StringComparison.OrdinalIgnoreCase))
-			{
-				requiredOutputs.Add(library!);
-				freshnessOutputs.Add(library!);
-			}
-		}
-
-		if (requiredOutputs.Any(static output => !File.Exists(output)))
-			return false;
-		if (requireLibrary && buildKind == NativeBuildKind.Static)
-		{
-			IReadOnlyList<string> expectedObjects = GetExpectedProjectReferenceObjectPaths(projectRequest, nativeOptions.BuildDirectory, target);
-			if (!NativeBuildDriver.StaticArchiveContainsOnlyObjects(nativeOptions, nativeArtifact, expectedObjects))
-				return false;
-		}
-		if (freshnessOutputs.Count == 0)
-			freshnessOutputs.AddRange(requiredOutputs);
-		List<string> inputs = GetProjectReferenceCacheInputs(projectRequest, buildFile, target, baseCampBuildPath, globalCampBuildPath, buildKind).ToList();
-		return OutputsAreCurrent(freshnessOutputs, inputs);
-	}
-
-	static IReadOnlyList<string> GetExpectedProjectReferenceObjectPaths(CompilerRequest projectRequest, string buildDirectory, TargetDefinition target)
-	{
-		string objectExtension = target.Capabilities.GetArtifactValue("object_ext", ".o");
-		List<string> objects = [];
-		foreach (string source in projectRequest.Files.Concat(projectRequest.NativeSourceFiles))
-		{
-			if (source == "-")
-				continue;
-			string fullPath = Path.GetFullPath(source, projectRequest.WorkingDirectory);
-			if (fullPath.EndsWith("_api.camp", StringComparison.OrdinalIgnoreCase))
-				continue;
-			objects.Add(Path.Combine(buildDirectory, Path.GetFileNameWithoutExtension(fullPath) + objectExtension));
-		}
-		return objects;
-	}
-
-	static string ProjectReferenceOutputName(CompilerRequest projectRequest, string buildFile)
-	{
-		if (!string.IsNullOrWhiteSpace(projectRequest.ProjectName))
-			return projectRequest.ProjectName!;
-		string? firstSource = projectRequest.Files.FirstOrDefault(file => !file.EndsWith("_api.camp", StringComparison.OrdinalIgnoreCase));
-		if (!string.IsNullOrWhiteSpace(firstSource))
-			return Path.GetFileNameWithoutExtension(firstSource);
-		return Path.GetFileNameWithoutExtension(buildFile);
-	}
-
-	static string ProjectReferenceOutputName(ParsedOptions projectOptions, string buildFile)
-	{
-		string? projectName = projectOptions.SingleValues.LastOrDefault(static value => value.Key == "name").Value;
-		if (!string.IsNullOrWhiteSpace(projectName))
-			return projectName!;
-		string? firstSource = projectOptions.Positionals.FirstOrDefault(static file => !file.EndsWith("_api.camp", StringComparison.OrdinalIgnoreCase));
-		if (!string.IsNullOrWhiteSpace(firstSource) && !Glob.HasWildcards(firstSource!))
-			return Path.GetFileNameWithoutExtension(firstSource);
-		return Path.GetFileNameWithoutExtension(buildFile);
-	}
-
-	static bool ShouldInstrumentProjectReferenceForCoverage(CompilerRequest consumerRequest, string coverageSubjectName, DependencyLinkKind linkKind, int sharedCoverageCandidateCount)
-	{
-		if (consumerRequest.CommandMode != CompilerCommandMode.Cover || linkKind != DependencyLinkKind.Shared)
-			return false;
-		if (consumerRequest.CoverageSubjects.Count == 0)
-			return sharedCoverageCandidateCount == 1;
-		return consumerRequest.CoverageSubjects.Contains(coverageSubjectName, StringComparer.Ordinal);
-	}
-
-	static bool TryApplyRootCoverageSubject(CompilerRequest request, int projectReferenceCount, List<string> errors)
-	{
-		if (request.CommandMode != CompilerCommandMode.Cover)
-			return true;
-		bool explicitSelf = request.CoverageSubjects.Contains("self", StringComparer.Ordinal);
-		bool explicitDependency = request.CoverageSubjects.Any(static subject => subject != "self");
-		if (!explicitSelf && !explicitDependency && request.CoverageMapInputs.Count == 0)
-		{
-			request.CoverageInstrumentationMode = CoverageInstrumentationMode.ProductionSubject;
-			return true;
-		}
-		if (explicitSelf)
-		{
-			request.CoverageInstrumentationMode = CoverageInstrumentationMode.ProductionSubject;
-			return true;
-		}
-		if (request.CoverageMapInputs.Count > 0)
-		{
-			request.CoverageInstrumentationMode = CoverageInstrumentationMode.Disabled;
-			return true;
-		}
-		if (projectReferenceCount > 0)
-		{
-			errors.Add("External coverage requires a shared project reference coverage subject or --coverage-subject self.");
-			return false;
-		}
-		errors.Add("Coverage subject '" + string.Join(", ", request.CoverageSubjects) + "' could not be matched.");
-		return false;
-	}
-
-	static IEnumerable<string> GetProjectReferenceCacheInputs(CompilerRequest projectRequest, string buildFile, TargetDefinition target, string baseCampBuildPath, string globalCampBuildPath, NativeBuildKind buildKind)
-	{
-		yield return buildFile;
-		if (File.Exists(baseCampBuildPath))
-			yield return baseCampBuildPath;
-		if (File.Exists(globalCampBuildPath))
-			yield return globalCampBuildPath;
-		foreach (string input in ResolveProjectReferenceInputPaths(projectRequest, projectRequest.Files, includeDirectories: true))
-			yield return input;
-		foreach (string input in ResolveProjectReferenceInputPaths(projectRequest, projectRequest.ApiFiles, includeDirectories: false))
-			yield return input;
-		foreach (string input in projectRequest.SharedLibraryApiHeaders)
-			yield return input;
-		if (buildKind != NativeBuildKind.Static)
-			foreach (string reference in projectRequest.References)
-			{
-				if (Path.IsPathRooted(reference) && (File.Exists(reference) || Directory.Exists(reference)))
-					yield return reference;
-			}
-		if (File.Exists(target.Path))
-			yield return target.Path;
-		if (!string.IsNullOrWhiteSpace(Environment.ProcessPath) && File.Exists(Environment.ProcessPath))
-			yield return Environment.ProcessPath;
-	}
-
-	static IEnumerable<string> ResolveProjectReferenceInputPaths(CompilerRequest projectRequest, IEnumerable<string> paths, bool includeDirectories)
-	{
-		foreach (string path in paths)
-		{
-			string fullPath = Path.GetFullPath(path, projectRequest.WorkingDirectory);
-			if (File.Exists(fullPath) || Directory.Exists(fullPath))
-				yield return fullPath;
-			if (includeDirectories)
-			{
-				string? directory = File.Exists(fullPath) ? Path.GetDirectoryName(fullPath) : Directory.Exists(fullPath) ? fullPath : null;
-				if (!string.IsNullOrWhiteSpace(directory) && Directory.Exists(directory))
-					yield return directory;
-			}
-		}
-	}
-
-	static bool OutputsAreCurrent(IReadOnlyList<string> outputs, IReadOnlyList<string> inputs)
-	{
-		if (outputs.Count == 0 || outputs.Any(static output => !File.Exists(output)))
-			return false;
-		DateTime oldestOutput = outputs.Select(File.GetLastWriteTimeUtc).Min();
-		foreach (string input in inputs.Distinct(StringComparer.OrdinalIgnoreCase))
-		{
-			if (File.Exists(input))
-			{
-				if (oldestOutput <= File.GetLastWriteTimeUtc(input))
-					return false;
-			}
-			else if (Directory.Exists(input))
-			{
-				if (oldestOutput <= Directory.GetLastWriteTimeUtc(input))
-					return false;
-			}
-			else
-			{
-				return false;
-			}
-		}
-		return true;
-	}
-
-	static void AddUniquePath(List<string> paths, string path)
-	{
-		string fullPath = Path.GetFullPath(path);
-		int existingIndex = paths.FindIndex(existing => string.Equals(Path.GetFullPath(existing), fullPath, StringComparison.OrdinalIgnoreCase));
-		if (existingIndex >= 0)
-			paths.RemoveAt(existingIndex);
-		paths.Add(fullPath);
-	}
-
-	static void AddUniquePathPreservingFirst(List<string> paths, string path)
-	{
-		string fullPath = Path.GetFullPath(path);
-		if (paths.Any(existing => string.Equals(Path.GetFullPath(existing), fullPath, StringComparison.OrdinalIgnoreCase)))
-			return;
-		paths.Add(fullPath);
-	}
-
-	static TargetDefinition? TryGetTargetDefinition(CompilerRequest request, CliEnvironment environment, List<string> errors)
-	{
-		string targetsDirectory = Path.GetFullPath(Path.Combine(environment.RuntimeRoot, "..", "targets"));
-		if (!TargetCatalog.TryLoad(targetsDirectory, out TargetCatalog? catalog, out string? error))
-		{
-			errors.Add(error ?? $"Target directory '{targetsDirectory}' could not be loaded.");
-			return null;
-		}
-		if (!catalog!.TryGetTarget(request.TargetName, out TargetDefinition? target))
-		{
-			errors.Add($"Target '{request.TargetName}' could not be found in '{targetsDirectory}'.");
-			return null;
-		}
-		try
-		{
-			TargetVariantSelection selection = target!.ResolveVariantSelection(request.Variants);
-			return target.WithVariantSelection(selection);
-		}
-		catch (InvalidDataException ex)
-		{
-			errors.Add(ex.Message);
-			return null;
-		}
-	}
-
-	static string FormatProjectReferenceCycle(IReadOnlyList<string> stack, string repeatedBuildFile, int cycleStart)
-	{
-		List<string> cycle = [];
-		for (int i = cycleStart; i < stack.Count; i++)
-			cycle.Add(ProjectReferenceDisplayName(stack[i]));
-		cycle.Add(ProjectReferenceDisplayName(repeatedBuildFile));
-		return string.Join(" -> ", cycle);
-	}
-
-	static string ProjectReferenceDisplayName(string buildFile)
-	{
-		string directory = Path.GetDirectoryName(buildFile) ?? "";
-		string fileName = Path.GetFileName(buildFile);
-		return string.IsNullOrWhiteSpace(directory) ? fileName : Path.Combine(Path.GetFileName(directory), fileName);
-	}
-
-	static void WriteProjectReferenceOutput(string projectReference, string output)
-	{
-		if (string.IsNullOrWhiteSpace(output))
-			return;
-		foreach (string line in output.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n').Split('\n'))
-		{
-			if (!string.IsNullOrWhiteSpace(line))
-				Console.Out.WriteLine($"{projectReference}: {line}");
-		}
-	}
-
-	static bool TryResolveProjectReference(string value, string workingDirectory, out string? buildFile, out string? error)
-	{
-		buildFile = null;
-		error = null;
-		string fullPath = Path.GetFullPath(value, workingDirectory);
-		if (File.Exists(fullPath))
-		{
-			buildFile = fullPath;
-			return true;
-		}
-		if (!Path.HasExtension(fullPath) && File.Exists(fullPath + ".campbuild"))
-		{
-			buildFile = fullPath + ".campbuild";
-			return true;
-		}
-		if (Directory.Exists(fullPath))
-		{
-			string preferred = Path.Combine(fullPath, Path.GetFileName(fullPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)) + ".campbuild");
-			if (File.Exists(preferred))
-			{
-				buildFile = preferred;
-				return true;
-			}
-			string[] candidates = Directory.GetFiles(fullPath, "*.campbuild").OrderBy(static path => path, StringComparer.Ordinal).ToArray();
-			if (candidates.Length == 1)
-			{
-				buildFile = candidates[0];
-				return true;
-			}
-			error = candidates.Length == 0
-				? $"Project reference '{value}' does not contain a .campbuild file."
-				: $"Project reference '{value}' contains multiple .campbuild files. Specify one explicitly.";
-			return false;
-		}
-		error = $"Project reference '{value}' could not be found. Resolved path: {fullPath}";
-		return false;
-	}
-
-	static List<string> RemoveProjectReferenceOverrideOptions(IReadOnlyList<string> args)
-	{
-		HashSet<string> removeValueOptions = new(StringComparer.Ordinal)
-		{
-			"--target",
-			"-t",
-			"--profile",
-			"-p",
-			"--variant",
-			"--artifact",
-			"--out-dir",
-			"--build-dir"
-		};
-		List<string> result = [];
-		for (int i = 0; i < args.Count; i++)
-		{
-			if (removeValueOptions.Contains(args[i]))
-			{
-				if (args[i] is "--variant")
-				{
-					while (i + 1 < args.Count && IsVariantValueToken(args[i + 1]))
-						i++;
-				}
-				else if (i + 1 < args.Count)
-					i++;
-				continue;
-			}
-			result.Add(args[i]);
-		}
-		return result;
-	}
-
-	static bool IsVariantValueToken(string value)
-	{
-		if (string.IsNullOrWhiteSpace(value) || value.StartsWith("-", StringComparison.Ordinal))
-			return false;
-		foreach (char c in value)
-			if (!char.IsAsciiLetterOrDigit(c))
-				return false;
-		return true;
-	}
-
-	static string? TryGetDefaultOutDirFromBuildFile(IReadOnlyList<string> args, string workingDirectory)
-	{
-		for (int i = 0; i < args.Count; i++)
-		{
-			string token = args[i];
-			if (token.StartsWith("-", StringComparison.Ordinal))
-			{
-				i += ResponseFileExpander.OptionValueCountForBuildRequest(token);
-				continue;
-			}
-			string candidate = token.StartsWith("@", StringComparison.Ordinal) ? token[1..] : token;
-			string fullPath = Path.GetFullPath(candidate, workingDirectory);
-			if (!File.Exists(fullPath) && !Path.HasExtension(fullPath) && File.Exists(fullPath + ".campbuild"))
-				fullPath += ".campbuild";
-			if (File.Exists(fullPath) && Path.GetExtension(fullPath).Equals(".campbuild", StringComparison.OrdinalIgnoreCase))
-				return Path.Combine(Path.GetDirectoryName(fullPath)!, "bin");
-		}
-		return null;
-	}
-
-	static string? TryGetDefaultSourcefileRootFromBuildFile(IReadOnlyList<string> args, string workingDirectory)
-	{
-		string? buildFile = TryGetBuildFileArgument(args, workingDirectory);
-		return buildFile is null ? null : Path.GetDirectoryName(buildFile);
-	}
-
-	static string? TryGetBuildFileArgument(IReadOnlyList<string> args, string workingDirectory)
-	{
-		for (int i = 0; i < args.Count; i++)
-		{
-			string token = args[i];
-			if (token.StartsWith("-", StringComparison.Ordinal))
-			{
-				i += ResponseFileExpander.OptionValueCountForBuildRequest(token);
-				continue;
-			}
-			string candidate = token.StartsWith("@", StringComparison.Ordinal) ? token[1..] : token;
-			string fullPath = Path.GetFullPath(candidate, workingDirectory);
-			if (!File.Exists(fullPath) && !Path.HasExtension(fullPath) && File.Exists(fullPath + ".campbuild"))
-				fullPath += ".campbuild";
-			if (File.Exists(fullPath) && Path.GetExtension(fullPath).Equals(".campbuild", StringComparison.OrdinalIgnoreCase))
-				return fullPath;
-		}
-		return null;
-	}
-
-	static bool IsNativeLibrary(string path, string targetName, string runtimeRoot, NativeBuildKind kind)
-	{
-		string targetRoot = Path.GetFullPath(Path.Combine(runtimeRoot, "..", "targets"));
-		if (!TargetCatalog.TryLoad(targetRoot, out TargetCatalog? catalog, out _) || !catalog!.TryGetTarget(targetName, out TargetDefinition? target))
-			return kind == NativeBuildKind.Shared ? Path.GetExtension(path) is ".so" or ".dylib" or ".dll" : Path.GetExtension(path) is ".a" or ".lib";
-		string extension = kind == NativeBuildKind.Shared
-			? target!.GetArtifactValue("shared_import_ext", target!.GetArtifactValue("shared_ext", ".so"))
-			: target!.GetArtifactValue("static_ext", ".a");
-		return Path.GetExtension(path).Equals(extension, StringComparison.OrdinalIgnoreCase);
-	}
-
-	static bool IsSharedDependencyReference(string path, TargetDefinition target)
-	{
-		if (!Path.IsPathRooted(path))
-			return false;
-		string sharedExtension = target.GetArtifactValue("shared_ext", ".so");
-		if (Path.GetExtension(path).Equals(sharedExtension, StringComparison.OrdinalIgnoreCase))
-			return true;
-		string sharedImportExtension = target.GetArtifactValue("shared_import_ext");
-		if (string.IsNullOrWhiteSpace(sharedImportExtension) || !Path.GetExtension(path).Equals(sharedImportExtension, StringComparison.OrdinalIgnoreCase))
-			return false;
-		return File.Exists(Path.ChangeExtension(path, sharedExtension));
-	}
-
-	static void ApplyGlobalPragmas(CliEnvironment environment, BuildOptionBag bag, List<string> errors)
-	{
-		ApplyCompilerPackageSourcePragmas(environment, bag, errors, includeGlobal: true);
-	}
-
-	static void ApplyCompilerPackageSourcePragmas(CliEnvironment environment, BuildOptionBag bag, List<string> errors, bool includeGlobal)
-	{
-		if (File.Exists(environment.BaseCampBuildPath))
-			ApplyFilePragmas(environment.BaseCampBuildPath, environment, bag, Precedence.Global, errors);
-		if (includeGlobal && File.Exists(environment.GlobalCampBuildPath))
-			ApplyFilePragmas(environment.GlobalCampBuildPath, environment, bag, Precedence.Global, errors);
-	}
-
-	static void ApplyFilePragmas(string file, CliEnvironment environment, BuildOptionBag bag, Precedence precedence, List<string> errors)
-	{
-		if (file.EndsWith(".campbuild", StringComparison.OrdinalIgnoreCase))
-		{
-			ParsedOptions parsed = CommandLineOptionParser.Parse(ResponseFileExpander.Expand(["@" + file], environment.WorkingDirectory, errors), allowPositionals: true, errors);
-			bag.Apply(parsed, precedence, file, errors);
-			return;
-		}
-		foreach (PragmaLine pragma in BuildPragmaReader.Read(file, environment.WorkingDirectory, errors))
-		{
-			ParsedOptions parsed = CommandLineOptionParser.Parse(pragma.Tokens, allowPositionals: false, errors);
-			bag.Apply(parsed, precedence, pragma.SourceName, errors);
-		}
-	}
-
-	public static List<string> ExpandSourcePatterns(List<string> patterns, List<string> excludePatterns, string workingDirectory, List<string> errors)
-	{
-		List<string> files = [];
-		HashSet<string> seen = new(StringComparer.OrdinalIgnoreCase);
-		foreach (string pattern in patterns)
-		{
-			foreach (string path in Glob.Expand(pattern, workingDirectory))
-			{
-				if (!path.EndsWith(".camp", StringComparison.OrdinalIgnoreCase))
-					continue;
-				if (excludePatterns.Any(exclude => Glob.IsMatch(Path.GetRelativePath(workingDirectory, path), exclude)))
-					continue;
-				if (seen.Add(path))
-					files.Add(path);
-			}
-		}
-		return files.OrderBy(static path => path, StringComparer.Ordinal).ToList();
-	}
-
-	static List<string> ExpandNativeSourcePatterns(List<string> patterns, List<string> excludePatterns, string workingDirectory)
-	{
-		List<string> files = [];
-		HashSet<string> seen = new(StringComparer.OrdinalIgnoreCase);
-		foreach (string pattern in patterns)
-		{
-			foreach (string path in Glob.Expand(pattern, workingDirectory))
-			{
-				if (!path.EndsWith(".c", StringComparison.OrdinalIgnoreCase))
-					continue;
-				if (excludePatterns.Any(exclude => Glob.IsMatch(Path.GetRelativePath(workingDirectory, path), exclude)))
-					continue;
-				if (seen.Add(path))
-					files.Add(path);
-			}
-		}
-		return files.OrderBy(static path => path, StringComparer.Ordinal).ToList();
-	}
-
-	static CompilerInspectMode? ParseDumpKind(string value)
-	{
-		return value.Trim().ToLowerInvariant() switch
-		{
-			"tokens" => CompilerInspectMode.Tokens,
-			"declarations" => CompilerInspectMode.Declarations,
-			"lowering" => CompilerInspectMode.Lowering,
-			"metadata" => CompilerInspectMode.Metadata,
-			_ => null
-		};
-	}
-
-	static int PrintErrors(IEnumerable<string> errors)
-	{
-		foreach (string error in errors)
-			Console.Error.WriteLine(error);
-		return 1;
-	}
-
-	static int Error(string message)
-	{
-		Console.Error.WriteLine(message);
-		return 1;
-	}
-
-	public static void PrintPackagePreviewWarning()
-	{
-		Console.Error.WriteLine("warning: package commands are experimental package infrastructure for Camp compiler development; command names and layouts may change.");
-	}
+    public static int Run(string[] args, CliEnvironment environment)
+    {
+        if (args.Length == 0)
+            return Error("A command is required. Expected init, package, restore, build, dump, run, test, or cover.");
+
+        return args[0] switch
+        {
+            "init" => CampInit.Run(args[1..], environment),
+            "build" => RunBuild(args[1..], environment),
+            "run" => RunRun(args[1..], environment),
+            "test" => RunBuildLike(args[1..], environment, CommandKind.Test),
+            "cover" => RunBuildLike(args[1..], environment, CommandKind.Cover),
+            "dump" => RunDump(args[1..], environment),
+            "restore" => RunRestore(args[1..], environment),
+            "package" => PackageCommands.Run(args[1..], environment),
+            "--inspect" or "--build" or "-b" => Error("The root compiler command has been replaced by subcommands. Use 'campc dump ...' or 'campc build ...'."),
+            _ when args[0].StartsWith("-", StringComparison.Ordinal) => Error($"Unknown command '{args[0]}'. Use init, package, restore, build, dump, run, test, or cover."),
+            _ => Error($"Unknown command '{args[0]}'. Use init, package, restore, build, dump, run, test, or cover.")
+        };
+    }
+
+    static int RunBuild(string[] args, CliEnvironment environment)
+    {
+        Stopwatch total = Stopwatch.StartNew();
+        CliTiming cliTiming = new();
+        CompilerRequest? request;
+        List<string> errors;
+        using (cliTiming.Begin("request and project references", "cli"))
+            if (!TryBuildRequest(args, environment, CommandKind.Build, out request, out errors, cliTiming: cliTiming))
+                return PrintErrors(errors);
+        Stopwatch compilerBuild = Stopwatch.StartNew();
+        CompilerResult result = CompilerDriver.Execute(request!);
+        compilerBuild.Stop();
+        cliTiming.Add("compiler build", "compiler", compilerBuild.Elapsed, result.Timing);
+        total.Stop();
+        Console.Out.Write(result.StdOut);
+        Console.Error.Write(result.StdErr);
+        WriteCliTiming(request!, CommandKind.Build, total.Elapsed, result.ExitCode, cliTiming);
+        return result.ExitCode;
+    }
+
+    static int RunBuildLike(string[] args, CliEnvironment environment, CommandKind command)
+    {
+        Stopwatch total = Stopwatch.StartNew();
+        CliTiming cliTiming = new();
+        CompilerRequest? request;
+        List<string> errors;
+        using (cliTiming.Begin("request and project references", "cli"))
+            if (!TryBuildRequest(args, environment, command, out request, out errors, cliTiming: cliTiming))
+                return PrintErrors(errors);
+        Stopwatch compilerBuild = Stopwatch.StartNew();
+        CompilerResult result = CompilerDriver.Execute(request!);
+        compilerBuild.Stop();
+        cliTiming.Add("compiler build", "compiler", compilerBuild.Elapsed, result.Timing);
+        total.Stop();
+        Console.Out.Write(result.StdOut);
+        Console.Error.Write(result.StdErr);
+        WriteCliTiming(request!, command, total.Elapsed, result.ExitCode, cliTiming);
+        return result.ExitCode;
+    }
+
+    static int RunRun(string[] args, CliEnvironment environment)
+    {
+        int separator = Array.IndexOf(args, "--");
+        string[] buildArgs = separator >= 0 ? args[..separator] : args;
+        string[] programArgs = separator >= 0 ? args[(separator + 1)..] : [];
+
+        Stopwatch total = Stopwatch.StartNew();
+        CliTiming cliTiming = new();
+        CompilerRequest? request;
+        List<string> errors;
+        using (cliTiming.Begin("request and project references", "cli"))
+            if (!TryBuildRequest(buildArgs, environment, CommandKind.Run, out request, out errors, cliTiming: cliTiming))
+                return PrintErrors(errors);
+
+        if (request!.BuildKind is not (NativeBuildKind.Exec or NativeBuildKind.WinExe))
+            return Error("run requires --artifact exec.");
+
+        Stopwatch compilerBuild = Stopwatch.StartNew();
+        CompilerResult result = CompilerDriver.Execute(request);
+        compilerBuild.Stop();
+        cliTiming.Add("compiler build", "compiler", compilerBuild.Elapsed, result.Timing);
+        Console.Error.Write(result.StdErr);
+        if (result.ExitCode != 0)
+        {
+            total.Stop();
+            Console.Out.Write(result.StdOut);
+            WriteCliTiming(request, CommandKind.Run, total.Elapsed, result.ExitCode, cliTiming);
+            return result.ExitCode;
+        }
+
+        Stopwatch executableResolution = Stopwatch.StartNew();
+        string? executable = TryGetRunExecutable(request, environment, out string? executableError);
+        executableResolution.Stop();
+        cliTiming.Add("resolve executable", "cli", executableResolution.Elapsed);
+        if (executable is null)
+        {
+            total.Stop();
+            WriteCliTiming(request, CommandKind.Run, total.Elapsed, exitCode: 1, cliTiming);
+            return Error(executableError ?? "run could not find the generated executable.");
+        }
+
+        string extension = Path.GetExtension(executable);
+        ProcessStartInfo info = new()
+        {
+            FileName = extension.Equals(".wasm", StringComparison.OrdinalIgnoreCase) ? "wasmtime" : extension.Equals(".js", StringComparison.OrdinalIgnoreCase) ? "node" : executable,
+            WorkingDirectory = environment.WorkingDirectory,
+            UseShellExecute = false
+        };
+        if (extension.Equals(".wasm", StringComparison.OrdinalIgnoreCase) || extension.Equals(".js", StringComparison.OrdinalIgnoreCase))
+            info.ArgumentList.Add(executable);
+        foreach (string argument in programArgs)
+            info.ArgumentList.Add(argument);
+
+        using Process process = new() { StartInfo = info };
+        Stopwatch executableRun = Stopwatch.StartNew();
+        try
+        {
+            process.Start();
+            process.WaitForExit();
+            executableRun.Stop();
+            total.Stop();
+            cliTiming.Add("run executable", "cli", executableRun.Elapsed);
+            WriteCliTiming(request, CommandKind.Run, total.Elapsed, process.ExitCode, cliTiming);
+            return process.ExitCode;
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
+        {
+            executableRun.Stop();
+            total.Stop();
+            cliTiming.Add("run executable", "cli", executableRun.Elapsed);
+            WriteCliTiming(request, CommandKind.Run, total.Elapsed, exitCode: 1, cliTiming);
+            return Error(ex.Message);
+        }
+    }
+
+    static void WriteCliTiming(CompilerRequest request, CommandKind command, TimeSpan total, int exitCode, CliTiming timing)
+    {
+        if (!request.TimingEnabled)
+            return;
+        string commandName = command.ToString().ToLowerInvariant();
+        string projectName = string.IsNullOrWhiteSpace(request.ProjectName)
+            ? GetDefaultProjectNameFromRequest(request)
+            : request.ProjectName!;
+        string status = exitCode == 0 ? "success" : "failed";
+        Console.Error.WriteLine($"Timing: cli {commandName} {projectName} {FormatTimingSeconds(total)} {status}");
+        foreach (CliTimingNode phase in timing.Root.Children)
+            WriteCliTimingNode(phase, depth: 1);
+    }
+
+    static void WriteCliTimingNode(CliTimingNode node, int depth)
+    {
+        Console.Error.Write(new string(' ', depth * 2));
+        Console.Error.Write(node.Name);
+        Console.Error.Write(' ');
+        Console.Error.Write(FormatTimingSeconds(TimeSpan.FromMilliseconds(node.ElapsedMilliseconds)));
+        if (!string.IsNullOrWhiteSpace(node.Status))
+        {
+            Console.Error.Write(' ');
+            Console.Error.Write(node.Status);
+        }
+        if (node.Metadata.TryGetValue("files", out string? files))
+        {
+            Console.Error.Write(' ');
+            Console.Error.Write(files);
+        }
+        if (node.Metadata.TryGetValue("file", out string? file))
+        {
+            Console.Error.Write(' ');
+            Console.Error.Write(file);
+        }
+        Console.Error.WriteLine();
+        foreach (CliTimingNode child in node.Children)
+            WriteCliTimingNode(child, depth + 1);
+    }
+
+    static string FormatTimingSeconds(TimeSpan elapsed)
+    {
+        return (elapsed.TotalMilliseconds / 1000.0).ToString("0.000", CultureInfo.InvariantCulture) + "s";
+    }
+
+    sealed class CliTiming
+    {
+        readonly Stopwatch stopwatch = Stopwatch.StartNew();
+        readonly Stack<CliTimingNode> stack = [];
+        int sequence;
+
+        public CliTimingNode Root { get; } = new("cli", "root", 0);
+
+        public IDisposable Begin(string name, string kind, string? status = null)
+        {
+            CliTimingNode node = new(name, kind, ++sequence) { Status = status };
+            (stack.Count == 0 ? Root : stack.Peek()).Children.Add(node);
+            node.StartTicks = stopwatch.ElapsedTicks;
+            stack.Push(node);
+            return new Scope(this, node);
+        }
+
+        public void Add(string name, string kind, TimeSpan elapsed, BuildTimingNode? buildTiming = null, string? status = null)
+        {
+            CliTimingNode node = new(name, kind, ++sequence)
+            {
+                ElapsedMilliseconds = elapsed.TotalMilliseconds,
+                Status = status
+            };
+            if (buildTiming is not null)
+                node.Children.Add(CliTimingNode.FromBuildTiming(buildTiming));
+            (stack.Count == 0 ? Root : stack.Peek()).Children.Add(node);
+        }
+
+        void Finish(CliTimingNode node)
+        {
+            node.ElapsedMilliseconds = Stopwatch.GetElapsedTime(node.StartTicks, stopwatch.ElapsedTicks).TotalMilliseconds;
+            if (stack.Count > 0 && ReferenceEquals(stack.Peek(), node))
+                stack.Pop();
+            else
+            {
+                while (stack.Count > 0 && !ReferenceEquals(stack.Peek(), node))
+                    stack.Pop();
+                if (stack.Count > 0)
+                    stack.Pop();
+            }
+        }
+
+        sealed class Scope(CliTiming timing, CliTimingNode node) : IDisposable
+        {
+            public void Dispose()
+            {
+                timing.Finish(node);
+            }
+        }
+    }
+
+    sealed class CliTimingNode(string name, string kind, int sequence)
+    {
+        public string Name { get; } = name;
+        public string Kind { get; } = kind;
+        public int Sequence { get; } = sequence;
+        public string? Status { get; set; }
+        public Dictionary<string, string> Metadata { get; } = new(StringComparer.Ordinal);
+        public List<CliTimingNode> Children { get; } = [];
+        public long StartTicks { get; set; }
+        public double ElapsedMilliseconds { get; set; }
+
+        public static CliTimingNode FromBuildTiming(BuildTimingNode build)
+        {
+            CliTimingNode node = new(build.Name, build.Kind, build.Sequence)
+            {
+                Status = build.Status,
+                ElapsedMilliseconds = build.ElapsedMilliseconds
+            };
+            foreach ((string key, string value) in build.Metadata)
+                node.Metadata[key] = value;
+            foreach (BuildTimingNode child in build.Children)
+                node.Children.Add(FromBuildTiming(child));
+            return node;
+        }
+    }
+
+    sealed class NoopDisposable : IDisposable
+    {
+        public static readonly NoopDisposable Instance = new();
+        public void Dispose()
+        {
+        }
+    }
+
+    static string? TryGetRunExecutable(CompilerRequest request, CliEnvironment environment, out string? error)
+    {
+        error = null;
+        List<string> errors = [];
+        TargetDefinition? target = TryGetTargetDefinition(request, environment, errors);
+        if (target is null)
+        {
+            error = string.Join(Environment.NewLine, errors);
+            return null;
+        }
+
+        string outputPrefix = string.IsNullOrWhiteSpace(request.OutDir)
+            ? GetDefaultArtifactDirectoryFromRequest(request)
+            : request.OutDir!;
+        string outputRoot = Path.GetFullPath(outputPrefix, request.WorkingDirectory);
+        string outputDirectory = request.OutDirIsDirect || IsDirectRunOutputPath(outputPrefix)
+            ? outputRoot
+            : Path.Combine(outputRoot, BuildArtifactLayout.GetArtifactDirectoryName(target, request.BuildKind, request.ProfileName, request.CommandMode));
+        string projectName = string.IsNullOrWhiteSpace(request.ProjectName)
+            ? GetDefaultProjectNameFromRequest(request)
+            : request.ProjectName!;
+        string executable = NativeBuildDriver.GetArtifactPath(new NativeBuildOptions
+        {
+            Target = target,
+            ProfileName = request.ProfileName,
+            BuildDirectory = Path.Combine(outputDirectory, "build"),
+            OutputDirectory = outputDirectory,
+            ProjectName = projectName,
+            Kind = request.BuildKind!.Value,
+            SourceFiles = []
+        });
+        if (!File.Exists(executable))
+        {
+            error = $"run could not find the generated executable: {executable}";
+            return null;
+        }
+        return executable;
+    }
+
+    static string GetDefaultArtifactDirectoryFromRequest(CompilerRequest request)
+    {
+        string? firstSource = request.Files.FirstOrDefault(static file => file != "-");
+        if (string.IsNullOrWhiteSpace(firstSource))
+            return Path.Combine(request.WorkingDirectory, "bin");
+        string full = Path.GetFullPath(firstSource, request.WorkingDirectory);
+        string? directory = Path.GetDirectoryName(full);
+        return Path.Combine(string.IsNullOrWhiteSpace(directory) ? request.WorkingDirectory : directory, "bin");
+    }
+
+    static string GetDefaultProjectNameFromRequest(CompilerRequest request)
+    {
+        string? firstSource = request.Files.FirstOrDefault(static file => file != "-");
+        return string.IsNullOrWhiteSpace(firstSource)
+            ? "stdin"
+            : SanitizeIdentifier(Path.GetFileNameWithoutExtension(firstSource));
+    }
+
+    static string SanitizeIdentifier(string value)
+    {
+        StringBuilder builder = new();
+        foreach (char ch in value)
+            builder.Append(char.IsLetterOrDigit(ch) ? ch : '_');
+        return builder.ToString();
+    }
+
+    static bool IsDirectRunOutputPath(string value)
+    {
+        string normalized = value.Replace('\\', '/');
+        return normalized == "." || normalized.EndsWith("/.", StringComparison.Ordinal);
+    }
+
+    static string? ResolveOptionalPath(string? value, string baseDirectory)
+    {
+        return string.IsNullOrWhiteSpace(value) ? null : ResolvePath(value, baseDirectory);
+    }
+
+    static string ResolvePath(string value, string baseDirectory)
+    {
+        if (IsDirectRunOutputPath(value))
+        {
+            string prefix = value[..^1];
+            string resolved = Path.IsPathRooted(prefix) ? prefix : Path.GetFullPath(prefix, baseDirectory);
+            return Path.Combine(resolved, ".");
+        }
+        return Path.IsPathRooted(value) ? value : Path.GetFullPath(value, baseDirectory);
+    }
+
+    static string ResolvePathLike(string value, string baseDirectory)
+    {
+        return PathArguments.LooksLikePath(value) ? ResolvePath(value, baseDirectory) : value;
+    }
+
+    static bool TryApplyImplicitBuildTarget(string[] args, CliEnvironment environment, out string[] updatedArgs, List<string> errors)
+    {
+        updatedArgs = args;
+        if (HasBuildTargetOrSourceArgument(args, environment.WorkingDirectory))
+            return true;
+        if (!TryResolveImplicitCampbuildTarget(environment.WorkingDirectory, out string? buildFile, out string? error))
+        {
+            errors.Add(error!);
+            return false;
+        }
+        updatedArgs = [buildFile!, .. args];
+        return true;
+    }
+
+    static bool HasBuildTargetOrSourceArgument(IReadOnlyList<string> args, string workingDirectory)
+    {
+        for (int i = 0; i < args.Count; i++)
+        {
+            string token = args[i];
+            if (token.StartsWith("-", StringComparison.Ordinal))
+            {
+                i += ResponseFileExpander.OptionValueCountForBuildRequest(token);
+                continue;
+            }
+            return true;
+        }
+        return false;
+    }
+
+    public static bool TryResolveImplicitCampbuildTarget(string workingDirectory, out string? buildFile, out string? error)
+    {
+        buildFile = null;
+        error = null;
+        string[] campbuildFiles = Directory.GetFiles(workingDirectory, "*.campbuild").OrderBy(static path => path, StringComparer.Ordinal).ToArray();
+        string[] campFiles = Directory.GetFiles(workingDirectory, "*.camp").OrderBy(static path => path, StringComparer.Ordinal).ToArray();
+        if (campFiles.Length > 0)
+        {
+            error = "Specify a .campbuild file or source file. The current directory contains .camp source files, so no implicit .campbuild target was selected.";
+            return false;
+        }
+        if (campbuildFiles.Length == 0)
+        {
+            error = "Specify a .campbuild file or source file. The current directory does not contain a .campbuild file.";
+            return false;
+        }
+        if (campbuildFiles.Length > 1)
+        {
+            error = "Specify a .campbuild file. The current directory contains multiple .campbuild files.";
+            return false;
+        }
+        buildFile = campbuildFiles[0];
+        return true;
+    }
+
+    static int RunDump(string[] args, CliEnvironment environment)
+    {
+        if (args.Length == 0)
+            return Error("dump requires a dump kind: tokens, declarations, lowering, or metadata.");
+
+        CompilerInspectMode? inspect = ParseDumpKind(args[0]);
+        if (inspect is null)
+            return Error($"Dump kind '{args[0]}' is not valid. Expected tokens, declarations, lowering, or metadata.");
+
+        if (!TryBuildRequest(args[1..], environment, CommandKind.Dump, out CompilerRequest? request, out List<string> errors))
+            return PrintErrors(errors);
+
+        request!.Inspect = inspect;
+        if (inspect == CompilerInspectMode.Metadata && request.EmitMetadata is null)
+            request.EmitMetadata = MetadataVisibility.Export;
+
+        CompilerResult result = CompilerDriver.Execute(request);
+        Console.Out.Write(result.StdOut);
+        Console.Error.Write(result.StdErr);
+        return result.ExitCode;
+    }
+
+    static int RunRestore(string[] args, CliEnvironment environment)
+    {
+        PrintPackagePreviewWarning();
+        List<string> errors = [];
+        List<string> sourceArgs = [];
+        string? upgrade = null;
+        bool onlyLocal = false;
+        for (int i = 0; i < args.Length; i++)
+        {
+            if (args[i] == "--upgrade")
+            {
+                if (i + 1 < args.Length && !args[i + 1].StartsWith("-", StringComparison.Ordinal))
+                    upgrade = args[++i];
+                else
+                    upgrade = "";
+                continue;
+            }
+            if (args[i] == "--only-local")
+            {
+                onlyLocal = true;
+                continue;
+            }
+            sourceArgs.Add(args[i]);
+        }
+        if (!TryApplyImplicitBuildTarget(sourceArgs.ToArray(), environment, out string[] resolvedSourceArgs, errors))
+            return PrintErrors(errors);
+        sourceArgs = [.. resolvedSourceArgs];
+        string? buildFile = TryGetBuildFileArgument(sourceArgs, environment.WorkingDirectory);
+        string? buildFileProjectRoot = buildFile is null ? null : Path.GetDirectoryName(buildFile);
+        sourceArgs = ResponseFileExpander.ExpandBareBuildFiles(sourceArgs, environment.WorkingDirectory, errors);
+        if (upgrade is not null && upgrade.Length > 0 && !PackageDependencySpec.TryParse(upgrade, out _, out string? upgradeError))
+            errors.Add(upgradeError!);
+        BuildOptionBag bag = new();
+        if (!onlyLocal)
+            ApplyCompilerPackageSourcePragmas(environment, bag, errors, includeGlobal: true);
+        ParsedOptions restoreOptions = CommandLineOptionParser.Parse(sourceArgs, allowPositionals: true, errors);
+        bag.Apply(restoreOptions, Precedence.Local, "restore", errors);
+        foreach (string file in ExpandSourcePatterns(sourceArgs, [], environment.WorkingDirectory, errors))
+            ApplyFilePragmas(file, environment, bag, Precedence.Local, errors);
+        if (errors.Count > 0)
+            return PrintErrors(errors);
+
+        string projectRoot = buildFileProjectRoot ?? GetSourceProjectRoot(ExpandSourcePatterns(sourceArgs, [], environment.WorkingDirectory, errors), environment.WorkingDirectory);
+        return PackageCommands.Restore(bag.UsePackages, bag.UseSources, upgrade, environment, projectRoot);
+    }
+
+    static string GetSourceProjectRoot(IReadOnlyList<string> sourceFiles, string workingDirectory)
+    {
+        string? firstSource = sourceFiles.FirstOrDefault(static file => file != "-");
+        if (!string.IsNullOrWhiteSpace(firstSource))
+            return Path.GetDirectoryName(Path.GetFullPath(firstSource, workingDirectory)) ?? workingDirectory;
+        return workingDirectory;
+    }
+
+    static bool TryBuildRequest(string[] args, CliEnvironment environment, CommandKind command, out CompilerRequest? request, out List<string> errors, List<string>? projectReferenceStack = null, string? explicitProjectRoot = null, ProjectReferenceBuildCache? projectReferenceCache = null, CliTiming? cliTiming = null)
+    {
+        projectReferenceCache ??= new ProjectReferenceBuildCache();
+        request = null;
+        errors = [];
+        if (command is CommandKind.Build or CommandKind.Run or CommandKind.Test or CommandKind.Cover or CommandKind.Dump)
+        {
+            using IDisposable _ = cliTiming?.Begin("implicit build target", "cli") ?? NoopDisposable.Instance;
+            if (!TryApplyImplicitBuildTarget(args, environment, out args, errors))
+                return false;
+        }
+        string? buildFile = command is CommandKind.Build or CommandKind.Run or CommandKind.Test or CommandKind.Cover or CommandKind.Dump
+            ? TryGetBuildFileArgument(args, environment.WorkingDirectory)
+            : null;
+        string? buildFileProjectRoot = explicitProjectRoot ?? (buildFile is null ? null : Path.GetDirectoryName(buildFile));
+        string? defaultOutDir = command is CommandKind.Build or CommandKind.Run or CommandKind.Test or CommandKind.Cover && buildFileProjectRoot is not null
+            ? Path.Combine(buildFileProjectRoot, "bin")
+            : null;
+
+        if (command is CommandKind.Build or CommandKind.Run or CommandKind.Test or CommandKind.Cover or CommandKind.Dump)
+        {
+            using IDisposable _ = cliTiming?.Begin("response files", "cli") ?? NoopDisposable.Instance;
+            args = ResponseFileExpander.ExpandBareBuildFiles(args, environment.WorkingDirectory, errors).ToArray();
+        }
+        if (errors.Count > 0)
+            return false;
+
+        ParsedOptions cli;
+        using (cliTiming?.Begin("command line parse", "cli") ?? NoopDisposable.Instance)
+            cli = CommandLineOptionParser.Parse(args, allowPositionals: true, errors);
+        if (errors.Count > 0)
+            return false;
+
+        BuildOptionBag bag = new();
+        using (cliTiming?.Begin("compiler pragmas", "cli") ?? NoopDisposable.Instance)
+            ApplyGlobalPragmas(environment, bag, errors);
+
+        List<string> sourceFiles;
+        List<string> nativeSourceFiles;
+        List<string> apiFiles;
+        using (cliTiming?.Begin("source discovery", "cli") ?? NoopDisposable.Instance)
+        {
+            sourceFiles = ExpandSourcePatterns(cli.Positionals, cli.ExcludePatterns, environment.WorkingDirectory, errors);
+            nativeSourceFiles = ExpandNativeSourcePatterns(cli.Positionals, cli.ExcludePatterns, environment.WorkingDirectory);
+            apiFiles = ExpandSourcePatterns(cli.ApiPatterns.Concat(bag.ApiPatterns).ToList(), [], environment.WorkingDirectory, errors);
+        }
+        using (cliTiming?.Begin("file pragmas", "cli") ?? NoopDisposable.Instance)
+        {
+            HashSet<string> pragmaFilesRead = new(StringComparer.OrdinalIgnoreCase);
+            while (true)
+            {
+                List<string> filesToRead = sourceFiles.Concat(apiFiles).Where(pragmaFilesRead.Add).ToList();
+                if (filesToRead.Count == 0)
+                    break;
+                foreach (string file in filesToRead)
+                    ApplyFilePragmas(file, environment, bag, Precedence.Local, errors);
+                apiFiles = ExpandSourcePatterns(cli.ApiPatterns.Concat(bag.ApiPatterns).ToList(), [], environment.WorkingDirectory, errors);
+            }
+        }
+
+        using (cliTiming?.Begin("final option merge", "cli") ?? NoopDisposable.Instance)
+        {
+            bag.Apply(cli, Precedence.CommandLine, "command line", errors);
+            sourceFiles = ExpandSourcePatterns(cli.Positionals, bag.ExcludePatterns, environment.WorkingDirectory, errors);
+            nativeSourceFiles = ExpandNativeSourcePatterns(cli.Positionals, bag.ExcludePatterns, environment.WorkingDirectory);
+            apiFiles = ExpandSourcePatterns(bag.ApiPatterns, [], environment.WorkingDirectory, errors);
+        }
+        if (sourceFiles.Count == 0)
+            errors.Add("At least one source file pattern is required.");
+        string projectRoot = buildFileProjectRoot ?? GetSourceProjectRoot(sourceFiles, environment.WorkingDirectory);
+        string sourcefileDefaultRoot = buildFileProjectRoot ?? projectRoot;
+
+        if (command == CommandKind.Dump && bag.HasBuildOnlyOptions)
+            errors.Add("dump does not accept --framework, --artifact, --name, --subsystem, or --out-dir.");
+        if (command == CommandKind.Dump && bag.HasTestResultOptions)
+            errors.Add("dump does not accept --test-output-dir or --test-result-format.");
+        if (command != CommandKind.Cover && bag.HasCoverageOptions)
+            errors.Add("--coverage-format, --coverage-output-dir, and --coverage-subject can only be used with cover.");
+        if (command is not (CommandKind.Test or CommandKind.Cover) && bag.ListTests)
+            errors.Add("--list can only be used with test or cover.");
+        if (command is not (CommandKind.Test or CommandKind.Cover) && bag.TestFilters.Count > 0)
+            errors.Add("--filter can only be used with test or cover.");
+        if (command is not (CommandKind.Test or CommandKind.Cover) && bag.IgnoreLeaks)
+            errors.Add("--ignore-leaks can only be used with test or cover.");
+        if (bag.SubsystemName is not null && bag.SubsystemName != "windows")
+            errors.Add($"Subsystem '{bag.SubsystemName}' is not valid. Expected windows.");
+        if (bag.SubsystemName is not null && bag.ArtifactSpecified && bag.ArtifactKind is not NativeBuildKind.Exec)
+            errors.Add("--subsystem can only be used with --artifact exec.");
+        if (command == CommandKind.Run)
+        {
+            if (!bag.ArtifactSpecified)
+                bag.SetArtifact(NativeBuildKind.Exec, "run default", errors);
+            else if (bag.ArtifactKind is not NativeBuildKind.Exec)
+                errors.Add("run requires --artifact exec.");
+        }
+        if (errors.Count > 0)
+            return false;
+
+        request = new CompilerRequest
+        {
+            RuntimeRoot = environment.RuntimeRoot,
+            WorkingDirectory = projectRoot,
+            TargetName = bag.TargetName ?? CompilerDefaults.TargetName,
+            ProfileName = bag.ProfileName ?? "DEBUG",
+            EmitKind = bag.EmitKind ?? "c99",
+            BuildKind = bag.ArtifactKind,
+            InferBuildKind = command == CommandKind.Build && !bag.ArtifactSpecified,
+            WithinPolicyBuildKind = bag.ArtifactKind,
+            InferWithinPolicyBuildKind = command is CommandKind.Test or CommandKind.Cover && !bag.ArtifactSpecified,
+            CommandMode = GetCompilerCommandMode(command),
+            DeclarationParticipationMode = command is CommandKind.Test or CommandKind.Cover ? DeclarationParticipationMode.TestModule : DeclarationParticipationMode.Production,
+            CoverageInstrumentationMode = CoverageInstrumentationMode.Disabled,
+            EmitDebugInfo = bag.DebugInfo,
+            EmitMetadata = bag.MetadataVisibility,
+            OutDir = ResolveOptionalPath(bag.OutDir, environment.WorkingDirectory) ?? defaultOutDir,
+            OutDirIsDirect = bag.OutDir is not null && IsDirectRunOutputPath(bag.OutDir),
+            ProjectName = bag.ProjectName,
+            SubsystemName = bag.SubsystemName,
+            NoStdLib = bag.NoStdLib,
+            WithinAllocationPolicy = bag.WithinAllocationPolicy,
+            SourcefilePathMode = bag.SourcefilePathMode,
+            SourcefileDefaultRoot = sourcefileDefaultRoot,
+            Verbose = bag.Verbose,
+            TimingEnabled = bag.TimingEnabled,
+            TimingOutput = ResolveOptionalPath(bag.TimingOutput, environment.WorkingDirectory),
+            ColorOutput = !Console.IsOutputRedirected,
+            ListTests = bag.ListTests,
+            IgnoreLeaks = bag.IgnoreLeaks,
+            TestOutputDir = ResolveOptionalPath(bag.TestOutputDir, environment.WorkingDirectory),
+            TestResultFormat = bag.TestResultFormat,
+            CoverageOutputDir = ResolveOptionalPath(bag.CoverageOutputDir, environment.WorkingDirectory),
+            CoverageFormat = bag.CoverageFormat
+        };
+        request.SourcefileRoots.AddRange(bag.SourcefileRoots.Select(root => ResolvePath(root, environment.WorkingDirectory)));
+        request.TestFilters.AddRange(bag.TestFilters);
+        request.CoverageSubjects.AddRange(bag.CoverageSubjects);
+        request.Defines.AddRange(bag.Defines);
+        request.ConfigurationFlagDeclarations.AddRange(bag.ConfigurationFlagDeclarations);
+        request.ConfigurationFlagConfigurations.AddRange(bag.ConfigurationFlagConfigurations);
+        request.ConfigurationRequirements.AddRange(bag.ConfigurationRequirements);
+        request.ConfigurationRequirementPolicy = bag.ConfigurationRequirementPolicy;
+        request.Variants.AddRange(bag.Variants);
+        request.References.AddRange(bag.References.Select(reference => ResolvePathLike(reference, environment.WorkingDirectory)));
+        request.Frameworks.AddRange(bag.Frameworks);
+        request.UsePackages.AddRange(bag.UsePackages.Select(static package => package.ToString()));
+        if (!TryAddUseSourceRoots(bag.UseSources, environment.WorkingDirectory, request.UseSourceRoots, errors))
+            return false;
+        request.Files.AddRange(sourceFiles.Select(path => Path.GetRelativePath(projectRoot, path)));
+        request.NativeSourceFiles.AddRange(nativeSourceFiles.Select(path => Path.GetRelativePath(projectRoot, path)));
+        request.ApiFiles.AddRange(apiFiles.Select(path => Path.GetRelativePath(projectRoot, path)));
+        List<string> projectApiHeaders;
+        List<string> sharedProjectApiHeaders;
+        List<string> projectLibraries;
+        using (cliTiming?.Begin("project-reference loop", "project-reference") ?? NoopDisposable.Instance)
+            if (!TryBuildProjectReferences(bag.ProjectReferences, request, environment, projectReferenceStack ?? [], projectReferenceCache, out projectApiHeaders, out sharedProjectApiHeaders, out projectLibraries, errors, cliTiming))
+                return false;
+        request.ApiFiles.AddRange(projectApiHeaders);
+        request.SharedLibraryApiHeaders.AddRange(sharedProjectApiHeaders);
+        request.References.AddRange(projectLibraries);
+        if (command == CommandKind.Cover && !TryApplyRootCoverageSubject(request, bag.ProjectReferences.Count, errors))
+            return false;
+        return true;
+    }
+
+    static bool TryAddUseSourceRoots(IEnumerable<PackageSourceSpec> sources, string workingDirectory, List<string> destination, List<string> errors)
+    {
+        foreach (PackageSourceSpec source in sources)
+        {
+            if (string.IsNullOrWhiteSpace(source.Path))
+                continue;
+            destination.Add(source.Path!);
+        }
+        return true;
+    }
+
+    static CompilerCommandMode GetCompilerCommandMode(CommandKind command)
+    {
+        return command switch
+        {
+            CommandKind.Run => CompilerCommandMode.Run,
+            CommandKind.Dump => CompilerCommandMode.Dump,
+            CommandKind.Test => CompilerCommandMode.Test,
+            CommandKind.Cover => CompilerCommandMode.Cover,
+            _ => CompilerCommandMode.Build
+        };
+    }
+
+    static bool TryBuildProjectReferences(IReadOnlyList<string> projectReferences, CompilerRequest consumerRequest, CliEnvironment environment, List<string> projectReferenceStack, ProjectReferenceBuildCache cache, out List<string> apiHeaders, out List<string> sharedApiHeaders, out List<string> libraries, List<string> errors, CliTiming? cliTiming = null)
+    {
+        apiHeaders = [];
+        sharedApiHeaders = [];
+        libraries = [];
+        bool requireLibrary = consumerRequest.BuildKind is not null
+            || consumerRequest.InferBuildKind
+            || consumerRequest.CommandMode is CompilerCommandMode.Test or CompilerCommandMode.Cover;
+        bool coverageMode = consumerRequest.CommandMode == CompilerCommandMode.Cover;
+        int sharedCoverageCandidateCount = coverageMode
+            ? projectReferences.Select(static reference => ProjectReferenceSpec.Parse(reference)).Count(static spec => spec.LinkKind.GetValueOrDefault(DependencyLinkKind.Shared) == DependencyLinkKind.Shared)
+            : 0;
+        HashSet<string> matchedCoverageSubjects = new(StringComparer.Ordinal);
+        if (coverageMode
+            && consumerRequest.CoverageSubjects.Count == 0
+            && sharedCoverageCandidateCount > 1)
+        {
+            errors.Add("External coverage with multiple shared project references requires --coverage-subject.");
+            return false;
+        }
+        foreach (string projectReference in projectReferences)
+        {
+            using IDisposable referenceTiming = cliTiming?.Begin("project reference " + projectReference, "project-reference") ?? NoopDisposable.Instance;
+            ProjectReferenceSpec referenceSpec = ProjectReferenceSpec.Parse(projectReference);
+            DependencyLinkKind effectiveLinkKind = referenceSpec.LinkKind.GetValueOrDefault(DependencyLinkKind.Shared);
+            NativeBuildKind referenceBuildKind = effectiveLinkKind switch
+            {
+                DependencyLinkKind.Shared => NativeBuildKind.Shared,
+                DependencyLinkKind.Static => NativeBuildKind.Static,
+                _ => throw new ArgumentOutOfRangeException(nameof(effectiveLinkKind), effectiveLinkKind, null)
+            };
+            bool resolvedReference;
+            string? buildFile;
+            string? error;
+            using (cliTiming?.Begin("resolve", "project-reference") ?? NoopDisposable.Instance)
+                resolvedReference = TryResolveProjectReference(referenceSpec.Path, environment.WorkingDirectory, out buildFile, out error);
+            if (!resolvedReference)
+            {
+                errors.Add(error!);
+                continue;
+            }
+            string canonicalBuildFile = Path.GetFullPath(buildFile!);
+            int cycleStart = projectReferenceStack.FindIndex(path => string.Equals(path, canonicalBuildFile, StringComparison.OrdinalIgnoreCase));
+            if (cycleStart >= 0)
+            {
+                errors.Add("Project reference cycle detected: " + FormatProjectReferenceCycle(projectReferenceStack, canonicalBuildFile, cycleStart));
+                continue;
+            }
+
+            List<string> responseErrors = [];
+            List<string> projectArgs;
+            using (cliTiming?.Begin("parse child request file", "project-reference") ?? NoopDisposable.Instance)
+                projectArgs = ResponseFileExpander.Expand(["@" + canonicalBuildFile], environment.WorkingDirectory, responseErrors);
+            errors.AddRange(responseErrors);
+            if (responseErrors.Count > 0)
+                continue;
+            List<string> referenceOptionErrors = [];
+            ParsedOptions referenceOptions;
+            using (cliTiming?.Begin("parse child options", "project-reference") ?? NoopDisposable.Instance)
+                referenceOptions = CommandLineOptionParser.Parse(projectArgs, allowPositionals: true, referenceOptionErrors);
+            errors.AddRange(referenceOptionErrors.Select(error => $"{referenceSpec.Path}: {error}"));
+            if (referenceOptionErrors.Count > 0)
+                continue;
+            if (referenceOptions.ArtifactRestriction is DependencyLinkKind restriction && restriction != effectiveLinkKind)
+            {
+                errors.Add($"{referenceSpec.Path}: project reference requires {restriction.ToString().ToLowerInvariant()} linking but was requested as {effectiveLinkKind.ToString().ToLowerInvariant()}.");
+                continue;
+            }
+
+            string projectDirectory = Path.GetDirectoryName(canonicalBuildFile)!;
+            string coverageSubjectName = ProjectReferenceOutputName(referenceOptions, canonicalBuildFile);
+            bool instrumentForCoverage = ShouldInstrumentProjectReferenceForCoverage(consumerRequest, coverageSubjectName, effectiveLinkKind, sharedCoverageCandidateCount);
+            if (consumerRequest.CoverageSubjects.Contains(coverageSubjectName, StringComparer.Ordinal))
+                matchedCoverageSubjects.Add(coverageSubjectName);
+            if (coverageMode && consumerRequest.CoverageSubjects.Contains(coverageSubjectName, StringComparer.Ordinal) && effectiveLinkKind != DependencyLinkKind.Shared)
+            {
+                errors.Add($"Coverage subject '{coverageSubjectName}' must be referenced as a shared library.");
+                continue;
+            }
+            TargetDefinition? target = TryGetTargetDefinition(consumerRequest, environment, errors);
+            string artifactDirectory = target is null
+                ? consumerRequest.TargetName + (instrumentForCoverage ? "_COVER" : "")
+                : BuildArtifactLayout.GetArtifactDirectoryName(target, referenceBuildKind, consumerRequest.ProfileName, instrumentForCoverage ? CompilerCommandMode.Cover : CompilerCommandMode.Build);
+            string projectOutputDirectory = Path.Combine(projectDirectory, "bin", artifactDirectory);
+            ProjectReferenceBuildKey cacheKey = new(
+                canonicalBuildFile,
+                effectiveLinkKind,
+                consumerRequest.TargetName,
+                consumerRequest.ProfileName,
+                string.Join('\u001f', consumerRequest.Variants),
+                instrumentForCoverage,
+                requireLibrary);
+            if (cache.TryGet(cacheKey, out ProjectReferenceBuildEntry? cachedEntry) && cachedEntry is not null)
+            {
+                if (cachedEntry.Resolution is not null)
+                {
+                    if (consumerRequest.Verbose)
+                        Console.Out.WriteLine($"{projectReference}: project reference {cachedEntry.Resolution.ProjectName}: reused");
+                    AddProjectReferenceResolution(consumerRequest, effectiveLinkKind, cachedEntry.Resolution, apiHeaders, sharedApiHeaders, libraries);
+                }
+                else if (cachedEntry.Failure is not null)
+                {
+                    if (consumerRequest.Verbose)
+                        Console.Out.WriteLine($"{projectReference}: project reference {cachedEntry.Failure.ProjectName}: reused failed result");
+                    AddProjectReferenceFailure(projectReference, cachedEntry.Failure, errors);
+                }
+                continue;
+            }
+            projectArgs = RemoveProjectReferenceOverrideOptions(projectArgs);
+            projectArgs.AddRange(["--target", consumerRequest.TargetName]);
+            projectArgs.AddRange(["--profile", consumerRequest.ProfileName]);
+            if (consumerRequest.Variants.Count > 0)
+                projectArgs.AddRange(["--variant", .. consumerRequest.Variants]);
+            if (consumerRequest.Verbose)
+                projectArgs.Add("--verbose");
+            if (consumerRequest.TimingEnabled)
+                projectArgs.Add("--timing");
+            projectArgs.AddRange(["--artifact", referenceBuildKind == NativeBuildKind.Shared ? "shared" : "static"]);
+            projectArgs.AddRange(["--out-dir", Path.Combine(projectOutputDirectory, ".")]);
+
+            List<string> childStack = [.. projectReferenceStack, canonicalBuildFile];
+            CliEnvironment projectEnvironment = new()
+            {
+                WorkingDirectory = projectDirectory,
+                RuntimeRoot = environment.RuntimeRoot,
+                HomeDirectory = environment.HomeDirectory
+            };
+            if (!TryBuildRequest(projectArgs.ToArray(), projectEnvironment, CommandKind.Build, out CompilerRequest? projectRequest, out List<string> projectErrors, childStack, projectDirectory, cache, cliTiming))
+            {
+                foreach (string projectError in projectErrors)
+                    errors.Add($"{projectReference}: {projectError}");
+                continue;
+            }
+            projectRequest!.OutDir = projectOutputDirectory;
+            projectRequest.OutDirIsDirect = true;
+
+            if (instrumentForCoverage)
+                projectRequest.CoverageInstrumentationMode = CoverageInstrumentationMode.ProductionSubject;
+
+            bool current;
+            string? currentApiHeader = null;
+            string? currentLibrary = null;
+            using (cliTiming?.Begin("freshness check", "project-reference") ?? NoopDisposable.Instance)
+                current = !instrumentForCoverage && target is not null && TryGetCurrentProjectReferenceArtifacts(projectRequest, canonicalBuildFile, projectOutputDirectory, referenceBuildKind, target, environment.BaseCampBuildPath, environment.GlobalCampBuildPath, requireLibrary, out currentApiHeader, out currentLibrary);
+            if (current)
+            {
+                if (consumerRequest.Verbose)
+                    Console.Out.WriteLine($"{projectReference}: project reference {ProjectReferenceOutputName(projectRequest, canonicalBuildFile)}: current");
+                ProjectReferenceResolution resolution = CreateProjectReferenceResolution(projectRequest, canonicalBuildFile, effectiveLinkKind, referenceBuildKind, target!, currentApiHeader!, currentLibrary, coverageMap: null);
+                cache.Add(cacheKey, resolution);
+                AddProjectReferenceResolution(consumerRequest, effectiveLinkKind, resolution, apiHeaders, sharedApiHeaders, libraries);
+                continue;
+            }
+            if (consumerRequest.Verbose)
+                Console.Out.WriteLine($"{projectReference}: project reference {ProjectReferenceOutputName(projectRequest, canonicalBuildFile)}: rebuilding");
+
+            CompilerResult result;
+            Stopwatch childBuild = Stopwatch.StartNew();
+            using (cliTiming?.Begin("child build", "project-reference") ?? NoopDisposable.Instance)
+                result = CompilerDriver.Execute(projectRequest);
+            childBuild.Stop();
+            cliTiming?.Add("child build detail", "compiler", childBuild.Elapsed, result.Timing, result.ExitCode == 0 ? "success" : "failed");
+            WriteProjectReferenceOutput(projectReference, result.StdOut);
+            string expectedApiHeader = Path.Combine(projectOutputDirectory, ProjectReferenceOutputName(projectRequest, canonicalBuildFile) + "_api.camp");
+            string? apiHeader = result.GeneratedFiles.FirstOrDefault(path => string.Equals(Path.GetFullPath(path), Path.GetFullPath(expectedApiHeader), StringComparison.OrdinalIgnoreCase));
+            string? library = result.GeneratedFiles.FirstOrDefault(path => IsNativeLibrary(path, consumerRequest.TargetName, consumerRequest.RuntimeRoot, referenceBuildKind));
+            string? coverageMap = result.GeneratedFiles.FirstOrDefault(static path => path.EndsWith(".camp-coverage-map.csv", StringComparison.OrdinalIgnoreCase));
+            if (result.ExitCode != 0)
+            {
+                if (!requireLibrary && apiHeader is not null)
+                {
+                    apiHeaders.Add(apiHeader);
+                    continue;
+                }
+                errors.Add($"{projectReference}: project reference build failed.");
+                if (!string.IsNullOrWhiteSpace(result.StdErr))
+                    errors.Add(result.StdErr.TrimEnd());
+                if (!string.IsNullOrWhiteSpace(result.StdOut))
+                    errors.Add(result.StdOut.TrimEnd());
+                cache.Add(cacheKey, CreateProjectReferenceFailure(projectRequest, canonicalBuildFile, result));
+                continue;
+            }
+
+            if (apiHeader is null && File.Exists(expectedApiHeader))
+                apiHeader = expectedApiHeader;
+            if (library is null && requireLibrary && Directory.Exists(projectOutputDirectory))
+                library = Directory.EnumerateFiles(projectOutputDirectory)
+                    .FirstOrDefault(path => IsNativeLibrary(path, consumerRequest.TargetName, consumerRequest.RuntimeRoot, referenceBuildKind));
+
+            if (apiHeader is null || requireLibrary && library is null)
+            {
+                errors.Add(requireLibrary
+                    ? $"{referenceSpec.Path}: project reference did not produce a Camp API header and {effectiveLinkKind.ToString().ToLowerInvariant()} library."
+                    : $"{referenceSpec.Path}: project reference did not produce a Camp API header.");
+                continue;
+            }
+            if (instrumentForCoverage)
+            {
+                if (coverageMap is null)
+                {
+                    errors.Add($"{referenceSpec.Path}: instrumented coverage subject did not produce a coverage map.");
+                    continue;
+                }
+                AddUniquePath(consumerRequest.CoverageMapInputs, coverageMap);
+            }
+            ProjectReferenceResolution builtResolution = CreateProjectReferenceResolution(projectRequest, canonicalBuildFile, effectiveLinkKind, referenceBuildKind, target, apiHeader, library, coverageMap);
+            cache.Add(cacheKey, builtResolution);
+            AddProjectReferenceResolution(consumerRequest, effectiveLinkKind, builtResolution, apiHeaders, sharedApiHeaders, libraries);
+        }
+        if (coverageMode)
+        {
+            foreach (string subject in consumerRequest.CoverageSubjects.Where(static subject => subject != "self"))
+            {
+                if (!matchedCoverageSubjects.Contains(subject))
+                    errors.Add($"Coverage subject '{subject}' could not be matched to a shared project reference.");
+            }
+        }
+        return errors.Count == 0;
+    }
+
+    static ProjectReferenceFailure CreateProjectReferenceFailure(CompilerRequest projectRequest, string buildFile, CompilerResult result)
+    {
+        List<string> details = [];
+        if (!string.IsNullOrWhiteSpace(result.StdErr))
+            details.Add(result.StdErr.TrimEnd());
+        if (!string.IsNullOrWhiteSpace(result.StdOut))
+            details.Add(result.StdOut.TrimEnd());
+        return new ProjectReferenceFailure(ProjectReferenceOutputName(projectRequest, buildFile), details);
+    }
+
+    static void AddProjectReferenceFailure(string projectReference, ProjectReferenceFailure failure, List<string> errors)
+    {
+        errors.Add($"{projectReference}: project reference build failed.");
+        errors.AddRange(failure.Details);
+    }
+
+    static ProjectReferenceResolution CreateProjectReferenceResolution(CompilerRequest projectRequest, string buildFile, DependencyLinkKind effectiveLinkKind, NativeBuildKind referenceBuildKind, TargetDefinition? target, string apiHeader, string? library, string? coverageMap)
+    {
+        List<string> apiHeaders = [];
+        foreach (string dependencyApiHeader in projectRequest.ApiFiles)
+            AddUniquePathPreservingFirst(apiHeaders, Path.GetFullPath(dependencyApiHeader, projectRequest.WorkingDirectory));
+        AddUniquePathPreservingFirst(apiHeaders, apiHeader);
+        List<string> sharedApiHeaders = [];
+        foreach (string sharedApiHeader in projectRequest.SharedLibraryApiHeaders)
+            AddUniquePathPreservingFirst(sharedApiHeaders, Path.GetFullPath(sharedApiHeader, projectRequest.WorkingDirectory));
+        if (effectiveLinkKind == DependencyLinkKind.Shared)
+            AddUniquePathPreservingFirst(sharedApiHeaders, apiHeader);
+        List<string> libraries = [];
+        if (library is not null)
+            AddUniquePath(libraries, library);
+        foreach (string reference in projectRequest.References)
+        {
+            if (referenceBuildKind == NativeBuildKind.Static || target is not null && IsSharedDependencyReference(reference, target))
+                AddUniquePath(libraries, reference);
+        }
+        return new ProjectReferenceResolution(
+            ProjectReferenceOutputName(projectRequest, buildFile),
+            apiHeaders,
+            sharedApiHeaders,
+            libraries,
+            coverageMap is null ? null : Path.GetFullPath(coverageMap));
+    }
+
+    static void AddProjectReferenceResolution(CompilerRequest consumerRequest, DependencyLinkKind effectiveLinkKind, ProjectReferenceResolution resolution, List<string> apiHeaders, List<string> sharedApiHeaders, List<string> libraries)
+    {
+        foreach (string apiHeader in resolution.ApiHeaders)
+            AddUniquePathPreservingFirst(apiHeaders, apiHeader);
+        if (effectiveLinkKind == DependencyLinkKind.Shared)
+            foreach (string sharedApiHeader in resolution.SharedApiHeaders.Count > 0 ? resolution.SharedApiHeaders : resolution.ApiHeaders)
+                AddUniquePathPreservingFirst(sharedApiHeaders, sharedApiHeader);
+        foreach (string library in resolution.LinkArtifacts)
+            AddUniquePath(libraries, library);
+        if (resolution.CoverageMap is not null)
+            AddUniquePath(consumerRequest.CoverageMapInputs, resolution.CoverageMap);
+    }
+
+    static bool TryGetCurrentProjectReferenceArtifacts(CompilerRequest projectRequest, string buildFile, string outputDirectory, NativeBuildKind buildKind, TargetDefinition target, string baseCampBuildPath, string globalCampBuildPath, bool requireLibrary, out string apiHeader, out string? library)
+    {
+        string projectName = ProjectReferenceOutputName(projectRequest, buildFile);
+        apiHeader = Path.Combine(outputDirectory, projectName + "_api.camp");
+        string cApiHeader = Path.Combine(outputDirectory, projectName + "_api.h");
+        string metadata = Path.Combine(outputDirectory, projectName + "_api.json");
+        NativeBuildOptions nativeOptions = new()
+        {
+            Target = target,
+            ProfileName = projectRequest.ProfileName,
+            BuildDirectory = Path.Combine(outputDirectory, "build"),
+            OutputDirectory = outputDirectory,
+            ProjectName = projectName,
+            Kind = buildKind,
+            SourceFiles = []
+        };
+        string nativeArtifact = NativeBuildDriver.GetArtifactPath(nativeOptions);
+        library = requireLibrary ? NativeBuildDriver.GetLinkArtifactPath(nativeOptions) : null;
+
+        List<string> requiredOutputs = [apiHeader, cApiHeader, metadata];
+        List<string> freshnessOutputs = [];
+        if (requireLibrary)
+        {
+            if (library is not null && !File.Exists(library))
+                return false;
+            requiredOutputs.Add(nativeArtifact);
+            freshnessOutputs.Add(nativeArtifact);
+            if (library is not null && !string.Equals(nativeArtifact, library, StringComparison.OrdinalIgnoreCase))
+            {
+                requiredOutputs.Add(library!);
+                freshnessOutputs.Add(library!);
+            }
+        }
+
+        if (requiredOutputs.Any(static output => !File.Exists(output)))
+            return false;
+        if (requireLibrary && buildKind == NativeBuildKind.Static)
+        {
+            IReadOnlyList<string> expectedObjects = GetExpectedProjectReferenceObjectPaths(projectRequest, nativeOptions.BuildDirectory, target);
+            if (!NativeBuildDriver.StaticArchiveContainsOnlyObjects(nativeOptions, nativeArtifact, expectedObjects))
+                return false;
+        }
+        if (freshnessOutputs.Count == 0)
+            freshnessOutputs.AddRange(requiredOutputs);
+        List<string> inputs = GetProjectReferenceCacheInputs(projectRequest, buildFile, target, baseCampBuildPath, globalCampBuildPath, buildKind).ToList();
+        return OutputsAreCurrent(freshnessOutputs, inputs);
+    }
+
+    static IReadOnlyList<string> GetExpectedProjectReferenceObjectPaths(CompilerRequest projectRequest, string buildDirectory, TargetDefinition target)
+    {
+        string objectExtension = target.Capabilities.GetArtifactValue("object_ext", ".o");
+        List<string> objects = [];
+        foreach (string source in projectRequest.Files.Concat(projectRequest.NativeSourceFiles))
+        {
+            if (source == "-")
+                continue;
+            string fullPath = Path.GetFullPath(source, projectRequest.WorkingDirectory);
+            if (fullPath.EndsWith("_api.camp", StringComparison.OrdinalIgnoreCase))
+                continue;
+            objects.Add(Path.Combine(buildDirectory, Path.GetFileNameWithoutExtension(fullPath) + objectExtension));
+        }
+        return objects;
+    }
+
+    static string ProjectReferenceOutputName(CompilerRequest projectRequest, string buildFile)
+    {
+        if (!string.IsNullOrWhiteSpace(projectRequest.ProjectName))
+            return projectRequest.ProjectName!;
+        string? firstSource = projectRequest.Files.FirstOrDefault(file => !file.EndsWith("_api.camp", StringComparison.OrdinalIgnoreCase));
+        if (!string.IsNullOrWhiteSpace(firstSource))
+            return Path.GetFileNameWithoutExtension(firstSource);
+        return Path.GetFileNameWithoutExtension(buildFile);
+    }
+
+    static string ProjectReferenceOutputName(ParsedOptions projectOptions, string buildFile)
+    {
+        string? projectName = projectOptions.SingleValues.LastOrDefault(static value => value.Key == "name").Value;
+        if (!string.IsNullOrWhiteSpace(projectName))
+            return projectName!;
+        string? firstSource = projectOptions.Positionals.FirstOrDefault(static file => !file.EndsWith("_api.camp", StringComparison.OrdinalIgnoreCase));
+        if (!string.IsNullOrWhiteSpace(firstSource) && !Glob.HasWildcards(firstSource!))
+            return Path.GetFileNameWithoutExtension(firstSource);
+        return Path.GetFileNameWithoutExtension(buildFile);
+    }
+
+    static bool ShouldInstrumentProjectReferenceForCoverage(CompilerRequest consumerRequest, string coverageSubjectName, DependencyLinkKind linkKind, int sharedCoverageCandidateCount)
+    {
+        if (consumerRequest.CommandMode != CompilerCommandMode.Cover || linkKind != DependencyLinkKind.Shared)
+            return false;
+        if (consumerRequest.CoverageSubjects.Count == 0)
+            return sharedCoverageCandidateCount == 1;
+        return consumerRequest.CoverageSubjects.Contains(coverageSubjectName, StringComparer.Ordinal);
+    }
+
+    static bool TryApplyRootCoverageSubject(CompilerRequest request, int projectReferenceCount, List<string> errors)
+    {
+        if (request.CommandMode != CompilerCommandMode.Cover)
+            return true;
+        bool explicitSelf = request.CoverageSubjects.Contains("self", StringComparer.Ordinal);
+        bool explicitDependency = request.CoverageSubjects.Any(static subject => subject != "self");
+        if (!explicitSelf && !explicitDependency && request.CoverageMapInputs.Count == 0)
+        {
+            request.CoverageInstrumentationMode = CoverageInstrumentationMode.ProductionSubject;
+            return true;
+        }
+        if (explicitSelf)
+        {
+            request.CoverageInstrumentationMode = CoverageInstrumentationMode.ProductionSubject;
+            return true;
+        }
+        if (request.CoverageMapInputs.Count > 0)
+        {
+            request.CoverageInstrumentationMode = CoverageInstrumentationMode.Disabled;
+            return true;
+        }
+        if (projectReferenceCount > 0)
+        {
+            errors.Add("External coverage requires a shared project reference coverage subject or --coverage-subject self.");
+            return false;
+        }
+        errors.Add("Coverage subject '" + string.Join(", ", request.CoverageSubjects) + "' could not be matched.");
+        return false;
+    }
+
+    static IEnumerable<string> GetProjectReferenceCacheInputs(CompilerRequest projectRequest, string buildFile, TargetDefinition target, string baseCampBuildPath, string globalCampBuildPath, NativeBuildKind buildKind)
+    {
+        yield return buildFile;
+        if (File.Exists(baseCampBuildPath))
+            yield return baseCampBuildPath;
+        if (File.Exists(globalCampBuildPath))
+            yield return globalCampBuildPath;
+        foreach (string input in ResolveProjectReferenceInputPaths(projectRequest, projectRequest.Files, includeDirectories: true))
+            yield return input;
+        foreach (string input in ResolveProjectReferenceInputPaths(projectRequest, projectRequest.ApiFiles, includeDirectories: false))
+            yield return input;
+        foreach (string input in projectRequest.SharedLibraryApiHeaders)
+            yield return input;
+        if (buildKind != NativeBuildKind.Static)
+            foreach (string reference in projectRequest.References)
+            {
+                if (Path.IsPathRooted(reference) && (File.Exists(reference) || Directory.Exists(reference)))
+                    yield return reference;
+            }
+        if (File.Exists(target.Path))
+            yield return target.Path;
+        if (!string.IsNullOrWhiteSpace(Environment.ProcessPath) && File.Exists(Environment.ProcessPath))
+            yield return Environment.ProcessPath;
+    }
+
+    static IEnumerable<string> ResolveProjectReferenceInputPaths(CompilerRequest projectRequest, IEnumerable<string> paths, bool includeDirectories)
+    {
+        foreach (string path in paths)
+        {
+            string fullPath = Path.GetFullPath(path, projectRequest.WorkingDirectory);
+            if (File.Exists(fullPath) || Directory.Exists(fullPath))
+                yield return fullPath;
+            if (includeDirectories)
+            {
+                string? directory = File.Exists(fullPath) ? Path.GetDirectoryName(fullPath) : Directory.Exists(fullPath) ? fullPath : null;
+                if (!string.IsNullOrWhiteSpace(directory) && Directory.Exists(directory))
+                    yield return directory;
+            }
+        }
+    }
+
+    static bool OutputsAreCurrent(IReadOnlyList<string> outputs, IReadOnlyList<string> inputs)
+    {
+        if (outputs.Count == 0 || outputs.Any(static output => !File.Exists(output)))
+            return false;
+        DateTime oldestOutput = outputs.Select(File.GetLastWriteTimeUtc).Min();
+        foreach (string input in inputs.Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            if (File.Exists(input))
+            {
+                if (oldestOutput <= File.GetLastWriteTimeUtc(input))
+                    return false;
+            }
+            else if (Directory.Exists(input))
+            {
+                if (oldestOutput <= Directory.GetLastWriteTimeUtc(input))
+                    return false;
+            }
+            else
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    static void AddUniquePath(List<string> paths, string path)
+    {
+        string fullPath = Path.GetFullPath(path);
+        int existingIndex = paths.FindIndex(existing => string.Equals(Path.GetFullPath(existing), fullPath, StringComparison.OrdinalIgnoreCase));
+        if (existingIndex >= 0)
+            paths.RemoveAt(existingIndex);
+        paths.Add(fullPath);
+    }
+
+    static void AddUniquePathPreservingFirst(List<string> paths, string path)
+    {
+        string fullPath = Path.GetFullPath(path);
+        if (paths.Any(existing => string.Equals(Path.GetFullPath(existing), fullPath, StringComparison.OrdinalIgnoreCase)))
+            return;
+        paths.Add(fullPath);
+    }
+
+    static TargetDefinition? TryGetTargetDefinition(CompilerRequest request, CliEnvironment environment, List<string> errors)
+    {
+        string targetsDirectory = Path.GetFullPath(Path.Combine(environment.RuntimeRoot, "..", "targets"));
+        if (!TargetCatalog.TryLoad(targetsDirectory, out TargetCatalog? catalog, out string? error))
+        {
+            errors.Add(error ?? $"Target directory '{targetsDirectory}' could not be loaded.");
+            return null;
+        }
+        if (!catalog!.TryGetTarget(request.TargetName, out TargetDefinition? target))
+        {
+            errors.Add($"Target '{request.TargetName}' could not be found in '{targetsDirectory}'.");
+            return null;
+        }
+        try
+        {
+            TargetVariantSelection selection = target!.ResolveVariantSelection(request.Variants);
+            return target.WithVariantSelection(selection);
+        }
+        catch (InvalidDataException ex)
+        {
+            errors.Add(ex.Message);
+            return null;
+        }
+    }
+
+    static string FormatProjectReferenceCycle(IReadOnlyList<string> stack, string repeatedBuildFile, int cycleStart)
+    {
+        List<string> cycle = [];
+        for (int i = cycleStart; i < stack.Count; i++)
+            cycle.Add(ProjectReferenceDisplayName(stack[i]));
+        cycle.Add(ProjectReferenceDisplayName(repeatedBuildFile));
+        return string.Join(" -> ", cycle);
+    }
+
+    static string ProjectReferenceDisplayName(string buildFile)
+    {
+        string directory = Path.GetDirectoryName(buildFile) ?? "";
+        string fileName = Path.GetFileName(buildFile);
+        return string.IsNullOrWhiteSpace(directory) ? fileName : Path.Combine(Path.GetFileName(directory), fileName);
+    }
+
+    static void WriteProjectReferenceOutput(string projectReference, string output)
+    {
+        if (string.IsNullOrWhiteSpace(output))
+            return;
+        foreach (string line in output.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n').Split('\n'))
+        {
+            if (!string.IsNullOrWhiteSpace(line))
+                Console.Out.WriteLine($"{projectReference}: {line}");
+        }
+    }
+
+    static bool TryResolveProjectReference(string value, string workingDirectory, out string? buildFile, out string? error)
+    {
+        buildFile = null;
+        error = null;
+        string fullPath = Path.GetFullPath(value, workingDirectory);
+        if (File.Exists(fullPath))
+        {
+            buildFile = fullPath;
+            return true;
+        }
+        if (!Path.HasExtension(fullPath) && File.Exists(fullPath + ".campbuild"))
+        {
+            buildFile = fullPath + ".campbuild";
+            return true;
+        }
+        if (Directory.Exists(fullPath))
+        {
+            string preferred = Path.Combine(fullPath, Path.GetFileName(fullPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)) + ".campbuild");
+            if (File.Exists(preferred))
+            {
+                buildFile = preferred;
+                return true;
+            }
+            string[] candidates = Directory.GetFiles(fullPath, "*.campbuild").OrderBy(static path => path, StringComparer.Ordinal).ToArray();
+            if (candidates.Length == 1)
+            {
+                buildFile = candidates[0];
+                return true;
+            }
+            error = candidates.Length == 0
+                ? $"Project reference '{value}' does not contain a .campbuild file."
+                : $"Project reference '{value}' contains multiple .campbuild files. Specify one explicitly.";
+            return false;
+        }
+        error = $"Project reference '{value}' could not be found. Resolved path: {fullPath}";
+        return false;
+    }
+
+    static List<string> RemoveProjectReferenceOverrideOptions(IReadOnlyList<string> args)
+    {
+        HashSet<string> removeValueOptions = new(StringComparer.Ordinal)
+        {
+            "--target",
+            "-t",
+            "--profile",
+            "-p",
+            "--variant",
+            "--artifact",
+            "--out-dir",
+            "--build-dir"
+        };
+        List<string> result = [];
+        for (int i = 0; i < args.Count; i++)
+        {
+            if (removeValueOptions.Contains(args[i]))
+            {
+                if (args[i] is "--variant")
+                {
+                    while (i + 1 < args.Count && IsVariantValueToken(args[i + 1]))
+                        i++;
+                }
+                else if (i + 1 < args.Count)
+                    i++;
+                continue;
+            }
+            result.Add(args[i]);
+        }
+        return result;
+    }
+
+    static bool IsVariantValueToken(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value.StartsWith("-", StringComparison.Ordinal))
+            return false;
+        foreach (char c in value)
+            if (!char.IsAsciiLetterOrDigit(c))
+                return false;
+        return true;
+    }
+
+    static string? TryGetDefaultOutDirFromBuildFile(IReadOnlyList<string> args, string workingDirectory)
+    {
+        for (int i = 0; i < args.Count; i++)
+        {
+            string token = args[i];
+            if (token.StartsWith("-", StringComparison.Ordinal))
+            {
+                i += ResponseFileExpander.OptionValueCountForBuildRequest(token);
+                continue;
+            }
+            string candidate = token.StartsWith("@", StringComparison.Ordinal) ? token[1..] : token;
+            string fullPath = Path.GetFullPath(candidate, workingDirectory);
+            if (!File.Exists(fullPath) && !Path.HasExtension(fullPath) && File.Exists(fullPath + ".campbuild"))
+                fullPath += ".campbuild";
+            if (File.Exists(fullPath) && Path.GetExtension(fullPath).Equals(".campbuild", StringComparison.OrdinalIgnoreCase))
+                return Path.Combine(Path.GetDirectoryName(fullPath)!, "bin");
+        }
+        return null;
+    }
+
+    static string? TryGetDefaultSourcefileRootFromBuildFile(IReadOnlyList<string> args, string workingDirectory)
+    {
+        string? buildFile = TryGetBuildFileArgument(args, workingDirectory);
+        return buildFile is null ? null : Path.GetDirectoryName(buildFile);
+    }
+
+    static string? TryGetBuildFileArgument(IReadOnlyList<string> args, string workingDirectory)
+    {
+        for (int i = 0; i < args.Count; i++)
+        {
+            string token = args[i];
+            if (token.StartsWith("-", StringComparison.Ordinal))
+            {
+                i += ResponseFileExpander.OptionValueCountForBuildRequest(token);
+                continue;
+            }
+            string candidate = token.StartsWith("@", StringComparison.Ordinal) ? token[1..] : token;
+            string fullPath = Path.GetFullPath(candidate, workingDirectory);
+            if (!File.Exists(fullPath) && !Path.HasExtension(fullPath) && File.Exists(fullPath + ".campbuild"))
+                fullPath += ".campbuild";
+            if (File.Exists(fullPath) && Path.GetExtension(fullPath).Equals(".campbuild", StringComparison.OrdinalIgnoreCase))
+                return fullPath;
+        }
+        return null;
+    }
+
+    static bool IsNativeLibrary(string path, string targetName, string runtimeRoot, NativeBuildKind kind)
+    {
+        string targetRoot = Path.GetFullPath(Path.Combine(runtimeRoot, "..", "targets"));
+        if (!TargetCatalog.TryLoad(targetRoot, out TargetCatalog? catalog, out _) || !catalog!.TryGetTarget(targetName, out TargetDefinition? target))
+            return kind == NativeBuildKind.Shared ? Path.GetExtension(path) is ".so" or ".dylib" or ".dll" : Path.GetExtension(path) is ".a" or ".lib";
+        string extension = kind == NativeBuildKind.Shared
+            ? target!.GetArtifactValue("shared_import_ext", target!.GetArtifactValue("shared_ext", ".so"))
+            : target!.GetArtifactValue("static_ext", ".a");
+        return Path.GetExtension(path).Equals(extension, StringComparison.OrdinalIgnoreCase);
+    }
+
+    static bool IsSharedDependencyReference(string path, TargetDefinition target)
+    {
+        if (!Path.IsPathRooted(path))
+            return false;
+        string sharedExtension = target.GetArtifactValue("shared_ext", ".so");
+        if (Path.GetExtension(path).Equals(sharedExtension, StringComparison.OrdinalIgnoreCase))
+            return true;
+        string sharedImportExtension = target.GetArtifactValue("shared_import_ext");
+        if (string.IsNullOrWhiteSpace(sharedImportExtension) || !Path.GetExtension(path).Equals(sharedImportExtension, StringComparison.OrdinalIgnoreCase))
+            return false;
+        return File.Exists(Path.ChangeExtension(path, sharedExtension));
+    }
+
+    static void ApplyGlobalPragmas(CliEnvironment environment, BuildOptionBag bag, List<string> errors)
+    {
+        ApplyCompilerPackageSourcePragmas(environment, bag, errors, includeGlobal: true);
+    }
+
+    static void ApplyCompilerPackageSourcePragmas(CliEnvironment environment, BuildOptionBag bag, List<string> errors, bool includeGlobal)
+    {
+        if (File.Exists(environment.BaseCampBuildPath))
+            ApplyFilePragmas(environment.BaseCampBuildPath, environment, bag, Precedence.Global, errors);
+        if (includeGlobal && File.Exists(environment.GlobalCampBuildPath))
+            ApplyFilePragmas(environment.GlobalCampBuildPath, environment, bag, Precedence.Global, errors);
+    }
+
+    static void ApplyFilePragmas(string file, CliEnvironment environment, BuildOptionBag bag, Precedence precedence, List<string> errors)
+    {
+        if (file.EndsWith(".campbuild", StringComparison.OrdinalIgnoreCase))
+        {
+            ParsedOptions parsed = CommandLineOptionParser.Parse(ResponseFileExpander.Expand(["@" + file], environment.WorkingDirectory, errors), allowPositionals: true, errors);
+            bag.Apply(parsed, precedence, file, errors);
+            return;
+        }
+        foreach (PragmaLine pragma in BuildPragmaReader.Read(file, environment.WorkingDirectory, errors))
+        {
+            ParsedOptions parsed = CommandLineOptionParser.Parse(pragma.Tokens, allowPositionals: false, errors);
+            bag.Apply(parsed, precedence, pragma.SourceName, errors);
+        }
+    }
+
+    public static List<string> ExpandSourcePatterns(List<string> patterns, List<string> excludePatterns, string workingDirectory, List<string> errors)
+    {
+        List<string> files = [];
+        HashSet<string> seen = new(StringComparer.OrdinalIgnoreCase);
+        foreach (string pattern in patterns)
+        {
+            foreach (string path in Glob.Expand(pattern, workingDirectory))
+            {
+                if (!path.EndsWith(".camp", StringComparison.OrdinalIgnoreCase))
+                    continue;
+                if (excludePatterns.Any(exclude => Glob.IsMatch(Path.GetRelativePath(workingDirectory, path), exclude)))
+                    continue;
+                if (seen.Add(path))
+                    files.Add(path);
+            }
+        }
+        return files.OrderBy(static path => path, StringComparer.Ordinal).ToList();
+    }
+
+    static List<string> ExpandNativeSourcePatterns(List<string> patterns, List<string> excludePatterns, string workingDirectory)
+    {
+        List<string> files = [];
+        HashSet<string> seen = new(StringComparer.OrdinalIgnoreCase);
+        foreach (string pattern in patterns)
+        {
+            foreach (string path in Glob.Expand(pattern, workingDirectory))
+            {
+                if (!path.EndsWith(".c", StringComparison.OrdinalIgnoreCase))
+                    continue;
+                if (excludePatterns.Any(exclude => Glob.IsMatch(Path.GetRelativePath(workingDirectory, path), exclude)))
+                    continue;
+                if (seen.Add(path))
+                    files.Add(path);
+            }
+        }
+        return files.OrderBy(static path => path, StringComparer.Ordinal).ToList();
+    }
+
+    static CompilerInspectMode? ParseDumpKind(string value)
+    {
+        return value.Trim().ToLowerInvariant() switch
+        {
+            "tokens" => CompilerInspectMode.Tokens,
+            "declarations" => CompilerInspectMode.Declarations,
+            "lowering" => CompilerInspectMode.Lowering,
+            "metadata" => CompilerInspectMode.Metadata,
+            _ => null
+        };
+    }
+
+    static int PrintErrors(IEnumerable<string> errors)
+    {
+        foreach (string error in errors)
+            Console.Error.WriteLine(error);
+        return 1;
+    }
+
+    static int Error(string message)
+    {
+        Console.Error.WriteLine(message);
+        return 1;
+    }
+
+    public static void PrintPackagePreviewWarning()
+    {
+        Console.Error.WriteLine("warning: package commands are experimental package infrastructure for Camp compiler development; command names and layouts may change.");
+    }
 }
 
 sealed class PackageCommands
 {
-	public static int Run(string[] args, CliEnvironment environment)
-	{
-		if (args.Length == 0)
-			return Error("package requires a package command.");
-		CampCli.PrintPackagePreviewWarning();
-		return args[0] switch
-		{
-			"list-sources" => ListSources(args[1..], environment),
-			"add-source" => AddSource(args[1..], environment),
-			"remove-source" => RemoveSource(args[1..], environment),
-			"install" => InstallCommand(args[1..], environment),
-			"uninstall" => Uninstall(args[1..], environment),
-			"publish" => Publish(args[1..], environment),
-			_ => Error($"Unknown package command '{args[0]}'.")
-		};
-	}
+    public static int Run(string[] args, CliEnvironment environment)
+    {
+        if (args.Length == 0)
+            return Error("package requires a package command.");
+        CampCli.PrintPackagePreviewWarning();
+        return args[0] switch
+        {
+            "list-sources" => ListSources(args[1..], environment),
+            "add-source" => AddSource(args[1..], environment),
+            "remove-source" => RemoveSource(args[1..], environment),
+            "install" => InstallCommand(args[1..], environment),
+            "uninstall" => Uninstall(args[1..], environment),
+            "publish" => Publish(args[1..], environment),
+            _ => Error($"Unknown package command '{args[0]}'.")
+        };
+    }
 
-	static int ListSources(string[] args, CliEnvironment environment)
-	{
-		if (!TryResolvePackageTarget(args, environment, out PackageCommandTarget? target, out string[] remaining, out bool _, out string? error))
-			return Error(error!);
-		if (remaining.Length > 0)
-			return Error($"package list-sources does not accept argument '{remaining[0]}'.");
-		if (!TryLoadEffectiveSourceEntries(target!, out List<PackageSourceEntry> sources, out error))
-			return Error(error!);
-		foreach (PackageSourceEntry source in sources.AsEnumerable().Reverse())
-			Console.Out.WriteLine($"{source.Name} {source.Path} {source.Source}");
-		return 0;
-	}
+    static int ListSources(string[] args, CliEnvironment environment)
+    {
+        if (!TryResolvePackageTarget(args, environment, out PackageCommandTarget? target, out string[] remaining, out bool _, out string? error))
+            return Error(error!);
+        if (remaining.Length > 0)
+            return Error($"package list-sources does not accept argument '{remaining[0]}'.");
+        if (!TryLoadEffectiveSourceEntries(target!, out List<PackageSourceEntry> sources, out error))
+            return Error(error!);
+        foreach (PackageSourceEntry source in sources.AsEnumerable().Reverse())
+            Console.Out.WriteLine($"{source.Name} {source.Path} {source.Source}");
+        return 0;
+    }
 
-	static int AddSource(string[] args, CliEnvironment environment)
-	{
-		if (args.Length < 2)
-			return Error("package add-source requires <name> <path-or-url>.");
-		string name = args[0];
-		string path = args[1];
-		if (!TryResolvePackageTarget(args[2..], environment, out PackageCommandTarget? target, out string[] remaining, out bool _, out string? error))
-			return Error(error!);
-		if (remaining.Length > 0)
-			return Error($"package add-source does not accept argument '{remaining[0]}'.");
-		if (!TryLoadEffectiveSourceEntries(target!, out List<PackageSourceEntry> sources, out error))
-			return Error(error!);
-		if (sources.Any(source => source.Name.Equals(name, StringComparison.Ordinal)))
-			return Error($"Package source '{name}' already exists.");
-		EditBuildPragmas(target!.SourceWriteFile, line => true, FormatUseSourceLine(target.SourceWriteFile, name, path));
-		Console.Out.WriteLine($"added source: {name} {path}");
-		Console.Out.WriteLine($"updated: {target.SourceWriteFile}");
-		return 0;
-	}
+    static int AddSource(string[] args, CliEnvironment environment)
+    {
+        if (args.Length < 2)
+            return Error("package add-source requires <name> <path-or-url>.");
+        string name = args[0];
+        string path = args[1];
+        if (!TryResolvePackageTarget(args[2..], environment, out PackageCommandTarget? target, out string[] remaining, out bool _, out string? error))
+            return Error(error!);
+        if (remaining.Length > 0)
+            return Error($"package add-source does not accept argument '{remaining[0]}'.");
+        if (!TryLoadEffectiveSourceEntries(target!, out List<PackageSourceEntry> sources, out error))
+            return Error(error!);
+        if (sources.Any(source => source.Name.Equals(name, StringComparison.Ordinal)))
+            return Error($"Package source '{name}' already exists.");
+        EditBuildPragmas(target!.SourceWriteFile, line => true, FormatUseSourceLine(target.SourceWriteFile, name, path));
+        Console.Out.WriteLine($"added source: {name} {path}");
+        Console.Out.WriteLine($"updated: {target.SourceWriteFile}");
+        return 0;
+    }
 
-	static int RemoveSource(string[] args, CliEnvironment environment)
-	{
-		if (args.Length < 1)
-			return Error("package remove-source requires <name>.");
-		string name = args[0];
-		if (!TryResolvePackageTarget(args[1..], environment, out PackageCommandTarget? target, out string[] remaining, out bool _, out string? error))
-			return Error(error!);
-		if (remaining.Length > 0)
-			return Error($"package remove-source does not accept argument '{remaining[0]}'.");
-		bool removed = false;
-		EditBuildPragmas(target!.SourceWriteFile, line =>
-		{
-			if (IsUseSourceLineForName(line, name))
-			{
-				removed = true;
-				return false;
-			}
-			return true;
-		}, null);
-		if (!removed)
-			return Error($"Package source '{name}' is not declared in '{target.SourceWriteFile}'.");
-		Console.Out.WriteLine($"removed source: {name}");
-		Console.Out.WriteLine($"updated: {target.SourceWriteFile}");
-		return 0;
-	}
+    static int RemoveSource(string[] args, CliEnvironment environment)
+    {
+        if (args.Length < 1)
+            return Error("package remove-source requires <name>.");
+        string name = args[0];
+        if (!TryResolvePackageTarget(args[1..], environment, out PackageCommandTarget? target, out string[] remaining, out bool _, out string? error))
+            return Error(error!);
+        if (remaining.Length > 0)
+            return Error($"package remove-source does not accept argument '{remaining[0]}'.");
+        bool removed = false;
+        EditBuildPragmas(target!.SourceWriteFile, line =>
+        {
+            if (IsUseSourceLineForName(line, name))
+            {
+                removed = true;
+                return false;
+            }
+            return true;
+        }, null);
+        if (!removed)
+            return Error($"Package source '{name}' is not declared in '{target.SourceWriteFile}'.");
+        Console.Out.WriteLine($"removed source: {name}");
+        Console.Out.WriteLine($"updated: {target.SourceWriteFile}");
+        return 0;
+    }
 
-	static int InstallCommand(string[] args, CliEnvironment environment)
-	{
-		if (args.Length == 0)
-			return Error("package install requires <package[@version|/version]>.");
-		if (!PackageDependencySpec.TryParse(args[0], out PackageDependencySpec package, out string? packageError))
-			return Error(packageError!);
-		if (!TryResolvePackageTarget(args[1..], environment, out PackageCommandTarget? target, out string[] remaining, out bool dryRun, out string? error))
-			return Error(error!);
-		if (remaining.Length > 0)
-			return Error($"package install does not accept argument '{remaining[0]}'.");
-		if (!TryLoadEffectiveSourceEntries(target!, out List<PackageSourceEntry> sources, out error))
-			return Error(error!);
-		if (!TryResolveSinglePackage(package, ToLocations(sources), out ResolvedPackage? resolved, out error))
-			return Error(error!);
-		string targetDirectory = Path.Combine(target!.CacheRoot, resolved!.Name, resolved.Version.ToString());
-		bool alreadyInstalled = Directory.Exists(Path.Combine(targetDirectory, "src"));
-		if (dryRun)
-		{
-			Console.Out.WriteLine("dry-run: install");
-			Console.Out.WriteLine($"target: {target.DisplayName}");
-			Console.Out.WriteLine($"cache: {targetDirectory}");
-			Console.Out.WriteLine($"source: {resolved.Source.Name} {resolved.Source.Root}");
-			Console.Out.WriteLine($"archive: {resolved.CatalogVersion.SourceArchive}");
-			Console.Out.WriteLine(alreadyInstalled ? $"already installed: {resolved.Name}@{resolved.Version}" : $"would install: {resolved.Name}@{resolved.Version}");
-			Console.Out.WriteLine("project configuration was not changed");
-			return 0;
-		}
-		if (!InstallResolvedPackageToRoot(resolved, target.CacheRoot, out error))
-			return Error(error!);
-		Console.Out.WriteLine(alreadyInstalled ? $"already installed: {resolved.Name}@{resolved.Version}" : $"installed: {resolved.Name}@{resolved.Version}");
-		Console.Out.WriteLine($"cache: {targetDirectory}");
-		Console.Out.WriteLine("project configuration was not changed");
-		return 0;
-	}
+    static int InstallCommand(string[] args, CliEnvironment environment)
+    {
+        if (args.Length == 0)
+            return Error("package install requires <package[@version|/version]>.");
+        if (!PackageDependencySpec.TryParse(args[0], out PackageDependencySpec package, out string? packageError))
+            return Error(packageError!);
+        if (!TryResolvePackageTarget(args[1..], environment, out PackageCommandTarget? target, out string[] remaining, out bool dryRun, out string? error))
+            return Error(error!);
+        if (remaining.Length > 0)
+            return Error($"package install does not accept argument '{remaining[0]}'.");
+        if (!TryLoadEffectiveSourceEntries(target!, out List<PackageSourceEntry> sources, out error))
+            return Error(error!);
+        if (!TryResolveSinglePackage(package, ToLocations(sources), out ResolvedPackage? resolved, out error))
+            return Error(error!);
+        string targetDirectory = Path.Combine(target!.CacheRoot, resolved!.Name, resolved.Version.ToString());
+        bool alreadyInstalled = Directory.Exists(Path.Combine(targetDirectory, "src"));
+        if (dryRun)
+        {
+            Console.Out.WriteLine("dry-run: install");
+            Console.Out.WriteLine($"target: {target.DisplayName}");
+            Console.Out.WriteLine($"cache: {targetDirectory}");
+            Console.Out.WriteLine($"source: {resolved.Source.Name} {resolved.Source.Root}");
+            Console.Out.WriteLine($"archive: {resolved.CatalogVersion.SourceArchive}");
+            Console.Out.WriteLine(alreadyInstalled ? $"already installed: {resolved.Name}@{resolved.Version}" : $"would install: {resolved.Name}@{resolved.Version}");
+            Console.Out.WriteLine("project configuration was not changed");
+            return 0;
+        }
+        if (!InstallResolvedPackageToRoot(resolved, target.CacheRoot, out error))
+            return Error(error!);
+        Console.Out.WriteLine(alreadyInstalled ? $"already installed: {resolved.Name}@{resolved.Version}" : $"installed: {resolved.Name}@{resolved.Version}");
+        Console.Out.WriteLine($"cache: {targetDirectory}");
+        Console.Out.WriteLine("project configuration was not changed");
+        return 0;
+    }
 
-	static int Uninstall(string[] args, CliEnvironment environment)
-	{
-		if (args.Length == 0)
-			return Error("package uninstall requires <package[@version|/version]>.");
-		PackageSpec package = PackageSpec.Parse(args[0]);
-		if (!TryResolvePackageTarget(args[1..], environment, out PackageCommandTarget? target, out string[] remaining, out bool dryRun, out string? error))
-			return Error(error!);
-		if (remaining.Length > 0)
-			return Error($"package uninstall does not accept argument '{remaining[0]}'.");
-		string removalDirectory = package.Version is null
-			? Path.Combine(target!.CacheRoot, package.Name)
-			: Path.Combine(target!.CacheRoot, package.Name, package.Version);
-		bool installed = Directory.Exists(removalDirectory);
-		if (dryRun)
-		{
-			Console.Out.WriteLine("dry-run: uninstall");
-			Console.Out.WriteLine($"target: {target.DisplayName}");
-			Console.Out.WriteLine($"cache: {removalDirectory}");
-			Console.Out.WriteLine(installed ? $"would remove: {FormatPackageForMessage(package)}" : $"not installed: {FormatPackageForMessage(package)}");
-			Console.Out.WriteLine("project configuration was not changed");
-			return 0;
-		}
-		if (installed)
-			Directory.Delete(removalDirectory, recursive: true);
-		if (installed)
-			Console.Out.WriteLine($"uninstalled: {FormatPackageForMessage(package)}");
-		else
-			Console.Out.WriteLine($"not installed: {FormatPackageForMessage(package)}");
-		Console.Out.WriteLine($"cache: {removalDirectory}");
-		Console.Out.WriteLine("project configuration was not changed");
-		return 0;
-	}
+    static int Uninstall(string[] args, CliEnvironment environment)
+    {
+        if (args.Length == 0)
+            return Error("package uninstall requires <package[@version|/version]>.");
+        PackageSpec package = PackageSpec.Parse(args[0]);
+        if (!TryResolvePackageTarget(args[1..], environment, out PackageCommandTarget? target, out string[] remaining, out bool dryRun, out string? error))
+            return Error(error!);
+        if (remaining.Length > 0)
+            return Error($"package uninstall does not accept argument '{remaining[0]}'.");
+        string removalDirectory = package.Version is null
+            ? Path.Combine(target!.CacheRoot, package.Name)
+            : Path.Combine(target!.CacheRoot, package.Name, package.Version);
+        bool installed = Directory.Exists(removalDirectory);
+        if (dryRun)
+        {
+            Console.Out.WriteLine("dry-run: uninstall");
+            Console.Out.WriteLine($"target: {target.DisplayName}");
+            Console.Out.WriteLine($"cache: {removalDirectory}");
+            Console.Out.WriteLine(installed ? $"would remove: {FormatPackageForMessage(package)}" : $"not installed: {FormatPackageForMessage(package)}");
+            Console.Out.WriteLine("project configuration was not changed");
+            return 0;
+        }
+        if (installed)
+            Directory.Delete(removalDirectory, recursive: true);
+        if (installed)
+            Console.Out.WriteLine($"uninstalled: {FormatPackageForMessage(package)}");
+        else
+            Console.Out.WriteLine($"not installed: {FormatPackageForMessage(package)}");
+        Console.Out.WriteLine($"cache: {removalDirectory}");
+        Console.Out.WriteLine("project configuration was not changed");
+        return 0;
+    }
 
-	static int Publish(string[] args, CliEnvironment environment)
-	{
-		if (args.Length == 0)
-			return Error("package publish requires <version|+major|+minor|+patch>.");
-		if (!TryParsePublishArgs(args, environment, out PublishRequest? request, out string? error))
-			return Error(error!);
-		if (!TryLoadPackageBuildInputs(request!, environment, out PublishInputs? inputs, out error))
-			return Error(error!);
-		if (!TrySelectPublishVersion(request!.Version, inputs!.OutputDirectory, inputs.PackageName, out PackageSelectedVersion version, out error))
-			return Error(error!);
-		if (request.DryRun)
-		{
-			Console.Out.WriteLine("dry-run: publish");
-			Console.Out.WriteLine($"target: {request.BuildFile}");
-			Console.Out.WriteLine($"project root: {inputs.ProjectRoot}");
-			Console.Out.WriteLine($"package: {inputs.PackageName}@{version}");
-			Console.Out.WriteLine($"versions: {Path.Combine(inputs.OutputDirectory, "versions.ini")}");
-			Console.Out.WriteLine($"archive: {Path.Combine(inputs.OutputDirectory, inputs.PackageName + "_" + version + ".zip")}");
-			Console.Out.WriteLine("files:");
-			foreach (string file in inputs.Files)
-				Console.Out.WriteLine("  " + Path.GetRelativePath(inputs.ProjectRoot, file));
-			if (inputs.Dependencies.Count > 0)
-			{
-				Console.Out.WriteLine("dependencies:");
-				foreach (PackageSpec dependency in inputs.Dependencies)
-					Console.Out.WriteLine("  " + dependency);
-			}
-			Console.Out.WriteLine("no files were changed");
-			return 0;
-		}
-		if (!TryPublish(inputs, version, out string? archiveName, out string? hash, out error))
-			return Error(error!);
-		Console.Out.WriteLine($"published: {inputs.PackageName}@{version}");
-		Console.Out.WriteLine($"archive: {archiveName}");
-		Console.Out.WriteLine($"sha256: {hash}");
-		return 0;
-	}
+    static int Publish(string[] args, CliEnvironment environment)
+    {
+        if (args.Length == 0)
+            return Error("package publish requires <version|+major|+minor|+patch>.");
+        if (!TryParsePublishArgs(args, environment, out PublishRequest? request, out string? error))
+            return Error(error!);
+        if (!TryLoadPackageBuildInputs(request!, environment, out PublishInputs? inputs, out error))
+            return Error(error!);
+        if (!TrySelectPublishVersion(request!.Version, inputs!.OutputDirectory, inputs.PackageName, out PackageSelectedVersion version, out error))
+            return Error(error!);
+        if (request.DryRun)
+        {
+            Console.Out.WriteLine("dry-run: publish");
+            Console.Out.WriteLine($"target: {request.BuildFile}");
+            Console.Out.WriteLine($"project root: {inputs.ProjectRoot}");
+            Console.Out.WriteLine($"package: {inputs.PackageName}@{version}");
+            Console.Out.WriteLine($"versions: {Path.Combine(inputs.OutputDirectory, "versions.ini")}");
+            Console.Out.WriteLine($"archive: {Path.Combine(inputs.OutputDirectory, inputs.PackageName + "_" + version + ".zip")}");
+            Console.Out.WriteLine("files:");
+            foreach (string file in inputs.Files)
+                Console.Out.WriteLine("  " + Path.GetRelativePath(inputs.ProjectRoot, file));
+            if (inputs.Dependencies.Count > 0)
+            {
+                Console.Out.WriteLine("dependencies:");
+                foreach (PackageSpec dependency in inputs.Dependencies)
+                    Console.Out.WriteLine("  " + dependency);
+            }
+            Console.Out.WriteLine("no files were changed");
+            return 0;
+        }
+        if (!TryPublish(inputs, version, out string? archiveName, out string? hash, out error))
+            return Error(error!);
+        Console.Out.WriteLine($"published: {inputs.PackageName}@{version}");
+        Console.Out.WriteLine($"archive: {archiveName}");
+        Console.Out.WriteLine($"sha256: {hash}");
+        return 0;
+    }
 
-	public static int Restore(IReadOnlyList<PackageSpec> packages, IReadOnlyList<PackageSourceSpec> sources, string? upgrade, CliEnvironment environment, string projectRoot)
-	{
-		if (packages.Count == 0)
-			return 0;
+    public static int Restore(IReadOnlyList<PackageSpec> packages, IReadOnlyList<PackageSourceSpec> sources, string? upgrade, CliEnvironment environment, string projectRoot)
+    {
+        if (packages.Count == 0)
+            return 0;
 
-		string lockPath = Path.Combine(projectRoot, "packages.ini");
-		PackageLockFile? existingLock = null;
-		if (File.Exists(lockPath))
-		{
-			if (!PackageLockFile.TryParse(lockPath, File.ReadAllText(lockPath), out existingLock, out List<string> lockErrors))
-				return PrintErrors(lockErrors);
-		}
+        string lockPath = Path.Combine(projectRoot, "packages.ini");
+        PackageLockFile? existingLock = null;
+        if (File.Exists(lockPath))
+        {
+            if (!PackageLockFile.TryParse(lockPath, File.ReadAllText(lockPath), out existingLock, out List<string> lockErrors))
+                return PrintErrors(lockErrors);
+        }
 
-		Dictionary<string, ResolvedPackage> resolved = new(StringComparer.Ordinal);
-		Dictionary<string, PackageCatalog> catalogs = new(StringComparer.Ordinal);
-		List<PackageSourceLocation> locations = sources
-			.Where(static source => !string.IsNullOrWhiteSpace(source.Path))
-			.Select(static source => new PackageSourceLocation(source.Name, source.Path!))
-			.ToList();
-		if (locations.Count == 0)
-			return Error("No package sources are configured. Add --use-source to the build file or use 'campc package add-source <name> <path-or-url> --global'.");
+        Dictionary<string, ResolvedPackage> resolved = new(StringComparer.Ordinal);
+        Dictionary<string, PackageCatalog> catalogs = new(StringComparer.Ordinal);
+        List<PackageSourceLocation> locations = sources
+            .Where(static source => !string.IsNullOrWhiteSpace(source.Path))
+            .Select(static source => new PackageSourceLocation(source.Name, source.Path!))
+            .ToList();
+        if (locations.Count == 0)
+            return Error("No package sources are configured. Add --use-source to the build file or use 'campc package add-source <name> <path-or-url> --global'.");
 
-		string? upgradeName = null;
-		PackageVersionExpression? upgradeExpression = null;
-		bool upgradeAll = upgrade == "";
-		if (!string.IsNullOrWhiteSpace(upgrade))
-		{
-			PackageDependencySpec upgradeSpec = PackageDependencySpec.Parse(upgrade);
-			upgradeName = upgradeSpec.Name;
-			upgradeExpression = upgradeSpec.VersionExpression ?? (upgradeSpec.SelectedVersion is PackageSelectedVersion selected ? new PackageVersionExpression(selected.Major, selected.Minor, selected.Patch) : null);
-		}
+        string? upgradeName = null;
+        PackageVersionExpression? upgradeExpression = null;
+        bool upgradeAll = upgrade == "";
+        if (!string.IsNullOrWhiteSpace(upgrade))
+        {
+            PackageDependencySpec upgradeSpec = PackageDependencySpec.Parse(upgrade);
+            upgradeName = upgradeSpec.Name;
+            upgradeExpression = upgradeSpec.VersionExpression ?? (upgradeSpec.SelectedVersion is PackageSelectedVersion selected ? new PackageVersionExpression(selected.Major, selected.Minor, selected.Patch) : null);
+        }
 
-		foreach (PackageSpec package in packages)
-		{
-			PackageDependencySpec dependency = PackageDependencySpec.Parse(package.ToString());
-			if (upgradeName is not null && dependency.Name.Equals(upgradeName, StringComparison.Ordinal))
-				dependency = dependency with { VersionExpression = upgradeExpression ?? dependency.VersionExpression, SelectedVersion = null };
-			if (!TryResolveDependency(dependency, direct: true, out string? error))
-				return Error(error!);
-		}
+        foreach (PackageSpec package in packages)
+        {
+            PackageDependencySpec dependency = PackageDependencySpec.Parse(package.ToString());
+            if (upgradeName is not null && dependency.Name.Equals(upgradeName, StringComparison.Ordinal))
+                dependency = dependency with { VersionExpression = upgradeExpression ?? dependency.VersionExpression, SelectedVersion = null };
+            if (!TryResolveDependency(dependency, direct: true, out string? error))
+                return Error(error!);
+        }
 
-		SortedDictionary<string, PackageLockEntry> lockEntries = new(StringComparer.Ordinal);
-		foreach (ResolvedPackage package in resolved.Values.OrderBy(static package => package.Name, StringComparer.Ordinal))
-		{
-			if (!InstallResolvedPackage(package, projectRoot, out string? error))
-				return Error(error!);
-			lockEntries[package.Name] = new PackageLockEntry(package.Name, package.Identity, package.Version, package.CatalogVersion.Sha256);
-			Console.Out.WriteLine($"installed: {package.Name}@{package.Version}");
-		}
-		File.WriteAllText(lockPath, new PackageLockFile(lockEntries).Write(), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
-		return 0;
+        SortedDictionary<string, PackageLockEntry> lockEntries = new(StringComparer.Ordinal);
+        foreach (ResolvedPackage package in resolved.Values.OrderBy(static package => package.Name, StringComparer.Ordinal))
+        {
+            if (!InstallResolvedPackage(package, projectRoot, out string? error))
+                return Error(error!);
+            lockEntries[package.Name] = new PackageLockEntry(package.Name, package.Identity, package.Version, package.CatalogVersion.Sha256);
+            Console.Out.WriteLine($"installed: {package.Name}@{package.Version}");
+        }
+        File.WriteAllText(lockPath, new PackageLockFile(lockEntries).Write(), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+        return 0;
 
-		bool TryResolveDependency(PackageDependencySpec dependency, bool direct, out string? error)
-		{
-			error = null;
-			if (resolved.TryGetValue(dependency.Name, out ResolvedPackage? existing))
-			{
-				if (!Matches(dependency, existing.Version))
-				{
-					error = $"Package dependency conflict for '{dependency.Name}'. Selected {existing.Version}, but dependency requires {FormatVersionRequirement(dependency)}.";
-					return false;
-				}
-				return true;
-			}
+        bool TryResolveDependency(PackageDependencySpec dependency, bool direct, out string? error)
+        {
+            error = null;
+            if (resolved.TryGetValue(dependency.Name, out ResolvedPackage? existing))
+            {
+                if (!Matches(dependency, existing.Version))
+                {
+                    error = $"Package dependency conflict for '{dependency.Name}'. Selected {existing.Version}, but dependency requires {FormatVersionRequirement(dependency)}.";
+                    return false;
+                }
+                return true;
+            }
 
-			bool shouldUpgrade = upgradeAll || direct && upgradeName is not null && dependency.Name.Equals(upgradeName, StringComparison.Ordinal);
-			if (!shouldUpgrade
-				&& existingLock?.Packages.TryGetValue(dependency.Name, out PackageLockEntry? locked) == true
-				&& Matches(dependency, locked.Version))
-			{
-				if (!TryFindCatalogVersion(dependency.Name, locked.Identity, locked.Version, out PackageCatalog? lockedCatalog, out PackageCatalogVersion? lockedVersion, out PackageSourceLocation? lockedSource, out error))
-					return false;
-				ResolvedPackage lockedPackage = new(dependency.Name, locked.Identity, locked.Version, lockedCatalog!, lockedVersion!, lockedSource!);
-				resolved[dependency.Name] = lockedPackage;
-				foreach (PackageDependencySpec transitive in lockedVersion!.Dependencies)
-					if (!TryResolveDependency(transitive, direct: false, out error))
-						return false;
-				return true;
-			}
+            bool shouldUpgrade = upgradeAll || direct && upgradeName is not null && dependency.Name.Equals(upgradeName, StringComparison.Ordinal);
+            if (!shouldUpgrade
+                && existingLock?.Packages.TryGetValue(dependency.Name, out PackageLockEntry? locked) == true
+                && Matches(dependency, locked.Version))
+            {
+                if (!TryFindCatalogVersion(dependency.Name, locked.Identity, locked.Version, out PackageCatalog? lockedCatalog, out PackageCatalogVersion? lockedVersion, out PackageSourceLocation? lockedSource, out error))
+                    return false;
+                ResolvedPackage lockedPackage = new(dependency.Name, locked.Identity, locked.Version, lockedCatalog!, lockedVersion!, lockedSource!);
+                resolved[dependency.Name] = lockedPackage;
+                foreach (PackageDependencySpec transitive in lockedVersion!.Dependencies)
+                    if (!TryResolveDependency(transitive, direct: false, out error))
+                        return false;
+                return true;
+            }
 
-			if (!TryFindBestCatalogVersion(dependency, out PackageCatalog? catalog, out PackageCatalogVersion? version, out PackageSourceLocation? source, out error))
-				return false;
-			ResolvedPackage package = new(dependency.Name, catalog!.Identity, version!.Version, catalog, version, source!);
-			resolved[dependency.Name] = package;
-			foreach (PackageDependencySpec transitive in version.Dependencies)
-				if (!TryResolveDependency(transitive, direct: false, out error))
-					return false;
-			return true;
-		}
+            if (!TryFindBestCatalogVersion(dependency, out PackageCatalog? catalog, out PackageCatalogVersion? version, out PackageSourceLocation? source, out error))
+                return false;
+            ResolvedPackage package = new(dependency.Name, catalog!.Identity, version!.Version, catalog, version, source!);
+            resolved[dependency.Name] = package;
+            foreach (PackageDependencySpec transitive in version.Dependencies)
+                if (!TryResolveDependency(transitive, direct: false, out error))
+                    return false;
+            return true;
+        }
 
-		bool TryFindCatalogVersion(string packageName, string identity, PackageSelectedVersion version, out PackageCatalog? catalog, out PackageCatalogVersion? catalogVersion, out PackageSourceLocation? source, out string? error)
-		{
-			catalog = null;
-			catalogVersion = null;
-			source = null;
-			error = null;
-			foreach (PackageSourceLocation location in locations)
-			{
-				if (!TryLoadCatalog(packageName, location, out PackageCatalog? candidate, out error))
-					continue;
-				if (!candidate!.Identity.Equals(identity, StringComparison.Ordinal))
-					continue;
-				if (candidate.Versions.TryGetValue(version, out PackageCatalogVersion? selected))
-				{
-					catalog = candidate;
-					catalogVersion = selected;
-					source = location;
-					return true;
-				}
-			}
-			error = $"Package '{packageName}/{version}' is locked but not installed and could not be found in configured package sources. Add a package source or update the lock with 'campc restore --upgrade {packageName}'.";
-			return false;
-		}
+        bool TryFindCatalogVersion(string packageName, string identity, PackageSelectedVersion version, out PackageCatalog? catalog, out PackageCatalogVersion? catalogVersion, out PackageSourceLocation? source, out string? error)
+        {
+            catalog = null;
+            catalogVersion = null;
+            source = null;
+            error = null;
+            foreach (PackageSourceLocation location in locations)
+            {
+                if (!TryLoadCatalog(packageName, location, out PackageCatalog? candidate, out error))
+                    continue;
+                if (!candidate!.Identity.Equals(identity, StringComparison.Ordinal))
+                    continue;
+                if (candidate.Versions.TryGetValue(version, out PackageCatalogVersion? selected))
+                {
+                    catalog = candidate;
+                    catalogVersion = selected;
+                    source = location;
+                    return true;
+                }
+            }
+            error = $"Package '{packageName}/{version}' is locked but not installed and could not be found in configured package sources. Add a package source or update the lock with 'campc restore --upgrade {packageName}'.";
+            return false;
+        }
 
-		bool TryFindBestCatalogVersion(PackageDependencySpec dependency, out PackageCatalog? catalog, out PackageCatalogVersion? version, out PackageSourceLocation? source, out string? error)
-		{
-			catalog = null;
-			version = null;
-			source = null;
-			error = null;
-			string? identity = null;
-			foreach (PackageSourceLocation location in locations)
-			{
-				if (!TryLoadCatalog(dependency.Name, location, out PackageCatalog? candidate, out string? catalogError))
-				{
-					error ??= catalogError;
-					continue;
-				}
-				if (identity is not null && !identity.Equals(candidate!.Identity, StringComparison.Ordinal))
-				{
-					error = $"Package '{dependency.Name}' has conflicting identities in configured package sources: '{identity}' and '{candidate.Identity}'.";
-					return false;
-				}
-				identity = candidate!.Identity;
-				foreach (PackageCatalogVersion item in candidate.Versions.Values.Reverse())
-				{
-					if (!Matches(dependency, item.Version))
-						continue;
-					if (version is null || item.Version.CompareTo(version.Version) > 0)
-					{
-						catalog = candidate;
-						version = item;
-						source = location;
-					}
-				}
-			}
-			if (version is not null)
-				return true;
-			error = $"Package '{dependency}' could not be found in configured package sources.";
-			return false;
-		}
+        bool TryFindBestCatalogVersion(PackageDependencySpec dependency, out PackageCatalog? catalog, out PackageCatalogVersion? version, out PackageSourceLocation? source, out string? error)
+        {
+            catalog = null;
+            version = null;
+            source = null;
+            error = null;
+            string? identity = null;
+            foreach (PackageSourceLocation location in locations)
+            {
+                if (!TryLoadCatalog(dependency.Name, location, out PackageCatalog? candidate, out string? catalogError))
+                {
+                    error ??= catalogError;
+                    continue;
+                }
+                if (identity is not null && !identity.Equals(candidate!.Identity, StringComparison.Ordinal))
+                {
+                    error = $"Package '{dependency.Name}' has conflicting identities in configured package sources: '{identity}' and '{candidate.Identity}'.";
+                    return false;
+                }
+                identity = candidate!.Identity;
+                foreach (PackageCatalogVersion item in candidate.Versions.Values.Reverse())
+                {
+                    if (!Matches(dependency, item.Version))
+                        continue;
+                    if (version is null || item.Version.CompareTo(version.Version) > 0)
+                    {
+                        catalog = candidate;
+                        version = item;
+                        source = location;
+                    }
+                }
+            }
+            if (version is not null)
+                return true;
+            error = $"Package '{dependency}' could not be found in configured package sources.";
+            return false;
+        }
 
-		bool TryLoadCatalog(string packageName, PackageSourceLocation source, out PackageCatalog? catalog, out string? error)
-		{
-			string key = source.Name + ":" + packageName;
-			if (catalogs.TryGetValue(key, out catalog))
-			{
-				error = null;
-				return true;
-			}
-			if (!PackageSourceClient.TryReadText(source, packageName, "versions.ini", out string text, out error))
-				return false;
-			if (!PackageCatalog.TryParse(source.Name + ":" + packageName + "/versions.ini", text, out catalog, out List<string> errors))
-			{
-				error = string.Join(Environment.NewLine, errors);
-				return false;
-			}
-			if (!catalog!.PackageName.Equals(packageName, StringComparison.Ordinal))
-			{
-				error = $"Package source '{source.Name}' catalog for '{packageName}' declares package name '{catalog.PackageName}'.";
-				return false;
-			}
-			catalogs[key] = catalog;
-			return true;
-		}
-	}
+        bool TryLoadCatalog(string packageName, PackageSourceLocation source, out PackageCatalog? catalog, out string? error)
+        {
+            string key = source.Name + ":" + packageName;
+            if (catalogs.TryGetValue(key, out catalog))
+            {
+                error = null;
+                return true;
+            }
+            if (!PackageSourceClient.TryReadText(source, packageName, "versions.ini", out string text, out error))
+                return false;
+            if (!PackageCatalog.TryParse(source.Name + ":" + packageName + "/versions.ini", text, out catalog, out List<string> errors))
+            {
+                error = string.Join(Environment.NewLine, errors);
+                return false;
+            }
+            if (!catalog!.PackageName.Equals(packageName, StringComparison.Ordinal))
+            {
+                error = $"Package source '{source.Name}' catalog for '{packageName}' declares package name '{catalog.PackageName}'.";
+                return false;
+            }
+            catalogs[key] = catalog;
+            return true;
+        }
+    }
 
-	static bool Matches(PackageDependencySpec dependency, PackageSelectedVersion version)
-	{
-		if (dependency.SelectedVersion is not null)
-			return dependency.SelectedVersion == version;
-		return dependency.VersionExpression is null || dependency.VersionExpression.Matches(version);
-	}
+    static bool Matches(PackageDependencySpec dependency, PackageSelectedVersion version)
+    {
+        if (dependency.SelectedVersion is not null)
+            return dependency.SelectedVersion == version;
+        return dependency.VersionExpression is null || dependency.VersionExpression.Matches(version);
+    }
 
-	static string FormatVersionRequirement(PackageDependencySpec dependency)
-	{
-		if (dependency.SelectedVersion is not null)
-			return "/" + dependency.SelectedVersion;
-		if (dependency.VersionExpression is not null)
-			return "@" + dependency.VersionExpression;
-		return "any version";
-	}
+    static string FormatVersionRequirement(PackageDependencySpec dependency)
+    {
+        if (dependency.SelectedVersion is not null)
+            return "/" + dependency.SelectedVersion;
+        if (dependency.VersionExpression is not null)
+            return "@" + dependency.VersionExpression;
+        return "any version";
+    }
 
-	static bool InstallResolvedPackage(ResolvedPackage package, string projectRoot, out string? error)
-	{
-		return InstallResolvedPackageToRoot(package, Path.Combine(projectRoot, "cache", "pkg"), out error);
-	}
+    static bool InstallResolvedPackage(ResolvedPackage package, string projectRoot, out string? error)
+    {
+        return InstallResolvedPackageToRoot(package, Path.Combine(projectRoot, "cache", "pkg"), out error);
+    }
 
-	static bool InstallResolvedPackageToRoot(ResolvedPackage package, string targetRoot, out string? error)
-	{
-		string targetDirectory = Path.Combine(targetRoot, package.Name, package.Version.ToString());
-		if (Directory.Exists(Path.Combine(targetDirectory, "src")))
-		{
-			error = null;
-			return true;
-		}
-		if (!PackageSourceClient.TryReadBytes(package.Source, package.Name, package.CatalogVersion.SourceArchive, out byte[] archive, out error))
-			return false;
-		string tempDirectory = Path.Combine(targetRoot, ".tmp-" + package.Name + "-" + Guid.NewGuid().ToString("N"));
-		if (!PackageArchive.TryExtractVerified(archive, package.CatalogVersion.Sha256, tempDirectory, out error))
-			return false;
-		if (Directory.Exists(targetDirectory))
-			Directory.Delete(targetDirectory, recursive: true);
-		Directory.CreateDirectory(Path.GetDirectoryName(targetDirectory)!);
-		Directory.Move(tempDirectory, targetDirectory);
-		return true;
-	}
+    static bool InstallResolvedPackageToRoot(ResolvedPackage package, string targetRoot, out string? error)
+    {
+        string targetDirectory = Path.Combine(targetRoot, package.Name, package.Version.ToString());
+        if (Directory.Exists(Path.Combine(targetDirectory, "src")))
+        {
+            error = null;
+            return true;
+        }
+        if (!PackageSourceClient.TryReadBytes(package.Source, package.Name, package.CatalogVersion.SourceArchive, out byte[] archive, out error))
+            return false;
+        string tempDirectory = Path.Combine(targetRoot, ".tmp-" + package.Name + "-" + Guid.NewGuid().ToString("N"));
+        if (!PackageArchive.TryExtractVerified(archive, package.CatalogVersion.Sha256, tempDirectory, out error))
+            return false;
+        if (Directory.Exists(targetDirectory))
+            Directory.Delete(targetDirectory, recursive: true);
+        Directory.CreateDirectory(Path.GetDirectoryName(targetDirectory)!);
+        Directory.Move(tempDirectory, targetDirectory);
+        return true;
+    }
 
-	sealed record ResolvedPackage(string Name, string Identity, PackageSelectedVersion Version, PackageCatalog Catalog, PackageCatalogVersion CatalogVersion, PackageSourceLocation Source);
+    sealed record ResolvedPackage(string Name, string Identity, PackageSelectedVersion Version, PackageCatalog Catalog, PackageCatalogVersion CatalogVersion, PackageSourceLocation Source);
 
-	public static bool Install(PackageDependencySpec package, bool global, CliEnvironment environment, string localPackageRoot, IReadOnlyList<PackageSourceSpec> sources, out string message, out string? error)
-	{
-		error = null;
-		message = "";
-		List<PackageSourceLocation> locations = sources
-			.Where(static source => !string.IsNullOrWhiteSpace(source.Path))
-			.Select(static source => new PackageSourceLocation(source.Name, source.Path!))
-			.ToList();
-		if (locations.Count == 0)
-		{
-			error = "No package sources are configured. Use 'campc package add-source <name> <path-or-url> --global' or add --use-source to a local build configuration.";
-			return false;
-		}
-		if (!TryResolveSinglePackage(package, locations, out ResolvedPackage? resolved, out error))
-			return false;
-		string targetRoot = global ? environment.GlobalPackageRoot : localPackageRoot;
-		if (!InstallResolvedPackageToRoot(resolved!, targetRoot, out error))
-			return false;
-		message = $"installed: {resolved!.Name}@{resolved.Version}";
-		return true;
-	}
+    public static bool Install(PackageDependencySpec package, bool global, CliEnvironment environment, string localPackageRoot, IReadOnlyList<PackageSourceSpec> sources, out string message, out string? error)
+    {
+        error = null;
+        message = "";
+        List<PackageSourceLocation> locations = sources
+            .Where(static source => !string.IsNullOrWhiteSpace(source.Path))
+            .Select(static source => new PackageSourceLocation(source.Name, source.Path!))
+            .ToList();
+        if (locations.Count == 0)
+        {
+            error = "No package sources are configured. Use 'campc package add-source <name> <path-or-url> --global' or add --use-source to a local build configuration.";
+            return false;
+        }
+        if (!TryResolveSinglePackage(package, locations, out ResolvedPackage? resolved, out error))
+            return false;
+        string targetRoot = global ? environment.GlobalPackageRoot : localPackageRoot;
+        if (!InstallResolvedPackageToRoot(resolved!, targetRoot, out error))
+            return false;
+        message = $"installed: {resolved!.Name}@{resolved.Version}";
+        return true;
+    }
 
-	public static bool IsInstalled(PackageSpec package, string root)
-	{
-		string packageDirectory = Path.Combine(root, package.Name);
-		if (!Directory.Exists(packageDirectory))
-			return false;
-		if (package.Version is null)
-			return Directory.GetDirectories(packageDirectory).Length > 0;
-		return Directory.Exists(Path.Combine(packageDirectory, package.Version));
-	}
+    public static bool IsInstalled(PackageSpec package, string root)
+    {
+        string packageDirectory = Path.Combine(root, package.Name);
+        if (!Directory.Exists(packageDirectory))
+            return false;
+        if (package.Version is null)
+            return Directory.GetDirectories(packageDirectory).Length > 0;
+        return Directory.Exists(Path.Combine(packageDirectory, package.Version));
+    }
 
-	static bool TryResolveSinglePackage(PackageDependencySpec dependency, IReadOnlyList<PackageSourceLocation> locations, out ResolvedPackage? resolved, out string? error)
-	{
-		resolved = null;
-		error = null;
-		string? identity = null;
-		foreach (PackageSourceLocation location in locations)
-		{
-			if (!PackageSourceClient.TryReadText(location, dependency.Name, "versions.ini", out string text, out string? readError))
-			{
-				error ??= readError;
-				continue;
-			}
-			if (!PackageCatalog.TryParse(location.Name + ":" + dependency.Name + "/versions.ini", text, out PackageCatalog? catalog, out List<string> catalogErrors))
-			{
-				error = string.Join(Environment.NewLine, catalogErrors);
-				return false;
-			}
-			if (!catalog!.PackageName.Equals(dependency.Name, StringComparison.Ordinal))
-			{
-				error = $"Package source '{location.Name}' catalog for '{dependency.Name}' declares package name '{catalog.PackageName}'.";
-				return false;
-			}
-			if (identity is not null && !identity.Equals(catalog.Identity, StringComparison.Ordinal))
-			{
-				error = $"Package '{dependency.Name}' has conflicting identities in configured package sources: '{identity}' and '{catalog.Identity}'.";
-				return false;
-			}
-			identity = catalog.Identity;
-			foreach (PackageCatalogVersion version in catalog.Versions.Values.Reverse())
-			{
-				if (!Matches(dependency, version.Version))
-					continue;
-				if (resolved is null || version.Version.CompareTo(resolved.Version) > 0)
-					resolved = new ResolvedPackage(dependency.Name, catalog.Identity, version.Version, catalog, version, location);
-			}
-		}
-		if (resolved is not null)
-			return true;
-		error = $"Package '{dependency}' could not be found in configured package sources.";
-		return false;
-	}
+    static bool TryResolveSinglePackage(PackageDependencySpec dependency, IReadOnlyList<PackageSourceLocation> locations, out ResolvedPackage? resolved, out string? error)
+    {
+        resolved = null;
+        error = null;
+        string? identity = null;
+        foreach (PackageSourceLocation location in locations)
+        {
+            if (!PackageSourceClient.TryReadText(location, dependency.Name, "versions.ini", out string text, out string? readError))
+            {
+                error ??= readError;
+                continue;
+            }
+            if (!PackageCatalog.TryParse(location.Name + ":" + dependency.Name + "/versions.ini", text, out PackageCatalog? catalog, out List<string> catalogErrors))
+            {
+                error = string.Join(Environment.NewLine, catalogErrors);
+                return false;
+            }
+            if (!catalog!.PackageName.Equals(dependency.Name, StringComparison.Ordinal))
+            {
+                error = $"Package source '{location.Name}' catalog for '{dependency.Name}' declares package name '{catalog.PackageName}'.";
+                return false;
+            }
+            if (identity is not null && !identity.Equals(catalog.Identity, StringComparison.Ordinal))
+            {
+                error = $"Package '{dependency.Name}' has conflicting identities in configured package sources: '{identity}' and '{catalog.Identity}'.";
+                return false;
+            }
+            identity = catalog.Identity;
+            foreach (PackageCatalogVersion version in catalog.Versions.Values.Reverse())
+            {
+                if (!Matches(dependency, version.Version))
+                    continue;
+                if (resolved is null || version.Version.CompareTo(resolved.Version) > 0)
+                    resolved = new ResolvedPackage(dependency.Name, catalog.Identity, version.Version, catalog, version, location);
+            }
+        }
+        if (resolved is not null)
+            return true;
+        error = $"Package '{dependency}' could not be found in configured package sources.";
+        return false;
+    }
 
-	static bool TryParsePublishArgs(string[] args, CliEnvironment environment, out PublishRequest? request, out string? error)
-	{
-		request = null;
-		error = null;
-		string version = args[0];
-		string? buildFile = null;
-		string? name = null;
-		string? outputDirectory = null;
-		bool dryRun = false;
-		for (int i = 1; i < args.Length; i++)
-		{
-			string arg = args[i];
-			if (arg == "--name")
-			{
-				if (i + 1 >= args.Length)
-				{
-					error = "package publish --name requires a value.";
-					return false;
-				}
-				name = args[++i];
-				continue;
-			}
-			if (arg == "--pub-dir")
-			{
-				if (i + 1 >= args.Length)
-				{
-					error = "package publish --pub-dir requires a value.";
-					return false;
-				}
-				outputDirectory = Path.GetFullPath(args[++i], environment.WorkingDirectory);
-				continue;
-			}
-			if (arg == "--dry-run")
-			{
-				dryRun = true;
-				continue;
-			}
-			if (arg.StartsWith("-", StringComparison.Ordinal))
-			{
-				error = $"package publish option '{arg}' is not valid.";
-				return false;
-			}
-			if (buildFile is not null)
-			{
-				error = "package publish accepts at most one build file.";
-				return false;
-			}
-			buildFile = arg;
-		}
-		if (buildFile is null)
-		{
-			if (!CampCli.TryResolveImplicitCampbuildTarget(environment.WorkingDirectory, out buildFile, out error))
-				return false;
-		}
-		else
-		{
-			string fullPath = Path.GetFullPath(buildFile, environment.WorkingDirectory);
-			if (!File.Exists(fullPath) && !Path.HasExtension(fullPath) && File.Exists(fullPath + ".campbuild"))
-				fullPath += ".campbuild";
-			buildFile = fullPath;
-		}
-		if (!File.Exists(buildFile))
-		{
-			error = $"Build file '{buildFile}' could not be found.";
-			return false;
-		}
-		request = new PublishRequest(version, buildFile, name, outputDirectory, dryRun);
-		return true;
-	}
+    static bool TryParsePublishArgs(string[] args, CliEnvironment environment, out PublishRequest? request, out string? error)
+    {
+        request = null;
+        error = null;
+        string version = args[0];
+        string? buildFile = null;
+        string? name = null;
+        string? outputDirectory = null;
+        bool dryRun = false;
+        for (int i = 1; i < args.Length; i++)
+        {
+            string arg = args[i];
+            if (arg == "--name")
+            {
+                if (i + 1 >= args.Length)
+                {
+                    error = "package publish --name requires a value.";
+                    return false;
+                }
+                name = args[++i];
+                continue;
+            }
+            if (arg == "--pub-dir")
+            {
+                if (i + 1 >= args.Length)
+                {
+                    error = "package publish --pub-dir requires a value.";
+                    return false;
+                }
+                outputDirectory = Path.GetFullPath(args[++i], environment.WorkingDirectory);
+                continue;
+            }
+            if (arg == "--dry-run")
+            {
+                dryRun = true;
+                continue;
+            }
+            if (arg.StartsWith("-", StringComparison.Ordinal))
+            {
+                error = $"package publish option '{arg}' is not valid.";
+                return false;
+            }
+            if (buildFile is not null)
+            {
+                error = "package publish accepts at most one build file.";
+                return false;
+            }
+            buildFile = arg;
+        }
+        if (buildFile is null)
+        {
+            if (!CampCli.TryResolveImplicitCampbuildTarget(environment.WorkingDirectory, out buildFile, out error))
+                return false;
+        }
+        else
+        {
+            string fullPath = Path.GetFullPath(buildFile, environment.WorkingDirectory);
+            if (!File.Exists(fullPath) && !Path.HasExtension(fullPath) && File.Exists(fullPath + ".campbuild"))
+                fullPath += ".campbuild";
+            buildFile = fullPath;
+        }
+        if (!File.Exists(buildFile))
+        {
+            error = $"Build file '{buildFile}' could not be found.";
+            return false;
+        }
+        request = new PublishRequest(version, buildFile, name, outputDirectory, dryRun);
+        return true;
+    }
 
-	static bool TryLoadPackageBuildInputs(PublishRequest request, CliEnvironment environment, out PublishInputs? inputs, out string? error)
-	{
-		inputs = null;
-		error = null;
-		List<string> errors = [];
-		string projectRoot = Path.GetDirectoryName(request.BuildFile)!;
-		string[] expanded = ResponseFileExpander.ExpandBareBuildFiles([request.BuildFile], environment.WorkingDirectory, errors).ToArray();
-		ParsedOptions options = CommandLineOptionParser.Parse(expanded, allowPositionals: true, errors);
-		BuildOptionBag bag = new();
-		bag.Apply(options, Precedence.Local, request.BuildFile, errors);
-		List<string> sourceFiles = ExpandPackageSourcePatterns(options.Positionals, bag.ExcludePatterns, projectRoot, errors);
-		if (sourceFiles.Count == 0)
-			errors.Add("package publish requires at least one source file in the selected build file.");
-		if (errors.Count > 0)
-		{
-			error = string.Join(Environment.NewLine, errors);
-			return false;
-		}
-		string packageName = request.Name ?? bag.ProjectName ?? Path.GetFileNameWithoutExtension(request.BuildFile);
-		if (!PackageDependencySpec.TryParse(packageName, out PackageDependencySpec parsedName, out string? packageNameError) || parsedName.Name != packageName || parsedName.VersionExpression is not null || parsedName.SelectedVersion is not null || parsedName.LinkKind is not null)
-		{
-			error = $"Package name '{packageName}' is not valid: {packageNameError ?? "package names cannot include versions or dependency kinds."}";
-			return false;
-		}
-		string publicationRoot = request.OutputDirectory ?? ResolveOptionalPath(bag.PubDir, projectRoot) ?? Path.Combine(projectRoot, "pub");
-		string outputDirectory = Path.Combine(publicationRoot, packageName);
-		List<string> packageFiles = CollectPackageFiles(projectRoot, request.BuildFile, sourceFiles);
-		inputs = new PublishInputs(packageName, projectRoot, outputDirectory, request.BuildFile, packageFiles, bag.UsePackages);
-		return true;
-	}
+    static bool TryLoadPackageBuildInputs(PublishRequest request, CliEnvironment environment, out PublishInputs? inputs, out string? error)
+    {
+        inputs = null;
+        error = null;
+        List<string> errors = [];
+        string projectRoot = Path.GetDirectoryName(request.BuildFile)!;
+        string[] expanded = ResponseFileExpander.ExpandBareBuildFiles([request.BuildFile], environment.WorkingDirectory, errors).ToArray();
+        ParsedOptions options = CommandLineOptionParser.Parse(expanded, allowPositionals: true, errors);
+        BuildOptionBag bag = new();
+        bag.Apply(options, Precedence.Local, request.BuildFile, errors);
+        List<string> sourceFiles = ExpandPackageSourcePatterns(options.Positionals, bag.ExcludePatterns, projectRoot, errors);
+        if (sourceFiles.Count == 0)
+            errors.Add("package publish requires at least one source file in the selected build file.");
+        if (errors.Count > 0)
+        {
+            error = string.Join(Environment.NewLine, errors);
+            return false;
+        }
+        string packageName = request.Name ?? bag.ProjectName ?? Path.GetFileNameWithoutExtension(request.BuildFile);
+        if (!PackageDependencySpec.TryParse(packageName, out PackageDependencySpec parsedName, out string? packageNameError) || parsedName.Name != packageName || parsedName.VersionExpression is not null || parsedName.SelectedVersion is not null || parsedName.LinkKind is not null)
+        {
+            error = $"Package name '{packageName}' is not valid: {packageNameError ?? "package names cannot include versions or dependency kinds."}";
+            return false;
+        }
+        string publicationRoot = request.OutputDirectory ?? ResolveOptionalPath(bag.PubDir, projectRoot) ?? Path.Combine(projectRoot, "pub");
+        string outputDirectory = Path.Combine(publicationRoot, packageName);
+        List<string> packageFiles = CollectPackageFiles(projectRoot, request.BuildFile, sourceFiles);
+        inputs = new PublishInputs(packageName, projectRoot, outputDirectory, request.BuildFile, packageFiles, bag.UsePackages);
+        return true;
+    }
 
-	static List<string> ExpandPackageSourcePatterns(List<string> patterns, List<string> excludePatterns, string projectRoot, List<string> errors)
-	{
-		List<string> files = [];
-		HashSet<string> seen = new(StringComparer.OrdinalIgnoreCase);
-		foreach (string pattern in patterns)
-		{
-			foreach (string path in Glob.Expand(pattern, projectRoot))
-			{
-				if (!path.EndsWith(".camp", StringComparison.OrdinalIgnoreCase))
-					continue;
-				if (excludePatterns.Any(exclude => Glob.IsMatch(Path.GetRelativePath(projectRoot, path), exclude)))
-					continue;
-				if (seen.Add(path))
-					files.Add(path);
-			}
-		}
-		return files.OrderBy(static path => path, StringComparer.Ordinal).ToList();
-	}
+    static List<string> ExpandPackageSourcePatterns(List<string> patterns, List<string> excludePatterns, string projectRoot, List<string> errors)
+    {
+        List<string> files = [];
+        HashSet<string> seen = new(StringComparer.OrdinalIgnoreCase);
+        foreach (string pattern in patterns)
+        {
+            foreach (string path in Glob.Expand(pattern, projectRoot))
+            {
+                if (!path.EndsWith(".camp", StringComparison.OrdinalIgnoreCase))
+                    continue;
+                if (excludePatterns.Any(exclude => Glob.IsMatch(Path.GetRelativePath(projectRoot, path), exclude)))
+                    continue;
+                if (seen.Add(path))
+                    files.Add(path);
+            }
+        }
+        return files.OrderBy(static path => path, StringComparer.Ordinal).ToList();
+    }
 
-	static List<string> CollectPackageFiles(string projectRoot, string buildFile, IReadOnlyList<string> sourceFiles)
-	{
-		HashSet<string> files = new(StringComparer.OrdinalIgnoreCase)
-		{
-			Path.GetFullPath(buildFile)
-		};
-		foreach (string source in sourceFiles)
-		{
-			files.Add(Path.GetFullPath(source));
-			string directory = Path.GetDirectoryName(source)!;
-			foreach (string support in Directory.GetFiles(directory, "*", SearchOption.AllDirectories)
-				.Where(static path => path.EndsWith(".c", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".h", StringComparison.OrdinalIgnoreCase)))
-				files.Add(Path.GetFullPath(support));
-		}
-		foreach (string rootFile in Directory.GetFiles(projectRoot, "*", SearchOption.TopDirectoryOnly))
-		{
-			string name = Path.GetFileName(rootFile);
-			if (name.StartsWith("README", StringComparison.OrdinalIgnoreCase)
-				|| name.StartsWith("LICENSE", StringComparison.OrdinalIgnoreCase)
-				|| name.StartsWith("COPYING", StringComparison.OrdinalIgnoreCase))
-				files.Add(Path.GetFullPath(rootFile));
-		}
-		return files
-			.Where(file => IsUnderDirectory(file, projectRoot))
-			.Where(file => !IsUnderExcludedPackageDirectory(file, projectRoot))
-			.OrderBy(static file => file, StringComparer.Ordinal)
-			.ToList();
-	}
+    static List<string> CollectPackageFiles(string projectRoot, string buildFile, IReadOnlyList<string> sourceFiles)
+    {
+        HashSet<string> files = new(StringComparer.OrdinalIgnoreCase)
+        {
+            Path.GetFullPath(buildFile)
+        };
+        foreach (string source in sourceFiles)
+        {
+            files.Add(Path.GetFullPath(source));
+            string directory = Path.GetDirectoryName(source)!;
+            foreach (string support in Directory.GetFiles(directory, "*", SearchOption.AllDirectories)
+                .Where(static path => path.EndsWith(".c", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".h", StringComparison.OrdinalIgnoreCase)))
+                files.Add(Path.GetFullPath(support));
+        }
+        foreach (string rootFile in Directory.GetFiles(projectRoot, "*", SearchOption.TopDirectoryOnly))
+        {
+            string name = Path.GetFileName(rootFile);
+            if (name.StartsWith("README", StringComparison.OrdinalIgnoreCase)
+                || name.StartsWith("LICENSE", StringComparison.OrdinalIgnoreCase)
+                || name.StartsWith("COPYING", StringComparison.OrdinalIgnoreCase))
+                files.Add(Path.GetFullPath(rootFile));
+        }
+        return files
+            .Where(file => IsUnderDirectory(file, projectRoot))
+            .Where(file => !IsUnderExcludedPackageDirectory(file, projectRoot))
+            .OrderBy(static file => file, StringComparer.Ordinal)
+            .ToList();
+    }
 
-	static bool IsUnderDirectory(string path, string directory)
-	{
-		string relative = Path.GetRelativePath(directory, path);
-		return relative != "." && !relative.StartsWith("..", StringComparison.Ordinal) && !Path.IsPathRooted(relative);
-	}
+    static bool IsUnderDirectory(string path, string directory)
+    {
+        string relative = Path.GetRelativePath(directory, path);
+        return relative != "." && !relative.StartsWith("..", StringComparison.Ordinal) && !Path.IsPathRooted(relative);
+    }
 
-	static bool IsUnderExcludedPackageDirectory(string path, string projectRoot)
-	{
-		string relative = Path.GetRelativePath(projectRoot, path).Replace('\\', '/');
-		return relative.StartsWith("bin/", StringComparison.OrdinalIgnoreCase)
-			|| relative.StartsWith("cache/", StringComparison.OrdinalIgnoreCase)
-			|| relative.StartsWith("pub/", StringComparison.OrdinalIgnoreCase)
-			|| relative.Equals("packages.ini", StringComparison.OrdinalIgnoreCase);
-	}
+    static bool IsUnderExcludedPackageDirectory(string path, string projectRoot)
+    {
+        string relative = Path.GetRelativePath(projectRoot, path).Replace('\\', '/');
+        return relative.StartsWith("bin/", StringComparison.OrdinalIgnoreCase)
+            || relative.StartsWith("cache/", StringComparison.OrdinalIgnoreCase)
+            || relative.StartsWith("pub/", StringComparison.OrdinalIgnoreCase)
+            || relative.Equals("packages.ini", StringComparison.OrdinalIgnoreCase);
+    }
 
-	static bool TrySelectPublishVersion(string value, string outputDirectory, string packageName, out PackageSelectedVersion version, out string? error)
-	{
-		version = new PackageSelectedVersion(0, 0, 0);
-		error = null;
-		SortedDictionary<PackageSelectedVersion, PackageCatalogVersion> existing = [];
-		string catalogPath = Path.Combine(outputDirectory, "versions.ini");
-		if (File.Exists(catalogPath))
-		{
-			if (!PackageCatalog.TryParse(catalogPath, File.ReadAllText(catalogPath), out PackageCatalog? catalog, out List<string> errors))
-			{
-				error = string.Join(Environment.NewLine, errors);
-				return false;
-			}
-			if (!catalog!.PackageName.Equals(packageName, StringComparison.Ordinal))
-			{
-				error = $"Existing catalog '{catalogPath}' declares package '{catalog.PackageName}', not '{packageName}'.";
-				return false;
-			}
-			existing = catalog.Versions;
-		}
-		PackageSelectedVersion? latest = existing.Keys.Count == 0 ? null : existing.Keys.Max(PackageSelectedVersion.Comparer);
-		if (value is not ("+major" or "+minor" or "+patch") && !PackageSelectedVersion.TryParse(value, out _, out string? versionError))
-		{
-			error = versionError;
-			return false;
-		}
-		version = value switch
-		{
-			"+major" => latest is null ? new PackageSelectedVersion(1, 0, 0) : new PackageSelectedVersion(latest.Major + 1, 0, 0),
-			"+minor" => latest is null ? new PackageSelectedVersion(0, 1, 0) : new PackageSelectedVersion(latest.Major, latest.Minor + 1, 0),
-			"+patch" => latest is null ? new PackageSelectedVersion(0, 0, 1) : new PackageSelectedVersion(latest.Major, latest.Minor, latest.Patch + 1),
-			_ => PackageSelectedVersion.Parse(value)
-		};
-		if (existing.ContainsKey(version))
-		{
-			error = $"Package version '{packageName}@{version}' already exists in '{catalogPath}'.";
-			return false;
-		}
-		return true;
-	}
+    static bool TrySelectPublishVersion(string value, string outputDirectory, string packageName, out PackageSelectedVersion version, out string? error)
+    {
+        version = new PackageSelectedVersion(0, 0, 0);
+        error = null;
+        SortedDictionary<PackageSelectedVersion, PackageCatalogVersion> existing = [];
+        string catalogPath = Path.Combine(outputDirectory, "versions.ini");
+        if (File.Exists(catalogPath))
+        {
+            if (!PackageCatalog.TryParse(catalogPath, File.ReadAllText(catalogPath), out PackageCatalog? catalog, out List<string> errors))
+            {
+                error = string.Join(Environment.NewLine, errors);
+                return false;
+            }
+            if (!catalog!.PackageName.Equals(packageName, StringComparison.Ordinal))
+            {
+                error = $"Existing catalog '{catalogPath}' declares package '{catalog.PackageName}', not '{packageName}'.";
+                return false;
+            }
+            existing = catalog.Versions;
+        }
+        PackageSelectedVersion? latest = existing.Keys.Count == 0 ? null : existing.Keys.Max(PackageSelectedVersion.Comparer);
+        if (value is not ("+major" or "+minor" or "+patch") && !PackageSelectedVersion.TryParse(value, out _, out string? versionError))
+        {
+            error = versionError;
+            return false;
+        }
+        version = value switch
+        {
+            "+major" => latest is null ? new PackageSelectedVersion(1, 0, 0) : new PackageSelectedVersion(latest.Major + 1, 0, 0),
+            "+minor" => latest is null ? new PackageSelectedVersion(0, 1, 0) : new PackageSelectedVersion(latest.Major, latest.Minor + 1, 0),
+            "+patch" => latest is null ? new PackageSelectedVersion(0, 0, 1) : new PackageSelectedVersion(latest.Major, latest.Minor, latest.Patch + 1),
+            _ => PackageSelectedVersion.Parse(value)
+        };
+        if (existing.ContainsKey(version))
+        {
+            error = $"Package version '{packageName}@{version}' already exists in '{catalogPath}'.";
+            return false;
+        }
+        return true;
+    }
 
-	static bool TryPublish(PublishInputs inputs, PackageSelectedVersion version, out string? archiveName, out string? hash, out string? error)
-	{
-		archiveName = null;
-		hash = null;
-		error = null;
-		Directory.CreateDirectory(inputs.OutputDirectory);
-		archiveName = inputs.PackageName + "_" + version + ".zip";
-		string archivePath = Path.Combine(inputs.OutputDirectory, archiveName);
-		if (File.Exists(archivePath))
-		{
-			error = $"Package archive '{archivePath}' already exists.";
-			return false;
-		}
-		byte[] archive = PackageArchive.CreateDeterministicZip(inputs.ProjectRoot, inputs.Files);
-		hash = PackageArchive.Sha256Hex(archive);
-		File.WriteAllBytes(archivePath, archive);
+    static bool TryPublish(PublishInputs inputs, PackageSelectedVersion version, out string? archiveName, out string? hash, out string? error)
+    {
+        archiveName = null;
+        hash = null;
+        error = null;
+        Directory.CreateDirectory(inputs.OutputDirectory);
+        archiveName = inputs.PackageName + "_" + version + ".zip";
+        string archivePath = Path.Combine(inputs.OutputDirectory, archiveName);
+        if (File.Exists(archivePath))
+        {
+            error = $"Package archive '{archivePath}' already exists.";
+            return false;
+        }
+        byte[] archive = PackageArchive.CreateDeterministicZip(inputs.ProjectRoot, inputs.Files);
+        hash = PackageArchive.Sha256Hex(archive);
+        File.WriteAllBytes(archivePath, archive);
 
-		string catalogPath = Path.Combine(inputs.OutputDirectory, "versions.ini");
-		PackageCatalog catalog;
-		if (File.Exists(catalogPath))
-		{
-			if (!PackageCatalog.TryParse(catalogPath, File.ReadAllText(catalogPath), out PackageCatalog? parsed, out List<string> errors))
-			{
-				error = string.Join(Environment.NewLine, errors);
-				return false;
-			}
-			catalog = parsed!;
-		}
-		else
-		{
-			catalog = new PackageCatalog(inputs.PackageName, inputs.PackageName, new SortedDictionary<PackageSelectedVersion, PackageCatalogVersion>(PackageSelectedVersion.Comparer));
-		}
-		if (!catalog.PackageName.Equals(inputs.PackageName, StringComparison.Ordinal))
-		{
-			error = $"Existing catalog '{catalogPath}' declares package '{catalog.PackageName}', not '{inputs.PackageName}'.";
-			return false;
-		}
-		catalog.Versions[version] = new PackageCatalogVersion(
-			version,
-			hash,
-			archiveName,
-			"campc/" + StripLeadingVersionPrefix(CampBuildInfo.Version),
-			inputs.Dependencies.Select(static package => PackageDependencySpec.Parse(package.ToString())).ToList());
-		File.WriteAllText(catalogPath, catalog.Write(), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
-		return true;
-	}
+        string catalogPath = Path.Combine(inputs.OutputDirectory, "versions.ini");
+        PackageCatalog catalog;
+        if (File.Exists(catalogPath))
+        {
+            if (!PackageCatalog.TryParse(catalogPath, File.ReadAllText(catalogPath), out PackageCatalog? parsed, out List<string> errors))
+            {
+                error = string.Join(Environment.NewLine, errors);
+                return false;
+            }
+            catalog = parsed!;
+        }
+        else
+        {
+            catalog = new PackageCatalog(inputs.PackageName, inputs.PackageName, new SortedDictionary<PackageSelectedVersion, PackageCatalogVersion>(PackageSelectedVersion.Comparer));
+        }
+        if (!catalog.PackageName.Equals(inputs.PackageName, StringComparison.Ordinal))
+        {
+            error = $"Existing catalog '{catalogPath}' declares package '{catalog.PackageName}', not '{inputs.PackageName}'.";
+            return false;
+        }
+        catalog.Versions[version] = new PackageCatalogVersion(
+            version,
+            hash,
+            archiveName,
+            "campc/" + StripLeadingVersionPrefix(CampBuildInfo.Version),
+            inputs.Dependencies.Select(static package => PackageDependencySpec.Parse(package.ToString())).ToList());
+        File.WriteAllText(catalogPath, catalog.Write(), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+        return true;
+    }
 
-	static string StripLeadingVersionPrefix(string version)
-	{
-		return version.StartsWith("v", StringComparison.OrdinalIgnoreCase) && version.Length > 1 && char.IsDigit(version[1])
-			? version[1..]
-			: version;
-	}
+    static string StripLeadingVersionPrefix(string version)
+    {
+        return version.StartsWith("v", StringComparison.OrdinalIgnoreCase) && version.Length > 1 && char.IsDigit(version[1])
+            ? version[1..]
+            : version;
+    }
 
-	sealed record PublishRequest(string Version, string BuildFile, string? Name, string? OutputDirectory, bool DryRun);
-	sealed record PublishInputs(string PackageName, string ProjectRoot, string OutputDirectory, string BuildFile, IReadOnlyList<string> Files, IReadOnlyList<PackageSpec> Dependencies);
-	sealed record PackageCommandTarget(bool Global, string? File, string ProjectRoot, string CacheRoot, string SourceWriteFile, CliEnvironment Environment)
-	{
-		public string DisplayName => Global ? "global" : File!;
-	}
-	sealed record PackageSourceEntry(string Name, string Path, string Source);
+    sealed record PublishRequest(string Version, string BuildFile, string? Name, string? OutputDirectory, bool DryRun);
+    sealed record PublishInputs(string PackageName, string ProjectRoot, string OutputDirectory, string BuildFile, IReadOnlyList<string> Files, IReadOnlyList<PackageSpec> Dependencies);
+    sealed record PackageCommandTarget(bool Global, string? File, string ProjectRoot, string CacheRoot, string SourceWriteFile, CliEnvironment Environment)
+    {
+        public string DisplayName => Global ? "global" : File!;
+    }
+    sealed record PackageSourceEntry(string Name, string Path, string Source);
 
-	static bool TryResolvePackageTarget(string[] args, CliEnvironment environment, out PackageCommandTarget? target, out string[] remaining, out bool dryRun, out string? error)
-	{
-		target = null;
-		error = null;
-		dryRun = false;
-		List<string> positionals = [];
-		bool global = false;
-		foreach (string arg in args)
-		{
-			if (arg == "--global")
-			{
-				global = true;
-				continue;
-			}
-			if (arg == "--dry-run")
-			{
-				dryRun = true;
-				continue;
-			}
-			positionals.Add(arg);
-		}
-		if (global && positionals.Count > 0)
-		{
-			error = "--global cannot be combined with a local package target.";
-			remaining = [];
-			return false;
-		}
-		if (global)
-		{
-			target = new PackageCommandTarget(true, null, environment.HomeDirectory, environment.GlobalPackageRoot, environment.GlobalCampBuildPath, environment);
-			remaining = [];
-			return true;
-		}
-		if (positionals.Count > 1)
-		{
-			error = $"Package command accepts at most one target file; unexpected argument '{positionals[1]}'.";
-			remaining = [];
-			return false;
-		}
-		string? file = null;
-		if (positionals.Count == 1)
-		{
-			file = ResolveTargetFile(positionals[0], environment.WorkingDirectory);
-			if (!File.Exists(file))
-			{
-				error = $"Package target '{positionals[0]}' could not be found. Resolved path: {file}";
-				remaining = [];
-				return false;
-			}
-			if (!file.EndsWith(".campbuild", StringComparison.OrdinalIgnoreCase) && !file.EndsWith(".camp", StringComparison.OrdinalIgnoreCase))
-			{
-				error = $"Package target '{positionals[0]}' must be a .campbuild or .camp file.";
-				remaining = [];
-				return false;
-			}
-		}
-		else if (!CampCli.TryResolveImplicitCampbuildTarget(environment.WorkingDirectory, out file, out error))
-		{
-			remaining = [];
-			return false;
-		}
-		string projectRoot = Path.GetDirectoryName(file!) ?? environment.WorkingDirectory;
-		target = new PackageCommandTarget(false, file, projectRoot, Path.Combine(projectRoot, "cache", "pkg"), file!, environment);
-		remaining = [];
-		return true;
-	}
+    static bool TryResolvePackageTarget(string[] args, CliEnvironment environment, out PackageCommandTarget? target, out string[] remaining, out bool dryRun, out string? error)
+    {
+        target = null;
+        error = null;
+        dryRun = false;
+        List<string> positionals = [];
+        bool global = false;
+        foreach (string arg in args)
+        {
+            if (arg == "--global")
+            {
+                global = true;
+                continue;
+            }
+            if (arg == "--dry-run")
+            {
+                dryRun = true;
+                continue;
+            }
+            positionals.Add(arg);
+        }
+        if (global && positionals.Count > 0)
+        {
+            error = "--global cannot be combined with a local package target.";
+            remaining = [];
+            return false;
+        }
+        if (global)
+        {
+            target = new PackageCommandTarget(true, null, environment.HomeDirectory, environment.GlobalPackageRoot, environment.GlobalCampBuildPath, environment);
+            remaining = [];
+            return true;
+        }
+        if (positionals.Count > 1)
+        {
+            error = $"Package command accepts at most one target file; unexpected argument '{positionals[1]}'.";
+            remaining = [];
+            return false;
+        }
+        string? file = null;
+        if (positionals.Count == 1)
+        {
+            file = ResolveTargetFile(positionals[0], environment.WorkingDirectory);
+            if (!File.Exists(file))
+            {
+                error = $"Package target '{positionals[0]}' could not be found. Resolved path: {file}";
+                remaining = [];
+                return false;
+            }
+            if (!file.EndsWith(".campbuild", StringComparison.OrdinalIgnoreCase) && !file.EndsWith(".camp", StringComparison.OrdinalIgnoreCase))
+            {
+                error = $"Package target '{positionals[0]}' must be a .campbuild or .camp file.";
+                remaining = [];
+                return false;
+            }
+        }
+        else if (!CampCli.TryResolveImplicitCampbuildTarget(environment.WorkingDirectory, out file, out error))
+        {
+            remaining = [];
+            return false;
+        }
+        string projectRoot = Path.GetDirectoryName(file!) ?? environment.WorkingDirectory;
+        target = new PackageCommandTarget(false, file, projectRoot, Path.Combine(projectRoot, "cache", "pkg"), file!, environment);
+        remaining = [];
+        return true;
+    }
 
-	static string ResolveTargetFile(string value, string workingDirectory)
-	{
-		string fullPath = Path.GetFullPath(PathArguments.Normalize(value), workingDirectory);
-		if (!File.Exists(fullPath) && !Path.HasExtension(fullPath) && File.Exists(fullPath + ".campbuild"))
-			fullPath += ".campbuild";
-		return fullPath;
-	}
+    static string ResolveTargetFile(string value, string workingDirectory)
+    {
+        string fullPath = Path.GetFullPath(PathArguments.Normalize(value), workingDirectory);
+        if (!File.Exists(fullPath) && !Path.HasExtension(fullPath) && File.Exists(fullPath + ".campbuild"))
+            fullPath += ".campbuild";
+        return fullPath;
+    }
 
-	static bool TryLoadEffectiveSourceEntries(PackageCommandTarget target, out List<PackageSourceEntry> sources, out string? error)
-	{
-		sources = [];
-		error = null;
-		List<string> errors = [];
-		if (File.Exists(target.Environment.BaseCampBuildPath))
-			AddSourceEntriesFromBuildFile(target.Environment.BaseCampBuildPath, target.Environment.WorkingDirectory, sources, errors);
-		if (File.Exists(target.Environment.GlobalCampBuildPath))
-			AddSourceEntriesFromBuildFile(target.Environment.GlobalCampBuildPath, target.Environment.WorkingDirectory, sources, errors);
-		if (!target.Global && target.File is not null)
-			AddSourceEntriesFromTarget(target.File, target.ProjectRoot, sources, errors);
-		if (errors.Count > 0)
-		{
-			error = string.Join(Environment.NewLine, errors);
-			return false;
-		}
-		return true;
-	}
+    static bool TryLoadEffectiveSourceEntries(PackageCommandTarget target, out List<PackageSourceEntry> sources, out string? error)
+    {
+        sources = [];
+        error = null;
+        List<string> errors = [];
+        if (File.Exists(target.Environment.BaseCampBuildPath))
+            AddSourceEntriesFromBuildFile(target.Environment.BaseCampBuildPath, target.Environment.WorkingDirectory, sources, errors);
+        if (File.Exists(target.Environment.GlobalCampBuildPath))
+            AddSourceEntriesFromBuildFile(target.Environment.GlobalCampBuildPath, target.Environment.WorkingDirectory, sources, errors);
+        if (!target.Global && target.File is not null)
+            AddSourceEntriesFromTarget(target.File, target.ProjectRoot, sources, errors);
+        if (errors.Count > 0)
+        {
+            error = string.Join(Environment.NewLine, errors);
+            return false;
+        }
+        return true;
+    }
 
-	static void AddSourceEntriesFromTarget(string file, string projectRoot, List<PackageSourceEntry> sources, List<string> errors)
-	{
-		if (file.EndsWith(".campbuild", StringComparison.OrdinalIgnoreCase))
-		{
-			AddSourceEntriesFromBuildFile(file, projectRoot, sources, errors);
-			string[] expanded = ResponseFileExpander.Expand(["@" + file], projectRoot, errors).ToArray();
-			ParsedOptions options = CommandLineOptionParser.Parse(expanded, allowPositionals: true, errors);
-			foreach (string sourceFile in CampCli.ExpandSourcePatterns(options.Positionals, options.ExcludePatterns, projectRoot, errors))
-				AddSourceEntriesFromCampFile(sourceFile, projectRoot, sources, errors);
-			return;
-		}
-		AddSourceEntriesFromCampFile(file, projectRoot, sources, errors);
-	}
+    static void AddSourceEntriesFromTarget(string file, string projectRoot, List<PackageSourceEntry> sources, List<string> errors)
+    {
+        if (file.EndsWith(".campbuild", StringComparison.OrdinalIgnoreCase))
+        {
+            AddSourceEntriesFromBuildFile(file, projectRoot, sources, errors);
+            string[] expanded = ResponseFileExpander.Expand(["@" + file], projectRoot, errors).ToArray();
+            ParsedOptions options = CommandLineOptionParser.Parse(expanded, allowPositionals: true, errors);
+            foreach (string sourceFile in CampCli.ExpandSourcePatterns(options.Positionals, options.ExcludePatterns, projectRoot, errors))
+                AddSourceEntriesFromCampFile(sourceFile, projectRoot, sources, errors);
+            return;
+        }
+        AddSourceEntriesFromCampFile(file, projectRoot, sources, errors);
+    }
 
-	static void AddSourceEntriesFromBuildFile(string file, string workingDirectory, List<PackageSourceEntry> sources, List<string> errors)
-	{
-		string[] expanded = ResponseFileExpander.Expand(["@" + file], workingDirectory, errors).ToArray();
-		ParsedOptions options = CommandLineOptionParser.Parse(expanded, allowPositionals: true, errors);
-		foreach (PackageSourceSpec source in options.UseSources)
-			if (!string.IsNullOrWhiteSpace(source.Path))
-				sources.Add(new PackageSourceEntry(source.Name, source.Path!, Path.GetRelativePath(workingDirectory, file)));
-	}
+    static void AddSourceEntriesFromBuildFile(string file, string workingDirectory, List<PackageSourceEntry> sources, List<string> errors)
+    {
+        string[] expanded = ResponseFileExpander.Expand(["@" + file], workingDirectory, errors).ToArray();
+        ParsedOptions options = CommandLineOptionParser.Parse(expanded, allowPositionals: true, errors);
+        foreach (PackageSourceSpec source in options.UseSources)
+            if (!string.IsNullOrWhiteSpace(source.Path))
+                sources.Add(new PackageSourceEntry(source.Name, source.Path!, Path.GetRelativePath(workingDirectory, file)));
+    }
 
-	static void AddSourceEntriesFromCampFile(string file, string workingDirectory, List<PackageSourceEntry> sources, List<string> errors)
-	{
-		foreach (PragmaLine pragma in BuildPragmaReader.Read(file, workingDirectory, errors))
-		{
-			ParsedOptions options = CommandLineOptionParser.Parse(pragma.Tokens, allowPositionals: false, errors);
-			foreach (PackageSourceSpec source in options.UseSources)
-				if (!string.IsNullOrWhiteSpace(source.Path))
-					sources.Add(new PackageSourceEntry(source.Name, source.Path!, pragma.SourceName));
-		}
-	}
+    static void AddSourceEntriesFromCampFile(string file, string workingDirectory, List<PackageSourceEntry> sources, List<string> errors)
+    {
+        foreach (PragmaLine pragma in BuildPragmaReader.Read(file, workingDirectory, errors))
+        {
+            ParsedOptions options = CommandLineOptionParser.Parse(pragma.Tokens, allowPositionals: false, errors);
+            foreach (PackageSourceSpec source in options.UseSources)
+                if (!string.IsNullOrWhiteSpace(source.Path))
+                    sources.Add(new PackageSourceEntry(source.Name, source.Path!, pragma.SourceName));
+        }
+    }
 
-	static IReadOnlyList<PackageSourceLocation> ToLocations(IEnumerable<PackageSourceEntry> sources)
-	{
-		return sources
-			.Select(static source => new PackageSourceLocation(source.Name, source.Path))
-			.ToList();
-	}
+    static IReadOnlyList<PackageSourceLocation> ToLocations(IEnumerable<PackageSourceEntry> sources)
+    {
+        return sources
+            .Select(static source => new PackageSourceLocation(source.Name, source.Path))
+            .ToList();
+    }
 
-	static string FormatPackageForMessage(PackageSpec package) => package.Version is null ? package.Name : package.Name + "/" + package.Version;
+    static string FormatPackageForMessage(PackageSpec package) => package.Version is null ? package.Name : package.Name + "/" + package.Version;
 
-	static string? ResolveOptionalPath(string? value, string baseDirectory)
-	{
-		return string.IsNullOrWhiteSpace(value)
-			? null
-			: Path.IsPathRooted(value) ? value : Path.GetFullPath(value, baseDirectory);
-	}
+    static string? ResolveOptionalPath(string? value, string baseDirectory)
+    {
+        return string.IsNullOrWhiteSpace(value)
+            ? null
+            : Path.IsPathRooted(value) ? value : Path.GetFullPath(value, baseDirectory);
+    }
 
-	static void EditBuildPragmas(string file, Func<string, bool> keep, string? addLine)
-	{
-		Directory.CreateDirectory(Path.GetDirectoryName(file)!);
-		List<string> lines = File.Exists(file) ? File.ReadAllLines(file).ToList() : [];
-		lines = lines.Where(line =>
-		{
-			string trimmed = line.Trim();
-			return !IsEditableBuildOptionLine(trimmed) || keep(trimmed);
-		}).ToList();
-		if (addLine is not null)
-			lines.Insert(0, addLine);
-		File.WriteAllLines(file, lines, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
-	}
+    static void EditBuildPragmas(string file, Func<string, bool> keep, string? addLine)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(file)!);
+        List<string> lines = File.Exists(file) ? File.ReadAllLines(file).ToList() : [];
+        lines = lines.Where(line =>
+        {
+            string trimmed = line.Trim();
+            return !IsEditableBuildOptionLine(trimmed) || keep(trimmed);
+        }).ToList();
+        if (addLine is not null)
+            lines.Insert(0, addLine);
+        File.WriteAllLines(file, lines, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+    }
 
-	static bool IsEditableBuildOptionLine(string trimmed)
-	{
-		return trimmed.StartsWith("#build ", StringComparison.Ordinal)
-			|| trimmed.StartsWith("--use-source ", StringComparison.Ordinal);
-	}
+    static bool IsEditableBuildOptionLine(string trimmed)
+    {
+        return trimmed.StartsWith("#build ", StringComparison.Ordinal)
+            || trimmed.StartsWith("--use-source ", StringComparison.Ordinal);
+    }
 
-	static bool IsUseSourceLineForName(string line, string name)
-	{
-		string trimmed = line.Trim();
-		if (trimmed.StartsWith("#build ", StringComparison.Ordinal))
-			trimmed = trimmed["#build ".Length..].TrimStart();
-		return trimmed.StartsWith("--use-source " + name + " ", StringComparison.Ordinal)
-			|| trimmed.Equals("--use-source " + name, StringComparison.Ordinal);
-	}
+    static bool IsUseSourceLineForName(string line, string name)
+    {
+        string trimmed = line.Trim();
+        if (trimmed.StartsWith("#build ", StringComparison.Ordinal))
+            trimmed = trimmed["#build ".Length..].TrimStart();
+        return trimmed.StartsWith("--use-source " + name + " ", StringComparison.Ordinal)
+            || trimmed.Equals("--use-source " + name, StringComparison.Ordinal);
+    }
 
-	static string FormatUseSourceLine(string file, string name, string path)
-	{
-		string line = $"--use-source {name} {Quote(path)}";
-		return file.EndsWith(".camp", StringComparison.OrdinalIgnoreCase) ? "#build " + line : line;
-	}
+    static string FormatUseSourceLine(string file, string name, string path)
+    {
+        string line = $"--use-source {name} {Quote(path)}";
+        return file.EndsWith(".camp", StringComparison.OrdinalIgnoreCase) ? "#build " + line : line;
+    }
 
-	static void CopyDirectory(string source, string target)
-	{
-		if (Directory.Exists(target))
-			Directory.Delete(target, recursive: true);
-		foreach (string directory in Directory.GetDirectories(source, "*", SearchOption.AllDirectories))
-			Directory.CreateDirectory(directory.Replace(source, target, StringComparison.Ordinal));
-		Directory.CreateDirectory(target);
-		foreach (string file in Directory.GetFiles(source, "*", SearchOption.AllDirectories))
-		{
-			string destination = file.Replace(source, target, StringComparison.Ordinal);
-			Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
-			File.Copy(file, destination, overwrite: true);
-		}
-	}
+    static void CopyDirectory(string source, string target)
+    {
+        if (Directory.Exists(target))
+            Directory.Delete(target, recursive: true);
+        foreach (string directory in Directory.GetDirectories(source, "*", SearchOption.AllDirectories))
+            Directory.CreateDirectory(directory.Replace(source, target, StringComparison.Ordinal));
+        Directory.CreateDirectory(target);
+        foreach (string file in Directory.GetFiles(source, "*", SearchOption.AllDirectories))
+        {
+            string destination = file.Replace(source, target, StringComparison.Ordinal);
+            Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+            File.Copy(file, destination, overwrite: true);
+        }
+    }
 
-	static string Quote(string value) => value.Contains(' ', StringComparison.Ordinal) ? "\"" + value.Replace("\"", "\\\"", StringComparison.Ordinal) + "\"" : value;
-	static int PrintErrors(IEnumerable<string> errors) { foreach (string error in errors) Console.Error.WriteLine(error); return 1; }
-	static int Error(string message) { Console.Error.WriteLine(message); return 1; }
+    static string Quote(string value) => value.Contains(' ', StringComparison.Ordinal) ? "\"" + value.Replace("\"", "\\\"", StringComparison.Ordinal) + "\"" : value;
+    static int PrintErrors(IEnumerable<string> errors) { foreach (string error in errors) Console.Error.WriteLine(error); return 1; }
+    static int Error(string message) { Console.Error.WriteLine(message); return 1; }
 }
 
 sealed class BuildOptionBag
 {
-	readonly Dictionary<string, SingleValue> singleValues = new(StringComparer.Ordinal);
-	public List<string> ApiPatterns { get; } = [];
-	public List<string> ExcludePatterns { get; } = [];
-	public List<string> Defines { get; } = [];
-	public List<string> ConfigurationFlagDeclarations { get; } = [];
-	public List<string> ConfigurationFlagConfigurations { get; } = [];
-	public List<string> ConfigurationRequirements { get; } = [];
-	public List<string> References { get; } = [];
-	public List<string> Frameworks { get; } = [];
-	public List<string> Variants { get; } = [];
-	public List<PackageSourceSpec> UseSources { get; } = [];
-	public List<PackageSpec> UsePackages { get; } = [];
-	public List<string> ProjectReferences { get; } = [];
-	public List<string> SourcefileRoots { get; } = [];
-	public List<string> TestFilters { get; } = [];
-	public List<string> CoverageSubjects { get; } = [];
-	public bool NoStdLib { get; private set; }
-	public bool ArtifactSpecified { get; private set; }
-	public NativeBuildKind? ArtifactKind { get; private set; }
-	public DependencyLinkKind? ArtifactRestriction { get; private set; }
-	Precedence? artifactPrecedence;
-	string? artifactSource;
-	Precedence? variantPrecedence;
+    readonly Dictionary<string, SingleValue> singleValues = new(StringComparer.Ordinal);
+    public List<string> ApiPatterns { get; } = [];
+    public List<string> ExcludePatterns { get; } = [];
+    public List<string> Defines { get; } = [];
+    public List<string> ConfigurationFlagDeclarations { get; } = [];
+    public List<string> ConfigurationFlagConfigurations { get; } = [];
+    public List<string> ConfigurationRequirements { get; } = [];
+    public List<string> References { get; } = [];
+    public List<string> Frameworks { get; } = [];
+    public List<string> Variants { get; } = [];
+    public List<PackageSourceSpec> UseSources { get; } = [];
+    public List<PackageSpec> UsePackages { get; } = [];
+    public List<string> ProjectReferences { get; } = [];
+    public List<string> SourcefileRoots { get; } = [];
+    public List<string> TestFilters { get; } = [];
+    public List<string> CoverageSubjects { get; } = [];
+    public bool NoStdLib { get; private set; }
+    public bool ArtifactSpecified { get; private set; }
+    public NativeBuildKind? ArtifactKind { get; private set; }
+    public DependencyLinkKind? ArtifactRestriction { get; private set; }
+    Precedence? artifactPrecedence;
+    string? artifactSource;
+    Precedence? variantPrecedence;
 
-	public string? TargetName => Get("target");
-	public string? ProfileName => Get("profile");
-	public string? EmitKind => Get("emit");
-	public string? OutDir => Get("out-dir");
-	public string? PubDir => Get("pub-dir");
-	public string? ProjectName => Get("name");
-	public string? SubsystemName => Get("subsystem");
-	public MetadataVisibility? MetadataVisibility => Get("metadata") is string value ? ParseMetadata(value) : null;
-	public string? TestOutputDir => Get("test-output-dir");
-	public string? TestResultFormat => Get("test-result-format");
-	public string? CoverageOutputDir => Get("coverage-output-dir");
-	public string? CoverageFormat => Get("coverage-format");
-	public bool ListTests => Get("list") == "true";
-	public bool IgnoreLeaks => Get("ignore-leaks") == "true";
-	public bool Verbose => Get("verbose") == "true";
-	public bool TimingEnabled => Get("timing") == "true" || Environment.GetEnvironmentVariable("CAMP_TIMING") is string timing && timing is not "" and not "0" and not "false" and not "FALSE";
-	public string? TimingOutput => Get("timing-output");
-	public SourcefilePathMode SourcefilePathMode => Get("sourcefile-paths") switch
-	{
-		"absolute" => SourcefilePathMode.Absolute,
-		_ => SourcefilePathMode.Relative
-	};
-	public WithinAllocationPolicy? WithinAllocationPolicy => Get("within") switch
-	{
-		"explicit" => Camp.Compiler.WithinAllocationPolicy.Explicit,
-		"implicit" => Camp.Compiler.WithinAllocationPolicy.Implicit,
-		_ => null
-	};
-	public ConfigurationRequirementPolicy? ConfigurationRequirementPolicy => Get("require-policy") switch
-	{
-		"explicit" => Camp.Compiler.ConfigurationRequirementPolicy.Explicit,
-		"implicit" => Camp.Compiler.ConfigurationRequirementPolicy.Implicit,
-		_ => null
-	};
-	public bool DebugInfo => Get("debug-info") == "true";
-	public bool HasBuildOnlyOptions => Frameworks.Count > 0 || ProjectReferences.Count > 0 || ArtifactSpecified || Get("name") is not null || Get("subsystem") is not null || Get("out-dir") is not null || DebugInfo || TimingEnabled || TimingOutput is not null;
-	public bool HasTestResultOptions => Get("test-output-dir") is not null || Get("test-result-format") is not null;
-	public bool HasCoverageOptions => Get("coverage-output-dir") is not null || Get("coverage-format") is not null || CoverageSubjects.Count > 0;
+    public string? TargetName => Get("target");
+    public string? ProfileName => Get("profile");
+    public string? EmitKind => Get("emit");
+    public string? OutDir => Get("out-dir");
+    public string? PubDir => Get("pub-dir");
+    public string? ProjectName => Get("name");
+    public string? SubsystemName => Get("subsystem");
+    public MetadataVisibility? MetadataVisibility => Get("metadata") is string value ? ParseMetadata(value) : null;
+    public string? TestOutputDir => Get("test-output-dir");
+    public string? TestResultFormat => Get("test-result-format");
+    public string? CoverageOutputDir => Get("coverage-output-dir");
+    public string? CoverageFormat => Get("coverage-format");
+    public bool ListTests => Get("list") == "true";
+    public bool IgnoreLeaks => Get("ignore-leaks") == "true";
+    public bool Verbose => Get("verbose") == "true";
+    public bool TimingEnabled => Get("timing") == "true" || Environment.GetEnvironmentVariable("CAMP_TIMING") is string timing && timing is not "" and not "0" and not "false" and not "FALSE";
+    public string? TimingOutput => Get("timing-output");
+    public SourcefilePathMode SourcefilePathMode => Get("sourcefile-paths") switch
+    {
+        "absolute" => SourcefilePathMode.Absolute,
+        _ => SourcefilePathMode.Relative
+    };
+    public WithinAllocationPolicy? WithinAllocationPolicy => Get("within") switch
+    {
+        "explicit" => Camp.Compiler.WithinAllocationPolicy.Explicit,
+        "implicit" => Camp.Compiler.WithinAllocationPolicy.Implicit,
+        _ => null
+    };
+    public ConfigurationRequirementPolicy? ConfigurationRequirementPolicy => Get("require-policy") switch
+    {
+        "explicit" => Camp.Compiler.ConfigurationRequirementPolicy.Explicit,
+        "implicit" => Camp.Compiler.ConfigurationRequirementPolicy.Implicit,
+        _ => null
+    };
+    public bool DebugInfo => Get("debug-info") == "true";
+    public bool HasBuildOnlyOptions => Frameworks.Count > 0 || ProjectReferences.Count > 0 || ArtifactSpecified || Get("name") is not null || Get("subsystem") is not null || Get("out-dir") is not null || DebugInfo || TimingEnabled || TimingOutput is not null;
+    public bool HasTestResultOptions => Get("test-output-dir") is not null || Get("test-result-format") is not null;
+    public bool HasCoverageOptions => Get("coverage-output-dir") is not null || Get("coverage-format") is not null || CoverageSubjects.Count > 0;
 
-	public void Apply(ParsedOptions options, Precedence precedence, string source, List<string> errors)
-	{
-		foreach ((string key, string value) in options.SingleValues)
-			SetSingle(key, value, precedence, source, errors);
-		foreach (string pattern in options.ApiPatterns)
-			ApiPatterns.Add(pattern);
-		foreach (string pattern in options.ExcludePatterns)
-			ExcludePatterns.Add(pattern);
-		Defines.AddRange(options.Defines);
-		ConfigurationFlagDeclarations.AddRange(options.ConfigurationFlagDeclarations);
-		ConfigurationFlagConfigurations.AddRange(options.ConfigurationFlagConfigurations);
-		ConfigurationRequirements.AddRange(options.ConfigurationRequirements);
-		References.AddRange(options.References);
-		Frameworks.AddRange(options.Frameworks);
-		SourcefileRoots.AddRange(options.SourcefileRoots);
-		TestFilters.AddRange(options.TestFilters);
-		CoverageSubjects.AddRange(options.CoverageSubjects);
-		AddVariants(options.Variants, precedence);
-		UseSources.AddRange(options.UseSources);
-		UsePackages.AddRange(options.UsePackages);
-		ProjectReferences.AddRange(options.ProjectReferences);
-		if (options.NoStdLib)
-			NoStdLib = true;
-		if (options.ArtifactSpecified)
-			SetArtifact(options.ArtifactKind, options.ArtifactRestriction, precedence, source, errors);
-	}
+    public void Apply(ParsedOptions options, Precedence precedence, string source, List<string> errors)
+    {
+        foreach ((string key, string value) in options.SingleValues)
+            SetSingle(key, value, precedence, source, errors);
+        foreach (string pattern in options.ApiPatterns)
+            ApiPatterns.Add(pattern);
+        foreach (string pattern in options.ExcludePatterns)
+            ExcludePatterns.Add(pattern);
+        Defines.AddRange(options.Defines);
+        ConfigurationFlagDeclarations.AddRange(options.ConfigurationFlagDeclarations);
+        ConfigurationFlagConfigurations.AddRange(options.ConfigurationFlagConfigurations);
+        ConfigurationRequirements.AddRange(options.ConfigurationRequirements);
+        References.AddRange(options.References);
+        Frameworks.AddRange(options.Frameworks);
+        SourcefileRoots.AddRange(options.SourcefileRoots);
+        TestFilters.AddRange(options.TestFilters);
+        CoverageSubjects.AddRange(options.CoverageSubjects);
+        AddVariants(options.Variants, precedence);
+        UseSources.AddRange(options.UseSources);
+        UsePackages.AddRange(options.UsePackages);
+        ProjectReferences.AddRange(options.ProjectReferences);
+        if (options.NoStdLib)
+            NoStdLib = true;
+        if (options.ArtifactSpecified)
+            SetArtifact(options.ArtifactKind, options.ArtifactRestriction, precedence, source, errors);
+    }
 
-	public void SetArtifact(NativeBuildKind? kind, string source, List<string> errors)
-	{
-		SetArtifact(kind, null, Precedence.CommandLine, source, errors);
-	}
+    public void SetArtifact(NativeBuildKind? kind, string source, List<string> errors)
+    {
+        SetArtifact(kind, null, Precedence.CommandLine, source, errors);
+    }
 
-	void SetArtifact(NativeBuildKind? kind, DependencyLinkKind? restriction, Precedence precedence, string source, List<string> errors)
-	{
-		if (artifactPrecedence is Precedence existingPrecedence)
-		{
-			if (existingPrecedence == precedence && ArtifactKind != kind)
-				errors.Add($"{source}: --artifact conflicts with --artifact from {artifactSource}.");
-			if (existingPrecedence > precedence)
-				return;
-		}
-		ArtifactSpecified = true;
-		ArtifactKind = kind;
-		ArtifactRestriction = restriction;
-		artifactPrecedence = precedence;
-		artifactSource = source;
-	}
+    void SetArtifact(NativeBuildKind? kind, DependencyLinkKind? restriction, Precedence precedence, string source, List<string> errors)
+    {
+        if (artifactPrecedence is Precedence existingPrecedence)
+        {
+            if (existingPrecedence == precedence && ArtifactKind != kind)
+                errors.Add($"{source}: --artifact conflicts with --artifact from {artifactSource}.");
+            if (existingPrecedence > precedence)
+                return;
+        }
+        ArtifactSpecified = true;
+        ArtifactKind = kind;
+        ArtifactRestriction = restriction;
+        artifactPrecedence = precedence;
+        artifactSource = source;
+    }
 
-	void SetSingle(string key, string value, Precedence precedence, string source, List<string> errors)
-	{
-		if (singleValues.TryGetValue(key, out SingleValue existing))
-		{
-			if (existing.Precedence == precedence && existing.Value != value)
-				errors.Add($"{source}: --{key} conflicts with --{key} from {existing.Source}.");
-			if (existing.Precedence > precedence)
-				return;
-		}
-		singleValues[key] = new SingleValue(value, precedence, source);
-	}
+    void SetSingle(string key, string value, Precedence precedence, string source, List<string> errors)
+    {
+        if (singleValues.TryGetValue(key, out SingleValue existing))
+        {
+            if (existing.Precedence == precedence && existing.Value != value)
+                errors.Add($"{source}: --{key} conflicts with --{key} from {existing.Source}.");
+            if (existing.Precedence > precedence)
+                return;
+        }
+        singleValues[key] = new SingleValue(value, precedence, source);
+    }
 
-	void AddVariants(IReadOnlyList<string> variants, Precedence precedence)
-	{
-		if (variants.Count == 0)
-			return;
-		if (variantPrecedence is Precedence existing && existing < precedence)
-			Variants.Clear();
-		if (variantPrecedence is null || variantPrecedence <= precedence)
-		{
-			Variants.AddRange(variants);
-			variantPrecedence = precedence;
-		}
-	}
+    void AddVariants(IReadOnlyList<string> variants, Precedence precedence)
+    {
+        if (variants.Count == 0)
+            return;
+        if (variantPrecedence is Precedence existing && existing < precedence)
+            Variants.Clear();
+        if (variantPrecedence is null || variantPrecedence <= precedence)
+        {
+            Variants.AddRange(variants);
+            variantPrecedence = precedence;
+        }
+    }
 
-	string? Get(string key) => singleValues.TryGetValue(key, out SingleValue value) ? value.Value : null;
+    string? Get(string key) => singleValues.TryGetValue(key, out SingleValue value) ? value.Value : null;
 
-	static MetadataVisibility? ParseMetadata(string value)
-	{
-		return value.Trim().ToLowerInvariant() switch
-		{
-			"none" => Camp.Compiler.MetadataVisibility.None,
-			"export" => Camp.Compiler.MetadataVisibility.Export,
-			"public" => Camp.Compiler.MetadataVisibility.Public,
-			"all" => Camp.Compiler.MetadataVisibility.All,
-			_ => null
-		};
-	}
+    static MetadataVisibility? ParseMetadata(string value)
+    {
+        return value.Trim().ToLowerInvariant() switch
+        {
+            "none" => Camp.Compiler.MetadataVisibility.None,
+            "export" => Camp.Compiler.MetadataVisibility.Export,
+            "public" => Camp.Compiler.MetadataVisibility.Public,
+            "all" => Camp.Compiler.MetadataVisibility.All,
+            _ => null
+        };
+    }
 
-	readonly record struct SingleValue(string Value, Precedence Precedence, string Source);
+    readonly record struct SingleValue(string Value, Precedence Precedence, string Source);
 }
 
 sealed class ParsedOptions
 {
-	public List<string> Positionals { get; } = [];
-	public List<(string Key, string Value)> SingleValues { get; } = [];
-	public List<string> ApiPatterns { get; } = [];
-	public List<string> ExcludePatterns { get; } = [];
-	public List<string> Defines { get; } = [];
-	public List<string> ConfigurationFlagDeclarations { get; } = [];
-	public List<string> ConfigurationFlagConfigurations { get; } = [];
-	public List<string> ConfigurationRequirements { get; } = [];
-	public List<string> References { get; } = [];
-	public List<string> Frameworks { get; } = [];
-	public List<string> Variants { get; } = [];
-	public List<PackageSourceSpec> UseSources { get; } = [];
-	public List<PackageSpec> UsePackages { get; } = [];
-	public List<string> ProjectReferences { get; } = [];
-	public List<string> SourcefileRoots { get; } = [];
-	public List<string> TestFilters { get; } = [];
-	public List<string> CoverageSubjects { get; } = [];
-	public bool NoStdLib { get; set; }
-	public bool ArtifactSpecified { get; set; }
-	public NativeBuildKind? ArtifactKind { get; set; }
-	public DependencyLinkKind? ArtifactRestriction { get; set; }
+    public List<string> Positionals { get; } = [];
+    public List<(string Key, string Value)> SingleValues { get; } = [];
+    public List<string> ApiPatterns { get; } = [];
+    public List<string> ExcludePatterns { get; } = [];
+    public List<string> Defines { get; } = [];
+    public List<string> ConfigurationFlagDeclarations { get; } = [];
+    public List<string> ConfigurationFlagConfigurations { get; } = [];
+    public List<string> ConfigurationRequirements { get; } = [];
+    public List<string> References { get; } = [];
+    public List<string> Frameworks { get; } = [];
+    public List<string> Variants { get; } = [];
+    public List<PackageSourceSpec> UseSources { get; } = [];
+    public List<PackageSpec> UsePackages { get; } = [];
+    public List<string> ProjectReferences { get; } = [];
+    public List<string> SourcefileRoots { get; } = [];
+    public List<string> TestFilters { get; } = [];
+    public List<string> CoverageSubjects { get; } = [];
+    public bool NoStdLib { get; set; }
+    public bool ArtifactSpecified { get; set; }
+    public NativeBuildKind? ArtifactKind { get; set; }
+    public DependencyLinkKind? ArtifactRestriction { get; set; }
 }
 
 static class CommandLineOptionParser
 {
-	public static ParsedOptions Parse(IReadOnlyList<string> tokens, bool allowPositionals, List<string> errors)
-	{
-		ParsedOptions result = new();
-		for (int i = 0; i < tokens.Count; i++)
-		{
-			string token = tokens[i];
-			switch (token)
-			{
-				case "--inspect":
-					errors.Add("--inspect has been replaced by 'dump <kind>'.");
-					i += HasValue(tokens, i) ? 1 : 0;
-					break;
-				case "--build":
-				case "-b":
-					errors.Add("--build/-b has been replaced by --artifact.");
-					i += HasValue(tokens, i) ? 1 : 0;
-					break;
-				case "--emit-metadata":
-					errors.Add("--emit-metadata has been replaced by --metadata.");
-					i += HasValue(tokens, i) ? 1 : 0;
-					break;
-				case "--target":
-				case "-t":
-					AddSingle(result, "target", RequiredValue(tokens, ref i, token, errors));
-					break;
-				case "--profile":
-				case "-p":
-					AddSingle(result, "profile", RequiredValue(tokens, ref i, token, errors));
-					break;
-				case "--memory-model":
-					errors.Add("--memory-model has been replaced by --variant.");
-					i += HasValue(tokens, i) ? 1 : 0;
-					break;
-				case "--variant":
-					result.Variants.AddRange(RequiredValues(tokens, ref i, token, errors));
-					break;
-				case "--verbose":
-				case "-v":
-					AddSingle(result, "verbose", "true");
-					break;
-				case "--timing":
-					AddSingle(result, "timing", "true");
-					break;
-				case "--timing-output":
-					AddSingle(result, "timing-output", PathArguments.Normalize(RequiredValue(tokens, ref i, token, errors)));
-					break;
-				case "--emit":
-					AddSingle(result, "emit", RequiredValue(tokens, ref i, token, errors));
-					break;
-				case "--debug-info":
-					AddSingle(result, "debug-info", "true");
-					break;
-				case "--metadata":
-					string metadata = RequiredValue(tokens, ref i, token, errors);
-					if (metadata is not ("none" or "export" or "public" or "all"))
-						errors.Add("--metadata expects none, export, public, or all.");
-					AddSingle(result, "metadata", metadata);
-					break;
-				case "--explicit-within":
-					AddSingle(result, "within", "explicit");
-					break;
-				case "--implicit-within":
-					AddSingle(result, "within", "implicit");
-					break;
-				case "--explicit-requires":
-					AddSingle(result, "require-policy", "explicit");
-					break;
-				case "--implicit-requires":
-					AddSingle(result, "require-policy", "implicit");
-					break;
-				case "--artifact":
-					string artifact = RequiredValue(tokens, ref i, token, errors);
-					result.ArtifactSpecified = true;
-					result.ArtifactRestriction = artifact switch
-					{
-						"only-static" => DependencyLinkKind.Static,
-						"only-shared" => DependencyLinkKind.Shared,
-						_ => null
-					};
-					result.ArtifactKind = artifact switch
-					{
-						"none" => null,
-						"exec" => NativeBuildKind.Exec,
-						"static" => NativeBuildKind.Static,
-						"shared" => NativeBuildKind.Shared,
-						"only-static" => NativeBuildKind.Static,
-						"only-shared" => NativeBuildKind.Shared,
-						"winexe" => InvalidArtifact("winexe has been removed. Use --artifact exec --subsystem windows.", errors),
-						_ => InvalidArtifact("--artifact expects exec, static, shared, only-static, only-shared, or none.", errors)
-					};
-					break;
-				case "--name":
-					AddSingle(result, "name", RequiredValue(tokens, ref i, token, errors));
-					break;
-				case "--subsystem":
-					AddSingle(result, "subsystem", RequiredValue(tokens, ref i, token, errors).ToLowerInvariant());
-					break;
-				case "--out-dir":
-					AddSingle(result, "out-dir", PathArguments.Normalize(RequiredValue(tokens, ref i, token, errors)));
-					break;
-				case "--pub-dir":
-					AddSingle(result, "pub-dir", PathArguments.Normalize(RequiredValue(tokens, ref i, token, errors)));
-					break;
-				case "--sourcefile-paths":
-					string sourcefilePaths = RequiredValue(tokens, ref i, token, errors);
-					if (sourcefilePaths is not ("relative" or "absolute"))
-						errors.Add("--sourcefile-paths expects relative or absolute.");
-					AddSingle(result, "sourcefile-paths", sourcefilePaths);
-					break;
-				case "--sourcefile-root":
-					result.SourcefileRoots.Add(PathArguments.Normalize(RequiredValue(tokens, ref i, token, errors)));
-					break;
-				case "--test-output-dir":
-					AddSingle(result, "test-output-dir", PathArguments.Normalize(RequiredValue(tokens, ref i, token, errors)));
-					break;
-				case "--test-result-format":
-					string testResultFormat = RequiredValue(tokens, ref i, token, errors);
-					if (testResultFormat is not ("text" or "json" or "text,json"))
-						errors.Add("--test-result-format expects text, json, or text,json.");
-					AddSingle(result, "test-result-format", testResultFormat);
-					break;
-				case "--coverage-output-dir":
-					AddSingle(result, "coverage-output-dir", PathArguments.Normalize(RequiredValue(tokens, ref i, token, errors)));
-					break;
-				case "--coverage-format":
-					string coverageFormat = RequiredValue(tokens, ref i, token, errors);
-					if (coverageFormat is not ("json" or "lcov" or "json,lcov"))
-						errors.Add("--coverage-format expects json, lcov, or json,lcov.");
-					AddSingle(result, "coverage-format", coverageFormat);
-					break;
-				case "--coverage-subject":
-					result.CoverageSubjects.Add(RequiredValue(tokens, ref i, token, errors));
-					break;
-				case "--list":
-					AddSingle(result, "list", "true");
-					break;
-				case "--ignore-leaks":
-					AddSingle(result, "ignore-leaks", "true");
-					break;
-				case "--filter":
-					result.TestFilters.AddRange(RequiredValues(tokens, ref i, token, errors));
-					break;
-				case "--build-dir":
-					errors.Add("--build-dir has been removed. Build intermediates are written to the output artifact directory's build subdirectory.");
-					i += HasValue(tokens, i) ? 1 : 0;
-					break;
-				case "--api":
-					result.ApiPatterns.Add(PathArguments.Normalize(RequiredValue(tokens, ref i, token, errors)));
-					break;
-				case "--exclude":
-					result.ExcludePatterns.Add(PathArguments.Normalize(RequiredValue(tokens, ref i, token, errors)));
-					break;
-				case "--define":
-					result.Defines.Add(RequiredValue(tokens, ref i, token, errors));
-					break;
-				case "--declare":
-				case "-d":
-					result.ConfigurationFlagDeclarations.Add(RequiredValue(tokens, ref i, token, errors));
-					break;
-				case "--configure":
-				case "-c":
-					result.ConfigurationFlagConfigurations.Add(RequiredValue(tokens, ref i, token, errors));
-					break;
-				case "--requires":
-					result.ConfigurationRequirements.Add(RequiredValue(tokens, ref i, token, errors));
-					break;
-				case "--reference":
-				case "-r":
-					result.References.AddRange(RequiredValues(tokens, ref i, token, errors).Select(PathArguments.NormalizeIfPathLike));
-					break;
-				case "--framework":
-				case "-f":
-					result.Frameworks.AddRange(RequiredValues(tokens, ref i, token, errors));
-					break;
-				case "--use":
-				case "-u":
-					result.UsePackages.Add(PackageSpec.Parse(RequiredValue(tokens, ref i, token, errors), errors));
-					break;
-				case "--project-reference":
-					string projectReference = PathArguments.Normalize(RequiredValue(tokens, ref i, token, errors));
-					ProjectReferenceSpec.Parse(projectReference, errors);
-					result.ProjectReferences.Add(projectReference);
-					break;
-				case "--use-source":
-					string name = RequiredValue(tokens, ref i, token, errors);
-					string? path = null;
-					if (i + 1 < tokens.Count && !tokens[i + 1].StartsWith("-", StringComparison.Ordinal))
-						path = PathArguments.Normalize(tokens[++i]);
-					result.UseSources.Add(new PackageSourceSpec(name, path));
-					break;
-				case "--nostdlib":
-					result.NoStdLib = true;
-					break;
-				default:
-					if (token.StartsWith("-", StringComparison.Ordinal))
-						errors.Add($"Unknown option '{token}'.");
-					else if (allowPositionals)
-						result.Positionals.Add(PathArguments.Normalize(token));
-					else
-						errors.Add($"Unexpected build pragma argument '{token}'.");
-					break;
-			}
-		}
-		return result;
-	}
+    public static ParsedOptions Parse(IReadOnlyList<string> tokens, bool allowPositionals, List<string> errors)
+    {
+        ParsedOptions result = new();
+        for (int i = 0; i < tokens.Count; i++)
+        {
+            string token = tokens[i];
+            switch (token)
+            {
+                case "--inspect":
+                    errors.Add("--inspect has been replaced by 'dump <kind>'.");
+                    i += HasValue(tokens, i) ? 1 : 0;
+                    break;
+                case "--build":
+                case "-b":
+                    errors.Add("--build/-b has been replaced by --artifact.");
+                    i += HasValue(tokens, i) ? 1 : 0;
+                    break;
+                case "--emit-metadata":
+                    errors.Add("--emit-metadata has been replaced by --metadata.");
+                    i += HasValue(tokens, i) ? 1 : 0;
+                    break;
+                case "--target":
+                case "-t":
+                    AddSingle(result, "target", RequiredValue(tokens, ref i, token, errors));
+                    break;
+                case "--profile":
+                case "-p":
+                    AddSingle(result, "profile", RequiredValue(tokens, ref i, token, errors));
+                    break;
+                case "--memory-model":
+                    errors.Add("--memory-model has been replaced by --variant.");
+                    i += HasValue(tokens, i) ? 1 : 0;
+                    break;
+                case "--variant":
+                    result.Variants.AddRange(RequiredValues(tokens, ref i, token, errors));
+                    break;
+                case "--verbose":
+                case "-v":
+                    AddSingle(result, "verbose", "true");
+                    break;
+                case "--timing":
+                    AddSingle(result, "timing", "true");
+                    break;
+                case "--timing-output":
+                    AddSingle(result, "timing-output", PathArguments.Normalize(RequiredValue(tokens, ref i, token, errors)));
+                    break;
+                case "--emit":
+                    AddSingle(result, "emit", RequiredValue(tokens, ref i, token, errors));
+                    break;
+                case "--debug-info":
+                    AddSingle(result, "debug-info", "true");
+                    break;
+                case "--metadata":
+                    string metadata = RequiredValue(tokens, ref i, token, errors);
+                    if (metadata is not ("none" or "export" or "public" or "all"))
+                        errors.Add("--metadata expects none, export, public, or all.");
+                    AddSingle(result, "metadata", metadata);
+                    break;
+                case "--explicit-within":
+                    AddSingle(result, "within", "explicit");
+                    break;
+                case "--implicit-within":
+                    AddSingle(result, "within", "implicit");
+                    break;
+                case "--explicit-requires":
+                    AddSingle(result, "require-policy", "explicit");
+                    break;
+                case "--implicit-requires":
+                    AddSingle(result, "require-policy", "implicit");
+                    break;
+                case "--artifact":
+                    string artifact = RequiredValue(tokens, ref i, token, errors);
+                    result.ArtifactSpecified = true;
+                    result.ArtifactRestriction = artifact switch
+                    {
+                        "only-static" => DependencyLinkKind.Static,
+                        "only-shared" => DependencyLinkKind.Shared,
+                        _ => null
+                    };
+                    result.ArtifactKind = artifact switch
+                    {
+                        "none" => null,
+                        "exec" => NativeBuildKind.Exec,
+                        "static" => NativeBuildKind.Static,
+                        "shared" => NativeBuildKind.Shared,
+                        "only-static" => NativeBuildKind.Static,
+                        "only-shared" => NativeBuildKind.Shared,
+                        "winexe" => InvalidArtifact("winexe has been removed. Use --artifact exec --subsystem windows.", errors),
+                        _ => InvalidArtifact("--artifact expects exec, static, shared, only-static, only-shared, or none.", errors)
+                    };
+                    break;
+                case "--name":
+                    AddSingle(result, "name", RequiredValue(tokens, ref i, token, errors));
+                    break;
+                case "--subsystem":
+                    AddSingle(result, "subsystem", RequiredValue(tokens, ref i, token, errors).ToLowerInvariant());
+                    break;
+                case "--out-dir":
+                    AddSingle(result, "out-dir", PathArguments.Normalize(RequiredValue(tokens, ref i, token, errors)));
+                    break;
+                case "--pub-dir":
+                    AddSingle(result, "pub-dir", PathArguments.Normalize(RequiredValue(tokens, ref i, token, errors)));
+                    break;
+                case "--sourcefile-paths":
+                    string sourcefilePaths = RequiredValue(tokens, ref i, token, errors);
+                    if (sourcefilePaths is not ("relative" or "absolute"))
+                        errors.Add("--sourcefile-paths expects relative or absolute.");
+                    AddSingle(result, "sourcefile-paths", sourcefilePaths);
+                    break;
+                case "--sourcefile-root":
+                    result.SourcefileRoots.Add(PathArguments.Normalize(RequiredValue(tokens, ref i, token, errors)));
+                    break;
+                case "--test-output-dir":
+                    AddSingle(result, "test-output-dir", PathArguments.Normalize(RequiredValue(tokens, ref i, token, errors)));
+                    break;
+                case "--test-result-format":
+                    string testResultFormat = RequiredValue(tokens, ref i, token, errors);
+                    if (testResultFormat is not ("text" or "json" or "text,json"))
+                        errors.Add("--test-result-format expects text, json, or text,json.");
+                    AddSingle(result, "test-result-format", testResultFormat);
+                    break;
+                case "--coverage-output-dir":
+                    AddSingle(result, "coverage-output-dir", PathArguments.Normalize(RequiredValue(tokens, ref i, token, errors)));
+                    break;
+                case "--coverage-format":
+                    string coverageFormat = RequiredValue(tokens, ref i, token, errors);
+                    if (coverageFormat is not ("json" or "lcov" or "json,lcov"))
+                        errors.Add("--coverage-format expects json, lcov, or json,lcov.");
+                    AddSingle(result, "coverage-format", coverageFormat);
+                    break;
+                case "--coverage-subject":
+                    result.CoverageSubjects.Add(RequiredValue(tokens, ref i, token, errors));
+                    break;
+                case "--list":
+                    AddSingle(result, "list", "true");
+                    break;
+                case "--ignore-leaks":
+                    AddSingle(result, "ignore-leaks", "true");
+                    break;
+                case "--filter":
+                    result.TestFilters.AddRange(RequiredValues(tokens, ref i, token, errors));
+                    break;
+                case "--build-dir":
+                    errors.Add("--build-dir has been removed. Build intermediates are written to the output artifact directory's build subdirectory.");
+                    i += HasValue(tokens, i) ? 1 : 0;
+                    break;
+                case "--api":
+                    result.ApiPatterns.Add(PathArguments.Normalize(RequiredValue(tokens, ref i, token, errors)));
+                    break;
+                case "--exclude":
+                    result.ExcludePatterns.Add(PathArguments.Normalize(RequiredValue(tokens, ref i, token, errors)));
+                    break;
+                case "--define":
+                    result.Defines.Add(RequiredValue(tokens, ref i, token, errors));
+                    break;
+                case "--declare":
+                case "-d":
+                    result.ConfigurationFlagDeclarations.Add(RequiredValue(tokens, ref i, token, errors));
+                    break;
+                case "--configure":
+                case "-c":
+                    result.ConfigurationFlagConfigurations.Add(RequiredValue(tokens, ref i, token, errors));
+                    break;
+                case "--requires":
+                    result.ConfigurationRequirements.Add(RequiredValue(tokens, ref i, token, errors));
+                    break;
+                case "--reference":
+                case "-r":
+                    result.References.AddRange(RequiredValues(tokens, ref i, token, errors).Select(PathArguments.NormalizeIfPathLike));
+                    break;
+                case "--framework":
+                case "-f":
+                    result.Frameworks.AddRange(RequiredValues(tokens, ref i, token, errors));
+                    break;
+                case "--use":
+                case "-u":
+                    result.UsePackages.Add(PackageSpec.Parse(RequiredValue(tokens, ref i, token, errors), errors));
+                    break;
+                case "--project-reference":
+                    string projectReference = PathArguments.Normalize(RequiredValue(tokens, ref i, token, errors));
+                    ProjectReferenceSpec.Parse(projectReference, errors);
+                    result.ProjectReferences.Add(projectReference);
+                    break;
+                case "--use-source":
+                    string name = RequiredValue(tokens, ref i, token, errors);
+                    string? path = null;
+                    if (i + 1 < tokens.Count && !tokens[i + 1].StartsWith("-", StringComparison.Ordinal))
+                        path = PathArguments.Normalize(tokens[++i]);
+                    result.UseSources.Add(new PackageSourceSpec(name, path));
+                    break;
+                case "--nostdlib":
+                    result.NoStdLib = true;
+                    break;
+                default:
+                    if (token.StartsWith("-", StringComparison.Ordinal))
+                        errors.Add($"Unknown option '{token}'.");
+                    else if (allowPositionals)
+                        result.Positionals.Add(PathArguments.Normalize(token));
+                    else
+                        errors.Add($"Unexpected build pragma argument '{token}'.");
+                    break;
+            }
+        }
+        return result;
+    }
 
-	static bool HasValue(IReadOnlyList<string> tokens, int index) => index + 1 < tokens.Count && !tokens[index + 1].StartsWith("-", StringComparison.Ordinal);
-	static void AddSingle(ParsedOptions options, string key, string value) { if (!string.IsNullOrEmpty(value)) options.SingleValues.Add((key, value)); }
-	static List<string> RequiredValues(IReadOnlyList<string> tokens, ref int index, string option, List<string> errors)
-	{
-		List<string> values = [];
-		while (index + 1 < tokens.Count && !tokens[index + 1].StartsWith("-", StringComparison.Ordinal))
-		{
-			index++;
-			values.Add(tokens[index]);
-		}
-		if (values.Count == 0)
-			errors.Add($"{option} requires at least one value.");
-		return values;
-	}
+    static bool HasValue(IReadOnlyList<string> tokens, int index) => index + 1 < tokens.Count && !tokens[index + 1].StartsWith("-", StringComparison.Ordinal);
+    static void AddSingle(ParsedOptions options, string key, string value) { if (!string.IsNullOrEmpty(value)) options.SingleValues.Add((key, value)); }
+    static List<string> RequiredValues(IReadOnlyList<string> tokens, ref int index, string option, List<string> errors)
+    {
+        List<string> values = [];
+        while (index + 1 < tokens.Count && !tokens[index + 1].StartsWith("-", StringComparison.Ordinal))
+        {
+            index++;
+            values.Add(tokens[index]);
+        }
+        if (values.Count == 0)
+            errors.Add($"{option} requires at least one value.");
+        return values;
+    }
 
-	static string RequiredValue(IReadOnlyList<string> tokens, ref int index, string option, List<string> errors)
-	{
-		if (index + 1 >= tokens.Count || tokens[index + 1].StartsWith("-", StringComparison.Ordinal))
-		{
-			errors.Add($"{option} requires a value.");
-			return "";
-		}
-		return tokens[++index];
-	}
-	static NativeBuildKind? InvalidArtifact(string message, List<string> errors) { errors.Add(message); return null; }
+    static string RequiredValue(IReadOnlyList<string> tokens, ref int index, string option, List<string> errors)
+    {
+        if (index + 1 >= tokens.Count || tokens[index + 1].StartsWith("-", StringComparison.Ordinal))
+        {
+            errors.Add($"{option} requires a value.");
+            return "";
+        }
+        return tokens[++index];
+    }
+    static NativeBuildKind? InvalidArtifact(string message, List<string> errors) { errors.Add(message); return null; }
 }
 
 static class PathArguments
 {
-	public static string Normalize(string value)
-	{
-		return OperatingSystem.IsWindows()
-			? value.Replace('/', Path.DirectorySeparatorChar)
-			: value;
-	}
+    public static string Normalize(string value)
+    {
+        return OperatingSystem.IsWindows()
+            ? value.Replace('/', Path.DirectorySeparatorChar)
+            : value;
+    }
 
-	public static string NormalizeIfPathLike(string value)
-	{
-		return LooksLikePath(value) ? Normalize(value) : value;
-	}
+    public static string NormalizeIfPathLike(string value)
+    {
+        return LooksLikePath(value) ? Normalize(value) : value;
+    }
 
-	public static bool LooksLikePath(string value)
-	{
-		return value.Contains("/", StringComparison.Ordinal)
-			|| value.Contains("\\", StringComparison.Ordinal)
-			|| value.Contains("*", StringComparison.Ordinal)
-			|| value.Contains("?", StringComparison.Ordinal)
-			|| value.StartsWith(".", StringComparison.Ordinal)
-			|| value.EndsWith(".camp", StringComparison.OrdinalIgnoreCase)
-			|| value.EndsWith(".campbuild", StringComparison.OrdinalIgnoreCase)
-			|| value.EndsWith(".c", StringComparison.OrdinalIgnoreCase)
-			|| value.EndsWith(".h", StringComparison.OrdinalIgnoreCase);
-	}
+    public static bool LooksLikePath(string value)
+    {
+        return value.Contains("/", StringComparison.Ordinal)
+            || value.Contains("\\", StringComparison.Ordinal)
+            || value.Contains("*", StringComparison.Ordinal)
+            || value.Contains("?", StringComparison.Ordinal)
+            || value.StartsWith(".", StringComparison.Ordinal)
+            || value.EndsWith(".camp", StringComparison.OrdinalIgnoreCase)
+            || value.EndsWith(".campbuild", StringComparison.OrdinalIgnoreCase)
+            || value.EndsWith(".c", StringComparison.OrdinalIgnoreCase)
+            || value.EndsWith(".h", StringComparison.OrdinalIgnoreCase);
+    }
 }
 
 static class BuildPragmaReader
 {
-	public static IEnumerable<PragmaLine> Read(string file, string workingDirectory, List<string> errors)
-	{
-		string fullPath = Path.GetFullPath(file, workingDirectory);
-		if (!File.Exists(fullPath))
-			yield break;
+    public static IEnumerable<PragmaLine> Read(string file, string workingDirectory, List<string> errors)
+    {
+        string fullPath = Path.GetFullPath(file, workingDirectory);
+        if (!File.Exists(fullPath))
+            yield break;
 
-		bool beforeCode = true;
-		int lineNumber = 0;
-		foreach (string line in File.ReadLines(fullPath))
-		{
-			lineNumber++;
-			string trimmed = line.TrimStart();
-			if (trimmed.StartsWith("#build", StringComparison.Ordinal))
-			{
-				if (!beforeCode)
-				{
-					errors.Add($"{Path.GetRelativePath(workingDirectory, fullPath)}({lineNumber},1): error: #build pragmas must appear in the file prelude before any non-comment token.");
-					continue;
-				}
-				yield return new PragmaLine(Split(trimmed["#build".Length..]), $"{Path.GetRelativePath(workingDirectory, fullPath)}:{lineNumber}");
-				continue;
-			}
-			if (trimmed.StartsWith("#within", StringComparison.Ordinal))
-				continue;
-			if (IsPreludeTrivia(trimmed))
-				continue;
-			beforeCode = false;
-		}
-	}
+        bool beforeCode = true;
+        int lineNumber = 0;
+        foreach (string line in File.ReadLines(fullPath))
+        {
+            lineNumber++;
+            string trimmed = line.TrimStart();
+            if (trimmed.StartsWith("#build", StringComparison.Ordinal))
+            {
+                if (!beforeCode)
+                {
+                    errors.Add($"{Path.GetRelativePath(workingDirectory, fullPath)}({lineNumber},1): error: #build pragmas must appear in the file prelude before any non-comment token.");
+                    continue;
+                }
+                yield return new PragmaLine(Split(trimmed["#build".Length..]), $"{Path.GetRelativePath(workingDirectory, fullPath)}:{lineNumber}");
+                continue;
+            }
+            if (trimmed.StartsWith("#within", StringComparison.Ordinal))
+                continue;
+            if (IsPreludeTrivia(trimmed))
+                continue;
+            beforeCode = false;
+        }
+    }
 
-	static bool IsPreludeTrivia(string trimmed)
-	{
-		return trimmed.Length == 0
-			|| trimmed.StartsWith("//", StringComparison.Ordinal)
-			|| trimmed.StartsWith("/*", StringComparison.Ordinal)
-			|| trimmed.StartsWith("*", StringComparison.Ordinal)
-			|| trimmed.StartsWith("*/", StringComparison.Ordinal);
-	}
+    static bool IsPreludeTrivia(string trimmed)
+    {
+        return trimmed.Length == 0
+            || trimmed.StartsWith("//", StringComparison.Ordinal)
+            || trimmed.StartsWith("/*", StringComparison.Ordinal)
+            || trimmed.StartsWith("*", StringComparison.Ordinal)
+            || trimmed.StartsWith("*/", StringComparison.Ordinal);
+    }
 
-	static List<string> Split(string text)
-	{
-		List<string> tokens = [];
-		StringBuilder current = new();
-		bool inQuote = false;
-		for (int i = 0; i < text.Length; i++)
-		{
-			char ch = text[i];
-			if (inQuote)
-			{
-				if (ch == '\\' && i + 1 < text.Length && text[i + 1] is '"' or '\\')
-					current.Append(text[++i]);
-				else if (ch == '"')
-					inQuote = false;
-				else
-					current.Append(ch);
-				continue;
-			}
-			if (char.IsWhiteSpace(ch))
-			{
-				if (current.Length > 0)
-				{
-					tokens.Add(current.ToString());
-					current.Clear();
-				}
-			}
-			else if (ch == '"')
-				inQuote = true;
-			else
-				current.Append(ch);
-		}
-		if (current.Length > 0)
-			tokens.Add(current.ToString());
-		return tokens;
-	}
+    static List<string> Split(string text)
+    {
+        List<string> tokens = [];
+        StringBuilder current = new();
+        bool inQuote = false;
+        for (int i = 0; i < text.Length; i++)
+        {
+            char ch = text[i];
+            if (inQuote)
+            {
+                if (ch == '\\' && i + 1 < text.Length && text[i + 1] is '"' or '\\')
+                    current.Append(text[++i]);
+                else if (ch == '"')
+                    inQuote = false;
+                else
+                    current.Append(ch);
+                continue;
+            }
+            if (char.IsWhiteSpace(ch))
+            {
+                if (current.Length > 0)
+                {
+                    tokens.Add(current.ToString());
+                    current.Clear();
+                }
+            }
+            else if (ch == '"')
+                inQuote = true;
+            else
+                current.Append(ch);
+        }
+        if (current.Length > 0)
+            tokens.Add(current.ToString());
+        return tokens;
+    }
 }
 
 static class ResponseFileExpander
 {
-	static readonly HashSet<string> PathValueOptions = new(StringComparer.Ordinal)
-	{
-		"--api",
-		"--exclude",
-		"--out-dir",
-		"--pub-dir",
-		"--build-dir",
-		"--sourcefile-root",
-		"--test-output-dir",
-		"--coverage-output-dir",
-		"--local"
-	};
+    static readonly HashSet<string> PathValueOptions = new(StringComparer.Ordinal)
+    {
+        "--api",
+        "--exclude",
+        "--out-dir",
+        "--pub-dir",
+        "--build-dir",
+        "--sourcefile-root",
+        "--test-output-dir",
+        "--coverage-output-dir",
+        "--local"
+    };
 
-	public static List<string> Expand(IReadOnlyList<string> args, string workingDirectory, List<string> errors)
-	{
-		return Expand(args, workingDirectory, errors, []);
-	}
+    public static List<string> Expand(IReadOnlyList<string> args, string workingDirectory, List<string> errors)
+    {
+        return Expand(args, workingDirectory, errors, []);
+    }
 
-	public static int OptionValueCountForBuildRequest(string option) => OptionValueCount(option);
+    public static int OptionValueCountForBuildRequest(string option) => OptionValueCount(option);
 
-	public static List<string> ExpandBareBuildFiles(IReadOnlyList<string> args, string workingDirectory, List<string> errors)
-	{
-		List<string> expanded = [];
-		for (int i = 0; i < args.Count; i++)
-		{
-			string arg = args[i];
-			expanded.AddRange(IsBuildFileArgument(args, i, workingDirectory)
-				? Expand([arg.StartsWith('@') ? arg : "@" + arg], workingDirectory, errors)
-				: [arg]);
-		}
-		return expanded;
-	}
+    public static List<string> ExpandBareBuildFiles(IReadOnlyList<string> args, string workingDirectory, List<string> errors)
+    {
+        List<string> expanded = [];
+        for (int i = 0; i < args.Count; i++)
+        {
+            string arg = args[i];
+            expanded.AddRange(IsBuildFileArgument(args, i, workingDirectory)
+                ? Expand([arg.StartsWith('@') ? arg : "@" + arg], workingDirectory, errors)
+                : [arg]);
+        }
+        return expanded;
+    }
 
-	static bool IsBuildFileArgument(IReadOnlyList<string> args, int index, string workingDirectory)
-	{
-		string arg = args[index];
-		if (arg.StartsWith("-", StringComparison.Ordinal) || IsOptionValue(args, index))
-			return false;
-		string responseFile = ResolveResponseFile(arg.StartsWith('@') ? arg[1..] : arg, workingDirectory);
-		return File.Exists(responseFile) && Path.GetExtension(responseFile).Equals(".campbuild", StringComparison.OrdinalIgnoreCase);
-	}
+    static bool IsBuildFileArgument(IReadOnlyList<string> args, int index, string workingDirectory)
+    {
+        string arg = args[index];
+        if (arg.StartsWith("-", StringComparison.Ordinal) || IsOptionValue(args, index))
+            return false;
+        string responseFile = ResolveResponseFile(arg.StartsWith('@') ? arg[1..] : arg, workingDirectory);
+        return File.Exists(responseFile) && Path.GetExtension(responseFile).Equals(".campbuild", StringComparison.OrdinalIgnoreCase);
+    }
 
-	static bool IsOptionValue(IReadOnlyList<string> args, int index)
-	{
-		for (int i = index - 1; i >= 0; i--)
-		{
-			string token = args[i];
-			if (!token.StartsWith("-", StringComparison.Ordinal))
-				continue;
-			if (token is "--reference" or "-r" or "--framework" or "-f")
-				return true;
-			return index - i <= OptionValueCount(token);
-		}
-		return false;
-	}
+    static bool IsOptionValue(IReadOnlyList<string> args, int index)
+    {
+        for (int i = index - 1; i >= 0; i--)
+        {
+            string token = args[i];
+            if (!token.StartsWith("-", StringComparison.Ordinal))
+                continue;
+            if (token is "--reference" or "-r" or "--framework" or "-f")
+                return true;
+            return index - i <= OptionValueCount(token);
+        }
+        return false;
+    }
 
-	static int OptionValueCount(string option)
-	{
-		return option switch
-		{
-			"--target" or "-t" or "--profile" or "-p" or "--variant" or "--memory-model" or "--emit" or "--metadata" or "--artifact" or "--name" or "--subsystem" or "--out-dir" or "--pub-dir" or "--build-dir" or "--sourcefile-paths" or "--sourcefile-root" or "--test-output-dir" or "--test-result-format" or "--coverage-output-dir" or "--coverage-format" or "--coverage-subject" or "--filter" or "--api" or "--exclude" or "--define" or "--declare" or "-d" or "--configure" or "-c" or "--requires" or "--use" or "-u" or "--project-reference" => 1,
-			"--use-source" => 2,
-			_ => 0
-		};
-	}
+    static int OptionValueCount(string option)
+    {
+        return option switch
+        {
+            "--target" or "-t" or "--profile" or "-p" or "--variant" or "--memory-model" or "--emit" or "--metadata" or "--artifact" or "--name" or "--subsystem" or "--out-dir" or "--pub-dir" or "--build-dir" or "--sourcefile-paths" or "--sourcefile-root" or "--test-output-dir" or "--test-result-format" or "--coverage-output-dir" or "--coverage-format" or "--coverage-subject" or "--filter" or "--api" or "--exclude" or "--define" or "--declare" or "-d" or "--configure" or "-c" or "--requires" or "--use" or "-u" or "--project-reference" => 1,
+            "--use-source" => 2,
+            _ => 0
+        };
+    }
 
-	static List<string> Expand(IReadOnlyList<string> args, string workingDirectory, List<string> errors, HashSet<string> responseStack)
-	{
-		List<string> expanded = [];
-		foreach (string arg in args)
-		{
-			if (!arg.StartsWith('@') || arg == "@")
-			{
-				expanded.Add(arg);
-				continue;
-			}
+    static List<string> Expand(IReadOnlyList<string> args, string workingDirectory, List<string> errors, HashSet<string> responseStack)
+    {
+        List<string> expanded = [];
+        foreach (string arg in args)
+        {
+            if (!arg.StartsWith('@') || arg == "@")
+            {
+                expanded.Add(arg);
+                continue;
+            }
 
-			bool optional = arg.StartsWith("@?", StringComparison.Ordinal);
-			string responsePath = optional ? arg[2..] : arg[1..];
-			if (responsePath.Length == 0)
-			{
-				errors.Add(optional ? "Optional response file reference '@?' must specify a file." : "Response file reference '@' must specify a file.");
-				continue;
-			}
+            bool optional = arg.StartsWith("@?", StringComparison.Ordinal);
+            string responsePath = optional ? arg[2..] : arg[1..];
+            if (responsePath.Length == 0)
+            {
+                errors.Add(optional ? "Optional response file reference '@?' must specify a file." : "Response file reference '@' must specify a file.");
+                continue;
+            }
 
-			string responseFile = ResolveResponseFile(responsePath, workingDirectory);
-			if (!File.Exists(responseFile))
-			{
-				if (!optional)
-					errors.Add($"Response file '{responsePath}' could not be found.");
-				continue;
-			}
-			if (!responseStack.Add(responseFile))
-			{
-				errors.Add($"Response file '{responseFile}' includes itself recursively.");
-				continue;
-			}
+            string responseFile = ResolveResponseFile(responsePath, workingDirectory);
+            if (!File.Exists(responseFile))
+            {
+                if (!optional)
+                    errors.Add($"Response file '{responsePath}' could not be found.");
+                continue;
+            }
+            if (!responseStack.Add(responseFile))
+            {
+                errors.Add($"Response file '{responseFile}' includes itself recursively.");
+                continue;
+            }
 
-			string responseDirectory = Path.GetDirectoryName(responseFile)!;
-			List<string> tokens = TokenizeResponseFile(responseFile, errors);
-			expanded.AddRange(RebasePathArguments(Expand(tokens, responseDirectory, errors, responseStack), responseDirectory));
-			responseStack.Remove(responseFile);
-		}
-		return expanded;
-	}
+            string responseDirectory = Path.GetDirectoryName(responseFile)!;
+            List<string> tokens = TokenizeResponseFile(responseFile, errors);
+            expanded.AddRange(RebasePathArguments(Expand(tokens, responseDirectory, errors, responseStack), responseDirectory));
+            responseStack.Remove(responseFile);
+        }
+        return expanded;
+    }
 
-	static string ResolveResponseFile(string value, string workingDirectory)
-	{
-		string candidate = Path.GetFullPath(value, workingDirectory);
-		if (File.Exists(candidate) || Path.HasExtension(candidate))
-			return candidate;
-		string campbuild = candidate + ".campbuild";
-		if (File.Exists(campbuild))
-			return campbuild;
-		return candidate;
-	}
+    static string ResolveResponseFile(string value, string workingDirectory)
+    {
+        string candidate = Path.GetFullPath(value, workingDirectory);
+        if (File.Exists(candidate) || Path.HasExtension(candidate))
+            return candidate;
+        string campbuild = candidate + ".campbuild";
+        if (File.Exists(campbuild))
+            return campbuild;
+        return candidate;
+    }
 
-	static List<string> TokenizeResponseFile(string file, List<string> errors)
-	{
-		try
-		{
-			return Split(File.ReadAllText(file));
-		}
-		catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
-		{
-			errors.Add($"{file}: {ex.Message}");
-			return [];
-		}
-	}
+    static List<string> TokenizeResponseFile(string file, List<string> errors)
+    {
+        try
+        {
+            return Split(File.ReadAllText(file));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
+        {
+            errors.Add($"{file}: {ex.Message}");
+            return [];
+        }
+    }
 
-	static List<string> RebasePathArguments(IReadOnlyList<string> tokens, string baseDirectory)
-	{
-		List<string> result = [];
-		for (int i = 0; i < tokens.Count; i++)
-		{
-			string token = tokens[i];
-			result.Add(token);
+    static List<string> RebasePathArguments(IReadOnlyList<string> tokens, string baseDirectory)
+    {
+        List<string> result = [];
+        for (int i = 0; i < tokens.Count; i++)
+        {
+            string token = tokens[i];
+            result.Add(token);
 
-			if (token is "--reference" or "-r" or "--framework" or "-f")
-			{
-				while (i + 1 < tokens.Count && !tokens[i + 1].StartsWith("-", StringComparison.Ordinal))
-					result.Add(RebaseReferenceLikeValue(tokens[++i], baseDirectory));
-				continue;
-			}
+            if (token is "--reference" or "-r" or "--framework" or "-f")
+            {
+                while (i + 1 < tokens.Count && !tokens[i + 1].StartsWith("-", StringComparison.Ordinal))
+                    result.Add(RebaseReferenceLikeValue(tokens[++i], baseDirectory));
+                continue;
+            }
 
-			if (token == "--project-reference")
-			{
-				while (i + 1 < tokens.Count && !tokens[i + 1].StartsWith("-", StringComparison.Ordinal))
-					result.Add(RebaseProjectReferenceValue(tokens[++i], baseDirectory));
-				continue;
-			}
+            if (token == "--project-reference")
+            {
+                while (i + 1 < tokens.Count && !tokens[i + 1].StartsWith("-", StringComparison.Ordinal))
+                    result.Add(RebaseProjectReferenceValue(tokens[++i], baseDirectory));
+                continue;
+            }
 
-			if (token == "--use-source")
-			{
-				if (i + 1 < tokens.Count)
-					result.Add(tokens[++i]);
-				if (i + 1 < tokens.Count && !tokens[i + 1].StartsWith("-", StringComparison.Ordinal))
-					result.Add(RebasePathValue(tokens[++i], baseDirectory));
-				continue;
-			}
+            if (token == "--use-source")
+            {
+                if (i + 1 < tokens.Count)
+                    result.Add(tokens[++i]);
+                if (i + 1 < tokens.Count && !tokens[i + 1].StartsWith("-", StringComparison.Ordinal))
+                    result.Add(RebasePathValue(tokens[++i], baseDirectory));
+                continue;
+            }
 
-			if (PathValueOptions.Contains(token) && i + 1 < tokens.Count)
-			{
-				result.Add(RebasePathValue(tokens[++i], baseDirectory));
-				continue;
-			}
+            if (PathValueOptions.Contains(token) && i + 1 < tokens.Count)
+            {
+                result.Add(RebasePathValue(tokens[++i], baseDirectory));
+                continue;
+            }
 
-			if (!token.StartsWith("-", StringComparison.Ordinal))
-				result[^1] = RebaseSourcePattern(token, baseDirectory);
-		}
-		return result;
-	}
+            if (!token.StartsWith("-", StringComparison.Ordinal))
+                result[^1] = RebaseSourcePattern(token, baseDirectory);
+        }
+        return result;
+    }
 
-	static string RebaseSourcePattern(string value, string baseDirectory)
-	{
-		value = PathArguments.Normalize(value);
-		if (Path.IsPathRooted(value) || !PathArguments.LooksLikePath(value))
-			return value;
-		return Path.GetFullPath(value, baseDirectory);
-	}
+    static string RebaseSourcePattern(string value, string baseDirectory)
+    {
+        value = PathArguments.Normalize(value);
+        if (Path.IsPathRooted(value) || !PathArguments.LooksLikePath(value))
+            return value;
+        return Path.GetFullPath(value, baseDirectory);
+    }
 
-	static string RebaseReferenceLikeValue(string value, string baseDirectory)
-	{
-		value = PathArguments.NormalizeIfPathLike(value);
-		if (Path.IsPathRooted(value) || !PathArguments.LooksLikePath(value))
-			return value;
-		if (!value.Contains(Path.DirectorySeparatorChar.ToString(), StringComparison.Ordinal) && !value.Contains(Path.AltDirectorySeparatorChar.ToString(), StringComparison.Ordinal) && !value.StartsWith(".", StringComparison.Ordinal))
-			return value;
-		return Path.GetFullPath(value, baseDirectory);
-	}
+    static string RebaseReferenceLikeValue(string value, string baseDirectory)
+    {
+        value = PathArguments.NormalizeIfPathLike(value);
+        if (Path.IsPathRooted(value) || !PathArguments.LooksLikePath(value))
+            return value;
+        if (!value.Contains(Path.DirectorySeparatorChar.ToString(), StringComparison.Ordinal) && !value.Contains(Path.AltDirectorySeparatorChar.ToString(), StringComparison.Ordinal) && !value.StartsWith(".", StringComparison.Ordinal))
+            return value;
+        return Path.GetFullPath(value, baseDirectory);
+    }
 
-	static string RebasePathValue(string value, string baseDirectory)
-	{
-		value = PathArguments.Normalize(value);
-		if (IsDirectOutputPath(value))
-		{
-			string prefix = value[..^1];
-			string rebased = Path.IsPathRooted(prefix) ? prefix : Path.GetFullPath(prefix, baseDirectory);
-			return Path.Combine(rebased, ".");
-		}
-		return Path.IsPathRooted(value) ? value : Path.GetFullPath(value, baseDirectory);
-	}
+    static string RebasePathValue(string value, string baseDirectory)
+    {
+        value = PathArguments.Normalize(value);
+        if (IsDirectOutputPath(value))
+        {
+            string prefix = value[..^1];
+            string rebased = Path.IsPathRooted(prefix) ? prefix : Path.GetFullPath(prefix, baseDirectory);
+            return Path.Combine(rebased, ".");
+        }
+        return Path.IsPathRooted(value) ? value : Path.GetFullPath(value, baseDirectory);
+    }
 
-	static string RebaseProjectReferenceValue(string value, string baseDirectory)
-	{
-		ProjectReferenceSpec spec = ProjectReferenceSpec.Parse(PathArguments.Normalize(value));
-		string rebased = RebasePathValue(spec.Path, baseDirectory);
-		return spec.LinkKind is null ? rebased : rebased + ":" + spec.LinkKind.ToString()!.ToLowerInvariant();
-	}
+    static string RebaseProjectReferenceValue(string value, string baseDirectory)
+    {
+        ProjectReferenceSpec spec = ProjectReferenceSpec.Parse(PathArguments.Normalize(value));
+        string rebased = RebasePathValue(spec.Path, baseDirectory);
+        return spec.LinkKind is null ? rebased : rebased + ":" + spec.LinkKind.ToString()!.ToLowerInvariant();
+    }
 
-	static bool IsDirectOutputPath(string value)
-	{
-		string normalized = value.Replace('\\', '/');
-		return normalized == "." || normalized.EndsWith("/.", StringComparison.Ordinal);
-	}
+    static bool IsDirectOutputPath(string value)
+    {
+        string normalized = value.Replace('\\', '/');
+        return normalized == "." || normalized.EndsWith("/.", StringComparison.Ordinal);
+    }
 
-	static List<string> Split(string text)
-	{
-		List<string> tokens = [];
-		StringBuilder current = new();
-		bool inQuote = false;
-		bool atTokenStart = true;
-		for (int i = 0; i < text.Length; i++)
-		{
-			char ch = text[i];
-			if (inQuote)
-			{
-				if (ch == '\\' && i + 1 < text.Length && text[i + 1] is '"' or '\\')
-					current.Append(text[++i]);
-				else if (ch == '"')
-					inQuote = false;
-				else
-					current.Append(ch);
-				continue;
-			}
-			if (ch == '#' && atTokenStart)
-			{
-				while (i < text.Length && text[i] is not '\r' and not '\n')
-					i++;
-				atTokenStart = true;
-				continue;
-			}
-			if (char.IsWhiteSpace(ch))
-			{
-				if (current.Length > 0)
-				{
-					tokens.Add(current.ToString());
-					current.Clear();
-				}
-				atTokenStart = true;
-			}
-			else if (ch == '"')
-			{
-				inQuote = true;
-				atTokenStart = false;
-			}
-			else
-			{
-				current.Append(ch);
-				atTokenStart = false;
-			}
-		}
-		if (current.Length > 0)
-			tokens.Add(current.ToString());
-		return tokens;
-	}
+    static List<string> Split(string text)
+    {
+        List<string> tokens = [];
+        StringBuilder current = new();
+        bool inQuote = false;
+        bool atTokenStart = true;
+        for (int i = 0; i < text.Length; i++)
+        {
+            char ch = text[i];
+            if (inQuote)
+            {
+                if (ch == '\\' && i + 1 < text.Length && text[i + 1] is '"' or '\\')
+                    current.Append(text[++i]);
+                else if (ch == '"')
+                    inQuote = false;
+                else
+                    current.Append(ch);
+                continue;
+            }
+            if (ch == '#' && atTokenStart)
+            {
+                while (i < text.Length && text[i] is not '\r' and not '\n')
+                    i++;
+                atTokenStart = true;
+                continue;
+            }
+            if (char.IsWhiteSpace(ch))
+            {
+                if (current.Length > 0)
+                {
+                    tokens.Add(current.ToString());
+                    current.Clear();
+                }
+                atTokenStart = true;
+            }
+            else if (ch == '"')
+            {
+                inQuote = true;
+                atTokenStart = false;
+            }
+            else
+            {
+                current.Append(ch);
+                atTokenStart = false;
+            }
+        }
+        if (current.Length > 0)
+            tokens.Add(current.ToString());
+        return tokens;
+    }
 }
 
 static class Glob
 {
-	public static IEnumerable<string> Expand(string pattern, string workingDirectory)
-	{
-		string fullPattern = Path.GetFullPath(pattern, workingDirectory);
-		if (!HasWildcards(pattern))
-		{
-			if (File.Exists(fullPattern))
-				yield return fullPattern;
-			yield break;
-		}
+    public static IEnumerable<string> Expand(string pattern, string workingDirectory)
+    {
+        string fullPattern = Path.GetFullPath(pattern, workingDirectory);
+        if (!HasWildcards(pattern))
+        {
+            if (File.Exists(fullPattern))
+                yield return fullPattern;
+            yield break;
+        }
 
-		string root = GetSearchRoot(fullPattern);
-		if (!Directory.Exists(root))
-			yield break;
-		string relativePattern = Normalize(Path.GetRelativePath(root, fullPattern));
-		foreach (string file in Directory.GetFiles(root, "*", SearchOption.AllDirectories))
-			if (IsMatch(Normalize(Path.GetRelativePath(root, file)), relativePattern))
-				yield return file;
-	}
+        string root = GetSearchRoot(fullPattern);
+        if (!Directory.Exists(root))
+            yield break;
+        string relativePattern = Normalize(Path.GetRelativePath(root, fullPattern));
+        foreach (string file in Directory.GetFiles(root, "*", SearchOption.AllDirectories))
+            if (IsMatch(Normalize(Path.GetRelativePath(root, file)), relativePattern))
+                yield return file;
+    }
 
-	public static bool IsMatch(string path, string pattern)
-	{
-		return Regex.IsMatch(Normalize(path), "^" + GlobRegex(Normalize(pattern)) + "$", RegexOptions.CultureInvariant);
-	}
+    public static bool IsMatch(string path, string pattern)
+    {
+        return Regex.IsMatch(Normalize(path), "^" + GlobRegex(Normalize(pattern)) + "$", RegexOptions.CultureInvariant);
+    }
 
-	public static bool HasWildcards(string pattern) => pattern.IndexOfAny(['*', '?', '[']) >= 0;
-	static string GetSearchRoot(string fullPattern)
-	{
-		int wildcard = fullPattern.IndexOfAny(['*', '?', '[']);
-		string prefix = wildcard < 0 ? fullPattern : fullPattern[..wildcard];
-		string? directory = Directory.Exists(prefix) ? prefix : Path.GetDirectoryName(prefix);
-		while (!string.IsNullOrWhiteSpace(directory) && !Directory.Exists(directory))
-			directory = Path.GetDirectoryName(directory);
-		return string.IsNullOrWhiteSpace(directory) ? Directory.GetCurrentDirectory() : directory;
-	}
-	static string Normalize(string path) => path.Replace(Path.DirectorySeparatorChar, '/').Replace(Path.AltDirectorySeparatorChar, '/');
-	static string GlobRegex(string pattern)
-	{
-		return Regex.Escape(pattern)
-			.Replace("\\*\\*/", "(?:.*/)?", StringComparison.Ordinal)
-			.Replace("\\*\\*", ".*", StringComparison.Ordinal)
-			.Replace("\\*", "[^/]*", StringComparison.Ordinal)
-			.Replace("\\?", "[^/]", StringComparison.Ordinal);
-	}
+    public static bool HasWildcards(string pattern) => pattern.IndexOfAny(['*', '?', '[']) >= 0;
+    static string GetSearchRoot(string fullPattern)
+    {
+        int wildcard = fullPattern.IndexOfAny(['*', '?', '[']);
+        string prefix = wildcard < 0 ? fullPattern : fullPattern[..wildcard];
+        string? directory = Directory.Exists(prefix) ? prefix : Path.GetDirectoryName(prefix);
+        while (!string.IsNullOrWhiteSpace(directory) && !Directory.Exists(directory))
+            directory = Path.GetDirectoryName(directory);
+        return string.IsNullOrWhiteSpace(directory) ? Directory.GetCurrentDirectory() : directory;
+    }
+    static string Normalize(string path) => path.Replace(Path.DirectorySeparatorChar, '/').Replace(Path.AltDirectorySeparatorChar, '/');
+    static string GlobRegex(string pattern)
+    {
+        return Regex.Escape(pattern)
+            .Replace("\\*\\*/", "(?:.*/)?", StringComparison.Ordinal)
+            .Replace("\\*\\*", ".*", StringComparison.Ordinal)
+            .Replace("\\*", "[^/]*", StringComparison.Ordinal)
+            .Replace("\\?", "[^/]", StringComparison.Ordinal);
+    }
 }
 
 sealed record PragmaLine(IReadOnlyList<string> Tokens, string SourceName);
@@ -3435,192 +3577,192 @@ sealed record PackageSourceSpec(string Name, string? Path);
 
 sealed record PackageSpec(string Name, string? Version, DependencyLinkKind? LinkKind = null)
 {
-	public static PackageSpec Parse(string value, List<string>? errors = null)
-	{
-		DependencyLinkKind? linkKind = null;
-		int colon = value.LastIndexOf(':');
-		if (colon >= 0)
-		{
-			string suffix = value[(colon + 1)..];
-			if (suffix.Equals("static", StringComparison.OrdinalIgnoreCase) || suffix.Equals("shared", StringComparison.OrdinalIgnoreCase) || suffix.Equals("api", StringComparison.OrdinalIgnoreCase))
-			{
-				linkKind = suffix.ToLowerInvariant() switch
-				{
-					"shared" => DependencyLinkKind.Shared,
-					"static" => DependencyLinkKind.Static,
-					"api" => DependencyLinkKind.Api,
-					_ => linkKind
-				};
-				value = value[..colon];
-			}
-			else if (!string.IsNullOrWhiteSpace(suffix))
-			{
-				errors?.Add($"Package dependency kind ':{suffix}' is not valid. Expected :api, :static, or :shared.");
-			}
-		}
-		if (value.Contains('@') && value.Contains('/'))
-		{
-			errors?.Add($"Package spec '{value}' may not contain both '@' and '/'.");
-			return new PackageSpec(value, null, linkKind);
-		}
-		int separator = value.IndexOfAny(['@', '/']);
-		return separator >= 0
-			? new PackageSpec(value[..separator], separator + 1 < value.Length ? value[(separator + 1)..] : null, linkKind)
-			: new PackageSpec(value, null, linkKind);
-	}
-	public override string ToString()
-	{
-		string identity = Version is null ? Name : Name + "@" + Version;
-		return LinkKind is null ? identity : identity + ":" + LinkKind.ToString()!.ToLowerInvariant();
-	}
+    public static PackageSpec Parse(string value, List<string>? errors = null)
+    {
+        DependencyLinkKind? linkKind = null;
+        int colon = value.LastIndexOf(':');
+        if (colon >= 0)
+        {
+            string suffix = value[(colon + 1)..];
+            if (suffix.Equals("static", StringComparison.OrdinalIgnoreCase) || suffix.Equals("shared", StringComparison.OrdinalIgnoreCase) || suffix.Equals("api", StringComparison.OrdinalIgnoreCase))
+            {
+                linkKind = suffix.ToLowerInvariant() switch
+                {
+                    "shared" => DependencyLinkKind.Shared,
+                    "static" => DependencyLinkKind.Static,
+                    "api" => DependencyLinkKind.Api,
+                    _ => linkKind
+                };
+                value = value[..colon];
+            }
+            else if (!string.IsNullOrWhiteSpace(suffix))
+            {
+                errors?.Add($"Package dependency kind ':{suffix}' is not valid. Expected :api, :static, or :shared.");
+            }
+        }
+        if (value.Contains('@') && value.Contains('/'))
+        {
+            errors?.Add($"Package spec '{value}' may not contain both '@' and '/'.");
+            return new PackageSpec(value, null, linkKind);
+        }
+        int separator = value.IndexOfAny(['@', '/']);
+        return separator >= 0
+            ? new PackageSpec(value[..separator], separator + 1 < value.Length ? value[(separator + 1)..] : null, linkKind)
+            : new PackageSpec(value, null, linkKind);
+    }
+    public override string ToString()
+    {
+        string identity = Version is null ? Name : Name + "@" + Version;
+        return LinkKind is null ? identity : identity + ":" + LinkKind.ToString()!.ToLowerInvariant();
+    }
 }
 
 sealed record ProjectReferenceSpec(string Path, DependencyLinkKind? LinkKind)
 {
-	public static ProjectReferenceSpec Parse(string value, List<string>? errors = null)
-	{
-		int colon = value.LastIndexOf(':');
-		if (colon >= 0)
-		{
-			string suffix = value[(colon + 1)..];
-			if (suffix.Equals("static", StringComparison.OrdinalIgnoreCase) || suffix.Equals("shared", StringComparison.OrdinalIgnoreCase))
-				return new ProjectReferenceSpec(value[..colon], suffix.ToLowerInvariant() switch
-				{
-					"shared" => DependencyLinkKind.Shared,
-					"static" => DependencyLinkKind.Static,
-					_ => null
-				});
-			if (LooksLikeDependencyKindSuffix(value, colon))
-				errors?.Add($"Project reference dependency kind ':{suffix}' is not valid. Expected :static or :shared.");
-		}
-		return new ProjectReferenceSpec(value, null);
-	}
+    public static ProjectReferenceSpec Parse(string value, List<string>? errors = null)
+    {
+        int colon = value.LastIndexOf(':');
+        if (colon >= 0)
+        {
+            string suffix = value[(colon + 1)..];
+            if (suffix.Equals("static", StringComparison.OrdinalIgnoreCase) || suffix.Equals("shared", StringComparison.OrdinalIgnoreCase))
+                return new ProjectReferenceSpec(value[..colon], suffix.ToLowerInvariant() switch
+                {
+                    "shared" => DependencyLinkKind.Shared,
+                    "static" => DependencyLinkKind.Static,
+                    _ => null
+                });
+            if (LooksLikeDependencyKindSuffix(value, colon))
+                errors?.Add($"Project reference dependency kind ':{suffix}' is not valid. Expected :static or :shared.");
+        }
+        return new ProjectReferenceSpec(value, null);
+    }
 
-	static bool LooksLikeDependencyKindSuffix(string value, int colon)
-	{
-		if (colon == 1 && char.IsAsciiLetter(value[0]))
-			return false;
-		string suffix = value[(colon + 1)..];
-		return suffix.Length > 0 && suffix.IndexOfAny([System.IO.Path.DirectorySeparatorChar, System.IO.Path.AltDirectorySeparatorChar, '/', '\\']) < 0;
-	}
+    static bool LooksLikeDependencyKindSuffix(string value, int colon)
+    {
+        if (colon == 1 && char.IsAsciiLetter(value[0]))
+            return false;
+        string suffix = value[(colon + 1)..];
+        return suffix.Length > 0 && suffix.IndexOfAny([System.IO.Path.DirectorySeparatorChar, System.IO.Path.AltDirectorySeparatorChar, '/', '\\']) < 0;
+    }
 }
 
 sealed record ProjectReferenceBuildKey(
-	string BuildFile,
-	DependencyLinkKind LinkKind,
-	string TargetName,
-	string ProfileName,
-	string Variants,
-	bool CoverageInstrumented,
-	bool RequireLibrary);
+    string BuildFile,
+    DependencyLinkKind LinkKind,
+    string TargetName,
+    string ProfileName,
+    string Variants,
+    bool CoverageInstrumented,
+    bool RequireLibrary);
 
 sealed record ProjectReferenceResolution(
-	string ProjectName,
-	IReadOnlyList<string> ApiHeaders,
-	IReadOnlyList<string> SharedApiHeaders,
-	IReadOnlyList<string> LinkArtifacts,
-	string? CoverageMap);
+    string ProjectName,
+    IReadOnlyList<string> ApiHeaders,
+    IReadOnlyList<string> SharedApiHeaders,
+    IReadOnlyList<string> LinkArtifacts,
+    string? CoverageMap);
 
 sealed record ProjectReferenceFailure(
-	string ProjectName,
-	IReadOnlyList<string> Details);
+    string ProjectName,
+    IReadOnlyList<string> Details);
 
 sealed record ProjectReferenceBuildEntry(
-	ProjectReferenceResolution? Resolution,
-	ProjectReferenceFailure? Failure)
+    ProjectReferenceResolution? Resolution,
+    ProjectReferenceFailure? Failure)
 {
-	public static ProjectReferenceBuildEntry Succeeded(ProjectReferenceResolution resolution)
-	{
-		return new ProjectReferenceBuildEntry(resolution, null);
-	}
+    public static ProjectReferenceBuildEntry Succeeded(ProjectReferenceResolution resolution)
+    {
+        return new ProjectReferenceBuildEntry(resolution, null);
+    }
 
-	public static ProjectReferenceBuildEntry Failed(ProjectReferenceFailure failure)
-	{
-		return new ProjectReferenceBuildEntry(null, failure);
-	}
+    public static ProjectReferenceBuildEntry Failed(ProjectReferenceFailure failure)
+    {
+        return new ProjectReferenceBuildEntry(null, failure);
+    }
 }
 
 sealed class ProjectReferenceBuildCache
 {
-	readonly Dictionary<ProjectReferenceBuildKey, ProjectReferenceBuildEntry> entries = new();
+    readonly Dictionary<ProjectReferenceBuildKey, ProjectReferenceBuildEntry> entries = new();
 
-	public bool TryGet(ProjectReferenceBuildKey key, out ProjectReferenceBuildEntry? entry)
-	{
-		return entries.TryGetValue(key, out entry);
-	}
+    public bool TryGet(ProjectReferenceBuildKey key, out ProjectReferenceBuildEntry? entry)
+    {
+        return entries.TryGetValue(key, out entry);
+    }
 
-	public void Add(ProjectReferenceBuildKey key, ProjectReferenceResolution resolution)
-	{
-		entries[key] = ProjectReferenceBuildEntry.Succeeded(resolution);
-	}
+    public void Add(ProjectReferenceBuildKey key, ProjectReferenceResolution resolution)
+    {
+        entries[key] = ProjectReferenceBuildEntry.Succeeded(resolution);
+    }
 
-	public void Add(ProjectReferenceBuildKey key, ProjectReferenceFailure failure)
-	{
-		entries[key] = ProjectReferenceBuildEntry.Failed(failure);
-	}
+    public void Add(ProjectReferenceBuildKey key, ProjectReferenceFailure failure)
+    {
+        entries[key] = ProjectReferenceBuildEntry.Failed(failure);
+    }
 }
 
 sealed record SemVersion(int Major, int Minor, int Patch, string? Suffix) : IComparable<SemVersion>
 {
-	public static IComparer<SemVersion> Comparer { get; } = Comparer<SemVersion>.Create(static (left, right) => left.CompareTo(right));
-	public static SemVersion Parse(string value)
-	{
-		string[] suffixParts = value.Split('-', 2);
-		string[] parts = suffixParts[0].Split('.');
-		return new SemVersion(ParsePart(parts, 0), ParsePart(parts, 1), ParsePart(parts, 2), suffixParts.Length == 2 ? suffixParts[1] : null);
-	}
-	public int CompareTo(SemVersion? other)
-	{
-		if (other is null)
-			return 1;
-		int major = Major.CompareTo(other.Major);
-		if (major != 0) return major;
-		int minor = Minor.CompareTo(other.Minor);
-		if (minor != 0) return minor;
-		int patch = Patch.CompareTo(other.Patch);
-		if (patch != 0) return patch;
-		if (Suffix is null && other.Suffix is not null) return 1;
-		if (Suffix is not null && other.Suffix is null) return -1;
-		return string.Compare(Suffix, other.Suffix, StringComparison.Ordinal);
-	}
-	static int ParsePart(string[] parts, int index) => index < parts.Length && int.TryParse(parts[index], NumberStyles.None, CultureInfo.InvariantCulture, out int value) ? value : 0;
+    public static IComparer<SemVersion> Comparer { get; } = Comparer<SemVersion>.Create(static (left, right) => left.CompareTo(right));
+    public static SemVersion Parse(string value)
+    {
+        string[] suffixParts = value.Split('-', 2);
+        string[] parts = suffixParts[0].Split('.');
+        return new SemVersion(ParsePart(parts, 0), ParsePart(parts, 1), ParsePart(parts, 2), suffixParts.Length == 2 ? suffixParts[1] : null);
+    }
+    public int CompareTo(SemVersion? other)
+    {
+        if (other is null)
+            return 1;
+        int major = Major.CompareTo(other.Major);
+        if (major != 0) return major;
+        int minor = Minor.CompareTo(other.Minor);
+        if (minor != 0) return minor;
+        int patch = Patch.CompareTo(other.Patch);
+        if (patch != 0) return patch;
+        if (Suffix is null && other.Suffix is not null) return 1;
+        if (Suffix is not null && other.Suffix is null) return -1;
+        return string.Compare(Suffix, other.Suffix, StringComparison.Ordinal);
+    }
+    static int ParsePart(string[] parts, int index) => index < parts.Length && int.TryParse(parts[index], NumberStyles.None, CultureInfo.InvariantCulture, out int value) ? value : 0;
 }
 
 sealed class CliEnvironment
 {
-	public required string WorkingDirectory { get; init; }
-	public required string RuntimeRoot { get; init; }
-	public required string HomeDirectory { get; init; }
-	public string BaseCampBuildPath => Path.Combine(HomeDirectory, "base.campbuild");
-	public string GlobalCampBuildPath => Path.Combine(HomeDirectory, "global.campbuild");
-	public string GlobalPackageRoot => Path.Combine(HomeDirectory, "cache", "pkg");
-	public string LocalPackageRoot => Path.Combine(WorkingDirectory, "cache", "pkg");
+    public required string WorkingDirectory { get; init; }
+    public required string RuntimeRoot { get; init; }
+    public required string HomeDirectory { get; init; }
+    public string BaseCampBuildPath => Path.Combine(HomeDirectory, "base.campbuild");
+    public string GlobalCampBuildPath => Path.Combine(HomeDirectory, "global.campbuild");
+    public string GlobalPackageRoot => Path.Combine(HomeDirectory, "cache", "pkg");
+    public string LocalPackageRoot => Path.Combine(WorkingDirectory, "cache", "pkg");
 
-	public static CliEnvironment Create()
-	{
-		string workingDirectory = Directory.GetCurrentDirectory();
-		CampRuntimeLayout layout = CampRuntimeLayout.Resolve(workingDirectory);
-		return new CliEnvironment
-		{
-			WorkingDirectory = workingDirectory,
-			RuntimeRoot = layout.BinDirectory,
-			HomeDirectory = layout.HomeDirectory
-		};
-	}
+    public static CliEnvironment Create()
+    {
+        string workingDirectory = Directory.GetCurrentDirectory();
+        CampRuntimeLayout layout = CampRuntimeLayout.Resolve(workingDirectory);
+        return new CliEnvironment
+        {
+            WorkingDirectory = workingDirectory,
+            RuntimeRoot = layout.BinDirectory,
+            HomeDirectory = layout.HomeDirectory
+        };
+    }
 }
 
 enum CommandKind
 {
-	Build,
-	Run,
-	Dump,
-	Test,
-	Cover
+    Build,
+    Run,
+    Dump,
+    Test,
+    Cover
 }
 
 enum Precedence
 {
-	Global = 0,
-	Local = 1,
-	CommandLine = 2
+    Global = 0,
+    Local = 1,
+    CommandLine = 2
 }
