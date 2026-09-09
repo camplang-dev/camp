@@ -2178,13 +2178,22 @@ public static class CompilerDriver
 
         bool ExpandDeclarationsAndReport(Compilation compilation)
         {
-            bool success;
-            using (timing.Begin("declaration expansion", "compiler-phase"))
-                success = CompilationPipeline.ExpandDeclarations(compilation);
+            bool buildSuccess;
+            using (timing.Begin("parse and AST binding", "compiler-phase"))
+                buildSuccess = CompilationPipeline.BuildAst(compilation);
+            bool success = buildSuccess;
+            if (buildSuccess)
+            {
+                using (timing.Begin("declaration expansion", "compiler-phase"))
+                    success = CompilationPipeline.ExpandDeclarationsFromBuiltAst(compilation, (name, action) =>
+                    {
+                        using IDisposable _ = timing.Begin(name, "compiler-phase");
+                        action();
+                    });
+            }
             PrintPipelineDiagnostics(compilation);
             return success;
         }
-
         bool LowerAndReport(Compilation compilation)
         {
             bool success = true;
@@ -2197,8 +2206,12 @@ public static class CompilerDriver
                 if (buildSuccess)
                 {
                     bool expansionSuccess;
-                    using (timing.Begin("declaration expansion", "compiler-phase"))
-                        expansionSuccess = CompilationPipeline.ExpandDeclarationsFromBuiltAst(compilation);
+					using (timing.Begin("declaration expansion", "compiler-phase"))
+						expansionSuccess = CompilationPipeline.ExpandDeclarationsFromBuiltAst(compilation, (name, action) =>
+						{
+							using IDisposable _ = timing.Begin(name, "compiler-phase");
+							action();
+						});
                     success &= expansionSuccess;
                     if (expansionSuccess)
                     {

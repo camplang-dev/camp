@@ -52,10 +52,21 @@ public sealed partial class BindableNodeAnalyzer
 		return new AnalysisResult(lowering.Module, lowering.Diagnostics);
 	}
 
-	internal static DeclarationExpansionResult ExpandDeclarations(Module module, TargetDefinition? selectedTarget = null, ConfigurationFlagSet? configurationFlags = null)
+	internal static DeclarationExpansionResult ExpandDeclarations(Module module, TargetDefinition? selectedTarget = null, ConfigurationFlagSet? configurationFlags = null, Action<string, Action>? measure = null)
 	{
 		BindableNodeAnalyzer analyzer = new(selectedTarget, configurationFlags);
-		analyzer.RunAnalyzerPass(AnalyzerPass.DeclarationExpansion, module);
+		RunMeasured(measure, "declaration expansion pass", () =>
+		{
+			analyzer.phaseMeasure = measure;
+			try
+			{
+				analyzer.RunAnalyzerPass(AnalyzerPass.DeclarationExpansion, module);
+			}
+			finally
+			{
+				analyzer.phaseMeasure = null;
+			}
+		});
 		return new DeclarationExpansionResult(module, analyzer.diagnostics, analyzer);
 	}
 

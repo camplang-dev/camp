@@ -160,7 +160,12 @@ public static class CompilationPipeline
 
 	public static bool ExpandDeclarationsFromBuiltAst(Compilation compilation)
 	{
-		compilation.DeclarationExpansion = BindableNodeExpander.Expand(compilation.SharedModule!, compilation.Target, compilation.ConfigurationFlags);
+		return ExpandDeclarationsFromBuiltAst(compilation, measure: null);
+	}
+
+	public static bool ExpandDeclarationsFromBuiltAst(Compilation compilation, Action<string, Action>? measure)
+	{
+		compilation.DeclarationExpansion = BindableNodeExpander.Expand(compilation.SharedModule!, compilation.Target, compilation.ConfigurationFlags, measure);
 		compilation.SharedModule = compilation.DeclarationExpansion.Module;
 		AssignGeneratedDefinitionOwners(compilation);
 		return compilation.DeclarationExpansion.Success;

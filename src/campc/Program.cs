@@ -1056,6 +1056,22 @@ sealed class CampCli
                 errors.Add("Project reference cycle detected: " + FormatProjectReferenceCycle(projectReferenceStack, canonicalBuildFile, cycleStart));
                 continue;
             }
+            ProjectReferenceBuildKey earlyCacheKey = new(
+                canonicalBuildFile,
+                effectiveLinkKind,
+                consumerRequest.TargetName,
+                consumerRequest.ProfileName,
+                string.Join('\u001f', consumerRequest.Variants),
+                CoverageInstrumented: false,
+                requireLibrary);
+            if (!coverageMode)
+            {
+                bool earlyCacheHit;
+                using (cliTiming?.Begin("cache lookup", "project-reference") ?? NoopDisposable.Instance)
+                    earlyCacheHit = cache.TryGet(earlyCacheKey, out ProjectReferenceBuildEntry? earlyCachedEntry) && TryApplyProjectReferenceCacheEntry(projectReference, consumerRequest, effectiveLinkKind, earlyCachedEntry, apiHeaders, sharedApiHeaders, libraries, errors);
+                if (earlyCacheHit)
+                    continue;
+            }
 
             List<string> responseErrors = [];
             List<string> projectArgs;
@@ -1151,7 +1167,7 @@ sealed class CampCli
             string? currentApiHeader = null;
             string? currentLibrary = null;
             using (cliTiming?.Begin("freshness check", "project-reference") ?? NoopDisposable.Instance)
-                current = !instrumentForCoverage && target is not null && TryGetCurrentProjectReferenceArtifacts(projectRequest, canonicalBuildFile, projectOutputDirectory, referenceBuildKind, target, environment.BaseCampBuildPath, environment.GlobalCampBuildPath, requireLibrary, out currentApiHeader, out currentLibrary);
+                current = !instrumentForCoverage && target is not null && TryGetCurrentProjectReferenceArtifacts(projectRequest, canonicalBuildFile, projectOutputDirectory, referenceBuildKind, target, environment.BaseCampBuildPath, environment.GlobalCampBuildPath, requireLibrary, out currentApiHeader, out currentLibrary, cliTiming);
             if (current)
             {
                 if (consumerRequest.Verbose)
@@ -1228,6 +1244,25 @@ sealed class CampCli
         return errors.Count == 0;
     }
 
+    static bool TryApplyProjectReferenceCacheEntry(string projectReference, CompilerRequest consumerRequest, DependencyLinkKind effectiveLinkKind, ProjectReferenceBuildEntry? cachedEntry, List<string> apiHeaders, List<string> sharedApiHeaders, List<string> libraries, List<string> errors)
+    {
+        if (cachedEntry is null)
+            return false;
+        if (cachedEntry.Resolution is not null)
+        {
+            if (consumerRequest.Verbose)
+                Console.Out.WriteLine($"{projectReference}: project reference {cachedEntry.Resolution.ProjectName}: reused");
+            AddProjectReferenceResolution(consumerRequest, effectiveLinkKind, cachedEntry.Resolution, apiHeaders, sharedApiHeaders, libraries);
+        }
+        else if (cachedEntry.Failure is not null)
+        {
+            if (consumerRequest.Verbose)
+                Console.Out.WriteLine($"{projectReference}: project reference {cachedEntry.Failure.ProjectName}: reused failed result");
+            AddProjectReferenceFailure(projectReference, cachedEntry.Failure, errors);
+        }
+        return true;
+    }
+
     static ProjectReferenceFailure CreateProjectReferenceFailure(CompilerRequest projectRequest, string buildFile, CompilerResult result)
     {
         List<string> details = [];
@@ -1284,7 +1319,7 @@ sealed class CampCli
             AddUniquePath(consumerRequest.CoverageMapInputs, resolution.CoverageMap);
     }
 
-    static bool TryGetCurrentProjectReferenceArtifacts(CompilerRequest projectRequest, string buildFile, string outputDirectory, NativeBuildKind buildKind, TargetDefinition target, string baseCampBuildPath, string globalCampBuildPath, bool requireLibrary, out string apiHeader, out string? library)
+    static bool TryGetCurrentProjectReferenceArtifacts(CompilerRequest projectRequest, string buildFile, string outputDirectory, NativeBuildKind buildKind, TargetDefinition target, string baseCampBuildPath, string globalCampBuildPath, bool requireLibrary, out string apiHeader, out string? library, CliTiming? cliTiming = null)
     {
         string projectName = ProjectReferenceOutputName(projectRequest, buildFile);
         apiHeader = Path.Combine(outputDirectory, projectName + "_api.camp");
@@ -1318,18 +1353,25 @@ sealed class CampCli
             }
         }
 
-        if (requiredOutputs.Any(static output => !File.Exists(output)))
-            return false;
+        using (cliTiming?.Begin("required output existence", "project-reference") ?? NoopDisposable.Instance)
+            if (requiredOutputs.Any(static output => !File.Exists(output)))
+                return false;
         if (requireLibrary && buildKind == NativeBuildKind.Static)
         {
-            IReadOnlyList<string> expectedObjects = GetExpectedProjectReferenceObjectPaths(projectRequest, nativeOptions.BuildDirectory, target);
-            if (!NativeBuildDriver.StaticArchiveContainsOnlyObjects(nativeOptions, nativeArtifact, expectedObjects))
-                return false;
+            using (cliTiming?.Begin("static archive object validation", "project-reference") ?? NoopDisposable.Instance)
+            {
+                IReadOnlyList<string> expectedObjects = GetExpectedProjectReferenceObjectPaths(projectRequest, nativeOptions.BuildDirectory, target);
+                if (!NativeBuildDriver.StaticArchiveContainsOnlyObjects(nativeOptions, nativeArtifact, expectedObjects))
+                    return false;
+            }
         }
         if (freshnessOutputs.Count == 0)
             freshnessOutputs.AddRange(requiredOutputs);
-        List<string> inputs = GetProjectReferenceCacheInputs(projectRequest, buildFile, target, baseCampBuildPath, globalCampBuildPath, buildKind).ToList();
-        return OutputsAreCurrent(freshnessOutputs, inputs);
+        List<string> inputs;
+        using (cliTiming?.Begin("collect freshness inputs", "project-reference") ?? NoopDisposable.Instance)
+            inputs = GetProjectReferenceCacheInputs(projectRequest, buildFile, target, baseCampBuildPath, globalCampBuildPath, buildKind).ToList();
+        using (cliTiming?.Begin("compare freshness timestamps", "project-reference") ?? NoopDisposable.Instance)
+            return OutputsAreCurrent(freshnessOutputs, inputs);
     }
 
     static IReadOnlyList<string> GetExpectedProjectReferenceObjectPaths(CompilerRequest projectRequest, string buildDirectory, TargetDefinition target)

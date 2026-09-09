@@ -58,18 +58,18 @@ public sealed partial class BindableNodeAnalyzer
 	void RunDeclarationExpansionPass(Module module)
 	{
 		currentModule = module;
-		CollectTypeNames(module);
-		CollectAliasNames(module);
-		ResolveAliases();
-		AnalyzeExportProjections(module);
-		CollectTypeNames(module);
-		PrecomputeOverloadCallableNames(module);
-		BindRequirementAttributes(module);
-		ApplyEffectiveRequirements(module);
-		AddRetainedAllocatorFields(module);
-		GenerateIteratorDeclarations(module);
-		GenerateLifecycleMethods(module);
-		GenerateVirtualDeclarations(module);
-		GenerateInterfaceDeclarations(module);
+		RunMeasured(phaseMeasure, "collect type names", () => CollectTypeNames(module));
+		RunMeasured(phaseMeasure, "collect alias names", () => CollectAliasNames(module));
+		RunMeasured(phaseMeasure, "resolve aliases", ResolveAliases);
+		RunMeasured(phaseMeasure, "analyze export projections", () => AnalyzeExportProjections(module));
+		RunMeasured(phaseMeasure, "collect type names after exports", () => CollectTypeNames(module));
+		RunMeasured(phaseMeasure, "precompute overload callable names", () => PrecomputeOverloadCallableNames(module));
+		RunMeasured(phaseMeasure, "bind requirement attributes", () => BindRequirementAttributes(module));
+		RunMeasured(phaseMeasure, "apply effective requirements", () => ApplyEffectiveRequirements(module));
+		RunMeasured(phaseMeasure, "add retained allocator fields", () => AddRetainedAllocatorFields(module));
+		RunMeasured(phaseMeasure, "generate iterator declarations", () => GenerateIteratorDeclarations(module));
+		RunMeasured(phaseMeasure, "generate lifecycle methods", () => GenerateLifecycleMethods(module));
+		RunMeasured(phaseMeasure, "generate virtual declarations", () => GenerateVirtualDeclarations(module));
+		RunMeasured(phaseMeasure, "generate interface declarations", () => GenerateInterfaceDeclarations(module));
 	}
 }
