@@ -170,10 +170,6 @@ public static class CampProjectLoader
 			errors.Add("--filter can only be used with test or cover.");
 		if (command is not (CampProjectCommandKind.Test or CampProjectCommandKind.Cover) && bag.IgnoreLeaks)
 			errors.Add("--ignore-leaks can only be used with test or cover.");
-		if (command != CampProjectCommandKind.Test && bag.TestRunOnly)
-			errors.Add("--run-only can only be used with test.");
-		if (bag.TestRunOnly && bag.DebugInfo)
-			errors.Add("--run-only cannot be combined with --debug-info.");
 		if (bag.SubsystemName is not null && bag.SubsystemName != "windows")
 			errors.Add($"Subsystem '{bag.SubsystemName}' is not valid. Expected windows.");
 		if (bag.SubsystemName is not null && bag.ArtifactSpecified && bag.ArtifactKind is not NativeBuildKind.Exec)
@@ -205,7 +201,6 @@ public static class CampProjectLoader
 			SourcefileDefaultRoot = sourcefileDefaultRoot,
 			Verbose = bag.Verbose,
 			ListTests = bag.ListTests,
-			TestRunOnly = bag.TestRunOnly,
 			IgnoreLeaks = bag.IgnoreLeaks,
 			TestOutputDir = bag.TestOutputDir,
 			TestResultFormat = bag.TestResultFormat,
@@ -626,7 +621,6 @@ sealed class CampBuildOptionBag
 	public string? CoverageOutputDir => Get("coverage-output-dir");
 	public string? CoverageFormat => Get("coverage-format");
 	public bool ListTests => Get("list") == "true";
-	public bool TestRunOnly => Get("run-only") == "true";
 	public bool IgnoreLeaks => Get("ignore-leaks") == "true";
 	public bool Verbose => Get("verbose") == "true";
 	public SourcefilePathMode SourcefilePathMode => Get("sourcefile-paths") switch
@@ -868,9 +862,6 @@ static class CampBuildOptionParser
 					break;
 				case "--list":
 					AddSingle(result, "list", "true");
-					break;
-				case "--run-only":
-					AddSingle(result, "run-only", "true");
 					break;
 				case "--ignore-leaks":
 					AddSingle(result, "ignore-leaks", "true");

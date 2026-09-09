@@ -88,7 +88,6 @@ campc test @app.campbuild --filter MathTests::addReturnsSum
 campc test @app.campbuild --test-result-format json
 campc test @app.campbuild --ignore-leaks
 campc test @app.campbuild --list
-campc test @app.campbuild --run-only --filter MathTests::addReturnsSum
 ```
 
 The test module is compiled with declaration participation mode `test` and the
@@ -115,14 +114,11 @@ available result artifacts are written.
 
 Each normal `test` build creates one harness containing every discovered test.
 Filters select entries when that executable runs, so changing only `--filter`
-does not regenerate or relink the harness. After a normal test build, use
-`--run-only` to execute that existing harness without loading or compiling Camp
-sources again. The compiler validates the target/profile/options, compiler
-binary, executable, manifest, and content fingerprints of the files used by the
-original build. It rejects a stale or missing build; refresh it with ordinary
-`campc test` after changing source, dependencies, compiler, or build options.
-`--run-only` is valid only for `test` and cannot be combined with
-`--debug-info`.
+does not regenerate or relink the harness. Every `campc test` first validates
+its test-artifact record against the resolved request, target, configuration,
+compiler, outputs, and content fingerprints of recorded inputs. A current
+record runs the existing harness immediately; a missing or stale record rebuilds
+the required dependencies and harness, refreshes the record, and then runs.
 
 If a runnable `@test` declares a runner-supplied `within allocator` slot and
 that slot has the standard interface-shaped `Allocator*` contract, the harness
@@ -345,12 +341,6 @@ These options are accepted by `test` and `cover` only:
 | `--list` | List selected test manifest IDs and stop after discovery. |
 | `--filter` | Select tests by exact name or wildcard pattern. May be repeated. |
 | `--ignore-leaks` | Report harness-allocator leaks without making leak-only tests fail. Invalid allocator operations still fail. |
-
-This option is accepted by `test` only:
-
-| Option | Meaning |
-|---|---|
-| `--run-only` | Run a validated existing test harness without recompiling; rejected when the prior build is absent or stale, and incompatible with `--debug-info`. |
 
 These options are accepted by `build`, `run`, `test`, and `cover`:
 

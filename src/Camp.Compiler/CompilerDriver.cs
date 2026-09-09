@@ -63,7 +63,6 @@ public sealed class CompilerRequest
 	public bool Verbose { get; set; }
 	public bool ColorOutput { get; set; }
 	public bool ListTests { get; set; }
-	public bool TestRunOnly { get; set; }
 	public bool IgnoreLeaks { get; set; }
 	public List<string> TestFilters { get; } = [];
 	public string? TestOutputDir { get; set; }
@@ -109,6 +108,7 @@ public static class CompilerDriver
 		readonly StringBuilder stderr = new();
 		readonly List<string> generatedFiles = [];
 		readonly Dictionary<string, BuildFileWriteStatus> generatedFileStatuses = new(StringComparer.OrdinalIgnoreCase);
+		readonly List<string> preparedPackageCacheInputs = [];
 		readonly BuildTiming timing = BuildTiming.Create(
 			request.TimingEnabled || !string.IsNullOrWhiteSpace(request.TimingOutput),
 			request.CommandMode.ToString().ToLowerInvariant(),
@@ -182,8 +182,10 @@ public static class CompilerDriver
 			}
 			if (!ValidateFrameworks(context!.Target))
 				return 1;
-			if (request.TestRunOnly)
-				return RunReusableTestHarness(context.Target);
+			if (TryUseCurrentTopLevelArtifact(context.Target))
+				return 0;
+			if (TryUseCurrentTestHarness(context.Target, out int cachedTestExitCode))
+				return cachedTestExitCode;
 
 			bool requireNativeLibraries = request.BuildKind is not null || request.CommandMode is CompilerCommandMode.Test or CompilerCommandMode.Cover;
 			List<string> packageApiHeaders = [];
@@ -214,8 +216,6 @@ public static class CompilerDriver
 			}
 
 			List<string> allApiFiles = [.. packageApiHeaders, .. request.ApiFiles];
-			if (TryUseCurrentTopLevelArtifact(context!, allApiFiles, packageLibraries))
-				return 0;
 			Compilation compilation;
 			using (timing.Begin("load sources and APIs", "compiler-phase", new Dictionary<string, string>
 			{
@@ -347,7 +347,7 @@ public static class CompilerDriver
 				: [];
 			string executablePath = NativeBuildDriver.GetArtifactPath(buildOptions);
 			if (request.CommandMode == CompilerCommandMode.Test)
-				TryWriteTestRunCache(outputDirectory, projectName, executablePath, manifestPath!, compilation, packageLibraries);
+				TryWriteTestArtifactCache(outputDirectory, projectName, executablePath, manifestPath!, compilation, packageLibraries);
 			CampTestResults testResults = RunTestHarness(executablePath, buildDirectory, selectedTests, GetTestIndexes(discovery.Manifest.Tests, selectedTests), coverageCountPaths);
 			if (writeJson && !TryEmitTestResultsArtifact(testResults, testOutputDirectory, projectName))
 				return 1;
@@ -414,78 +414,63 @@ public static class CompilerDriver
 			return true;
 		}
 
-		bool TryUseCurrentTopLevelArtifact(RuntimeContext context, IReadOnlyList<string> allApiFiles, IReadOnlyList<string> packageLibraries)
+		bool TryUseCurrentTopLevelArtifact(TargetDefinition target)
 		{
 			if (request.BuildKind is null
 				|| request.CommandMode is CompilerCommandMode.Test or CompilerCommandMode.Cover
 				|| request.EmitDebugInfo)
 				return false;
 			string projectName = GetRequestProjectName();
-			string outputDirectory = ResolveArtifactOutputDirectory(context.Target, request.BuildKind, context.ProfileName);
+			string outputDirectory = ResolveArtifactOutputDirectory(target, request.BuildKind, request.ProfileName);
 			string buildDirectory = Path.Combine(outputDirectory, "build");
 			NativeBuildOptions buildOptions = new()
 			{
-				Target = context.Target,
-				ProfileName = context.ProfileName,
+				Target = target,
+				ProfileName = request.ProfileName,
 				BuildDirectory = buildDirectory,
 				OutputDirectory = outputDirectory,
 				ProjectName = projectName,
 				Kind = request.BuildKind.Value,
 				SourceFiles = []
 			};
-			string artifact = NativeBuildDriver.GetArtifactPath(buildOptions);
-			List<string> freshnessOutputs = [artifact];
-			List<string> requiredOutputs = [artifact];
-			if (request.BuildKind is NativeBuildKind.Static or NativeBuildKind.Shared)
+			string cachePath = GetArtifactCachePath(outputDirectory, projectName);
+			if (!CampArtifactCache.TryReadValidated(cachePath, request, target, out CampArtifactCacheRecord? cache, out string? reason))
 			{
-				requiredOutputs.Add(Path.Combine(outputDirectory, projectName + "_api.camp"));
-				requiredOutputs.Add(Path.Combine(outputDirectory, projectName + "_api.h"));
-				requiredOutputs.Add(Path.Combine(outputDirectory, projectName + "_api.json"));
+				if (request.Verbose)
+					OutLine("top-level artifact: rebuilding because " + reason);
+				return false;
 			}
-			if (request.BuildKind == NativeBuildKind.Shared && NativeBuildDriver.GetSharedImportLibraryPath(buildOptions) is string sharedImportLibrary)
+			IReadOnlyList<CampArtifactCacheOutput> expectedOutputs = GetTopLevelCacheOutputs(buildOptions);
+			if (!HasExpectedCacheOutputs(cache!, expectedOutputs))
 			{
-				freshnessOutputs.Add(sharedImportLibrary);
-				requiredOutputs.Add(sharedImportLibrary);
+				if (request.Verbose)
+					OutLine("top-level artifact: rebuilding because the cache outputs do not match this artifact");
+				return false;
 			}
-			foreach (string output in requiredOutputs)
-				if (!File.Exists(output))
-				{
-					if (request.Verbose)
-						OutLine("top-level artifact: rebuilding because " + output + " is missing");
-					return false;
-				}
 			if (request.BuildKind == NativeBuildKind.Static)
 			{
-				IReadOnlyList<string> expectedObjects = GetExpectedTopLevelObjectPaths(context.Target, buildDirectory);
-				if (!NativeBuildDriver.StaticArchiveContainsOnlyObjects(buildOptions, artifact, expectedObjects))
+				IReadOnlyList<string> expectedObjects = GetExpectedTopLevelObjectPaths(target, buildDirectory);
+				if (!NativeBuildDriver.StaticArchiveContainsOnlyObjects(buildOptions, NativeBuildDriver.GetArtifactPath(buildOptions), expectedObjects))
 				{
 					if (request.Verbose)
 						OutLine("top-level artifact: rebuilding because static archive contains stale object members");
 					return false;
 				}
 			}
-			List<string> inputs = [];
-			inputs.AddRange(ResolveInputPaths(request.Files));
-			inputs.AddRange(ResolveInputPaths(request.NativeSourceFiles));
-			inputs.AddRange(ResolveInputPaths(allApiFiles));
-			if (request.BuildKind != NativeBuildKind.Static)
-			{
-				inputs.AddRange(packageLibraries);
-				inputs.AddRange(ResolveNativeReferenceInputs(request.References, context.Target));
-			}
-			if (File.Exists(context.Target.Path))
-				inputs.Add(context.Target.Path);
-			if (!string.IsNullOrWhiteSpace(Environment.ProcessPath) && File.Exists(Environment.ProcessPath))
-				inputs.Add(Environment.ProcessPath);
-			if (!OutputsAreCurrent(freshnessOutputs, inputs, out string? freshnessReason))
-			{
-				if (request.Verbose)
-					OutLine("top-level artifact: rebuilding because " + freshnessReason);
-				return false;
-			}
 			using IDisposable _ = timing.Begin("top-level artifact freshness", "freshness", "current");
-			foreach (string output in requiredOutputs)
-				AddGeneratedFile(output, BuildFileWriteStatus.Unchanged);
+			foreach (CampArtifactCacheOutput output in expectedOutputs)
+				AddGeneratedFile(output.Path, BuildFileWriteStatus.Unchanged);
+			return true;
+		}
+
+		static bool HasExpectedCacheOutputs(CampArtifactCacheRecord cache, IReadOnlyList<CampArtifactCacheOutput> expectedOutputs)
+		{
+			if (cache.Outputs.Count != expectedOutputs.Count)
+				return false;
+			foreach (CampArtifactCacheOutput expected in expectedOutputs)
+				if (!cache.Outputs.Any(output => string.Equals(output.Name, expected.Name, StringComparison.Ordinal)
+					&& string.Equals(output.Path, Path.GetFullPath(expected.Path), StringComparison.OrdinalIgnoreCase)))
+					return false;
 			return true;
 		}
 
@@ -802,6 +787,13 @@ public static class CompilerDriver
 			return display.Replace(Path.DirectorySeparatorChar, '/').Replace(Path.AltDirectorySeparatorChar, '/');
 		}
 
+		void TrackPreparedPackageCacheInput(string sourceDirectory)
+		{
+			string fullPath = Path.GetFullPath(sourceDirectory);
+			if (!preparedPackageCacheInputs.Contains(fullPath, StringComparer.OrdinalIgnoreCase))
+				preparedPackageCacheInputs.Add(fullPath);
+		}
+
 		bool TryPreparePackage(RuntimeContext context, string packageName, bool requireNativeLibrary, out string? apiHeaderPath, out string? libraryPath)
 		{
 			apiHeaderPath = null;
@@ -815,6 +807,7 @@ public static class CompilerDriver
 					ErrorLine($"Package '{packageName}' source directory '{sourceDirectory}' could not be found.");
 				return false;
 			}
+			TrackPreparedPackageCacheInput(sourceDirectory);
 
 			string[] sourceFiles = Directory.GetFiles(sourceDirectory, "*.camp", SearchOption.AllDirectories)
 				.OrderBy(static x => x, StringComparer.Ordinal)
@@ -879,6 +872,7 @@ public static class CompilerDriver
 				ErrorLine(FormatPackageNotFoundDiagnostic(packageSpec, packageName, requestedVersion));
 				return false;
 			}
+			TrackPreparedPackageCacheInput(sourceDirectory!);
 
 			string[] sourceFiles = Directory.GetFiles(sourceDirectory!, "*.camp", SearchOption.AllDirectories)
 				.OrderBy(static x => x, StringComparer.Ordinal)
@@ -1387,6 +1381,7 @@ public static class CompilerDriver
 				return 1;
 			if (!TryRefreshGeneratedOutputs(GetTopLevelFreshnessOutputs(buildOptions)))
 				return 1;
+			TryWriteTopLevelArtifactCache(outputDirectory, projectName, buildOptions, compilation, packageLibraries);
 			return 0;
 		}
 
@@ -1408,6 +1403,45 @@ public static class CompilerDriver
 			yield return NativeBuildDriver.GetArtifactPath(buildOptions);
 			if (buildOptions.Kind == NativeBuildKind.Shared)
 				yield return NativeBuildDriver.GetSharedImportLibraryPath(buildOptions);
+		}
+
+		static IReadOnlyList<CampArtifactCacheOutput> GetTopLevelCacheOutputs(NativeBuildOptions buildOptions)
+		{
+			List<CampArtifactCacheOutput> outputs = [new("artifact", NativeBuildDriver.GetArtifactPath(buildOptions))];
+			if (buildOptions.Kind is NativeBuildKind.Static or NativeBuildKind.Shared)
+			{
+				outputs.Add(new CampArtifactCacheOutput("api-camp", Path.Combine(buildOptions.OutputDirectory, buildOptions.ProjectName + "_api.camp")));
+				outputs.Add(new CampArtifactCacheOutput("api-c", Path.Combine(buildOptions.OutputDirectory, buildOptions.ProjectName + "_api.h")));
+				outputs.Add(new CampArtifactCacheOutput("api-json", Path.Combine(buildOptions.OutputDirectory, buildOptions.ProjectName + "_api.json")));
+			}
+			if (buildOptions.Kind == NativeBuildKind.Shared && NativeBuildDriver.GetSharedImportLibraryPath(buildOptions) is string sharedImportLibrary)
+				outputs.Add(new CampArtifactCacheOutput("shared-import", sharedImportLibrary));
+			return outputs;
+		}
+
+		void TryWriteTopLevelArtifactCache(string outputDirectory, string projectName, NativeBuildOptions buildOptions, Compilation compilation, IReadOnlyList<string> packageLibraries)
+		{
+			CampArtifactCacheRecord cache = CampArtifactCache.Create(request, compilation.Target!, GetTopLevelCacheOutputs(buildOptions), GetArtifactCacheInputs(compilation, packageLibraries));
+			if (!CampArtifactCache.TryWrite(GetArtifactCachePath(outputDirectory, projectName), cache, out string? error))
+				ErrorLine("top-level artifact cache: " + error);
+		}
+
+		IEnumerable<string> GetArtifactCacheInputs(Compilation compilation, IReadOnlyList<string> packageLibraries)
+		{
+			foreach (string? path in compilation.Files.Select(static file => file.FullPath))
+				if (!string.IsNullOrWhiteSpace(path))
+					yield return path!;
+			foreach (string path in ResolveInputPaths(request.NativeSourceFiles))
+				yield return path;
+			foreach (string path in packageLibraries)
+				yield return path;
+			foreach (string path in request.References.Select(reference => ResolveNativeReference(reference, compilation.Target!)))
+				yield return path;
+			foreach (string path in preparedPackageCacheInputs)
+				yield return path;
+			yield return compilation.Target!.Path;
+			if (!string.IsNullOrWhiteSpace(Environment.ProcessPath))
+				yield return Environment.ProcessPath!;
 		}
 
 		string ResolveArtifactOutputDirectory(Compilation compilation)
@@ -1445,27 +1479,6 @@ public static class CompilerDriver
 			if (staticExtension.Equals(".lib", StringComparison.OrdinalIgnoreCase))
 				return reference + ".lib";
 			return "-l" + reference;
-		}
-
-		IEnumerable<string> ResolveNativeReferenceInputs(IEnumerable<string> references, TargetDefinition target)
-		{
-			foreach (string reference in references)
-			{
-				string resolved = ResolveNativeReference(reference, target);
-				if (ShouldTrackNativeReferenceInput(reference, resolved))
-					yield return resolved;
-			}
-		}
-
-		bool ShouldTrackNativeReferenceInput(string reference, string resolved)
-		{
-			if (Path.IsPathRooted(resolved) || resolved.Contains(Path.DirectorySeparatorChar) || resolved.Contains(Path.AltDirectorySeparatorChar))
-				return true;
-			if (Path.IsPathRooted(reference) || reference.Contains(Path.DirectorySeparatorChar) || reference.Contains(Path.AltDirectorySeparatorChar))
-				return true;
-
-			string localPath = Path.GetFullPath(resolved, request.WorkingDirectory);
-			return File.Exists(localPath) || Directory.Exists(localPath);
 		}
 
 		bool TryCopySharedRuntimeReferences(TargetDefinition target, string outputDirectory, IEnumerable<string> references)
@@ -1645,56 +1658,82 @@ public static class CompilerDriver
 			return true;
 		}
 
-		int RunReusableTestHarness(TargetDefinition target)
+		bool TryUseCurrentTestHarness(TargetDefinition target, out int exitCode)
 		{
+			exitCode = 0;
 			if (request.CommandMode != CompilerCommandMode.Test)
-				return Error("--run-only can only be used with test.");
-			if (request.EmitDebugInfo)
-				return Error("--run-only cannot be combined with --debug-info.");
+				return false;
 			string projectName = GetRequestProjectName();
 			string outputDirectory = ResolveArtifactOutputDirectory(target, buildKind: null, request.ProfileName);
 			string buildDirectory = Path.Combine(outputDirectory, "build");
-			string cachePath = GetTestRunCachePath(outputDirectory, projectName);
-			if (!CampTestRunCache.TryReadValidated(cachePath, request, target, out CampTestRunCacheRecord? cache, out string? reason))
-				return Error("--run-only cannot reuse this test build: " + reason + ". Run campc test without --run-only first.");
-			if (!CampTestManifestJsonSerializer.TryParse(File.ReadAllText(cache!.ManifestPath), out CampTestManifest manifest, out List<string> diagnostics))
-				return Error("--run-only cannot read the cached test manifest: " + string.Join(" ", diagnostics));
+			string cachePath = GetTestArtifactCachePath(outputDirectory, projectName);
+			if (!CampArtifactCache.TryReadValidated(cachePath, request, target, out CampArtifactCacheRecord? cache, out string? reason)
+				|| !TryGetCacheOutput(cache, "test-harness", out string? executablePath)
+				|| !TryGetCacheOutput(cache, "test-manifest", out string? manifestPath))
+			{
+				using IDisposable _ = timing.Begin("test artifact stale: " + (reason ?? "cache outputs do not match"), "freshness", "stale");
+				if (request.TimingEnabled)
+					ErrorLine("test artifact cache: " + (reason ?? "cache outputs do not match"));
+				if (request.Verbose)
+					OutLine("test artifact: rebuilding because " + (reason ?? "the cache outputs do not match this test artifact"));
+				return false;
+			}
+			if (!CampTestManifestJsonSerializer.TryParse(File.ReadAllText(manifestPath!), out CampTestManifest manifest, out List<string> diagnostics))
+			{
+				if (request.TimingEnabled)
+					ErrorLine("test artifact cache: cached test manifest is invalid: " + string.Join(" ", diagnostics));
+				if (request.Verbose)
+					OutLine("test artifact: rebuilding because the cached test manifest is invalid: " + string.Join(" ", diagnostics));
+				return false;
+			}
 			IReadOnlyList<CampTestManifestEntry> selectedTests = CampTestFilter.Apply(manifest.Tests, request.TestFilters);
 			if (request.ListTests)
 			{
 				foreach (CampTestManifestEntry test in selectedTests)
 					OutLine(test.Id);
-				return 0;
+				return true;
 			}
 			if (!TryGetTestResultOutputFormat(out bool writeText, out bool writeJson))
-				return 1;
-			CampTestResults testResults = RunTestHarness(cache.ExecutablePath, buildDirectory, selectedTests, GetTestIndexes(manifest.Tests, selectedTests), new Dictionary<string, string>());
+			{
+				exitCode = 1;
+				return true;
+			}
+			CampTestResults testResults = RunTestHarness(executablePath!, buildDirectory, selectedTests, GetTestIndexes(manifest.Tests, selectedTests), new Dictionary<string, string>());
 			if (writeJson && !TryEmitTestResultsArtifact(testResults, ResolveTestOutputDirectory(outputDirectory), projectName))
-				return 1;
+			{
+				exitCode = 1;
+				return true;
+			}
 			if (writeText)
 				stdout.Append(CampTestResultsTextFormatter.Format(testResults, request.ColorOutput));
-			return TestResultsSucceeded(testResults) ? 0 : 1;
+			exitCode = TestResultsSucceeded(testResults) ? 0 : 1;
+			return true;
 		}
 
-		void TryWriteTestRunCache(string outputDirectory, string projectName, string executablePath, string manifestPath, Compilation compilation, IReadOnlyList<string> packageLibraries)
+		static bool TryGetCacheOutput(CampArtifactCacheRecord? cache, string name, out string? path)
 		{
-			List<string> inputs = compilation.Files
-				.Select(static file => file.FullPath)
-				.Where(static path => !string.IsNullOrWhiteSpace(path))
-				.Select(static path => path!)
-				.ToList();
-			inputs.AddRange(ResolveInputPaths(request.NativeSourceFiles));
-			inputs.AddRange(packageLibraries);
-			inputs.AddRange(request.References.Select(reference => ResolveNativeReference(reference, compilation.Target!)));
-			inputs.Add(compilation.Target!.Path);
-			if (!string.IsNullOrWhiteSpace(Environment.ProcessPath))
-				inputs.Add(Environment.ProcessPath!);
-			CampTestRunCacheRecord cache = CampTestRunCache.Create(request, compilation.Target!, executablePath, manifestPath, inputs);
-			if (!CampTestRunCache.TryWrite(GetTestRunCachePath(outputDirectory, projectName), cache, out string? error))
-				ErrorLine("test run cache: " + error);
+			path = cache?.Outputs.SingleOrDefault(output => string.Equals(output.Name, name, StringComparison.Ordinal))?.Path;
+			return !string.IsNullOrWhiteSpace(path);
 		}
 
-		static string GetTestRunCachePath(string outputDirectory, string projectName) => Path.Combine(outputDirectory, projectName + ".camp-test-run-cache.json");
+		void TryWriteTestArtifactCache(string outputDirectory, string projectName, string executablePath, string manifestPath, Compilation compilation, IReadOnlyList<string> packageLibraries)
+		{
+			List<CampArtifactCacheOutput> outputs =
+			[
+				new CampArtifactCacheOutput("test-harness", executablePath),
+				new CampArtifactCacheOutput("test-manifest", manifestPath)
+			];
+			if (request.EmitDebugInfo)
+				outputs.Add(new CampArtifactCacheOutput("debug-info", Path.Combine(outputDirectory, projectName + ".campdebug.json")));
+			CampArtifactCacheRecord cache = CampArtifactCache.Create(request, compilation.Target!,
+			outputs,
+			GetArtifactCacheInputs(compilation, packageLibraries));
+			if (!CampArtifactCache.TryWrite(GetTestArtifactCachePath(outputDirectory, projectName), cache, out string? error))
+				ErrorLine("test artifact cache: " + error);
+		}
+
+		static string GetArtifactCachePath(string outputDirectory, string projectName) => Path.Combine(outputDirectory, projectName + ".camp-artifact-cache.json");
+		static string GetTestArtifactCachePath(string outputDirectory, string projectName) => Path.Combine(outputDirectory, projectName + ".camp-test-cache.json");
 
 		static IReadOnlyList<int> GetTestIndexes(IReadOnlyList<CampTestManifestEntry> allTests, IReadOnlyList<CampTestManifestEntry> selectedTests)
 		{
@@ -2607,49 +2646,6 @@ public static class CompilerDriver
 			return text.Replace("\r\n", "\n", StringComparison.Ordinal).Replace("\r", "\n", StringComparison.Ordinal);
 		}
 
-		static bool OutputsAreCurrent(IReadOnlyList<string> outputs, IReadOnlyList<string> inputs, out string? reason)
-		{
-			reason = null;
-			if (outputs.Count == 0)
-			{
-				reason = "an output is missing";
-				return false;
-			}
-			foreach (string output in outputs)
-			{
-				if (!File.Exists(output))
-				{
-					reason = $"{output} is missing";
-					return false;
-				}
-			}
-			DateTime oldestOutput = outputs.Select(File.GetLastWriteTimeUtc).Min();
-			foreach (string input in inputs.Distinct(StringComparer.OrdinalIgnoreCase))
-			{
-				if (File.Exists(input))
-				{
-					if (oldestOutput < File.GetLastWriteTimeUtc(input))
-					{
-						reason = $"{input} is newer than the oldest output";
-						return false;
-					}
-				}
-				else if (Directory.Exists(input))
-				{
-					if (oldestOutput < Directory.GetLastWriteTimeUtc(input))
-					{
-						reason = $"{input} is newer than the oldest output";
-						return false;
-					}
-				}
-				else
-				{
-					reason = $"{input} is missing";
-					return false;
-				}
-			}
-			return true;
-		}
 	}
 
 		sealed record RuntimeContext(string PackageSourceRoot, string PackageArtifactRoot, TargetDefinition Target, string ProfileName, IReadOnlyList<string> CommandLineDefines, ConfigurationFlagSet ConfigurationFlags);

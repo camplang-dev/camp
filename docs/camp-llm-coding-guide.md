@@ -1109,11 +1109,10 @@ intentional process-lifetime state with `within(default)` so it is outside the
 built-in test leak detector. `--ignore-leaks` is allowed only for `campc test`
 and `campc cover`; it reports leaks but does not make leak-only tests fail.
 
-After a normal test build, use `campc test --run-only --filter ...` for repeated
-filter changes when the source and build configuration are unchanged. It
-validates the prior harness and refuses stale output; use ordinary `campc test`
-after an edit. `--run-only` is available for `test`, not `cover`, and cannot be
-combined with `--debug-info`.
+Every `campc test` validates its existing test artifact before compiling. A
+filter-only change runs the current harness directly; any relevant source,
+dependency, compiler, target, configuration, or output change rebuilds the
+needed test artifact automatically before running.
 
 Use `assert(condition)` for ordinary checks and `fail(message)` for an explicit
 failure. These functions capture expression text, source file, and source line

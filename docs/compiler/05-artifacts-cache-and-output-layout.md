@@ -174,14 +174,17 @@ The test manifest is emitted before the harness runs:
 <artifact-directory>/<project>.camp-test-manifest.json
 ```
 
-Normal test builds also write a small validated reuse record beside the manifest:
+Test builds write a validated artifact-cache record beside the manifest:
 
 ```text
-<artifact-directory>/<project>.camp-test-run-cache.json
+<artifact-directory>/<project>.camp-test-cache.json
 ```
 
-`campc test --run-only` uses that record to validate and launch the existing
-harness. It is an execution reuse record, not a compiler semantic cache.
+Every `campc test` validates that record before compiling. If the request,
+target, configuration, compiler, outputs, or recorded input content changed,
+the command rebuilds and refreshes the record. Otherwise it runs the existing
+harness immediately. The record uses the same artifact-cache machinery as
+ordinary native build artifacts; it is not a compiler semantic cache.
 
 When JSON test results are enabled, results are written beside the manifest by
 default:

@@ -167,6 +167,38 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Native_build_reuses_a_current_artifact_cache_and_rebuilds_after_an_input_change()
+	{
+		string source = CreateTempCase("artifact-cache/main.camp", """
+			namespace ArtifactCache;
+
+			public int add(int left, int right)
+			{
+				return left + right;
+			}
+			""");
+		string outDir = TempPath("artifact-cache-out");
+		string target = NativeTargetForHost();
+
+		ProcessResult initial = RunCampc("build", source, "--nostdlib", "--target", target, "--artifact", "static", "--out-dir", outDir, "--name", "artifact_cache");
+		AssertCommandSucceeded(initial);
+		string artifactDirectory = Path.Combine(outDir, ArtifactDirectoryForHost(NativeBuildKind.Static, CompilerCommandMode.Build));
+		string cachePath = Path.Combine(artifactDirectory, "artifact_cache.camp-artifact-cache.json");
+		Assert.True(File.Exists(cachePath));
+
+		ProcessResult reuse = RunCampc("build", source, "--nostdlib", "--target", target, "--artifact", "static", "--out-dir", outDir, "--name", "artifact_cache", "--timing");
+		AssertCommandSucceeded(reuse);
+		Assert.DoesNotContain("load sources and APIs", reuse.StdErr, StringComparison.Ordinal);
+
+		string cacheBeforeEdit = File.ReadAllText(cachePath);
+		File.AppendAllText(source, "\n// invalidate reusable artifact\n");
+		ProcessResult stale = RunCampc("build", source, "--nostdlib", "--target", target, "--artifact", "static", "--out-dir", outDir, "--name", "artifact_cache", "--timing");
+		AssertCommandSucceeded(stale);
+		Assert.Contains("load sources and APIs", stale.StdErr, StringComparison.Ordinal);
+		Assert.NotEqual(cacheBeforeEdit, File.ReadAllText(cachePath));
+	}
+
+	[Fact]
 	public void Version_command_prints_camp_version()
 	{
 		ProcessResult result = RunCampc("--version");
@@ -1095,9 +1127,9 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
-	public void Test_run_only_reuses_a_validated_all_tests_harness_and_selects_at_runtime()
+	public void Test_reuses_a_current_all_tests_harness_and_selects_at_runtime()
 	{
-		string source = CreateTempCase("test-run-only/main.camp", """
+		string source = CreateTempCase("test-cache/main.camp", """
 			namespace ReuseCli;
 
 			@test
@@ -1110,36 +1142,43 @@ public sealed class CommandLineTests
 			{
 			}
 			""");
-		string outDir = TempPath("test-run-only-out");
+		string outDir = TempPath("test-cache-out");
 		string target = NativeTargetForHost();
 
-		ProcessResult build = RunCampc("test", source, "--target", target, "--out-dir", outDir, "--name", "test_run_only", "--filter", "ReuseCli::first");
+		ProcessResult build = RunCampc("test", source, "--target", target, "--out-dir", outDir, "--name", "test_cache", "--filter", "ReuseCli::first");
 		AssertCommandSucceeded(build);
 		Assert.Contains("passed: ReuseCli::first", build.StdOut, StringComparison.Ordinal);
 		Assert.DoesNotContain("passed: ReuseCli::second", build.StdOut, StringComparison.Ordinal);
 
 		string artifactDirectory = Path.Combine(outDir, ArtifactDirectoryForHost(null, CompilerCommandMode.Test));
-		string harnessPath = Path.Combine(artifactDirectory, "build", "test_run_only_test_harness.c");
-		string cachePath = Path.Combine(artifactDirectory, "test_run_only.camp-test-run-cache.json");
+		string harnessPath = Path.Combine(artifactDirectory, "build", "test_cache_test_harness.c");
+		string cachePath = Path.Combine(artifactDirectory, "test_cache.camp-test-cache.json");
 		Assert.True(File.Exists(cachePath));
 		string harness = File.ReadAllText(harnessPath);
 		Assert.Contains("ReuseCli::first", harness, StringComparison.Ordinal);
 		Assert.Contains("ReuseCli::second", harness, StringComparison.Ordinal);
 
-		ProcessResult reuse = RunCampc("test", source, "--target", target, "--out-dir", outDir, "--name", "test_run_only", "--run-only", "--filter", "ReuseCli::second");
+		ProcessResult reuse = RunCampc("test", source, "--target", target, "--out-dir", outDir, "--name", "test_cache", "--filter", "ReuseCli::second", "--timing");
 		AssertCommandSucceeded(reuse);
 		Assert.Contains("passed: ReuseCli::second", reuse.StdOut, StringComparison.Ordinal);
 		Assert.DoesNotContain("passed: ReuseCli::first", reuse.StdOut, StringComparison.Ordinal);
 		Assert.Equal(harness, File.ReadAllText(harnessPath));
+		Assert.DoesNotContain("load sources and APIs", reuse.StdErr, StringComparison.Ordinal);
+		Assert.DoesNotContain("package std", reuse.StdErr, StringComparison.Ordinal);
 
-		ProcessResult empty = RunCampc("test", source, "--target", target, "--out-dir", outDir, "--name", "test_run_only", "--run-only", "--filter", "ReuseCli::missing");
+		ProcessResult empty = RunCampc("test", source, "--target", target, "--out-dir", outDir, "--name", "test_cache", "--filter", "ReuseCli::missing");
 		AssertCommandSucceeded(empty);
 		Assert.Contains("test summary: 0 passed, 0 failed, 0 skipped, 0 invalid, 0 error, 0 total", empty.StdOut, StringComparison.Ordinal);
 
+		string cacheBeforeEdit = File.ReadAllText(cachePath);
 		File.AppendAllText(source, "\n// invalidate reusable test build\n");
-		ProcessResult stale = RunCampc("test", source, "--target", target, "--out-dir", outDir, "--name", "test_run_only", "--run-only");
-		Assert.NotEqual(0, stale.ExitCode);
-		Assert.Contains("changed", stale.StdErr, StringComparison.Ordinal);
+		ProcessResult stale = RunCampc("test", source, "--target", target, "--out-dir", outDir, "--name", "test_cache", "--timing");
+		AssertCommandSucceeded(stale);
+		Assert.Contains("load sources and APIs", stale.StdErr, StringComparison.Ordinal);
+		Assert.NotEqual(cacheBeforeEdit, File.ReadAllText(cachePath));
+
+		ProcessResult removedOption = RunCampc("test", source, "--target", target, "--out-dir", outDir, "--name", "test_cache", "--run-only");
+		Assert.NotEqual(0, removedOption.ExitCode);
 	}
 
 	[Fact]
