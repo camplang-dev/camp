@@ -151,9 +151,7 @@ corrected.
 Date/Time: 2026-09-07 20:18 EDT
 
 Status:
-More information required - cannot reproduce on current HEAD using the listed
-repro instructions. Do not mark fixed until a reproducible case is found or the
-original failure is otherwise confirmed resolved.
+Open - reproduced on current HEAD on 2026-09-10.
 
 Summary:
 An expression used as the return value of a conditional branch can be lowered
@@ -185,8 +183,14 @@ The generated C can evaluate the `append` conjunction before it tests
 `requested`, leaving the output changed even though it returns `true` from the
 false branch.
 
+The same ordering defect also applies to a method call guarded by a null check:
+the C emitter can materialize a chained call before testing its nullable
+receiver. For example, a body shaped as `if (owner != null) { Result result =
+owner.lookup(); use(result); }` can invoke `lookup()` with a null receiver.
+
 Known Impact:
 Any conditionally returned expression with side effects can run on a path where
-the source program does not execute it. Split the false guard into an early
-return, then evaluate the expression unconditionally only on the remaining
-path until lowering preserves branch evaluation order.
+the source program does not execute it, including a method invocation guarded
+by a nullable receiver check. Keep the side-effecting call in a block-local
+statement after the guard, or split the false guard into an early return, until
+lowering preserves branch evaluation order.
