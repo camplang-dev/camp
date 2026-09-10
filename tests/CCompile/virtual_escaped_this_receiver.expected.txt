@@ -3,13 +3,15 @@
 
 /* Private file declarations. */
 void *malloc(uintptr_t size);
+static void Base_destroy(Base *this);
+void Base__destroy(Base *this);
 static void Derived_destroy(Derived *this);
 void Derived__destroy(Base *ctx);
 static int main(void);
 
 _Base _Base__vt = { .destroy = Base__destroy };
 _Derived _Derived__vt = { .Base = { .destroy = Derived__destroy } };
-void Base_destroy(Base *this)
+static void Base_destroy(Base *this)
 {
 	this->_vt->destroy(this);
 }
@@ -79,7 +81,6 @@ struct Derived
 };
 
 /* Function declarations. */
-void Base_destroy(Base *this);
 void Base__destroy(Base *this);
 void Derived__destroy(Base *ctx);
 

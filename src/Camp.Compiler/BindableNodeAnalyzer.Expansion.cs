@@ -1994,12 +1994,12 @@ public sealed partial class BindableNodeAnalyzer
 		method.Export = constructor.Export;
 		method.Public = constructor.Public;
 		method.Internal = constructor.Internal;
-		ApplyOwnerVisibilityToGeneratedLifecycleMethod(type, method);
 		method.Extern = constructor.Extern;
 		method.ReturnType = VoidType();
 		method.ResolvedType = "void";
 		method.Body = constructor.Body;
 		CopyLifecycleParameters(constructor.Parameters, method.Parameters);
+		ApplyOwnerVisibilityToGeneratedLifecycleMethod(type, method);
 		lifecycleSourceConstructors[method] = constructor;
 		if (method.Body is BlockStatement block)
 		{
@@ -2022,7 +2022,6 @@ public sealed partial class BindableNodeAnalyzer
 		method.Export = constructor.Export;
 		method.Public = constructor.Public;
 		method.Internal = constructor.Internal;
-		ApplyOwnerVisibilityToGeneratedLifecycleMethod(type, method);
 		method.Extern = constructor.Extern;
 		method.Modifier = FunctionModifier.Static;
 		method.ReturnType = PointerTo(CloneType(typeReference)!);
@@ -2032,6 +2031,7 @@ public sealed partial class BindableNodeAnalyzer
 		bool createHelperUsesAllocator = LifecycleAllocatorPolicy.CreateHelperUsesAllocator(currentModule, type, constructor, retainsAllocator, SourceAllocatorTypeAvailable());
 		if (createHelperUsesAllocator && !HasWithinParameter(method))
 			method.Parameters.Add(CreateAllocatorParameter());
+		ApplyOwnerVisibilityToGeneratedLifecycleMethod(type, method);
 		if (method.Extern is not null)
 			return method;
 
@@ -2216,14 +2216,31 @@ public sealed partial class BindableNodeAnalyzer
 		return method;
 	}
 
-	static void ApplyOwnerVisibilityToGeneratedLifecycleMethod(TypeDefinition type, FunctionDefinition method)
+	void ApplyOwnerVisibilityToGeneratedLifecycleMethod(TypeDefinition type, FunctionDefinition method)
 	{
+		bool methodHasExplicitVisibility = VisibilityName(method) is not null;
 		string? visibility = VisibilityName(method) ?? VisibilityName(type);
-		if (VisibilityName(method) is not null)
+		if (methodHasExplicitVisibility)
 			visibility = CombinedLifecycleHelperVisibility(type, method);
+		if (visibility is "export" or "public" && LifecycleHelperExposesNonPublicType(method))
+			visibility = null;
 		method.Export = visibility == "export" ? method.Export ?? type.Export ?? "export" : null;
 		method.Public = visibility == "public" ? method.Public ?? type.Public ?? "public" : null;
 		method.Internal = visibility == "internal" ? method.Internal ?? type.Internal ?? "internal" : null;
+	}
+
+	bool LifecycleHelperExposesNonPublicType(FunctionDefinition method)
+	{
+		foreach (TypeReference type in GetVisibleTypes(method))
+		{
+			foreach (TypeDefinition definition in GetDefinitionTypes(type))
+				if (!IsPublicApiType(definition))
+					return true;
+			foreach (NamedTypeReference named in GetNamedTypes(type))
+				if (TryGetNamedTypeDefinition(named, out TypeDefinition? definition) && definition is not null && !IsPublicApiType(definition))
+					return true;
+		}
+		return false;
 	}
 
 	static string? CombinedLifecycleHelperVisibility(TypeDefinition type, FunctionDefinition method)

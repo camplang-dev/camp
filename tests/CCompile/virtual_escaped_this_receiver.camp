@@ -4,7 +4,7 @@ escaped abstract class Base
 {
 	int destroyed;
 
-	public virtual void destroy(escaped this)
+	virtual void destroy(escaped this)
 	{
 		this.destroyed = 1;
 	}

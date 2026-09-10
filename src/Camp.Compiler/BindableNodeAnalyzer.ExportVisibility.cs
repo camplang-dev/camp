@@ -15,8 +15,10 @@ public sealed partial class BindableNodeAnalyzer
 
 	void AnalyzePublicVisibility(Definition definition, TypeDefinition? containingType)
 	{
-		if (definition.Public is not null && (containingType is null || IsPublicApiType(containingType)))
+		if (definition.Public is not null)
 		{
+			if (containingType is not null && !IsPublicApiType(containingType))
+				Report(GetNameRange(definition), $"Public member '{definition.Name}' exposes non-public type '{containingType.Name}'.");
 			foreach (TypeReference consumedType in GetVisibleTypesForPublicDeclaration(definition))
 				CheckPublicTypeUse(definition, consumedType);
 		}

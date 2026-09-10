@@ -3,7 +3,7 @@ escaped class Holder
 	escaped char[] storage;
 	escaped string text;
 
-	public Holder()
+	Holder()
 	{
 		this.storage = new char[3];
 		this.storage[0] = 'h';
