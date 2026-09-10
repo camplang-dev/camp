@@ -1108,6 +1108,9 @@ checkpoint; plain `campc test` falls back to the test location. Allocate
 intentional process-lifetime state with `within(default)` so it is outside the
 built-in test leak detector. `--ignore-leaks` is allowed only for `campc test`
 and `campc cover`; it reports leaks but does not make leak-only tests fail.
+The tracking allocator fills fresh storage and `realloc` growth with a
+deterministic nonzero pattern. Do not assume `new T[count]` is zeroed; use
+`new T[count] {}` when a test requires zeroed storage.
 
 Every `campc test` validates its existing test artifact before compiling. A
 filter-only change runs the current harness directly; any relevant source,

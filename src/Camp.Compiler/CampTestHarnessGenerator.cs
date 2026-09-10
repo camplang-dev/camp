@@ -13,6 +13,7 @@ public static class CampTestHarnessGenerator
 		StringBuilder builder = new();
 		builder.AppendLine("#include <stdio.h>");
 		builder.AppendLine("#include <stdlib.h>");
+		builder.AppendLine("#include <string.h>");
 		builder.AppendLine("#include <time.h>");
 		builder.AppendLine("#include \"" + EscapeCString(projectName + "_private.h") + "\"");
 		builder.AppendLine();
@@ -446,10 +447,14 @@ public static class CampTestHarnessGenerator
 			return;
 		}
 		string allocatorType = CTypeName(allocator.Type);
+		builder.AppendLine("static const unsigned char camp_test_uninitialized_pattern = 0xA5;");
+		builder.AppendLine();
 		builder.AppendLine("static void *camp_test_allocator_alloc(" + allocatorType + " **ctx, uintptr_t size)");
 		builder.AppendLine("{");
 		builder.AppendLine("\t(void)ctx;");
 		builder.AppendLine("\tvoid *ptr = malloc(size);");
+		builder.AppendLine("\tif (ptr != 0 && size != 0)");
+		builder.AppendLine("\t\tmemset(ptr, camp_test_uninitialized_pattern, size);");
 		builder.AppendLine("\tcamp_test_memory_track(ptr, size);");
 		builder.AppendLine("\treturn ptr;");
 		builder.AppendLine("}");
@@ -475,11 +480,14 @@ public static class CampTestHarnessGenerator
 			builder.AppendLine("\t\tcamp_test_memory_free_count++;");
 			builder.AppendLine("\t\treturn 0;");
 			builder.AppendLine("\t}");
+			builder.AppendLine("\tuintptr_t old_size = record->size;");
 			builder.AppendLine("\tvoid *new_ptr = realloc(ptr, new_size);");
 			builder.AppendLine("\tif (new_ptr != 0)");
 			builder.AppendLine("\t{");
 			builder.AppendLine("\t\trecord->ptr = new_ptr;");
 			builder.AppendLine("\t\trecord->size = new_size;");
+			builder.AppendLine("\t\tif (new_size > old_size)");
+			builder.AppendLine("\t\t\tmemset((unsigned char *)new_ptr + old_size, camp_test_uninitialized_pattern, new_size - old_size);");
 			builder.AppendLine("\t}");
 			builder.AppendLine("\treturn new_ptr;");
 			builder.AppendLine("}");

@@ -129,6 +129,12 @@ tracked pointer, fail as memory errors. Allocations made through `within
 (default)`, direct allocator instances, custom non-interface allocators, or
 foreign allocation APIs are not tracked by this built-in detector.
 
+The tracking allocator fills fresh allocations and a `realloc` growth tail with
+a deterministic nonzero pattern. This makes accidental reads of uninitialized
+test-owned storage more likely to fail predictably; it is not an exact
+read-before-write detector. Tests that require zeroed storage must request it
+explicitly with `new T[count] {}`.
+
 ## `cover`
 
 `cover` runs the same test pipeline with Camp source coverage enabled:

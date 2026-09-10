@@ -2850,6 +2850,77 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Generated_harness_poison_allocator_exposes_uninitialized_test_storage()
+	{
+		string source = CreateTempCase("test_harness_poison_allocator/main.camp", """
+			namespace HarnessPoisonAllocatorCli;
+
+			interface Allocator
+			{
+				void* alloc(nuint size);
+				void* realloc(void* ptr, nuint size);
+				void free(void* ptr);
+			}
+
+			struct Assertion
+			{
+				escaped string message;
+				escaped string sourcefile;
+				uint sourceline;
+			}
+
+			@test
+			void uninitializedStorageDoesNotReadAsZero(within Allocator* allocator,
+				thrown Assertion* assertion)
+			{
+				void* memory = allocator.alloc(1);
+				if (((byte*)memory)[0] == 0)
+					throw assertion;
+				allocator.free(memory);
+			}
+
+			@test
+			void reallocGrowthDoesNotReadAsZero(within Allocator* allocator,
+				thrown Assertion* assertion)
+			{
+				void* memory = allocator.alloc(1);
+				memory = allocator.realloc(memory, 2);
+				if (((byte*)memory)[1] == 0)
+					throw assertion;
+				allocator.free(memory);
+			}
+			""");
+		string outDir = TempPath("test-harness-poison-allocator-out");
+
+		ProcessResult result = RunCampc(
+			"test",
+			source,
+			"--nostdlib",
+			"--target",
+			NativeTargetForHost(),
+			"--out-dir",
+			outDir,
+			"--name",
+			"harness_poison_allocator");
+
+		AssertCommandSucceeded(result);
+		Assert.Contains("passed: HarnessPoisonAllocatorCli::uninitializedStorageDoesNotReadAsZero", result.StdOut, StringComparison.Ordinal);
+		Assert.Contains("passed: HarnessPoisonAllocatorCli::reallocGrowthDoesNotReadAsZero", result.StdOut, StringComparison.Ordinal);
+		using JsonDocument results = JsonDocument.Parse(File.ReadAllText(TestResultsPath(outDir, "harness_poison_allocator")));
+		JsonElement[] tests = results.RootElement.GetProperty("tests").EnumerateArray().ToArray();
+		Assert.Equal("passed", tests[0].GetProperty("outcome").GetString());
+		Assert.Equal("passed", tests[1].GetProperty("outcome").GetString());
+
+		string harnessSource = Path.Combine(outDir, ArtifactDirectoryForHost(null, CompilerCommandMode.Test), "build", "harness_poison_allocator_test_harness.c");
+		string harness = File.ReadAllText(harnessSource);
+		Assert.Contains("#include <string.h>", harness, StringComparison.Ordinal);
+		Assert.Contains("camp_test_uninitialized_pattern = 0xA5", harness, StringComparison.Ordinal);
+		Assert.Contains("memset(ptr, camp_test_uninitialized_pattern, size);", harness, StringComparison.Ordinal);
+		Assert.Contains("uintptr_t old_size = record->size;", harness, StringComparison.Ordinal);
+		Assert.Contains("memset((unsigned char *)new_ptr + old_size, camp_test_uninitialized_pattern, new_size - old_size);", harness, StringComparison.Ordinal);
+	}
+
+	[Fact]
 	public void Generated_harness_treats_nonstandard_interface_allocator_as_untracked()
 	{
 		string source = CreateTempCase("test_harness_nonstandard_allocator/main.camp", """
