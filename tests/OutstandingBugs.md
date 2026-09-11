@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-156.
+Next bug number: BUG-157.
 
 ## Bug Template
 
@@ -181,3 +181,69 @@ Compiler modules that need an escaped owner to retain portable sidecar sections
 cannot safely extend that owner with the required array-backed state. Keep the
 sidecar state out of escaped owner layouts until code generation preserves the
 layout and destruction contract.
+
+## BUG-156: Conditional return in a loop-local `finally` scope forces return on fallthrough
+
+Date/Time: 2026-09-11 11:07 EDT
+
+Summary:
+A loop body that owns a value with `finally` and also contains a conditional
+`return` can return from the containing function after the first iteration even
+when the return condition is false. The cleanup transfer generated for the
+conditional return is also emitted after ordinary end-of-iteration cleanup,
+turning the loop body's fallthrough path into an unconditional return.
+
+Steps to Reproduce:
+
+1. Save this source as `tmp/bug-156.camp`:
+
+   ```camp
+   export extern void* malloc(nuint size);
+   export extern void free(void* ptr);
+
+   int reproduce()
+   {
+       int completed = 0;
+       for (int index = 0; index < 4; index++)
+       {
+           int[] values = new int[1] finally delete;
+           values[0] = index;
+           if (index == 99)
+               return -1;
+           completed++;
+       }
+       return completed;
+   }
+
+   export int main()
+   {
+       return reproduce() == 4 ? 0 : 1;
+   }
+   ```
+
+2. From the compiler repository, run:
+
+   ```text
+   bin/campc run tmp/bug-156.camp --nostdlib --out-dir tmp/bug-156-out --name bug-156
+   ```
+
+3. Observe the process exit code. Optionally inspect the generated C function
+   `reproduce` under `tmp/bug-156-out/`.
+
+Expected:
+The false conditional return does not transfer control. Each iteration deletes
+its array, all four iterations complete, `reproduce` returns `4`, and the
+process exits with code 0.
+
+Actual:
+The process exits with code 1. After the ordinary cleanup at the end of the
+first iteration, generated C emits `return _return...;`; that return temporary
+still contains its default value because the source return branch was not
+taken. Consequently `reproduce` returns `0` after one iteration.
+
+Known Impact:
+Valid loops can silently stop after their first iteration whenever a loop-local
+`finally` scope also contains a conditional return, even if that return is never
+taken. Move the conditional return before creating the owner when possible, or
+replace `finally` with explicit cleanup on both the return and fallthrough paths
+until cleanup transfer lowering distinguishes the active transfer path.
