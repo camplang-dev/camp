@@ -1256,11 +1256,12 @@ public sealed partial class BindableNodeAnalyzer
 		currentCleanupScopes.RemoveAt(currentCleanupScopes.Count - 1);
 		if (cleanupScope.PreludeStatements.Count > 0)
 			statements.InsertRange(0, cleanupScope.PreludeStatements);
-		if (cleanupScope.ExitLabelName is not null)
+		bool hasCleanupExit = cleanupScope.ExitLabelName is not null;
+		if (hasCleanupExit)
 			statements.Add(new LabelStatement { Name = cleanupScope.ExitLabelName, ResolvedType = "void" });
 		for (int i = cleanupScope.Statements.Count - 1; i >= 0; i--)
 			statements.Add(CloneStatementForCleanup(cleanupScope.Statements[i]));
-		if (cleanupScope.ReturnTarget is not null)
+		if (hasCleanupExit && cleanupScope.ReturnTarget is not null)
 			statements.Add(new ReturnStatement
 			{
 				ResolvedType = "void",

@@ -10,7 +10,40 @@ int reproduce()
 	return completed;
 }
 
+int reproduceConditionalReturn()
+{
+	for (int index = 0; index < 4; index++)
+	{
+		int[] values = new int[1] finally delete;
+		values[0] = index;
+		if (index == 0)
+			return values[0] + 1;
+	}
+	return 0;
+}
+
+int reproduceNestedConditionalReturn()
+{
+	int completed = 0;
+	for (int index = 0; index < 4; index++)
+	{
+		int[] values = new int[1] finally delete;
+		values[0] = index;
+		if (index < 4)
+		{
+			if (index == 99)
+				return -1;
+		}
+		completed++;
+	}
+	return completed;
+}
+
 export int main()
 {
-	return reproduce() == 4 ? 0 : 1;
+	if (reproduce() != 4)
+		return 1;
+	if (reproduceConditionalReturn() != 1)
+		return 2;
+	return reproduceNestedConditionalReturn() == 4 ? 0 : 3;
 }

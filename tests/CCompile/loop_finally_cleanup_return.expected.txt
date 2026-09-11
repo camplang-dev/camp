@@ -7,6 +7,9 @@ static int runArrayFallthrough(void);
 static int runArrayContinue(void);
 static int runArrayBreak(void);
 static int runArrayReturn(void);
+static int runArrayConditionalReturnFalse(void);
+static int runArrayConditionalReturnTrue(void);
+static int runArrayNestedConditionalReturnFalse(void);
 static int runArrayWhile(void);
 static int runArrayDoWhile(void);
 
@@ -165,12 +168,126 @@ static int runArrayReturn(void)
 				free((void *)(_finally19));
 				_cleanupActive20 = false;
 			}
-			return _return21;
 __for_continue17: ;
 		}
 __for_break18: ;
 	}
 	return 0;
+}
+
+static int runArrayConditionalReturnFalse(void)
+{
+	int completed = 0;
+	{
+		for (int index = 0; (index < 4); index++)
+		{
+			int *_finally24 = 0;
+			bool _cleanupActive25 = false;
+			int _return26 = 0;
+			int *values = (int *)(malloc((sizeof(int) * 1)));
+			uintptr_t values_length = 1;
+			_finally24 = values;
+			_cleanupActive25 = true;
+			_finally24;
+			values[0] = index;
+			if ((index == 99))
+			{
+				_return26 = -1;
+				if (_cleanupActive25)
+				{
+					free((void *)(_finally24));
+					_cleanupActive25 = false;
+				}
+				return _return26;
+			}
+			completed++;
+			if (_cleanupActive25)
+			{
+				free((void *)(_finally24));
+				_cleanupActive25 = false;
+			}
+__for_continue22: ;
+		}
+__for_break23: ;
+	}
+	return completed;
+}
+
+static int runArrayConditionalReturnTrue(void)
+{
+	{
+		for (int index = 0; (index < 4); index++)
+		{
+			int *_finally29 = 0;
+			bool _cleanupActive30 = false;
+			int _return31 = 0;
+			int *values = (int *)(malloc((sizeof(int) * 1)));
+			uintptr_t values_length = 1;
+			_finally29 = values;
+			_cleanupActive30 = true;
+			_finally29;
+			values[0] = index;
+			if ((index == 0))
+			{
+				_return31 = (values[0] + 1);
+				if (_cleanupActive30)
+				{
+					free((void *)(_finally29));
+					_cleanupActive30 = false;
+				}
+				return _return31;
+			}
+			if (_cleanupActive30)
+			{
+				free((void *)(_finally29));
+				_cleanupActive30 = false;
+			}
+__for_continue27: ;
+		}
+__for_break28: ;
+	}
+	return 0;
+}
+
+static int runArrayNestedConditionalReturnFalse(void)
+{
+	int completed = 0;
+	{
+		for (int index = 0; (index < 4); index++)
+		{
+			int *_finally34 = 0;
+			bool _cleanupActive35 = false;
+			int _return36 = 0;
+			int *values = (int *)(malloc((sizeof(int) * 1)));
+			uintptr_t values_length = 1;
+			_finally34 = values;
+			_cleanupActive35 = true;
+			_finally34;
+			values[0] = index;
+			if ((index < 4))
+			{
+				if ((index == 99))
+				{
+					_return36 = -1;
+					if (_cleanupActive35)
+					{
+						free((void *)(_finally34));
+						_cleanupActive35 = false;
+					}
+					return _return36;
+				}
+			}
+			completed++;
+			if (_cleanupActive35)
+			{
+				free((void *)(_finally34));
+				_cleanupActive35 = false;
+			}
+__for_continue32: ;
+		}
+__for_break33: ;
+	}
+	return completed;
 }
 
 static int runArrayWhile(void)
@@ -180,24 +297,24 @@ static int runArrayWhile(void)
 	{
 		while ((index < 4))
 		{
-			int *_finally24 = 0;
-			bool _cleanupActive25 = false;
+			int *_finally39 = 0;
+			bool _cleanupActive40 = false;
 			int *values = (int *)(malloc((sizeof(int) * 1)));
 			uintptr_t values_length = 1;
-			_finally24 = values;
-			_cleanupActive25 = true;
-			_finally24;
+			_finally39 = values;
+			_cleanupActive40 = true;
+			_finally39;
 			values[0] = index;
 			completed++;
 			index++;
-			if (_cleanupActive25)
+			if (_cleanupActive40)
 			{
-				free((void *)(_finally24));
-				_cleanupActive25 = false;
+				free((void *)(_finally39));
+				_cleanupActive40 = false;
 			}
-__while_continue22: ;
+__while_continue37: ;
 		}
-__while_break23: ;
+__while_break38: ;
 	}
 	return completed;
 }
@@ -209,32 +326,32 @@ static int runArrayDoWhile(void)
 	{
 		do
 		{
-			int *_finally28 = 0;
-			bool _cleanupActive29 = false;
+			int *_finally43 = 0;
+			bool _cleanupActive44 = false;
 			int *values = (int *)(malloc((sizeof(int) * 1)));
 			uintptr_t values_length = 1;
-			_finally28 = values;
-			_cleanupActive29 = true;
-			_finally28;
+			_finally43 = values;
+			_cleanupActive44 = true;
+			_finally43;
 			values[0] = index;
 			completed++;
 			index++;
-			if (_cleanupActive29)
+			if (_cleanupActive44)
 			{
-				free((void *)(_finally28));
-				_cleanupActive29 = false;
+				free((void *)(_finally43));
+				_cleanupActive44 = false;
 			}
-__do_continue26: ;
+__do_continue41: ;
 		}
 		while ((index < 4));
-__do_break27: ;
+__do_break42: ;
 	}
 	return completed;
 }
 
 int main(void)
 {
-	return ((((((runLoop() + runArrayFallthrough()) + runArrayContinue()) + runArrayBreak()) + runArrayReturn()) + runArrayWhile()) + runArrayDoWhile());
+	return (((((((((runLoop() + runArrayFallthrough()) + runArrayContinue()) + runArrayBreak()) + runArrayReturn()) + runArrayConditionalReturnFalse()) + runArrayConditionalReturnTrue()) + runArrayNestedConditionalReturnFalse()) + runArrayWhile()) + runArrayDoWhile());
 }
 
 // file: loop_finally_cleanup_return.h

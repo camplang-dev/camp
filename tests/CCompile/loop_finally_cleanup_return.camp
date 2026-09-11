@@ -65,6 +65,49 @@ int runArrayReturn()
 	return 0;
 }
 
+int runArrayConditionalReturnFalse()
+{
+	int completed = 0;
+	for (int index = 0; index < 4; index++)
+	{
+		int[] values = new int[1] finally delete;
+		values[0] = index;
+		if (index == 99)
+			return -1;
+		completed++;
+	}
+	return completed;
+}
+
+int runArrayConditionalReturnTrue()
+{
+	for (int index = 0; index < 4; index++)
+	{
+		int[] values = new int[1] finally delete;
+		values[0] = index;
+		if (index == 0)
+			return values[0] + 1;
+	}
+	return 0;
+}
+
+int runArrayNestedConditionalReturnFalse()
+{
+	int completed = 0;
+	for (int index = 0; index < 4; index++)
+	{
+		int[] values = new int[1] finally delete;
+		values[0] = index;
+		if (index < 4)
+		{
+			if (index == 99)
+				return -1;
+		}
+		completed++;
+	}
+	return completed;
+}
+
 int runArrayWhile()
 {
 	int completed = 0;
@@ -101,6 +144,9 @@ export int main()
 		+ runArrayContinue()
 		+ runArrayBreak()
 		+ runArrayReturn()
+		+ runArrayConditionalReturnFalse()
+		+ runArrayConditionalReturnTrue()
+		+ runArrayNestedConditionalReturnFalse()
 		+ runArrayWhile()
 		+ runArrayDoWhile();
 }
