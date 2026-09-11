@@ -149,6 +149,8 @@ lowering preserves branch evaluation order.
 
 Date/Time: 2026-09-11 02:15 EDT
 
+Status: Unconfirmed, not able to reproduce.
+
 Summary:
 Adding owned escaped array fields to an existing escaped class can make every
 isolated `@test` process exit with signal 11 before the test body reports a
@@ -176,8 +178,29 @@ The generated test executable exits with code 139 before reporting a result.
 The test results record every selected test as a `test-runner-error`, even when
 the test does not access the newly added fields.
 
-Known Impact:
-Compiler modules that need an escaped owner to retain portable sidecar sections
-cannot safely extend that owner with the required array-backed state. Keep the
-sidecar state out of escaped owner layouts until code generation preserves the
-layout and destruction contract.
+Investigation:
+
+The initial generic repro passed on `8c362d802ff1b48266017cdc6209d3401a00f798`
+with compiler version
+`v0.11.0-preview.1+8c362d802ff1b48266017cdc6209d3401a00f798` on macOS.
+Its generated C included expanded pointer-and-length fields for each escaped
+array, the fixed record storage, retained allocator storage, complete object
+zero-initialization, and null-guarded array destruction.
+
+The enlarged investigation fixture was then run from a separate worktree at
+the report-era compiler baseline `9204e2ce09c1a27a6798bd28f8b48611d8e01907`.
+It retained the owned escaped arrays and added fixed byte sidecars of 3072 and
+5120 elements, a fixed char sidecar of 8192 elements, and 256 fixed two-uint
+records. Running
+`dotnet run --project src/campc/campc.csproj -- test tmp/bug-155-large.camp --out-dir tmp/bug-155-large-out --name bug-155-large`
+passed `defaultEscapedOwnerDestroys` with exit 0. The isolated native harness
+also passed with one 18,488-byte allocation, one free, and no live allocations.
+
+No compiler change, regression, or bug classification is warranted without the
+original crashing source snapshot, generated C, compiler binary or revision, or
+exact test invocation and environment that produced exit 139.
+
+Reported Impact:
+The original report describes compiler modules that need an escaped owner to
+retain portable sidecar sections as unable to extend that owner safely. This
+impact remains unverified pending the missing reproduction evidence.
