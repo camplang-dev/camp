@@ -16,7 +16,91 @@ int runLoop()
 	return count;
 }
 
+int runArrayFallthrough()
+{
+	int completed = 0;
+	for (int index = 0; index < 4; index++)
+	{
+		int[] values = new int[1] finally delete;
+		values[0] = index;
+		completed++;
+	}
+	return completed;
+}
+
+int runArrayContinue()
+{
+	int completed = 0;
+	for (int index = 0; index < 4; index++)
+	{
+		int[] values = new int[1] finally delete;
+		values[0] = index;
+		completed++;
+		continue;
+	}
+	return completed;
+}
+
+int runArrayBreak()
+{
+	int completed = 0;
+	for (int index = 0; index < 4; index++)
+	{
+		int[] values = new int[1] finally delete;
+		values[0] = index;
+		completed++;
+		break;
+	}
+	return completed;
+}
+
+int runArrayReturn()
+{
+	for (int index = 0; index < 4; index++)
+	{
+		int[] values = new int[1] finally delete;
+		values[0] = index;
+		return values[0] + 1;
+	}
+	return 0;
+}
+
+int runArrayWhile()
+{
+	int completed = 0;
+	int index = 0;
+	while (index < 4)
+	{
+		int[] values = new int[1] finally delete;
+		values[0] = index;
+		completed++;
+		index++;
+	}
+	return completed;
+}
+
+int runArrayDoWhile()
+{
+	int completed = 0;
+	int index = 0;
+	do
+	{
+		int[] values = new int[1] finally delete;
+		values[0] = index;
+		completed++;
+		index++;
+	}
+	while (index < 4);
+	return completed;
+}
+
 export int main()
 {
-	return runLoop();
+	return runLoop()
+		+ runArrayFallthrough()
+		+ runArrayContinue()
+		+ runArrayBreak()
+		+ runArrayReturn()
+		+ runArrayWhile()
+		+ runArrayDoWhile();
 }

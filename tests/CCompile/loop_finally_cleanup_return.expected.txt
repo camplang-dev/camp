@@ -3,6 +3,12 @@
 
 /* Private file declarations. */
 static int runLoop(void);
+static int runArrayFallthrough(void);
+static int runArrayContinue(void);
+static int runArrayBreak(void);
+static int runArrayReturn(void);
+static int runArrayWhile(void);
+static int runArrayDoWhile(void);
 
 static int runLoop(void)
 {
@@ -34,9 +40,201 @@ __for_break1: ;
 	return count;
 }
 
+static int runArrayFallthrough(void)
+{
+	int completed = 0;
+	{
+		for (int index = 0; (index < 4); index++)
+		{
+			int *_finally7 = 0;
+			bool _cleanupActive8 = false;
+			int *values = (int *)(malloc((sizeof(int) * 1)));
+			uintptr_t values_length = 1;
+			_finally7 = values;
+			_cleanupActive8 = true;
+			_finally7;
+			values[0] = index;
+			completed++;
+			if (_cleanupActive8)
+			{
+				free((void *)(_finally7));
+				_cleanupActive8 = false;
+			}
+__for_continue5: ;
+		}
+__for_break6: ;
+	}
+	return completed;
+}
+
+static int runArrayContinue(void)
+{
+	int completed = 0;
+	{
+		for (int index = 0; (index < 4); index++)
+		{
+			int *_finally11 = 0;
+			bool _cleanupActive12 = false;
+			int *values = (int *)(malloc((sizeof(int) * 1)));
+			uintptr_t values_length = 1;
+			_finally11 = values;
+			_cleanupActive12 = true;
+			_finally11;
+			values[0] = index;
+			completed++;
+			{
+				if (_cleanupActive12)
+				{
+					free((void *)(_finally11));
+					_cleanupActive12 = false;
+				}
+				goto __for_continue9;
+			}
+			if (_cleanupActive12)
+			{
+				free((void *)(_finally11));
+				_cleanupActive12 = false;
+			}
+__for_continue9: ;
+		}
+__for_break10: ;
+	}
+	return completed;
+}
+
+static int runArrayBreak(void)
+{
+	int completed = 0;
+	{
+		for (int index = 0; (index < 4); index++)
+		{
+			int *_finally15 = 0;
+			bool _cleanupActive16 = false;
+			int *values = (int *)(malloc((sizeof(int) * 1)));
+			uintptr_t values_length = 1;
+			_finally15 = values;
+			_cleanupActive16 = true;
+			_finally15;
+			values[0] = index;
+			completed++;
+			{
+				if (_cleanupActive16)
+				{
+					free((void *)(_finally15));
+					_cleanupActive16 = false;
+				}
+				goto __for_break14;
+			}
+			if (_cleanupActive16)
+			{
+				free((void *)(_finally15));
+				_cleanupActive16 = false;
+			}
+__for_continue13: ;
+		}
+__for_break14: ;
+	}
+	return completed;
+}
+
+static int runArrayReturn(void)
+{
+	{
+		for (int index = 0; (index < 4); index++)
+		{
+			int *_finally19 = 0;
+			bool _cleanupActive20 = false;
+			int _return21 = 0;
+			int *values = (int *)(malloc((sizeof(int) * 1)));
+			uintptr_t values_length = 1;
+			_finally19 = values;
+			_cleanupActive20 = true;
+			_finally19;
+			values[0] = index;
+			{
+				_return21 = (values[0] + 1);
+				if (_cleanupActive20)
+				{
+					free((void *)(_finally19));
+					_cleanupActive20 = false;
+				}
+				return _return21;
+			}
+			if (_cleanupActive20)
+			{
+				free((void *)(_finally19));
+				_cleanupActive20 = false;
+			}
+			return _return21;
+__for_continue17: ;
+		}
+__for_break18: ;
+	}
+	return 0;
+}
+
+static int runArrayWhile(void)
+{
+	int completed = 0;
+	int index = 0;
+	{
+		while ((index < 4))
+		{
+			int *_finally24 = 0;
+			bool _cleanupActive25 = false;
+			int *values = (int *)(malloc((sizeof(int) * 1)));
+			uintptr_t values_length = 1;
+			_finally24 = values;
+			_cleanupActive25 = true;
+			_finally24;
+			values[0] = index;
+			completed++;
+			index++;
+			if (_cleanupActive25)
+			{
+				free((void *)(_finally24));
+				_cleanupActive25 = false;
+			}
+__while_continue22: ;
+		}
+__while_break23: ;
+	}
+	return completed;
+}
+
+static int runArrayDoWhile(void)
+{
+	int completed = 0;
+	int index = 0;
+	{
+		do
+		{
+			int *_finally28 = 0;
+			bool _cleanupActive29 = false;
+			int *values = (int *)(malloc((sizeof(int) * 1)));
+			uintptr_t values_length = 1;
+			_finally28 = values;
+			_cleanupActive29 = true;
+			_finally28;
+			values[0] = index;
+			completed++;
+			index++;
+			if (_cleanupActive29)
+			{
+				free((void *)(_finally28));
+				_cleanupActive29 = false;
+			}
+__do_continue26: ;
+		}
+		while ((index < 4));
+__do_break27: ;
+	}
+	return completed;
+}
+
 int main(void)
 {
-	return runLoop();
+	return ((((((runLoop() + runArrayFallthrough()) + runArrayContinue()) + runArrayBreak()) + runArrayReturn()) + runArrayWhile()) + runArrayDoWhile());
 }
 
 // file: loop_finally_cleanup_return.h

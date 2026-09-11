@@ -1,0 +1,16 @@
+int reproduce()
+{
+	int completed = 0;
+	for (int index = 0; index < 4; index++)
+	{
+		int[] values = new int[1] finally delete;
+		values[0] = index;
+		completed++;
+	}
+	return completed;
+}
+
+export int main()
+{
+	return reproduce() == 4 ? 0 : 1;
+}
