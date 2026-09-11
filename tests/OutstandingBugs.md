@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-155.
+Next bug number: BUG-156.
 
 ## Bug Template
 
@@ -194,3 +194,40 @@ the source program does not execute it, including a method invocation guarded
 by a nullable receiver check. Keep the side-effecting call in a block-local
 statement after the guard, or split the false guard into an early return, until
 lowering preserves branch evaluation order.
+
+## BUG-155: Escaped class layout can crash every isolated test process
+
+Date/Time: 2026-09-11 02:15 EDT
+
+Summary:
+Adding owned escaped array fields to an existing escaped class can make every
+isolated `@test` process exit with signal 11 before the test body reports a
+result. The affected class has an ordinary allocator-capturing destructor that
+deletes its owned arrays; the new fields are default-initialized and need not be
+used by the test. This is a compiler correctness failure because extending a
+private escaped-owner representation must preserve valid object layout and
+default destruction.
+
+Steps to Reproduce:
+
+1. In a static Camp test module, define or extend an escaped class with an
+   allocator field, several owned `escaped byte[]`/`escaped char[]` fields, a
+   fixed array of small plain records, and a destructor that deletes the owned
+   array fields within the captured allocator.
+2. Construct and destroy the class from an `@test`, then run the module through
+   `campc test` with its normal isolated-test harness.
+
+Expected:
+The harness enters the selected test and construction/destruction of the
+default-initialized owner completes normally.
+
+Actual:
+The generated test executable exits with code 139 before reporting a result.
+The test results record every selected test as a `test-runner-error`, even when
+the test does not access the newly added fields.
+
+Known Impact:
+Compiler modules that need an escaped owner to retain portable sidecar sections
+cannot safely extend that owner with the required array-backed state. Keep the
+sidecar state out of escaped owner layouts until code generation preserves the
+layout and destruction contract.
