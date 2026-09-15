@@ -35,7 +35,6 @@ int main(void)
 		free((void *)(_finally1));
 		_cleanupActive2 = false;
 	}
-	return _return3;
 }
 
 // file: within_default_allocator.h

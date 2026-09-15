@@ -57,7 +57,6 @@ __while_break2: ;
 		free((void *)(_finally3));
 		_cleanupActive4 = false;
 	}
-	return _return7;
 }
 
 // file: dynamic_array_empty_initializer.h

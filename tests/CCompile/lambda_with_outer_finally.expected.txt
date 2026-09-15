@@ -36,7 +36,6 @@ static int main(void)
 		free((void *)(_finally0));
 		_cleanupActive1 = false;
 	}
-	return _return2;
 }
 
 static bool main_lambda0(void *_context, int *value)

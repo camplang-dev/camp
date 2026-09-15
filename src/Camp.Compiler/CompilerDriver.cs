@@ -463,7 +463,18 @@ public static class CompilerDriver
             using IDisposable _ = timing.Begin("top-level artifact freshness", "freshness", "current");
             foreach (CampArtifactCacheOutput output in expectedOutputs)
                 AddGeneratedFile(output.Path, BuildFileWriteStatus.Unchanged);
+            AddCurrentGeneratedBuildFiles(buildDirectory);
             return true;
+        }
+
+        void AddCurrentGeneratedBuildFiles(string buildDirectory)
+        {
+            if (!Directory.Exists(buildDirectory))
+                return;
+            foreach (string path in Directory.EnumerateFiles(buildDirectory, "*", SearchOption.TopDirectoryOnly)
+                .Where(static path => Path.GetExtension(path) is ".c" or ".h")
+                .OrderBy(static path => path, StringComparer.OrdinalIgnoreCase))
+                AddGeneratedFile(path, BuildFileWriteStatus.Unchanged);
         }
 
         static bool HasExpectedCacheOutputs(CampArtifactCacheRecord cache, IReadOnlyList<CampArtifactCacheOutput> expectedOutputs)

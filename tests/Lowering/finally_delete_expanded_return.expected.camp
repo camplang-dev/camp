@@ -44,5 +44,4 @@ export int main()
 		free((void*)__local0);
 		__local1 = false;
 	}
-	return __local2;
 }

@@ -37,7 +37,6 @@ int main(void)
 		free((void *)(_finally1));
 		_cleanupActive2 = false;
 	}
-	return _return3;
 }
 
 static uintptr_t Byte_formatHex(uint8_t *this, char *buffer, uintptr_t buffer_length)

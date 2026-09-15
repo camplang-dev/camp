@@ -100,6 +100,34 @@ public sealed class CompilerDriverOptionTests
 	}
 
 	[Fact]
+	public void Current_native_artifact_reports_generated_c_files()
+	{
+		string source = CreateTempCase("current_artifact_generated_files.camp", "export int add(int left, int right) => left + right;\n");
+		string outputRoot = Path.Combine(FindRepositoryRoot(), "tmp", "driver-option-tests", "current-artifact-generated-files", ".");
+		const string privateHeader = "current_artifact_generated_files_private.h";
+
+		CompilerResult fresh = Execute(source, request =>
+		{
+			request.TargetName = NativeTargetForHost();
+			request.NoStdLib = true;
+			request.BuildKind = NativeBuildKind.Static;
+			request.OutDir = outputRoot;
+		});
+		CompilerResult current = Execute(source, request =>
+		{
+			request.TargetName = NativeTargetForHost();
+			request.NoStdLib = true;
+			request.BuildKind = NativeBuildKind.Static;
+			request.OutDir = outputRoot;
+		});
+
+		Assert.Equal(0, fresh.ExitCode);
+		Assert.Equal(0, current.ExitCode);
+		Assert.Contains(current.GeneratedFiles, path => Path.GetFileName(path).Equals(privateHeader, StringComparison.OrdinalIgnoreCase));
+		Assert.Contains(current.GeneratedFiles, path => Path.GetExtension(path).Equals(".c", StringComparison.OrdinalIgnoreCase));
+	}
+
+	[Fact]
 	public void Configuration_flags_validate_declarations_and_configurations()
 	{
 		string source = CreateTempCase("configuration_flags.camp", "export int main() => 0;\n");

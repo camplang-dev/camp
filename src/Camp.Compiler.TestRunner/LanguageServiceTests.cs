@@ -1126,7 +1126,9 @@ public sealed class LanguageServiceTests
 			}
 			""";
 		string completionText = text.Replace("json.setElement(0, true);", "json.", StringComparison.Ordinal);
-		string overrideText = text.Replace("sealed class Derived: Base\n{\n}", "sealed class Derived: Base\n{\n\toverride \n}", StringComparison.Ordinal);
+		string derivedClass = "sealed class Derived: Base" + Environment.NewLine + "{" + Environment.NewLine + "}";
+		string derivedClassWithOverride = "sealed class Derived: Base" + Environment.NewLine + "{" + Environment.NewLine + "\toverride " + Environment.NewLine + "}";
+		string overrideText = text.Replace(derivedClass, derivedClassWithOverride, StringComparison.Ordinal);
 		File.WriteAllText(source, text);
 		CampAnalysisSnapshot snapshot = CampLanguageService.Analyze(Request(root, source));
 		Assert.True(snapshot.Success, string.Join(Environment.NewLine, snapshot.Diagnostics.Select(static diagnostic => diagnostic.Message)));

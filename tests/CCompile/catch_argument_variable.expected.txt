@@ -89,7 +89,6 @@ static int useCatchVariable(void)
 		(FileHandle_op_delete(_finally0), free((void *)(_finally0)));
 		_cleanupActive1 = false;
 	}
-	return _return2;
 }
 
 // file: catch_argument_variable_private.h
