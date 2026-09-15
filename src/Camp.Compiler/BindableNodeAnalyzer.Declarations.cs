@@ -29,6 +29,7 @@ public sealed partial class BindableNodeAnalyzer
 		module.ResolvedType = ModuleType;
 		BindRequirementAttributes(module);
 		ApplyEffectiveRequirements(module);
+		RefreshParticipation(module);
 		CollectTypeNames(module);
 		CollectStaticClassNames(module);
 		CollectAliasNames(module);

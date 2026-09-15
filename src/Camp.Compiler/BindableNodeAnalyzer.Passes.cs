@@ -71,7 +71,11 @@ public sealed partial class BindableNodeAnalyzer
 		RunMeasured(phaseMeasure, "collect type names after exports", () => CollectTypeNames(module));
 		RunMeasured(phaseMeasure, "precompute overload callable names", () => PrecomputeOverloadCallableNames(module));
 		RunMeasured(phaseMeasure, "bind requirement attributes", () => BindRequirementAttributes(module));
-		RunMeasured(phaseMeasure, "apply effective requirements", () => ApplyEffectiveRequirements(module));
+		RunMeasured(phaseMeasure, "apply effective requirements", () =>
+		{
+			ApplyEffectiveRequirements(module);
+			RefreshParticipation(module);
+		});
 		RunMeasured(phaseMeasure, "add retained allocator fields", () => AddRetainedAllocatorFields(module));
 		RunMeasured(phaseMeasure, "generate iterator declarations", () =>
 		{
