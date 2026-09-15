@@ -1996,6 +1996,11 @@ public static class CompilerDriver
                     RedirectStandardError = true,
                     UseShellExecute = false
                 };
+                // Test harnesses are generated local artifacts and must run as the
+                // invoking user. This prevents host compatibility settings from turning
+                // an ordinary test executable into an elevation request on Windows.
+                if (OperatingSystem.IsWindows())
+                    info.Environment["__COMPAT_LAYER"] = "RunAsInvoker";
                 info.ArgumentList.Add(eventPath);
                 info.ArgumentList.Add("--camp-selected");
                 foreach (int index in selectedIndexes)

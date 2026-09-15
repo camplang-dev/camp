@@ -598,6 +598,11 @@ public static class GoldenFileTestRunner
 			RedirectStandardOutput = true,
 			RedirectStandardError = true
 		};
+		// Golden executables are test artifacts and never require elevation. Some
+		// Windows hosts carry compatibility settings that otherwise make CreateProcess
+		// reject an ordinary generated executable with ERROR_ELEVATION_REQUIRED.
+		if (OperatingSystem.IsWindows())
+			startInfo.Environment["__COMPAT_LAYER"] = "RunAsInvoker";
 		foreach (string argument in arguments)
 			startInfo.ArgumentList.Add(argument);
 
