@@ -10,7 +10,13 @@ Build from the repository root:
 dotnet build src/camplang.sln
 ```
 
-The build copies the command-line runtime to the repository `bin/` directory.
+This Debug build keeps its runtime under `src/campc/bin/Debug/net10.0/`; run
+that executable directly when debugging compiler changes. To update the shared,
+optimized development compiler in the repository `bin/` directory, use:
+
+```sh
+dotnet build src/campc/campc.csproj -c Release
+```
 
 ## Usage
 

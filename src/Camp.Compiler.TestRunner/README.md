@@ -10,6 +10,12 @@ Build from the repository root:
 dotnet build src/camplang.sln
 ```
 
+This builds the compiler in Debug configuration without replacing `bin/campc`.
+Tests that launch `campc` use the Release compiler in `bin/` by default. To
+test a Debug compiler explicitly, set `CAMP_TEST_CAMPC` to
+`src/campc/bin/Debug/net10.0/campc`; to refresh the shared compiler, run
+`dotnet build src/campc/campc.csproj -c Release`.
+
 ## Usage
 
 Run the full test project:

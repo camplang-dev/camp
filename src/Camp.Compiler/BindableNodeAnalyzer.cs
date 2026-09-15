@@ -92,6 +92,11 @@ public sealed partial class BindableNodeAnalyzer
 	readonly TargetDefinition? selectedTarget;
 	readonly ConfigurationFlagSet configurationFlags;
 	Module? currentModule;
+	// Declaration participation recursively indexes all members and generated definitions.
+	// It is intentionally scoped to the current analyzer phase: expansion rewrites the
+	// module shape between generator stages, so callers must refresh it at those
+	// structural boundaries rather than retaining a stale module-wide cache.
+	DeclarationParticipation? phaseParticipation;
 	Definition? currentAnalysisDefinition;
 	ConfigurationFlagExpression? currentFlowRequirementProof;
 	bool allowConditionalInterfaceTypeReference;

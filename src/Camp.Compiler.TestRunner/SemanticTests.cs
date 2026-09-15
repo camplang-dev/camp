@@ -11,6 +11,29 @@ namespace Camp.Compiler.Tests;
 public sealed class SemanticTests
 {
 	[Fact]
+	public void Test_only_generated_virtual_declarations_remain_active_in_test_module()
+	{
+		const string source = """
+			@testonly
+			virtual class Hidden
+			{
+				virtual int getValue()
+				{
+					return 1;
+				}
+			}
+			""";
+
+		SemanticCompilation production = SemanticCompiler.CompileLowered(source);
+		SemanticCompiler.AssertNoDiagnostics(production);
+		Assert.DoesNotContain(production.Module.Definitions, static definition => definition.GeneratedInfo?.Source is ClassDefinition { Name: "Hidden" });
+
+		SemanticCompilation testModule = SemanticCompiler.CompileLoweredTestModule(("test_only_generated_virtual.camp", source));
+		SemanticCompiler.AssertNoDiagnostics(testModule);
+		Assert.Contains(testModule.Module.Definitions, static definition => definition.GeneratedInfo?.Source is ClassDefinition { Name: "Hidden" });
+	}
+
+	[Fact]
 	public void Interpolated_strings_eagerly_resolve_to_text()
 	{
 		SemanticCompilation compilation = SemanticCompiler.CompileLowered("""

@@ -17,7 +17,15 @@ Build the toolchain first:
 dotnet build src/camplang.sln
 ```
 
-The repository build copies the main tools into `bin/`:
+This Debug build keeps `campc` in `src/campc/bin/Debug/net10.0/`. Build
+`campc` in Release configuration when the shared compiler under `bin/` should
+be updated:
+
+```sh
+dotnet build src/campc/campc.csproj -c Release
+```
+
+The shared development tool directory contains:
 
 - `campc`
 - `camp-lsp`

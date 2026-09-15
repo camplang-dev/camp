@@ -32,6 +32,16 @@ Build the solution from the repository root:
 dotnet build src/camplang.sln
 ```
 
+This Debug build leaves the shared `bin/` compiler unchanged. Run a Debug
+compiler directly from `src/campc/bin/Debug/net10.0/` when debugging the
+compiler. To deploy the optimized development compiler used by `bin/campc`,
+build `campc` in Release configuration:
+
+```sh
+dotnet build src/campc/campc.csproj -c Release
+bin/campc --version
+```
+
 Each C# project folder should keep a local `README.md` with basic usage, setup,
 testing, and coding instructions. Project READMEs should link to shared docs
 rather than duplicating broad compiler guidance.
@@ -106,6 +116,7 @@ Common commands:
 
 ```sh
 dotnet build src/camplang.sln
+dotnet build src/campc/campc.csproj -c Release
 scripts/run-tests.sh
 dotnet msbuild src/publish-tools.proj -p:RuntimeIdentifier=osx-x64
 dotnet msbuild src/test-fast.proj

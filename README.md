@@ -95,7 +95,16 @@ After installing the prerequisites, build the solution:
 dotnet build src/camplang.sln
 ```
 
-The development build copies the tools into `bin/`:
+This Debug build leaves the shared development compiler unchanged. Run a Debug
+compiler directly from `src/campc/bin/Debug/net10.0/` when needed. To deploy
+the optimized development compiler into `bin/`, build `campc` in Release
+configuration:
+
+```bash
+dotnet build src/campc/campc.csproj -c Release
+```
+
+Then use the shared development compiler:
 
 ```bash
 bin/campc --help

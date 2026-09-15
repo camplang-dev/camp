@@ -55,7 +55,9 @@
     </ItemGroup>
   </Target>
 
-  <Target Name="CopyCampcToRepoBin" AfterTargets="Build" Condition="'$(IsPublishingTools)' != 'true'">
+  <!-- dev/bin is the optimized shared development compiler. Debug builds stay in
+       their project output directory so developers can run them explicitly. -->
+  <Target Name="CopyCampcToRepoBin" AfterTargets="Build" Condition="'$(IsPublishingTools)' != 'true' and '$(Configuration)' == 'Release'">
     <PropertyGroup>
       <CampcRepoBin>$(MSBuildProjectDirectory)/../../bin/</CampcRepoBin>
     </PropertyGroup>

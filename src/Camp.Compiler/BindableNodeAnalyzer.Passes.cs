@@ -27,37 +27,43 @@ public sealed partial class BindableNodeAnalyzer
 	void RunAnalyzerPass(AnalyzerPass pass, Module module)
 	{
 		ArgumentNullException.ThrowIfNull(module);
-
-		switch (pass)
+		BeginParticipationPhase(module);
+		try
 		{
-			case AnalyzerPass.DeclarationExpansion:
-				RunDeclarationExpansionPass(module);
-				break;
+			switch (pass)
+			{
+				case AnalyzerPass.DeclarationExpansion:
+					RunDeclarationExpansionPass(module);
+					break;
 
-			case AnalyzerPass.DeclarationAnalysis:
-				AnalyzeDeclarations(module);
-				break;
+				case AnalyzerPass.DeclarationAnalysis:
+					AnalyzeDeclarations(module);
+					break;
 
-			case AnalyzerPass.MethodBodyAnalysis:
-				AnalyzeMethodBodies(module);
-				break;
+				case AnalyzerPass.MethodBodyAnalysis:
+					AnalyzeMethodBodies(module);
+					break;
 
-			case AnalyzerPass.NodeRewriteApplication:
-				ApplyNodeRewrites(module);
-				break;
+				case AnalyzerPass.NodeRewriteApplication:
+					ApplyNodeRewrites(module);
+					break;
 
-			case AnalyzerPass.LoweringRewrite:
-				RewriteModule(module);
-				break;
+				case AnalyzerPass.LoweringRewrite:
+					RewriteModule(module);
+					break;
 
-			default:
-				throw new ArgumentOutOfRangeException(nameof(pass), pass, null);
+				default:
+					throw new ArgumentOutOfRangeException(nameof(pass), pass, null);
+			}
+		}
+		finally
+		{
+			EndParticipationPhase();
 		}
 	}
 
 	void RunDeclarationExpansionPass(Module module)
 	{
-		currentModule = module;
 		RunMeasured(phaseMeasure, "collect type names", () => CollectTypeNames(module));
 		RunMeasured(phaseMeasure, "collect alias names", () => CollectAliasNames(module));
 		RunMeasured(phaseMeasure, "resolve aliases", ResolveAliases);
@@ -67,9 +73,25 @@ public sealed partial class BindableNodeAnalyzer
 		RunMeasured(phaseMeasure, "bind requirement attributes", () => BindRequirementAttributes(module));
 		RunMeasured(phaseMeasure, "apply effective requirements", () => ApplyEffectiveRequirements(module));
 		RunMeasured(phaseMeasure, "add retained allocator fields", () => AddRetainedAllocatorFields(module));
-		RunMeasured(phaseMeasure, "generate iterator declarations", () => GenerateIteratorDeclarations(module));
-		RunMeasured(phaseMeasure, "generate lifecycle methods", () => GenerateLifecycleMethods(module));
-		RunMeasured(phaseMeasure, "generate virtual declarations", () => GenerateVirtualDeclarations(module));
-		RunMeasured(phaseMeasure, "generate interface declarations", () => GenerateInterfaceDeclarations(module));
+		RunMeasured(phaseMeasure, "generate iterator declarations", () =>
+		{
+			GenerateIteratorDeclarations(module);
+			RefreshParticipation(module);
+		});
+		RunMeasured(phaseMeasure, "generate lifecycle methods", () =>
+		{
+			GenerateLifecycleMethods(module);
+			RefreshParticipation(module);
+		});
+		RunMeasured(phaseMeasure, "generate virtual declarations", () =>
+		{
+			GenerateVirtualDeclarations(module);
+			RefreshParticipation(module);
+		});
+		RunMeasured(phaseMeasure, "generate interface declarations", () =>
+		{
+			GenerateInterfaceDeclarations(module);
+			RefreshParticipation(module);
+		});
 	}
 }

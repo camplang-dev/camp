@@ -30,7 +30,10 @@ MSBuild may create local worker-node IPC/named pipes that the sandbox rejects
 with `SocketException (13): Permission denied`.
 
 Use `dotnet build src/camplang.sln` when source changes need to be compiled,
-then use `dotnet vstest` for repeated verification. Reserve `dotnet test` for
+then use `dotnet vstest` for repeated verification. That Debug build does not
+replace `bin/campc`; run `dotnet build src/campc/campc.csproj -c Release` when
+the shared optimized compiler needs to be refreshed, or set `CAMP_TEST_CAMPC`
+to the Debug compiler output for an explicit debug-tool test. Reserve `dotnet test` for
 full local validation, restore/build validation, coverage collection, or cases
 where MSBuild behavior itself is what you are testing.
 

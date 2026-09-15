@@ -26,7 +26,6 @@ public sealed partial class BindableNodeAnalyzer
 
 	void AnalyzeDeclarations(Module module)
 	{
-		currentModule = module;
 		module.ResolvedType = ModuleType;
 		BindRequirementAttributes(module);
 		ApplyEffectiveRequirements(module);
@@ -281,7 +280,7 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (currentModule is null)
 			return true;
-		DeclarationParticipation participation = new(currentModule);
+		DeclarationParticipation participation = CurrentParticipation();
 		return participation.Includes(left, currentModule.DeclarationParticipationMode)
 			&& participation.Includes(right, currentModule.DeclarationParticipationMode);
 	}
