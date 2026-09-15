@@ -33,9 +33,11 @@ public sealed partial class BindableNodeAnalyzer
 
 	IEnumerable<Definition> ActiveDefinitions(Module module)
 	{
-		return ReferenceEquals(module, currentModule)
-			? CurrentParticipation().GetActiveTopLevelDefinitions(module.DeclarationParticipationMode)
-			: module.Definitions;
+		// Semantic analysis must retain declarations that are unavailable in the
+		// selected configuration so configured(...) branches can prove and resolve
+		// their requirements. Callers that select emitted/discovered definitions use
+		// DeclarationParticipation's phase-local active list instead.
+		return module.Definitions;
 	}
 
 	IEnumerable<Definition> ActiveCurrentDefinitions()
