@@ -18,6 +18,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	void GenerateIteratorDeclarations(Module module)
 	{
+		// Iterator lowering appends state declarations while it visits source definitions.
 		foreach (Definition definition in ActiveDefinitions(module).ToArray())
 		{
 			if (!IsActiveDefinition(definition))
@@ -29,32 +30,32 @@ public sealed partial class BindableNodeAnalyzer
 					break;
 
 				case ClassDefinition classDefinition:
-					foreach (FunctionDefinition function in classDefinition.Functions.ToArray())
+					foreach (FunctionDefinition function in classDefinition.Functions)
 						GenerateIteratorDeclaration(module, function, classDefinition);
 					break;
 
 				case StaticClassDefinition staticClassDefinition:
-					foreach (FunctionDefinition function in staticClassDefinition.Functions.ToArray())
+					foreach (FunctionDefinition function in staticClassDefinition.Functions)
 						GenerateIteratorDeclaration(module, function, containingType: null, containingStaticClassName: staticClassDefinition.Name);
 					break;
 
 				case StructDefinition structDefinition:
-					foreach (FunctionDefinition function in structDefinition.Functions.ToArray())
+					foreach (FunctionDefinition function in structDefinition.Functions)
 						GenerateIteratorDeclaration(module, function, structDefinition);
 					break;
 
 				case InterfaceDefinition interfaceDefinition:
-					foreach (FunctionDefinition function in interfaceDefinition.Functions.ToArray())
+					foreach (FunctionDefinition function in interfaceDefinition.Functions)
 						GenerateIteratorDeclaration(module, function, interfaceDefinition);
 					break;
 
 				case EnumDefinition enumDefinition:
-					foreach (FunctionDefinition function in enumDefinition.Functions.ToArray())
+					foreach (FunctionDefinition function in enumDefinition.Functions)
 						GenerateIteratorDeclaration(module, function, enumDefinition);
 					break;
 
 				case NewtypeDefinition newtypeDefinition:
-					foreach (FunctionDefinition function in newtypeDefinition.Functions.ToArray())
+					foreach (FunctionDefinition function in newtypeDefinition.Functions)
 						GenerateIteratorDeclaration(module, function, newtypeDefinition);
 					break;
 			}

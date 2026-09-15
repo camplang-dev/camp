@@ -10,6 +10,7 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		closestVirtualImplementationCache.Clear();
 
+		// Virtual lowering appends vtable definitions while it visits source classes.
 		foreach (Definition definition in ActiveDefinitions(module).ToArray())
 		{
 			if (!IsActiveDefinition(definition))
@@ -69,7 +70,7 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		List<FunctionDefinition> generated = [];
-		foreach (FunctionDefinition function in SelectedFunctions(classDefinition.Functions).ToArray())
+		foreach (FunctionDefinition function in SelectedFunctions(classDefinition.Functions))
 		{
 			if (!IsVirtualMethodDeclaration(function))
 				continue;
@@ -373,6 +374,7 @@ public sealed partial class BindableNodeAnalyzer
 				interfaces[interfaceDefinition.Name] = interfaceDefinition;
 		}
 
+		// Interface lowering appends vtables, accessors, and thunks to the module.
 		foreach (Definition definition in ActiveDefinitions(module).ToArray())
 		{
 			if (!IsActiveDefinition(definition))
@@ -1874,7 +1876,7 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		List<FunctionDefinition> generated = [];
-		foreach (FunctionDefinition function in functions.ToArray())
+		foreach (FunctionDefinition function in functions)
 		{
 			if (function.Modifier == FunctionModifier.Constructor)
 			{
