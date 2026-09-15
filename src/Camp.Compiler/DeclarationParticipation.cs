@@ -9,6 +9,7 @@ public sealed class DeclarationParticipation
 	readonly Module module;
 	readonly Dictionary<Definition, bool> testOnly = new(ReferenceEqualityComparer.Instance);
 	readonly Dictionary<string, TypeDefinition> typeDefinitions = new(StringComparer.Ordinal);
+	readonly Dictionary<DeclarationParticipationMode, IReadOnlyList<Definition>> activeTopLevelDefinitions = [];
 
 	public DeclarationParticipation(Module module)
 	{
@@ -29,9 +30,20 @@ public sealed class DeclarationParticipation
 	public static IEnumerable<Definition> TopLevelDefinitions(Module module, DeclarationParticipationMode mode)
 	{
 		DeclarationParticipation participation = new(module);
+		return participation.GetActiveTopLevelDefinitions(mode);
+	}
+
+	public IReadOnlyList<Definition> GetActiveTopLevelDefinitions(DeclarationParticipationMode mode)
+	{
+		if (activeTopLevelDefinitions.TryGetValue(mode, out IReadOnlyList<Definition>? definitions))
+			return definitions;
+
+		List<Definition> result = [];
 		foreach (Definition definition in module.Definitions)
-			if (participation.Includes(definition, mode))
-				yield return definition;
+			if (Includes(definition, mode))
+				result.Add(definition);
+		activeTopLevelDefinitions[mode] = result;
+		return result;
 	}
 
 	public static bool Includes(Definition definition, Module module)

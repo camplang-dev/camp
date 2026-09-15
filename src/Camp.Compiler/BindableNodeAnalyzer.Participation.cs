@@ -19,6 +19,8 @@ public sealed partial class BindableNodeAnalyzer
 	void RefreshParticipation(Module module)
 	{
 		phaseParticipation = new DeclarationParticipation(module);
+		directBaseClassCache.Clear();
+		containingTypeCache.Clear();
 	}
 
 	DeclarationParticipation CurrentParticipation()
@@ -30,7 +32,9 @@ public sealed partial class BindableNodeAnalyzer
 
 	IEnumerable<Definition> ActiveDefinitions(Module module)
 	{
-		return module.Definitions;
+		return ReferenceEquals(module, currentModule)
+			? CurrentParticipation().GetActiveTopLevelDefinitions(module.DeclarationParticipationMode)
+			: module.Definitions;
 	}
 
 	IEnumerable<Definition> ActiveCurrentDefinitions()

@@ -3454,12 +3454,19 @@ public sealed partial class BindableNodeAnalyzer
 
 	ClassDefinition? GetDirectBaseClass(TypeDefinition definition)
 	{
+		if (directBaseClassCache.TryGetValue(definition, out ClassDefinition? cached))
+			return cached;
+
 		foreach (TypeDefinition baseType in GetDirectBaseClasses(definition))
 		{
 			if (baseType is ClassDefinition baseClass)
+			{
+				directBaseClassCache[definition] = baseClass;
 				return baseClass;
+			}
 		}
 
+		directBaseClassCache[definition] = null;
 		return null;
 	}
 
@@ -3496,15 +3503,22 @@ public sealed partial class BindableNodeAnalyzer
 
 	TypeDefinition? FindContainingType(FunctionDefinition function)
 	{
+		if (containingTypeCache.TryGetValue(function, out TypeDefinition? cached))
+			return cached;
+
 		foreach (TypeDefinition type in allTypeDefinitions)
 		{
 			foreach (FunctionDefinition candidate in GetTypeFunctions(type))
 			{
 				if (ReferenceEquals(candidate, function))
+				{
+					containingTypeCache[function] = type;
 					return type;
+				}
 			}
 		}
 
+		containingTypeCache[function] = null;
 		return null;
 	}
 

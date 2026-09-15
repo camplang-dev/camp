@@ -34,6 +34,37 @@ public sealed class SemanticTests
 	}
 
 	[Fact]
+	public void Test_only_derived_virtual_members_remain_owned_after_participation_refresh()
+	{
+		const string source = """
+			@testonly
+			virtual class Root
+			{
+				virtual int getValue()
+				{
+					return 1;
+				}
+			}
+
+			@testonly
+			sealed class Leaf: Root
+			{
+				override int getValue()
+				{
+					return 2;
+				}
+			}
+			""";
+
+		SemanticCompilation compilation = SemanticCompiler.CompileLoweredTestModule(("test_only_derived_virtual.camp", source));
+		SemanticCompiler.AssertNoDiagnostics(compilation);
+		ClassDefinition leaf = Assert.IsType<ClassDefinition>(SemanticCompiler.Type(compilation, "Leaf"));
+		FunctionDefinition leafOverride = SemanticCompiler.Method(leaf, "getValue");
+		Assert.Equal("Leaf_getValue", leafOverride.Symbol);
+		Assert.NotNull(leafOverride.Body);
+	}
+
+	[Fact]
 	public void Interpolated_strings_eagerly_resolve_to_text()
 	{
 		SemanticCompilation compilation = SemanticCompiler.CompileLowered("""
