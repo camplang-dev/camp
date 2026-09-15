@@ -11,6 +11,7 @@ public sealed partial class BindableNodeAnalyzer
 	readonly Dictionary<StructDefinition, List<InterfaceImplementationLowering>> structInterfaceLowerings = [];
 	readonly Dictionary<ClassDefinition, VirtualClassLowering> virtualClassLowerings = [];
 	readonly Dictionary<FunctionDefinition, FunctionDefinition> virtualImplementations = [];
+	readonly Dictionary<(ClassDefinition Owner, FunctionDefinition SlotDeclaration), FunctionDefinition?> closestVirtualImplementationCache = [];
 	readonly Dictionary<FunctionDefinition, InterfaceThunkLowering> interfaceThunkLowerings = [];
 	readonly Dictionary<InterfaceDefinition, StructDefinition> loweredInterfaceStructs = [];
 	readonly Dictionary<InterfaceDefinition, StructDefinition> interfaceIndirectStructs = [];

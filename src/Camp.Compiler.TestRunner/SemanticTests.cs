@@ -319,6 +319,58 @@ public sealed class SemanticTests
 	}
 
 	[Fact]
+	public void Interface_thunks_and_virtual_slots_keep_their_nearest_implementations()
+	{
+		SemanticCompilation compilation = SemanticCompiler.CompileLowered("""
+			interface IRoot
+			{
+				int getValue();
+			}
+
+			interface IChild: IRoot
+			{
+			}
+
+			struct Value: IChild
+			{
+				int getValue(): IRoot
+				{
+					return 1;
+				}
+			}
+
+			virtual class Root
+			{
+				virtual int getValue()
+				{
+					return 1;
+				}
+			}
+
+			virtual class Middle: Root
+			{
+				override int getValue()
+				{
+					return 2;
+				}
+			}
+
+			sealed class Leaf: Middle
+			{
+				override int getValue()
+				{
+					return 3;
+				}
+			}
+			""");
+
+		SemanticCompiler.AssertNoDiagnostics(compilation);
+		FunctionDefinition thunk = Assert.Single(compilation.Module.Definitions.OfType<FunctionDefinition>(), static function => function.GeneratedInfo?.Reason == "interface thunk");
+		Assert.Contains(SemanticCompiler.Descendants<MethodReferenceExpression>(compilation.Module), reference => reference.Candidates.Contains(thunk));
+		Assert.Contains(SemanticCompiler.Descendants<MethodReferenceExpression>(compilation.Module), static reference => reference.Candidates.Any(candidate => candidate.Symbol == "Leaf__getValue"));
+	}
+
+	[Fact]
 	public void Symbol_name_service_distinguishes_source_callable_and_abi_names()
 	{
 		SemanticCompilation compilation = SemanticCompiler.CompileLowered("""

@@ -8,6 +8,8 @@ public sealed partial class BindableNodeAnalyzer
 {
 	void GenerateVirtualDeclarations(Module module)
 	{
+		closestVirtualImplementationCache.Clear();
+
 		foreach (Definition definition in ActiveDefinitions(module).ToArray())
 		{
 			if (!IsActiveDefinition(definition))
@@ -361,7 +363,7 @@ public sealed partial class BindableNodeAnalyzer
 		interfaceImplementationMethodCache.Clear();
 		methodSignatureCache.Clear();
 		interfaceEntryCallableTypeCache.Clear();
-		interfaceThunkFunctionCache.Clear();
+		interfaceThunkFunctions.Clear();
 		Dictionary<string, InterfaceDefinition> interfaces = [];
 		foreach (Definition definition in ActiveDefinitions(module))
 		{
@@ -662,6 +664,7 @@ public sealed partial class BindableNodeAnalyzer
 				module.Definitions.Add(thunk);
 				generatedInterfaceDefinitions.Add(thunk);
 				interfaceThunkLowerings[thunk] = new InterfaceThunkLowering(lowering, implementedInterface, member);
+				interfaceThunkFunctions[(lowering, implementedInterface, member)] = thunk;
 			}
 		}
 	}
@@ -1143,23 +1146,7 @@ public sealed partial class BindableNodeAnalyzer
 	bool TryFindInterfaceThunkFunction(InterfaceImplementationLowering implementation, InterfaceDefinition entryInterface, FunctionDefinition member, out FunctionDefinition? function)
 	{
 		(InterfaceImplementationLowering Implementation, InterfaceDefinition EntryInterface, FunctionDefinition Member) key = (implementation, entryInterface, member);
-		if (interfaceThunkFunctionCache.TryGetValue(key, out function))
-			return function is not null;
-		foreach ((FunctionDefinition candidate, InterfaceThunkLowering lowering) in interfaceThunkLowerings)
-		{
-			if (ReferenceEquals(lowering.Implementation, implementation)
-				&& ReferenceEquals(lowering.EntryInterface, entryInterface)
-				&& ReferenceEquals(lowering.Member, member))
-			{
-				function = candidate;
-				interfaceThunkFunctionCache[key] = function;
-				return true;
-			}
-		}
-
-		function = null;
-		interfaceThunkFunctionCache[key] = null;
-		return false;
+		return interfaceThunkFunctions.TryGetValue(key, out function);
 	}
 
 	BlockStatement CreateInterfaceThunkBody(FunctionDefinition thunk, InterfaceThunkLowering lowering)
@@ -1776,6 +1763,10 @@ public sealed partial class BindableNodeAnalyzer
 
 	FunctionDefinition? FindClosestVirtualImplementation(ClassDefinition owner, FunctionDefinition slotDeclaration)
 	{
+		(ClassDefinition Owner, FunctionDefinition SlotDeclaration) key = (owner, slotDeclaration);
+		if (closestVirtualImplementationCache.TryGetValue(key, out FunctionDefinition? cached))
+			return cached;
+
 		foreach (ClassDefinition candidate in EnumerateClassAndBases(owner))
 		{
 			foreach (FunctionDefinition function in candidate.Functions)
@@ -1783,9 +1774,13 @@ public sealed partial class BindableNodeAnalyzer
 				if (!virtualImplementations.TryGetValue(function, out FunctionDefinition? implementation))
 					continue;
 				if (VirtualSlotName(function) == VirtualSlotName(slotDeclaration))
+				{
+					closestVirtualImplementationCache[key] = implementation;
 					return implementation;
+				}
 			}
 		}
+		closestVirtualImplementationCache[key] = null;
 		return null;
 	}
 

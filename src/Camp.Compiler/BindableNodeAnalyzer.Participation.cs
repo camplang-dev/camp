@@ -21,6 +21,7 @@ public sealed partial class BindableNodeAnalyzer
 		phaseParticipation = new DeclarationParticipation(module);
 		directBaseClassCache.Clear();
 		containingTypeCache.Clear();
+		closestVirtualImplementationCache.Clear();
 	}
 
 	DeclarationParticipation CurrentParticipation()

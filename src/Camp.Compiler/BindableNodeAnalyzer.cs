@@ -86,7 +86,7 @@ public sealed partial class BindableNodeAnalyzer
 	readonly Dictionary<(TypeDefinition Type, FunctionDefinition InterfaceMember, int Version), FunctionDefinition?> interfaceImplementationMethodCache = [];
 	readonly Dictionary<(FunctionDefinition Function, bool IncludeLifecycleWithin), MethodSignature> methodSignatureCache = [];
 	readonly Dictionary<(InterfaceDefinition Owner, FunctionDefinition Member), string> interfaceEntryCallableTypeCache = [];
-	readonly Dictionary<(InterfaceImplementationLowering Implementation, InterfaceDefinition EntryInterface, FunctionDefinition Member), FunctionDefinition?> interfaceThunkFunctionCache = [];
+	readonly Dictionary<(InterfaceImplementationLowering Implementation, InterfaceDefinition EntryInterface, FunctionDefinition Member), FunctionDefinition> interfaceThunkFunctions = [];
 	readonly Dictionary<TypeDefinition, ClassDefinition?> directBaseClassCache = new(ReferenceEqualityComparer.Instance);
 	readonly Dictionary<FunctionDefinition, TypeDefinition?> containingTypeCache = new(ReferenceEqualityComparer.Instance);
 	int interfaceGenerationCacheVersion;
