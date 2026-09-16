@@ -1,0 +1,137 @@
+{
+  "format": "camp.metadata",
+  "version": 1,
+  "module": {
+    "name": "TestMetadata",
+    "namespace": "TestMetadata"
+  },
+  "view": {
+    "visibility": "all",
+    "level": "source",
+    "generated": false
+  },
+  "declarations": [
+    {
+      "id": "class:TestMetadata::Allocator",
+      "kind": "class",
+      "name": "Allocator",
+      "symbol": "TestMetadataAllocator"
+    },
+    {
+      "id": "struct:TestMetadata::Assertion",
+      "kind": "struct",
+      "name": "Assertion",
+      "symbol": "TestMetadataAssertion",
+      "fields": [
+        {
+          "id": "struct:TestMetadata::Assertion/field:message",
+          "name": "message",
+          "type": "escaped string"
+        },
+        {
+          "id": "struct:TestMetadata::Assertion/field:sourcefile",
+          "name": "sourcefile",
+          "type": "escaped string"
+        },
+        {
+          "id": "struct:TestMetadata::Assertion/field:sourceline",
+          "name": "sourceline",
+          "type": "uint"
+        }
+      ]
+    },
+    {
+      "id": "function:TestMetadata::basicTests",
+      "kind": "function",
+      "name": "basicTests",
+      "symbol": "TestMetadata_basicTests",
+      "require": "TEST_MODULE",
+      "testOnly": true,
+      "test": {
+        "id": "TestMetadata::basicTests",
+        "name": "basicTests",
+        "qualifiedName": "TestMetadata::basicTests",
+        "sourcefile": "tests/Metadata/factorytest_attributes.camp",
+        "sourceline": 18,
+        "summary": "",
+        "skipped": false,
+        "skipReason": null,
+        "runnerSignature": "valid",
+        "hasBody": true
+      },
+      "returnType": "void",
+      "parameters": [
+        {
+          "id": "function:TestMetadata::basicTests/parameter:allocator",
+          "name": "allocator",
+          "require": "TEST_MODULE",
+          "modifier": "within",
+          "type": "Allocator*"
+        },
+        {
+          "id": "function:TestMetadata::basicTests/parameter:assertion",
+          "name": "assertion",
+          "require": "TEST_MODULE",
+          "modifier": "thrown",
+          "type": "Assertion*"
+        }
+      ],
+      "metadata": [
+        {
+          "name": "test"
+        }
+      ]
+    },
+    {
+      "id": "function:TestMetadata::testAdd",
+      "kind": "function",
+      "name": "testAdd",
+      "symbol": "TestMetadata_testAdd",
+      "returnType": "void",
+      "parameters": [
+        {
+          "id": "function:TestMetadata::testAdd/parameter:testname",
+          "name": "testname",
+          "type": "string",
+          "metadata": [
+            {
+              "name": "testname"
+            }
+          ]
+        },
+        {
+          "id": "function:TestMetadata::testAdd/parameter:first",
+          "name": "first",
+          "type": "int"
+        },
+        {
+          "id": "function:TestMetadata::testAdd/parameter:second",
+          "name": "second",
+          "type": "int"
+        },
+        {
+          "id": "function:TestMetadata::testAdd/parameter:expected",
+          "name": "expected",
+          "type": "int"
+        },
+        {
+          "id": "function:TestMetadata::testAdd/parameter:allocator",
+          "name": "allocator",
+          "modifier": "within",
+          "type": "Allocator*"
+        },
+        {
+          "id": "function:TestMetadata::testAdd/parameter:assertion",
+          "name": "assertion",
+          "modifier": "thrown",
+          "type": "Assertion*"
+        }
+      ],
+      "metadata": [
+        {
+          "name": "factorytest"
+        }
+      ]
+    }
+  ]
+}

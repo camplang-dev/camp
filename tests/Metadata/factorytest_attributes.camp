@@ -1,0 +1,27 @@
+// @emit-metadata all
+// @test-module
+
+namespace TestMetadata;
+
+class Allocator
+{
+}
+
+struct Assertion
+{
+	escaped string message;
+	escaped string sourcefile;
+	uint sourceline;
+}
+
+@test
+void basicTests(within allocator, thrown Assertion* assertion)
+{
+	testAdd("addOneAndFive", 1, 5, 112);
+	testAdd("addOneAndTwo", 1, 2, 3);
+}
+
+@factorytest
+void testAdd(@testname string testname, int first, int second, int expected, within allocator, thrown Assertion* assertion)
+{
+}
