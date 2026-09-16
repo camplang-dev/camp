@@ -24,3 +24,8 @@ struct Assertion
 void hiddenTest(thrown Assertion* assertion)
 {
 }
+
+@factorytest
+void hiddenFactoryTest(@testname string testname, thrown Assertion* assertion)
+{
+}

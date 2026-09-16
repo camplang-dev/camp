@@ -3451,6 +3451,74 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Cover_command_excludes_factory_tests_from_denominator_but_still_counts_called_production_code()
+	{
+		string source = CreateTempCase("coverage_factorytest/main.camp", """
+			namespace CoverageFactoryTest;
+
+			int add(int left, int right)
+			{
+				int sum = left + right;
+				return sum;
+			}
+
+			int unused()
+			{
+				return 0;
+			}
+
+			@factorytest
+			void testAdd(@testname string testname, int expected, thrown Assertion* assertion)
+			{
+				assert(add(2, 3) == expected);
+			}
+
+			@test
+			void addWorks(thrown Assertion* assertion)
+			{
+				testAdd("addTwoAndThree", 5);
+			}
+			""");
+		string outDir = TempPath("coverage-factorytest-out");
+		string coverageDir = TempPath("coverage-factorytest-results");
+
+		ProcessResult result = RunCampc(
+			"cover",
+			source,
+			"--target",
+			NativeTargetForHost(),
+			"--coverage-format",
+			"json",
+			"--coverage-output-dir",
+			coverageDir,
+			"--out-dir",
+			outDir,
+			"--name",
+			"coverage_factorytest");
+
+		AssertCommandSucceeded(result);
+		Assert.Contains("passed: CoverageFactoryTest::addWorks", result.StdOut, StringComparison.Ordinal);
+
+		string resultsPath = Path.Combine(coverageDir, "coverage_factorytest.camp-coverage-results.json");
+		using JsonDocument coverage = JsonDocument.Parse(File.ReadAllText(resultsPath));
+		// Only "add" and "unused" are production coverage subjects; addWorks (@test) and
+		// testAdd (@factorytest) are excluded from the denominator, matching @testonly.
+		Assert.Equal(2, coverage.RootElement.GetProperty("summary").GetProperty("function").GetProperty("total").GetInt32());
+		Assert.Equal(1, coverage.RootElement.GetProperty("summary").GetProperty("function").GetProperty("covered").GetInt32());
+
+		string mapPath = Path.Combine(coverageDir, "coverage_factorytest.camp-coverage-map.csv");
+		string map = File.ReadAllText(mapPath);
+		Assert.Contains("CoverageFactoryTest::add", map, StringComparison.Ordinal);
+		Assert.Contains("testAdd", map, StringComparison.Ordinal);
+
+		// "add" is called only from inside the factory-test body, and must still be
+		// attributed as covered production code (proposal: "production code called by
+		// factory tests is still counted").
+		JsonElement file = Assert.Single(coverage.RootElement.GetProperty("files").EnumerateArray());
+		Assert.DoesNotContain(FindLine(source, "int sum = left + right;"), file.GetProperty("uncoveredLines").EnumerateArray().Select(static line => line.GetInt32()));
+	}
+
+	[Fact]
 	public void Cover_command_maps_lowered_generator_and_lambda_body_lines()
 	{
 		string source = CreateTempCase("coverage_lowered_bodies/main.camp", """

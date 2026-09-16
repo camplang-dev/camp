@@ -1,0 +1,2 @@
+tests/Diagnostics/factorytest_production_dependency.camp(16,2): error: Symbol 'testAdd' requires configuration 'TEST_MODULE', but that requirement is not proven here. Add an explicit configured(...) guard or adjust the surrounding requires condition.
+tests/Diagnostics/factorytest_production_dependency.camp(16,10): error: String literal cannot implicitly convert to mutable type '#ERROR'.

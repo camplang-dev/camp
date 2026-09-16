@@ -87,11 +87,14 @@
       "kind": "function",
       "name": "testAdd",
       "symbol": "TestMetadata_testAdd",
+      "require": "TEST_MODULE",
+      "testOnly": true,
       "returnType": "void",
       "parameters": [
         {
           "id": "function:TestMetadata::testAdd/parameter:testname",
           "name": "testname",
+          "require": "TEST_MODULE",
           "type": "string",
           "metadata": [
             {
@@ -102,27 +105,32 @@
         {
           "id": "function:TestMetadata::testAdd/parameter:first",
           "name": "first",
+          "require": "TEST_MODULE",
           "type": "int"
         },
         {
           "id": "function:TestMetadata::testAdd/parameter:second",
           "name": "second",
+          "require": "TEST_MODULE",
           "type": "int"
         },
         {
           "id": "function:TestMetadata::testAdd/parameter:expected",
           "name": "expected",
+          "require": "TEST_MODULE",
           "type": "int"
         },
         {
           "id": "function:TestMetadata::testAdd/parameter:allocator",
           "name": "allocator",
+          "require": "TEST_MODULE",
           "modifier": "within",
           "type": "Allocator*"
         },
         {
           "id": "function:TestMetadata::testAdd/parameter:assertion",
           "name": "assertion",
+          "require": "TEST_MODULE",
           "modifier": "thrown",
           "type": "Assertion*"
         }
@@ -138,6 +146,8 @@
       "kind": "function",
       "name": "parseCase",
       "symbol": "TestMetadata_parseCase",
+      "require": "TEST_MODULE",
+      "testOnly": true,
       "returnType": "void",
       "parameters": [
         {
@@ -163,11 +173,13 @@
         {
           "id": "function:TestMetadata::parseCase/parameter:shouldPass",
           "name": "shouldPass",
+          "require": "TEST_MODULE",
           "type": "bool"
         },
         {
           "id": "function:TestMetadata::parseCase/parameter:assertion",
           "name": "assertion",
+          "require": "TEST_MODULE",
           "modifier": "thrown",
           "type": "Assertion*"
         }
@@ -183,6 +195,8 @@
       "kind": "function",
       "name": "recoveryCase",
       "symbol": "TestMetadata_recoveryCase",
+      "require": "TEST_MODULE",
+      "testOnly": true,
       "returnType": "void",
       "parameters": [
         {
@@ -198,11 +212,13 @@
         {
           "id": "function:TestMetadata::recoveryCase/parameter:source",
           "name": "source",
+          "require": "TEST_MODULE",
           "type": "string"
         },
         {
           "id": "function:TestMetadata::recoveryCase/parameter:assertion",
           "name": "assertion",
+          "require": "TEST_MODULE",
           "modifier": "thrown",
           "type": "Assertion*"
         }

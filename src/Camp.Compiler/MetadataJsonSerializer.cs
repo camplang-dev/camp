@@ -303,7 +303,7 @@ public static class MetadataJsonSerializer
 		void WriteTestFacts(Utf8JsonWriter json, Definition definition)
 		{
 			bool isTest = definition is FunctionDefinition && HasAttribute(definition.Attributes, "@test");
-			bool isTestOnly = isTest || HasAttribute(definition.Attributes, "@testonly");
+			bool isTestOnly = isTest || HasAttribute(definition.Attributes, "@testonly") || HasAttribute(definition.Attributes, "@factorytest");
 			if (isTestOnly)
 				json.WriteBoolean("testOnly", true);
 			if (isTest && definition is FunctionDefinition function)

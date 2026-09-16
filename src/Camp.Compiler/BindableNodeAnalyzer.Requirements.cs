@@ -53,7 +53,7 @@ public sealed partial class BindableNodeAnalyzer
 			if (requirement.Requirement is not null)
 				effective = ConfigurationFlagExpressionBinder.And(effective, requirement.Requirement);
 
-		if (DeclarationParticipation.IsTest(definition) || DeclarationParticipation.HasExplicitTestOnly(definition))
+		if (DeclarationParticipation.IsTest(definition) || DeclarationParticipation.HasExplicitTestOnly(definition) || DeclarationParticipation.IsFactoryTest(definition))
 			effective = ConfigurationFlagExpressionBinder.And(effective, ConfigurationFlagExpressionBinder.Flag("TEST_MODULE"));
 
 		if (definition.GeneratedInfo?.Source is Definition source && source.EffectiveRequirement is not null)

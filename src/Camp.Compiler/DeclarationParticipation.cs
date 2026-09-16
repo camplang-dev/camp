@@ -72,6 +72,11 @@ public sealed class DeclarationParticipation
 		return definition is FunctionDefinition && HasAttribute(definition.Attributes, "test");
 	}
 
+	public static bool IsFactoryTest(Definition definition)
+	{
+		return definition is FunctionDefinition && HasAttribute(definition.Attributes, "factorytest");
+	}
+
 	public static bool HasExplicitTestOnly(Definition definition)
 	{
 		return HasAttribute(definition.Attributes, "testonly");
@@ -115,7 +120,7 @@ public sealed class DeclarationParticipation
 
 	void IndexDefinition(Definition definition, bool inheritedTestOnly)
 	{
-		bool currentTestOnly = inheritedTestOnly || IsTest(definition) || HasExplicitTestOnly(definition);
+		bool currentTestOnly = inheritedTestOnly || IsTest(definition) || HasExplicitTestOnly(definition) || IsFactoryTest(definition);
 		testOnly[definition] = currentTestOnly;
 		bool childInheritedTestOnly = currentTestOnly && definition is TypeDefinition or StaticClassDefinition;
 		foreach (Definition child in GetChildDefinitions(definition))

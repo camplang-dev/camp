@@ -1,0 +1,17 @@
+struct Assertion
+{
+	escaped string message;
+	escaped string sourcefile;
+	uint sourceline;
+}
+
+@factorytest
+void testAdd(@testname string testname, int first, int second, thrown Assertion* assertion)
+{
+}
+
+void productionCallsFactoryTest()
+{
+	Assertion* error;
+	testAdd("direct", 1, 2, catch error);
+}
