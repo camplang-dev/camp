@@ -173,9 +173,48 @@ public static class CampTestDiscovery
 		else
 			return false;
 
-		if (thrownParameter.Modifier != ParameterModifier.Thrown)
+		return TryGetTestFailureShape(module, thrownParameter, out failureShape);
+	}
+
+	internal static bool TryGetFactoryTestSignature(Module module, FunctionDefinition function, out TestFailureShape? failureShape, out TestAllocatorShape? allocatorShape)
+	{
+		failureShape = null;
+		allocatorShape = null;
+		if (!(function.Body is not null
+			&& function.Extern is null
+			&& !function.IsAsync
+			&& function.IteratorKind == IteratorKind.None
+			&& function.GenericParameters.Count == 0
+			&& FormatType(function.ReturnType, function.ResolvedType) == "void"))
 			return false;
-		if (thrownParameter.Type is not PointerTypeReference pointer)
+
+		if (function.Parameters.Count == 0)
+			return false;
+
+		ParameterDefinition thrownParameter = function.Parameters[^1];
+		if (!TryGetTestFailureShape(module, thrownParameter, out failureShape))
+			return false;
+
+		int ordinaryCount = function.Parameters.Count - 1;
+		if (ordinaryCount > 0 && TryGetTestAllocatorShape(module, function.Parameters[ordinaryCount - 1], out allocatorShape))
+			ordinaryCount--;
+
+		for (int index = 0; index < ordinaryCount; index++)
+		{
+			ParameterDefinition parameter = function.Parameters[index];
+			if (parameter.Modifier is ParameterModifier.Within or ParameterModifier.Thrown || parameter is WithinParameterDefinition)
+				return false;
+		}
+
+		return true;
+	}
+
+	static bool TryGetTestFailureShape(Module module, ParameterDefinition parameter, out TestFailureShape? failureShape)
+	{
+		failureShape = null;
+		if (parameter.Modifier != ParameterModifier.Thrown)
+			return false;
+		if (parameter.Type is not PointerTypeReference pointer)
 			return false;
 		TypeDefinition? failureType = GetFailureTypeDefinition(module, pointer.ElementType);
 		if (failureType is null)
