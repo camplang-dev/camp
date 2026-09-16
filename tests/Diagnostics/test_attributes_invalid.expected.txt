@@ -10,7 +10,7 @@ tests/Diagnostics/test_attributes_invalid.camp(53,1): error: @testonly declarati
 tests/Diagnostics/test_attributes_invalid.camp(59,1): error: @testonly declarations may be private or internal, not public or export.
 tests/Diagnostics/test_attributes_invalid.camp(67,2): error: @testonly is valid only on top-level declarations.
 tests/Diagnostics/test_attributes_invalid.camp(71,20): error: @testonly is valid only on top-level declarations.
-tests/Diagnostics/test_attributes_invalid.camp(75,1): error: @skip is valid only on @test declarations.
+tests/Diagnostics/test_attributes_invalid.camp(75,1): error: @skip is valid only on @test or @factorytest declarations.
 tests/Diagnostics/test_attributes_invalid.camp(80,7): error: @skip reason must be a string literal.
 tests/Diagnostics/test_attributes_invalid.camp(86,1): error: @skip accepts at most one string reason.
 tests/Diagnostics/test_attributes_invalid.camp(92,7): error: @skip does not accept named arguments.

@@ -1,0 +1,14 @@
+tests/Diagnostics/factorytest_testname_invalid.camp(12,1): error: @factorytest accepts no arguments.
+tests/Diagnostics/factorytest_testname_invalid.camp(17,1): error: @factorytest functions may not declare a visibility modifier.
+tests/Diagnostics/factorytest_testname_invalid.camp(24,2): error: @factorytest is valid only on top-level functions, not methods or out-of-scope static members.
+tests/Diagnostics/factorytest_testname_invalid.camp(30,1): error: @factorytest is valid only on top-level functions, not methods or out-of-scope static members.
+tests/Diagnostics/factorytest_testname_invalid.camp(37,2): error: @factorytest is valid only on top-level functions, not methods or out-of-scope static members.
+tests/Diagnostics/factorytest_testname_invalid.camp(43,1): error: @factorytest is valid only on top-level functions.
+tests/Diagnostics/factorytest_testname_invalid.camp(51,2): error: @factorytest is valid only on top-level functions.
+tests/Diagnostics/factorytest_testname_invalid.camp(55,1): error: @factorytest may not be combined with @test.
+tests/Diagnostics/factorytest_testname_invalid.camp(61,1): error: @testname is valid only on an ordinary parameter of a @factorytest function.
+tests/Diagnostics/factorytest_testname_invalid.camp(66,21): error: @testname is valid only on an ordinary parameter of a @factorytest function.
+tests/Diagnostics/factorytest_testname_invalid.camp(72,2): error: @testname is valid only on an ordinary parameter of a @factorytest function.
+tests/Diagnostics/factorytest_testname_invalid.camp(77,22): error: @testname is not valid on a thrown parameter.
+tests/Diagnostics/factorytest_testname_invalid.camp(82,25): error: @testname parameter type must be string or const char[].
+tests/Diagnostics/factorytest_testname_invalid.camp(87,47): error: @factorytest functions may have at most one @testname parameter.

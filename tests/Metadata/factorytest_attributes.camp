@@ -25,3 +25,14 @@ void basicTests(within allocator, thrown Assertion* assertion)
 void testAdd(@testname string testname, int first, int second, int expected, within allocator, thrown Assertion* assertion)
 {
 }
+
+@factorytest
+void parseCase(@testname const char[] name, const char[] source, bool shouldPass, thrown Assertion* assertion)
+{
+}
+
+@skip("parser recovery not implemented yet")
+@factorytest
+void recoveryCase(@testname const char[] name, string source, thrown Assertion* assertion)
+{
+}

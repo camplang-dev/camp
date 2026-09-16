@@ -8,6 +8,8 @@ public sealed partial class BindableNodeAnalyzer
 	const string TestAttributeName = "@test";
 	const string TestOnlyAttributeName = "@testonly";
 	const string SkipAttributeName = "@skip";
+	const string FactoryTestAttributeName = "@factorytest";
+	const string TestNameAttributeName = "@testname";
 
 	void ValidateTestAttributePlacements(Module module)
 	{
@@ -15,11 +17,13 @@ public sealed partial class BindableNodeAnalyzer
 			ValidateTestAttributePlacement(definition, topLevel: true);
 	}
 
-	void ValidateTestAttributePlacement(Definition definition, bool topLevel)
+	void ValidateTestAttributePlacement(Definition definition, bool topLevel, bool isFactoryTestParameter = false)
 	{
 		ValidateTestAttribute(definition, topLevel);
+		ValidateFactoryTestAttribute(definition, topLevel);
 		ValidateTestOnlyAttribute(definition, topLevel);
 		ValidateSkipAttribute(definition);
+		ValidateTestNameAttribute(definition, isFactoryTestParameter);
 
 		switch (definition)
 		{
@@ -78,8 +82,10 @@ public sealed partial class BindableNodeAnalyzer
 			case FunctionDefinition functionDefinition:
 				foreach (GenericParameter parameter in functionDefinition.GenericParameters)
 					ValidateTestAttributesNotOnGenericParameter(parameter);
+				bool isFactoryTestFunction = HasAttribute(functionDefinition.Attributes, FactoryTestAttributeName);
 				foreach (ParameterDefinition parameter in functionDefinition.Parameters)
-					ValidateTestAttributePlacement(parameter, topLevel: false);
+					ValidateTestAttributePlacement(parameter, topLevel: false, isFactoryTestParameter: isFactoryTestFunction);
+				ValidateFactoryTestNameCount(functionDefinition);
 				break;
 		}
 	}
@@ -116,6 +122,72 @@ public sealed partial class BindableNodeAnalyzer
 			Report(GetRange(attribute.SourceSyntax ?? definition.SourceSyntax), "@test may not be combined with @testonly.");
 	}
 
+	void ValidateFactoryTestAttribute(Definition definition, bool topLevel)
+	{
+		if (!TryGetAttribute(definition.Attributes, FactoryTestAttributeName, out AttributeConstructor? attribute) || attribute is null)
+			return;
+
+		ValidateNoArguments(attribute, definition, FactoryTestAttributeName);
+
+		if (definition is not FunctionDefinition)
+		{
+			Report(GetRange(attribute.SourceSyntax ?? definition.SourceSyntax), "@factorytest is valid only on top-level functions.");
+			return;
+		}
+
+		if (!topLevel || IsOutOfScopeMember(definition))
+			Report(GetRange(attribute.SourceSyntax ?? definition.SourceSyntax), "@factorytest is valid only on top-level functions, not methods or out-of-scope static members.");
+
+		if (HasVisibilityModifier(definition))
+			Report(GetRange(attribute.SourceSyntax ?? definition.SourceSyntax), "@factorytest functions may not declare a visibility modifier.");
+
+		if (HasAttribute(definition.Attributes, TestAttributeName))
+			Report(GetRange(attribute.SourceSyntax ?? definition.SourceSyntax), "@factorytest may not be combined with @test.");
+	}
+
+	void ValidateTestNameAttribute(Definition definition, bool isFactoryTestParameter)
+	{
+		if (!TryGetAttribute(definition.Attributes, TestNameAttributeName, out AttributeConstructor? attribute) || attribute is null)
+			return;
+
+		ValidateNoArguments(attribute, definition, TestNameAttributeName);
+
+		if (definition is not ParameterDefinition parameter || !isFactoryTestParameter)
+		{
+			Report(GetRange(attribute.SourceSyntax ?? definition.SourceSyntax), "@testname is valid only on an ordinary parameter of a @factorytest function.");
+			return;
+		}
+
+		bool isWithinParameter = parameter.Modifier == ParameterModifier.Within || parameter is WithinParameterDefinition;
+		bool isThrownParameter = parameter.Modifier == ParameterModifier.Thrown;
+		if (isWithinParameter)
+			Report(GetRange(attribute.SourceSyntax ?? parameter.SourceSyntax), "@testname is not valid on a within parameter.");
+		else if (isThrownParameter)
+			Report(GetRange(attribute.SourceSyntax ?? parameter.SourceSyntax), "@testname is not valid on a thrown parameter.");
+		else if (!IsValidTestNameParameterType(parameter.Type))
+			Report(GetRange(attribute.SourceSyntax ?? parameter.SourceSyntax), "@testname parameter type must be string or const char[].");
+	}
+
+	void ValidateFactoryTestNameCount(FunctionDefinition function)
+	{
+		if (!HasAttribute(function.Attributes, FactoryTestAttributeName))
+			return;
+
+		List<AttributeConstructor> testNameAttributes = [];
+		foreach (ParameterDefinition parameter in function.Parameters)
+			if (TryGetAttribute(parameter.Attributes, TestNameAttributeName, out AttributeConstructor? attribute) && attribute is not null)
+				testNameAttributes.Add(attribute);
+
+		for (int index = 1; index < testNameAttributes.Count; index++)
+			Report(GetRange(testNameAttributes[index].SourceSyntax ?? function.SourceSyntax), "@factorytest functions may have at most one @testname parameter.");
+	}
+
+	static bool IsValidTestNameParameterType(TypeReference? type)
+	{
+		string formatted = FormatTypeReference(type);
+		return formatted is "string" or "const char[]";
+	}
+
 	void ValidateTestOnlyAttribute(Definition definition, bool topLevel)
 	{
 		if (!TryGetAttribute(definition.Attributes, TestOnlyAttributeName, out AttributeConstructor? attribute) || attribute is null)
@@ -135,8 +207,8 @@ public sealed partial class BindableNodeAnalyzer
 		if (!TryGetAttribute(definition.Attributes, SkipAttributeName, out AttributeConstructor? attribute) || attribute is null)
 			return;
 
-		if (!HasAttribute(definition.Attributes, TestAttributeName))
-			Report(GetRange(attribute.SourceSyntax ?? definition.SourceSyntax), "@skip is valid only on @test declarations.");
+		if (!HasAttribute(definition.Attributes, TestAttributeName) && !HasAttribute(definition.Attributes, FactoryTestAttributeName))
+			Report(GetRange(attribute.SourceSyntax ?? definition.SourceSyntax), "@skip is valid only on @test or @factorytest declarations.");
 
 		if (attribute.Arguments.Count > 1)
 			Report(GetRange(attribute.SourceSyntax ?? definition.SourceSyntax), "@skip accepts at most one string reason.");
@@ -191,5 +263,7 @@ public sealed partial class BindableNodeAnalyzer
 		yield return TestAttributeName;
 		yield return TestOnlyAttributeName;
 		yield return SkipAttributeName;
+		yield return FactoryTestAttributeName;
+		yield return TestNameAttributeName;
 	}
 }

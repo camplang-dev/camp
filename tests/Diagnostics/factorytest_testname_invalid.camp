@@ -1,0 +1,89 @@
+struct Assertion
+{
+	escaped string message;
+	escaped string sourcefile;
+	uint sourceline;
+}
+
+class Allocator
+{
+}
+
+@factorytest(1)
+void factoryWithArgument(thrown Assertion* assertion)
+{
+}
+
+@factorytest
+internal void visibleFactoryTest(thrown Assertion* assertion)
+{
+}
+
+struct Owner
+{
+	@factorytest
+	void methodFactoryTest(thrown Assertion* assertion)
+	{
+	}
+}
+
+@factorytest
+static void Owner.outOfScopeFactoryTest(thrown Assertion* assertion)
+{
+}
+
+class Resource
+{
+	@factorytest
+	Resource()
+	{
+	}
+}
+
+@factorytest
+struct FactoryTestOnStruct
+{
+	int value;
+}
+
+enum Mode
+{
+	@factorytest
+	Bad
+}
+
+@factorytest
+@test
+void factoryAndTest(thrown Assertion* assertion)
+{
+}
+
+@testname
+void parameterlessHost(thrown Assertion* assertion)
+{
+}
+
+void nonFactoryHost(@testname string name, thrown Assertion* assertion)
+{
+}
+
+struct TestNameHost
+{
+	@testname
+	int field;
+}
+
+@factorytest
+void thrownNamedTest(@testname thrown Assertion* assertion)
+{
+}
+
+@factorytest
+void wrongTypeNamedTest(@testname int name, thrown Assertion* assertion)
+{
+}
+
+@factorytest
+void tooManyNamedTest(@testname string first, @testname string second, thrown Assertion* assertion)
+{
+}

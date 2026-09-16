@@ -132,6 +132,90 @@
           "name": "factorytest"
         }
       ]
+    },
+    {
+      "id": "function:TestMetadata::parseCase",
+      "kind": "function",
+      "name": "parseCase",
+      "symbol": "TestMetadata_parseCase",
+      "returnType": "void",
+      "parameters": [
+        {
+          "id": "function:TestMetadata::parseCase/parameter:name",
+          "name": "name",
+          "type": "const char*"
+        },
+        {
+          "id": "function:TestMetadata::parseCase/parameter:name_length",
+          "name": "name_length",
+          "type": "nuint"
+        },
+        {
+          "id": "function:TestMetadata::parseCase/parameter:source",
+          "name": "source",
+          "type": "const char*"
+        },
+        {
+          "id": "function:TestMetadata::parseCase/parameter:source_length",
+          "name": "source_length",
+          "type": "nuint"
+        },
+        {
+          "id": "function:TestMetadata::parseCase/parameter:shouldPass",
+          "name": "shouldPass",
+          "type": "bool"
+        },
+        {
+          "id": "function:TestMetadata::parseCase/parameter:assertion",
+          "name": "assertion",
+          "modifier": "thrown",
+          "type": "Assertion*"
+        }
+      ],
+      "metadata": [
+        {
+          "name": "factorytest"
+        }
+      ]
+    },
+    {
+      "id": "function:TestMetadata::recoveryCase",
+      "kind": "function",
+      "name": "recoveryCase",
+      "symbol": "TestMetadata_recoveryCase",
+      "returnType": "void",
+      "parameters": [
+        {
+          "id": "function:TestMetadata::recoveryCase/parameter:name",
+          "name": "name",
+          "type": "const char*"
+        },
+        {
+          "id": "function:TestMetadata::recoveryCase/parameter:name_length",
+          "name": "name_length",
+          "type": "nuint"
+        },
+        {
+          "id": "function:TestMetadata::recoveryCase/parameter:source",
+          "name": "source",
+          "type": "string"
+        },
+        {
+          "id": "function:TestMetadata::recoveryCase/parameter:assertion",
+          "name": "assertion",
+          "modifier": "thrown",
+          "type": "Assertion*"
+        }
+      ],
+      "metadata": [
+        {
+          "name": "skip",
+          "content": "parser recovery not implemented yet"
+        },
+        {
+          "name": "factorytest"
+        }
+      ]
     }
   ]
 }
