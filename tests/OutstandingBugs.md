@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-157.
+Next bug number: BUG-158.
 
 ## Bug Template
 
@@ -204,3 +204,66 @@ Reported Impact:
 The original report describes compiler modules that need an escaped owner to
 retain portable sidecar sections as unable to extend that owner safely. This
 impact remains unverified pending the missing reproduction evidence.
+
+## BUG-157: An attribute before a `within` parameter fails to parse
+
+Date/Time: 2026-09-16 15:40 EDT
+
+Summary:
+A parameter attribute placed immediately before a `within` parameter, in
+either the implicit (`within allocator`) or explicit (`within Allocator*
+allocator`) form, fails to parse. The parameter-parsing dispatcher checks for
+the `within` keyword (and the `sizeof`/`vtableof` special forms) as the very
+first token of the parameter, before any attribute list has been consumed;
+attributes are only recognized later, inside the ordinary value-parameter
+declarator path. When an attribute appears first, the dispatcher's `within`
+keyword check never matches (the first token is `@`, not `within`), so the
+parameter falls through to ordinary value-parameter parsing, which then tries
+to parse the leftover `within` token as a type name.
+
+Steps to Reproduce:
+
+1. Compile this Camp source (implicit form):
+
+   ```camp
+   class Allocator
+   {
+   }
+
+   void f(@symbol("a") within allocator)
+   {
+   }
+   ```
+
+2. Or this Camp source (explicit form):
+
+   ```camp
+   class Allocator
+   {
+   }
+
+   void f(@symbol("a") within Allocator* allocator)
+   {
+   }
+   ```
+
+Expected:
+The attribute binds to the `within` parameter like it does to any other
+parameter kind, and the parameter is otherwise parsed normally.
+
+Actual:
+The implicit form reports `Unknown type 'within'.` in addition to a diagnostic
+about the attribute itself. The explicit form fails much more severely,
+cascading into a long run of unrelated parser-recovery errors (`Expected
+')'.`, `Expected identifier.`, `Expected declaration or import/export
+declaration.`, etc.) that make the real defect hard to see from the output
+alone.
+
+Known Impact:
+Any parameter attribute cannot be combined with a `within` parameter in
+either form. No workaround exists other than not attaching an attribute to a
+`within` parameter. Discovered while implementing proposal 021 (factory
+tests): the proposal requires diagnosing `@testname` when placed on a
+`within` parameter of a `@factorytest` function, but that specific invalid
+source shape cannot currently be written at all, so it cannot be proven with
+a compiling golden fixture until this parser gap is fixed.
