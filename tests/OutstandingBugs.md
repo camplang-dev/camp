@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-158.
+Next bug number: BUG-159.
 
 ## Bug Template
 
@@ -267,3 +267,82 @@ tests): the proposal requires diagnosing `@testname` when placed on a
 `within` parameter of a `@factorytest` function, but that specific invalid
 source shape cannot currently be written at all, so it cannot be proven with
 a compiling golden fixture until this parser gap is fixed.
+
+## BUG-158: `campc test`/`campc cover` can hang indefinitely after a native isolated-test run completes on Windows/MSVC
+
+Date/Time: 2026-09-16 16:05 EDT
+
+Status: Reproduced twice on current HEAD on Windows/MSVC (once with a reused
+cached build, once with a fully fresh build). Not reproduced on macOS or
+WSL/Linux for the same source.
+
+Summary:
+On Windows with the MSVC target, `campc test` can hang forever after its
+spawned native isolated-test-harness executable has already finished running
+and has already written its final result artifacts to disk. The compiler
+process itself never regains control and never exits, even though there is
+no more work left to do and no native compiler/linker process is still
+running. The most likely mechanism is a Windows process-handle-inheritance
+issue: a redirected output pipe used to read the harness process's output
+appears to stay open because some other process in the same job/console
+(observed: a lingering `vctip.exe`, the MSVC compiler telemetry uploader,
+started at the same moment as the native build) still holds an inherited
+handle to it, so the read side never observes end-of-stream.
+
+Steps to Reproduce (on a Windows host with Visual Studio 2022 / MSVC
+installed):
+
+1. Compile and run this trivial test module with `campc test`:
+
+   ```camp
+   namespace ReuseCli;
+
+   @test
+   void first(thrown Assertion* assertion)
+   {
+   }
+
+   @test
+   void second(thrown Assertion* assertion)
+   {
+   }
+   ```
+
+   using the native MSVC target, filtering to one test, e.g.
+   `campc test main.camp --target <msvc-target> --filter ReuseCli::first`.
+2. Observe that the native build completes, the isolated test harness
+   executable is produced and runs (its `.camp-test-events.tsv` and
+   `.camp-test-results.json` output files are written to disk with fresh
+   timestamps, and the harness process itself is no longer running), but the
+   `campc` process itself never prints a summary and never exits.
+
+This was found via the compiler's own `Camp.Compiler.TestRunner` xUnit suite
+(`CommandLineTests.Test_reuses_a_current_all_tests_harness_and_selects_at_runtime`,
+which drives exactly this `campc test --filter` shape), not via a
+hand-reduced minimal repro file; reducing further and confirming the exact
+handle involved is still needed.
+
+Expected:
+`campc test` reports the test summary and exits promptly once its native
+isolated-test-harness process has finished and written its results, matching
+observed behavior on macOS and WSL/Linux for the identical source and
+command shape.
+
+Actual:
+`campc` remains running indefinitely (observed for over an hour without any
+CPU progress) after the harness process has already exited and its result
+files are already complete on disk. Killing the hung `campc` process (and
+its parent `dotnet`/`testhost` processes, when driven through the xUnit
+suite) is the only way to recover; the hang was reproduced twice in a row,
+including once after clearing all cached build artifacts to force a
+completely fresh native build, ruling out stale-cache reuse as the cause.
+
+Known Impact:
+Any Windows/MSVC automation that shells out to `campc test`/`campc cover`
+and waits for it to exit — including this repository's own full local test
+suite on Windows — can hang indefinitely on an otherwise-passing run. There
+is no known source-level workaround; avoiding the isolated native test path
+on Windows (if that is optional in a given context) is the only mitigation
+identified so far. This blocked the Windows/MSVC full-suite checkpoint for
+proposal 021's Stage FT.4; that checkpoint is deferred pending a fix or
+further investigation of this bug.
