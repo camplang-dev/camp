@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-159.
+Next bug number: BUG-160.
 
 ## Bug Template
 
@@ -267,3 +267,54 @@ tests): the proposal requires diagnosing `@testname` when placed on a
 `within` parameter of a `@factorytest` function, but that specific invalid
 source shape cannot currently be written at all, so it cannot be proven with
 a compiling golden fixture until this parser gap is fixed.
+
+## BUG-159: A language-service test builds its search text with a platform-dependent line ending, so it silently fails to run its assertion on Windows
+
+Date/Time: 2026-09-16 17:20 EDT
+
+Status: Reproduced on current HEAD on Windows/MSVC. Passes on macOS.
+
+Summary:
+`LanguageServiceTests.Symbol_query_handles_late_overload_selectors` builds
+one of its test inputs by taking a C# raw string literal (`text`) and
+calling `string.Replace` to substitute a small snippet built with
+`Environment.NewLine`. On Windows, `Environment.NewLine` is `"\r\n"`, but
+the C# compiler normalizes line terminators inside raw string literals to
+`"\n"` regardless of the source file's own line-ending style. The snippet
+built with `Environment.NewLine` therefore never actually occurs inside
+`text` on Windows, so the `Replace` call is a silent no-op: the returned
+string is unchanged from the original, without the intended `override `
+keyword ever being inserted. The test then searches that unchanged text for
+the `override ` marker and fails with an unhandled exception, rather than a
+normal assertion failure, before any real assertions run.
+
+This is a test-infrastructure defect (a bug in the test's own text
+construction), not a compiler behavior bug: it does not indicate any problem
+with the language service's overload-selector completion logic itself.
+
+Steps to Reproduce:
+
+1. On a Windows host, run
+   `Camp.Compiler.Tests.LanguageServiceTests.Symbol_query_handles_late_overload_selectors`
+   from the `Camp.Compiler.TestRunner` xUnit suite.
+2. Compare with the same test run on macOS or Linux.
+
+Expected:
+The test passes on every platform, exercising the `override ` completion
+trigger the same way regardless of host OS.
+
+Actual:
+On Windows the test throws
+`System.InvalidOperationException: Marker 'override ' was not found.` from
+its own `PositionOf`/`PositionAfter` text helpers, because the `override `
+snippet was never inserted into the search text in the first place. On
+macOS the test passes.
+
+Known Impact:
+This specific test cannot verify the "insert `override` then request
+completions" scenario on Windows; every other scenario in the same test
+method still runs normally, and this does not affect production compiler
+behavior. Likely fix: build the substituted snippet with the same line
+terminator the raw string literal actually uses at runtime (`"\n"`) instead
+of `Environment.NewLine`, or normalize both sides before comparing/
+replacing.
