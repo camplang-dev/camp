@@ -13,7 +13,7 @@ public enum CampTestManifestMode
 	External
 }
 
-public sealed record CampTestManifest(CampTestManifestMode Mode, IReadOnlyList<CampTestManifestEntry> Tests);
+public sealed record CampTestManifest(CampTestManifestMode Mode, IReadOnlyList<CampTestManifestEntry> Tests, IReadOnlyList<CampTestManifestEntry> FactoryTests);
 
 public sealed record CampTestManifestEntry(
 	string Id,
@@ -24,7 +24,8 @@ public sealed record CampTestManifestEntry(
 	string Summary,
 	bool Skipped,
 	string? SkipReason,
-	string RunnerSignature)
+	string RunnerSignature,
+	string? TestNameParameter = null)
 {
 	internal FunctionDefinition? Function { get; init; }
 	internal TestFailureShape? FailureShape { get; init; }
@@ -43,35 +44,71 @@ public static class CampTestDiscovery
 		ArgumentNullException.ThrowIfNull(compilation);
 		Module module = compilation.SharedModule ?? new Module();
 		List<CampTestManifestEntry> tests = [];
+		List<CampTestManifestEntry> factoryTests = [];
 		List<AnalysisDiagnostic> diagnostics = [];
 		SourcefilePathMapper sourcefilePathMapper = new(module.SourcefilePathMode, module.SourcefileDefaultRoot, module.SourcefileRoots);
 
 		foreach (Definition definition in DeclarationParticipation.ActiveTopLevelDefinitions(module))
 		{
-			if (definition is not FunctionDefinition function || !DeclarationParticipation.IsTest(function))
+			if (definition is not FunctionDefinition function)
 				continue;
-			string name = GetVisibleFunctionName(function);
-			string qualifiedName = GetQualifiedFunctionName(module, function, name);
-			(string sourcefile, int sourceline) = GetSourceLocation(module, function, sourcefilePathMapper, diagnostics);
-			bool skipped = TryGetAttributeStringContent(function.Attributes, "skip", out string? skipReason);
-			tests.Add(new CampTestManifestEntry(
-				qualifiedName,
-				name,
-				qualifiedName,
-				sourcefile,
-				sourceline,
-				GetAttributeStringContent(function.Attributes, "summary") ?? "",
-				skipped,
-				skipped ? skipReason : null,
-				TryGetBuiltInRunnerSignature(module, function, out TestFailureShape? failureShape, out TestAllocatorShape? allocatorShape) ? "valid" : "invalid")
+
+			if (DeclarationParticipation.IsTest(function))
 			{
-				Function = function,
-				FailureShape = failureShape,
-				AllocatorShape = allocatorShape
-			});
+				string name = GetVisibleFunctionName(function);
+				string qualifiedName = GetQualifiedFunctionName(module, function, name);
+				(string sourcefile, int sourceline) = GetSourceLocation(module, function, sourcefilePathMapper, diagnostics);
+				bool skipped = TryGetAttributeStringContent(function.Attributes, "skip", out string? skipReason);
+				tests.Add(new CampTestManifestEntry(
+					qualifiedName,
+					name,
+					qualifiedName,
+					sourcefile,
+					sourceline,
+					GetAttributeStringContent(function.Attributes, "summary") ?? "",
+					skipped,
+					skipped ? skipReason : null,
+					TryGetBuiltInRunnerSignature(module, function, out TestFailureShape? failureShape, out TestAllocatorShape? allocatorShape) ? "valid" : "invalid")
+				{
+					Function = function,
+					FailureShape = failureShape,
+					AllocatorShape = allocatorShape
+				});
+			}
+			else if (DeclarationParticipation.IsFactoryTest(function))
+			{
+				string name = GetVisibleFunctionName(function);
+				string qualifiedName = GetQualifiedFunctionName(module, function, name);
+				(string sourcefile, int sourceline) = GetSourceLocation(module, function, sourcefilePathMapper, diagnostics);
+				bool skipped = TryGetAttributeStringContent(function.Attributes, "skip", out string? skipReason);
+				factoryTests.Add(new CampTestManifestEntry(
+					qualifiedName,
+					name,
+					qualifiedName,
+					sourcefile,
+					sourceline,
+					GetAttributeStringContent(function.Attributes, "summary") ?? "",
+					skipped,
+					skipped ? skipReason : null,
+					TryGetFactoryTestSignature(module, function, out TestFailureShape? failureShape, out TestAllocatorShape? allocatorShape) ? "valid" : "invalid",
+					GetTestNameParameterName(function))
+				{
+					Function = function,
+					FailureShape = failureShape,
+					AllocatorShape = allocatorShape
+				});
+			}
 		}
 
-		return new CampTestDiscoveryResult(new CampTestManifest(mode, tests), diagnostics);
+		return new CampTestDiscoveryResult(new CampTestManifest(mode, tests, factoryTests), diagnostics);
+	}
+
+	static string? GetTestNameParameterName(FunctionDefinition function)
+	{
+		foreach (ParameterDefinition parameter in function.Parameters)
+			if (parameter.Attributes.Any(attribute => AttributeNameEquals(attribute.Name, "testname")))
+				return parameter.Name;
+		return null;
 	}
 
 	static string GetVisibleFunctionName(FunctionDefinition function)
@@ -408,26 +445,15 @@ public static class CampTestManifestJsonSerializer
 		{
 			json.WriteStartObject();
 			json.WriteString("format", "camp.test-manifest");
-			json.WriteNumber("version", 1);
+			json.WriteNumber("version", 2);
 			json.WriteString("mode", manifest.Mode == CampTestManifestMode.External ? "external" : "in-module");
 			json.WriteStartArray("tests");
 			foreach (CampTestManifestEntry test in manifest.Tests)
-			{
-				json.WriteStartObject();
-				json.WriteString("id", test.Id);
-				json.WriteString("name", test.Name);
-				json.WriteString("qualifiedName", test.QualifiedName);
-				json.WriteString("sourcefile", test.Sourcefile);
-				json.WriteNumber("sourceline", test.Sourceline);
-				json.WriteString("summary", test.Summary);
-				json.WriteBoolean("skipped", test.Skipped);
-				if (test.SkipReason is null)
-					json.WriteNull("skipReason");
-				else
-					json.WriteString("skipReason", test.SkipReason);
-				json.WriteString("runnerSignature", test.RunnerSignature);
-				json.WriteEndObject();
-			}
+				WriteManifestEntry(json, test, includeTestNameParameter: false);
+			json.WriteEndArray();
+			json.WriteStartArray("factoryTests");
+			foreach (CampTestManifestEntry factoryTest in manifest.FactoryTests)
+				WriteManifestEntry(json, factoryTest, includeTestNameParameter: true);
 			json.WriteEndArray();
 			json.WriteEndObject();
 		}
@@ -435,18 +461,43 @@ public static class CampTestManifestJsonSerializer
 		return text.EndsWith('\n') ? text : text + "\n";
 	}
 
+	static void WriteManifestEntry(Utf8JsonWriter json, CampTestManifestEntry entry, bool includeTestNameParameter)
+	{
+		json.WriteStartObject();
+		json.WriteString("id", entry.Id);
+		json.WriteString("name", entry.Name);
+		json.WriteString("qualifiedName", entry.QualifiedName);
+		json.WriteString("sourcefile", entry.Sourcefile);
+		json.WriteNumber("sourceline", entry.Sourceline);
+		json.WriteString("summary", entry.Summary);
+		json.WriteBoolean("skipped", entry.Skipped);
+		if (entry.SkipReason is null)
+			json.WriteNull("skipReason");
+		else
+			json.WriteString("skipReason", entry.SkipReason);
+		json.WriteString("runnerSignature", entry.RunnerSignature);
+		if (includeTestNameParameter)
+		{
+			if (entry.TestNameParameter is null)
+				json.WriteNull("testNameParameter");
+			else
+				json.WriteString("testNameParameter", entry.TestNameParameter);
+		}
+		json.WriteEndObject();
+	}
+
 	public static bool TryParse(string text, out CampTestManifest manifest, out List<string> diagnostics)
 	{
 		diagnostics = [];
-		manifest = new CampTestManifest(CampTestManifestMode.InModule, []);
+		manifest = new CampTestManifest(CampTestManifestMode.InModule, [], []);
 		try
 		{
 			using JsonDocument document = JsonDocument.Parse(text);
 			JsonElement root = document.RootElement;
 			if (!root.TryGetProperty("format", out JsonElement format) || format.GetString() != "camp.test-manifest")
 				diagnostics.Add("test manifest format must be camp.test-manifest.");
-			if (!root.TryGetProperty("version", out JsonElement version) || version.GetInt32() != 1)
-				diagnostics.Add("test manifest version must be 1.");
+			if (!root.TryGetProperty("version", out JsonElement version) || version.GetInt32() is not (1 or 2))
+				diagnostics.Add("test manifest version must be 1 or 2.");
 			CampTestManifestMode mode = root.TryGetProperty("mode", out JsonElement modeElement) && modeElement.GetString() == "external"
 				? CampTestManifestMode.External
 				: CampTestManifestMode.InModule;
@@ -469,7 +520,27 @@ public static class CampTestManifestJsonSerializer
 			}
 			else
 				diagnostics.Add("test manifest must contain a tests array.");
-			manifest = new CampTestManifest(mode, tests);
+			// The "factoryTests" array is new in version 2; a version-1 manifest simply
+			// has no factory-test declarations to report, not a parse error.
+			List<CampTestManifestEntry> factoryTests = [];
+			if (root.TryGetProperty("factoryTests", out JsonElement factoryTestsElement) && factoryTestsElement.ValueKind == JsonValueKind.Array)
+			{
+				foreach (JsonElement factoryTest in factoryTestsElement.EnumerateArray())
+				{
+					factoryTests.Add(new CampTestManifestEntry(
+						GetString(factoryTest, "id"),
+						GetString(factoryTest, "name"),
+						GetString(factoryTest, "qualifiedName"),
+						GetString(factoryTest, "sourcefile"),
+						GetInt(factoryTest, "sourceline"),
+						GetString(factoryTest, "summary"),
+						GetBool(factoryTest, "skipped"),
+						GetNullableString(factoryTest, "skipReason"),
+						GetString(factoryTest, "runnerSignature"),
+						GetNullableString(factoryTest, "testNameParameter")));
+				}
+			}
+			manifest = new CampTestManifest(mode, tests, factoryTests);
 		}
 		catch (Exception ex) when (ex is JsonException or InvalidOperationException or FormatException)
 		{

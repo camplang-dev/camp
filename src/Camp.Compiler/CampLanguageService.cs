@@ -38,13 +38,15 @@ public sealed record CampDiscoveredTest(
 	string Summary,
 	bool Skipped,
 	string? SkipReason,
-	string RunnerSignature);
+	string RunnerSignature,
+	string? TestNameParameter = null);
 
 public sealed class CampTestDiscoverySnapshot
 {
 	public required Compilation Compilation { get; init; }
 	public required IReadOnlyList<CampSourceDiagnostic> Diagnostics { get; init; }
 	public required IReadOnlyList<CampDiscoveredTest> Tests { get; init; }
+	public required IReadOnlyList<CampDiscoveredTest> FactoryTests { get; init; }
 	public bool Success => Diagnostics.All(static diagnostic => diagnostic.Severity != DiagnosticSeverity.Error);
 }
 
@@ -107,11 +109,32 @@ public static class CampLanguageService
 					DiagnosticSeverity.Warning));
 			}
 		}
+		List<CampDiscoveredTest> factoryTests = [];
+		foreach (CampTestManifestEntry factoryTest in discovery.Manifest.FactoryTests)
+		{
+			if (factoryTest.Function is null || !TryGetDefinitionPathAndRange(compilation, factoryTest.Function, out string factoryPath, out CampTextRange factoryRange))
+				continue;
+			factoryTests.Add(new CampDiscoveredTest(
+				factoryTest.Id,
+				factoryTest.Name,
+				factoryTest.QualifiedName,
+				factoryTest.Sourcefile,
+				factoryTest.Sourceline,
+				factoryPath,
+				factoryRange,
+				factoryTest.Summary,
+				factoryTest.Skipped,
+				factoryTest.SkipReason,
+				factoryTest.RunnerSignature,
+				factoryTest.TestNameParameter));
+		}
+
 		return new CampTestDiscoverySnapshot
 		{
 			Compilation = compilation,
 			Diagnostics = diagnostics,
-			Tests = tests
+			Tests = tests,
+			FactoryTests = factoryTests
 		};
 	}
 

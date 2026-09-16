@@ -159,11 +159,83 @@ public sealed class CampTestDiscoveryTests
 	}
 
 	[Fact]
+	public void Discovery_lists_factory_tests_separately_with_signature_and_testname_parameter()
+	{
+		SemanticCompilation compilation = SemanticCompiler.CompileLoweredTestModule(("tests/factory_test_manifest.camp", """
+			namespace FactoryManifestTests;
+
+			struct Assertion
+			{
+				escaped string message;
+				escaped string sourcefile;
+				uint sourceline;
+			}
+
+			@test
+			void basicTests(thrown Assertion* assertion)
+			{
+				testAdd("addOneAndTwo", 1, 2, 3);
+			}
+
+			/// Adds two numbers.
+			@factorytest
+			void testAdd(@testname string testname, int first, int second, int expected, thrown Assertion* assertion)
+			{
+			}
+
+			@skip("not ready")
+			@factorytest
+			void skippedFactory(thrown Assertion* assertion)
+			{
+			}
+
+			@factorytest
+			void invalidFactory(int first)
+			{
+			}
+			"""));
+		SemanticCompiler.AssertNoDiagnostics(compilation);
+
+		CampTestDiscoveryResult result = CampTestDiscovery.Discover(compilation.Compilation, CampTestManifestMode.InModule);
+
+		Assert.Empty(result.Diagnostics);
+		Assert.Single(result.Manifest.Tests);
+		Assert.DoesNotContain(result.Manifest.Tests, static test => test.Name is "testAdd" or "skippedFactory" or "invalidFactory");
+		Assert.Equal(3, result.Manifest.FactoryTests.Count);
+
+		CampTestManifestEntry testAdd = result.Manifest.FactoryTests.Single(static test => test.Name == "testAdd");
+		Assert.Equal("FactoryManifestTests::testAdd", testAdd.Id);
+		Assert.Equal("FactoryManifestTests::testAdd", testAdd.QualifiedName);
+		Assert.Equal("Adds two numbers.", testAdd.Summary);
+		Assert.False(testAdd.Skipped);
+		Assert.Null(testAdd.SkipReason);
+		Assert.Equal("valid", testAdd.RunnerSignature);
+		Assert.Equal("testname", testAdd.TestNameParameter);
+
+		CampTestManifestEntry skippedFactory = result.Manifest.FactoryTests.Single(static test => test.Name == "skippedFactory");
+		Assert.True(skippedFactory.Skipped);
+		Assert.Equal("not ready", skippedFactory.SkipReason);
+		Assert.Equal("valid", skippedFactory.RunnerSignature);
+		Assert.Null(skippedFactory.TestNameParameter);
+
+		CampTestManifestEntry invalidFactory = result.Manifest.FactoryTests.Single(static test => test.Name == "invalidFactory");
+		Assert.Equal("invalid", invalidFactory.RunnerSignature);
+
+		using JsonDocument json = JsonDocument.Parse(CampTestManifestJsonSerializer.Serialize(result.Manifest));
+		Assert.Equal(2, json.RootElement.GetProperty("version").GetInt32());
+		Assert.Equal(1, json.RootElement.GetProperty("tests").GetArrayLength());
+		Assert.Equal(3, json.RootElement.GetProperty("factoryTests").GetArrayLength());
+	}
+
+	[Fact]
 	public void Manifest_json_round_trips_through_parser()
 	{
 		CampTestManifest manifest = new(CampTestManifestMode.InModule,
 		[
 			new CampTestManifestEntry("Tests::sample", "sample", "Tests::sample", "tests/sample.camp", 7, "summary text", true, "skip reason", "valid")
+		],
+		[
+			new CampTestManifestEntry("Tests::sampleFactory", "sampleFactory", "Tests::sampleFactory", "tests/sample.camp", 14, "factory summary", false, null, "valid", "testname")
 		]);
 
 		bool parsed = CampTestManifestJsonSerializer.TryParse(CampTestManifestJsonSerializer.Serialize(manifest), out CampTestManifest roundTrip, out List<string> diagnostics);
@@ -180,6 +252,48 @@ public sealed class CampTestDiscoveryTests
 		Assert.True(test.Skipped);
 		Assert.Equal("skip reason", test.SkipReason);
 		Assert.Equal("valid", test.RunnerSignature);
+		Assert.Null(test.TestNameParameter);
+
+		CampTestManifestEntry factoryTest = Assert.Single(roundTrip.FactoryTests);
+		Assert.Equal("Tests::sampleFactory", factoryTest.Id);
+		Assert.Equal("sampleFactory", factoryTest.Name);
+		Assert.Equal(14, factoryTest.Sourceline);
+		Assert.Equal("factory summary", factoryTest.Summary);
+		Assert.False(factoryTest.Skipped);
+		Assert.Null(factoryTest.SkipReason);
+		Assert.Equal("valid", factoryTest.RunnerSignature);
+		Assert.Equal("testname", factoryTest.TestNameParameter);
+	}
+
+	[Fact]
+	public void Manifest_parser_accepts_version_1_manifests_with_no_factory_tests()
+	{
+		const string version1Manifest = """
+			{
+			  "format": "camp.test-manifest",
+			  "version": 1,
+			  "mode": "in-module",
+			  "tests": [
+			    {
+			      "id": "Tests::sample",
+			      "name": "sample",
+			      "qualifiedName": "Tests::sample",
+			      "sourcefile": "tests/sample.camp",
+			      "sourceline": 7,
+			      "summary": "",
+			      "skipped": false,
+			      "skipReason": null,
+			      "runnerSignature": "valid"
+			    }
+			  ]
+			}
+			""";
+
+		bool parsed = CampTestManifestJsonSerializer.TryParse(version1Manifest, out CampTestManifest manifest, out List<string> diagnostics);
+
+		Assert.True(parsed, string.Join(Environment.NewLine, diagnostics));
+		Assert.Single(manifest.Tests);
+		Assert.Empty(manifest.FactoryTests);
 	}
 
 	[Fact]

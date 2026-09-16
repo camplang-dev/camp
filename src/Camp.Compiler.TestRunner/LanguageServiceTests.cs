@@ -223,6 +223,50 @@ public sealed class LanguageServiceTests
 	}
 
 	[Fact]
+	public void Test_discovery_snapshot_exposes_factory_tests_separately_from_top_level_tests()
+	{
+		string root = CreateTempDirectory("language-service-factory-test-discovery");
+		string source = Path.Combine(root, "main.camp");
+		string text = """
+			namespace FactoryEditorTests;
+
+			struct Assertion
+			{
+				escaped string message;
+				escaped string sourcefile;
+				uint sourceline;
+			}
+
+			@test
+			void basicTests(thrown Assertion* assertion)
+			{
+				testAdd("addOneAndTwo", 1, 2, 3);
+			}
+
+			@factorytest
+			void testAdd(@testname string testname, int first, int second, int expected, thrown Assertion* assertion)
+			{
+			}
+			""";
+		File.WriteAllText(source, text);
+		CompilerRequest request = Request(root, source);
+		request.SourcefileDefaultRoot = root;
+
+		CampTestDiscoverySnapshot snapshot = CampLanguageService.DiscoverTests(request);
+
+		Assert.True(snapshot.Success, string.Join(Environment.NewLine, snapshot.Diagnostics.Select(static diagnostic => diagnostic.Message)));
+		CampDiscoveredTest basicTests = Assert.Single(snapshot.Tests);
+		Assert.Equal("basicTests", basicTests.Name);
+		Assert.DoesNotContain(snapshot.Tests, static test => test.Name == "testAdd");
+
+		CampDiscoveredTest testAdd = Assert.Single(snapshot.FactoryTests);
+		Assert.Equal("FactoryEditorTests::testAdd", testAdd.Id);
+		Assert.Equal("valid", testAdd.RunnerSignature);
+		Assert.Equal("testname", testAdd.TestNameParameter);
+		Assert.Equal(Path.GetFullPath(source), testAdd.Path);
+	}
+
+	[Fact]
 	public void Symbol_query_finds_local_parameter_and_function_definitions()
 	{
 		string root = CreateTempDirectory("language-service-symbols");
