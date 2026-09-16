@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Text.Json;
 using Xunit;
 
@@ -8532,6 +8533,35 @@ public sealed class CommandLineTests
 		return new ProcessResult(result.ExitCode, Normalize(result.StdOut), Normalize(result.StdErr));
 	}
 
+	// Reads both redirected streams concurrently and bounds the wait, rather than
+	// reading stdout-then-stderr synchronously with no timeout: sequential reads
+	// can deadlock if the child writes enough to the stream read second to fill
+	// its OS pipe buffer while blocked waiting for this process to drain the
+	// stream read first. Separately, on Windows a build-time grandchild process
+	// can inherit a duplicate of these pipe write handles and keep them open
+	// after the child itself has exited, which would otherwise block the reads
+	// forever even though there is no more output coming. See BUG-158.
+	static (string StdOut, string StdErr) DrainProcess(Process process, string timeoutDescription)
+	{
+		Task<string> stdoutTask = process.StandardOutput.ReadToEndAsync();
+		Task<string> stderrTask = process.StandardError.ReadToEndAsync();
+		if (!process.WaitForExit(300000))
+		{
+			try
+			{
+				process.Kill(entireProcessTree: true);
+			}
+			catch (Exception ex) when (ex is InvalidOperationException or NotSupportedException)
+			{
+			}
+			throw new TimeoutException($"{timeoutDescription} timed out after 300 seconds.");
+		}
+		Task.WaitAll(new Task[] { stdoutTask, stderrTask }, 5000);
+		string stdout = stdoutTask.Status == TaskStatus.RanToCompletion ? stdoutTask.Result : "";
+		string stderr = stderrTask.Status == TaskStatus.RanToCompletion ? stderrTask.Result : "";
+		return (stdout, stderr);
+	}
+
 	static ProcessResult RunCampc(IReadOnlyDictionary<string, string?>? environmentVariables, params string[] arguments)
 	{
 		TestMetrics.RecordExternalCampcInvocation();
@@ -8557,9 +8587,7 @@ public sealed class CommandLineTests
 		using Process process = new() { StartInfo = info };
 		using IDisposable gate = TestResourceGate.EnterCli();
 		process.Start();
-		string stdout = process.StandardOutput.ReadToEnd();
-		string stderr = process.StandardError.ReadToEnd();
-		process.WaitForExit();
+		(string stdout, string stderr) = DrainProcess(process, "campc " + string.Join(" ", arguments));
 		return new ProcessResult(process.ExitCode, Normalize(stdout), Normalize(stderr));
 	}
 
@@ -8578,9 +8606,7 @@ public sealed class CommandLineTests
 		using Process process = new() { StartInfo = info };
 		using IDisposable gate = TestResourceGate.EnterCli();
 		process.Start();
-		string stdout = process.StandardOutput.ReadToEnd();
-		string stderr = process.StandardError.ReadToEnd();
-		process.WaitForExit();
+		(string stdout, string stderr) = DrainProcess(process, "campc " + string.Join(" ", arguments));
 		return new ProcessResult(process.ExitCode, Normalize(stdout), Normalize(stderr));
 	}
 
@@ -8598,9 +8624,7 @@ public sealed class CommandLineTests
 		using Process process = new() { StartInfo = info };
 		using IDisposable gate = TestResourceGate.EnterCli();
 		process.Start();
-		string stdout = process.StandardOutput.ReadToEnd();
-		string stderr = process.StandardError.ReadToEnd();
-		process.WaitForExit();
+		(string stdout, string stderr) = DrainProcess(process, "campc " + string.Join(" ", arguments));
 		return new ProcessResult(process.ExitCode, Normalize(stdout), Normalize(stderr));
 	}
 
@@ -8630,9 +8654,7 @@ public sealed class CommandLineTests
 
 		using Process process = new() { StartInfo = info };
 		process.Start();
-		string stdout = process.StandardOutput.ReadToEnd();
-		string stderr = process.StandardError.ReadToEnd();
-		process.WaitForExit();
+		(string stdout, string stderr) = DrainProcess(process, executable);
 		return new ProcessResult(process.ExitCode, Normalize(stdout), Normalize(stderr));
 	}
 
@@ -8651,9 +8673,7 @@ public sealed class CommandLineTests
 
 		using Process process = new() { StartInfo = info };
 		process.Start();
-		string stdout = process.StandardOutput.ReadToEnd();
-		string stderr = process.StandardError.ReadToEnd();
-		process.WaitForExit();
+		(string stdout, string stderr) = DrainProcess(process, executable + " " + string.Join(" ", arguments));
 		return new ProcessResult(process.ExitCode, Normalize(stdout), Normalize(stderr));
 	}
 
