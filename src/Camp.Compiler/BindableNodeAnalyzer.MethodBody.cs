@@ -28,6 +28,7 @@ public sealed partial class BindableNodeAnalyzer
 	readonly Dictionary<FunctionDefinition, Dictionary<string, LabelStatement>> functionLabels = [];
 	FunctionDefinition? currentAnalysisFunction;
 	TypeDefinition? currentAnalysisContainingType;
+	bool isResolvingCallTarget;
 
 	void AnalyzeMethodBody(FunctionDefinition function, AnalysisScope typeAndMethodScope, TypeDefinition? containingType)
 	{
@@ -2094,6 +2095,9 @@ public sealed partial class BindableNodeAnalyzer
 				return ReportMultipleCandidates(named.SourceSyntax, named.Name);
 			}
 
+			if (!isResolvingCallTarget && DeclarationParticipation.IsTest(functions[0]))
+				Report(GetRange(named.SourceSyntax), "@test functions are invoked only by the built-in test runner and may not have their address taken.");
+
 			MethodReferenceExpression method = new()
 			{
 				SourceSyntax = named.SourceSyntax,
@@ -3338,6 +3342,8 @@ public sealed partial class BindableNodeAnalyzer
 		FunctionDefinition? function = callTargets.TryGetValue(call, out FunctionDefinition? existingTarget)
 			? existingTarget
 			: ResolveCallTarget(call.Target, scope, typeScope, call.Arguments);
+		if (function is not null && DeclarationParticipation.IsTest(function))
+			Report(GetRange(GetCallTargetNameDiagnosticSyntax(call.Target) ?? call.SourceSyntax), "@test functions are invoked only by the built-in test runner and may not be called explicitly.");
 		Dictionary<string, string> genericSubstitutions = [];
 		HashSet<string> genericParameterNames = [];
 		if (function is not null)
@@ -4147,7 +4153,16 @@ public sealed partial class BindableNodeAnalyzer
 				if (functions.Count == 1)
 				{
 					EnsureFunctionSignatureAnalyzed(functions[0], typeScope);
-					BodyAnalyzeExpression(named, scope, typeScope);
+					bool previousResolvingCallTarget = isResolvingCallTarget;
+					isResolvingCallTarget = true;
+					try
+					{
+						BodyAnalyzeExpression(named, scope, typeScope);
+					}
+					finally
+					{
+						isResolvingCallTarget = previousResolvingCallTarget;
+					}
 					return functions[0];
 				}
 				if (functions.Count > 1)

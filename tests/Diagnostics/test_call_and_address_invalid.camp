@@ -1,0 +1,20 @@
+// @test-module
+
+struct Assertion
+{
+	escaped string message;
+	escaped string sourcefile;
+	uint sourceline;
+}
+
+@test
+void root(thrown Assertion* assertion)
+{
+}
+
+@testonly
+void invalid(thrown Assertion* assertion)
+{
+	root();
+	auto f = root;
+}

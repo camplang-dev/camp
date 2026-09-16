@@ -1,0 +1,2 @@
+tests/Diagnostics/test_call_and_address_invalid.camp(18,2): error: @test functions are invoked only by the built-in test runner and may not be called explicitly.
+tests/Diagnostics/test_call_and_address_invalid.camp(19,11): error: @test functions are invoked only by the built-in test runner and may not have their address taken.
