@@ -2033,8 +2033,17 @@ public static class CompilerDriver
                     }
                     return CampTestResultsFactory.InfrastructureError(selectedTests, "test harness timed out");
                 }
-                string harnessStdOut = Normalize(stdoutTask.GetAwaiter().GetResult());
-                string harnessStdErr = Normalize(stderrTask.GetAwaiter().GetResult());
+                // The harness process has exited, but on Windows a build-time grandchild
+                // process (for example MSVC's vctip.exe telemetry uploader) can inherit a
+                // duplicate of these redirected pipe's write handles and keep them open
+                // after the harness itself is gone, which would otherwise block
+                // ReadToEndAsync() forever. The event file already on disk at eventPath is
+                // the actual source of truth for results, so drain with a bounded budget
+                // and fall back to whatever text (if any) was captured in time.
+                const int drainTimeoutMilliseconds = 5000;
+                System.Threading.Tasks.Task.WaitAll(new System.Threading.Tasks.Task[] { stdoutTask, stderrTask }, drainTimeoutMilliseconds);
+                string harnessStdOut = Normalize(stdoutTask.Status == System.Threading.Tasks.TaskStatus.RanToCompletion ? stdoutTask.Result : "");
+                string harnessStdErr = Normalize(stderrTask.Status == System.Threading.Tasks.TaskStatus.RanToCompletion ? stderrTask.Result : "");
                 if (!CampTestHarnessEventParser.TryRead(eventPath, out List<CampTestHarnessEvent> events, out List<string> diagnostics))
                 {
                     string message = string.Join(" ", diagnostics);
@@ -2051,6 +2060,10 @@ public static class CompilerDriver
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException or InvalidOperationException)
             {
                 return CampTestResultsFactory.InfrastructureError(selectedTests, ex.Message);
+            }
+            catch (AggregateException ex)
+            {
+                return CampTestResultsFactory.InfrastructureError(selectedTests, ex.GetBaseException().Message);
             }
         }
 
