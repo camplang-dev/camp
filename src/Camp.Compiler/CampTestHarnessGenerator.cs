@@ -27,6 +27,7 @@ public static class CampTestHarnessGenerator
 			.Select(static test => test.AllocatorShape)
 			.FirstOrDefault(static shape => shape is { Trackable: true });
 		WriteMemoryTracker(builder, projectName, trackingAllocator, coverageMap is not null);
+		WriteFactoryTestRuntime(builder);
 		builder.AppendLine("typedef void (*CampTestFunction)(void **failure);");
 		builder.AppendLine("typedef const char *(*CampTestStringField)(void *failure);");
 		builder.AppendLine("typedef unsigned int (*CampTestLineField)(void *failure);");
@@ -187,6 +188,9 @@ public static class CampTestHarnessGenerator
 		builder.AppendLine("\t\t\tfprintf(stderr, \"camp test: could not open result event file\\n\");");
 		builder.AppendLine("\t\t\treturn 2;");
 		builder.AppendLine("\t\t}");
+		builder.AppendLine("\t\tchar camp_factory_debug_path[4096];");
+		builder.AppendLine("\t\tsnprintf(camp_factory_debug_path, sizeof(camp_factory_debug_path), \"%s.factory-debug.tsv\", argv[1]);");
+		builder.AppendLine("\t\tcamp_factory_debug_file = fopen(camp_factory_debug_path, \"wb\");");
 		builder.AppendLine("\t}");
 		builder.AppendLine("\tint failed = 0;");
 		builder.AppendLine("\tint selected_index = 0;");
@@ -212,7 +216,9 @@ public static class CampTestHarnessGenerator
 		builder.AppendLine("\t\t}");
 		builder.AppendLine("\t\tvoid *failure = 0;");
 		builder.AppendLine("\t\tcamp_test_memory_reset();");
+		builder.AppendLine("\t\tcamp_factory_test_begin_parent();");
 		builder.AppendLine("\t\ttest->function(&failure);");
+		builder.AppendLine("\t\tcamp_factory_test_end_parent();");
 		builder.AppendLine("\t\tCampTestMemorySummary memory = camp_test_memory_finish();");
 		builder.AppendLine("\t\tdouble duration_ms = camp_elapsed_ms(start);");
 		builder.AppendLine("\t\tif (failure != 0)");
@@ -242,6 +248,8 @@ public static class CampTestHarnessGenerator
 		builder.AppendLine("\t}");
 		builder.AppendLine("\tif (camp_events != 0)");
 		builder.AppendLine("\t\tfclose(camp_events);");
+		builder.AppendLine("\tif (camp_factory_debug_file != 0)");
+		builder.AppendLine("\t\tfclose(camp_factory_debug_file);");
 		builder.AppendLine("\treturn failed == 0 ? 0 : 1;");
 		builder.AppendLine("}");
 		return builder.ToString().Replace("\r\n", "\n", StringComparison.Ordinal);
@@ -288,6 +296,158 @@ public static class CampTestHarnessGenerator
 	static bool IsRunnable(CampTestManifestEntry test)
 	{
 		return !test.Skipped && test.RunnerSignature == "valid" && test.Function is not null && test.FailureShape is not null;
+	}
+
+	// Factory-test runtime (proposal 021, Stage FT.7). This block owns the
+	// currently-running-parent and currently-active-factory-call state, nested-
+	// misuse detection, skipped-child recording, and ordinal-suffix assignment
+	// for duplicate display names. It is always emitted (cheap, and harmless
+	// when no @factorytest declarations exist yet): Stage FT.8's lowering emits
+	// calls to __camp_test_beginFactory/__camp_test_endFactory/
+	// __camp_test_recordFactorySkipped from the project's own compiled C, a
+	// separate translation unit from this generated harness file, so these
+	// three entry points use external linkage while everything else here stays
+	// file-local. Finalized child results are not yet wired into the real
+	// result JSON/text output (that is Stage FT.9); for now each finalized
+	// child, with its ordinal-adjusted display name applied, is written as a
+	// "camp-factory-child\t<outcome>\t<name>" line to stderr so this stage's
+	// own tests can observe runtime behavior end to end.
+	static void WriteFactoryTestRuntime(StringBuilder builder)
+	{
+		builder.AppendLine("#define CAMP_FACTORY_PASSED 0");
+		builder.AppendLine("#define CAMP_FACTORY_FAILED 1");
+		builder.AppendLine("#define CAMP_FACTORY_SKIPPED 2");
+		builder.AppendLine("#define CAMP_FACTORY_INVALID 3");
+		builder.AppendLine("#define CAMP_FACTORY_NAME_CAPACITY 160");
+		builder.AppendLine("#define CAMP_FACTORY_MAX_CHILDREN 512");
+		builder.AppendLine("typedef struct CampFactoryChild");
+		builder.AppendLine("{");
+		builder.AppendLine("\tchar name[CAMP_FACTORY_NAME_CAPACITY];");
+		builder.AppendLine("\tint outcome;");
+		builder.AppendLine("} CampFactoryChild;");
+		builder.AppendLine("static CampFactoryChild camp_factory_children[CAMP_FACTORY_MAX_CHILDREN];");
+		builder.AppendLine("static int camp_factory_child_count = 0;");
+		builder.AppendLine("static int camp_factory_parent_active = 0;");
+		builder.AppendLine("static int camp_factory_call_active = 0;");
+		builder.AppendLine("static int camp_factory_active_recorded = 0;");
+		builder.AppendLine("static char camp_factory_active_name[CAMP_FACTORY_NAME_CAPACITY];");
+		builder.AppendLine("static FILE *camp_factory_debug_file = 0;");
+		builder.AppendLine();
+		builder.AppendLine("static const char *camp_factory_outcome_word(int outcome)");
+		builder.AppendLine("{");
+		builder.AppendLine("\tswitch (outcome)");
+		builder.AppendLine("\t{");
+		builder.AppendLine("\t\tcase CAMP_FACTORY_PASSED: return \"passed\";");
+		builder.AppendLine("\t\tcase CAMP_FACTORY_FAILED: return \"failed\";");
+		builder.AppendLine("\t\tcase CAMP_FACTORY_SKIPPED: return \"skipped\";");
+		builder.AppendLine("\t\tdefault: return \"invalid\";");
+		builder.AppendLine("\t}");
+		builder.AppendLine("}");
+		builder.AppendLine();
+		builder.AppendLine("static void camp_factory_copy_name(char *dest, const char *source)");
+		builder.AppendLine("{");
+		builder.AppendLine("\tsnprintf(dest, CAMP_FACTORY_NAME_CAPACITY, \"%s\", source == 0 ? \"\" : source);");
+		builder.AppendLine("}");
+		builder.AppendLine();
+		builder.AppendLine("static void camp_factory_record_child(const char *name, int outcome)");
+		builder.AppendLine("{");
+		builder.AppendLine("\tif (camp_factory_child_count >= CAMP_FACTORY_MAX_CHILDREN)");
+		builder.AppendLine("\t\treturn;");
+		builder.AppendLine("\tcamp_factory_copy_name(camp_factory_children[camp_factory_child_count].name, name);");
+		builder.AppendLine("\tcamp_factory_children[camp_factory_child_count].outcome = outcome;");
+		builder.AppendLine("\tcamp_factory_child_count++;");
+		builder.AppendLine("}");
+		builder.AppendLine();
+		builder.AppendLine("static int camp_factory_count_matching(const char *name, int limit)");
+		builder.AppendLine("{");
+		builder.AppendLine("\tint count = 0;");
+		builder.AppendLine("\tfor (int index = 0; index < limit; index++)");
+		builder.AppendLine("\t\tif (strcmp(camp_factory_children[index].name, name) == 0)");
+		builder.AppendLine("\t\t\tcount++;");
+		builder.AppendLine("\treturn count;");
+		builder.AppendLine("}");
+		builder.AppendLine();
+		builder.AppendLine("static void camp_factory_test_end_parent(void)");
+		builder.AppendLine("{");
+		builder.AppendLine("\tcamp_factory_parent_active = 0;");
+		builder.AppendLine("\tfor (int index = 0; index < camp_factory_child_count; index++)");
+		builder.AppendLine("\t{");
+		builder.AppendLine("\t\tint total = camp_factory_count_matching(camp_factory_children[index].name, camp_factory_child_count);");
+		builder.AppendLine("\t\tchar display[CAMP_FACTORY_NAME_CAPACITY + 16];");
+		builder.AppendLine("\t\tif (total > 1)");
+		builder.AppendLine("\t\t{");
+		builder.AppendLine("\t\t\tint ordinal = camp_factory_count_matching(camp_factory_children[index].name, index) + 1;");
+		builder.AppendLine("\t\t\tsnprintf(display, sizeof(display), \"%s.%d\", camp_factory_children[index].name, ordinal);");
+		builder.AppendLine("\t\t}");
+		builder.AppendLine("\t\telse");
+		builder.AppendLine("\t\t\tsnprintf(display, sizeof(display), \"%s\", camp_factory_children[index].name);");
+		builder.AppendLine("\t\tif (camp_factory_debug_file != 0)");
+		builder.AppendLine("\t\t\tfprintf(camp_factory_debug_file, \"camp-factory-child\\t%s\\t%s\\n\", camp_factory_outcome_word(camp_factory_children[index].outcome), display);");
+		builder.AppendLine("\t}");
+		builder.AppendLine("\tcamp_factory_child_count = 0;");
+		builder.AppendLine("\tcamp_factory_call_active = 0;");
+		builder.AppendLine("\tcamp_factory_active_recorded = 0;");
+		builder.AppendLine("}");
+		builder.AppendLine();
+		builder.AppendLine("static void camp_factory_test_begin_parent(void)");
+		builder.AppendLine("{");
+		builder.AppendLine("\t/* Flush and report anything buffered outside a parent window (e.g. a");
+		builder.AppendLine("\t   misuse recorded before any parent test had started) before resetting. */");
+		builder.AppendLine("\tcamp_factory_test_end_parent();");
+		builder.AppendLine("\tcamp_factory_parent_active = 1;");
+		builder.AppendLine("}");
+		builder.AppendLine();
+		builder.AppendLine("int __camp_test_beginFactory(const char *displayName)");
+		builder.AppendLine("{");
+		builder.AppendLine("\tif (!camp_factory_parent_active)");
+		builder.AppendLine("\t{");
+		builder.AppendLine("\t\tcamp_factory_record_child(displayName, CAMP_FACTORY_INVALID);");
+		builder.AppendLine("\t\treturn 0;");
+		builder.AppendLine("\t}");
+		builder.AppendLine("\tif (camp_factory_call_active)");
+		builder.AppendLine("\t{");
+		builder.AppendLine("\t\tif (!camp_factory_active_recorded)");
+		builder.AppendLine("\t\t{");
+		builder.AppendLine("\t\t\tcamp_factory_record_child(camp_factory_active_name, CAMP_FACTORY_INVALID);");
+		builder.AppendLine("\t\t\tcamp_factory_active_recorded = 1;");
+		builder.AppendLine("\t\t}");
+		builder.AppendLine("\t\tcamp_factory_record_child(displayName, CAMP_FACTORY_INVALID);");
+		builder.AppendLine("\t\treturn 0;");
+		builder.AppendLine("\t}");
+		builder.AppendLine("\tcamp_factory_call_active = 1;");
+		builder.AppendLine("\tcamp_factory_active_recorded = 0;");
+		builder.AppendLine("\tcamp_factory_copy_name(camp_factory_active_name, displayName);");
+		builder.AppendLine("\treturn 1;");
+		builder.AppendLine("}");
+		builder.AppendLine();
+		builder.AppendLine("void __camp_test_endFactory(int failed)");
+		builder.AppendLine("{");
+		builder.AppendLine("\tif (!camp_factory_active_recorded)");
+		builder.AppendLine("\t\tcamp_factory_record_child(camp_factory_active_name, failed ? CAMP_FACTORY_FAILED : CAMP_FACTORY_PASSED);");
+		builder.AppendLine("\tcamp_factory_call_active = 0;");
+		builder.AppendLine("\tcamp_factory_active_recorded = 0;");
+		builder.AppendLine("}");
+		builder.AppendLine();
+		builder.AppendLine("void __camp_test_recordFactorySkipped(const char *displayName)");
+		builder.AppendLine("{");
+		builder.AppendLine("\tif (!camp_factory_parent_active)");
+		builder.AppendLine("\t{");
+		builder.AppendLine("\t\tcamp_factory_record_child(displayName, CAMP_FACTORY_INVALID);");
+		builder.AppendLine("\t\treturn;");
+		builder.AppendLine("\t}");
+		builder.AppendLine("\tif (camp_factory_call_active)");
+		builder.AppendLine("\t{");
+		builder.AppendLine("\t\tif (!camp_factory_active_recorded)");
+		builder.AppendLine("\t\t{");
+		builder.AppendLine("\t\t\tcamp_factory_record_child(camp_factory_active_name, CAMP_FACTORY_INVALID);");
+		builder.AppendLine("\t\t\tcamp_factory_active_recorded = 1;");
+		builder.AppendLine("\t\t}");
+		builder.AppendLine("\t\tcamp_factory_record_child(displayName, CAMP_FACTORY_INVALID);");
+		builder.AppendLine("\t\treturn;");
+		builder.AppendLine("\t}");
+		builder.AppendLine("\tcamp_factory_record_child(displayName, CAMP_FACTORY_SKIPPED);");
+		builder.AppendLine("}");
+		builder.AppendLine();
 	}
 
 	static void WriteMemoryTracker(StringBuilder builder, string projectName, TestAllocatorShape? allocator, bool captureCoverageSource)

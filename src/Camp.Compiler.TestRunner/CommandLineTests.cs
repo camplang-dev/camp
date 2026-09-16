@@ -3519,6 +3519,192 @@ public sealed class CommandLineTests
 		Assert.DoesNotContain(FindLine(source, "int sum = left + right;"), file.GetProperty("uncoveredLines").EnumerateArray().Select(static line => line.GetInt32()));
 	}
 
+	// Stage FT.7 (proposal 021): the factory-test runtime primitives
+	// (__camp_test_beginFactory/__camp_test_endFactory/
+	// __camp_test_recordFactorySkipped) are not called by any lowered
+	// @factorytest body yet (that is Stage FT.8), so these tests invoke them
+	// directly from ordinary @test source through extern/@symbol bindings to
+	// exercise the runtime state machine end to end. Each finalized child
+	// result is written to a "<events>.factory-debug.tsv" sidecar file next to
+	// the normal test-events file, a Stage FT.7-only observability channel
+	// kept deliberately separate from the real, strictly-parsed
+	// camp-test-events.tsv (Stage FT.9 wires real result reporting).
+	static string FactoryDebugPath(string outDir, string projectName)
+	{
+		return Path.Combine(outDir, ArtifactDirectoryForHost(null, CompilerCommandMode.Test), "build", projectName + ".camp-test-events.tsv.factory-debug.tsv");
+	}
+
+	const string FactoryRuntimeExternBindings = """
+		@symbol("__camp_test_beginFactory")
+		extern int beginFactory(astring displayName);
+
+		@symbol("__camp_test_endFactory")
+		extern void endFactory(int failed);
+
+		@symbol("__camp_test_recordFactorySkipped")
+		extern void recordFactorySkipped(astring displayName);
+		""";
+
+	[Fact]
+	public void Factory_runtime_records_one_passing_and_one_failing_child_with_distinct_names()
+	{
+		string source = CreateTempCase("factory_runtime_basic/main.camp", $$"""
+			namespace FactoryRuntimeBasic;
+
+			{{FactoryRuntimeExternBindings}}
+
+			@test
+			void parent(thrown Assertion* assertion)
+			{
+				if (beginFactory("addOneAndFive") != 0)
+					endFactory(1);
+				if (beginFactory("addOneAndTwo") != 0)
+					endFactory(0);
+			}
+			""");
+		string outDir = TempPath("factory-runtime-basic-out");
+
+		ProcessResult result = RunCampc("test", source, "--target", NativeTargetForHost(), "--out-dir", outDir, "--name", "factory_runtime_basic");
+
+		AssertCommandSucceeded(result);
+		Assert.Contains("passed: FactoryRuntimeBasic::parent", result.StdOut, StringComparison.Ordinal);
+
+		string debug = File.ReadAllText(FactoryDebugPath(outDir, "factory_runtime_basic"));
+		Assert.Contains("camp-factory-child\tfailed\taddOneAndFive", debug, StringComparison.Ordinal);
+		Assert.Contains("camp-factory-child\tpassed\taddOneAndTwo", debug, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Factory_runtime_assigns_ordinal_suffixes_to_duplicate_display_names()
+	{
+		string source = CreateTempCase("factory_runtime_ordinals/main.camp", $$"""
+			namespace FactoryRuntimeOrdinals;
+
+			{{FactoryRuntimeExternBindings}}
+
+			@test
+			void parent(thrown Assertion* assertion)
+			{
+				if (beginFactory("add") != 0)
+					endFactory(0);
+				if (beginFactory("add") != 0)
+					endFactory(1);
+			}
+			""");
+		string outDir = TempPath("factory-runtime-ordinals-out");
+
+		ProcessResult result = RunCampc("test", source, "--target", NativeTargetForHost(), "--out-dir", outDir, "--name", "factory_runtime_ordinals");
+
+		AssertCommandSucceeded(result);
+		// The parent test itself still reports passed: calling endFactory(1) to
+		// record a failing child does not throw or otherwise stop the parent
+		// (proposal: "the assertion does not propagate to the parent").
+		Assert.Contains("passed: FactoryRuntimeOrdinals::parent", result.StdOut, StringComparison.Ordinal);
+
+		string debug = File.ReadAllText(FactoryDebugPath(outDir, "factory_runtime_ordinals"));
+		Assert.Contains("camp-factory-child\tpassed\tadd.1", debug, StringComparison.Ordinal);
+		Assert.Contains("camp-factory-child\tfailed\tadd.2", debug, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Factory_runtime_records_skipped_child_without_running_a_body()
+	{
+		string source = CreateTempCase("factory_runtime_skipped/main.camp", $$"""
+			namespace FactoryRuntimeSkipped;
+
+			{{FactoryRuntimeExternBindings}}
+
+			@test
+			void parent(thrown Assertion* assertion)
+			{
+				recordFactorySkipped("recoveryCase");
+			}
+			""");
+		string outDir = TempPath("factory-runtime-skipped-out");
+
+		ProcessResult result = RunCampc("test", source, "--target", NativeTargetForHost(), "--out-dir", outDir, "--name", "factory_runtime_skipped");
+
+		AssertCommandSucceeded(result);
+		Assert.Contains("passed: FactoryRuntimeSkipped::parent", result.StdOut, StringComparison.Ordinal);
+
+		string debug = File.ReadAllText(FactoryDebugPath(outDir, "factory_runtime_skipped"));
+		Assert.Contains("camp-factory-child\tskipped\trecoveryCase", debug, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Factory_runtime_detects_nested_factory_calls_and_invalidates_both()
+	{
+		// Reproduces the proposal's own outer()/inner() example (see "Nested
+		// Factory Tests"): outer begins, then calls inner while still active.
+		// Both must be recorded invalid, and inner's own beginFactory call must
+		// return false (proven here by the absence of any child derived from
+		// what would follow a true return -- there is nothing after it, so this
+		// is checked structurally by the exact set of recorded children below).
+		string source = CreateTempCase("factory_runtime_nesting/main.camp", $$"""
+			namespace FactoryRuntimeNesting;
+
+			{{FactoryRuntimeExternBindings}}
+
+			void inner()
+			{
+				if (beginFactory("inner") != 0)
+					endFactory(0);
+			}
+
+			void outer()
+			{
+				if (beginFactory("outer") != 0)
+				{
+					inner();
+					endFactory(0);
+				}
+			}
+
+			@test
+			void parent(thrown Assertion* assertion)
+			{
+				outer();
+				if (beginFactory("afterNesting") != 0)
+					endFactory(0);
+			}
+			""");
+		string outDir = TempPath("factory-runtime-nesting-out");
+
+		ProcessResult result = RunCampc("test", source, "--target", NativeTargetForHost(), "--out-dir", outDir, "--name", "factory_runtime_nesting");
+
+		AssertCommandSucceeded(result);
+		Assert.Contains("passed: FactoryRuntimeNesting::parent", result.StdOut, StringComparison.Ordinal);
+
+		string debug = File.ReadAllText(FactoryDebugPath(outDir, "factory_runtime_nesting"));
+		string[] lines = debug.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+		Assert.Equal(3, lines.Length);
+		Assert.Equal("camp-factory-child\tinvalid\touter", lines[0]);
+		Assert.Equal("camp-factory-child\tinvalid\tinner", lines[1]);
+		Assert.Equal("camp-factory-child\tpassed\tafterNesting", lines[2]);
+	}
+
+	[Fact]
+	public void Factory_runtime_generated_harness_guards_calls_outside_a_running_parent_test()
+	{
+		// A factory-test runtime call can only be structurally unreachable
+		// outside a parent test's execution window through this compiler's
+		// current campc-test model: every Camp function the generated harness
+		// can reach runs strictly inside a begin/end parent window (there is no
+		// module-init entry point separate from the harness's own test loop,
+		// and global initializers must be compile-time constants, so there is
+		// no way to run Camp code before the first test starts). This is
+		// therefore proven by inspecting the generated C directly instead of
+		// through a live process, unlike the other Stage FT.7 tests above.
+		string generated = CampTestHarnessGenerator.Generate("factory_runtime_probe", []);
+
+		int guardIndex = generated.IndexOf("int __camp_test_beginFactory(const char *displayName)", StringComparison.Ordinal);
+		Assert.True(guardIndex >= 0, "Expected __camp_test_beginFactory to be emitted.");
+		string function = generated[guardIndex..(generated.IndexOf("\n}\n", guardIndex, StringComparison.Ordinal) + 3)];
+		Assert.Contains("if (!camp_factory_parent_active)", function, StringComparison.Ordinal);
+		Assert.Contains("camp_factory_record_child(displayName, CAMP_FACTORY_INVALID);", function, StringComparison.Ordinal);
+		Assert.Contains("return 0;", function, StringComparison.Ordinal);
+	}
+
 	[Fact]
 	public void Cover_command_maps_lowered_generator_and_lambda_body_lines()
 	{
