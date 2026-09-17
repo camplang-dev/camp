@@ -53,7 +53,7 @@ internal sealed record CampFactoryChildEvent(int ParentIndex, string Outcome, st
 
 public static class CampTestResultsFactory
 {
-	internal static CampTestResults FromHarnessEvents(IReadOnlyList<CampTestManifestEntry> selectedTests, IReadOnlyList<CampTestHarnessEvent> events, IReadOnlyList<CampFactoryChildEvent> childEvents, int harnessExitCode, string? harnessError)
+	internal static CampTestResults FromHarnessEvents(IReadOnlyList<CampTestManifestEntry> selectedTests, IReadOnlyList<CampTestHarnessEvent> events, IReadOnlyList<CampFactoryChildEvent> childEvents, IReadOnlySet<int> childFilterRestrictedIndexes, int harnessExitCode, string? harnessError)
 	{
 		Dictionary<int, CampTestHarnessEvent> byIndex = [];
 		foreach (CampTestHarnessEvent harnessEvent in events)
@@ -109,6 +109,18 @@ public static class CampTestResultsFactory
 			}
 			if (children.Count > 0)
 				entry = entry with { Children = children };
+			// Proposal 021 (Filtering): "If a parent selected by a child filter
+			// produces no matching child results, the runner should report a
+			// filter miss for that parent... in the same spirit as existing
+			// no-test-selected behavior." A parent restricted to a child filter
+			// that matched nothing, with no failure of its own to report either,
+			// is dropped from the results entirely -- as if it had never been
+			// selected -- rather than shown as a spurious bare "passed" with no
+			// children. If every selected parent falls into this case, the
+			// overall result naturally becomes the existing empty/no-selected-
+			// tests shape.
+			if (children.Count == 0 && entry.Failure is null && childFilterRestrictedIndexes.Contains(i))
+				continue;
 			results.Add(entry);
 		}
 

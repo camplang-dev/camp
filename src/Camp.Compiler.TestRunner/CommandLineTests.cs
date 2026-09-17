@@ -4034,6 +4034,160 @@ public sealed class CommandLineTests
 		Assert.Contains("return 0;", function, StringComparison.Ordinal);
 	}
 
+	const string FactoryFilterFixture = """
+		namespace FactoryFilterCli;
+
+		@test
+		void basicTests(thrown Assertion* assertion)
+		{
+			testAdd("addOneAndFive", 1, 5, 112);
+			testAdd("addOneAndTwo", 1, 2, 3);
+		}
+
+		@factorytest
+		void testAdd(@testname string testname, int first, int second, int expected, thrown Assertion* assertion)
+		{
+			assert((first + second) == expected);
+		}
+		""";
+
+	[Fact]
+	public void Filter_child_portion_restricts_factory_test_calls_under_matched_parent()
+	{
+		// Proposal 021 Stage FT.10, §Filtering: "parent/child filter runs parent
+		// and matching child calls only." The failing addOneAndFive child must
+		// not even run (its body has a real side-effecting assert() that would
+		// otherwise fail the whole command), proven here by the overall command
+		// succeeding once it is filtered out.
+		string source = CreateTempCase("factory_filter_child/main.camp", FactoryFilterFixture);
+		string outDir = TempPath("factory-filter-child-out");
+
+		ProcessResult result = RunCampc("test", source, "--target", NativeTargetForHost(), "--out-dir", outDir, "--name", "factory_filter_child", "--filter", "basicTests/addOneAndTwo");
+
+		AssertCommandSucceeded(result);
+		Assert.Contains("passed: FactoryFilterCli::basicTests (1 passed, 0 failed, 0 skipped)", result.StdOut, StringComparison.Ordinal);
+		Assert.Contains("> passed: addOneAndTwo", result.StdOut, StringComparison.Ordinal);
+		Assert.DoesNotContain("addOneAndFive", result.StdOut, StringComparison.Ordinal);
+
+		using JsonDocument resultsJson = JsonDocument.Parse(File.ReadAllText(TestResultsPath(outDir, "factory_filter_child")));
+		JsonElement children = resultsJson.RootElement.GetProperty("tests")[0].GetProperty("children");
+		Assert.Equal(1, children.GetArrayLength());
+		Assert.Equal("addOneAndTwo", children[0].GetProperty("name").GetString());
+
+		// §Filtering: "A parent test selected only by a child filter must still
+		// run so it can discover and attempt its factory-test calls" -- and, per
+		// §Test Surface -> "Filtering", "parent-only filter runs parent and all
+		// child calls": a bare parent filter (no '/') is unrestricted.
+		ProcessResult unrestricted = RunCampc("test", source, "--target", NativeTargetForHost(), "--out-dir", TempPath("factory-filter-parent-only-out"), "--name", "factory_filter_parent_only", "--filter", "basicTests");
+		Assert.Equal(1, unrestricted.ExitCode);
+		Assert.Contains("failed: FactoryFilterCli::basicTests (1 passed, 1 failed, 0 skipped)", unrestricted.StdOut, StringComparison.Ordinal);
+		Assert.Contains("> failed: addOneAndFive", unrestricted.StdOut, StringComparison.Ordinal);
+		Assert.Contains("> passed: addOneAndTwo", unrestricted.StdOut, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Filter_child_portion_supports_wildcards_ordinals_and_multiple_ored_filters()
+	{
+		// §Test Surface -> "Filtering": child wildcard filter, child ordinal
+		// filter, and multiple filters OR together. Ordinal numbering is
+		// assigned by call order regardless of filtering elsewhere in the run
+		// (proposal: "Child matching uses the final display name, including
+		// ordinal suffixes when present"), proven here by testAdd.2 keeping its
+		// number even though testAdd.1 never runs.
+		string source = CreateTempCase("factory_filter_ordinal/main.camp", """
+			namespace FactoryFilterOrdinal;
+
+			@test
+			void parent(thrown Assertion* assertion)
+			{
+				testAdd(1, 2, 999);
+				testAdd(1, 2, 3);
+				other("keepMe");
+			}
+
+			@factorytest
+			void testAdd(int first, int second, int expected, thrown Assertion* assertion)
+			{
+				assert((first + second) == expected);
+			}
+
+			@factorytest
+			void other(@testname string testname, thrown Assertion* assertion)
+			{
+			}
+			""");
+		string outDir = TempPath("factory-filter-ordinal-out");
+
+		ProcessResult result = RunCampc("test", source, "--target", NativeTargetForHost(), "--out-dir", outDir, "--name", "factory_filter_ordinal", "--filter", "parent/testAdd.2", "--filter", "parent/keep*");
+
+		AssertCommandSucceeded(result);
+		Assert.Contains("passed: FactoryFilterOrdinal::parent (2 passed, 0 failed, 0 skipped)", result.StdOut, StringComparison.Ordinal);
+		Assert.Contains("> passed: testAdd.2", result.StdOut, StringComparison.Ordinal);
+		Assert.Contains("> passed: keepMe", result.StdOut, StringComparison.Ordinal);
+		Assert.DoesNotContain("testAdd.1", result.StdOut, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Filter_child_portion_with_no_matching_child_reports_no_selected_tests()
+	{
+		// §Filtering: "If a parent selected by a child filter produces no
+		// matching child results, the runner should report a filter miss for
+		// that parent... in the same spirit as existing no-test-selected
+		// behavior."
+		string source = CreateTempCase("factory_filter_miss/main.camp", FactoryFilterFixture);
+		string outDir = TempPath("factory-filter-miss-out");
+
+		ProcessResult result = RunCampc("test", source, "--target", NativeTargetForHost(), "--out-dir", outDir, "--name", "factory_filter_miss", "--filter", "basicTests/doesNotExist");
+
+		AssertCommandSucceeded(result);
+		Assert.Contains("camp test: no selected tests", result.StdOut, StringComparison.Ordinal);
+		Assert.DoesNotContain("addOneAndFive", result.StdOut, StringComparison.Ordinal);
+		Assert.DoesNotContain("addOneAndTwo", result.StdOut, StringComparison.Ordinal);
+
+		using JsonDocument resultsJson = JsonDocument.Parse(File.ReadAllText(TestResultsPath(outDir, "factory_filter_miss")));
+		Assert.Equal(0, resultsJson.RootElement.GetProperty("tests").GetArrayLength());
+		Assert.Equal(0, resultsJson.RootElement.GetProperty("summary").GetProperty("total").GetInt32());
+	}
+
+	[Fact]
+	public void Filter_child_portion_still_filters_a_skipped_factory_test_call()
+	{
+		// §Test Surface -> "Filtering": "skipped child still respects child
+		// filtering." The @skip-attributed call must not even appear as a
+		// skipped child when filtered out.
+		string source = CreateTempCase("factory_filter_skip/main.camp", """
+			namespace FactoryFilterSkip;
+
+			@test
+			void basicTests(thrown Assertion* assertion)
+			{
+				recoveryCase("pending");
+				testAdd("works", 1, 2, 3);
+			}
+
+			@skip("not implemented yet")
+			@factorytest
+			void recoveryCase(@testname string testname, thrown Assertion* assertion)
+			{
+				assert(false);
+			}
+
+			@factorytest
+			void testAdd(@testname string testname, int first, int second, int expected, thrown Assertion* assertion)
+			{
+				assert((first + second) == expected);
+			}
+			""");
+		string outDir = TempPath("factory-filter-skip-out");
+
+		ProcessResult result = RunCampc("test", source, "--target", NativeTargetForHost(), "--out-dir", outDir, "--name", "factory_filter_skip", "--filter", "basicTests/works");
+
+		AssertCommandSucceeded(result);
+		Assert.Contains("passed: FactoryFilterSkip::basicTests (1 passed, 0 failed, 0 skipped)", result.StdOut, StringComparison.Ordinal);
+		Assert.Contains("> passed: works", result.StdOut, StringComparison.Ordinal);
+		Assert.DoesNotContain("pending", result.StdOut, StringComparison.Ordinal);
+	}
+
 	[Fact]
 	public void Cover_command_maps_lowered_generator_and_lambda_body_lines()
 	{

@@ -585,9 +585,47 @@ public static class CampTestFilter
 
 	public static bool Matches(CampTestManifestEntry test, string pattern)
 	{
-		return MatchesText(test.Id, pattern)
-			|| MatchesText(test.QualifiedName, pattern)
-			|| MatchesText(test.Name, pattern);
+		return MatchesParentPortion(test, SplitPattern(pattern).Parent);
+	}
+
+	// Proposal 021 (Filtering): a filter's optional "parent/child" syntax
+	// splits on the first '/'. The parent portion uses the existing filter
+	// rules unchanged; the child portion (if present) restricts which
+	// factory-test child results are allowed to run under a matched parent.
+	internal static (string Parent, string? Child) SplitPattern(string pattern)
+	{
+		int slash = pattern.IndexOf('/', StringComparison.Ordinal);
+		return slash < 0 ? (pattern, null) : (pattern[..slash], pattern[(slash + 1)..]);
+	}
+
+	// Returns the child-filter patterns that restrict factory-test calls under
+	// `test`, given it is already known to be selected by `patterns` (or
+	// `patterns` is empty). Returns null when unrestricted: either no filters
+	// were given at all, or at least one filter matching `test` has no child
+	// portion, which per the proposal makes "all factory-test calls under it
+	// eligible to run."
+	public static IReadOnlyList<string>? GetChildFilterPatterns(CampTestManifestEntry test, IReadOnlyList<string> patterns)
+	{
+		if (patterns.Count == 0)
+			return null;
+		List<string> childPatterns = [];
+		foreach (string pattern in patterns)
+		{
+			(string parentPattern, string? childPattern) = SplitPattern(pattern);
+			if (!MatchesParentPortion(test, parentPattern))
+				continue;
+			if (childPattern is null)
+				return null;
+			childPatterns.Add(childPattern);
+		}
+		return childPatterns.Count == 0 ? null : childPatterns;
+	}
+
+	static bool MatchesParentPortion(CampTestManifestEntry test, string parentPattern)
+	{
+		return MatchesText(test.Id, parentPattern)
+			|| MatchesText(test.QualifiedName, parentPattern)
+			|| MatchesText(test.Name, parentPattern);
 	}
 
 	static bool MatchesText(string text, string pattern)

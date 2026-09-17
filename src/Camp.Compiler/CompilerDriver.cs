@@ -2016,6 +2016,32 @@ public static class CompilerDriver
                 info.ArgumentList.Add("--camp-selected");
                 foreach (int index in selectedIndexes)
                     info.ArgumentList.Add(index.ToString(CultureInfo.InvariantCulture));
+                // Proposal 021 (Filtering): a "parent/child" filter restricts which
+                // factory-test child results a parent is allowed to run. Child names
+                // are runtime values, so this cannot be resolved at compile time (the
+                // harness binary is filter-independent and cache-shared across
+                // --filter invocations); pass each restricted parent's own patterns
+                // as (result-index, pattern) pairs for the harness to match itself.
+                List<(int Index, string Pattern)> childFilterArguments = [];
+                HashSet<int> restrictedIndexes = [];
+                for (int index = 0; index < selectedTests.Count; index++)
+                {
+                    IReadOnlyList<string>? childPatterns = CampTestFilter.GetChildFilterPatterns(selectedTests[index], request.TestFilters);
+                    if (childPatterns is null)
+                        continue;
+                    restrictedIndexes.Add(index);
+                    foreach (string childPattern in childPatterns)
+                        childFilterArguments.Add((index, childPattern));
+                }
+                if (childFilterArguments.Count > 0)
+                {
+                    info.ArgumentList.Add("--camp-child-filter");
+                    foreach ((int index, string pattern) in childFilterArguments)
+                    {
+                        info.ArgumentList.Add(index.ToString(CultureInfo.InvariantCulture));
+                        info.ArgumentList.Add(pattern);
+                    }
+                }
                 foreach ((string name, string path) in coverageCountPaths)
                     info.Environment[name] = path;
                 using Process process = new() { StartInfo = info };
@@ -2051,7 +2077,7 @@ public static class CompilerDriver
                         message = string.IsNullOrWhiteSpace(message) ? harnessStdErr.TrimEnd() : message + " " + harnessStdErr.TrimEnd();
                     return CampTestResultsFactory.InfrastructureError(selectedTests, message);
                 }
-                CampTestResults results = CampTestResultsFactory.FromHarnessEvents(selectedTests, events, childEvents, process.ExitCode, string.IsNullOrWhiteSpace(harnessStdErr) ? null : harnessStdErr.TrimEnd());
+                CampTestResults results = CampTestResultsFactory.FromHarnessEvents(selectedTests, events, childEvents, restrictedIndexes, process.ExitCode, string.IsNullOrWhiteSpace(harnessStdErr) ? null : harnessStdErr.TrimEnd());
                 if (process.ExitCode != 0 && TestResultsSucceeded(results))
                     return CampTestResultsFactory.InfrastructureError(selectedTests, string.IsNullOrWhiteSpace(harnessStdErr) ? $"test harness exited with code {process.ExitCode}" : harnessStdErr.TrimEnd());
                 _ = harnessStdOut;

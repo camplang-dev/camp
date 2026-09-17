@@ -185,6 +185,11 @@ public static class CampTestHarnessGenerator
 		builder.AppendLine("\t\treturn 1;");
 		builder.AppendLine("\tfor (int argument = 3; argument < argc; argument++)");
 		builder.AppendLine("\t{");
+		builder.AppendLine("\t\t/* \"--camp-child-filter\" and everything after it are parent-index/pattern");
+		builder.AppendLine("\t\t   pairs (proposal 021 Stage FT.10), not selected-test indexes; a numeric");
+		builder.AppendLine("\t\t   parent index there must not also be misread as a test-selection index. */");
+		builder.AppendLine("\t\tif (strcmp(argv[argument], \"--camp-child-filter\") == 0)");
+		builder.AppendLine("\t\t\tbreak;");
 		builder.AppendLine("\t\tchar *end = 0;");
 		builder.AppendLine("\t\tlong requested = strtol(argv[argument], &end, 10);");
 		builder.AppendLine("\t\tif (argv[argument][0] != 0 && *end == 0 && requested == index)");
@@ -207,6 +212,22 @@ public static class CampTestHarnessGenerator
 		builder.AppendLine("\t}");
 		builder.AppendLine("\tint failed = 0;");
 		builder.AppendLine("\tint selected_index = 0;");
+		builder.AppendLine("\tfor (int argument = 3; argument < argc; argument++)");
+		builder.AppendLine("\t{");
+		builder.AppendLine("\t\tif (strcmp(argv[argument], \"--camp-child-filter\") != 0)");
+		builder.AppendLine("\t\t\tcontinue;");
+		builder.AppendLine("\t\targument++;");
+		builder.AppendLine("\t\twhile (argument + 1 < argc && camp_child_filter_count < CAMP_CHILD_FILTER_MAX)");
+		builder.AppendLine("\t\t{");
+		builder.AppendLine("\t\t\tchar *end = 0;");
+		builder.AppendLine("\t\t\tlong parent_index = strtol(argv[argument], &end, 10);");
+		builder.AppendLine("\t\t\tcamp_child_filter_test_index[camp_child_filter_count] = (int)parent_index;");
+		builder.AppendLine("\t\t\tcamp_child_filter_pattern[camp_child_filter_count] = argv[argument + 1];");
+		builder.AppendLine("\t\t\tcamp_child_filter_count++;");
+		builder.AppendLine("\t\t\targument += 2;");
+		builder.AppendLine("\t\t}");
+		builder.AppendLine("\t\tbreak;");
+		builder.AppendLine("\t}");
 		if (tests.Count == 0)
 			builder.AppendLine("\tif (camp_events == 0) printf(\"camp test: no selected tests\\n\");");
 		builder.AppendLine("\tfor (int i = 0; i < camp_test_count; i++)");
@@ -229,7 +250,7 @@ public static class CampTestHarnessGenerator
 		builder.AppendLine("\t\t}");
 		builder.AppendLine("\t\tvoid *failure = 0;");
 		builder.AppendLine("\t\tcamp_test_memory_reset();");
-		builder.AppendLine("\t\tcamp_factory_test_begin_parent();");
+		builder.AppendLine("\t\tcamp_factory_test_begin_parent(result_index);");
 		builder.AppendLine("\t\ttest->function(&failure);");
 		builder.AppendLine("\t\tint factory_child_failed = camp_factory_test_end_parent(camp_events, result_index);");
 		builder.AppendLine("\t\tCampTestMemorySummary memory = camp_test_memory_finish();");
@@ -335,11 +356,76 @@ public static class CampTestHarnessGenerator
 		builder.AppendLine("#define CAMP_FACTORY_FAILED 1");
 		builder.AppendLine("#define CAMP_FACTORY_SKIPPED 2");
 		builder.AppendLine("#define CAMP_FACTORY_INVALID 3");
+		builder.AppendLine("#define CAMP_FACTORY_FILTERED 4");
 		builder.AppendLine("#define CAMP_FACTORY_NAME_CAPACITY 160");
 		builder.AppendLine("#define CAMP_FACTORY_QUALIFIED_CAPACITY 256");
 		builder.AppendLine("#define CAMP_FACTORY_MESSAGE_CAPACITY 512");
 		builder.AppendLine("#define CAMP_FACTORY_MAX_CHILDREN 512");
+		builder.AppendLine("#define CAMP_CHILD_FILTER_MAX 256");
 		builder.AppendLine("static void camp_write_event_string(FILE *file, const char *text);");
+		// Proposal 021 Stage FT.10: the parent-index/pattern pairs decoded from
+		// "--camp-child-filter" argv (see main, below) -- a factory-test child
+		// whose display name (bare, or with its ordinal suffix) does not match
+		// any pattern recorded for the currently active parent is not run.
+		builder.AppendLine("static int camp_child_filter_test_index[CAMP_CHILD_FILTER_MAX];");
+		builder.AppendLine("static const char *camp_child_filter_pattern[CAMP_CHILD_FILTER_MAX];");
+		builder.AppendLine("static int camp_child_filter_count = 0;");
+		builder.AppendLine("static int camp_child_filter_current_parent_index = -1;");
+		builder.AppendLine();
+		builder.AppendLine("static int camp_wildcard_match_at(const char *text, uintptr_t text_index, uintptr_t text_length, const char *pattern, uintptr_t pattern_index, uintptr_t pattern_length)");
+		builder.AppendLine("{");
+		builder.AppendLine("\twhile (pattern_index < pattern_length)");
+		builder.AppendLine("\t{");
+		builder.AppendLine("\t\tchar pattern_char = pattern[pattern_index];");
+		builder.AppendLine("\t\tif (pattern_char == '*')");
+		builder.AppendLine("\t\t{");
+		builder.AppendLine("\t\t\twhile (pattern_index + 1 < pattern_length && pattern[pattern_index + 1] == '*')");
+		builder.AppendLine("\t\t\t\tpattern_index++;");
+		builder.AppendLine("\t\t\tif (pattern_index + 1 == pattern_length)");
+		builder.AppendLine("\t\t\t\treturn 1;");
+		builder.AppendLine("\t\t\tfor (uintptr_t next_text = text_index; next_text <= text_length; next_text++)");
+		builder.AppendLine("\t\t\t\tif (camp_wildcard_match_at(text, next_text, text_length, pattern, pattern_index + 1, pattern_length))");
+		builder.AppendLine("\t\t\t\t\treturn 1;");
+		builder.AppendLine("\t\t\treturn 0;");
+		builder.AppendLine("\t\t}");
+		builder.AppendLine("\t\tif (text_index >= text_length)");
+		builder.AppendLine("\t\t\treturn 0;");
+		builder.AppendLine("\t\tif (pattern_char == '?')");
+		builder.AppendLine("\t\t{");
+		builder.AppendLine("\t\t\ttext_index++;");
+		builder.AppendLine("\t\t\tpattern_index++;");
+		builder.AppendLine("\t\t\tcontinue;");
+		builder.AppendLine("\t\t}");
+		builder.AppendLine("\t\tif (pattern_char == '^')");
+		builder.AppendLine("\t\t{");
+		builder.AppendLine("\t\t\tif (text[text_index] < 'A' || text[text_index] > 'Z')");
+		builder.AppendLine("\t\t\t\treturn 0;");
+		builder.AppendLine("\t\t\ttext_index++;");
+		builder.AppendLine("\t\t\tpattern_index++;");
+		builder.AppendLine("\t\t\tcontinue;");
+		builder.AppendLine("\t\t}");
+		builder.AppendLine("\t\tif (text[text_index] != pattern_char)");
+		builder.AppendLine("\t\t\treturn 0;");
+		builder.AppendLine("\t\ttext_index++;");
+		builder.AppendLine("\t\tpattern_index++;");
+		builder.AppendLine("\t}");
+		builder.AppendLine("\treturn text_index == text_length;");
+		builder.AppendLine("}");
+		builder.AppendLine();
+		builder.AppendLine("static int camp_pattern_has_wildcard(const char *pattern)");
+		builder.AppendLine("{");
+		builder.AppendLine("\tfor (const char *current = pattern; *current != 0; current++)");
+		builder.AppendLine("\t\tif (*current == '*' || *current == '?' || *current == '^')");
+		builder.AppendLine("\t\t\treturn 1;");
+		builder.AppendLine("\treturn 0;");
+		builder.AppendLine("}");
+		builder.AppendLine();
+		builder.AppendLine("static int camp_pattern_matches(const char *text, const char *pattern)");
+		builder.AppendLine("{");
+		builder.AppendLine("\tif (!camp_pattern_has_wildcard(pattern))");
+		builder.AppendLine("\t\treturn strcmp(text, pattern) == 0;");
+		builder.AppendLine("\treturn camp_wildcard_match_at(text, 0, strlen(text), pattern, 0, strlen(pattern));");
+		builder.AppendLine("}");
 		builder.AppendLine("typedef struct CampFactoryChild");
 		builder.AppendLine("{");
 		builder.AppendLine("\tchar name[CAMP_FACTORY_NAME_CAPACITY];");
@@ -366,6 +452,7 @@ public static class CampTestHarnessGenerator
 		builder.AppendLine("\t\tcase CAMP_FACTORY_PASSED: return \"passed\";");
 		builder.AppendLine("\t\tcase CAMP_FACTORY_FAILED: return \"failed\";");
 		builder.AppendLine("\t\tcase CAMP_FACTORY_SKIPPED: return \"skipped\";");
+		builder.AppendLine("\t\tcase CAMP_FACTORY_FILTERED: return \"filtered\";");
 		builder.AppendLine("\t\tdefault: return \"invalid\";");
 		builder.AppendLine("\t}");
 		builder.AppendLine("}");
@@ -427,6 +514,44 @@ public static class CampTestHarnessGenerator
 		builder.AppendLine("\treturn count;");
 		builder.AppendLine("}");
 		builder.AppendLine();
+		// Proposal 021 Stage FT.10: whether the current parent has any child
+		// filter is looked up by scanning the flat parent-index/pattern table
+		// each call rather than caching a slice, since the tables involved are
+		// always small (bounded by the number of --filter arguments given).
+		// The candidate name is checked bare and with its would-be ordinal
+		// suffix (one more than however many same-named children -- filtered
+		// or not -- have already begun under this parent), matching how
+		// camp_factory_test_end_parent later decides the real display name, so
+		// a filter like "add.2" keeps matching the same occurrence regardless
+		// of filtering elsewhere in the run.
+		builder.AppendLine("static int camp_factory_child_is_filtered(const char *display_name, uintptr_t display_name_length)");
+		builder.AppendLine("{");
+		builder.AppendLine("\tint has_restriction = 0;");
+		builder.AppendLine("\tfor (int index = 0; index < camp_child_filter_count; index++)");
+		builder.AppendLine("\t{");
+		builder.AppendLine("\t\tif (camp_child_filter_test_index[index] == camp_child_filter_current_parent_index)");
+		builder.AppendLine("\t\t{");
+		builder.AppendLine("\t\t\thas_restriction = 1;");
+		builder.AppendLine("\t\t\tbreak;");
+		builder.AppendLine("\t\t}");
+		builder.AppendLine("\t}");
+		builder.AppendLine("\tif (!has_restriction)");
+		builder.AppendLine("\t\treturn 0;");
+		builder.AppendLine("\tchar name_buffer[CAMP_FACTORY_NAME_CAPACITY];");
+		builder.AppendLine("\tcamp_factory_copy_text(name_buffer, sizeof(name_buffer), display_name, display_name_length);");
+		builder.AppendLine("\tchar ordinal_buffer[CAMP_FACTORY_NAME_CAPACITY + 16];");
+		builder.AppendLine("\tint occurrence = camp_factory_count_matching(name_buffer, camp_factory_child_count) + 1;");
+		builder.AppendLine("\tsnprintf(ordinal_buffer, sizeof(ordinal_buffer), \"%s.%d\", name_buffer, occurrence);");
+		builder.AppendLine("\tfor (int index = 0; index < camp_child_filter_count; index++)");
+		builder.AppendLine("\t{");
+		builder.AppendLine("\t\tif (camp_child_filter_test_index[index] != camp_child_filter_current_parent_index)");
+		builder.AppendLine("\t\t\tcontinue;");
+		builder.AppendLine("\t\tif (camp_pattern_matches(name_buffer, camp_child_filter_pattern[index]) || camp_pattern_matches(ordinal_buffer, camp_child_filter_pattern[index]))");
+		builder.AppendLine("\t\t\treturn 0;");
+		builder.AppendLine("\t}");
+		builder.AppendLine("\treturn 1;");
+		builder.AppendLine("}");
+		builder.AppendLine();
 		builder.AppendLine("static int camp_factory_test_end_parent(FILE *file, int parent_index)");
 		builder.AppendLine("{");
 		builder.AppendLine("\tcamp_factory_parent_active = 0;");
@@ -434,6 +559,10 @@ public static class CampTestHarnessGenerator
 		builder.AppendLine("\tfor (int index = 0; index < camp_factory_child_count; index++)");
 		builder.AppendLine("\t{");
 		builder.AppendLine("\t\tCampFactoryChild *child = &camp_factory_children[index];");
+		builder.AppendLine("\t\t/* A filtered child is never printed as passed/failed/skipped, but it");
+		builder.AppendLine("\t\t   still occupied a slot above for ordinal-numbering purposes. */");
+		builder.AppendLine("\t\tif (child->outcome == CAMP_FACTORY_FILTERED)");
+		builder.AppendLine("\t\t\tcontinue;");
 		builder.AppendLine("\t\tif (child->outcome == CAMP_FACTORY_FAILED || child->outcome == CAMP_FACTORY_INVALID)");
 		builder.AppendLine("\t\t\tany_child_failed = 1;");
 		builder.AppendLine("\t\tint total = camp_factory_count_matching(child->name, camp_factory_child_count);");
@@ -466,12 +595,13 @@ public static class CampTestHarnessGenerator
 		builder.AppendLine("\treturn any_child_failed;");
 		builder.AppendLine("}");
 		builder.AppendLine();
-		builder.AppendLine("static void camp_factory_test_begin_parent(void)");
+		builder.AppendLine("static void camp_factory_test_begin_parent(int parent_result_index)");
 		builder.AppendLine("{");
 		builder.AppendLine("\t/* Flush and discard anything buffered outside a parent window (e.g. a");
 		builder.AppendLine("\t   misuse recorded before any parent test had started) before resetting. */");
 		builder.AppendLine("\tcamp_factory_test_end_parent(0, -1);");
 		builder.AppendLine("\tcamp_factory_parent_active = 1;");
+		builder.AppendLine("\tcamp_child_filter_current_parent_index = parent_result_index;");
 		builder.AppendLine("}");
 		builder.AppendLine();
 		builder.AppendLine("int __camp_test_beginFactory(const char *displayName, uintptr_t displayName_length, const char *factoryName, uintptr_t factoryName_length, const char *qualifiedFactoryName, uintptr_t qualifiedFactoryName_length)");
@@ -489,6 +619,11 @@ public static class CampTestHarnessGenerator
 		builder.AppendLine("\t\t\tcamp_factory_active_recorded = 1;");
 		builder.AppendLine("\t\t}");
 		builder.AppendLine("\t\tcamp_factory_record_child(displayName, displayName_length, factoryName, factoryName_length, qualifiedFactoryName, qualifiedFactoryName_length, CAMP_FACTORY_INVALID, 0, 0, 0, 0, 0);");
+		builder.AppendLine("\t\treturn 0;");
+		builder.AppendLine("\t}");
+		builder.AppendLine("\tif (camp_factory_child_is_filtered(displayName, displayName_length))");
+		builder.AppendLine("\t{");
+		builder.AppendLine("\t\tcamp_factory_record_child(displayName, displayName_length, factoryName, factoryName_length, qualifiedFactoryName, qualifiedFactoryName_length, CAMP_FACTORY_FILTERED, 0, 0, 0, 0, 0);");
 		builder.AppendLine("\t\treturn 0;");
 		builder.AppendLine("\t}");
 		builder.AppendLine("\tcamp_factory_call_active = 1;");
@@ -527,6 +662,11 @@ public static class CampTestHarnessGenerator
 		builder.AppendLine("\t\t\tcamp_factory_active_recorded = 1;");
 		builder.AppendLine("\t\t}");
 		builder.AppendLine("\t\tcamp_factory_record_child(displayName, displayName_length, factoryName, factoryName_length, qualifiedFactoryName, qualifiedFactoryName_length, CAMP_FACTORY_INVALID, 0, 0, 0, 0, 0);");
+		builder.AppendLine("\t\treturn;");
+		builder.AppendLine("\t}");
+		builder.AppendLine("\tif (camp_factory_child_is_filtered(displayName, displayName_length))");
+		builder.AppendLine("\t{");
+		builder.AppendLine("\t\tcamp_factory_record_child(displayName, displayName_length, factoryName, factoryName_length, qualifiedFactoryName, qualifiedFactoryName_length, CAMP_FACTORY_FILTERED, 0, 0, 0, 0, 0);");
 		builder.AppendLine("\t\treturn;");
 		builder.AppendLine("\t}");
 		builder.AppendLine("\tcamp_factory_record_child(displayName, displayName_length, factoryName, factoryName_length, qualifiedFactoryName, qualifiedFactoryName_length, CAMP_FACTORY_SKIPPED, 0, 0, 0, 0, 0);");
