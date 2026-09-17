@@ -59,6 +59,7 @@ public sealed partial class BindableNodeAnalyzer
 		AnalyzeInterfaceSlotInitializers(module);
 		AnalyzeImplementations();
 		AnalyzeExportVisibility(module);
+		WrapFactoryTestBodies(module);
 	}
 
 	void AddRetainedAllocatorFields(Module module)

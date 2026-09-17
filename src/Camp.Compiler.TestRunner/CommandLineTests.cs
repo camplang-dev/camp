@@ -3536,13 +3536,13 @@ public sealed class CommandLineTests
 
 	const string FactoryRuntimeExternBindings = """
 		@symbol("__camp_test_beginFactory")
-		extern int beginFactory(astring displayName);
+		extern int beginFactory(const char[] displayName);
 
 		@symbol("__camp_test_endFactory")
 		extern void endFactory(int failed);
 
 		@symbol("__camp_test_recordFactorySkipped")
-		extern void recordFactorySkipped(astring displayName);
+		extern void recordFactorySkipped(const char[] displayName);
 		""";
 
 	[Fact]
@@ -3566,8 +3566,12 @@ public sealed class CommandLineTests
 
 		ProcessResult result = RunCampc("test", source, "--target", NativeTargetForHost(), "--out-dir", outDir, "--name", "factory_runtime_basic");
 
-		AssertCommandSucceeded(result);
-		Assert.Contains("passed: FactoryRuntimeBasic::parent", result.StdOut, StringComparison.Ordinal);
+		// Stage FT.8's parent-result aggregation (proposal: Parent Result
+		// Aggregation) makes the parent's own reported outcome fail when any
+		// child fails, even though the child failure never propagates through
+		// the parent's own thrown assertion channel.
+		Assert.Equal(1, result.ExitCode);
+		Assert.Contains("failed: FactoryRuntimeBasic::parent", result.StdOut, StringComparison.Ordinal);
 
 		string debug = File.ReadAllText(FactoryDebugPath(outDir, "factory_runtime_basic"));
 		Assert.Contains("camp-factory-child\tfailed\taddOneAndFive", debug, StringComparison.Ordinal);
@@ -3595,11 +3599,13 @@ public sealed class CommandLineTests
 
 		ProcessResult result = RunCampc("test", source, "--target", NativeTargetForHost(), "--out-dir", outDir, "--name", "factory_runtime_ordinals");
 
-		AssertCommandSucceeded(result);
-		// The parent test itself still reports passed: calling endFactory(1) to
-		// record a failing child does not throw or otherwise stop the parent
-		// (proposal: "the assertion does not propagate to the parent").
-		Assert.Contains("passed: FactoryRuntimeOrdinals::parent", result.StdOut, StringComparison.Ordinal);
+		// Calling endFactory(1) to record a failing child does not throw or
+		// otherwise stop the parent body (proposal: "the assertion does not
+		// propagate to the parent"), but Stage FT.8's parent-result
+		// aggregation still makes the parent's own reported outcome fail
+		// because one child failed (proposal: Parent Result Aggregation).
+		Assert.Equal(1, result.ExitCode);
+		Assert.Contains("failed: FactoryRuntimeOrdinals::parent", result.StdOut, StringComparison.Ordinal);
 
 		string debug = File.ReadAllText(FactoryDebugPath(outDir, "factory_runtime_ordinals"));
 		Assert.Contains("camp-factory-child\tpassed\tadd.1", debug, StringComparison.Ordinal);
@@ -3672,8 +3678,11 @@ public sealed class CommandLineTests
 
 		ProcessResult result = RunCampc("test", source, "--target", NativeTargetForHost(), "--out-dir", outDir, "--name", "factory_runtime_nesting");
 
-		AssertCommandSucceeded(result);
-		Assert.Contains("passed: FactoryRuntimeNesting::parent", result.StdOut, StringComparison.Ordinal);
+		// Stage FT.8's parent-result aggregation treats an invalid child the
+		// same as a failed one for the parent's own reported outcome (both
+		// outer and inner are invalid here), even though afterNesting passes.
+		Assert.Equal(1, result.ExitCode);
+		Assert.Contains("failed: FactoryRuntimeNesting::parent", result.StdOut, StringComparison.Ordinal);
 
 		string debug = File.ReadAllText(FactoryDebugPath(outDir, "factory_runtime_nesting"));
 		string[] lines = debug.Split('\n', StringSplitOptions.RemoveEmptyEntries);
@@ -3681,6 +3690,236 @@ public sealed class CommandLineTests
 		Assert.Equal("camp-factory-child\tinvalid\touter", lines[0]);
 		Assert.Equal("camp-factory-child\tinvalid\tinner", lines[1]);
 		Assert.Equal("camp-factory-child\tpassed\tafterNesting", lines[2]);
+	}
+
+	[Fact]
+	public void Factory_lowering_direct_call_reports_pass_and_fail_children_and_fails_parent()
+	{
+		// Stage FT.8: real @factorytest lowering (not the Stage FT.7 extern
+		// bindings above), exercising the proposal's own basicTests/testAdd
+		// shape end-to-end and Parent Result Aggregation: the parent's own
+		// outcome fails because one child failed, even though the assertion
+		// itself never propagates to the parent's thrown channel.
+		string source = CreateTempCase("factory_lowering_basic/main.camp", """
+			namespace FactoryLoweringBasic;
+
+			@test
+			void basicTests(thrown Assertion* assertion)
+			{
+				testAdd("addOneAndFive", 1, 5, 112);
+				testAdd("addOneAndTwo", 1, 2, 3);
+			}
+
+			@factorytest
+			void testAdd(@testname string testname, int first, int second, int expected, thrown Assertion* assertion)
+			{
+				assert((first + second) == expected);
+			}
+			""");
+		string outDir = TempPath("factory-lowering-basic-out");
+
+		ProcessResult result = RunCampc("test", source, "--target", NativeTargetForHost(), "--out-dir", outDir, "--name", "factory_lowering_basic");
+
+		Assert.Equal(1, result.ExitCode);
+		Assert.Contains("failed: FactoryLoweringBasic::basicTests", result.StdOut, StringComparison.Ordinal);
+
+		string debug = File.ReadAllText(FactoryDebugPath(outDir, "factory_lowering_basic"));
+		Assert.Contains("camp-factory-child\tfailed\taddOneAndFive", debug, StringComparison.Ordinal);
+		Assert.Contains("camp-factory-child\tpassed\taddOneAndTwo", debug, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Factory_lowering_all_children_passing_reports_parent_passed()
+	{
+		string source = CreateTempCase("factory_lowering_allpass/main.camp", """
+			namespace FactoryLoweringAllPass;
+
+			@test
+			void basicTests(thrown Assertion* assertion)
+			{
+				testAdd("first", 1, 2, 3);
+				testAdd("second", 2, 2, 4);
+			}
+
+			@factorytest
+			void testAdd(@testname string testname, int first, int second, int expected, thrown Assertion* assertion)
+			{
+				assert((first + second) == expected);
+			}
+			""");
+		string outDir = TempPath("factory-lowering-allpass-out");
+
+		ProcessResult result = RunCampc("test", source, "--target", NativeTargetForHost(), "--out-dir", outDir, "--name", "factory_lowering_allpass");
+
+		AssertCommandSucceeded(result);
+		Assert.Contains("passed: FactoryLoweringAllPass::basicTests", result.StdOut, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Factory_lowering_via_testonly_helper_call_reports_pass()
+	{
+		// §Test Surface -> "Call semantics": factory-test call through a
+		// @testonly helper, not just directly from the parent @test.
+		string source = CreateTempCase("factory_lowering_helper/main.camp", """
+			namespace FactoryLoweringHelper;
+
+			@test
+			void root(thrown Assertion* assertion)
+			{
+				callHelper();
+			}
+
+			@testonly
+			void callHelper(thrown Assertion* assertion)
+			{
+				testAdd("helper", 2, 2, 4);
+			}
+
+			@factorytest
+			void testAdd(@testname string testname, int first, int second, int expected, thrown Assertion* assertion)
+			{
+				assert((first + second) == expected);
+			}
+			""");
+		string outDir = TempPath("factory-lowering-helper-out");
+
+		ProcessResult result = RunCampc("test", source, "--target", NativeTargetForHost(), "--out-dir", outDir, "--name", "factory_lowering_helper");
+
+		AssertCommandSucceeded(result);
+		Assert.Contains("passed: FactoryLoweringHelper::root", result.StdOut, StringComparison.Ordinal);
+
+		string debug = File.ReadAllText(FactoryDebugPath(outDir, "factory_lowering_helper"));
+		Assert.Contains("camp-factory-child\tpassed\thelper", debug, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Factory_lowering_skip_attribute_records_skipped_without_running_body()
+	{
+		string source = CreateTempCase("factory_lowering_skip/main.camp", """
+			namespace FactoryLoweringSkip;
+
+			@test
+			void basicTests(thrown Assertion* assertion)
+			{
+				recoveryCase("pending");
+			}
+
+			@skip("not implemented yet")
+			@factorytest
+			void recoveryCase(@testname string testname, thrown Assertion* assertion)
+			{
+				assert(false);
+			}
+			""");
+		string outDir = TempPath("factory-lowering-skip-out");
+
+		ProcessResult result = RunCampc("test", source, "--target", NativeTargetForHost(), "--out-dir", outDir, "--name", "factory_lowering_skip");
+
+		AssertCommandSucceeded(result);
+		Assert.Contains("passed: FactoryLoweringSkip::basicTests", result.StdOut, StringComparison.Ordinal);
+
+		string debug = File.ReadAllText(FactoryDebugPath(outDir, "factory_lowering_skip"));
+		Assert.Contains("camp-factory-child\tskipped\tpending", debug, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Factory_lowering_nested_call_invalidates_both_through_real_source_and_fails_parent()
+	{
+		// Reproduces the proposal's own outer()/inner() nesting example
+		// through real @factorytest lowering (Stage FT.7's equivalent test
+		// above proves this only via hand-written extern bindings). Both
+		// must be recorded invalid, and Stage FT.8's parent-result
+		// aggregation must fail the parent because of it.
+		string source = CreateTempCase("factory_lowering_nesting/main.camp", """
+			namespace FactoryLoweringNesting;
+
+			@test
+			void parentTest(thrown Assertion* assertion)
+			{
+				outer();
+			}
+
+			@factorytest
+			void outer(thrown Assertion* assertion)
+			{
+				inner();
+			}
+
+			@factorytest
+			void inner(thrown Assertion* assertion)
+			{
+			}
+			""");
+		string outDir = TempPath("factory-lowering-nesting-out");
+
+		ProcessResult result = RunCampc("test", source, "--target", NativeTargetForHost(), "--out-dir", outDir, "--name", "factory_lowering_nesting");
+
+		Assert.Equal(1, result.ExitCode);
+		Assert.Contains("failed: FactoryLoweringNesting::parentTest", result.StdOut, StringComparison.Ordinal);
+
+		string debug = File.ReadAllText(FactoryDebugPath(outDir, "factory_lowering_nesting"));
+		string[] lines = debug.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+		Assert.Equal(2, lines.Length);
+		Assert.Equal("camp-factory-child\tinvalid\touter", lines[0]);
+		Assert.Equal("camp-factory-child\tinvalid\tinner", lines[1]);
+	}
+
+	[Fact]
+	public void Factory_lowering_excludes_wrapper_and_extracted_body_from_coverage_but_counts_production_callee()
+	{
+		// Re-verifies Stage FT.4's deferred coverage item once real lowering
+		// exists: production code called from a factory-test body is still a
+		// coverage subject, while both the generated wrapper and the
+		// extracted original-body helper function stay excluded.
+		string source = CreateTempCase("factory_lowering_coverage/main.camp", """
+			namespace FactoryLoweringCoverage;
+
+			int productionAdd(int a, int b)
+			{
+				return a + b;
+			}
+
+			@test
+			void basicTests(thrown Assertion* assertion)
+			{
+				testAdd("case", 1, 2, 3);
+			}
+
+			@factorytest
+			void testAdd(@testname string testname, int first, int second, int expected, thrown Assertion* assertion)
+			{
+				assert(productionAdd(first, second) == expected);
+			}
+			""");
+		string outDir = TempPath("factory-lowering-coverage-out");
+		string coverageDir = TempPath("factory-lowering-coverage-results");
+
+		ProcessResult result = RunCampc(
+			"cover",
+			source,
+			"--target",
+			NativeTargetForHost(),
+			"--coverage-format",
+			"json",
+			"--coverage-output-dir",
+			coverageDir,
+			"--out-dir",
+			outDir,
+			"--name",
+			"factory_lowering_coverage");
+
+		AssertCommandSucceeded(result);
+		Assert.Contains("passed: FactoryLoweringCoverage::basicTests", result.StdOut, StringComparison.Ordinal);
+
+		string resultsPath = Path.Combine(coverageDir, "factory_lowering_coverage.camp-coverage-results.json");
+		using JsonDocument coverage = JsonDocument.Parse(File.ReadAllText(resultsPath));
+		// Only productionAdd is a coverage subject: basicTests (@test) and
+		// testAdd (@factorytest) are excluded, and so is the compiler-generated
+		// __campFactoryOriginal_testAdd helper the wrapper extracts the body
+		// into (it must not inflate the denominator just because it is a
+		// distinct FunctionDefinition with no test attribute of its own).
+		Assert.Equal(1, coverage.RootElement.GetProperty("summary").GetProperty("function").GetProperty("total").GetInt32());
+		Assert.Equal(1, coverage.RootElement.GetProperty("summary").GetProperty("function").GetProperty("covered").GetInt32());
 	}
 
 	[Fact]
@@ -3697,11 +3936,11 @@ public sealed class CommandLineTests
 		// through a live process, unlike the other Stage FT.7 tests above.
 		string generated = CampTestHarnessGenerator.Generate("factory_runtime_probe", []);
 
-		int guardIndex = generated.IndexOf("int __camp_test_beginFactory(const char *displayName)", StringComparison.Ordinal);
+		int guardIndex = generated.IndexOf("int __camp_test_beginFactory(const char *displayName, uintptr_t displayName_length)", StringComparison.Ordinal);
 		Assert.True(guardIndex >= 0, "Expected __camp_test_beginFactory to be emitted.");
 		string function = generated[guardIndex..(generated.IndexOf("\n}\n", guardIndex, StringComparison.Ordinal) + 3)];
 		Assert.Contains("if (!camp_factory_parent_active)", function, StringComparison.Ordinal);
-		Assert.Contains("camp_factory_record_child(displayName, CAMP_FACTORY_INVALID);", function, StringComparison.Ordinal);
+		Assert.Contains("camp_factory_record_child(displayName, displayName_length, CAMP_FACTORY_INVALID);", function, StringComparison.Ordinal);
 		Assert.Contains("return 0;", function, StringComparison.Ordinal);
 	}
 

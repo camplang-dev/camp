@@ -97,5 +97,10 @@ public sealed partial class BindableNodeAnalyzer
 			GenerateInterfaceDeclarations(module);
 			RefreshParticipation(module);
 		});
+		RunMeasured(phaseMeasure, "generate factory test runtime declarations", () =>
+		{
+			GenerateFactoryTestRuntimeDeclarations(module);
+			RefreshParticipation(module);
+		});
 	}
 }
