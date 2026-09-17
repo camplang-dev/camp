@@ -318,7 +318,7 @@ static class CampInit
 				extern int getpid();
 
 				requires (OS_WIN32)
-				extern uint GetCurrentProcessId();
+				extern _stdcall uint GetCurrentProcessId();
 			}
 
 			export int getCurrentProcessId()

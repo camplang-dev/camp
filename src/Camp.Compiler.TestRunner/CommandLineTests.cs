@@ -354,7 +354,7 @@ public sealed class CommandLineTests
 		Assert.Contains("if (configured(OS_WIN32))", wrapperSource, StringComparison.Ordinal);
 		Assert.Contains("namespace global", wrapperSource, StringComparison.Ordinal);
 		Assert.Contains("extern int getpid();", wrapperSource, StringComparison.Ordinal);
-		Assert.Contains("extern uint GetCurrentProcessId();", wrapperSource, StringComparison.Ordinal);
+		Assert.Contains("extern _stdcall uint GetCurrentProcessId();", wrapperSource, StringComparison.Ordinal);
 		Assert.Contains("global::getpid()", wrapperSource, StringComparison.Ordinal);
 		Assert.Contains("global::GetCurrentProcessId()", wrapperSource, StringComparison.Ordinal);
 		Assert.Contains("getCurrentProcessId", wrapperSource, StringComparison.Ordinal);
