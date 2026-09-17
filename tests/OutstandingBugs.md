@@ -408,3 +408,59 @@ zero-initialized local paired with the `catch <var>` argument-modifier form
 at the call site, which does not go through the same uninitialized
 declaration path.
 
+## BUG-161: A function pointer typed with a `thrown` out-parameter does not get that parameter's argument filled in automatically at the call site
+
+Date/Time: 2026-09-16 20:10 EDT
+
+Summary:
+An ordinary named call to a function with a `thrown` out-parameter can omit
+the final argument; the compiler implicitly supplies it (propagating the
+caller's own `thrown` parameter, or an internal error-collection target).
+That implicit argument insertion does not happen for an indirect call
+through a variable of function-pointer (`fn`) type, even though the
+pointer's own declared type correctly includes the `thrown` parameter.
+The call site keeps the same omitted-argument source form as a direct
+call, but nothing fills in the missing argument before C emission, so the
+generated call passes one fewer argument than the function pointer's own
+C type requires.
+
+Steps to Reproduce:
+
+1. Compile this Camp source through the native C backend:
+
+   ```camp
+   struct MyFailure
+   {
+       escaped string message;
+   }
+
+   void ordinary(string name, int first, int second, int expected, thrown MyFailure* failure)
+   {
+   }
+
+   void caller(thrown MyFailure* failure)
+   {
+       fn void(string, int, int, int, thrown MyFailure*) f = ordinary;
+       f("test", 1, 2, 3);
+   }
+   ```
+
+Expected:
+The call through `f` receives the same implicit `thrown`-argument
+propagation as a direct call to `ordinary` would, and the source compiles.
+
+Actual:
+The generated C declares `f` with the correct 5-parameter function pointer
+type (`void (*f)(const char *, int, int, int, MyFailure **)`), but the call
+`f("test", 1, 2, 3)` is emitted with only 4 arguments, unchanged from the
+Camp source. The native compiler reports `too few arguments to function
+call, expected 5, have 4`.
+
+Known Impact:
+No Camp source can call a `thrown`-parameter function through a function
+pointer using the same implicit-argument-omission form that works for a
+direct call; the resulting C never compiles. No workaround exists at the
+call site (explicitly supplying the omitted argument does not apply here
+since the omission is what ordinary direct calls also rely on and expect
+to be filled in automatically). This affects any function pointer to a
+`thrown`-parameter function, not just a particular kind of function.
