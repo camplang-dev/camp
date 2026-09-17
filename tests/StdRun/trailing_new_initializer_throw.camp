@@ -7,8 +7,31 @@ struct LocalAssertion
 	uint sourceline;
 }
 
+// Regression coverage for BUG-160: `check`'s success path falls off the end
+// of its body without an explicit `return`, so it must still clear its
+// `thrown` slot on that implicit path. Poisoning the stack before entering
+// the try/catch below makes a missing clear deterministic instead of
+// depending on whatever the stack already held.
+void poisonStack()
+{
+	int a = -1;
+	int b = -1;
+	int c = -1;
+}
+
 export int main()
 {
+	poisonStack();
+	try
+	{
+		check(1 == 1);
+	}
+	catch (LocalAssertion* successPathFailure)
+	{
+		Console.writeLine("unexpected failure on success path");
+		return 2;
+	}
+
 	try
 	{
 		check(1 == 2);

@@ -27,6 +27,7 @@ static void fail(Err *error)
 		(*error) = Err_ERR_BAD;
 		return;
 	}
+	(*error) = 0;
 }
 
 static int (* makeBlockAdder(int offset, void **result_context))(void *arg0, int arg1)

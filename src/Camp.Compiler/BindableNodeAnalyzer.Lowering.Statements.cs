@@ -102,9 +102,12 @@ public sealed partial class BindableNodeAnalyzer
 		InsertNameOfFieldAssignments(function, containingType);
 		InsertVTableOfFieldAssignments(function, containingType);
 		InsertCreateVirtualTableAssignment(function, containingType);
+		bool functionAssignsThrownParameterManually = HasManualThrownParameterAssignment(function);
 		function.Body = RewriteFunctionBody(function.Body);
 		if (function.Body is not null && currentFunctionExitLabel is not null)
 			AppendFunctionExit(function.Body.Statements);
+		if (!functionAssignsThrownParameterManually)
+			AppendImplicitThrownParameterClear(function);
 			currentWithinContext = previousWithinContext;
 			currentDefaultWithinContextDepth = previousDefaultWithinContextDepth;
 			currentRewriteFunction = previousFunction;
@@ -407,24 +410,66 @@ public sealed partial class BindableNodeAnalyzer
 		if (thrownParameter is null)
 			return returnTransfer;
 
+		return CreateBlock([CreateThrownParameterClearStatement(thrownParameter, syntax), returnTransfer]);
+	}
+
+	static ExpressionStatement CreateThrownParameterClearStatement(ParameterDefinition thrownParameter, SyntaxNode? syntax)
+	{
 		string thrownType = thrownParameter.ResolvedType ?? ErrorType;
-		return CreateBlock(
-		[
-			new ExpressionStatement
+		return new ExpressionStatement
+		{
+			SourceSyntax = syntax,
+			ResolvedType = "void",
+			Expression = new AssignmentExpression
 			{
 				SourceSyntax = syntax,
-				ResolvedType = "void",
-				Expression = new AssignmentExpression
-				{
-					SourceSyntax = syntax,
-					Target = CreateVariableReference(thrownParameter, thrownType),
-					Operator = AssignmentOperator.Assign,
-					Value = new DefaultExpression { SourceSyntax = syntax, ResolvedType = thrownType },
-					ResolvedType = thrownType
-				}
-			},
-			returnTransfer
-		]);
+				Target = CreateVariableReference(thrownParameter, thrownType),
+				Operator = AssignmentOperator.Assign,
+				Value = new DefaultExpression { SourceSyntax = syntax, ResolvedType = thrownType },
+				ResolvedType = thrownType
+			}
+		};
+	}
+
+	// A void function can reach the end of its body without an explicit
+	// `return` (definite-return flow analysis only requires a value on every
+	// path for a non-void function). PrependThrownParameterClear only runs
+	// for a source-level `return`, so that implicit fall-through path never
+	// clears the thrown parameter on success. Appending an unconditional
+	// clear after the rewritten body covers exactly that path; for a body
+	// where every path already returns explicitly, this is unreachable and
+	// harmless. The caller skips this entirely when the function assigns its
+	// own thrown parameter directly (see HasManualThrownParameterAssignment)
+	// so a body that manages the parameter by hand is left alone.
+	void AppendImplicitThrownParameterClear(FunctionDefinition function)
+	{
+		if (function.Body is null)
+			return;
+		if ((function.ResolvedType ?? "void") != "void")
+			return;
+		ParameterDefinition? thrownParameter = GetFunctionThrownParameter(function);
+		if (thrownParameter is null)
+			return;
+		function.Body.Statements.Add(CreateThrownParameterClearStatement(thrownParameter, function.SourceSyntax));
+	}
+
+	// Detects a source-level (pre-lowering) direct assignment to the
+	// function's own thrown parameter, e.g. `error = 7;` rather than
+	// `throw 7;`. `throw` lowers to its own generated assignment later
+	// (CreateThrowTransfer), which never runs through this check because it
+	// is built directly rather than appearing in the source-bound tree this
+	// scans. A function that assigns its thrown parameter by hand is taking
+	// full manual responsibility for its final value, so the implicit
+	// fall-through clear must not overwrite it.
+	static bool HasManualThrownParameterAssignment(FunctionDefinition function)
+	{
+		ParameterDefinition? thrownParameter = GetFunctionThrownParameter(function);
+		if (thrownParameter is null || function.Body is null)
+			return false;
+		foreach (BindableNode node in BindableNodeTraversal.Enumerate(function.Body, new HashSet<BindableNode>(ReferenceEqualityComparer.Instance)))
+			if (node is AssignmentExpression { Target: VariableReferenceExpression { Variable: BindableNode target } } && ReferenceEquals(target, thrownParameter))
+				return true;
+		return false;
 	}
 
 	Statement RewriteForeachStatement(ForeachStatement foreachStatement)

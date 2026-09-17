@@ -12,6 +12,7 @@ static void invoke(void (* handler)(MyError *arg0))
 
 static void handle(MyError *error)
 {
+	(*error) = 0;
 }
 
 static int main(void)
