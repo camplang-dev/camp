@@ -1,8 +1,16 @@
 # Factory Tests And Runtime Subtest Reporting
 
-Status: draft  
-Proposal date: 2026-09-16  
-Last updated date: 2026-09-16
+## Status
+
+Accepted.
+
+## Proposal Date
+
+2026-09-16
+
+## Last Updated Date
+
+2026-09-17
 
 This proposal extends Camp's built-in test runner with factory tests: test-only
 functions that are not invoked automatically, but report one child result each
