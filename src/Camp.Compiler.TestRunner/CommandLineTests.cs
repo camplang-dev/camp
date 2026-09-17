@@ -3525,24 +3525,19 @@ public sealed class CommandLineTests
 	// @factorytest body yet (that is Stage FT.8), so these tests invoke them
 	// directly from ordinary @test source through extern/@symbol bindings to
 	// exercise the runtime state machine end to end. Each finalized child
-	// result is written to a "<events>.factory-debug.tsv" sidecar file next to
-	// the normal test-events file, a Stage FT.7-only observability channel
-	// kept deliberately separate from the real, strictly-parsed
-	// camp-test-events.tsv (Stage FT.9 wires real result reporting).
-	static string FactoryDebugPath(string outDir, string projectName)
-	{
-		return Path.Combine(outDir, ArtifactDirectoryForHost(null, CompilerCommandMode.Test), "build", projectName + ".camp-test-events.tsv.factory-debug.tsv");
-	}
-
+	// result is a "factory-child" row in the real camp-test-events.tsv file
+	// (Stage FT.9 wires it into the real JSON/text result reporting), so these
+	// tests observe it the same way real users would: through campc test's own
+	// stdout text output.
 	const string FactoryRuntimeExternBindings = """
 		@symbol("__camp_test_beginFactory")
-		extern int beginFactory(const char[] displayName);
+		extern int beginFactory(const char[] displayName, const char[] factoryName, const char[] qualifiedFactoryName);
 
 		@symbol("__camp_test_endFactory")
-		extern void endFactory(int failed);
+		extern void endFactory(int failed, const char[] message, const char[] sourcefile, uint sourceline);
 
 		@symbol("__camp_test_recordFactorySkipped")
-		extern void recordFactorySkipped(const char[] displayName);
+		extern void recordFactorySkipped(const char[] displayName, const char[] factoryName, const char[] qualifiedFactoryName);
 		""";
 
 	[Fact]
@@ -3556,10 +3551,10 @@ public sealed class CommandLineTests
 			@test
 			void parent(thrown Assertion* assertion)
 			{
-				if (beginFactory("addOneAndFive") != 0)
-					endFactory(1);
-				if (beginFactory("addOneAndTwo") != 0)
-					endFactory(0);
+				if (beginFactory("addOneAndFive", "testAdd", "FactoryRuntimeBasic::testAdd") != 0)
+					endFactory(1, "boom", "math.camp", 17u);
+				if (beginFactory("addOneAndTwo", "testAdd", "FactoryRuntimeBasic::testAdd") != 0)
+					endFactory(0, "", "", 0u);
 			}
 			""");
 		string outDir = TempPath("factory-runtime-basic-out");
@@ -3569,13 +3564,21 @@ public sealed class CommandLineTests
 		// Stage FT.8's parent-result aggregation (proposal: Parent Result
 		// Aggregation) makes the parent's own reported outcome fail when any
 		// child fails, even though the child failure never propagates through
-		// the parent's own thrown assertion channel.
+		// the parent's own thrown assertion channel. Stage FT.9's human-readable
+		// output then shows the parent's child-outcome summary and each child
+		// result as an indented line (proposal: Human-Readable Output).
 		Assert.Equal(1, result.ExitCode);
-		Assert.Contains("failed: FactoryRuntimeBasic::parent", result.StdOut, StringComparison.Ordinal);
+		Assert.Contains("failed: FactoryRuntimeBasic::parent (1 passed, 1 failed, 0 skipped)", result.StdOut, StringComparison.Ordinal);
+		Assert.Contains("> failed: addOneAndFive", result.StdOut, StringComparison.Ordinal);
+		Assert.Contains("> passed: addOneAndTwo", result.StdOut, StringComparison.Ordinal);
 
-		string debug = File.ReadAllText(FactoryDebugPath(outDir, "factory_runtime_basic"));
-		Assert.Contains("camp-factory-child\tfailed\taddOneAndFive", debug, StringComparison.Ordinal);
-		Assert.Contains("camp-factory-child\tpassed\taddOneAndTwo", debug, StringComparison.Ordinal);
+		using JsonDocument resultsJson = JsonDocument.Parse(File.ReadAllText(TestResultsPath(outDir, "factory_runtime_basic")));
+		JsonElement failedChild = resultsJson.RootElement.GetProperty("tests")[0].GetProperty("children")[0];
+		Assert.Equal("testAdd", failedChild.GetProperty("factoryName").GetString());
+		Assert.Equal("FactoryRuntimeBasic::testAdd", failedChild.GetProperty("qualifiedFactoryName").GetString());
+		Assert.Equal("boom", failedChild.GetProperty("failure").GetProperty("message").GetString());
+		Assert.Equal("math.camp", failedChild.GetProperty("failure").GetProperty("sourcefile").GetString());
+		Assert.Equal(17, failedChild.GetProperty("failure").GetProperty("sourceline").GetInt32());
 	}
 
 	[Fact]
@@ -3589,10 +3592,10 @@ public sealed class CommandLineTests
 			@test
 			void parent(thrown Assertion* assertion)
 			{
-				if (beginFactory("add") != 0)
-					endFactory(0);
-				if (beginFactory("add") != 0)
-					endFactory(1);
+				if (beginFactory("add", "add", "FactoryRuntimeOrdinals::add") != 0)
+					endFactory(0, "", "", 0u);
+				if (beginFactory("add", "add", "FactoryRuntimeOrdinals::add") != 0)
+					endFactory(1, "boom", "", 0u);
 			}
 			""");
 		string outDir = TempPath("factory-runtime-ordinals-out");
@@ -3604,12 +3607,12 @@ public sealed class CommandLineTests
 		// propagate to the parent"), but Stage FT.8's parent-result
 		// aggregation still makes the parent's own reported outcome fail
 		// because one child failed (proposal: Parent Result Aggregation).
+		// Stage FT.9's text output shows the proposal's own duplicate-name
+		// ordinal-suffix example (proposal: Human-Readable Output).
 		Assert.Equal(1, result.ExitCode);
-		Assert.Contains("failed: FactoryRuntimeOrdinals::parent", result.StdOut, StringComparison.Ordinal);
-
-		string debug = File.ReadAllText(FactoryDebugPath(outDir, "factory_runtime_ordinals"));
-		Assert.Contains("camp-factory-child\tpassed\tadd.1", debug, StringComparison.Ordinal);
-		Assert.Contains("camp-factory-child\tfailed\tadd.2", debug, StringComparison.Ordinal);
+		Assert.Contains("failed: FactoryRuntimeOrdinals::parent (1 passed, 1 failed, 0 skipped)", result.StdOut, StringComparison.Ordinal);
+		Assert.Contains("> passed: add.1", result.StdOut, StringComparison.Ordinal);
+		Assert.Contains("> failed: add.2", result.StdOut, StringComparison.Ordinal);
 	}
 
 	[Fact]
@@ -3623,7 +3626,7 @@ public sealed class CommandLineTests
 			@test
 			void parent(thrown Assertion* assertion)
 			{
-				recordFactorySkipped("recoveryCase");
+				recordFactorySkipped("recoveryCase", "recoveryCase", "FactoryRuntimeSkipped::recoveryCase");
 			}
 			""");
 		string outDir = TempPath("factory-runtime-skipped-out");
@@ -3631,10 +3634,8 @@ public sealed class CommandLineTests
 		ProcessResult result = RunCampc("test", source, "--target", NativeTargetForHost(), "--out-dir", outDir, "--name", "factory_runtime_skipped");
 
 		AssertCommandSucceeded(result);
-		Assert.Contains("passed: FactoryRuntimeSkipped::parent", result.StdOut, StringComparison.Ordinal);
-
-		string debug = File.ReadAllText(FactoryDebugPath(outDir, "factory_runtime_skipped"));
-		Assert.Contains("camp-factory-child\tskipped\trecoveryCase", debug, StringComparison.Ordinal);
+		Assert.Contains("passed: FactoryRuntimeSkipped::parent (0 passed, 0 failed, 1 skipped)", result.StdOut, StringComparison.Ordinal);
+		Assert.Contains("> skipped: recoveryCase", result.StdOut, StringComparison.Ordinal);
 	}
 
 	[Fact]
@@ -3653,16 +3654,16 @@ public sealed class CommandLineTests
 
 			void inner()
 			{
-				if (beginFactory("inner") != 0)
-					endFactory(0);
+				if (beginFactory("inner", "inner", "FactoryRuntimeNesting::inner") != 0)
+					endFactory(0, "", "", 0u);
 			}
 
 			void outer()
 			{
-				if (beginFactory("outer") != 0)
+				if (beginFactory("outer", "outer", "FactoryRuntimeNesting::outer") != 0)
 				{
 					inner();
-					endFactory(0);
+					endFactory(0, "", "", 0u);
 				}
 			}
 
@@ -3670,8 +3671,8 @@ public sealed class CommandLineTests
 			void parent(thrown Assertion* assertion)
 			{
 				outer();
-				if (beginFactory("afterNesting") != 0)
-					endFactory(0);
+				if (beginFactory("afterNesting", "afterNesting", "FactoryRuntimeNesting::afterNesting") != 0)
+					endFactory(0, "", "", 0u);
 			}
 			""");
 		string outDir = TempPath("factory-runtime-nesting-out");
@@ -3682,14 +3683,10 @@ public sealed class CommandLineTests
 		// same as a failed one for the parent's own reported outcome (both
 		// outer and inner are invalid here), even though afterNesting passes.
 		Assert.Equal(1, result.ExitCode);
-		Assert.Contains("failed: FactoryRuntimeNesting::parent", result.StdOut, StringComparison.Ordinal);
-
-		string debug = File.ReadAllText(FactoryDebugPath(outDir, "factory_runtime_nesting"));
-		string[] lines = debug.Split('\n', StringSplitOptions.RemoveEmptyEntries);
-		Assert.Equal(3, lines.Length);
-		Assert.Equal("camp-factory-child\tinvalid\touter", lines[0]);
-		Assert.Equal("camp-factory-child\tinvalid\tinner", lines[1]);
-		Assert.Equal("camp-factory-child\tpassed\tafterNesting", lines[2]);
+		Assert.Contains("failed: FactoryRuntimeNesting::parent (1 passed, 2 failed, 0 skipped)", result.StdOut, StringComparison.Ordinal);
+		Assert.Contains("> invalid: outer", result.StdOut, StringComparison.Ordinal);
+		Assert.Contains("> invalid: inner", result.StdOut, StringComparison.Ordinal);
+		Assert.Contains("> passed: afterNesting", result.StdOut, StringComparison.Ordinal);
 	}
 
 	[Fact]
@@ -3721,11 +3718,44 @@ public sealed class CommandLineTests
 		ProcessResult result = RunCampc("test", source, "--target", NativeTargetForHost(), "--out-dir", outDir, "--name", "factory_lowering_basic");
 
 		Assert.Equal(1, result.ExitCode);
-		Assert.Contains("failed: FactoryLoweringBasic::basicTests", result.StdOut, StringComparison.Ordinal);
+		Assert.Contains("failed: FactoryLoweringBasic::basicTests (1 passed, 1 failed, 0 skipped)", result.StdOut, StringComparison.Ordinal);
+		Assert.Contains("> failed: addOneAndFive", result.StdOut, StringComparison.Ordinal);
+		Assert.Contains("> passed: addOneAndTwo", result.StdOut, StringComparison.Ordinal);
 
-		string debug = File.ReadAllText(FactoryDebugPath(outDir, "factory_lowering_basic"));
-		Assert.Contains("camp-factory-child\tfailed\taddOneAndFive", debug, StringComparison.Ordinal);
-		Assert.Contains("camp-factory-child\tpassed\taddOneAndTwo", debug, StringComparison.Ordinal);
+		// §Test Surface -> "JSON/text artifacts": result JSON preserves child
+		// hierarchy, and a child assertion failure's source location points to
+		// real user source (the testAdd body's own assert() call), not the
+		// wrapper or the parent's own call site.
+		using JsonDocument resultsJson = JsonDocument.Parse(File.ReadAllText(TestResultsPath(outDir, "factory_lowering_basic")));
+		JsonElement parentResult = Assert.Single(resultsJson.RootElement.GetProperty("tests").EnumerateArray());
+		Assert.Equal("FactoryLoweringBasic::basicTests", parentResult.GetProperty("id").GetString());
+		Assert.Equal("failed", parentResult.GetProperty("outcome").GetString());
+		Assert.Equal(JsonValueKind.Null, parentResult.GetProperty("failure").ValueKind);
+		JsonElement children = parentResult.GetProperty("children");
+		Assert.Equal(2, children.GetArrayLength());
+		JsonElement failedChild = children[0];
+		Assert.Equal("FactoryLoweringBasic::basicTests/addOneAndFive", failedChild.GetProperty("id").GetString());
+		Assert.Equal("addOneAndFive", failedChild.GetProperty("name").GetString());
+		Assert.Equal("testAdd", failedChild.GetProperty("factoryName").GetString());
+		Assert.Equal("FactoryLoweringBasic::testAdd", failedChild.GetProperty("qualifiedFactoryName").GetString());
+		Assert.Equal("failed", failedChild.GetProperty("outcome").GetString());
+		JsonElement failure = failedChild.GetProperty("failure");
+		Assert.Equal("assertion", failure.GetProperty("kind").GetString());
+		Assert.Contains("first + second", failure.GetProperty("message").GetString());
+		Assert.Equal(FindLine(source, "assert((first + second) == expected);"), failure.GetProperty("sourceline").GetInt32());
+		Assert.Equal(ProjectRelativeSourcePath(source), failure.GetProperty("sourcefile").GetString());
+		Assert.Equal("passed", children[1].GetProperty("outcome").GetString());
+		Assert.Equal(JsonValueKind.Null, children[1].GetProperty("failure").ValueKind);
+
+		// Proposal: "Summary counting should include child results because
+		// child results are the individual reported test outcomes users care
+		// about." The parent itself must not also be double-counted alongside
+		// its children.
+		Assert.Equal(2, resultsJson.RootElement.GetProperty("version").GetInt32());
+		JsonElement summary = resultsJson.RootElement.GetProperty("summary");
+		Assert.Equal(1, summary.GetProperty("passed").GetInt32());
+		Assert.Equal(1, summary.GetProperty("failed").GetInt32());
+		Assert.Equal(2, summary.GetProperty("total").GetInt32());
 	}
 
 	[Fact]
@@ -3786,10 +3816,8 @@ public sealed class CommandLineTests
 		ProcessResult result = RunCampc("test", source, "--target", NativeTargetForHost(), "--out-dir", outDir, "--name", "factory_lowering_helper");
 
 		AssertCommandSucceeded(result);
-		Assert.Contains("passed: FactoryLoweringHelper::root", result.StdOut, StringComparison.Ordinal);
-
-		string debug = File.ReadAllText(FactoryDebugPath(outDir, "factory_lowering_helper"));
-		Assert.Contains("camp-factory-child\tpassed\thelper", debug, StringComparison.Ordinal);
+		Assert.Contains("passed: FactoryLoweringHelper::root (1 passed, 0 failed, 0 skipped)", result.StdOut, StringComparison.Ordinal);
+		Assert.Contains("> passed: helper", result.StdOut, StringComparison.Ordinal);
 	}
 
 	[Fact]
@@ -3822,11 +3850,9 @@ public sealed class CommandLineTests
 		ProcessResult result = RunCampc("test", source, "--target", NativeTargetForHost(), "--out-dir", outDir, "--name", "factory_lowering_fnptr");
 
 		Assert.Equal(1, result.ExitCode);
-		Assert.Contains("failed: FactoryLoweringFnPtr::root", result.StdOut, StringComparison.Ordinal);
-
-		string debug = File.ReadAllText(FactoryDebugPath(outDir, "factory_lowering_fnptr"));
-		Assert.Contains("camp-factory-child\tpassed\tpassingCase", debug, StringComparison.Ordinal);
-		Assert.Contains("camp-factory-child\tfailed\tfailingCase", debug, StringComparison.Ordinal);
+		Assert.Contains("failed: FactoryLoweringFnPtr::root (1 passed, 1 failed, 0 skipped)", result.StdOut, StringComparison.Ordinal);
+		Assert.Contains("> passed: passingCase", result.StdOut, StringComparison.Ordinal);
+		Assert.Contains("> failed: failingCase", result.StdOut, StringComparison.Ordinal);
 	}
 
 	[Fact]
@@ -3858,10 +3884,8 @@ public sealed class CommandLineTests
 		ProcessResult result = RunCampc("test", source, "--target", NativeTargetForHost(), "--out-dir", outDir, "--name", "factory_lowering_delegate");
 
 		AssertCommandSucceeded(result);
-		Assert.Contains("passed: FactoryLoweringDelegate::root", result.StdOut, StringComparison.Ordinal);
-
-		string debug = File.ReadAllText(FactoryDebugPath(outDir, "factory_lowering_delegate"));
-		Assert.Contains("camp-factory-child\tpassed\tdelegateCase", debug, StringComparison.Ordinal);
+		Assert.Contains("passed: FactoryLoweringDelegate::root (1 passed, 0 failed, 0 skipped)", result.StdOut, StringComparison.Ordinal);
+		Assert.Contains("> passed: delegateCase", result.StdOut, StringComparison.Ordinal);
 	}
 
 	[Fact]
@@ -3888,10 +3912,8 @@ public sealed class CommandLineTests
 		ProcessResult result = RunCampc("test", source, "--target", NativeTargetForHost(), "--out-dir", outDir, "--name", "factory_lowering_skip");
 
 		AssertCommandSucceeded(result);
-		Assert.Contains("passed: FactoryLoweringSkip::basicTests", result.StdOut, StringComparison.Ordinal);
-
-		string debug = File.ReadAllText(FactoryDebugPath(outDir, "factory_lowering_skip"));
-		Assert.Contains("camp-factory-child\tskipped\tpending", debug, StringComparison.Ordinal);
+		Assert.Contains("passed: FactoryLoweringSkip::basicTests (0 passed, 0 failed, 1 skipped)", result.StdOut, StringComparison.Ordinal);
+		Assert.Contains("> skipped: pending", result.StdOut, StringComparison.Ordinal);
 	}
 
 	[Fact]
@@ -3927,13 +3949,9 @@ public sealed class CommandLineTests
 		ProcessResult result = RunCampc("test", source, "--target", NativeTargetForHost(), "--out-dir", outDir, "--name", "factory_lowering_nesting");
 
 		Assert.Equal(1, result.ExitCode);
-		Assert.Contains("failed: FactoryLoweringNesting::parentTest", result.StdOut, StringComparison.Ordinal);
-
-		string debug = File.ReadAllText(FactoryDebugPath(outDir, "factory_lowering_nesting"));
-		string[] lines = debug.Split('\n', StringSplitOptions.RemoveEmptyEntries);
-		Assert.Equal(2, lines.Length);
-		Assert.Equal("camp-factory-child\tinvalid\touter", lines[0]);
-		Assert.Equal("camp-factory-child\tinvalid\tinner", lines[1]);
+		Assert.Contains("failed: FactoryLoweringNesting::parentTest (0 passed, 2 failed, 0 skipped)", result.StdOut, StringComparison.Ordinal);
+		Assert.Contains("> invalid: outer", result.StdOut, StringComparison.Ordinal);
+		Assert.Contains("> invalid: inner", result.StdOut, StringComparison.Ordinal);
 	}
 
 	[Fact]
@@ -4008,11 +4026,11 @@ public sealed class CommandLineTests
 		// through a live process, unlike the other Stage FT.7 tests above.
 		string generated = CampTestHarnessGenerator.Generate("factory_runtime_probe", []);
 
-		int guardIndex = generated.IndexOf("int __camp_test_beginFactory(const char *displayName, uintptr_t displayName_length)", StringComparison.Ordinal);
+		int guardIndex = generated.IndexOf("int __camp_test_beginFactory(const char *displayName, uintptr_t displayName_length, const char *factoryName, uintptr_t factoryName_length, const char *qualifiedFactoryName, uintptr_t qualifiedFactoryName_length)", StringComparison.Ordinal);
 		Assert.True(guardIndex >= 0, "Expected __camp_test_beginFactory to be emitted.");
 		string function = generated[guardIndex..(generated.IndexOf("\n}\n", guardIndex, StringComparison.Ordinal) + 3)];
 		Assert.Contains("if (!camp_factory_parent_active)", function, StringComparison.Ordinal);
-		Assert.Contains("camp_factory_record_child(displayName, displayName_length, CAMP_FACTORY_INVALID);", function, StringComparison.Ordinal);
+		Assert.Contains("camp_factory_record_child(displayName, displayName_length, factoryName, factoryName_length, qualifiedFactoryName, qualifiedFactoryName_length, CAMP_FACTORY_INVALID, 0, 0, 0, 0, 0);", function, StringComparison.Ordinal);
 		Assert.Contains("return 0;", function, StringComparison.Ordinal);
 	}
 

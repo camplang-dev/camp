@@ -111,7 +111,7 @@ public static class CampTestDiscovery
 		return null;
 	}
 
-	static string GetVisibleFunctionName(FunctionDefinition function)
+	internal static string GetVisibleFunctionName(FunctionDefinition function)
 	{
 		if (function.Modifier == FunctionModifier.Constructor)
 			return "create";
@@ -120,7 +120,7 @@ public static class CampTestDiscovery
 		return SymbolNameService.CallableName(function).Value.TrimStart('~');
 	}
 
-	static string GetQualifiedFunctionName(Module module, FunctionDefinition function, string name)
+	internal static string GetQualifiedFunctionName(Module module, FunctionDefinition function, string name)
 	{
 		string? namespaceName = function.Namespace;
 		if (string.IsNullOrWhiteSpace(namespaceName)
@@ -378,7 +378,7 @@ public static class CampTestDiscovery
 			|| string.Equals(type.Symbol, resolved, StringComparison.Ordinal));
 	}
 
-	static bool TryFindField(TypeDefinition type, string name, out FieldDefinition? field)
+	internal static bool TryFindField(TypeDefinition type, string name, out FieldDefinition? field)
 	{
 		IEnumerable<FieldDefinition> fields = type switch
 		{

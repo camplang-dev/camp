@@ -2044,14 +2044,14 @@ public static class CompilerDriver
                 System.Threading.Tasks.Task.WaitAll(new System.Threading.Tasks.Task[] { stdoutTask, stderrTask }, drainTimeoutMilliseconds);
                 string harnessStdOut = Normalize(stdoutTask.Status == System.Threading.Tasks.TaskStatus.RanToCompletion ? stdoutTask.Result : "");
                 string harnessStdErr = Normalize(stderrTask.Status == System.Threading.Tasks.TaskStatus.RanToCompletion ? stderrTask.Result : "");
-                if (!CampTestHarnessEventParser.TryRead(eventPath, out List<CampTestHarnessEvent> events, out List<string> diagnostics))
+                if (!CampTestHarnessEventParser.TryRead(eventPath, out List<CampTestHarnessEvent> events, out List<CampFactoryChildEvent> childEvents, out List<string> diagnostics))
                 {
                     string message = string.Join(" ", diagnostics);
                     if (!string.IsNullOrWhiteSpace(harnessStdErr))
                         message = string.IsNullOrWhiteSpace(message) ? harnessStdErr.TrimEnd() : message + " " + harnessStdErr.TrimEnd();
                     return CampTestResultsFactory.InfrastructureError(selectedTests, message);
                 }
-                CampTestResults results = CampTestResultsFactory.FromHarnessEvents(selectedTests, events, process.ExitCode, string.IsNullOrWhiteSpace(harnessStdErr) ? null : harnessStdErr.TrimEnd());
+                CampTestResults results = CampTestResultsFactory.FromHarnessEvents(selectedTests, events, childEvents, process.ExitCode, string.IsNullOrWhiteSpace(harnessStdErr) ? null : harnessStdErr.TrimEnd());
                 if (process.ExitCode != 0 && TestResultsSucceeded(results))
                     return CampTestResultsFactory.InfrastructureError(selectedTests, string.IsNullOrWhiteSpace(harnessStdErr) ? $"test harness exited with code {process.ExitCode}" : harnessStdErr.TrimEnd());
                 _ = harnessStdOut;

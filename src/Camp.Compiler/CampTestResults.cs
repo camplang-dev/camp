@@ -22,7 +22,19 @@ public sealed record CampTestResultEntry(
 	string Outcome,
 	double DurationMs,
 	CampTestFailure? Failure,
-	CampTestMemoryReport? Memory = null);
+	CampTestMemoryReport? Memory = null,
+	IReadOnlyList<CampTestChildResult> Children = null!)
+{
+	public IReadOnlyList<CampTestChildResult> Children { get; init; } = Children ?? [];
+}
+
+public sealed record CampTestChildResult(
+	string Id,
+	string Name,
+	string FactoryName,
+	string QualifiedFactoryName,
+	string Outcome,
+	CampTestFailure? Failure);
 
 public sealed record CampTestFailure(string Kind, string Message, string Sourcefile, int Sourceline);
 public sealed record CampTestMemoryReport(
@@ -37,53 +49,102 @@ public sealed record CampTestLeakReport(ulong Bytes, int Count, string Message, 
 
 internal sealed record CampTestHarnessEvent(int Index, string Outcome, double DurationMs, CampTestFailure? Failure, CampTestMemoryReport? Memory = null);
 
+internal sealed record CampFactoryChildEvent(int ParentIndex, string Outcome, string Name, string FactoryName, string QualifiedFactoryName, string Message, string Sourcefile, int Sourceline);
+
 public static class CampTestResultsFactory
 {
-	internal static CampTestResults FromHarnessEvents(IReadOnlyList<CampTestManifestEntry> selectedTests, IReadOnlyList<CampTestHarnessEvent> events, int harnessExitCode, string? harnessError)
+	internal static CampTestResults FromHarnessEvents(IReadOnlyList<CampTestManifestEntry> selectedTests, IReadOnlyList<CampTestHarnessEvent> events, IReadOnlyList<CampFactoryChildEvent> childEvents, int harnessExitCode, string? harnessError)
 	{
 		Dictionary<int, CampTestHarnessEvent> byIndex = [];
 		foreach (CampTestHarnessEvent harnessEvent in events)
 			if (!byIndex.ContainsKey(harnessEvent.Index))
 				byIndex[harnessEvent.Index] = harnessEvent;
 
+		Dictionary<int, List<CampFactoryChildEvent>> childrenByIndex = [];
+		foreach (CampFactoryChildEvent child in childEvents)
+		{
+			if (!childrenByIndex.TryGetValue(child.ParentIndex, out List<CampFactoryChildEvent>? list))
+				childrenByIndex[child.ParentIndex] = list = [];
+			list.Add(child);
+		}
+
 		List<CampTestResultEntry> results = [];
 		for (int i = 0; i < selectedTests.Count; i++)
 		{
 			CampTestManifestEntry test = selectedTests[i];
+			IReadOnlyList<CampTestChildResult> children = BuildChildren(test, childrenByIndex.GetValueOrDefault(i));
+			CampTestResultEntry entry;
 			if (!byIndex.TryGetValue(i, out CampTestHarnessEvent? harnessEvent))
 			{
-				results.Add(CreateErrorResult(test, harnessError ?? (harnessExitCode == 0
+				entry = CreateErrorResult(test, harnessError ?? (harnessExitCode == 0
 					? "test harness did not report a result"
-					: $"test harness exited with code {harnessExitCode} before reporting a result")));
-				continue;
+					: $"test harness exited with code {harnessExitCode} before reporting a result"));
 			}
-
-			results.Add(harnessEvent.Outcome switch
+			else
 			{
-				"passed" => CreateResult(test, "passed", harnessEvent.DurationMs, failure: null),
-				"passed-memory" => CreateResult(test, "passed", harnessEvent.DurationMs, failure: null, harnessEvent.Memory),
-				"passed-leaked" => CreateResult(test, "passed", harnessEvent.DurationMs, failure: null, harnessEvent.Memory),
-				"skipped" => CreateResult(test, "skipped", harnessEvent.DurationMs, failure: null),
-				"invalid" => CreateResult(test, "invalid", harnessEvent.DurationMs, new CampTestFailure(
-					"invalid-test-signature",
-					"built-in tests must have the signature void name(thrown TYPE*) or void name(within Allocator* allocator, thrown TYPE*) where TYPE contains message, sourcefile, and sourceline fields",
-					test.Sourcefile,
-					test.Sourceline)),
-				"failed" => CreateResult(test, "failed", harnessEvent.DurationMs, NormalizeFailure(test, harnessEvent.Failure ?? new CampTestFailure(
-					"assertion",
-					"",
-					test.Sourcefile,
-					test.Sourceline))),
-				"failed-memory" => CreateResult(test, "failed", harnessEvent.DurationMs, NormalizeFailure(test, harnessEvent.Failure ?? new CampTestFailure(
-					"memory",
-					"",
-					test.Sourcefile,
-					test.Sourceline)), harnessEvent.Memory),
-				_ => CreateErrorResult(test, "test harness reported unknown outcome '" + harnessEvent.Outcome + "'")
-			});
+				entry = harnessEvent.Outcome switch
+				{
+					"passed" => CreateResult(test, "passed", harnessEvent.DurationMs, failure: null),
+					"passed-memory" => CreateResult(test, "passed", harnessEvent.DurationMs, failure: null, harnessEvent.Memory),
+					"passed-leaked" => CreateResult(test, "passed", harnessEvent.DurationMs, failure: null, harnessEvent.Memory),
+					"skipped" => CreateResult(test, "skipped", harnessEvent.DurationMs, failure: null),
+					"invalid" => CreateResult(test, "invalid", harnessEvent.DurationMs, new CampTestFailure(
+						"invalid-test-signature",
+						"built-in tests must have the signature void name(thrown TYPE*) or void name(within Allocator* allocator, thrown TYPE*) where TYPE contains message, sourcefile, and sourceline fields",
+						test.Sourcefile,
+						test.Sourceline)),
+					"failed" => CreateResult(test, "failed", harnessEvent.DurationMs, NormalizeFailure(test, harnessEvent.Failure ?? new CampTestFailure(
+						"assertion",
+						"",
+						test.Sourcefile,
+						test.Sourceline))),
+					"failed-children" => CreateResult(test, "failed", harnessEvent.DurationMs, failure: null),
+					"failed-memory" => CreateResult(test, "failed", harnessEvent.DurationMs, NormalizeFailure(test, harnessEvent.Failure ?? new CampTestFailure(
+						"memory",
+						"",
+						test.Sourcefile,
+						test.Sourceline)), harnessEvent.Memory),
+					_ => CreateErrorResult(test, "test harness reported unknown outcome '" + harnessEvent.Outcome + "'")
+				};
+			}
+			if (children.Count > 0)
+				entry = entry with { Children = children };
+			results.Add(entry);
 		}
 
 		return new CampTestResults(CreateSummary(results), results);
+	}
+
+	static IReadOnlyList<CampTestChildResult> BuildChildren(CampTestManifestEntry test, List<CampFactoryChildEvent>? childEvents)
+	{
+		if (childEvents is null || childEvents.Count == 0)
+			return [];
+		List<CampTestChildResult> children = [];
+		foreach (CampFactoryChildEvent child in childEvents)
+		{
+			CampTestFailure? failure = child.Outcome switch
+			{
+				"failed" => new CampTestFailure(
+					"assertion",
+					child.Message,
+					string.IsNullOrWhiteSpace(child.Sourcefile) ? test.Sourcefile : child.Sourcefile,
+					child.Sourceline == 0 ? test.Sourceline : child.Sourceline),
+				"invalid" => new CampTestFailure(
+					"invalid-factory-call",
+					"factory test was called while no parent test was active, or while another factory-test call was still active under the same parent",
+					test.Sourcefile,
+					test.Sourceline),
+				_ => null
+			};
+			children.Add(new CampTestChildResult(
+				test.Id + "/" + child.Name,
+				child.Name,
+				child.FactoryName,
+				string.IsNullOrWhiteSpace(child.QualifiedFactoryName) ? child.FactoryName : child.QualifiedFactoryName,
+				child.Outcome,
+				failure));
+		}
+		return children;
 	}
 
 	internal static CampTestResults InfrastructureError(IReadOnlyList<CampTestManifestEntry> selectedTests, string message)
@@ -135,15 +196,35 @@ public static class CampTestResultsFactory
 		return CreateResult(test, "error", 0, new CampTestFailure("test-runner-error", message, test.Sourcefile, test.Sourceline));
 	}
 
+	// Proposal 021 (Test Results JSON): "Summary counting should include child
+	// results because child results are the individual reported test outcomes
+	// users care about in data-driven suites." A parent with recorded factory-
+	// test children contributes its children's outcomes to the summary instead
+	// of its own, since its own outcome is derived from those children.
+	internal static IEnumerable<string> CountedOutcomes(IReadOnlyList<CampTestResultEntry> results)
+	{
+		foreach (CampTestResultEntry result in results)
+		{
+			if (result.Children.Count > 0)
+			{
+				foreach (CampTestChildResult child in result.Children)
+					yield return child.Outcome;
+			}
+			else
+				yield return result.Outcome;
+		}
+	}
+
 	static CampTestResultSummary CreateSummary(IReadOnlyList<CampTestResultEntry> results)
 	{
+		List<string> outcomes = CountedOutcomes(results).ToList();
 		return new CampTestResultSummary(
-			results.Count(static result => result.Outcome == "passed"),
-			results.Count(static result => result.Outcome == "failed"),
-			results.Count(static result => result.Outcome == "skipped"),
-			results.Count(static result => result.Outcome == "invalid"),
-			results.Count(static result => result.Outcome == "error"),
-			results.Count);
+			outcomes.Count(static outcome => outcome == "passed"),
+			outcomes.Count(static outcome => outcome == "failed"),
+			outcomes.Count(static outcome => outcome == "skipped"),
+			outcomes.Count(static outcome => outcome == "invalid"),
+			outcomes.Count(static outcome => outcome == "error"),
+			outcomes.Count);
 	}
 }
 
@@ -157,7 +238,7 @@ public static class CampTestResultsJsonSerializer
 		{
 			json.WriteStartObject();
 			json.WriteString("format", "camp.test-results");
-			json.WriteNumber("version", 1);
+			json.WriteNumber("version", 2);
 			json.WriteStartObject("summary");
 			json.WriteNumber("passed", results.Summary.Passed);
 			json.WriteNumber("failed", results.Summary.Failed);
@@ -218,6 +299,31 @@ public static class CampTestResultsJsonSerializer
 					json.WriteEndArray();
 					json.WriteEndObject();
 				}
+				json.WriteStartArray("children");
+				foreach (CampTestChildResult child in test.Children)
+				{
+					json.WriteStartObject();
+					json.WriteString("id", child.Id);
+					json.WriteString("name", child.Name);
+					json.WriteString("factoryName", child.FactoryName);
+					json.WriteString("qualifiedFactoryName", child.QualifiedFactoryName);
+					json.WriteString("outcome", child.Outcome);
+					if (child.Failure is null)
+					{
+						json.WriteNull("failure");
+					}
+					else
+					{
+						json.WriteStartObject("failure");
+						json.WriteString("kind", child.Failure.Kind);
+						json.WriteString("message", child.Failure.Message);
+						json.WriteString("sourcefile", child.Failure.Sourcefile);
+						json.WriteNumber("sourceline", child.Failure.Sourceline);
+						json.WriteEndObject();
+					}
+					json.WriteEndObject();
+				}
+				json.WriteEndArray();
 				json.WriteEndObject();
 			}
 			json.WriteEndArray();
@@ -237,8 +343,8 @@ public static class CampTestResultsJsonSerializer
 			JsonElement root = document.RootElement;
 			if (!root.TryGetProperty("format", out JsonElement format) || format.GetString() != "camp.test-results")
 				diagnostics.Add("test results format must be camp.test-results.");
-			if (!root.TryGetProperty("version", out JsonElement version) || version.GetInt32() != 1)
-				diagnostics.Add("test results version must be 1.");
+			if (!root.TryGetProperty("version", out JsonElement version) || version.GetInt32() != 2)
+				diagnostics.Add("test results version must be 2.");
 			List<CampTestResultEntry> tests = [];
 			if (root.TryGetProperty("tests", out JsonElement testsElement) && testsElement.ValueKind == JsonValueKind.Array)
 			{
@@ -278,6 +384,29 @@ public static class CampTestResultsJsonSerializer
 							GetUInt64(memoryElement, "liveBytes"),
 							leaks);
 					}
+					List<CampTestChildResult> children = [];
+					if (test.TryGetProperty("children", out JsonElement childrenElement) && childrenElement.ValueKind == JsonValueKind.Array)
+					{
+						foreach (JsonElement child in childrenElement.EnumerateArray())
+						{
+							CampTestFailure? childFailure = null;
+							if (child.TryGetProperty("failure", out JsonElement childFailureElement) && childFailureElement.ValueKind == JsonValueKind.Object)
+							{
+								childFailure = new CampTestFailure(
+									GetString(childFailureElement, "kind"),
+									GetString(childFailureElement, "message"),
+									GetString(childFailureElement, "sourcefile"),
+									GetInt(childFailureElement, "sourceline"));
+							}
+							children.Add(new CampTestChildResult(
+								GetString(child, "id"),
+								GetString(child, "name"),
+								GetString(child, "factoryName"),
+								GetString(child, "qualifiedFactoryName"),
+								GetString(child, "outcome"),
+								childFailure));
+						}
+					}
 					tests.Add(new CampTestResultEntry(
 						GetString(test, "id"),
 						GetString(test, "name"),
@@ -288,7 +417,8 @@ public static class CampTestResultsJsonSerializer
 						GetString(test, "outcome"),
 						GetDouble(test, "durationMs"),
 						failure,
-						memory));
+						memory,
+						children));
 				}
 			}
 			else
@@ -304,13 +434,14 @@ public static class CampTestResultsJsonSerializer
 
 	static CampTestResultSummary CreateSummary(IReadOnlyList<CampTestResultEntry> tests)
 	{
+		List<string> outcomes = CampTestResultsFactory.CountedOutcomes(tests).ToList();
 		return new CampTestResultSummary(
-			tests.Count(static test => test.Outcome == "passed"),
-			tests.Count(static test => test.Outcome == "failed"),
-			tests.Count(static test => test.Outcome == "skipped"),
-			tests.Count(static test => test.Outcome == "invalid"),
-			tests.Count(static test => test.Outcome == "error"),
-			tests.Count);
+			outcomes.Count(static outcome => outcome == "passed"),
+			outcomes.Count(static outcome => outcome == "failed"),
+			outcomes.Count(static outcome => outcome == "skipped"),
+			outcomes.Count(static outcome => outcome == "invalid"),
+			outcomes.Count(static outcome => outcome == "error"),
+			outcomes.Count);
 	}
 
 	static string GetString(JsonElement element, string name)
@@ -401,7 +532,26 @@ public static class CampTestResultsTextFormatter
 			{
 				builder.Append(ColorOutcome(test.Outcome, color));
 				builder.Append(": ");
-				builder.AppendLine(test.Id);
+				builder.Append(test.Id);
+				// Proposal 021 (Human-Readable Output): a parent with factory-test
+				// children shows its own child-outcome counts inline, and the
+				// children themselves as indented "> outcome: name" lines below.
+				// "invalid" children (runtime misuse) count toward "failed" here,
+				// matching how they already fail the parent's own outcome.
+				if (test.Children.Count > 0)
+				{
+					int childPassed = test.Children.Count(static child => child.Outcome == "passed");
+					int childFailed = test.Children.Count(static child => child.Outcome is "failed" or "invalid");
+					int childSkipped = test.Children.Count(static child => child.Outcome == "skipped");
+					builder.Append(" (");
+					builder.Append(childPassed.ToString(CultureInfo.InvariantCulture));
+					builder.Append(" passed, ");
+					builder.Append(childFailed.ToString(CultureInfo.InvariantCulture));
+					builder.Append(" failed, ");
+					builder.Append(childSkipped.ToString(CultureInfo.InvariantCulture));
+					builder.Append(" skipped)");
+				}
+				builder.AppendLine();
 				if (test.Failure is not null)
 				{
 					builder.Append("  at ");
@@ -429,6 +579,13 @@ public static class CampTestResultsTextFormatter
 						}
 						builder.AppendLine(leak.Message);
 					}
+				}
+				foreach (CampTestChildResult child in test.Children)
+				{
+					builder.Append("> ");
+					builder.Append(ColorOutcome(child.Outcome, color));
+					builder.Append(": ");
+					builder.AppendLine(child.Name);
 				}
 			}
 		}
@@ -491,9 +648,10 @@ public static class CampCoverageResultsTextFormatter
 
 internal static class CampTestHarnessEventParser
 {
-	public static bool TryRead(string path, out List<CampTestHarnessEvent> events, out List<string> diagnostics)
+	public static bool TryRead(string path, out List<CampTestHarnessEvent> events, out List<CampFactoryChildEvent> childEvents, out List<string> diagnostics)
 	{
 		events = [];
+		childEvents = [];
 		diagnostics = [];
 		if (!File.Exists(path))
 		{
@@ -511,6 +669,22 @@ internal static class CampTestHarnessEventParser
 			if (parts.Length < 3)
 			{
 				diagnostics.Add($"{path}({lineNumber}): invalid test harness event row.");
+				continue;
+			}
+			// A factory-test child row has a distinct column layout (proposal 021
+			// Stage FT.9), not the "<outcome> <index> <duration> ..." shape every
+			// other row uses, so it must be recognized and parsed before the
+			// generic index/duration parsing below runs on its columns.
+			if (parts[0] == "factory-child")
+			{
+				if (parts.Length != 9
+					|| !int.TryParse(parts[1], NumberStyles.None, CultureInfo.InvariantCulture, out int parentIndex)
+					|| !int.TryParse(parts[8], NumberStyles.None, CultureInfo.InvariantCulture, out int childSourceline))
+				{
+					diagnostics.Add($"{path}({lineNumber}): invalid factory-child test harness event row.");
+					continue;
+				}
+				childEvents.Add(new CampFactoryChildEvent(parentIndex, parts[2], Unescape(parts[3]), Unescape(parts[4]), Unescape(parts[5]), Unescape(parts[6]), Unescape(parts[7]), childSourceline));
 				continue;
 			}
 			if (!int.TryParse(parts[1], NumberStyles.None, CultureInfo.InvariantCulture, out int index))

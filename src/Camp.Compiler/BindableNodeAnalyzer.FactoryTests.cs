@@ -33,9 +33,12 @@ public sealed partial class BindableNodeAnalyzer
 		if (anchor is null)
 			return;
 
-		module.Definitions.Add(CreateFactoryRuntimeExternFunction(FactoryBeginFactoryName, FactoryBeginFactorySymbol, "int", anchor, ("displayName", "const char[]")));
-		module.Definitions.Add(CreateFactoryRuntimeExternFunction(FactoryEndFactoryName, FactoryEndFactorySymbol, "void", anchor, ("failed", "int")));
-		module.Definitions.Add(CreateFactoryRuntimeExternFunction(FactoryRecordSkippedName, FactoryRecordSkippedSymbol, "void", anchor, ("displayName", "const char[]")));
+		module.Definitions.Add(CreateFactoryRuntimeExternFunction(FactoryBeginFactoryName, FactoryBeginFactorySymbol, "int", anchor,
+			("displayName", "const char[]"), ("factoryName", "const char[]"), ("qualifiedFactoryName", "const char[]")));
+		module.Definitions.Add(CreateFactoryRuntimeExternFunction(FactoryEndFactoryName, FactoryEndFactorySymbol, "void", anchor,
+			("failed", "int"), ("message", "const char[]"), ("sourcefile", "const char[]"), ("sourceline", "uint")));
+		module.Definitions.Add(CreateFactoryRuntimeExternFunction(FactoryRecordSkippedName, FactoryRecordSkippedSymbol, "void", anchor,
+			("displayName", "const char[]"), ("factoryName", "const char[]"), ("qualifiedFactoryName", "const char[]")));
 	}
 
 	static FunctionDefinition CreateFactoryRuntimeExternFunction(string name, string symbol, string returnTypeName, FunctionDefinition anchor, params (string Name, string TypeName)[] parameters)
@@ -74,22 +77,25 @@ public sealed partial class BindableNodeAnalyzer
 		// Collect first: CreateInstrumentedFactoryTestBody adds a new definition
 		// to module.Definitions for each wrapped function, and mutating a list
 		// while enumerating it is unsafe.
-		List<FunctionDefinition> factoryTests = [];
+		List<(FunctionDefinition Function, TestFailureShape FailureShape)> factoryTests = [];
 		foreach (Definition definition in module.Definitions)
 		{
 			if (definition is not FunctionDefinition function || !DeclarationParticipation.IsFactoryTest(function) || function.Body is null)
 				continue;
 			if (!CampTestDiscovery.TryGetFactoryTestSignature(module, function, out TestFailureShape? failureShape, out _) || failureShape is null)
 				continue;
-			factoryTests.Add(function);
+			factoryTests.Add((function, failureShape));
 		}
 
-		foreach (FunctionDefinition function in factoryTests)
+		foreach ((FunctionDefinition function, TestFailureShape failureShape) in factoryTests)
 		{
 			Expression displayName = BuildFactoryDisplayNameExpression(function);
+			string visibleName = CampTestDiscovery.GetVisibleFunctionName(function);
+			Expression factoryName = NameOfStringLiteral(visibleName, function.SourceSyntax, "string");
+			Expression qualifiedFactoryName = NameOfStringLiteral(CampTestDiscovery.GetQualifiedFunctionName(module, function, visibleName), function.SourceSyntax, "string");
 			function.Body = HasAttribute(function.Attributes, SkipAttributeName)
-				? CreateSkippedFactoryTestBody(displayName)
-				: CreateInstrumentedFactoryTestBody(module, function, displayName);
+				? CreateSkippedFactoryTestBody(displayName, factoryName, qualifiedFactoryName)
+				: CreateInstrumentedFactoryTestBody(module, function, displayName, factoryName, qualifiedFactoryName, failureShape);
 		}
 	}
 
@@ -101,11 +107,11 @@ public sealed partial class BindableNodeAnalyzer
 		return NameOfStringLiteral(function.Name, function.SourceSyntax, "string");
 	}
 
-	BlockStatement CreateSkippedFactoryTestBody(Expression displayName)
+	BlockStatement CreateSkippedFactoryTestBody(Expression displayName, Expression factoryName, Expression qualifiedFactoryName)
 	{
 		return CreateBlock(
 		[
-			CreateFactoryRuntimeCallStatement(FactoryRecordSkippedName, "void", displayName)
+			CreateFactoryRuntimeCallStatement(FactoryRecordSkippedName, "void", displayName, factoryName, qualifiedFactoryName)
 		]);
 	}
 
@@ -118,7 +124,7 @@ public sealed partial class BindableNodeAnalyzer
 	// body without an explicit return -- exactly assert()'s own shape --
 	// leaves the catch check reading uninitialized stack memory). The
 	// explicit-local-plus-catch-argument pattern does not exhibit that bug.
-	BlockStatement CreateInstrumentedFactoryTestBody(Module module, FunctionDefinition function, Expression displayName)
+	BlockStatement CreateInstrumentedFactoryTestBody(Module module, FunctionDefinition function, Expression displayName, Expression factoryName, Expression qualifiedFactoryName, TestFailureShape failureShape)
 	{
 		ParameterDefinition thrownParameter = function.Parameters[^1];
 
@@ -160,6 +166,21 @@ public sealed partial class BindableNodeAnalyzer
 		}
 		innerCall.Arguments.Add(new ArgumentExpression { Modifier = ArgumentModifier.Catch, Value = CreateVariableReference(failureLocal.Target, thrownParameter.ResolvedType ?? "void") });
 
+		CampTestDiscovery.TryFindField(failureShape.Type, "message", out FieldDefinition? messageField);
+		CampTestDiscovery.TryFindField(failureShape.Type, "sourcefile", out FieldDefinition? sourcefileField);
+		CampTestDiscovery.TryFindField(failureShape.Type, "sourceline", out FieldDefinition? sourcelineField);
+
+		Expression FailureFieldAccess(FieldDefinition field)
+		{
+			return new MemberReferenceExpression
+			{
+				Target = CreateVariableReference(failureLocal.Target, thrownParameter.ResolvedType ?? "void"),
+				Name = field.Name,
+				Member = field,
+				ResolvedType = field.ResolvedType
+			};
+		}
+
 		IfStatement failureCheck = new()
 		{
 			Condition = new BinaryExpression
@@ -171,7 +192,11 @@ public sealed partial class BindableNodeAnalyzer
 			},
 			Body = CreateBlock(
 			[
-				CreateFactoryRuntimeCallStatement(FactoryEndFactoryName, "void", NumberLiteral("1", "int")),
+				CreateFactoryRuntimeCallStatement(FactoryEndFactoryName, "void",
+					NumberLiteral("1", "int"),
+					FailureFieldAccess(messageField!),
+					FailureFieldAccess(sourcefileField!),
+					FailureFieldAccess(sourcelineField!)),
 				new ReturnStatement { ResolvedType = "void" }
 			]),
 			ResolvedType = "void"
@@ -182,14 +207,18 @@ public sealed partial class BindableNodeAnalyzer
 			failureLocal,
 			new ExpressionStatement { Expression = innerCall, ResolvedType = "void" },
 			failureCheck,
-			CreateFactoryRuntimeCallStatement(FactoryEndFactoryName, "void", NumberLiteral("0", "int"))
+			CreateFactoryRuntimeCallStatement(FactoryEndFactoryName, "void",
+				NumberLiteral("0", "int"),
+				NameOfStringLiteral("", function.SourceSyntax, "string"),
+				NameOfStringLiteral("", function.SourceSyntax, "string"),
+				NumberLiteral("0", "uint"))
 		]);
 
 		IfStatement ifStatement = new()
 		{
 			Condition = new BinaryExpression
 			{
-				Left = CreateFactoryRuntimeCall(FactoryBeginFactoryName, "int", displayName),
+				Left = CreateFactoryRuntimeCall(FactoryBeginFactoryName, "int", displayName, factoryName, qualifiedFactoryName),
 				Operator = BinaryOperator.NotEqual,
 				Right = NumberLiteral("0", "int"),
 				ResolvedType = "bool"
