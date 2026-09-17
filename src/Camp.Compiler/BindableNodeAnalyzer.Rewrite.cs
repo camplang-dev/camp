@@ -37,6 +37,7 @@ public sealed partial class BindableNodeAnalyzer
 	string? currentFunctionExitLabel;
 	DeclarationTarget? currentFunctionReturnTarget;
 	string currentFunctionReturnType = "void";
+	bool currentFunctionAssignsThrownParameterManually;
 	bool allocatorSurfaceValidationEnabled;
 	int generatedLocalIndex;
 	int generatedDiscardIndex;

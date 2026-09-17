@@ -8,24 +8,14 @@ newtype delegate void OrdinaryDelegate(string, int, int, int, thrown int);
 
 int caller(thrown int failure)
 {
-	OrdinaryDelegate d = (string name, int first, int second, int expected, thrown int failure) =>
-	{
-		int forwarded = 0;
-		ordinary(name, first, second, expected, catch forwarded);
-		failure = forwarded;
-	};
+	OrdinaryDelegate d = (string name, int first, int second, int expected, thrown int failure) => ordinary(name, first, second, expected, catch failure);
 	d("test", 1, 2, 3);
 	return 0;
 }
 
 int callerBad(thrown int failure)
 {
-	OrdinaryDelegate d = (string name, int first, int second, int expected, thrown int failure) =>
-	{
-		int forwarded = 0;
-		ordinary(name, first, second, expected, catch forwarded);
-		failure = forwarded;
-	};
+	OrdinaryDelegate d = (string name, int first, int second, int expected, thrown int failure) => ordinary(name, first, second, expected, catch failure);
 	d("test", 1, 2, 999);
 	return 0;
 }

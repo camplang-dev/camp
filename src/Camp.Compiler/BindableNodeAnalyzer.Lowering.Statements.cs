@@ -84,6 +84,7 @@ public sealed partial class BindableNodeAnalyzer
 		string? previousFunctionExitLabel = currentFunctionExitLabel;
 		DeclarationTarget? previousFunctionReturnTarget = currentFunctionReturnTarget;
 		string previousFunctionReturnType = currentFunctionReturnType;
+		bool previousFunctionAssignsThrownParameterManually = currentFunctionAssignsThrownParameterManually;
 		List<CleanupScope> savedCleanupScopes = [.. currentCleanupScopes];
 		List<ThrowHandler> savedThrowHandlers = [.. currentThrowHandlers];
 		List<LoopTransferTarget> savedLoopTransferTargets = [.. currentLoopTransferTargets];
@@ -103,6 +104,7 @@ public sealed partial class BindableNodeAnalyzer
 		InsertVTableOfFieldAssignments(function, containingType);
 		InsertCreateVirtualTableAssignment(function, containingType);
 		bool functionAssignsThrownParameterManually = HasManualThrownParameterAssignment(function);
+		currentFunctionAssignsThrownParameterManually = functionAssignsThrownParameterManually;
 		function.Body = RewriteFunctionBody(function.Body);
 		if (function.Body is not null && currentFunctionExitLabel is not null)
 			AppendFunctionExit(function.Body.Statements);
@@ -115,6 +117,7 @@ public sealed partial class BindableNodeAnalyzer
 		currentFunctionExitLabel = previousFunctionExitLabel;
 		currentFunctionReturnTarget = previousFunctionReturnTarget;
 		currentFunctionReturnType = previousFunctionReturnType;
+		currentFunctionAssignsThrownParameterManually = previousFunctionAssignsThrownParameterManually;
 		currentCleanupScopes.Clear();
 		currentCleanupScopes.AddRange(savedCleanupScopes);
 		currentThrowHandlers.Clear();
@@ -409,6 +412,8 @@ public sealed partial class BindableNodeAnalyzer
 		ParameterDefinition? thrownParameter = GetFunctionThrownParameter(currentRewriteFunction);
 		if (thrownParameter is null)
 			return returnTransfer;
+		if (currentFunctionAssignsThrownParameterManually)
+			return returnTransfer;
 
 		return CreateBlock([CreateThrownParameterClearStatement(thrownParameter, syntax), returnTransfer]);
 	}
@@ -433,11 +438,11 @@ public sealed partial class BindableNodeAnalyzer
 
 	// A void function can reach the end of its body without an explicit
 	// `return` (definite-return flow analysis only requires a value on every
-	// path for a non-void function). PrependThrownParameterClear only runs
-	// for a source-level `return`, so that implicit fall-through path never
-	// clears the thrown parameter on success. Appending an unconditional
-	// clear after the rewritten body covers exactly that path; for a body
-	// where every path already returns explicitly, this is unreachable and
+	// path for a non-void function). PrependThrownParameterClear covers every
+	// source-level `return`; this covers the implicit fall-through path that
+	// falls outside any `return` statement. Appending an unconditional clear
+	// after the rewritten body covers exactly that path; for a body where
+	// every path already returns explicitly, this is unreachable and
 	// harmless. The caller skips this entirely when the function assigns its
 	// own thrown parameter directly (see HasManualThrownParameterAssignment)
 	// so a body that manages the parameter by hand is left alone.
@@ -460,15 +465,23 @@ public sealed partial class BindableNodeAnalyzer
 	// is built directly rather than appearing in the source-bound tree this
 	// scans. A function that assigns its thrown parameter by hand is taking
 	// full manual responsibility for its final value, so the implicit
-	// fall-through clear must not overwrite it.
+	// fall-through clear must not overwrite it. Passing the parameter as the
+	// `catch` argument of another call counts the same way: the definite-
+	// assignment flow analysis (FlowAnalyzeArguments) already treats a
+	// `catch` argument exactly like an `out` argument for the purpose of
+	// "this variable now has a value", so this check does the same here.
 	static bool HasManualThrownParameterAssignment(FunctionDefinition function)
 	{
 		ParameterDefinition? thrownParameter = GetFunctionThrownParameter(function);
 		if (thrownParameter is null || function.Body is null)
 			return false;
 		foreach (BindableNode node in BindableNodeTraversal.Enumerate(function.Body, new HashSet<BindableNode>(ReferenceEqualityComparer.Instance)))
-			if (node is AssignmentExpression { Target: VariableReferenceExpression { Variable: BindableNode target } } && ReferenceEquals(target, thrownParameter))
+		{
+			if (node is AssignmentExpression { Target: VariableReferenceExpression { Variable: BindableNode assignmentTarget } } && ReferenceEquals(assignmentTarget, thrownParameter))
 				return true;
+			if (node is ArgumentExpression { Modifier: ArgumentModifier.Catch, Value: VariableReferenceExpression { Variable: BindableNode catchTarget } } && ReferenceEquals(catchTarget, thrownParameter))
+				return true;
+		}
 		return false;
 	}
 
