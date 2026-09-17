@@ -417,6 +417,33 @@ void futureParserCase(thrown Assertion*)
 }
 ```
 
+When a test checks the same behavior against several inputs, write the
+repeated check once as a `@factorytest` function and call it with different
+arguments from an ordinary `@test`. A `@factorytest` function is never run
+automatically and never appears as a test of its own; it is only callable
+from inside a running test, the same way an ordinary helper function is.
+
+```camp
+@test
+void addCases(thrown Assertion*)
+{
+	checkAdd("onePlusTwo", 1, 2, 3);
+	checkAdd("twoPlusFive", 2, 5, 7);
+}
+
+@factorytest
+void checkAdd(@testname const char[] name, int left, int right, int expected, thrown Assertion*)
+{
+	assert(add(left, right) == expected);
+}
+```
+
+Each call is reported as its own named result under the parent test, using
+the `@testname` argument (`"onePlusTwo"`, `"twoPlusFive"`) to tell the cases
+apart. If one call's `assert(...)` fails, the parent test still keeps going
+and makes the remaining `checkAdd` calls; a factory-test failure does not
+stop the rest of the parent test the way an ordinary assertion failure does.
+
 Many projects keep tests beside the code they check. Running `campc test` on
 that module builds a test version of the module, so those tests can exercise the
 implementation directly. Larger projects can also use a separate test module
@@ -471,7 +498,9 @@ symbol links, or deprecation messages.
 | `@category("name")` | Top-level declarations, or standalone near the top of a file as `@category("name");` | Category label for documentation generators |
 | `@test` | Top-level functions with no visibility modifier | Marks a function as a discovered test; the built-in runner invokes `void name(thrown Assertion*)` and `void name(within Allocator* allocator, thrown Assertion*)` tests |
 | `@testonly` | Private or `internal` top-level declarations | Includes a helper only in test and coverage builds; top-level types make their whole body test-only |
-| `@skip("reason")` | Declarations also marked `@test` | Discovers the test but reports it as skipped without invoking it |
+| `@skip("reason")` | Declarations also marked `@test` or `@factorytest` | Discovers the test but reports it as skipped without invoking it |
+| `@factorytest` | Top-level functions with no visibility modifier | Marks a function as a callable, data-driven test case; never runs automatically and never appears as a test of its own |
+| `@testname` | One `string`/`const char[]` parameter of a `@factorytest` function | Names the reported result for each call, distinguishing cases run with different arguments |
 
 ## Where To Look Back
 
@@ -482,7 +511,8 @@ For the feature-specific attributes already introduced:
 - `@awaitwith` and `@noawait` belong with async bodies and resumers.
 - `requires` belongs with target-conditioned APIs and standard-library
   portability.
-- `@test`, `@testonly`, and `@skip` belong with first-class test runs.
+- `@test`, `@testonly`, `@skip`, `@factorytest`, and `@testname` belong with
+  first-class test runs.
 - `@getshadow` and `@setshadow` belong with shadow classes and native extension
   surfaces.
 

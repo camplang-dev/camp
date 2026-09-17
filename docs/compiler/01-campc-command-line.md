@@ -135,6 +135,13 @@ test-owned storage more likely to fail predictably; it is not an exact
 read-before-write detector. Tests that require zeroed storage must request it
 explicitly with `new T[count] {}`.
 
+`@factorytest` functions are never run automatically; they only report a
+child result each time a running `@test` calls them. The harness reports
+each call as its own named result under the parent test in both text and
+JSON output. See [Attributes, Documentation Comments, And Metadata
+Hints](../language/19-attributes-documentation-comments-and-metadata-hints.md#testing-attributes)
+for the source-level `@factorytest`/`@testname` model.
+
 ## `cover`
 
 `cover` runs the same test pipeline with Camp source coverage enabled:
@@ -379,6 +386,25 @@ campc test @app.campbuild --filter 'parse^alue'
 `MathTests::addReturnsSum` is exact. `*Writer*` performs a contains-style match
 because the wildcard is explicit. `parse^alue` matches `parseValue` but not
 `parse_value` or `parsevalue`.
+
+A filter may add an optional child portion after `/` to select factory-test
+child results reported under a parent test:
+
+```sh
+campc test @app.campbuild --filter basicTests
+campc test @app.campbuild --filter basicTests/addOneAndTwo
+campc test @app.campbuild --filter 'basicTests/add*'
+campc test @app.campbuild --filter basicTests/testAdd.1
+```
+
+The portion before `/` matches the parent test using the same manifest ID,
+qualified name, or simple name rules as an ordinary filter. The portion
+after `/` matches child result display names, including the `.1`, `.2`, ...
+ordinal suffix used when multiple children share a base name. A parent test
+selected only by a child filter still runs so it can attempt its
+factory-test calls; a filtered-out child is not printed as
+passed/failed/skipped. A parent whose child filter matches no child result
+is reported the same way as no test selected.
 
 ## Coverage Options
 

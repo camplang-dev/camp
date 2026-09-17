@@ -328,6 +328,36 @@ For a function marked `@test`, a test-module metadata view may include:
 }
 ```
 
+For a function marked `@factorytest`, a test-module metadata view may include:
+
+```json
+{
+  "name": "testAdd",
+  "testOnly": true,
+  "factoryTest": {
+    "id": "MathTests::testAdd",
+    "name": "testAdd",
+    "qualifiedName": "MathTests::testAdd",
+    "sourcefile": "tests/math.camp",
+    "sourceline": 14,
+    "summary": "",
+    "skipped": false,
+    "skipReason": null,
+    "runnerSignature": "valid",
+    "testNameParameter": "testname"
+  }
+}
+```
+
+`factoryTest` never appears alongside `test` on the same declaration; a
+declaration is one or the other, never both. `testNameParameter` is the name
+of the parameter marked `@testname`, or `null` when no parameter is marked
+and the factory-test function name supplies child result names instead.
+Ordinary generated Camp API headers and ordinary production metadata never
+contain `@factorytest`, `@testname`, factory-test function declarations, or
+generated factory-test wrapper/runtime-reporting declarations; this data is
+test-module-only.
+
 `runnerSignature` is `valid` only for built-in runner shapes:
 `void name(thrown Assertion*)` and
 `void name(within Allocator* allocator, thrown Assertion*)`. The allocator slot
@@ -336,6 +366,12 @@ discovered test functions are reported as `invalid` so tools can show them
 without treating the declaration as a compiler error. The dedicated
 `camp.test-manifest` JSON is the canonical discovery artifact for `campc test`,
 `campc cover`, LSP CodeLens, and debugger test selection.
+
+Since `camp.test-manifest` version `2`, the manifest has two top-level entry
+arrays: `tests` (runner-invoked top-level tests, using the same entry shape as
+before) and `factoryTests` (callable, non-runnable factory-test declarations,
+each carrying the same fields as a `test` entry plus `testNameParameter`).
+Factory-test declarations never appear in `tests`.
 
 Async metadata describes awaitability. It reports `async: true` for declarations
 written with `async`, and also for declarations whose visible name ends in
@@ -560,6 +596,52 @@ which happens with `--ignore-leaks`. It has this shape:
 `sourcefile` and `sourceline` identify the allocation checkpoint when
 `campc cover` can provide one; otherwise they fall back to the owning test
 location.
+
+Since `camp.test-results` version `2`, a top-level test's result entry may
+include a `children` array reporting one entry per factory-test call made
+while that test ran:
+
+```json
+{
+  "id": "MathTests::basicTests",
+  "name": "basicTests",
+  "outcome": "failed",
+  "children": [
+    {
+      "id": "MathTests::basicTests/addOneAndFive",
+      "name": "addOneAndFive",
+      "factoryName": "testAdd",
+      "qualifiedFactoryName": "MathTests::testAdd",
+      "outcome": "failed",
+      "failure": {
+        "kind": "assertion",
+        "message": "(first + second) == expected",
+        "sourcefile": "tests/math.camp",
+        "sourceline": 17
+      }
+    },
+    {
+      "id": "MathTests::basicTests/addOneAndTwo",
+      "name": "addOneAndTwo",
+      "factoryName": "testAdd",
+      "qualifiedFactoryName": "MathTests::testAdd",
+      "outcome": "passed",
+      "failure": null
+    }
+  ]
+}
+```
+
+`children` is absent or empty when a test has no factory-test declaration
+calls. The top-level summary counts (`passed`, `failed`, `skipped`, `total`,
+and so on) include child outcomes, not just parent outcomes, because each
+child is an individually reported result in a data-driven suite. A parent's
+own `outcome`/`failure` still describe the parent body's own direct
+assertion, independent of its children; a parent can fail even when every
+child passed, if the parent body itself failed outside a factory-test call.
+Text output projects the same hierarchy as indented `> outcome: name` lines
+under a parent summary line such as
+`failed: basicTests (1 passed, 1 failed, 0 skipped)`.
 
 ## Consumer Guidance
 

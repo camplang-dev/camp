@@ -1127,6 +1127,45 @@ Use `@testonly` only for separate top-level helpers and helper types that should
 exist in test/coverage builds but not production builds. `@testonly` may be
 private or `internal`; do not make it `public` or `export`.
 
+Do not call a `@test` function or take its address from other source; `@test`
+functions are runner-owned and both are compiler diagnostics. When a single
+check needs to run against many inputs — table-driven cases, or every file
+under a golden-file directory — write the repeated check once as a
+`@factorytest` function instead of one `@test` per case:
+
+```camp
+@test
+void addCases(thrown Assertion*)
+{
+	checkAdd("onePlusTwo", 1, 2, 3);
+	checkAdd("twoPlusFive", 2, 5, 7);
+}
+
+@factorytest
+void checkAdd(@testname const char[] name, int left, int right, int expected, thrown Assertion*)
+{
+	assert(add(left, right) == expected);
+}
+```
+
+Mark the argument that names each case with `@testname` (type `string` or
+`const char[]`); the runtime uses that value, not the function name, as the
+reported child-result name. A factory test is only callable while a
+`@test` is running — it is never discovered or invoked on its own, is
+test-only, and unlike `@test` is an ordinary callable function: calling it
+directly, through a helper, a lambda, or a function value is fine, and it may
+be called outside a test as well as inside one, since running/reporting is a
+runtime concern rather than a compile-time restriction. Call arguments to a
+factory test evaluate exactly like any other call, even if the runtime later
+decides to skip or filter out that case, so do not rely on lazy evaluation to
+avoid expensive setup in a filtered-out or skipped case; put that setup inside
+the factory-test body instead. A failing factory-test call does not stop the
+parent `@test`: later calls under the same parent still run, and the parent's
+own cleanup still runs. `--filter parentName/caseName` selects a single child
+case; see `campc test --filter` for the full parent/child filter syntax.
+`@skip("reason")` is also valid on a `@factorytest` declaration and reports
+every call to it as skipped without running the body.
+
 In-module tests run with `campc test` or `campc cover` on the module itself and
 can exercise internals. External test modules are separate projects that
 reference the production module as a shared library and test only its exported

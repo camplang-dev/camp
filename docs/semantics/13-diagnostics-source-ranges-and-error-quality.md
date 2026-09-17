@@ -255,22 +255,45 @@ replace the source range used for source-capture diagnostics or values.
 
 ## Test And Coverage Diagnostics
 
-Invalid source placement of `@test`, `@testonly`, and `@skip` is a normal
-compiler diagnostic. The diagnostic should point at the attribute name when the
-attribute itself is invalid, or at the declaration name when the declaration
-shape is the clearest source of the problem.
+Invalid source placement of `@test`, `@testonly`, `@skip`, `@factorytest`, and
+`@testname` is a normal compiler diagnostic. The diagnostic should point at the
+attribute name when the attribute itself is invalid, or at the declaration name
+when the declaration shape is the clearest source of the problem. This
+includes `@factorytest` on anything other than a top-level function with no
+visibility modifier, `@factorytest` combined with `@test`, `@testname` outside
+a `@factorytest` parameter list, more than one `@testname` parameter on one
+factory test, `@testname` on a `within` or `thrown` parameter, and `@testname`
+on a parameter whose type is not `string` or `const char[]`.
 
-The built-in runner signature is not a compiler-stopping rule. A top-level
-`@test` function with the wrong return type, parameters, allocator slot, thrown
-slot, generic parameters, extern body, async modifier, iterator shape,
-non-pointer thrown type, or thrown pointer type without `message`, `sourcefile`,
-and `sourceline` fields is discovered and reported as an invalid test result or
-non-blocking tooling diagnostic. This lets valid tests in the same module
-continue to run.
+The built-in runner signature is not a compiler-stopping rule. This applies
+equally to `@test` and `@factorytest`: a function with the wrong return type,
+parameters, allocator slot, thrown slot, generic parameters, extern body,
+async modifier, iterator shape, non-pointer thrown type, or thrown pointer
+type without `message`, `sourcefile`, and `sourceline` fields is discovered
+and reported as an invalid test result or non-blocking tooling diagnostic,
+not a compiler error. This lets valid tests and factory tests in the same
+module continue to run.
+
+Explicit calls to a `@test` function, and taking the address or a callable
+conversion of a `@test` function, are compiler diagnostics in every command
+mode — top-level tests are runner-owned and may not be invoked from user
+source. This does not apply to `@factorytest` functions, which are ordinary
+callable test-only functions: calling them directly, through helpers,
+lambdas, or function/delegate values is valid and undiagnosed, regardless of
+whether a top-level test happens to be running at the call site.
 
 Production-to-test-only dependencies are compiler errors in every command mode.
 The diagnostic should point at the production declaration that depends on the
-test-only declaration and name the test-only dependency.
+test-only declaration and name the test-only dependency. This includes a
+production declaration depending on a `@factorytest` declaration.
+
+Factory-test runtime misuse — a factory-test call made while no top-level test
+is active, or a nested factory-test call made while another factory test is
+already active under the same parent — is a runtime test-result concern
+recorded as an invalid child/call result, not a compiler diagnostic. Such
+misuse can only be detected at runtime because a factory test may be reached
+indirectly through helpers, lambdas, or callable values, so no syntactic rule
+could reliably determine whether a given call site is nested.
 
 Assertion failures are runtime test results, not compiler diagnostics. When a
 tool imports `camp.test-results` JSON, it may surface assertion and invalid-test

@@ -78,11 +78,14 @@ diagnostics, tests, and internal inspection, but still should not pretend
 generated lowering helpers are ordinary source declarations.
 
 The metadata view is also subject to declaration participation. Ordinary
-production builds omit user `@test`, `@testonly`, `@skip`, test functions,
-test-only helper declarations, generated test thunks, harness symbols, coverage
+production builds omit user `@test`, `@testonly`, `@skip`, `@factorytest`,
+`@testname`, test functions, factory-test functions, test-only helper
+declarations, generated test thunks, generated factory-test wrapper
+declarations, generated runtime reporting helpers, harness symbols, coverage
 runtime symbols, and generated declarations owned by test-only source
-declarations. Test-module metadata views may include test-only declarations when
-the selected metadata visibility would otherwise include them.
+declarations. Test-module metadata views may include test-only declarations,
+including factory-test discovery data, when the selected metadata visibility
+would otherwise include them.
 
 Declarations with effective configuration requirements include a `require`
 field whose value is the normalized requirement expression. Source `requires`
@@ -336,8 +339,8 @@ Attributes appear in metadata when they are source attributes visible in the
 selected view. Important source attributes include:
 
 - `@symbol`;
-- test attributes such as `@test`, `@testonly`, and `@skip` in test-module
-  source views;
+- test attributes such as `@test`, `@testonly`, `@skip`, `@factorytest`, and
+  `@testname` in test-module source views;
 - async attributes such as `@awaitwith` and `@noawait`;
 - documentation attributes translated from doc comments;
 - file metadata attributes such as standalone `@category("name");`;
@@ -419,10 +422,11 @@ them.
 
 ### Test Attributes
 
-`@test`, `@testonly`, and `@skip` are source attributes, not visibility
-modifiers. Metadata should preserve them only in views where the declaration is
-active. Production API headers and production metadata must not expose user
-tests, user test-only helpers, or generated harness/coverage implementation
+`@test`, `@testonly`, `@skip`, `@factorytest`, and `@testname` are source
+attributes, not visibility modifiers. Metadata should preserve them only in
+views where the declaration is active. Production API headers and production
+metadata must not expose user tests, user test-only helpers, user factory
+tests, or generated harness/coverage/factory-test-wrapper implementation
 symbols.
 
 For a function marked `@test`, test-module source metadata may emit a structured
@@ -438,11 +442,19 @@ For a function marked `@test`, test-module source metadata may emit a structured
 - built-in runner signature state;
 - body presence.
 
-The `test` object is a discovery aid for source tooling. The dedicated
-`camp.test-manifest` JSON is the canonical artifact for CLI listing, filtering,
-LSP CodeLens, test explorers, and debug test selection. Do not require metadata
-consumers to infer test discovery by parsing opaque metadata IDs or raw
-attribute strings.
+For a function marked `@factorytest`, test-module source metadata may emit a
+structured `factoryTest` object with the same fields as `test`, plus
+`testNameParameter`: the name of the `@testname` parameter, or `null` when
+none exists and the function's own name supplies child result names instead.
+A declaration carries `test` or `factoryTest`, never both.
+
+The `test`/`factoryTest` objects are discovery aids for source tooling. The
+dedicated `camp.test-manifest` JSON is the canonical artifact for CLI listing,
+filtering, LSP CodeLens, test explorers, and debug test selection; since
+version `2` it lists factory-test declarations in a separate `factoryTests`
+array so they are never mistaken for runnable top-level tests. Do not require
+metadata consumers to infer test discovery by parsing opaque metadata IDs or
+raw attribute strings.
 
 ## Property Metadata
 

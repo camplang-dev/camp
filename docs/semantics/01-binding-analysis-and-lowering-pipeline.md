@@ -203,6 +203,113 @@ targets to identify dependencies accurately. Test declarations and test-only
 helpers may depend on production declarations and on other test-only
 declarations.
 
+### `@factorytest` And `@testname`
+
+`@factorytest` marks a top-level function as a callable, self-reporting test
+case. It is valid only on a top-level function declaration with no visibility
+modifier, and is invalid when combined with `@test`, on functions with any
+visibility modifier, and on methods, constructors, destructors, accessors,
+out-of-scope static members, local functions, or lambdas. `@factorytest`
+implies test-only ownership of the function and of any generated declarations
+it owns, the same as `@test` and `@testonly`.
+
+A valid factory-test signature returns `void`, has a body, is not `extern`,
+generic, `async`, or an iterator, has exactly one trailing
+`thrown Assertion*`-shaped slot, may have one `within` allocator parameter
+immediately before that slot, and places all ordinary parameters before the
+optional `within` slot. As with `@test`, an invalid runner shape is a test
+discovery/result concern (`runnerSignature: invalid`), not a compiler
+diagnostic; invalid source placement or attribute combination is a compiler
+diagnostic.
+
+`@testname` is a parameter metadata attribute valid only on an ordinary
+parameter of a `@factorytest` function whose type is `string` or
+`const char[]`. It is invalid on `within`/`thrown` parameters, generic
+parameters, fields, or parameters of non-factory-test functions. At most one
+parameter per factory test may carry `@testname`. When present, the runtime
+argument value passed to that parameter supplies the base display name for
+the recorded child result; when absent, the factory-test function's visible
+name supplies it.
+
+Factory-test functions are available only in `TEST_MODULE` builds and follow
+the same production-dependency restriction as other test-only declarations:
+production code may not depend on a `@factorytest` function. Unlike `@test`
+functions, `@factorytest` functions are ordinary callable functions in
+test-mode source — they may be called directly, through helpers, through
+lambdas, and through function/delegate values, and the compiler does not
+diagnose such calls merely because they occur outside a `@test` body.
+Whether a call actually records and runs a child result is a runtime
+concern, resolved against whichever top-level test is currently active (see
+"Factory-Test Lowering And Runtime Parent Context" below), not a compile-time
+one.
+
+`@skip("reason")` extends to declarations marked `@factorytest`, in addition
+to `@test`. A skipped factory test still evaluates its call arguments
+normally on each call, but does not execute its body; each attempted call is
+recorded as a skipped child result.
+
+By contrast, a top-level `@test` function remains runner-owned: user source
+may not explicitly call it and may not take its address, in any command mode.
+This is a compiler diagnostic, independent of whether a matching call target
+happens to also be reachable through a factory test or callable value.
+
+### Factory-Test Lowering And Runtime Parent Context
+
+The compiler lowers a valid `@factorytest` body into a self-reporting wrapper
+around the original body. Call-site argument evaluation is unaffected: every
+call's arguments are evaluated using ordinary Camp call semantics before
+control reaches the factory-test body, regardless of whether the runtime
+ultimately decides to run, skip, or reject that call. The wrapper is
+responsible only for what happens once control is inside the factory-test
+function:
+
+- if the runtime determines the call should not run (skipped declaration,
+  filtered out, or a misuse case below), the original body does not execute
+  and the call still returns normally to its caller;
+- if the original body completes without an assertion failure, a passed
+  child result is recorded;
+- if the original body raises the mandated `Assertion*` failure, a failed
+  child result is recorded and the assertion does not propagate to the
+  caller or to the parent test;
+- the lowered body preserves ordinary lifetime, cleanup, `within`, and
+  `thrown` rules for the wrapped original body.
+
+The test runtime tracks the currently running top-level test as the parent
+for any child result. It also tracks the currently active factory-test call
+under that parent, because nested factory tests are not supported: if a
+factory test begins while another factory test is already active under the
+same parent, both the interrupted call and the newly attempted nested call
+are recorded as invalid, and neither body executes further. This is a
+runtime rule rather than a syntactic one because a factory test may be
+reached indirectly through helpers, lambdas, or callable values, so purely
+syntactic nesting detection would either miss real nesting or reject
+legitimate non-nested helper patterns. Likewise, a factory-test call made
+while no parent test is active is recorded as an infrastructure misuse
+without running the body — expected to be rare, since factory tests are
+test-only and top-level tests are runner-owned.
+
+When a factory test has no `within` parameter, or has one that resolves to
+the parent test's already-active allocator context, no separate tracked
+allocator is created for the call; the parent test's tracked allocator
+(when one exists) is what gets checked for leaks when the parent completes.
+
+Child result display names use the base name (from `@testname` or the
+function name) with a one-based ordinal suffix (`.1`, `.2`, ...) appended
+only when two or more child results under the same parent share that base
+name; a lone occurrence is reported without a suffix. Ordinals are assigned
+in call order and may need to be buffered until the parent completes, since
+whether a name turns out to be a duplicate is not known until later calls
+are made.
+
+A parent `@test` result aggregates its factory-test child results: the
+parent is `failed` if its own body fails or if any child result failed, and
+`passed` only if the parent body did not fail and every child that ran
+passed or was skipped. A failed child result does not stop the parent test;
+later factory-test calls under the same parent still run, and the parent's
+own cleanup still runs at the end. Only a parent-level assertion failure
+outside a factory-test call stops the parent's own remaining execution —
+already-recorded child results stay attached to the parent.
+
 ## Analyzer Passes
 
 The analyzer is intentionally multi-pass. The pass order is part of compiler
@@ -422,7 +529,10 @@ behavior.
 
 Generated helpers, test functions, test-only declarations, and harness code are
 not coverage denominator subjects unless a future feature documents a different
-coverage view.
+coverage view. This includes `@factorytest` functions and the generated
+factory-test wrapper/runtime-reporting code around them: none of it is a
+coverage subject, but running a factory-test call still contributes ordinary
+coverage for whatever production declarations that call reaches.
 
 ## Emission
 
@@ -448,7 +558,10 @@ implementation-only helpers.
 `campc test` lowers the test module, discovers tests from top-level `@test`
 functions, emits a `camp.test-manifest` JSON artifact, generates a native
 harness executable, runs selected tests unless `--list` was supplied, and writes
-test results. The harness table is derived from the manifest. Skipped tests and
+test results. The manifest also lists `@factorytest` declarations separately,
+as non-runnable factory-test entries; the harness never invokes a factory test
+on its own, only in response to a call made while a top-level test is running.
+The harness table is derived from the manifest. Skipped tests and
 tests with invalid built-in runner signatures are recorded without invocation.
 Valid tests are invoked with their declared thrown pointer type. When a
 non-null thrown value is produced, the harness reads its `message`,
