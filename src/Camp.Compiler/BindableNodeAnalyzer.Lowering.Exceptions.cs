@@ -1009,9 +1009,11 @@ public sealed partial class BindableNodeAnalyzer
 	bool IsUncaughtThrowingCall(Expression expression, out string? thrownType)
 	{
 		thrownType = null;
-		if (expression is not CallExpression call || !callTargets.TryGetValue(call, out FunctionDefinition? function))
+		if (expression is not CallExpression call)
 			return false;
-		thrownType = GetFunctionThrownType(function);
+		thrownType = callTargets.TryGetValue(call, out FunctionDefinition? function)
+			? GetFunctionThrownType(function)
+			: GetCallableInvocationThrownType(call);
 		if (thrownType is null)
 			return false;
 		foreach (ArgumentExpression argument in call.Arguments)
@@ -1020,6 +1022,18 @@ public sealed partial class BindableNodeAnalyzer
 				return false;
 		}
 		return true;
+	}
+
+	string? GetCallableInvocationThrownType(CallExpression call)
+	{
+		if (!callableInvocationParameters.TryGetValue(call, out List<ParameterDefinition>? parameters))
+			return null;
+		foreach (ParameterDefinition parameter in parameters)
+		{
+			if (parameter.Modifier == ParameterModifier.Thrown)
+				return parameter.ResolvedType ?? ErrorType;
+		}
+		return null;
 	}
 
 	IEnumerable<Expression> EnumerateChildExpressions(Expression expression)

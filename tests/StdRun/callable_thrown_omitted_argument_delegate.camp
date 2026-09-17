@@ -1,0 +1,45 @@
+void ordinary(string name, int first, int second, int expected, thrown int failure)
+{
+	if (first + second != expected)
+		failure = 1;
+}
+
+newtype delegate void OrdinaryDelegate(string, int, int, int, thrown int);
+
+int caller(thrown int failure)
+{
+	OrdinaryDelegate d = (string name, int first, int second, int expected, thrown int failure) =>
+	{
+		int forwarded = 0;
+		ordinary(name, first, second, expected, catch forwarded);
+		failure = forwarded;
+	};
+	d("test", 1, 2, 3);
+	return 0;
+}
+
+int callerBad(thrown int failure)
+{
+	OrdinaryDelegate d = (string name, int first, int second, int expected, thrown int failure) =>
+	{
+		int forwarded = 0;
+		ordinary(name, first, second, expected, catch forwarded);
+		failure = forwarded;
+	};
+	d("test", 1, 2, 999);
+	return 0;
+}
+
+export int main()
+{
+	int failure = 0;
+	caller(catch failure);
+	if (failure != 0)
+		return 1;
+
+	callerBad(catch failure);
+	if (failure != 1)
+		return 2;
+
+	return 0;
+}

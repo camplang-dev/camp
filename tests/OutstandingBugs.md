@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-161.
+Next bug number: BUG-163.
 
 ## Bug Template
 
@@ -319,69 +319,80 @@ terminator the raw string literal actually uses at runtime (`"\n"`) instead
 of `Environment.NewLine`, or normalize both sides before comparing/
 replacing.
 
-## BUG-161: A function pointer typed with a `thrown` out-parameter does not get that parameter's argument filled in automatically at the call site
+## BUG-162: A function that forwards its own `thrown` parameter to another call via a `catch` argument has that value overwritten by an implicit clear
 
-Date/Time: 2026-09-16 20:10 EDT
+Date/Time: 2026-09-17 06:55 EDT
 
 Summary:
-An ordinary named call to a function with a `thrown` out-parameter can omit
-the final argument; the compiler implicitly supplies it (propagating the
-caller's own `thrown` parameter, or an internal error-collection target).
-That implicit argument insertion does not happen for an indirect call
-through a variable of function-pointer (`fn`) type, even though the
-pointer's own declared type correctly includes the `thrown` parameter.
-The call site keeps the same omitted-argument source form as a direct
-call, but nothing fills in the missing argument before C emission, so the
-generated call passes one fewer argument than the function pointer's own
-C type requires.
+Any function or lambda declared with its own `thrown` out-parameter is
+expected to leave that parameter's final value in place if it never writes
+to it through the normal "no error occurred" fall-through path; the
+compiler only skips appending an implicit "clear to default" statement at
+the end of the function body when it detects the function assigns its own
+`thrown` parameter directly (`failure = someValue;`). That detection only
+recognizes a direct assignment expression whose target is the `thrown`
+parameter itself. It does not recognize the equally valid pattern of
+forwarding the `thrown` parameter as the `catch` argument of a call to
+another `thrown`-parameter function, which delegates responsibility for
+writing the parameter to that callee instead of assigning it directly.
+Because the detection misses this pattern, the implicit clear is appended
+anyway and unconditionally resets the parameter to its default value right
+after the forwarded call returns, silently discarding whatever the callee
+wrote into it.
 
 Steps to Reproduce:
 
-1. Compile this Camp source through the native C backend:
+1. Compile and run this Camp source:
 
    ```camp
-   struct MyFailure
+   void ordinary(string name, int first, int second, int expected, thrown int failure)
    {
-       escaped string message;
+       if (first + second != expected)
+           failure = 1;
    }
 
-   void ordinary(string name, int first, int second, int expected, thrown MyFailure* failure)
+   void wrapper(string name, int first, int second, int expected, thrown int failure)
    {
+       ordinary(name, first, second, expected, catch failure);
    }
 
-   void caller(thrown MyFailure* failure)
+   export int main()
    {
-       fn void(string, int, int, int, thrown MyFailure*) f = ordinary;
-       f("test", 1, 2, 3);
+       int failure = 0;
+       wrapper("test", 1, 2, 999, catch failure);
+       return failure == 1 ? 0 : 1;
    }
    ```
 
 Expected:
-The call through `f` receives the same implicit `thrown`-argument
-propagation as a direct call to `ordinary` would, and the source compiles.
+`ordinary` sets `failure` to `1` because `1 + 2 != 999`; `wrapper` forwards
+its own `failure` parameter as the `catch` argument to `ordinary`, so the
+caller should observe `failure == 1` and the program should exit `0`.
 
 Actual:
-The generated C declares `f` with the correct 5-parameter function pointer
-type (`void (*f)(const char *, int, int, int, MyFailure **)`), but the call
-`f("test", 1, 2, 3)` is emitted with only 4 arguments, unchanged from the
-Camp source. The native compiler reports `too few arguments to function
-call, expected 5, have 4`.
+The program exits `1`. The generated C for `wrapper` calls `ordinary(...,
+&failure)` correctly, but an unconditional `*failure = 0;` is appended
+immediately afterward, discarding the value `ordinary` just wrote. This
+reproduces with a plain named function (`wrapper` above); it is not
+specific to lambdas or callable values, though it was found while adding
+regression coverage for BUG-161, where it also affects a delegate lambda
+that forwards its own `thrown` parameter to an inner call the same way.
 
 Known Impact:
-No Camp source can call a `thrown`-parameter function through a function
-pointer using the same implicit-argument-omission form that works for a
-direct call; the resulting C never compiles. No workaround exists at the
-call site (explicitly supplying the omitted argument does not apply here
-since the omission is what ordinary direct calls also rely on and expect
-to be filled in automatically). This affects any function pointer to a
-`thrown`-parameter function, not just a particular kind of function.
+Any function that implements "forward my thrown parameter to a callee"
+by passing it as a `catch` argument, rather than manually reassigning it
+after the call, silently loses whatever the callee reported and always
+reports "no error" to its own caller instead. The only known workaround is
+to avoid the forwarding pattern and instead catch into a local variable and
+manually assign it to the outer `thrown` parameter (`local` a separate
+variable, then `failure = local;`), which the manual-assignment detection
+does recognize.
 
-The same defect also reproduces through a `delegate`/lambda callable value,
-not just a `fn` pointer: assigning a lambda that forwards to a
-`thrown`-parameter function to a `newtype delegate` variable and calling it
-with the same omitted-final-argument form emits a call with one fewer
-argument than the delegate value's own generated C signature requires
-(which also carries a receiver-context argument ahead of the declared
-parameters), producing the same kind of "too few arguments" native
-compiler error. This confirms the root cause is general to any indirect
-call through a callable-value type, not specific to `fn` pointers.
+Likely fix location: `HasManualThrownParameterAssignment` in
+`src/Camp.Compiler/BindableNodeAnalyzer.Lowering.Statements.cs` (~line
+464) only scans for `AssignmentExpression` nodes targeting the function's
+own thrown parameter; it should also recognize an `ArgumentExpression`
+with `Modifier == ArgumentModifier.Catch` whose `Value` is a
+`VariableReferenceExpression` referencing that same parameter, since that
+is an equally valid way of "taking responsibility" for the parameter's
+final value.
