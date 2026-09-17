@@ -3793,6 +3793,78 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Factory_lowering_via_function_pointer_reports_pass_and_fail()
+	{
+		// §Test Surface -> "Call semantics": factory-test call through a
+		// function pointer. Blocked until BUG-161 (implicit thrown-argument
+		// propagation never reached calls through a callable value) was
+		// fixed; this is a direct regression test for that fix as it applies
+		// to factory-test lowering specifically.
+		string source = CreateTempCase("factory_lowering_fnptr/main.camp", """
+			namespace FactoryLoweringFnPtr;
+
+			@test
+			void root(thrown Assertion* assertion)
+			{
+				fn void(string, int, int, int, thrown Assertion*) f = testAdd;
+				f("passingCase", 3, 4, 7);
+				f("failingCase", 3, 4, 999);
+			}
+
+			@factorytest
+			void testAdd(@testname string name, int first, int second, int expected, thrown Assertion* assertion)
+			{
+				assert((first + second) == expected);
+			}
+			""");
+		string outDir = TempPath("factory-lowering-fnptr-out");
+
+		ProcessResult result = RunCampc("test", source, "--target", NativeTargetForHost(), "--out-dir", outDir, "--name", "factory_lowering_fnptr");
+
+		Assert.Equal(1, result.ExitCode);
+		Assert.Contains("failed: FactoryLoweringFnPtr::root", result.StdOut, StringComparison.Ordinal);
+
+		string debug = File.ReadAllText(FactoryDebugPath(outDir, "factory_lowering_fnptr"));
+		Assert.Contains("camp-factory-child\tpassed\tpassingCase", debug, StringComparison.Ordinal);
+		Assert.Contains("camp-factory-child\tfailed\tfailingCase", debug, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Factory_lowering_via_delegate_lambda_reports_pass()
+	{
+		// §Test Surface -> "Call semantics": factory-test call through a
+		// delegate/lambda helper, per the proposal's "if the compiler's
+		// existing callable-value support makes that possible" qualifier.
+		string source = CreateTempCase("factory_lowering_delegate/main.camp", """
+			namespace FactoryLoweringDelegate;
+
+			newtype delegate void Runner(string, int, int, int, thrown Assertion*);
+
+			@test
+			void root(thrown Assertion* assertion)
+			{
+				Runner r = (string name, int first, int second, int expected, thrown Assertion* assertion) => testAdd(name, first, second, expected);
+				r("delegateCase", 4, 5, 9);
+			}
+
+			@factorytest
+			void testAdd(@testname string name, int first, int second, int expected, thrown Assertion* assertion)
+			{
+				assert((first + second) == expected);
+			}
+			""");
+		string outDir = TempPath("factory-lowering-delegate-out");
+
+		ProcessResult result = RunCampc("test", source, "--target", NativeTargetForHost(), "--out-dir", outDir, "--name", "factory_lowering_delegate");
+
+		AssertCommandSucceeded(result);
+		Assert.Contains("passed: FactoryLoweringDelegate::root", result.StdOut, StringComparison.Ordinal);
+
+		string debug = File.ReadAllText(FactoryDebugPath(outDir, "factory_lowering_delegate"));
+		Assert.Contains("camp-factory-child\tpassed\tdelegateCase", debug, StringComparison.Ordinal);
+	}
+
+	[Fact]
 	public void Factory_lowering_skip_attribute_records_skipped_without_running_body()
 	{
 		string source = CreateTempCase("factory_lowering_skip/main.camp", """
