@@ -464,3 +464,13 @@ call site (explicitly supplying the omitted argument does not apply here
 since the omission is what ordinary direct calls also rely on and expect
 to be filled in automatically). This affects any function pointer to a
 `thrown`-parameter function, not just a particular kind of function.
+
+The same defect also reproduces through a `delegate`/lambda callable value,
+not just a `fn` pointer: assigning a lambda that forwards to a
+`thrown`-parameter function to a `newtype delegate` variable and calling it
+with the same omitted-final-argument form emits a call with one fewer
+argument than the delegate value's own generated C signature requires
+(which also carries a receiver-context argument ahead of the declared
+parameters), producing the same kind of "too few arguments" native
+compiler error. This confirms the root cause is general to any indirect
+call through a callable-value type, not specific to `fn` pointers.
