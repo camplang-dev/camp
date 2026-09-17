@@ -61,7 +61,7 @@ rules:
   - constant: "\\b(null|default|this|base)\\b"
 
   - identifier.class: "\\b(shadow\\s+)?(struct|class|interface|enum|newtype|params)\\s+([A-Za-z_][A-Za-z0-9_]*)"
-  - special.metadata.attribute.test: "@(test|testonly|skip)\\b"
+  - special.metadata.attribute.test: "@(test|testonly|skip|factorytest|testname)\\b"
   - special.metadata.attribute.shadow: "@(getshadow|setshadow)\\b"
   - identifier.metadata.attribute: "@[A-Za-z_][A-Za-z0-9_]*\\b"
   - symbol.operator: "(=>|\\+\\+|--|\\?\\?|\\.\\.|==|!=|<=|>=|<<|>>|&&|\\|\\||[+\\-*/%&|^~!=<>?:]=?|=)"

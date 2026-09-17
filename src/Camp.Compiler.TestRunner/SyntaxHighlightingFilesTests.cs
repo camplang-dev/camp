@@ -24,10 +24,10 @@ public sealed class SyntaxHighlightingFilesTests
 
 		Assert.Contains("special.metadata.attribute.test", micro, StringComparison.Ordinal);
 		Assert.DoesNotContain("(?", micro, StringComparison.Ordinal);
-		Assert.Contains("@(test|testonly|skip", micro, StringComparison.Ordinal);
+		Assert.Contains("@(test|testonly|skip|factorytest|testname)", micro, StringComparison.Ordinal);
 		Assert.Contains("assert|fail", micro, StringComparison.Ordinal);
 		Assert.Contains("overload|prep|within", micro, StringComparison.Ordinal);
-		Assert.Contains("@(?:test|testonly|skip)", sublime, StringComparison.Ordinal);
+		Assert.Contains("@(?:test|testonly|skip|factorytest|testname)", sublime, StringComparison.Ordinal);
 		Assert.Contains("storage.type.annotation.camp", sublime, StringComparison.Ordinal);
 		Assert.Contains("storage.type.annotation.test.camp", sublime, StringComparison.Ordinal);
 		Assert.Contains("test_support_functions", sublime, StringComparison.Ordinal);
@@ -42,7 +42,7 @@ public sealed class SyntaxHighlightingFilesTests
 		Assert.Contains("camp-lsp", freshInstallSh, StringComparison.Ordinal);
 		Assert.Contains("FRESH_PACKAGE_DIR", freshInstallPs1, StringComparison.Ordinal);
 		Assert.Contains("camp-lsp", freshInstallPs1, StringComparison.Ordinal);
-		Assert.Contains("@(?:test|testonly|skip)", vscode, StringComparison.Ordinal);
+		Assert.Contains("@(?:test|testonly|skip|factorytest|testname)", vscode, StringComparison.Ordinal);
 		Assert.Contains("string.quoted.double.interpolated.camp", vscode, StringComparison.Ordinal);
 		Assert.Contains("storage.type.annotation.camp", vscode, StringComparison.Ordinal);
 		Assert.Contains("storage.type.annotation.test.camp", vscode, StringComparison.Ordinal);
@@ -50,7 +50,7 @@ public sealed class SyntaxHighlightingFilesTests
 		Assert.Contains("storage.modifier.parameter.prep.camp", vscode, StringComparison.Ordinal);
 		Assert.DoesNotContain("keyword.declaration.camp\",\n          \"match\": \"\\\\b(?:caller|sourceof)", vscode, StringComparison.Ordinal);
 		AssertVsixContains(vscodeVsix, "extension/syntaxes/camp.tmLanguage.json", "storage.modifier.parameter.prep.camp");
-		Assert.Contains("syntax keyword campTestAttribute test testonly skip", vimSyntax, StringComparison.Ordinal);
+		Assert.Contains("syntax keyword campTestAttribute test testonly skip factorytest testname", vimSyntax, StringComparison.Ordinal);
 		Assert.Contains("stackalloc", vimSyntax, StringComparison.Ordinal);
 		Assert.Contains(" prep ", vimSyntax, StringComparison.Ordinal);
 		Assert.Contains("syntax region campInterpolatedString", vimSyntax, StringComparison.Ordinal);

@@ -164,7 +164,7 @@ contexts:
           pop: true
 
   attributes:
-    - match: '(@(?:test|testonly|skip)\b)'
+    - match: '(@(?:test|testonly|skip|factorytest|testname)\b)'
       scope: storage.type.annotation.camp
       captures:
         1: storage.type.annotation.test.camp

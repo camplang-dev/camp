@@ -7,7 +7,7 @@ syntax keyword campKeyword using namespace as requires export internal public ex
 syntax keyword campKeyword class struct interface enum newtype params delegate fn iter once async this base default true false null
 syntax keyword campKeyword const constof volatile in out thrown overload prep implements copyable sizeof vtableof typenameof caller sourceof configured classtype
 syntax keyword campType any auto bool byte sbyte ushort short uint int ulong long nuint nint float double char wchar achar uchar void string wstring astring
-syntax keyword campTestAttribute test testonly skip contained
+syntax keyword campTestAttribute test testonly skip factorytest testname contained
 syntax match campMetadata /@[A-Za-z_][A-Za-z0-9_]*/
 syntax match campComment "//.*$"
 syntax region campComment start="/\*" end="\*/"

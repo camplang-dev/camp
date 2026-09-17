@@ -250,7 +250,7 @@
         },
         {
           "name": "storage.type.annotation.camp",
-          "match": "(@(?:test|testonly|skip)\\b)",
+          "match": "(@(?:test|testonly|skip|factorytest|testname)\\b)",
           "captures": {
             "1": {
               "name": "storage.type.annotation.test.camp"
