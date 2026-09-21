@@ -1345,8 +1345,9 @@ public static class CompilerDriver
             List<string> coverageRuntimeSources = [];
             if (coverageMapBuilder is not null)
             {
-                if (!TryEmitCoverageBuildArtifacts(coverageMapBuilder, ResolveCoverageOutputDirectory(outputDirectory), buildDirectory, projectName, out _, out string? coverageRuntimeSource))
+                if (!TryEmitCoverageBuildArtifacts(coverageMapBuilder, ResolveCoverageOutputDirectory(outputDirectory), buildDirectory, projectName, out string? coverageMapPath, out string? coverageRuntimeSource))
                     return 1;
+                AddGeneratedFile(coverageMapPath!, BuildFileWriteStatus.Changed);
                 coverageRuntimeSources.Add(coverageRuntimeSource!);
             }
 
