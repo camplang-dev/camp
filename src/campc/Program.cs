@@ -1212,6 +1212,12 @@ sealed class CampCli
             if (library is null && requireLibrary && Directory.Exists(projectOutputDirectory))
                 library = Directory.EnumerateFiles(projectOutputDirectory)
                     .FirstOrDefault(path => IsNativeLibrary(path, consumerRequest.TargetName, consumerRequest.RuntimeRoot, referenceBuildKind));
+            if (coverageMap is null && instrumentForCoverage)
+            {
+                string expectedCoverageMap = Path.Combine(projectOutputDirectory, ProjectReferenceOutputName(projectRequest, canonicalBuildFile) + ".camp-coverage-map.csv");
+                if (File.Exists(expectedCoverageMap))
+                    coverageMap = expectedCoverageMap;
+            }
 
             if (apiHeader is null || requireLibrary && library is null)
             {
