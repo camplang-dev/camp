@@ -120,6 +120,10 @@ jobs:
       - name: Run targeted tests
         if: matrix.test
         shell: bash
+        env:
+          # Debug builds deliberately remain in their project output directory.
+          # Point process-launching tests there rather than populating dev/bin.
+          CAMP_TEST_CAMPC: ${{ github.workspace }}/src/campc/bin/Debug/net10.0/campc.dll
         run: |
           dotnet vstest src/Camp.Compiler.TestRunner/bin/Debug/net10.0/Camp.Compiler.TestRunner.dll \
             --TestCaseFilter:"FullyQualifiedName~CommandLineTests|FullyQualifiedName~ProjectLoaderTests|FullyQualifiedName~SyntaxHighlightingFilesTests|FullyQualifiedName~LspServerTests|FullyQualifiedName~DapServerTests"
