@@ -1,0 +1,43 @@
+newtype delegate bool Callback(escaped this, const char[] value);
+
+struct Options
+{
+	Callback callback;
+}
+
+int constructorCount;
+
+class Target
+{
+	Target(unscoped Callback callback)
+	{
+		constructorCount++;
+	}
+}
+
+Target* createWhenCallbackIsPresent(Options options)
+{
+	Target* target = default;
+	if (options.callback == default)
+		target = null;
+	else
+		target = new Target(options.callback);
+	return target;
+}
+
+export int main()
+{
+	Options options = default;
+	Target* target = createWhenCallbackIsPresent(options);
+	if (target != null)
+		return 1;
+	if (constructorCount != 0)
+		return 2;
+
+	options.callback = (const char[] value) => value.length != 0;
+	target = createWhenCallbackIsPresent(options);
+	if (target == null || constructorCount != 1)
+		return 3;
+	delete target;
+	return 0;
+}

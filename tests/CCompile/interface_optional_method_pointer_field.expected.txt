@@ -48,10 +48,10 @@ int Widget_read(Widget *this)
 
 int Widget_transform(Widget *this, int value)
 {
-	Widget_transform_lambdaContext0 _lambdaContext1;
-	_lambdaContext1.capture0_this = &this;
 	if (((this->host != NULL) && ((*this->host)->onTransform != NULL)))
 	{
+		Widget_transform_lambdaContext0 _lambdaContext1;
+		_lambdaContext1.capture0_this = &this;
 		return (*this->host)->onTransform(this->host, value, Widget_transform_lambda0, &_lambdaContext1);
 	}
 	return value;

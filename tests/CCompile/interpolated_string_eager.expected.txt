@@ -47,27 +47,27 @@ static void make(int value)
 
 static void copyTwice(int value, char *buffer, uintptr_t buffer_length)
 {
-	uintptr_t _ir6 = 0;
-	uintptr_t _r7 = Int_toString(&value, NULL, 0);
-	uintptr_t _ips8 = _r7;
-	_ir6 = (_ir6 + _ips8);
-	uintptr_t _r9 = Int_toString(&value, NULL, 0);
-	uintptr_t _ips10 = _r9;
-	_ir6 = (_ir6 + _ips10);
-	uintptr_t _ibl11 = (_ir6 + 1);
-	char *_ibe12 = (char *)(__builtin_alloca((sizeof(char) * _ibl11)));
-	uintptr_t _io13 = 0;
-	uintptr_t _is14 = ((_io13 < _ibl11) ? _io13 : _ibl11);
-	uintptr_t _r15 = Int_toString(&value, &_ibe12[_is14], (_ibl11 - _is14));
-	_r15;
-	_io13 = (_io13 + _ips8);
-	uintptr_t _is16 = ((_io13 < _ibl11) ? _io13 : _ibl11);
-	uintptr_t _r17 = Int_toString(&value, &_ibe12[_is16], (_ibl11 - _is16));
-	_r17;
-	_io13 = (_io13 + _ips10);
-	_ibe12[_ir6] = '\0';
 	if ((buffer_length > 0))
 	{
+		uintptr_t _ir6 = 0;
+		uintptr_t _r7 = Int_toString(&value, NULL, 0);
+		uintptr_t _ips8 = _r7;
+		_ir6 = (_ir6 + _ips8);
+		uintptr_t _r9 = Int_toString(&value, NULL, 0);
+		uintptr_t _ips10 = _r9;
+		_ir6 = (_ir6 + _ips10);
+		uintptr_t _ibl11 = (_ir6 + 1);
+		char *_ibe12 = (char *)(__builtin_alloca((sizeof(char) * _ibl11)));
+		uintptr_t _io13 = 0;
+		uintptr_t _is14 = ((_io13 < _ibl11) ? _io13 : _ibl11);
+		uintptr_t _r15 = Int_toString(&value, &_ibe12[_is14], (_ibl11 - _is14));
+		_r15;
+		_io13 = (_io13 + _ips8);
+		uintptr_t _is16 = ((_io13 < _ibl11) ? _io13 : _ibl11);
+		uintptr_t _r17 = Int_toString(&value, &_ibe12[_is16], (_ibl11 - _is16));
+		_r17;
+		_io13 = (_io13 + _ips10);
+		_ibe12[_ir6] = '\0';
 		CharArray_copyTo((const char*)(_ibe12), _ir6, buffer, buffer_length);
 	}
 }

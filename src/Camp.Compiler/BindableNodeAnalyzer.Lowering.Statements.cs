@@ -138,6 +138,30 @@ public sealed partial class BindableNodeAnalyzer
 		return body;
 	}
 
+	Statement RewriteEmbeddedStatement(Statement statement)
+	{
+		// Expression lowering may introduce prefix statements. Keep those statements
+		// in the source body's lexical control-flow scope rather than its parent.
+		if (statement is BlockStatement block)
+		{
+			RewriteStatementList(block.Statements);
+			return block;
+		}
+
+		List<Statement>? previousPrefix = currentStatementPrefix;
+		List<Statement>? previousSuffix = currentStatementSuffix;
+		currentStatementPrefix = [];
+		currentStatementSuffix = [];
+		Statement rewritten = RewriteStatement(statement);
+		List<Statement> prefix = currentStatementPrefix;
+		List<Statement> suffix = currentStatementSuffix;
+		currentStatementPrefix = previousPrefix;
+		currentStatementSuffix = previousSuffix;
+		return prefix.Count == 0 && suffix.Count == 0
+			? rewritten
+			: CreateBlock([.. prefix, rewritten, .. suffix]);
+	}
+
 	void AppendFunctionExit(List<Statement> statements)
 	{
 		statements.Add(new LabelStatement { Name = currentFunctionExitLabel, ResolvedType = "void" });
@@ -194,9 +218,9 @@ public sealed partial class BindableNodeAnalyzer
 					? HoistThrowingExpression(ifStatement.Condition)
 					: LowerConditionWithCopyBack(ifStatement.Condition);
 				if (ifStatement.Body is not null)
-					ifStatement.Body = RewriteStatement(ifStatement.Body);
+					ifStatement.Body = RewriteEmbeddedStatement(ifStatement.Body);
 				if (ifStatement.ElseBody is not null)
-					ifStatement.ElseBody = RewriteStatement(ifStatement.ElseBody);
+					ifStatement.ElseBody = RewriteEmbeddedStatement(ifStatement.ElseBody);
 				break;
 
 			case WhileStatement whileStatement:
