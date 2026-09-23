@@ -91,22 +91,6 @@ static class FileSystem
 		return camp_io_path_exists(path) != 0;
 	}
 
-	/// Returns an iterator over the immediate entry names in a directory.
-	///
-	/// - path: Directory path to enumerate.
-	/// - allocator: Allocation context for the iterator state.
-	/// @remarks Opening begins synchronously, but an open failure is delivered
-	/// when the iterator is advanced. Entry order is native and unspecified.
-	/// Each yielded name borrows one reusable iterator buffer and is valid only
-	/// until the next iterator advancement or iterator destruction. Copy a name
-	/// before retaining it.
-	public static iter(string, thrown IoError) iterateDirectory(string path, within allocator)
-	{
-		IoError error = default;
-		nint handle = camp_io_directory_open(path, out error);
-		return within (allocator) iterateDirectoryCore(handle, error);
-	}
-
 	/// Returns true when [path] exists and is a directory.
 	///
 	/// - path: Path to probe.
@@ -133,29 +117,45 @@ static class FileSystem
 		error = default;
 		return size;
 	}
-}
 
-class iter(string, thrown IoError) iterateDirectoryCore(nint handle, IoError openError, within allocator)
-{
-	fixed char[4096] name = default;
-
-	finally
-	{
-		if (handle != 0)
-			camp_io_directory_close(handle);
-	}
-
-	if (openError != default)
-		throw openError;
-
-	while (true)
+	/// Returns an iterator over the immediate entry names in a directory.
+	///
+	/// - path: Directory path to enumerate.
+	/// - allocator: Allocation context for the iterator state.
+	/// @remarks Opening begins synchronously, but an open failure is delivered
+	/// when the iterator is advanced. Entry order is native and unspecified.
+	/// Each yielded name borrows one reusable iterator buffer and is valid only
+	/// until the next iterator advancement or iterator destruction. Copy a name
+	/// before retaining it.
+	public static iter(string, thrown IoError) iterateDirectory(string path, within allocator)
 	{
 		IoError error = default;
-		int result = camp_io_directory_read(handle, name.elements, name.length, out error);
-		if (result < 0)
-			throw error;
-		if (result == 0)
-			yield break;
-		yield (string)name.elements;
+		nint handle = camp_io_directory_open(path, out error);
+		return FileSystem.iterateDirectoryCore(handle, error);
+	}
+
+	static class iter(string, thrown IoError) iterateDirectoryCore(nint handle, IoError openError, within allocator)
+	{
+		fixed char[4096] name = default;
+
+		finally
+		{
+			if (handle != 0)
+				camp_io_directory_close(handle);
+		}
+
+		if (openError != default)
+			throw openError;
+
+		while (true)
+		{
+			IoError error = default;
+			int result = camp_io_directory_read(handle, name.elements, name.length, out error);
+			if (result < 0)
+				throw error;
+			if (result == 0)
+				yield break;
+			yield (string)name.elements;
+		}
 	}
 }
