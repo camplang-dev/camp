@@ -344,6 +344,4 @@ Use links back to this guide and the semantic supplements for shared rules.
 - The change is scoped to the requested behavior.
 - Relevant docs are updated.
 - Relevant expected files are inspected when outputs change.
-- Confirmed compiler bugs are logged in `src/campc/OutstandingBugs.md`.
-- Documentation uncertainties are logged in `docs/OutstandingIssues.md`.
 - No private machine-specific paths or notes are committed.
