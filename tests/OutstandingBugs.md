@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-165.
+Next bug number: BUG-166.
 
 ## Bug Template
 
@@ -327,3 +327,65 @@ Any wrapper that exposes a generated class iterator through an `iter` return
 type can crash as soon as the caller advances it. Passing the generated
 iterator as an argument to an identity `iter` helper currently forces correct
 protocol materialization, but that helper is compiler-workaround cruft.
+
+## BUG-165: Class iterator destruction bypasses its `within` allocator
+
+Date/Time: 2026-09-23 08:07 EDT
+
+Summary:
+A class iterator generator allocates its state with the active `within`
+allocator, but its generated destruction path releases that state through the
+global allocator instead of the allocator that performed the allocation. This
+breaks allocator ownership and is observable with the test runner's tracked
+allocator.
+
+Steps to Reproduce:
+
+1. Save this source as `tmp/bug-165-class-iterator-allocator-destruction.camp`:
+
+   ```camp
+   class iter int values(within allocator)
+   {
+       yield 42;
+   }
+
+   iter int asIterator(iter int iterator)
+   {
+       return iterator;
+   }
+
+   iter int makeValues(within allocator)
+   {
+       return within (allocator) asIterator(values());
+   }
+
+   @test
+   void classIteratorUsesAllocator(within Allocator* allocator, thrown Assertion* assertion)
+   {
+       foreach (int value in makeValues())
+           assert(value == 42);
+   }
+   ```
+
+2. Run the test:
+
+   ```sh
+   bin/campc test tmp/bug-165-class-iterator-allocator-destruction.camp --filter classIteratorUsesAllocator
+   ```
+
+Expected:
+The iterator state is released through the same `within` allocator that
+created it. The test passes with no live allocations.
+
+Actual:
+The test fails with `memory leak: 1 allocation still live (4 bytes)`. The
+generated class iterator factory calls the supplied allocator's allocation
+operation, while the generated protocol cleanup calls raw `free` for the
+state object.
+
+Known Impact:
+Any class iterator returned from an API that accepts a caller-selected
+allocator violates allocator ownership. The wrong deallocator may leak,
+trigger an allocator diagnostic, or corrupt memory for allocators that are not
+compatible with the process heap. Until fixed, use an explicitly selected heap
+allocator only where its raw-free compatibility is acceptable.
