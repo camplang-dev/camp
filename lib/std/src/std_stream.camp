@@ -51,7 +51,13 @@ internal extern int camp_io_move_file(string source, string dest, int overwrite,
 @symbol("camp_io_path_exists")
 internal extern int camp_io_path_exists(string path);
 @symbol("camp_io_path_is_directory")
-internal extern int camp_io_path_is_directory(string path);
+internal extern int camp_io_path_is_directory(string path, int noFollow);
+@symbol("camp_io_directory_open")
+internal extern nint camp_io_directory_open(string path, out IoError error);
+@symbol("camp_io_directory_read")
+internal extern int camp_io_directory_read(nint handle, char* buffer, nuint length, out IoError error);
+@symbol("camp_io_directory_close")
+internal extern void camp_io_directory_close(nint handle);
 @symbol("camp_io_file_get_size")
 internal extern int camp_io_file_get_size(string path, out ulong size, out IoError error);
 

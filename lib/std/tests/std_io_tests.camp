@@ -24,6 +24,40 @@ void assertStdIoTestFile3(string path, byte a, byte b, byte c, thrown Assertion*
 	error = default;
 }
 
+requires (SUBSYSTEM_POSIX)
+{
+	@symbol("symlink")
+	extern int createStdIoTestDirectoryLinkPosix(string target, string linkPath);
+}
+
+requires (OS_WIN32)
+{
+	@symbol("CreateSymbolicLinkW")
+	extern _winapi int createStdIoTestDirectoryLinkWindows(wstring linkPath, wstring target, uint flags);
+}
+
+bool createStdIoTestDirectoryLink(string target, string linkPath)
+{
+	if (configured(OS_WIN32))
+	{
+		wstring linkWide = linkPath.toWString();
+		wstring targetWide = target.toWString();
+		return createStdIoTestDirectoryLinkWindows(linkWide, targetWide, 3) != 0;
+	}
+	if (configured(SUBSYSTEM_POSIX))
+		return createStdIoTestDirectoryLinkPosix(target, linkPath) == 0;
+	return false;
+}
+
+void deleteStdIoTestDirectoryLink(string linkPath, thrown IoError error)
+{
+	if (configured(OS_WIN32))
+		FileSystem.deleteDirectory(linkPath, false, catch error);
+	else
+		FileSystem.deleteFile(linkPath, catch error);
+	error = default;
+}
+
 @test
 void environmentFilesystemAndFileHandleRoundTrips(within Allocator* allocator, thrown Assertion* assertion)
 {
@@ -126,4 +160,104 @@ void fileOpenReportsNotFound(thrown Assertion* assertion)
 	FileOptions options = default;
 	FileHandle.open("tmp/camp-missing-file-for-pal-test.txt", FileAccess.READ, FileMode.OPEN_EXISTING, options, catch error);
 	assert(error == IoError.NOT_FOUND, "FileHandle.open should report NOT_FOUND for missing files");
+}
+
+@test
+void directoryIterationAndNoFollowProbes(within Allocator* allocator, thrown Assertion* assertion)
+{
+	IoError error = default;
+	string root = "tmp/camp-stdlib-directory-iteration-test";
+	string empty = "tmp/camp-stdlib-directory-iteration-test/empty";
+	string entries = "tmp/camp-stdlib-directory-iteration-test/entries";
+	string file = "tmp/camp-stdlib-directory-iteration-test/entries/file.txt";
+	string child = "tmp/camp-stdlib-directory-iteration-test/entries/child";
+	string target = "tmp/camp-stdlib-directory-iteration-test/target";
+	string link = "tmp/camp-stdlib-directory-iteration-test/directory-link";
+	string missing = "tmp/camp-stdlib-directory-iteration-test/missing";
+
+	if (FileSystem.exists(root))
+		FileSystem.deleteDirectory(root, true, catch error);
+	assert(error == default, "directory-iteration cleanup should succeed before the test starts");
+
+	FileSystem.createDirectory(empty, true, catch error);
+	assert(error == default, "empty directory should be created");
+	nuint emptyCount = 0;
+	try
+	{
+		within (HeapAllocator)
+		{
+			foreach (string emptyName in FileSystem.iterateDirectory(empty))
+				emptyCount++;
+		}
+	}
+	catch (IoError emptyError)
+	{
+		fail("empty directory enumeration should not fail");
+	}
+	assert(emptyCount == 0, "iterateDirectory should yield no entries for an empty directory");
+
+	FileSystem.createDirectory(child, true, catch error);
+	assert(error == default, "directory entry fixture should be created");
+	writeStdIoTestFile(file, [(byte)'o', (byte)'k'], catch error);
+	assert(error == default, "file entry fixture should be created");
+
+	bool sawFile = false;
+	bool sawChild = false;
+	try
+	{
+		within (HeapAllocator)
+		{
+			foreach (string entryName in FileSystem.iterateDirectory(entries))
+			{
+				assert(entryName.compareTo(".") != 0 && entryName.compareTo("..") != 0, "iterateDirectory should omit dot entries");
+				if (entryName.compareTo("file.txt") == 0)
+					sawFile = true;
+				if (entryName.compareTo("child") == 0)
+					sawChild = true;
+			}
+		}
+	}
+	catch (IoError enumerationError)
+	{
+		fail("directory enumeration should not fail for the fixture");
+	}
+	assert(sawFile && sawChild, "iterateDirectory should yield immediate file and directory names without requiring an order");
+
+	error = default;
+	try
+	{
+		within (HeapAllocator)
+		{
+			foreach (string name in FileSystem.iterateDirectory(missing))
+				fail("a missing directory should not yield an entry");
+		}
+	}
+	catch (IoError missingError)
+	{
+		error = missingError;
+	}
+	assert(error == IoError.NOT_FOUND, "missing-directory failures should arrive through the iterator IoError slot");
+
+	FileSystem.createDirectory(target, true, catch error);
+	assert(error == default, "directory-link target should be created");
+	assert(createStdIoTestDirectoryLink("target", link), "directory symbolic-link or reparse fixture must be created");
+	assert(FileSystem.isDirectory(link), "the default directory probe should follow a directory link or reparse point");
+	assert(!FileSystem.isDirectory(link, noFollow: true), "noFollow directory probing should reject the link or reparse point itself");
+	deleteStdIoTestDirectoryLink(link, catch error);
+	assert(error == default && !FileSystem.exists(link), "directory link cleanup should use the filesystem API");
+
+	try
+	{
+		within (HeapAllocator)
+		{
+			foreach (string breakName in FileSystem.iterateDirectory(entries))
+				break;
+		}
+	}
+	catch (IoError breakError)
+	{
+		fail("breaking directory iteration should not report an error");
+	}
+	FileSystem.deleteDirectory(root, true, catch error);
+	assert(error == default && !FileSystem.exists(root), "breaking directory iteration should close the handle before recursive cleanup");
 }

@@ -725,7 +725,7 @@ int camp_io_path_exists(const char *path)
     return attributes != INVALID_FILE_ATTRIBUTES ? 1 : 0;
 }
 
-int camp_io_path_is_directory(const char *path)
+int camp_io_path_is_directory(const char *path, int no_follow)
 {
     int error = CAMP_IO_OK;
     wchar_t *wide = camp_io_utf8_to_wide(path, &error);
@@ -734,7 +734,140 @@ int camp_io_path_is_directory(const char *path)
         return 0;
     attributes = GetFileAttributesW(wide);
     free(wide);
-    return attributes != INVALID_FILE_ATTRIBUTES && (attributes & FILE_ATTRIBUTE_DIRECTORY) != 0 ? 1 : 0;
+    return attributes != INVALID_FILE_ATTRIBUTES
+        && (attributes & FILE_ATTRIBUTE_DIRECTORY) != 0
+        && (!no_follow || (attributes & FILE_ATTRIBUTE_REPARSE_POINT) == 0) ? 1 : 0;
+}
+
+typedef struct camp_io_directory
+{
+    HANDLE find;
+    WIN32_FIND_DATAW entry;
+    int has_entry;
+} camp_io_directory;
+
+intptr_t camp_io_directory_open(const char *path, int *error)
+{
+    wchar_t *wide = camp_io_utf8_to_wide(path, error);
+    size_t path_length;
+    wchar_t *pattern;
+    camp_io_directory *directory;
+
+    if (wide == NULL)
+        return 0;
+
+    path_length = wcslen(wide);
+    pattern = (wchar_t *)malloc((path_length + 3) * sizeof(wchar_t));
+    if (pattern == NULL)
+    {
+        free(wide);
+        camp_io_set_error(error, CAMP_IO_NO_MEMORY);
+        return 0;
+    }
+    wcscpy(pattern, wide);
+    free(wide);
+    if (path_length > 0 && pattern[path_length - 1] != L'\\' && pattern[path_length - 1] != L'/')
+        pattern[path_length++] = L'\\';
+    pattern[path_length++] = L'*';
+    pattern[path_length] = L'\0';
+
+    directory = (camp_io_directory *)calloc(1, sizeof(*directory));
+    if (directory == NULL)
+    {
+        free(pattern);
+        camp_io_set_error(error, CAMP_IO_NO_MEMORY);
+        return 0;
+    }
+
+    directory->find = FindFirstFileW(pattern, &directory->entry);
+    free(pattern);
+    if (directory->find == INVALID_HANDLE_VALUE)
+    {
+        DWORD last = GetLastError();
+        if (last != ERROR_FILE_NOT_FOUND)
+        {
+            free(directory);
+            camp_io_set_error(error, camp_io_error_from_windows(last));
+            return 0;
+        }
+    }
+    else
+    {
+        directory->has_entry = 1;
+    }
+
+    camp_io_set_error(error, CAMP_IO_OK);
+    return (intptr_t)directory;
+}
+
+int camp_io_directory_read(intptr_t handle, char *buffer, uintptr_t length, int *error)
+{
+    camp_io_directory *directory = (camp_io_directory *)handle;
+
+    if (directory == NULL || buffer == NULL || length == 0)
+    {
+        camp_io_set_error(error, CAMP_IO_INVALID_ARGUMENT);
+        return -1;
+    }
+
+    for (;;)
+    {
+        int required;
+
+        if (directory->has_entry)
+        {
+            directory->has_entry = 0;
+        }
+        else if (directory->find == INVALID_HANDLE_VALUE)
+        {
+            camp_io_set_error(error, CAMP_IO_OK);
+            return 0;
+        }
+        else if (!FindNextFileW(directory->find, &directory->entry))
+        {
+            DWORD last = GetLastError();
+            if (last == ERROR_NO_MORE_FILES)
+            {
+                camp_io_set_error(error, CAMP_IO_OK);
+                return 0;
+            }
+            camp_io_set_error(error, camp_io_error_from_windows(last));
+            return -1;
+        }
+
+        if (wcscmp(directory->entry.cFileName, L".") == 0 || wcscmp(directory->entry.cFileName, L"..") == 0)
+            continue;
+
+        required = WideCharToMultiByte(CP_UTF8, 0, directory->entry.cFileName, -1, NULL, 0, NULL, NULL);
+        if (required <= 0)
+        {
+            camp_io_set_error(error, camp_io_error_from_windows(GetLastError()));
+            return -1;
+        }
+        if ((uintptr_t)required > length)
+        {
+            camp_io_set_error(error, CAMP_IO_PATH_TOO_LONG);
+            return -1;
+        }
+        if (WideCharToMultiByte(CP_UTF8, 0, directory->entry.cFileName, -1, buffer, required, NULL, NULL) <= 0)
+        {
+            camp_io_set_error(error, camp_io_error_from_windows(GetLastError()));
+            return -1;
+        }
+
+        camp_io_set_error(error, CAMP_IO_OK);
+        return 1;
+    }
+}
+
+void camp_io_directory_close(intptr_t handle)
+{
+    camp_io_directory *directory = (camp_io_directory *)handle;
+    if (directory == NULL)
+        return;
+    if (directory->find != INVALID_HANDLE_VALUE)
+        FindClose(directory->find);
+    free(directory);
 }
 
 int camp_io_file_get_size(const char *path, uint64_t *size, int *error)
@@ -1480,12 +1613,78 @@ int camp_io_path_exists(const char *path)
     return stat(path, &info) == 0 ? 1 : 0;
 }
 
-int camp_io_path_is_directory(const char *path)
+int camp_io_path_is_directory(const char *path, int no_follow)
 {
     struct stat info;
     if (path == NULL)
         return 0;
-    return stat(path, &info) == 0 && S_ISDIR(info.st_mode) ? 1 : 0;
+    return (no_follow ? lstat(path, &info) : stat(path, &info)) == 0 && S_ISDIR(info.st_mode) ? 1 : 0;
+}
+
+intptr_t camp_io_directory_open(const char *path, int *error)
+{
+    DIR *directory;
+    if (path == NULL)
+    {
+        camp_io_set_error(error, CAMP_IO_INVALID_ARGUMENT);
+        return 0;
+    }
+    directory = opendir(path);
+    if (directory == NULL)
+    {
+        camp_io_set_error(error, camp_io_error_from_errno(errno));
+        return 0;
+    }
+    camp_io_set_error(error, CAMP_IO_OK);
+    return (intptr_t)directory;
+}
+
+int camp_io_directory_read(intptr_t handle, char *buffer, uintptr_t length, int *error)
+{
+    DIR *directory = (DIR *)handle;
+    struct dirent *entry;
+
+    if (directory == NULL || buffer == NULL || length == 0)
+    {
+        camp_io_set_error(error, CAMP_IO_INVALID_ARGUMENT);
+        return -1;
+    }
+
+    for (;;)
+    {
+        size_t name_length;
+        errno = 0;
+        entry = readdir(directory);
+        if (entry == NULL)
+        {
+            if (errno == 0)
+            {
+                camp_io_set_error(error, CAMP_IO_OK);
+                return 0;
+            }
+            camp_io_set_error(error, camp_io_error_from_errno(errno));
+            return -1;
+        }
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
+            continue;
+
+        name_length = strlen(entry->d_name);
+        if (name_length >= length)
+        {
+            camp_io_set_error(error, CAMP_IO_PATH_TOO_LONG);
+            return -1;
+        }
+        memcpy(buffer, entry->d_name, name_length + 1);
+        camp_io_set_error(error, CAMP_IO_OK);
+        return 1;
+    }
+}
+
+void camp_io_directory_close(intptr_t handle)
+{
+    DIR *directory = (DIR *)handle;
+    if (directory != NULL)
+        closedir(directory);
 }
 
 int camp_io_file_get_size(const char *path, uint64_t *size, int *error)

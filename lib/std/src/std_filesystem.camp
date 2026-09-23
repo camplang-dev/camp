@@ -91,14 +91,34 @@ static class FileSystem
 		return camp_io_path_exists(path) != 0;
 	}
 
+	/// Returns an iterator over the immediate entry names in a directory.
+	///
+	/// - path: Directory path to enumerate.
+	/// - allocator: Allocation context for the iterator state.
+	/// @remarks Opening begins synchronously, but an open failure is delivered
+	/// when the iterator is advanced. Entry order is native and unspecified.
+	/// Each yielded name borrows one reusable iterator buffer and is valid only
+	/// until the next iterator advancement or iterator destruction. Copy a name
+	/// before retaining it.
+	public static iter(string, thrown IoError) iterateDirectory(string path, within allocator)
+	{
+		IoError error = default;
+		nint handle = camp_io_directory_open(path, out error);
+		return within (allocator) asDirectoryIterator(iterateDirectoryCore(handle, error));
+	}
+
 	/// Returns true when [path] exists and is a directory.
 	///
 	/// - path: Path to probe.
+	/// - noFollow: When true, symbolic links and Windows directory reparse points
+	///   are not considered directories themselves.
 	/// @remarks This is a convenience probe. It returns false for files, missing
-	/// paths, and errors that prevent reliable probing.
-	public static bool isDirectory(string path)
+	/// paths, links or reparse points when [noFollow] is true, and errors that
+	/// prevent reliable probing. By default, links and directory reparse points
+	/// are followed.
+	public static bool isDirectory(string path, bool noFollow = false)
 	{
-		return camp_io_path_is_directory(path) != 0;
+		return camp_io_path_is_directory(path, noFollow ? 1 : 0) != 0;
 	}
 
 	/// Gets a file size in bytes.
@@ -112,5 +132,38 @@ static class FileSystem
 			throw error;
 		error = default;
 		return size;
+	}
+}
+
+// The iterator protocol conversion must be materialized as a call argument.
+// Returning the generated class iterator directly currently omits its context
+// when lowering to C.
+iter(string, thrown IoError) asDirectoryIterator(iter(string, thrown IoError) iterator)
+{
+	return iterator;
+}
+
+class iter(string, thrown IoError) iterateDirectoryCore(nint handle, IoError openError, within allocator)
+{
+	fixed char[4096] name = default;
+
+	finally
+	{
+		if (handle != 0)
+			camp_io_directory_close(handle);
+	}
+
+	if (openError != default)
+		throw openError;
+
+	while (true)
+	{
+		IoError error = default;
+		int result = camp_io_directory_read(handle, name.elements, name.length, out error);
+		if (result < 0)
+			throw error;
+		if (result == 0)
+			yield break;
+		yield (string)name.elements;
 	}
 }

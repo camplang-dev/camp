@@ -138,6 +138,21 @@ Host-facing `Env` and `FileSystem` inputs are `string` values because operating
 systems expect null-terminated path and environment text. If you only have a
 span, copy it to a string before passing it to these APIs.
 
+Directory enumeration yields immediate entry names in the host's native order:
+
+```camp
+within (allocator)
+{
+	foreach (string name in FileSystem.iterateDirectory("logs"))
+		Console.writeLine(name);
+}
+```
+
+Each name borrows the iterator's reusable buffer. Use it during that loop
+iteration, or copy it before retaining it. `FileSystem.isDirectory(path)` follows
+directory links and reparse points by default; pass `noFollow: true` to test the
+entry itself instead.
+
 ## Allocation And `within`
 
 The standard library defines the common allocator surface:

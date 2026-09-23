@@ -1056,8 +1056,13 @@ ordinary environment and filesystem work:
   rooted/fully-qualified checks, and file-name/directory/extension spans. It
   does not query the filesystem or normalize paths.
 - Use `FileSystem` for host filesystem probes and mutations such as
-  create/delete directory, copy/move/delete file, existence checks, directory
-  checks, and file size.
+  create/delete directory, directory enumeration, copy/move/delete file,
+  existence checks, directory checks, and file size. `iterateDirectory` takes
+  an explicit allocation context for its iterator state and yields
+  borrowed entry names from one reusable iterator buffer; copy a name before
+  retaining it past the next iterator advancement. `isDirectory(path)` follows
+  directory links and reparse points by default; use
+  `isDirectory(path, noFollow: true)` to reject the link or reparse point itself.
 - Pass OS-facing paths, environment names, and environment values as `string`.
   If the available value is a `const char[]` span, explicitly copy it to a
   string before calling `Env` or `FileSystem`.
