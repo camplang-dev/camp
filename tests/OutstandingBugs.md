@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-164.
+Next bug number: BUG-165.
 
 ## Bug Template
 
@@ -267,3 +267,63 @@ tests): the proposal requires diagnosing `@testname` when placed on a
 `within` parameter of a `@factorytest` function, but that specific invalid
 source shape cannot currently be written at all, so it cannot be proven with
 a compiling golden fixture until this parser gap is fixed.
+
+## BUG-164: Direct class iterator conversion does not return protocol context
+
+Date/Time: 2026-09-23 08:07 EDT
+
+Summary:
+A function that returns the `iter` protocol directly from a class iterator
+generator is lowered without materializing the protocol context. The iterator
+function and its context are distinct parts of the protocol value; returning a
+generated class iterator must produce both. Instead, the C lowering returns
+the state pointer as the iterator function result and leaves the context output
+unwritten.
+
+Steps to Reproduce:
+
+1. Save this source as `tmp/bug-164-direct-class-iterator-return.camp`:
+
+   ```camp
+   class iter int values(within allocator)
+   {
+       yield 42;
+   }
+
+   iter int forward(within allocator)
+   {
+       return within (allocator) values();
+   }
+
+   export int main()
+   {
+       within (default)
+       {
+           foreach (int value in forward())
+               return value == 42 ? 0 : 1;
+       }
+       return 1;
+   }
+   ```
+
+2. Build and run it:
+
+   ```sh
+   bin/campc build tmp/bug-164-direct-class-iterator-return.camp --out-dir tmp/bug-164-out --name bug164
+   tmp/bug-164-out/clang-macos-x64_DEBUG/bug164
+   ```
+
+Expected:
+`forward` returns a valid iterator protocol value. The loop yields `42` and
+the program exits with code 0.
+
+Actual:
+The program exits with code 138 on macOS. The generated C returns the class
+state pointer from `forward` in the iterator function return slot and does not
+assign the iterator's `result_context` output.
+
+Known Impact:
+Any wrapper that exposes a generated class iterator through an `iter` return
+type can crash as soon as the caller advances it. Passing the generated
+iterator as an argument to an identity `iter` helper currently forces correct
+protocol materialization, but that helper is compiler-workaround cruft.
