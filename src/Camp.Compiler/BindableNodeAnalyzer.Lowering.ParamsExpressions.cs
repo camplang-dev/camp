@@ -2405,6 +2405,8 @@ public sealed partial class BindableNodeAnalyzer
 			return true;
 		if (currentRewriteFunction is null || !expandedReturnShapes.TryGetValue(currentRewriteFunction, out ParamsComponentShape? shape))
 			return false;
+		if (TryRewriteIteratorFactoryProtocolReturn(statement, shape, out rewritten))
+			return true;
 		if (TryRewriteExpandedReturnCall(statement, shape, out rewritten))
 			return true;
 
@@ -2475,6 +2477,72 @@ public sealed partial class BindableNodeAnalyzer
 			SourceSyntax = statement.SourceSyntax,
 			ResolvedType = "void",
 			Expression = result
+		});
+		rewritten = CreateBlock(statements);
+		return true;
+	}
+
+	bool TryRewriteIteratorFactoryProtocolReturn(ReturnStatement statement, ParamsComponentShape shape, out Statement rewritten)
+	{
+		rewritten = statement;
+		if (shape.Kind != ParamsComponentShapeKind.Iter
+			|| shape.Components.Count != 2)
+		{
+			return false;
+		}
+		if (statement.Expression is CallExpression call)
+			return TryRewriteIteratorFactoryProtocolReturn(call, statement, shape, out rewritten);
+		if (statement.Expression is not WithinExpression { Expression: CallExpression withinCall } within)
+			return false;
+
+		bool defaultWithin = within.Context is DefaultWithinContextExpression;
+		within.Context = defaultWithin ? CreateDefaultWithinArgument(within.Context?.SourceSyntax) : LowerExpression(within.Context);
+		Expression? previousWithinContext = currentWithinContext;
+		int previousDefaultWithinContextDepth = currentDefaultWithinContextDepth;
+		currentWithinContext = defaultWithin ? null : CaptureWithinContext(within.Context, within.SourceSyntax);
+		if (defaultWithin)
+			currentDefaultWithinContextDepth++;
+		try
+		{
+			return TryRewriteIteratorFactoryProtocolReturn(withinCall, statement, shape, out rewritten);
+		}
+		finally
+		{
+			currentWithinContext = previousWithinContext;
+			currentDefaultWithinContextDepth = previousDefaultWithinContextDepth;
+		}
+	}
+
+	bool TryRewriteIteratorFactoryProtocolReturn(CallExpression call, ReturnStatement statement, ParamsComponentShape shape, out Statement rewritten)
+	{
+		rewritten = statement;
+		List<Statement> statements = [];
+		if (!TryCreateIteratorFactoryProtocolComponents(call, statement.SourceSyntax, statements, out List<Expression>? components)
+			|| components is null
+			|| components.Count != 2)
+		{
+			return false;
+		}
+
+		ParameterDefinition contextParameter = currentRewriteFunction!.Parameters[^1];
+		statements.Add(new ExpressionStatement
+		{
+			SourceSyntax = statement.SourceSyntax,
+			ResolvedType = "void",
+			Expression = new AssignmentExpression
+			{
+				SourceSyntax = statement.SourceSyntax,
+				Target = CreateVariableReference(contextParameter, contextParameter.ResolvedType ?? shape.Components[1].Type),
+				Operator = AssignmentOperator.Assign,
+				Value = components[1],
+				ResolvedType = shape.Components[1].Type
+			}
+		});
+		statements.Add(new ReturnStatement
+		{
+			SourceSyntax = statement.SourceSyntax,
+			ResolvedType = "void",
+			Expression = components[0]
 		});
 		rewritten = CreateBlock(statements);
 		return true;

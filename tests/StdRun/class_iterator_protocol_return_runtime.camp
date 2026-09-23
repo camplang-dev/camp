@@ -1,0 +1,21 @@
+class iter int values(int count, within allocator)
+{
+	for (int value = 1; value <= count; value++)
+		yield value;
+}
+
+iter int forward(int count, within allocator)
+{
+	return within (allocator) values(count);
+}
+
+export int main()
+{
+	within (default)
+	{
+		int total = 0;
+		foreach (int value in forward(3))
+			total += value;
+		return total == 6 ? 0 : 1;
+	}
+}
