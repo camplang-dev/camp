@@ -1,0 +1,70 @@
+int outstandingAllocations = 0;
+int allocCalls = 0;
+int freeCalls = 0;
+
+void* trackingAlloc(Allocator* allocator, nuint size)
+{
+	allocCalls++;
+	if (size != 0)
+		outstandingAllocations++;
+	return malloc(size);
+}
+
+void* trackingRealloc(Allocator* allocator, void* ptr, nuint newSize)
+{
+	if (ptr == null && newSize != 0)
+		outstandingAllocations++;
+	else if (ptr != null && newSize == 0)
+		outstandingAllocations--;
+	return realloc(ptr, newSize);
+}
+
+void trackingFree(Allocator* allocator, void* ptr)
+{
+	freeCalls++;
+	if (ptr != null)
+		outstandingAllocations--;
+	free(ptr);
+}
+
+Allocator TrackingAllocator =
+{
+	.alloc = trackingAlloc,
+	.realloc = trackingRealloc,
+	.free = trackingFree
+};
+
+class iter int values(int count, within allocator)
+{
+	for (int value = 1; value <= count; value++)
+		yield value;
+}
+
+iter int forward(int count, within allocator)
+{
+	return within (allocator) values(count);
+}
+
+export int main()
+{
+	Allocator* allocator = &TrackingAllocator;
+	within (allocator)
+	{
+		int total = 0;
+		foreach (int value in forward(3))
+			total += value;
+		if (total != 6)
+			return 1;
+
+		foreach (int ignored in forward(3))
+			break;
+	}
+
+	if (allocCalls != 2)
+		return 2;
+	if (freeCalls != 2)
+		return 3;
+	if (outstandingAllocations != 0)
+		return 4;
+	return 0;
+}

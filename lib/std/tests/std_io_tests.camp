@@ -184,11 +184,8 @@ void directoryIterationAndNoFollowProbes(within Allocator* allocator, thrown Ass
 	nuint emptyCount = 0;
 	try
 	{
-		within (HeapAllocator)
-		{
-			foreach (string emptyName in FileSystem.iterateDirectory(empty))
-				emptyCount++;
-		}
+		foreach (string emptyName in FileSystem.iterateDirectory(empty))
+			emptyCount++;
 	}
 	catch (IoError emptyError)
 	{
@@ -205,16 +202,13 @@ void directoryIterationAndNoFollowProbes(within Allocator* allocator, thrown Ass
 	bool sawChild = false;
 	try
 	{
-		within (HeapAllocator)
+		foreach (string entryName in FileSystem.iterateDirectory(entries))
 		{
-			foreach (string entryName in FileSystem.iterateDirectory(entries))
-			{
-				assert(entryName.compareTo(".") != 0 && entryName.compareTo("..") != 0, "iterateDirectory should omit dot entries");
-				if (entryName.compareTo("file.txt") == 0)
-					sawFile = true;
-				if (entryName.compareTo("child") == 0)
-					sawChild = true;
-			}
+			assert(entryName.compareTo(".") != 0 && entryName.compareTo("..") != 0, "iterateDirectory should omit dot entries");
+			if (entryName.compareTo("file.txt") == 0)
+				sawFile = true;
+			if (entryName.compareTo("child") == 0)
+				sawChild = true;
 		}
 	}
 	catch (IoError enumerationError)
@@ -226,11 +220,8 @@ void directoryIterationAndNoFollowProbes(within Allocator* allocator, thrown Ass
 	error = default;
 	try
 	{
-		within (HeapAllocator)
-		{
-			foreach (string name in FileSystem.iterateDirectory(missing))
-				fail("a missing directory should not yield an entry");
-		}
+		foreach (string name in FileSystem.iterateDirectory(missing))
+			fail("a missing directory should not yield an entry");
 	}
 	catch (IoError missingError)
 	{
@@ -248,11 +239,8 @@ void directoryIterationAndNoFollowProbes(within Allocator* allocator, thrown Ass
 
 	try
 	{
-		within (HeapAllocator)
-		{
-			foreach (string breakName in FileSystem.iterateDirectory(entries))
-				break;
-		}
+		foreach (string breakName in FileSystem.iterateDirectory(entries))
+			break;
 	}
 	catch (IoError breakError)
 	{

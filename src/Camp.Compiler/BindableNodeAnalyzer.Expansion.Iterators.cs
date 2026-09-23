@@ -465,7 +465,10 @@ public sealed partial class BindableNodeAnalyzer
 
 		foreach (ParameterDefinition parameter in GetIteratorRetainedParameters(function, containingType))
 		{
-			if (IsHiddenParameter(parameter) || parameter.Modifier is ParameterModifier.Out or ParameterModifier.Thrown)
+			bool retainClassAllocator = state is ClassDefinition
+				&& (parameter.Modifier == ParameterModifier.Within || parameter is WithinParameterDefinition);
+			if ((IsHiddenParameter(parameter) && !retainClassAllocator)
+				|| parameter.Modifier is ParameterModifier.Out or ParameterModifier.Thrown)
 				continue;
 			string sourceName = IteratorStateFieldSourceName(parameter);
 			string fieldName = IteratorStateFieldNameFor(parameter);
@@ -576,6 +579,8 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (parameter is ThisParameterDefinition thisParameter && containingType is not null)
 			return StripLifetimeQualifiers(IteratorThisParameterType(thisParameter, containingType));
+		if (parameter.Modifier == ParameterModifier.Within || parameter is WithinParameterDefinition)
+			return AllocatorType;
 
 		string resolvedType = ResolvedTypeForIteratorExpansion(parameter.Type, parameter.ResolvedType);
 		return parameter switch
@@ -590,6 +595,8 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (parameter is ThisParameterDefinition && containingType is not null)
 			return CloneType(parameter.Type) ?? TypeReferenceForIteratorField(resolvedType);
+		if (parameter.Modifier == ParameterModifier.Within || parameter is WithinParameterDefinition)
+			return new AllocatorTypeReference { ResolvedType = AllocatorType };
 
 		return parameter switch
 		{
@@ -1043,10 +1050,24 @@ public sealed partial class BindableNodeAnalyzer
 		});
 		if (state is ClassDefinition)
 		{
+			DeclarationStatement? resolvedAllocatorLocal = null;
+			if (GetWithinParameter(sourceFunction) is ParameterDefinition allocatorParameter
+				&& TryGetIteratorStateField(state, IteratorStateFieldSourceName(allocatorParameter)) is FieldDefinition allocatorField)
+			{
+				resolvedAllocatorLocal = CreateResolvedAllocatorLocal(IteratorStateFieldReference(
+					allocatorField,
+					allocatorField.ResolvedType ?? AllocatorType,
+					sourceFunction.SourceSyntax));
+				destroy.Body.Statements.Add(resolvedAllocatorLocal);
+			}
 			destroy.Body.Statements.Add(new ExpressionStatement
 			{
 				ResolvedType = "void",
-				Expression = CreateFreeCall(new ThisExpression { ResolvedType = $"{state.Name}*" })
+				Expression = CreateFreeCall(
+					new ThisExpression { ResolvedType = $"{state.Name}*" },
+					resolvedAllocatorLocal is null
+						? null
+						: CreateVariableReference(resolvedAllocatorLocal.Target, resolvedAllocatorLocal.Target.ResolvedType ?? "Allocator*"))
 			});
 		}
 		AddIteratorFunction(state, destroy);
@@ -1336,7 +1357,10 @@ public sealed partial class BindableNodeAnalyzer
 		});
 		foreach (ParameterDefinition parameter in GetIteratorRetainedParameters(function, containingType))
 		{
-			if (IsHiddenParameter(parameter) || parameter.Modifier is ParameterModifier.Out or ParameterModifier.Thrown)
+			bool retainClassAllocator = stateType is ClassDefinition
+				&& (parameter.Modifier == ParameterModifier.Within || parameter is WithinParameterDefinition);
+			if ((IsHiddenParameter(parameter) && !retainClassAllocator)
+				|| parameter.Modifier is ParameterModifier.Out or ParameterModifier.Thrown)
 				continue;
 			string sourceName = IteratorStateFieldSourceName(parameter);
 			string parameterType = IteratorStateFieldType(parameter, containingType);
