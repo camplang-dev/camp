@@ -447,6 +447,7 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		expression = call;
 		if (currentStatementPrefix is null
+			|| materializedGenericReturnCalls.Contains(call)
 			|| !callTargets.TryGetValue(call, out FunctionDefinition? function)
 			|| !IsMaterializedGenericReturnFunction(function))
 			return false;
@@ -464,6 +465,7 @@ public sealed partial class BindableNodeAnalyzer
 			Value = CreateVariableReference(storage.Target, resultType),
 			ResolvedType = resultType
 		});
+		materializedGenericReturnCalls.Add(call);
 		currentStatementPrefix.Add(new ExpressionStatement
 		{
 			SourceSyntax = call.SourceSyntax,

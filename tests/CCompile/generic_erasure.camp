@@ -5,6 +5,8 @@ void accept<T: any>(T* value)
 struct Aggregate
 {
 	int value;
+
+	bool isZero() => this.value == 0;
 }
 
 Aggregate makeAggregate()
@@ -16,10 +18,22 @@ void acceptValue<T: copyable>(in T value)
 {
 }
 
+T identity<T: copyable>(in T value, sizeof(T))
+{
+	return value;
+}
+
 int main()
 {
 	int value = 0;
 	accept<int>(&value);
 	acceptValue<Aggregate>(makeAggregate());
+	Aggregate aggregate = default;
+	uint count = 0;
+	while (identity<Aggregate>(aggregate).isZero())
+	{
+		count++;
+		break;
+	}
 	return 0;
 }

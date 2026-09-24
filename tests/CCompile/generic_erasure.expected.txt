@@ -3,12 +3,19 @@
 
 /* Private file declarations. */
 static void accept(void *value);
+static bool Aggregate_isZero(Aggregate *this);
 static Aggregate makeAggregate(void);
 static void acceptValue(void *value);
+static void identity(void *value, uintptr_t sizeof_T, void *__result);
 static int main(void);
 
 static void accept(void *value)
 {
+}
+
+static bool Aggregate_isZero(Aggregate *this)
+{
+	return (this->value == 0);
 }
 
 static Aggregate makeAggregate(void)
@@ -20,12 +27,39 @@ static void acceptValue(void *value)
 {
 }
 
+static void identity(void *value, uintptr_t sizeof_T, void *__result)
+{
+	{
+		__builtin_memcpy(__result, value, sizeof_T);
+		return;
+	}
+}
+
 static int main(void)
 {
 	int value = 0;
 	accept(&value);
 	Aggregate _value0 = makeAggregate();
 	acceptValue(&_value0);
+	Aggregate aggregate = (Aggregate){0};
+	uint32_t count = 0;
+	{
+		while (true)
+		{
+			Aggregate _value1;
+			identity(&aggregate, sizeof(Aggregate), &_value1);
+			if (!Aggregate_isZero(&_value1))
+			{
+				goto __while_break3;
+			}
+			{
+				count++;
+				goto __while_break3;
+			}
+__while_continue2: ;
+		}
+__while_break3: ;
+	}
 	return 0;
 }
 
