@@ -7,6 +7,7 @@ static bool Aggregate_isZero(Aggregate *this);
 static Aggregate makeAggregate(void);
 static void acceptValue(void *value);
 static void identity(void *value, uintptr_t sizeof_T, void *__result);
+static void getAt(void *value, uint32_t index, uintptr_t sizeof_T, void *__result);
 static int main(void);
 
 static void accept(void *value)
@@ -28,6 +29,14 @@ static void acceptValue(void *value)
 }
 
 static void identity(void *value, uintptr_t sizeof_T, void *__result)
+{
+	{
+		__builtin_memcpy(__result, value, sizeof_T);
+		return;
+	}
+}
+
+static void getAt(void *value, uint32_t index, uintptr_t sizeof_T, void *__result)
 {
 	{
 		__builtin_memcpy(__result, value, sizeof_T);
@@ -59,6 +68,22 @@ static int main(void)
 __while_continue2: ;
 		}
 __while_break3: ;
+	}
+	{
+		uint32_t index = 0;
+		while (true)
+		{
+			Aggregate _value4;
+			getAt(&aggregate, index, sizeof(Aggregate), &_value4);
+			if (!Aggregate_isZero(&_value4))
+			{
+				goto __for_break6;
+			}
+			goto __for_break6;
+__for_continue5: ;
+			index++;
+		}
+__for_break6: ;
 	}
 	return 0;
 }

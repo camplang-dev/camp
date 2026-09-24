@@ -244,6 +244,8 @@ public sealed partial class BindableNodeAnalyzer
 				return WrapLoopWithBreakLabel(doWhile, doBreakLabel);
 
 			case ForStatement forStatement:
+				if (TryRewriteForStatementWithConditionPrefixes(forStatement, out Statement? conditionPrefixFor))
+					return conditionPrefixFor!;
 				if (forStatement.Condition.Declaration is not null)
 					forStatement.Condition.Declaration = (DeclarationStatement)RewriteStatement(forStatement.Condition.Declaration);
 				for (int i = 0; i < forStatement.Condition.Clauses.Count; i++)
@@ -429,6 +431,112 @@ public sealed partial class BindableNodeAnalyzer
 		whileStatement.Body = RewriteLoopBody(body, continueLabel, breakLabel);
 		rewritten = WrapLoopWithBreakLabel(whileStatement, breakLabel);
 		return true;
+	}
+
+	bool TryRewriteForStatementWithConditionPrefixes(ForStatement forStatement, out Statement? rewritten)
+	{
+		rewritten = null;
+		int conditionIndex = forStatement.Condition.Declaration is null ? 1 : 0;
+		if (conditionIndex >= forStatement.Condition.Clauses.Count || forStatement.Condition.Clauses[conditionIndex] is null)
+			return false;
+
+		List<Statement>? previousPrefix = currentStatementPrefix;
+		List<Statement>? previousSuffix = currentStatementSuffix;
+		currentStatementPrefix = [];
+		currentStatementSuffix = [];
+		Expression? loweredCondition = LowerExpression(forStatement.Condition.Clauses[conditionIndex]);
+		List<Statement> conditionStatements = currentStatementPrefix;
+		List<Statement> conditionSuffix = currentStatementSuffix;
+		currentStatementPrefix = previousPrefix;
+		currentStatementSuffix = previousSuffix;
+		if (conditionStatements.Count == 0 && conditionSuffix.Count == 0)
+			return false;
+
+		List<Statement> statements = [];
+		if (forStatement.Condition.Declaration is DeclarationStatement declaration)
+		{
+			previousPrefix = currentStatementPrefix;
+			previousSuffix = currentStatementSuffix;
+			currentStatementPrefix = statements;
+			currentStatementSuffix = [];
+			Statement initialization = RewriteStatement(declaration);
+			statements.Add(initialization);
+			statements.AddRange(currentStatementSuffix);
+			currentStatementPrefix = previousPrefix;
+			currentStatementSuffix = previousSuffix;
+		}
+		else if (forStatement.Condition.Clauses.Count > 0 && forStatement.Condition.Clauses[0] is Expression initializer)
+		{
+			AppendLoweredForClause(statements, initializer);
+		}
+
+		Expression? conditionReference = loweredCondition;
+		if (conditionSuffix.Count > 0 && loweredCondition is not null)
+		{
+			DeclarationStatement conditionLocal = CreateGeneratedLocal(NewGeneratedLocalName("condition"), "bool", TypeReferenceForResolvedName("bool"), loweredCondition);
+			conditionStatements.Add(conditionLocal);
+			conditionStatements.AddRange(conditionSuffix);
+			conditionReference = CreateVariableReference(conditionLocal.Target, "bool");
+		}
+		else
+		{
+			conditionStatements.AddRange(conditionSuffix);
+		}
+
+		BlockStatement body = new() { ResolvedType = "void" };
+		body.Statements.AddRange(conditionStatements);
+		body.Statements.Add(new IfStatement
+		{
+			ResolvedType = "void",
+			Condition = new UnaryExpression
+			{
+				Operator = UnaryOperator.LogicalNot,
+				Operand = conditionReference,
+				ResolvedType = "bool"
+			},
+			Body = new BreakStatement { ResolvedType = "void" }
+		});
+		if (forStatement.Body is not null)
+			body.Statements.Add(forStatement.Body);
+
+		string continueLabel = NewGeneratedLabelName("for_continue");
+		string breakLabel = NewGeneratedLabelName("for_break");
+		BlockStatement loopBody = (BlockStatement)RewriteLoopBody(body, continueLabel, breakLabel);
+		int incrementIndex = forStatement.Condition.Declaration is null ? 2 : 1;
+		if (incrementIndex < forStatement.Condition.Clauses.Count && forStatement.Condition.Clauses[incrementIndex] is Expression increment)
+			AppendLoweredForClause(loopBody.Statements, increment);
+
+		WhileStatement loop = new()
+		{
+			ResolvedType = "void",
+			Condition = new LiteralExpression { Kind = LiteralKind.True, Text = "true", Value = true, ResolvedType = "bool" },
+			Body = loopBody
+		};
+		statements.Add(loop);
+		statements.Add(new LabelStatement { Name = breakLabel, ResolvedType = "void" });
+		rewritten = CreateBlock(statements);
+		return true;
+	}
+
+	void AppendLoweredForClause(List<Statement> statements, Expression clause)
+	{
+		List<Statement>? previousPrefix = currentStatementPrefix;
+		List<Statement>? previousSuffix = currentStatementSuffix;
+		currentStatementPrefix = statements;
+		currentStatementSuffix = [];
+		Expression? lowered = LowerExpression(clause);
+		if (lowered is not null)
+		{
+			statements.Add(new ExpressionStatement
+			{
+				SourceSyntax = clause.SourceSyntax,
+				ResolvedType = "void",
+				Expression = lowered
+			});
+		}
+		statements.AddRange(currentStatementSuffix);
+		currentStatementPrefix = previousPrefix;
+		currentStatementSuffix = previousSuffix;
 	}
 
 	Statement PrependThrownParameterClear(Statement returnTransfer, SyntaxNode? syntax)

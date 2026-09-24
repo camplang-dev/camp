@@ -23,6 +23,11 @@ T identity<T: copyable>(in T value, sizeof(T))
 	return value;
 }
 
+T getAt<T: copyable>(in T value, uint index, sizeof(T))
+{
+	return value;
+}
+
 int main()
 {
 	int value = 0;
@@ -35,5 +40,7 @@ int main()
 		count++;
 		break;
 	}
+	for (uint index = 0; getAt<Aggregate>(aggregate, index).isZero(); index++)
+		break;
 	return 0;
 }
