@@ -133,6 +133,11 @@ public sealed partial class BindableNodeAnalyzer
 			Name = "__campFactoryOriginal_" + function.Name,
 			Symbol = "__campFactoryOriginal_" + function.Name,
 			SymbolOverridden = true,
+			// The original body is rebound through this generated helper. Preserve
+			// its source namespace while binding so ordinary cross-file project
+			// lookup has the same context as the @factorytest declaration.
+			Namespace = GetDefinitionNamespace(function),
+			NamespaceAssigned = true,
 			ReturnType = TypeReferenceForResolvedName("void"),
 			ResolvedType = "void",
 			Body = function.Body,
@@ -145,7 +150,8 @@ public sealed partial class BindableNodeAnalyzer
 			// excluded from source coverage). Pointing GeneratedInfo at the
 			// original @factorytest function, which is already classified
 			// test-only, makes IsTestOnly resolve the same way for this one.
-			GeneratedInfo = new GeneratedDeclarationInfo(GeneratedDeclarationCategory.None, "factory test original body", function)
+			GeneratedInfo = new GeneratedDeclarationInfo(GeneratedDeclarationCategory.None, "factory test original body", function),
+			VisibilitySourceFunction = function
 		};
 		foreach (ParameterDefinition parameter in function.Parameters)
 			originalBodyFunction.Parameters.Add(CloneParameter(parameter));

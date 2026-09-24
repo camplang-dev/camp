@@ -3761,6 +3761,16 @@ public sealed class CommandLineTests
 	[Fact]
 	public void Factory_lowering_all_children_passing_reports_parent_passed()
 	{
+		CreateTempCase("factory_lowering_allpass/types.camp", """
+			namespace FactoryLoweringAllPass;
+
+			internal struct CrossFileValue
+			{
+				int value;
+			}
+
+			internal CrossFileValue makeCrossFileValue(int value) => { value };
+			""");
 		string source = CreateTempCase("factory_lowering_allpass/main.camp", """
 			namespace FactoryLoweringAllPass;
 
@@ -3774,12 +3784,18 @@ public sealed class CommandLineTests
 			@factorytest
 			void testAdd(@testname string testname, int first, int second, int expected, thrown Assertion* assertion)
 			{
+				CrossFileValue result = makeCrossFileValue(first + second);
+				assert(result.value == expected);
 				assert((first + second) == expected);
 			}
 			""");
+		string buildFile = CreateTempCase("factory_lowering_allpass/allpass.campbuild", """
+			types.camp
+			main.camp
+			""");
 		string outDir = TempPath("factory-lowering-allpass-out");
 
-		ProcessResult result = RunCampc("test", source, "--target", NativeTargetForHost(), "--out-dir", outDir, "--name", "factory_lowering_allpass");
+		ProcessResult result = RunCampc("test", buildFile, "--target", NativeTargetForHost(), "--out-dir", outDir, "--name", "factory_lowering_allpass");
 
 		AssertCommandSucceeded(result);
 		Assert.Contains("passed: FactoryLoweringAllPass::basicTests", result.StdOut, StringComparison.Ordinal);
