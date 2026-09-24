@@ -5532,6 +5532,12 @@ public sealed class CommandLineTests
 		Directory.CreateDirectory(librarySource);
 		Directory.CreateDirectory(appRoot);
 		File.WriteAllText(Path.Combine(librarySource, "library.camp"), """
+			public enum Format
+			{
+				ONE,
+				TWO,
+			}
+
 			public int publicValue()
 			{
 				return 20;
@@ -5583,6 +5589,68 @@ public sealed class CommandLineTests
 		string api = File.ReadAllText(Path.Combine(libraryRoot, "bin", ArtifactDirectoryForTarget(target, NativeBuildKind.Static), "visibility-lib_api.camp"));
 		Assert.Contains("public extern int publicValue();", api, StringComparison.Ordinal);
 		Assert.DoesNotContain("internalValue", api, StringComparison.Ordinal);
+
+		string bareRoot = Path.Combine(root, "bare");
+		string renamedRoot = Path.Combine(root, "renamed");
+		Directory.CreateDirectory(Path.Combine(bareRoot, "src"));
+		Directory.CreateDirectory(Path.Combine(renamedRoot, "src"));
+		File.WriteAllText(Path.Combine(bareRoot, "src", "main.camp"), """
+			namespace Bare;
+
+			export Format;
+
+			export void useFormat(Format value)
+			{
+			}
+			""");
+		File.WriteAllText(Path.Combine(bareRoot, "bare.campbuild"), """
+			--nostdlib
+			--name projection_bare
+			--artifact static
+			--project-reference ../library/library.campbuild:static
+			src/*.camp
+			""");
+		File.WriteAllText(Path.Combine(renamedRoot, "src", "main.camp"), """
+			namespace Renamed;
+
+			export Format as RootFormat;
+
+			export void useFormat(Format value)
+			{
+			}
+			""");
+		File.WriteAllText(Path.Combine(renamedRoot, "renamed.campbuild"), """
+			--nostdlib
+			--name projection_renamed
+			--artifact static
+			--project-reference ../library/library.campbuild:static
+			src/*.camp
+			""");
+
+		string bareOut = Path.Combine(bareRoot, "bin");
+		string renamedOut = Path.Combine(renamedRoot, "bin");
+		ProcessResult bareProjection = RunCampc("build", Path.Combine(bareRoot, "bare.campbuild"), "--target", target, "--out-dir", bareOut);
+		ProcessResult renamedProjection = RunCampc("build", Path.Combine(renamedRoot, "renamed.campbuild"), "--target", target, "--out-dir", renamedOut);
+
+		AssertCommandSucceeded(bareProjection);
+		AssertCommandSucceeded(renamedProjection);
+		string bareArtifact = Path.Combine(bareOut, ArtifactDirectoryForTarget(target, NativeBuildKind.Static));
+		string renamedArtifact = Path.Combine(renamedOut, ArtifactDirectoryForTarget(target, NativeBuildKind.Static));
+		string bareApi = File.ReadAllText(Path.Combine(bareArtifact, "projection_bare_api.camp"));
+		string renamedApi = File.ReadAllText(Path.Combine(renamedArtifact, "projection_renamed_api.camp"));
+		string bareHeader = File.ReadAllText(Path.Combine(bareArtifact, "projection_bare_api.h"));
+		string renamedHeader = File.ReadAllText(Path.Combine(renamedArtifact, "projection_renamed_api.h"));
+		string bareMetadata = File.ReadAllText(Path.Combine(bareArtifact, "projection_bare_api.json"));
+		string renamedMetadata = File.ReadAllText(Path.Combine(renamedArtifact, "projection_renamed_api.json"));
+
+		Assert.Contains("export extern void useFormat(Format value);", bareApi, StringComparison.Ordinal);
+		Assert.DoesNotContain("ProjectionLibrary", bareApi, StringComparison.Ordinal);
+		Assert.Contains("void Bare_useFormat(BareFormat value);", bareHeader, StringComparison.Ordinal);
+		Assert.Contains("\"type\": \"Format\"", bareMetadata, StringComparison.Ordinal);
+		Assert.Contains("export extern void useFormat(RootFormat value);", renamedApi, StringComparison.Ordinal);
+		Assert.DoesNotContain("useFormat(Format value)", renamedApi, StringComparison.Ordinal);
+		Assert.Contains("void Renamed_useFormat(RenamedRootFormat value);", renamedHeader, StringComparison.Ordinal);
+		Assert.Contains("\"type\": \"RootFormat\"", renamedMetadata, StringComparison.Ordinal);
 	}
 
 	[Fact]

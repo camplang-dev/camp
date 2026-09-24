@@ -172,7 +172,8 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			foreach (TypeDefinition candidate in allTypeDefinitions)
 			{
-				if (candidate.Name == named.Name
+				if (!IsSameNamedProjectionClone(candidate)
+					&& candidate.Name == named.Name
 					&& IsDefinitionInReferenceNamespace(candidate, named.SourceSyntax)
 					&& IsUnqualifiedDefinitionVisible(candidate, named.SourceSyntax))
 				{
@@ -182,7 +183,9 @@ public sealed partial class BindableNodeAnalyzer
 			}
 			foreach (TypeDefinition candidate in allTypeDefinitions)
 			{
-				if (candidate.Name == named.Name && IsUnqualifiedDefinitionVisible(candidate, named.SourceSyntax))
+				if (!IsSameNamedProjectionClone(candidate)
+					&& candidate.Name == named.Name
+					&& IsUnqualifiedDefinitionVisible(candidate, named.SourceSyntax))
 				{
 					definition = candidate;
 					return true;
@@ -194,7 +197,7 @@ public sealed partial class BindableNodeAnalyzer
 
 		foreach (TypeDefinition candidate in allTypeDefinitions)
 		{
-			if (candidate.Name != named.Name)
+			if (IsSameNamedProjectionClone(candidate) || candidate.Name != named.Name)
 				continue;
 			if (IsImportedQualifiedName(candidate, named.Qualifiers, named.SourceSyntax))
 			{
@@ -205,6 +208,13 @@ public sealed partial class BindableNodeAnalyzer
 
 		definition = null;
 		return false;
+	}
+
+	static bool IsSameNamedProjectionClone(TypeDefinition definition)
+	{
+		return definition.GeneratedInfo is { Source: TypeDefinition source } generated
+			&& generated.Reason.StartsWith("export projection for ", StringComparison.Ordinal)
+			&& definition.Name == source.Name;
 	}
 
 	bool TryGetHiddenTypeDefinition(string name, SyntaxNode? referenceSyntax, out TypeDefinition? definition)

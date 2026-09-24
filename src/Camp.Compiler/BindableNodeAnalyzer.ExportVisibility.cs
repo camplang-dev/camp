@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 
 namespace Camp.Compiler;
 
@@ -324,7 +325,7 @@ public sealed partial class BindableNodeAnalyzer
 
 		foreach (TypeDefinition definition in GetDefinitionTypes(type))
 		{
-			if (definition.Export is null)
+			if (!IsTypeExportedForCurrentArtifact(definition))
 				Report(GetRange(type.SourceSyntax), $"Exported declaration '{exportedDeclaration.Name}' exposes non-exported type '{definition.Name}'.");
 		}
 
@@ -335,9 +336,17 @@ public sealed partial class BindableNodeAnalyzer
 			if (definition is null)
 				continue;
 
-			if (definition is { Export: null })
+			if (!IsTypeExportedForCurrentArtifact(definition))
 				Report(GetRange(named.SourceSyntax), $"Exported declaration '{exportedDeclaration.Name}' exposes non-exported type '{definition.Name}'.");
 		}
+	}
+
+	bool IsTypeExportedForCurrentArtifact(TypeDefinition definition)
+	{
+		if (definition.Export is not null)
+			return true;
+		return currentModule?.ExportProjections.Any(projection => ReferenceEquals(projection.Target, definition)
+			&& projection.ExportedDefinition is TypeDefinition) == true;
 	}
 
 	static IEnumerable<TypeDefinition> GetDefinitionTypes(TypeReference type)

@@ -48,8 +48,9 @@ public sealed partial class BindableNodeAnalyzer
 					ApplyNodeRewrites(module);
 					break;
 
-				case AnalyzerPass.LoweringRewrite:
-					RewriteModule(module);
+			case AnalyzerPass.LoweringRewrite:
+				RewriteExportedProjectionSignatures(module);
+				RewriteModule(module);
 					break;
 
 				default:

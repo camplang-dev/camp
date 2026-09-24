@@ -36,7 +36,7 @@ public sealed partial class BindableNodeAnalyzer
 			}
 
 			string externalName = string.IsNullOrWhiteSpace(projection.Alias) ? target.Name : projection.Alias!;
-			Definition? exportDefinition = string.Equals(externalName, target.Name, StringComparison.Ordinal)
+			Definition? exportDefinition = string.Equals(externalName, target.Name, StringComparison.Ordinal) && !target.IsApiHeader
 				? PromoteProjectionTarget(target, projection)
 				: CreateProjectedDefinition(target, externalName, projection);
 			if (exportDefinition is null)
@@ -56,6 +56,183 @@ public sealed partial class BindableNodeAnalyzer
 			module.Definitions.Add(definition);
 			module.DefinitionSources[definition] = GetRange(definition.SourceSyntax) is TokenRange range ? range.Sequence : null;
 		}
+
+	}
+
+	void RewriteExportedProjectionSignatures(Module module)
+	{
+		Dictionary<TypeDefinition, TypeDefinition> projectedTypes = new(ReferenceEqualityComparer.Instance);
+		foreach (ExportProjectionDefinition projection in module.ExportProjections)
+			if (projection.Target is TypeDefinition source
+				&& projection.ExportedDefinition is TypeDefinition exported
+				&& !ReferenceEquals(source, exported))
+				projectedTypes[source] = exported;
+
+		if (projectedTypes.Count == 0)
+			return;
+
+		foreach (Definition definition in module.Definitions)
+			if (definition.Export is not null)
+				RewriteExportedProjectionSignature(definition, projectedTypes);
+	}
+
+	void RewriteExportedProjectionSignature(Definition definition, Dictionary<TypeDefinition, TypeDefinition> projectedTypes)
+	{
+		switch (definition)
+		{
+			case FunctionDefinition function:
+				RewriteExportedProjectionType(function.ReturnType, projectedTypes);
+				foreach (ParameterDefinition parameter in function.Parameters)
+				{
+					RewriteExportedProjectionType(parameter.Type, projectedTypes);
+					parameter.ResolvedType = RewriteExportedProjectionResolvedType(parameter.ResolvedType, projectedTypes);
+					if (parameter is VTableOfParameterDefinition vtable)
+						RewriteExportedProjectionType(vtable.InterfaceType, projectedTypes);
+				}
+				function.ResolvedType = RewriteExportedProjectionResolvedType(function.ResolvedType, projectedTypes);
+				break;
+
+			case VariableDefinition variable:
+				RewriteExportedProjectionType(variable.Type, projectedTypes);
+				variable.ResolvedType = RewriteExportedProjectionResolvedType(variable.ResolvedType, projectedTypes);
+				break;
+
+			case ClassDefinition classDefinition:
+				RewriteExportedProjectionTypeList(classDefinition.BaseTypes, projectedTypes);
+				RewriteExportedProjectionTypeList(classDefinition.LoweredInterfaceBaseTypes, projectedTypes);
+				foreach (FieldDefinition field in classDefinition.Fields)
+					RewriteExportedProjectionSignature(field, projectedTypes);
+				foreach (FunctionDefinition function in classDefinition.Functions)
+					RewriteExportedProjectionSignature(function, projectedTypes);
+				break;
+
+			case StructDefinition structDefinition:
+				RewriteExportedProjectionTypeList(structDefinition.BaseTypes, projectedTypes);
+				RewriteExportedProjectionTypeList(structDefinition.LoweredInterfaceBaseTypes, projectedTypes);
+				foreach (FieldDefinition field in structDefinition.Fields)
+					RewriteExportedProjectionSignature(field, projectedTypes);
+				foreach (FunctionDefinition function in structDefinition.Functions)
+					RewriteExportedProjectionSignature(function, projectedTypes);
+				break;
+
+			case InterfaceDefinition interfaceDefinition:
+				RewriteExportedProjectionTypeList(interfaceDefinition.BaseTypes, projectedTypes);
+				foreach (FunctionDefinition function in interfaceDefinition.Functions)
+					RewriteExportedProjectionSignature(function, projectedTypes);
+				break;
+
+			case EnumDefinition enumDefinition:
+				RewriteExportedProjectionType(enumDefinition.UnderlyingType, projectedTypes);
+				foreach (FunctionDefinition function in enumDefinition.Functions)
+					RewriteExportedProjectionSignature(function, projectedTypes);
+				break;
+
+			case NewtypeDefinition newtypeDefinition:
+				RewriteExportedProjectionType(newtypeDefinition.UnderlyingType, projectedTypes);
+				foreach (ParameterDefinition parameter in newtypeDefinition.Parameters)
+				{
+					RewriteExportedProjectionType(parameter.Type, projectedTypes);
+					parameter.ResolvedType = RewriteExportedProjectionResolvedType(parameter.ResolvedType, projectedTypes);
+				}
+				foreach (FieldDefinition field in newtypeDefinition.Fields)
+					RewriteExportedProjectionSignature(field, projectedTypes);
+				foreach (FunctionDefinition function in newtypeDefinition.Functions)
+					RewriteExportedProjectionSignature(function, projectedTypes);
+				break;
+		}
+	}
+
+	void RewriteExportedProjectionTypeList(List<TypeReference> types, Dictionary<TypeDefinition, TypeDefinition> projectedTypes)
+	{
+		foreach (TypeReference type in types)
+			RewriteExportedProjectionType(type, projectedTypes);
+	}
+
+	void RewriteExportedProjectionType(TypeReference? type, Dictionary<TypeDefinition, TypeDefinition> projectedTypes)
+	{
+		if (type is null)
+			return;
+
+		switch (type)
+		{
+			case TypeDefinitionReference definition when definition.Definition is TypeDefinition source && projectedTypes.TryGetValue(source, out TypeDefinition? exported):
+				definition.Definition = exported;
+				definition.Name = exported.Name;
+				definition.ResolvedType = ResolvedNominalTypeName(exported);
+				foreach (TypeReference argument in definition.TypeArguments)
+					RewriteExportedProjectionType(argument, projectedTypes);
+				break;
+
+			case GenericTypeReference generic:
+				RewriteExportedProjectionType(generic.Type, projectedTypes);
+				foreach (TypeReference argument in generic.TypeArguments)
+					RewriteExportedProjectionType(argument, projectedTypes);
+				break;
+
+			case AttributedTypeReference attributed:
+				RewriteExportedProjectionType(attributed.Type, projectedTypes);
+				break;
+			case ArrayTypeReference array:
+				RewriteExportedProjectionType(array.ElementType, projectedTypes);
+				break;
+			case FixedArrayTypeReference fixedArray:
+				RewriteExportedProjectionType(fixedArray.ElementType, projectedTypes);
+				break;
+			case OptionalTypeReference optional:
+				RewriteExportedProjectionType(optional.ElementType, projectedTypes);
+				break;
+			case PointerTypeReference pointer:
+				RewriteExportedProjectionType(pointer.ElementType, projectedTypes);
+				break;
+			case ConstTypeReference constant:
+				RewriteExportedProjectionType(constant.Type, projectedTypes);
+				break;
+			case ConstOfTypeReference constOf:
+				RewriteExportedProjectionType(constOf.Type, projectedTypes);
+				break;
+			case VolatileTypeReference volatileType:
+				RewriteExportedProjectionType(volatileType.Type, projectedTypes);
+				break;
+			case EscapedTypeReference escaped:
+				RewriteExportedProjectionType(escaped.Type, projectedTypes);
+				break;
+			case ScopedTypeReference scoped:
+				RewriteExportedProjectionType(scoped.Type, projectedTypes);
+				break;
+			case UnscopedTypeReference unscoped:
+				RewriteExportedProjectionType(unscoped.Type, projectedTypes);
+				break;
+			case CallableTypeReference callable:
+				RewriteExportedProjectionType(callable.ReturnType, projectedTypes);
+				foreach (ParameterDefinition parameter in callable.Parameters)
+				{
+					RewriteExportedProjectionType(parameter.Type, projectedTypes);
+					parameter.ResolvedType = RewriteExportedProjectionResolvedType(parameter.ResolvedType, projectedTypes);
+				}
+				break;
+			case IterTypeReference iter:
+				RewriteExportedProjectionType(iter.ElementType, projectedTypes);
+				break;
+			case GroupedParamsTypeReference grouped:
+				RewriteExportedProjectionType(grouped.StructType, projectedTypes);
+				break;
+			case MaterializedStructTypeReference materialized:
+				RewriteExportedProjectionType(materialized.ParamsType, projectedTypes);
+				break;
+			case ThrownTypeReference thrown:
+				RewriteExportedProjectionType(thrown.Type, projectedTypes);
+				break;
+		}
+	}
+
+	string? RewriteExportedProjectionResolvedType(string? resolvedType, Dictionary<TypeDefinition, TypeDefinition> projectedTypes)
+	{
+		if (string.IsNullOrWhiteSpace(resolvedType))
+			return resolvedType;
+		foreach ((TypeDefinition source, TypeDefinition exported) in projectedTypes)
+			if (resolvedType == ResolvedNominalTypeName(source))
+				return ResolvedNominalTypeName(exported);
+		return resolvedType;
 	}
 
 	void ValidateProjectionInterfaces(Module module, ExportProjectionDefinition projection, Definition target)
