@@ -35,6 +35,12 @@ void utf16StringSearchTrimCaseJoinAndEmbeddedNulls(thrown Assertion* assertion)
 	assert(span.endsWith(suffix), "wstring endsWith should accept UTF-16 suffixes");
 	assert(span.endsWith((uchar)' '), "wstring endsWith should accept code point suffixes");
 	assert(text.compareTo(original) == 0, "wstring compareTo should compare equal strings");
+	assert("alpha".compareTo("bravo") == -1, "wstring compareTo should report UTF-16 strings in ascending order");
+	assert("alpha".compareTo("alpha") == 0, "wstring compareTo should report equal UTF-16 strings as zero");
+	assert("bravo".compareTo("alpha") == 1, "wstring compareTo should report UTF-16 strings in descending order");
+	assert("Alpha".compareTo("alpha", true) == 0, "case-insensitive wstring compareTo should report equal UTF-16 strings as zero");
+	assert("alpha".compareTo("Bravo", true) == -1, "case-insensitive wstring compareTo should report UTF-16 strings in ascending order");
+	assert("Bravo".compareTo("alpha", true) == 1, "case-insensitive wstring compareTo should report UTF-16 strings in descending order");
 
 	wstring face = "a\U0001F600b";
 	assert(face[..].countUChars() == 3, "wstring countUChars should count surrogate pairs as one code point");

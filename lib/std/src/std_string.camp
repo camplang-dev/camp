@@ -3,9 +3,9 @@ namespace Std;
 @category("Text");
 
 @symbol("utf8ncmp")
-extern nint utf8ncmp(const char* src1, const char* src2, nuint len);
+extern int utf8ncmp(const char* src1, const char* src2, nuint len);
 @symbol("utf8ncasecmp")
-extern nint utf8ncasecmp(const char* src1, const char* src2, nuint len);
+extern int utf8ncasecmp(const char* src1, const char* src2, nuint len);
 @symbol("camp_utf8nlen")
 extern nuint camp_utf8nlen(const char* src, nuint len);
 @symbol("camp_utf8size_lazy")

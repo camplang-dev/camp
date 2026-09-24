@@ -3,9 +3,9 @@ namespace Std;
 @category("Text");
 
 @symbol("utf16ncmp")
-extern nint utf16ncmp(const wchar* src1, const wchar* src2, nuint len);
+extern int utf16ncmp(const wchar* src1, const wchar* src2, nuint len);
 @symbol("utf16ncasecmp")
-extern nint utf16ncasecmp(const wchar* src1, const wchar* src2, nuint len);
+extern int utf16ncasecmp(const wchar* src1, const wchar* src2, nuint len);
 @symbol("camp_utf16nlen")
 extern nuint camp_utf16nlen(const wchar* src, nuint len);
 @symbol("camp_utf16size_lazy")

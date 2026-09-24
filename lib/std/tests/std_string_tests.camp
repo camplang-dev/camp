@@ -25,6 +25,12 @@ void utf8StringSearchTrimCaseJoinAndEmbeddedNulls(thrown Assertion* assertion)
 	assert(span.endsWith("!  "), "endsWith should accept string suffixes");
 	assert(span.endsWith((uchar)' '), "endsWith should accept code point suffixes");
 	assert(text.compareTo("  Hello, hello!  ") == 0, "compareTo should compare equal UTF-8 strings");
+	assert("alpha".compareTo("bravo") == -1, "compareTo should report UTF-8 strings in ascending order");
+	assert("alpha".compareTo("alpha") == 0, "compareTo should report equal UTF-8 strings as zero");
+	assert("bravo".compareTo("alpha") == 1, "compareTo should report UTF-8 strings in descending order");
+	assert("Alpha".compareTo("alpha", true) == 0, "case-insensitive compareTo should report equal UTF-8 strings as zero");
+	assert("alpha".compareTo("Bravo", true) == -1, "case-insensitive compareTo should report UTF-8 strings in ascending order");
+	assert("Bravo".compareTo("alpha", true) == 1, "case-insensitive compareTo should report UTF-8 strings in descending order");
 
 	string accent = "caf\xC3\xA9";
 	assert(accent[..].countUChars() == 4, "countUChars should count UTF-8 code points");
