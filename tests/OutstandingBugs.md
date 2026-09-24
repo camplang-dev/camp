@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-174.
+Next bug number: BUG-175.
 
 ## Bug Template
 
@@ -442,3 +442,74 @@ concrete throwing call used to reach it here. No workaround is known other
 than avoiding `finally` in a function that also contains a `try`/`catch`
 returning from `catch`, for example by replacing the `finally` with explicit
 `delete` calls on every return path instead.
+
+## BUG-174: An export projection alias used within its own declaring project doubles its generated prefix
+
+Date/Time: 2026-09-24 00:00 EDT
+
+Summary:
+An `export`ed declaration whose signature uses a type reached through an
+export-projection alias declared in the same project doubles the projected
+alias's own generated name with the owning namespace's mangled prefix,
+producing a name that is never actually defined anywhere in the generated C.
+This reproduces with no second project or project reference at all: both the
+projection and the declaration that uses it are ordinary files of one
+project. This appears adjacent to the recently fixed BUG-171 (a cross-project
+export projection previously emitted the wrong, unprefixed generated name);
+this report is the opposite failure mode, an extra prefix, for the plainer
+same-project case.
+
+Steps to Reproduce:
+
+1. `src/wrapper.camp`:
+   ```camp
+   namespace Camp;
+
+   export Std::Allocator as CampAllocator;
+   ```
+
+2. `src/user.camp`, in the same project:
+   ```camp
+   namespace Camp;
+
+   export escaped class Token
+   {
+   	static Token* begin(Std::Allocator* allocator)
+   	{
+   		return null;
+   	}
+   }
+   ```
+
+3. Build the project (`--artifact` any static/shared/exec form; a project
+   containing only these two files reproduces it).
+
+Expected:
+The generated C for `Token.begin` declares its parameter using the projected
+alias's own generated name, `CampAllocator` (matching the name the projection
+itself declares), and the build succeeds.
+
+Actual:
+```
+error: unknown type name 'CampCampAllocator'
+static CampToken *CampToken_begin(CampCampAllocator **allocator);
+```
+
+The generated declaration uses `CampCampAllocator`, doubling the `Camp`
+namespace prefix onto the alias's own already-complete generated name
+(`CampAllocator`); no type of that doubled name is ever defined anywhere in
+the generated output.
+
+Known Impact:
+Any exported declaration that uses a type reached through an export
+projection declared in the same project, when that projection's own alias
+name already carries the owning namespace's conventional prefix (as
+`camp-core`'s real `export Std::Allocator as CampAllocator;` does), fails
+native compilation. This affects `camp-core`'s own production (non-test,
+non-`internal`/`public`-only) build, since `camp_cancellation.camp`'s
+`CancellationToken.begin` takes an `Allocator*` parameter through exactly
+this path; `campc test` builds of the same sources are unaffected because
+test-mode compilation does not enforce or emit the same export-only native
+surface. No workaround is known that keeps the declaration `export`ed with
+this parameter type; using `public` instead of `export` avoids emitting the
+doubled name, matching the note in BUG-171.
