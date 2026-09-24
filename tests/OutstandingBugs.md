@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-167.
+Next bug number: BUG-168.
 
 ## Bug Template
 
@@ -328,3 +328,68 @@ cleanup and instead delete/release the resource explicitly on every return
 path (or route every return through one shared label that performs the
 cleanup once) whenever the enclosing function's own return is array- or
 escaped-struct-shaped.
+
+## BUG-167: An `extern` return type wider than the native function's actual return type loses its sign
+
+Date/Time: 2026-09-24 06:58 EDT
+
+Summary:
+When an `extern` function is declared with a wider signed return type (such as
+`nint`) than the native function it binds to actually returns (such as a
+32-bit `int`), a negative native result is zero-extended into the wider Camp
+type instead of sign-extended. The resulting value is a large positive number
+rather than the correct negative one, so any later signed comparison against
+it (`< 0`, `> 0`) evaluates against the wrong sign. Declaring the extern
+function with a return type matching the native function's actual width does
+not reproduce the defect.
+
+Steps to Reproduce:
+
+1. Compile and link this native helper:
+
+   ```c
+   int native_negative_one(void)
+   {
+       return -1;
+   }
+   ```
+
+2. Declare and call it from Camp with a wider extern return type:
+
+   ```camp
+   @symbol("native_negative_one")
+   extern nint nativeNegativeOne();
+
+   @test
+   void nativeNegativeOneIsNegative(thrown Assertion*)
+   {
+       nint value = nativeNegativeOne();
+       assert(value < 0);
+   }
+   ```
+
+Expected:
+`value` is `-1`, and `value < 0` is true.
+
+Actual:
+`value` is `4294967295` (the 32-bit `int` result `-1`, i.e. `0xFFFFFFFF`, zero-
+extended rather than sign-extended into the 64-bit `nint`), so `value < 0` is
+false and `value > 0` is true instead. Declaring the extern function with a
+matching return width (`extern int nativeNegativeOne();`) returns the correct
+`-1` and does not reproduce the defect.
+
+Known Impact:
+Any native-backed function whose Camp `extern` declaration widens a native
+signed return type produces a corrupted result whenever the true value is
+negative, silently reversing any later sign-dependent comparison or branch.
+One concrete example is the standard library's UTF-8 comparison helper, which
+is declared as `extern nint` but implemented by a native function returning
+`int`: when the true byte-order comparison is negative, the wider Camp value
+comes back as a large positive number, so ordering built on top of it
+(returning `-1`/`0`/`1` for less-than/equal/greater-than) can report `1` for
+both directions of an unequal comparison. Equality-only checks (comparing the
+result to zero) are unaffected, since a genuine zero native result is
+unaffected by this defect. A known workaround is to avoid relying on the sign
+of such an extern call's result, either by declaring the extern with its
+native function's actual return width, or by not depending on the affected
+value's sign for ordering.
