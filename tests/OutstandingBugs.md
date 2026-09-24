@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-173.
+Next bug number: BUG-174.
 
 ## Bug Template
 
@@ -462,3 +462,91 @@ type name for a cross-file result, such as a discovery or comparison result
 struct returned by a helper function. Workaround: declare such locals with
 `auto` instead of the explicit type name, or receive the value through a
 parameter instead of constructing it inside the body.
+
+## BUG-173: A `finally` cleanup double-frees when a later `try`/`catch` in the same function returns from its `catch`
+
+Date/Time: 2026-09-24 00:00 EDT
+
+Summary:
+A `finally { delete x; }` registered for a local pointer, followed later in
+the same function by an ordinary `try`/`catch` whose `catch` block returns,
+runs the `finally` cleanup twice: once for the early return inside `catch`,
+and once more for the function's own exit, freeing the same pointer a second
+time. The bug requires no exception to actually be thrown from inside the
+function's own `try` for the throwing call itself to matter; it is the mere
+presence of a `catch` block that returns, later in the same function than an
+earlier `finally` registration, that causes the double free. Neither the
+return type of the function nor the type of the `finally`-managed local
+matters: a plain `bool`-returning function with a single owned pointer
+reproduces it.
+
+This may be the same underlying defect as a previously observed, then
+unreproducible, "invalid allocator free: pointer was already freed" noted
+once during the investigation that led to BUG-166 and never pinned down at
+the time; this report supersedes that earlier inconclusive observation with a
+minimal, reliable repro.
+
+Steps to Reproduce:
+
+1. Compile and run this Camp source as a test:
+
+   ```camp
+   requires (TEST_MODULE);
+
+   namespace Camp;
+
+   internal class Marker
+   {
+   }
+
+   bool tryIterateMissingDirectory(string directory, within Allocator* allocator)
+   {
+   	Marker* marker = new Marker();
+   	finally { delete marker; }
+   	if (marker == null)
+   		return false;
+
+   	try
+   	{
+   		foreach (string name in FileSystem.iterateDirectory(directory))
+   		{
+   		}
+   	}
+   	catch (IoError error)
+   	{
+   		return false;
+   	}
+   	return true;
+   }
+
+   @test
+   void iterateMissingDirectoryReturnsFalse(within Allocator* allocator, thrown Assertion* assertion)
+   {
+   	bool result = tryIterateMissingDirectory("definitely-does-not-exist-xyz");
+   	assert(!result);
+   }
+   ```
+
+2. `definitely-does-not-exist-xyz` does not exist relative to the test
+   binary's working directory, so `FileSystem.iterateDirectory` throws
+   `IoError`, `catch` returns `false`, and the test asserts on that `false`.
+
+Expected:
+`marker` is freed exactly once when `tryIterateMissingDirectory` returns,
+regardless of which return statement is taken, and the test passes.
+
+Actual:
+```
+failed: Camp::iterateMissingDirectoryReturnsFalse
+  at tests/repro_tests.camp:26 invalid allocator free: pointer was already freed
+```
+
+Known Impact:
+Any function that registers a `finally` cleanup for an owned pointer and
+later, in the same function, uses an ordinary `try`/`catch` whose `catch`
+returns, double-frees that pointer. This is a plain correctness defect
+independent of any particular API; `FileSystem.iterateDirectory` is only the
+concrete throwing call used to reach it here. No workaround is known other
+than avoiding `finally` in a function that also contains a `try`/`catch`
+returning from `catch`, for example by replacing the `finally` with explicit
+`delete` calls on every return path instead.
