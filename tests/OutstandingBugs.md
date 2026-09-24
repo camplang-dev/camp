@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-170.
+Next bug number: BUG-171.
 
 ## Bug Template
 
@@ -404,3 +404,71 @@ fails to build. The known workaround is to assign the generic method's
 result to a local first, inside the loop body or before the loop, and call
 the chained method on that local instead of chaining directly in the
 condition.
+
+## BUG-170: Referencing a `for` loop's own variable inside a chained call on a generic method's return, within that loop's condition, emits invalid C
+
+Date/Time: 2026-09-24 12:00 EDT
+
+Summary:
+A `for` loop whose condition chains a further call onto a generic method's
+type-parameter-typed return (such as `List<T>.getItem(...)`), where that call
+is passed the `for` loop's own init-declared variable, emits C that refers to
+that variable before it is in scope. The same loop shape with the same
+chained call, but reading a variable declared outside the `for` loop instead
+of the loop's own variable, compiles correctly; a `for` loop with a
+non-chained condition referencing its own variable also compiles correctly.
+
+Steps to Reproduce:
+
+1. Compile and run this Camp source through the built-in test runner:
+
+   ```camp
+   struct Stem
+   {
+       fixed char[16] text;
+       uint length;
+
+       const char[] span() => this.text[..this.length];
+   }
+
+   Stem makeStem(const char[] text)
+   {
+       Stem stem = default;
+       for (uint index = 0; index < text.length; index++)
+           stem.text[index] = text[index];
+       stem.length = (uint)text.length;
+       return stem;
+   }
+
+   @test
+   void bugThreeForLoopOwnVariable(within Allocator* allocator, thrown Assertion*)
+   {
+       List<Stem>* stems = new List<Stem>() finally delete;
+       Stem apple = makeStem("apple");
+       stems.add(apple);
+       Stem target = makeStem("mango");
+       for (uint cursor = 0; stems.getItem(cursor).span().compareTo(target.span()) < 0; cursor++)
+           break;
+       assert(true);
+   }
+   ```
+
+Expected:
+The source compiles and the test passes.
+
+Actual:
+The native build fails:
+
+```
+error: use of undeclared identifier 'cursor'
+    StdList_getItem((const StdList *)(stems), cursor, &_value4);
+```
+
+Known Impact:
+Any `for` loop whose condition chains a further call onto a generic method's
+type-parameter-typed return, and passes that generic method the loop's own
+init-declared variable, fails to build. The known workaround is to declare
+the loop's index variable before the `for` loop (using an empty or unrelated
+`for` init clause) rather than in the loop's own init clause, or to avoid
+chaining a further call onto the generic method's return inside the
+condition at all.
