@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-169.
+Next bug number: BUG-170.
 
 ## Bug Template
 
@@ -328,3 +328,79 @@ Any generic method call (such as `List<T>.add`) whose argument is written as
 a direct call to a function returning a struct, instead of through a local
 variable, fails to build. The known workaround is to assign the inner call's
 result to a local first: `Stem value = makeStem("apple"); stems.add(value);`.
+
+## BUG-169: Chaining a call onto a generic method's own aggregate return inside a `while` condition emits invalid C
+
+Date/Time: 2026-09-24 12:00 EDT
+
+Summary:
+Calling a further method directly on the result of a generic method that
+returns the type parameter (such as `List<T>.getItem`), when that chained
+expression appears in a `while` loop's condition, emits a call to the generic
+method with one argument more than it is declared to take. The generic
+method is lowered to a `void`-returning function that writes its result
+through a hidden output pointer; something about lowering a `while`
+condition's repeated test appears to allocate an extra such pointer for the
+chained call. The same chained expression compiles correctly in an `if`
+condition or an ordinary statement, and chaining a call onto a *non-generic*
+method's struct return inside a `while` condition also compiles correctly.
+
+Steps to Reproduce:
+
+1. Compile and run this Camp source through the built-in test runner:
+
+   ```camp
+   struct Stem
+   {
+       fixed char[16] text;
+       uint length;
+
+       const char[] span() => this.text[..this.length];
+   }
+
+   Stem makeStem(const char[] text)
+   {
+       Stem stem = default;
+       for (uint index = 0; index < text.length; index++)
+           stem.text[index] = text[index];
+       stem.length = (uint)text.length;
+       return stem;
+   }
+
+   @test
+   void bugTwoWhileConditionChain(within Allocator* allocator, thrown Assertion*)
+   {
+       List<Stem>* stems = new List<Stem>() finally delete;
+       Stem apple = makeStem("apple");
+       stems.add(apple);
+       Stem target = makeStem("mango");
+       uint cursor = 0;
+       while (stems.getItem(cursor).span().compareTo(target.span()) < 0)
+       {
+           cursor++;
+           break;
+       }
+       assert(true);
+   }
+   ```
+
+Expected:
+The source compiles and the test passes.
+
+Actual:
+The native build fails:
+
+```
+error: too many arguments to function call, expected 3, have 4
+    StdList_getItem((const StdList *)(stems), cursor, &_value4, &_value11);
+note: 'StdList_getItem' declared here
+void StdList_getItem(const StdList *this, uintptr_t at, void *__result);
+```
+
+Known Impact:
+Any `while` loop whose condition chains a further call onto a generic
+method's type-parameter-typed return (most notably `List<T>.getItem(...)`)
+fails to build. The known workaround is to assign the generic method's
+result to a local first, inside the loop body or before the loop, and call
+the chained method on that local instead of chaining directly in the
+condition.
