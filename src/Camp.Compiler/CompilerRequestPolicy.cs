@@ -1,5 +1,3 @@
-using System;
-
 namespace Camp.Compiler;
 
 public static class CompilerRequestPolicy
@@ -20,29 +18,35 @@ public static class CompilerRequestPolicy
 
 	public static bool HasPublicOrExportedMain(string text)
 	{
-		for (int i = 0; i < text.Length;)
+		bool hasVisibility = false;
+		bool hasMainName = false;
+		foreach (TokenValue token in CampTokenizer.Tokenize(text))
 		{
-			int found = text.IndexOf("main", i, StringComparison.Ordinal);
-			if (found < 0)
-				return false;
-			i = found + 4;
-			if (!IsIdentifierBoundary(text, found - 1) || !IsIdentifierBoundary(text, found + 4))
+			if (token.Class is TokenClass.Whitespace or TokenClass.NewLine or TokenClass.LineComment or TokenClass.BlockComment
+				or TokenClass.String or TokenClass.InterpolatedString)
 				continue;
-			int j = found + 4;
-			while (j < text.Length && char.IsWhiteSpace(text[j]))
-				j++;
-			if (j >= text.Length || text[j] != '(')
+
+			if (hasMainName)
+				return token.Value == "(";
+
+			if (token.Class == TokenClass.Identifier && token.Value is "export" or "internal")
+			{
+				hasVisibility = true;
 				continue;
-			string prefix = text[..found];
-			int visibilityIndex = Math.Max(prefix.LastIndexOf("export", StringComparison.Ordinal), prefix.LastIndexOf("internal", StringComparison.Ordinal));
-			if (visibilityIndex >= 0 && found - visibilityIndex < 256 && IsIdentifierBoundary(text, visibilityIndex - 1))
-				return true;
+			}
+
+			if (!hasVisibility)
+				continue;
+
+			if (token.Class == TokenClass.Identifier && token.Value == "main")
+			{
+				hasMainName = true;
+				continue;
+			}
+
+			if (token.Value is ";" or "{" or "}" or "=")
+				hasVisibility = false;
 		}
 		return false;
-	}
-
-	static bool IsIdentifierBoundary(string text, int index)
-	{
-		return index < 0 || index >= text.Length || !(char.IsLetterOrDigit(text[index]) || text[index] == '_');
 	}
 }

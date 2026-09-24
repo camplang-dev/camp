@@ -9266,6 +9266,7 @@ public sealed class CommandLineTests
 			@test
 			void allocates(thrown TestFailure* failure)
 			{
+				const char[] nestedSource = "export int main() { return 42; }";
 				auto bytes = new byte[1];
 				delete bytes;
 			}
