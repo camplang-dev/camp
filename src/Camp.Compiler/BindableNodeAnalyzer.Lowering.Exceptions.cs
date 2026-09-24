@@ -295,6 +295,13 @@ public sealed partial class BindableNodeAnalyzer
 
 	Statement WithPendingCleanups(Statement transfer)
 	{
+		if (transfer is BlockStatement block && block.Statements.Count > 0)
+		{
+			int lastStatement = block.Statements.Count - 1;
+			block.Statements[lastStatement] = WithPendingCleanups(block.Statements[lastStatement]);
+			return block;
+		}
+
 		if (transfer is BreakStatement && TryGetCurrentBreakTarget(out string? breakLabel, out int breakCleanupScopeStart))
 			return CreateCleanupGotoTransfer(breakLabel, includeContinueCleanups: true, breakCleanupScopeStart);
 

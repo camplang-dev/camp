@@ -1,0 +1,39 @@
+int cleanupCount = 0;
+
+char[] makeBuffer()
+{
+	char[] scratch = new char[4];
+	finally
+	{
+		cleanupCount++;
+		delete scratch;
+	}
+
+	char[] output = new char[1];
+	output[0] = 'x';
+	return output;
+}
+
+int makeScalar()
+{
+	char[] scratch = new char[4];
+	finally
+	{
+		cleanupCount++;
+		delete scratch;
+	}
+
+	return (int)scratch.length;
+}
+
+export int main()
+{
+	char[] output = makeBuffer() finally delete;
+	if (output.length != 1 || output[0] != 'x')
+		return 1;
+	if (cleanupCount != 1)
+		return 2;
+	if (makeScalar() != 4)
+		return 3;
+	return cleanupCount == 2 ? 0 : 4;
+}
