@@ -1191,7 +1191,7 @@ public static class CompilerDriver
                 {
                     Directory.CreateDirectory(Path.GetDirectoryName(apiPath)!);
                     using StringWriter writer = new(CultureInfo.InvariantCulture);
-                    BindableNodeCodeSerializer.Serialize(BuildApiOutputModule(packageCompilation, apiSurface), writer, new BindableNodeCodeSerializerOptions { ApiHeader = true, ApiSurface = apiSurface, ApiDefinitionsAlreadyFiltered = true, ApiReferenceDefinitions = packageCompilation.SharedModule.Definitions, ApiAllocatorTypeAvailable = CompilationHasAllocatorType(packageCompilation) });
+                    BindableNodeCodeSerializer.Serialize(BuildApiOutputModule(packageCompilation, apiSurface), writer, new BindableNodeCodeSerializerOptions { ApiHeader = true, ApiSurface = apiSurface, ApiDefinitionsAlreadyFiltered = true, ApiReferenceDefinitions = packageCompilation.SharedModule.Definitions, ApiAllocatorTypeAvailable = CompilationHasAllocatorType(packageCompilation), ApiWithinAllocationPolicy = packageCompilation.DefaultWithinAllocationPolicy });
                     AddGeneratedFile(apiPath, BuildFileIO.WriteTextIfChanged(apiPath, writer.ToString(), Encoding.UTF8));
                     if (metadataPath is not null && !TryEmitMetadataArtifact(packageCompilation, Path.GetDirectoryName(metadataPath)!, MetadataVisibility.Export, packageName))
                         return false;
@@ -2125,7 +2125,7 @@ public static class CompilerDriver
                 Directory.CreateDirectory(outputDirectory);
                 using StringWriter writer = new(CultureInfo.InvariantCulture);
                 CampApiSurfaceKind apiSurface = request.BuildKind == NativeBuildKind.Static ? CampApiSurfaceKind.Public : CampApiSurfaceKind.Export;
-                BindableNodeCodeSerializer.Serialize(BuildApiOutputModule(compilation, apiSurface), writer, new BindableNodeCodeSerializerOptions { ApiHeader = true, ApiSurface = apiSurface, ApiDefinitionsAlreadyFiltered = true, ApiReferenceDefinitions = compilation.SharedModule!.Definitions, ApiAllocatorTypeAvailable = CompilationHasAllocatorType(compilation) });
+                BindableNodeCodeSerializer.Serialize(BuildApiOutputModule(compilation, apiSurface), writer, new BindableNodeCodeSerializerOptions { ApiHeader = true, ApiSurface = apiSurface, ApiDefinitionsAlreadyFiltered = true, ApiReferenceDefinitions = compilation.SharedModule!.Definitions, ApiAllocatorTypeAvailable = CompilationHasAllocatorType(compilation), ApiWithinAllocationPolicy = compilation.DefaultWithinAllocationPolicy });
                 AddGeneratedFile(campApiPath, BuildFileIO.WriteTextIfChanged(campApiPath, writer.ToString(), Encoding.UTF8));
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)

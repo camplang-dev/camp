@@ -5714,6 +5714,13 @@ public sealed class CommandLineTests
 		File.WriteAllText(Path.Combine(librarySource, "library.camp"), """
 			namespace AllocatorLifecycle;
 
+			export escaped class DefaultOwner
+			{
+				public DefaultOwner()
+				{
+				}
+			}
+
 			export escaped class Owner
 			{
 				Owner(within this.allocator)
@@ -5736,6 +5743,7 @@ public sealed class CommandLineTests
 
 			export int main(string[] args)
 			{
+				auto defaultOwner = new DefaultOwner() finally delete;
 				auto owner = new Owner() finally delete;
 				return owner.value() - 7;
 			}
@@ -5746,6 +5754,8 @@ public sealed class CommandLineTests
 
 		AssertCommandSucceeded(result);
 		string api = File.ReadAllText(Path.Combine(libraryRoot, "bin", ArtifactDirectoryForTarget(target, NativeBuildKind.Static), "allocator-lifecycle-lib_api.camp"));
+		Assert.StartsWith("#within explicit", api, StringComparison.Ordinal);
+		Assert.Contains("export escaped extern class DefaultOwner", api, StringComparison.Ordinal);
 		Assert.Contains("export extern Owner(within this.allocator);", api, StringComparison.Ordinal);
 		Assert.Contains("export extern ~Owner();", api, StringComparison.Ordinal);
 	}

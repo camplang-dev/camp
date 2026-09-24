@@ -15,6 +15,7 @@ public sealed class BindableNodeCodeSerializerOptions
 	public bool ApiDefinitionsAlreadyFiltered { get; set; }
 	public IReadOnlyList<Definition> ApiReferenceDefinitions { get; set; } = [];
 	public bool? ApiAllocatorTypeAvailable { get; set; }
+	public WithinAllocationPolicy? ApiWithinAllocationPolicy { get; set; }
 }
 
 public enum CampApiSurfaceKind
@@ -32,6 +33,7 @@ public sealed class BindableNodeCodeSerializer
 	readonly bool apiDefinitionsAlreadyFiltered;
 	readonly IReadOnlyList<Definition> apiReferenceDefinitions;
 	readonly bool? apiAllocatorTypeAvailable;
+	readonly WithinAllocationPolicy? apiWithinAllocationPolicy;
 	readonly Dictionary<BindableNode, string> generatedNames = new();
 	Module? currentModule;
 	string? currentOutputNamespace;
@@ -50,6 +52,7 @@ public sealed class BindableNodeCodeSerializer
 		apiDefinitionsAlreadyFiltered = options?.ApiDefinitionsAlreadyFiltered ?? false;
 		apiReferenceDefinitions = options?.ApiReferenceDefinitions ?? [];
 		apiAllocatorTypeAvailable = options?.ApiAllocatorTypeAvailable;
+		apiWithinAllocationPolicy = options?.ApiWithinAllocationPolicy;
 	}
 
 	public static void Serialize(BindableNode node, TextWriter writer, BindableNodeCodeSerializerOptions? options = null)
@@ -99,6 +102,12 @@ public sealed class BindableNodeCodeSerializer
 	{
 		currentModule = module;
 		currentOutputNamespace = module.Namespace;
+		if (apiHeader && apiWithinAllocationPolicy is WithinAllocationPolicy withinPolicy)
+		{
+			writer.Write("#within ");
+			writer.WriteLine(withinPolicy == WithinAllocationPolicy.Explicit ? "explicit" : "implicit");
+			writer.WriteLine();
+		}
 		if (apiHeader && ShouldWriteNamespaceSections(module))
 		{
 			WriteNamespaceSections(module);
