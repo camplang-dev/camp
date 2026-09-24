@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-172.
+Next bug number: BUG-173.
 
 ## Bug Template
 
@@ -375,3 +375,90 @@ involved. Workaround: keep any declaration whose signature needs a dependency
 project's type `public` rather than `export`, or wrap the dependency's values
 behind a locally declared Camp-owned type instead of projecting the foreign
 type directly.
+
+## BUG-172: A `@factorytest` body cannot name a cross-file type for a local variable
+
+Date/Time: 2026-09-24 00:00 EDT
+
+Summary:
+Inside a `@factorytest` function's body, declaring a local variable whose
+explicit type name is declared in a different file of the same project fails
+to resolve, even though the identical type is visible and used correctly
+everywhere else: as a parameter type of the same `@factorytest` function, as
+the explicit type of a local variable inside an ordinary `@test` in the same
+file, and implicitly through `auto` type inference inside the same
+`@factorytest` body. The failure is specific to spelling a cross-file type
+name for an explicit local-variable declaration inside a `@factorytest`
+body.
+
+Steps to Reproduce:
+
+1. `src/types.camp`:
+   ```camp
+   namespace Camp;
+
+   internal struct Foo
+   {
+   	int x;
+   }
+
+   internal Foo makeFoo() => { 42 };
+   ```
+
+2. `tests/repro_tests.camp`:
+   ```camp
+   requires (TEST_MODULE);
+
+   namespace Camp;
+
+   @test
+   void parentTest(within Allocator* allocator, thrown Assertion*)
+   {
+   	childFactory("case1");
+   }
+
+   @factorytest
+   void childFactory(@testname const char[] name, within Allocator* allocator, thrown Assertion*)
+   {
+   	Foo value = makeFoo();
+   	assert(value.x == 42);
+   }
+   ```
+
+3. Run the project's tests.
+
+Expected:
+`childFactory` compiles and runs identically to an ordinary `@test` with the
+same body; `Foo` is visible inside a `@factorytest` body exactly as it is
+inside an ordinary `@test` body in the same file, since both are declared in
+the same project.
+
+Actual:
+```
+tests/repro_tests.camp(14,2): error: Type 'Foo' is declared in namespace 'Camp' but is not imported by this file.
+tests/repro_tests.camp(14,21): error: Call result cannot convert 'CampFoo' to '#UNRESOLVED(Foo)'.
+tests/repro_tests.camp(14,21): error: Declaration initializer cannot convert 'CampFoo' to '#UNRESOLVED(Foo)'.
+tests/repro_tests.camp(15,15): error: Member 'x' could not be found on type '#UNRESOLVED(Foo)'.
+```
+
+Three closely related shapes each avoid the failure, confirming it is specific
+to an explicit local-variable type name inside the lowered `@factorytest`
+body:
+
+- Replacing `Foo value = makeFoo();` with `auto value = makeFoo();` compiles
+  and passes.
+- Moving the identical body into an ordinary `@test` in the same file (no
+  `@factorytest`, no `@testname` parameter) compiles and passes.
+- Adding a `Foo`-typed parameter to `childFactory` and passing `makeFoo()` from
+  the caller, instead of declaring the local inside the body, compiles and
+  passes.
+
+Known Impact:
+A `@factorytest` function cannot declare a local variable using an explicit
+type name from another file of its own project; only types already visible
+through a parameter, or through `auto` inference, work. This narrows how
+factory-test bodies can be written for any case that needs an explicit local
+type name for a cross-file result, such as a discovery or comparison result
+struct returned by a helper function. Workaround: declare such locals with
+`auto` instead of the explicit type name, or receive the value through a
+parameter instead of constructing it inside the body.
