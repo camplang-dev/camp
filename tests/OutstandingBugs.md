@@ -268,19 +268,23 @@ tests): the proposal requires diagnosing `@testname` when placed on a
 source shape cannot currently be written at all, so it cannot be proven with
 a compiling golden fixture until this parser gap is fixed.
 
-## BUG-166: A `finally` block is not executed when the enclosing function's own return type is an array or a struct with an escaped field
+## BUG-166: A `finally` block is not executed when the enclosing function's own return type is an array
 
 Date/Time: 2026-09-24 06:58 EDT
 
 Summary:
 A `finally` block that releases one local resource can silently fail to run
-when the enclosing function's own return type is aggregate-shaped: an array,
-or a struct containing an escaped pointer or array field. No diagnostic is
+when the enclosing function's own return type is an array. No diagnostic is
 produced and no C compile error occurs; the cleanup statement is simply
 skipped at the function's normal exit, leaking the resource. The same
 function body's `finally` block runs correctly when the function instead
 returns a scalar or enum type, and the defect reproduces with no early return
-present, so it is not specific to having multiple return paths.
+present, so it is not specific to having multiple return paths. A function
+that instead returns a struct containing an escaped pointer or array field
+was tried in several shapes (a single return, an early return before the
+guarded allocation, two sequential `finally` blocks, and a function that
+performs real file I/O) and did not reproduce the defect in any of them, so
+this report is deliberately scoped to array returns only.
 
 Steps to Reproduce:
 
@@ -321,13 +325,11 @@ same `finally { delete scratch; }` block run correctly.
 
 Known Impact:
 Any function that performs temporary/scratch cleanup with a `finally` block
-while its own return type is an array, or a struct containing an escaped
-pointer or array field, can leak that resource on every call, with no
-compiler diagnostic. A known workaround is to avoid `finally` for such
+while its own return type is an array can leak that resource on every call,
+with no compiler diagnostic. A known workaround is to avoid `finally` for such
 cleanup and instead delete/release the resource explicitly on every return
 path (or route every return through one shared label that performs the
-cleanup once) whenever the enclosing function's own return is array- or
-escaped-struct-shaped.
+cleanup once) whenever the enclosing function's own return is array-shaped.
 
 ## BUG-167: An `extern` return type wider than the native function's actual return type loses its sign
 
