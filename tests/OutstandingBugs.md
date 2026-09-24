@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-166.
+Next bug number: BUG-167.
 
 ## Bug Template
 
@@ -267,3 +267,64 @@ tests): the proposal requires diagnosing `@testname` when placed on a
 `within` parameter of a `@factorytest` function, but that specific invalid
 source shape cannot currently be written at all, so it cannot be proven with
 a compiling golden fixture until this parser gap is fixed.
+
+## BUG-166: A `finally` block is not executed when the enclosing function's own return type is an array or a struct with an escaped field
+
+Date/Time: 2026-09-24 06:58 EDT
+
+Summary:
+A `finally` block that releases one local resource can silently fail to run
+when the enclosing function's own return type is aggregate-shaped: an array,
+or a struct containing an escaped pointer or array field. No diagnostic is
+produced and no C compile error occurs; the cleanup statement is simply
+skipped at the function's normal exit, leaking the resource. The same
+function body's `finally` block runs correctly when the function instead
+returns a scalar or enum type, and the defect reproduces with no early return
+present, so it is not specific to having multiple return paths.
+
+Steps to Reproduce:
+
+1. Compile and run this Camp source through the built-in test runner, with an
+   allocator-aware test so a resource leak is detected:
+
+   ```camp
+   char[] makeBuffer(nuint length, within Allocator* allocator)
+   {
+       char[] scratch = new char[length];
+       finally { delete scratch; }
+       char[] result = new char[1];
+       result[0] = scratch[0];
+       return (escaped char[])result;
+   }
+
+   @test
+   void makeBufferDoesNotLeakScratch(within Allocator* allocator, thrown Assertion*)
+   {
+       char[] value = makeBuffer(4);
+       finally { delete value; }
+       assert(value.length == 1);
+   }
+   ```
+
+2. Run the test with the built-in test runner and its tracked allocator.
+
+Expected:
+The test passes with no leak: `scratch`'s `finally { delete scratch; }` block
+runs when `makeBuffer` returns, exactly as it would if `makeBuffer` returned a
+scalar type instead of an array.
+
+Actual:
+The test fails as a memory-leak: `scratch`'s allocation (4 bytes in the
+example above) remains live. Changing `makeBuffer`'s return type to a scalar
+(for example, returning `(int)scratch.length` instead of the array) makes the
+same `finally { delete scratch; }` block run correctly.
+
+Known Impact:
+Any function that performs temporary/scratch cleanup with a `finally` block
+while its own return type is an array, or a struct containing an escaped
+pointer or array field, can leak that resource on every call, with no
+compiler diagnostic. A known workaround is to avoid `finally` for such
+cleanup and instead delete/release the resource explicitly on every return
+path (or route every return through one shared label that performs the
+cleanup once) whenever the enclosing function's own return is array- or
+escaped-struct-shaped.
