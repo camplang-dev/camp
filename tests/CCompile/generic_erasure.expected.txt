@@ -3,9 +3,20 @@
 
 /* Private file declarations. */
 static void accept(void *value);
+static Aggregate makeAggregate(void);
+static void acceptValue(void *value);
 static int main(void);
 
 static void accept(void *value)
+{
+}
+
+static Aggregate makeAggregate(void)
+{
+	return (Aggregate){ 1 };
+}
+
+static void acceptValue(void *value)
 {
 }
 
@@ -13,6 +24,8 @@ static int main(void)
 {
 	int value = 0;
 	accept(&value);
+	Aggregate _value0 = makeAggregate();
+	acceptValue(&_value0);
 	return 0;
 }
 
@@ -25,12 +38,17 @@ static int main(void)
 #include <stdbool.h>
 
 /* Forward declarations. */
+typedef struct Aggregate Aggregate;
 
 /* Enums. */
 
 /* Newtypes. */
 
 /* Layouts. */
+struct Aggregate
+{
+	int value;
+};
 
 /* Function declarations. */
 

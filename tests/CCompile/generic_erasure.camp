@@ -2,9 +2,24 @@ void accept<T: any>(T* value)
 {
 }
 
+struct Aggregate
+{
+	int value;
+}
+
+Aggregate makeAggregate()
+{
+	return { 1 };
+}
+
+void acceptValue<T: copyable>(in T value)
+{
+}
+
 int main()
 {
 	int value = 0;
 	accept<int>(&value);
+	acceptValue<Aggregate>(makeAggregate());
 	return 0;
 }

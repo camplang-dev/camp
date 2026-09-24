@@ -629,35 +629,45 @@ public sealed partial class BindableNodeAnalyzer
 		if (currentStatementPrefix is null
 			|| callableParameters is null
 			|| index >= callableParameters.Count
-			|| callableParameters[index].Modifier != ParameterModifier.In
-			|| argument.Value is not CallExpression call
-			|| !callTargets.TryGetValue(call, out FunctionDefinition? function)
-			|| !IsMaterializedGenericReturnFunction(function))
+			|| callableParameters[index].Modifier is ParameterModifier.Out or ParameterModifier.Thrown
+			|| argument.Value is not CallExpression call)
 			return false;
 
-		string expectedType = callableParameters[index].ResolvedType ?? callableParameters[index].Type?.ResolvedType ?? "";
-		if (!IsGenericPlaceholderParameter(StripTopLevelValueQualifiers(expectedType)))
+		ParameterDefinition parameter = callableParameters[index];
+		string expectedType = parameter.ResolvedType ?? parameter.Type?.ResolvedType ?? "";
+		string sourceType = parameter.Type?.ResolvedType ?? "";
+		if (parameter.Type is NamedTypeReference named)
+			sourceType = named.Name;
+		if (!IsGenericPlaceholderParameter(StripTopLevelValueQualifiers(sourceType)))
 			return false;
 
 		string resultType = call.ResolvedType ?? argument.ResolvedType ?? expectedType;
 		if (string.IsNullOrWhiteSpace(resultType) || resultType == "void")
 			resultType = expectedType;
+		bool materializedGenericReturn = callTargets.TryGetValue(call, out FunctionDefinition? function)
+			&& IsMaterializedGenericReturnFunction(function);
+		bool concreteAggregateReturn = GetTypeDefinition(resultType) is StructDefinition;
+		if (!materializedGenericReturn && !concreteAggregateReturn)
+			return false;
 
-		DeclarationStatement storage = CreateGeneratedLocal(NewGeneratedLocalName("value"), resultType, TypeReferenceForResolvedName(resultType), null);
+		DeclarationStatement storage = CreateGeneratedLocal(NewGeneratedLocalName("value"), resultType, TypeReferenceForResolvedName(resultType), materializedGenericReturn ? null : call);
 		currentStatementPrefix.Add(storage);
-		call.Arguments.Add(new ArgumentExpression
+		if (materializedGenericReturn)
 		{
-			SourceSyntax = argument.SourceSyntax,
-			Modifier = ArgumentModifier.Out,
-			Value = CreateVariableReference(storage.Target, resultType),
-			ResolvedType = resultType
-		});
-		currentStatementPrefix.Add(new ExpressionStatement
-		{
-			SourceSyntax = argument.SourceSyntax,
-			ResolvedType = "void",
-			Expression = call
-		});
+			call.Arguments.Add(new ArgumentExpression
+			{
+				SourceSyntax = argument.SourceSyntax,
+				Modifier = ArgumentModifier.Out,
+				Value = CreateVariableReference(storage.Target, resultType),
+				ResolvedType = resultType
+			});
+			currentStatementPrefix.Add(new ExpressionStatement
+			{
+				SourceSyntax = argument.SourceSyntax,
+				ResolvedType = "void",
+				Expression = call
+			});
+		}
 		argument.Value = CreateVariableReference(storage.Target, resultType);
 		argument.ResolvedType = resultType;
 		return true;

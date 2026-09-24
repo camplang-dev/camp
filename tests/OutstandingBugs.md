@@ -268,67 +268,6 @@ tests): the proposal requires diagnosing `@testname` when placed on a
 source shape cannot currently be written at all, so it cannot be proven with
 a compiling golden fixture until this parser gap is fixed.
 
-## BUG-168: Passing an aggregate-returning call directly as a generic method's argument emits invalid C
-
-Date/Time: 2026-09-24 12:00 EDT
-
-Summary:
-Passing the result of a call to a function that returns a struct directly as
-an argument to a generic method, without first assigning it to a local, emits
-C that does not compile. The generic method's parameter is materialized as a
-compound literal that tries to initialize itself directly from the inner
-call's result, but the inner call is itself lowered to a `void`-returning
-function that writes its result through a hidden output pointer, so the two
-shapes do not match. Assigning the inner call's result to a local first, then
-passing that local, avoids the defect. The same pattern passed to an ordinary
-(non-generic) function or constructor does not reproduce it.
-
-Steps to Reproduce:
-
-1. Compile and run this Camp source through the built-in test runner:
-
-   ```camp
-   struct Stem
-   {
-       fixed char[16] text;
-       uint length;
-   }
-
-   Stem makeStem(const char[] text)
-   {
-       Stem stem = default;
-       for (uint index = 0; index < text.length; index++)
-           stem.text[index] = text[index];
-       stem.length = (uint)text.length;
-       return stem;
-   }
-
-   @test
-   void bugOneArgumentToGenericMethod(within Allocator* allocator, thrown Assertion*)
-   {
-       List<Stem>* stems = new List<Stem>() finally delete;
-       stems.add(makeStem("apple"));
-       assert(stems.getLength() == 1);
-   }
-   ```
-
-Expected:
-The source compiles and the test passes.
-
-Actual:
-The native build fails:
-
-```
-error: initializing 'char' with an expression of incompatible type 'Stem'
-    StdList_add(stems, &(Stem){makeStem("apple")}, ...);
-```
-
-Known Impact:
-Any generic method call (such as `List<T>.add`) whose argument is written as
-a direct call to a function returning a struct, instead of through a local
-variable, fails to build. The known workaround is to assign the inner call's
-result to a local first: `Stem value = makeStem("apple"); stems.add(value);`.
-
 ## BUG-169: Chaining a call onto a generic method's own aggregate return inside a `while` condition emits invalid C
 
 Date/Time: 2026-09-24 12:00 EDT
