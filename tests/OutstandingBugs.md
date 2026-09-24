@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-171.
+Next bug number: BUG-172.
 
 ## Bug Template
 
@@ -267,3 +267,111 @@ tests): the proposal requires diagnosing `@testname` when placed on a
 `within` parameter of a `@factorytest` function, but that specific invalid
 source shape cannot currently be written at all, so it cannot be proven with
 a compiling golden fixture until this parser gap is fixed.
+
+## BUG-171: A cross-project export projection emits a mismatched generated type name
+
+Date/Time: 2026-09-24 00:00 EDT
+
+Summary:
+A module that references another project and projects one of that project's
+`public` types into its own exported API, using the documented Export
+Projections feature, produces Camp source that compiles but fails during
+native compilation. The C emitter names the projected type using the
+consuming module's own generated namespace prefix (for example `BFormat` for
+a projection declared in module `B`) instead of either the owning module's
+already-generated name (for example `AFormat`) or a bridging typedef between
+the two; no declaration for the consuming module's spelling is ever emitted,
+so the generated code references an undefined type.
+
+Separately, and independently of the native-compilation failure above,
+renaming the projection makes the Camp-level compile itself impossible: no
+spelling of the type is accepted in the exporting signature. The source type
+name is rejected as "exposes non-exported type", and the projected alias name
+is rejected as usable only by the "exported API surface", each error pointing
+at the other as the required fix.
+
+Steps to Reproduce:
+
+1. Project `a`, `a.campbuild`: `src/*.camp`.
+
+   `src/a.camp`:
+   ```camp
+   namespace A;
+
+   public enum Format
+   {
+   	ONE,
+   	TWO,
+   }
+   ```
+
+2. Project `b`, `b.campbuild`: `--project-reference ../a/a.campbuild:static` then
+   `src/*.camp`.
+
+   `src/b.camp` (bare projection, no rename):
+   ```camp
+   using A;
+
+   namespace B;
+
+   export Format;
+
+   export void useFormat(Format value)
+   {
+   }
+   ```
+
+3. Build `b.campbuild`.
+
+4. Separately, replace step 2's file with a renamed projection and observe a
+   different, Camp-level failure instead:
+   ```camp
+   using A;
+
+   namespace B;
+
+   export Format as BFormat;
+
+   export void useFormat(Format value)
+   {
+   }
+   ```
+
+Expected:
+Step 3 either produces a working native build in which `useFormat` correctly
+uses module `A`'s underlying generated representation for `Format`, or the
+compiler rejects the unsupported cross-project projection with a clear
+diagnostic during the Camp-level compile rather than letting it reach native
+compilation. Step 4 is accepted using some consistent, satisfiable spelling of
+the projected type in `useFormat`'s signature.
+
+Actual:
+Step 3's Camp-level compile succeeds, but native compilation fails:
+
+```
+error: unknown type name 'BFormat'; did you mean 'AFormat'?
+```
+
+`b_api.h` and the private header both declare `useFormat` in terms of
+`BFormat`, but no `BFormat` type is defined anywhere in the generated output;
+only `AFormat` (module `A`'s own generated name for the same declaration) is
+defined, in `a_api.h`.
+
+Step 4 fails the Camp-level compile itself, and the two reported errors are
+mutually unsatisfiable: using the plain source name `Format` reports
+`Exported declaration 'useFormat' exposes non-exported type 'Format'`, while
+using the projected name `BFormat` in its place reports `Export projection
+name 'BFormat' is only used by the exported API surface; use the source type
+name 'A::Format' within this module.`
+
+Known Impact:
+A module cannot export a declaration whose signature uses a type owned by a
+separately referenced project, even after adding a same-name or renamed
+export projection for that type exactly as documented. `public` (artifact-
+internal, non-exported) visibility is unaffected: the identical signature
+shape compiles and links correctly when the declaration is `public` instead
+of `export`, since no C-ABI boundary or generated-name projection is
+involved. Workaround: keep any declaration whose signature needs a dependency
+project's type `public` rather than `export`, or wrap the dependency's values
+behind a locally declared Camp-owned type instead of projecting the foreign
+type directly.
