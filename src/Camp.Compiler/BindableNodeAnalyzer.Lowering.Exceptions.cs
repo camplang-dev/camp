@@ -11,6 +11,7 @@ public sealed partial class BindableNodeAnalyzer
 		List<ThrowHandler> handlers = [];
 		string doneLabel = NewGeneratedLabelName("try_done");
 		string finallyLabel = NewGeneratedLabelName("try_finally");
+		int tryCleanupScopeStart = currentCleanupScopes.Count;
 
 		foreach (CatchStatement catchStatement in tryStatement.Catches)
 		{
@@ -21,7 +22,7 @@ public sealed partial class BindableNodeAnalyzer
 			foreach (string name in catchStatement.Target.Names)
 				caught.Target.Names.Add(name);
 			statements.Add(caught);
-			handlers.Add(new ThrowHandler(catchStatement.Target.ResolvedType ?? ErrorType, caught.Target, label));
+			handlers.Add(new ThrowHandler(catchStatement.Target.ResolvedType ?? ErrorType, caught.Target, label, tryCleanupScopeStart));
 		}
 
 		List<ThrowHandler> previousHandlers = [.. currentThrowHandlers];
@@ -882,7 +883,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	List<Statement> CreateHandlerGoto(ThrowHandler handler)
 	{
-		List<Statement> statements = GetPendingCleanups(includeCatchExitCleanups: false);
+		List<Statement> statements = GetPendingCleanups(includeCatchExitCleanups: false, includeContinueCleanups: true, handler.CleanupScopeStart);
 		statements.Add(new GotoStatement { TargetName = handler.LabelName, ResolvedType = "void" });
 		return statements;
 	}
@@ -909,7 +910,7 @@ public sealed partial class BindableNodeAnalyzer
 					}
 				}
 			];
-			transfer.AddRange(GetPendingCleanups(includeCatchExitCleanups: false));
+			transfer.AddRange(GetPendingCleanups(includeCatchExitCleanups: false, includeContinueCleanups: true, handler.CleanupScopeStart));
 			transfer.Add(new GotoStatement { TargetName = handler.LabelName, ResolvedType = "void" });
 			return transfer;
 		}

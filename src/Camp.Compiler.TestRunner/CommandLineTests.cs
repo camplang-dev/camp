@@ -749,6 +749,8 @@ public sealed class CommandLineTests
 			{
 			}
 
+			int cleanupCount;
+
 			int reproduce(bool nested, within allocator)
 			{
 				Value* outer = new Value() finally delete;
@@ -760,10 +762,40 @@ public sealed class CommandLineTests
 				return 2;
 			}
 
+			bool catchReturnAfterIteratorFailure(string directory, within allocator)
+			{
+				Value* outer = new Value();
+				finally
+				{
+					cleanupCount++;
+					delete outer;
+				}
+				try
+				{
+					foreach (string name in FileSystem.iterateDirectory(directory))
+					{
+					}
+				}
+				catch (IoError error)
+				{
+					return false;
+				}
+				return true;
+			}
+
 			@test
 			void nestedReturnCleansBothOwners(within Allocator* allocator, thrown Assertion*)
 			{
 				assert(reproduce(true) == 1);
+			}
+
+			@test
+			void catchReturnCleansOuterOwnerOnce(within Allocator* allocator, thrown Assertion*)
+			{
+				cleanupCount = 0;
+				bool returned = catchReturnAfterIteratorFailure("dev003-missing-directory");
+				assert(!returned);
+				assert(cleanupCount == 1);
 			}
 			""");
 		string outDir = TempPath("nested-finally-return-cleanup-out");
@@ -772,6 +804,7 @@ public sealed class CommandLineTests
 
 		AssertCommandSucceeded(result);
 		Assert.Contains("passed: nestedReturnCleansBothOwners", result.StdOut, StringComparison.Ordinal);
+		Assert.Contains("passed: catchReturnCleansOuterOwnerOnce", result.StdOut, StringComparison.Ordinal);
 		Assert.DoesNotContain("memory leak", result.StdOut, StringComparison.Ordinal);
 	}
 

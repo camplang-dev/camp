@@ -1074,7 +1074,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	sealed record VirtualSlot(FunctionDefinition Declaration, FunctionDefinition? Implementation, FieldDefinition Field);
 
-	sealed record ThrowHandler(string ErrorType, DeclarationTarget ErrorTarget, string LabelName);
+	sealed record ThrowHandler(string ErrorType, DeclarationTarget ErrorTarget, string LabelName, int CleanupScopeStart);
 
 	sealed record LoopTransferTarget(string? BreakLabelName, string? ContinueLabelName, int CleanupScopeStart);
 
