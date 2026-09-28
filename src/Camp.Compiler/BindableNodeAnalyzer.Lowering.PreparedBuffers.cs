@@ -70,7 +70,6 @@ public sealed partial class BindableNodeAnalyzer
 			IndexExpression index => ContainsPreparedBufferExpression(index.Target) || index.Arguments.Any(argument => ContainsPreparedBufferExpression(argument)),
 			MemberExpression member => ContainsPreparedBufferExpression(member.Target),
 			MemberReferenceExpression member => ContainsPreparedBufferExpression(member.Target),
-			NamelessIndexerExpression indexer => ContainsPreparedBufferExpression(indexer.Target) || indexer.Arguments.Any(argument => ContainsPreparedBufferExpression(argument)),
 			UnaryExpression unary => ContainsPreparedBufferExpression(unary.Context) || ContainsPreparedBufferExpression(unary.Operand),
 			PostfixUpdateExpression postfix => ContainsPreparedBufferExpression(postfix.Expression),
 			FinallyCleanupExpression cleanup => ContainsPreparedBufferExpression(cleanup.Expression),

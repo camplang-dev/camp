@@ -646,13 +646,11 @@ public static class MetadataJsonSerializer
 
 		void WritePropertyInfo(Utf8JsonWriter json, FunctionDefinition function)
 		{
-			if (!TryGetPropertyInfo(function, IsTypeScoped(function), out string? accessor, out string? propertyName, out bool indexer, out List<string>? indexParams, out string? valueParam))
+			if (!TryGetPropertyInfo(function, IsTypeScoped(function), out string? accessor, out string? propertyName, out List<string>? indexParams, out string? valueParam))
 				return;
 
 			if (!string.IsNullOrWhiteSpace(propertyName))
 				json.WriteString("propertyName", propertyName);
-			if (indexer)
-				json.WriteBoolean("propertyIndexer", true);
 			if (indexParams.Count > 0)
 			{
 				json.WriteStartArray("propertyIndexParams");
@@ -1842,11 +1840,10 @@ public static class MetadataJsonSerializer
 			return ids.TryGetValue(function, out string? id) && id.Contains("/function:", StringComparison.Ordinal);
 		}
 
-		static bool TryGetPropertyInfo(FunctionDefinition function, bool isTypeScoped, out string accessor, out string propertyName, out bool indexer, out List<string> indexParams, out string? valueParam)
+		static bool TryGetPropertyInfo(FunctionDefinition function, bool isTypeScoped, out string accessor, out string propertyName, out List<string> indexParams, out string? valueParam)
 		{
 			accessor = "";
 			propertyName = "";
-			indexer = false;
 			indexParams = [];
 			valueParam = null;
 			if (function.Parameters.Any(static parameter => parameter.Modifier == ParameterModifier.Prep))
@@ -1858,11 +1855,13 @@ public static class MetadataJsonSerializer
 			string callableName = SymbolNameService.CallableName(function).Value;
 			if (callableName.StartsWith("get", StringComparison.Ordinal) && function.ResolvedType != "void" && function.IteratorKind == IteratorKind.None)
 			{
-				accessor = "get";
 				propertyName = GetPropertyName(callableName, "get", function.IsAsync);
-				indexer = propertyName.Length == 0;
+				if (propertyName.Length == 0)
+					return false;
+
+				accessor = "get";
 				indexParams.AddRange(GetPropertyParameterNames(function.Parameters));
-				return callableName.Length >= "get".Length;
+				return true;
 			}
 
 			if (callableName.StartsWith("set", StringComparison.Ordinal) && function.IteratorKind == IteratorKind.None)
@@ -1871,12 +1870,14 @@ public static class MetadataJsonSerializer
 				if (ordinaryParameters.Count == 0)
 					return false;
 
-				accessor = "set";
 				propertyName = GetPropertyName(callableName, "set", function.IsAsync);
-				indexer = propertyName.Length == 0;
+				if (propertyName.Length == 0)
+					return false;
+
+				accessor = "set";
 				valueParam = ordinaryParameters[^1];
 				indexParams.AddRange(ordinaryParameters.Take(ordinaryParameters.Count - 1));
-				return callableName.Length >= "set".Length;
+				return true;
 			}
 
 			return false;

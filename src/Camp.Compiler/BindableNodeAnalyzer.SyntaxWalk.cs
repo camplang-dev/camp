@@ -279,12 +279,6 @@ public sealed partial class BindableNodeAnalyzer
 				AnalyzeOptionalExpression(member.Target, scope);
 				break;
 
-			case NamelessIndexerExpression indexer:
-				AnalyzeOptionalExpression(indexer.Target, scope);
-				foreach (ArgumentExpression argument in indexer.Arguments)
-					AnalyzeExpression(argument, scope);
-				break;
-
 			case UnaryExpression unary:
 				AnalyzeOptionalExpression(unary.Operand, scope);
 				AnalyzeOptionalExpression(unary.Context, scope);

@@ -285,7 +285,7 @@ class PixelRow
 		return this.pixels.length;
 	}
 
-	byte get(@index nuint index)
+	byte getItem(@index nuint index)
 	{
 		return this.pixels[index];
 	}
@@ -300,8 +300,8 @@ class PixelRow
 Callers get a familiar surface:
 
 ```camp
-byte first = row.[0];
-byte last = row.[^1];
+byte first = row.Item[0];
+byte last = row.Item[^1];
 byte[] middle = row.slice(2, 4);
 byte[] trimmed = row.slice(2..^1);
 ```

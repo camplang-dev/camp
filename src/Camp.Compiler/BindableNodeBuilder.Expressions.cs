@@ -634,13 +634,6 @@ public sealed partial class BindableNodeBuilder
 					NameRange = member.Identifier?.Range
 				};
 
-			case NamelessIndexerPostfixPartSyntax indexer:
-			{
-				NamelessIndexerExpression expression = new() { SourceSyntax = indexer, Target = target };
-				AddArguments(expression.Arguments, indexer.ArgumentList, $"{context} nameless indexer");
-				return expression;
-			}
-
 			case GenericPostfixPartSyntax generic:
 			{
 				CallExpression expression = new() { SourceSyntax = generic, Target = target };

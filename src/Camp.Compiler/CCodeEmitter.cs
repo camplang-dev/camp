@@ -4804,7 +4804,6 @@ public static class CCodeEmitter
                 VTableOfExpression => UnsupportedExpression(expression),
                 LambdaExpression => UnsupportedExpression(expression),
                 ArgumentExpression argument => FormatArgumentValue(argument),
-                NamelessIndexerExpression indexer => FormatExpression(indexer.Target) + "[" + string.Join(", ", indexer.Arguments.Select(FormatArgumentValue)) + "]",
                 FinallyCleanupExpression finallyCleanup => FormatExpression(finallyCleanup.Expression),
                 _ => UnsupportedExpression(expression)
             };

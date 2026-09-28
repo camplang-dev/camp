@@ -1346,11 +1346,6 @@ public sealed class BindableNodeCodeSerializer
 				writer.Write(member.Name);
 				break;
 
-			case NamelessIndexerExpression nameless:
-				WriteExpression(nameless.Target, GetPrecedence(nameless));
-				WriteDelimited("[", "]", nameless.Arguments, WriteArgument);
-				break;
-
 			case UnaryExpression unary:
 				WriteUnaryExpression(unary);
 				break;
@@ -2870,7 +2865,7 @@ public sealed class BindableNodeCodeSerializer
 			RangeExpression => 3,
 			BinaryExpression binary => GetBinaryPrecedence(binary.Operator),
 			UnaryExpression or CastExpression or FinallyCleanupExpression or WithinExpression or PreparedBufferExpression => 12,
-			CallExpression or IndexExpression or MemberExpression or MemberReferenceExpression or NamelessIndexerExpression or PostfixUpdateExpression => 13,
+			CallExpression or IndexExpression or MemberExpression or MemberReferenceExpression or PostfixUpdateExpression => 13,
 			_ => 14
 		};
 	}

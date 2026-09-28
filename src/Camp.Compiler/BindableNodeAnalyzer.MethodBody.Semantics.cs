@@ -3076,34 +3076,6 @@ public sealed partial class BindableNodeAnalyzer
 		return true;
 	}
 
-	bool TryAnalyzePrepNamelessPropertySetter(NamelessIndexerExpression indexer, Expression? value, BodyScope scope, AnalysisScope typeScope, out string propertyType)
-	{
-		propertyType = ErrorType;
-		string targetType = BodyAnalyzeExpression(indexer.Target, scope, typeScope);
-		if (targetType == ErrorType)
-			return true;
-
-		TypeDefinition? type = GetTypeDefinition(targetType);
-		List<FunctionDefinition> setters = type is null ? [] : LookupPropertySetters(type, "", indexer.SourceSyntax);
-		setters.AddRange(LookupExtensionFunctions(targetType, "set", indexer.SourceSyntax));
-		foreach (FunctionDefinition setter in setters)
-		{
-			EnsureFunctionSignatureAnalyzed(setter, typeScope);
-			if (!setter.Parameters.Exists(static parameter => parameter.Modifier == ParameterModifier.Prep)
-				|| !ReceiverCanCallFunction(targetType, setter, isPropertyGetterSyntax: false))
-				continue;
-
-			Report(GetRange(indexer.SourceSyntax), $"Property syntax is unavailable for prep method '{GetCallableName(setter)}'; call '{GetCallableName(setter)}()' explicitly.");
-			foreach (ArgumentExpression argument in indexer.Arguments)
-				BodyAnalyzeArgumentExpression(argument, scope, typeScope);
-			if (value is not null)
-				BodyAnalyzeExpression(value, scope, typeScope);
-			return true;
-		}
-
-		return false;
-	}
-
 	bool ReceiverCanCallFunction(string targetType, FunctionDefinition function, bool isPropertyGetterSyntax)
 	{
 		string receiverType = BuildEffectiveReceiverType(targetType, function, isPropertyGetterSyntax);

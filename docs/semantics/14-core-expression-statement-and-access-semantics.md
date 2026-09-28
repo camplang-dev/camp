@@ -227,24 +227,6 @@ overload string value)`, the named property surface `Element` binds through the
 family invoker `setElement`, while the concrete property surface
 `ElementString` binds through the concrete callable name `setElementString`.
 
-The nameless `get` and `set` forms are indexer accessors. In metadata these are
-recorded as property indexers rather than as a property with an empty source
-name.
-
-```camp
-struct Buffer
-{
-	byte* data;
-	nuint length;
-
-	byte get(@index nuint index);
-	void set(@index nuint index, byte value);
-}
-```
-
-The expression `buffer[index]` binds to `get(index)`. The assignment
-`buffer[index] = value` binds to `set(index, value)`.
-
 When a setter overload selector is the value parameter, the assigned expression
 is the logical selector argument. Selection is still based on the expression's
 independent static type. The compiler must reject target-typed-only selector
@@ -575,9 +557,9 @@ is introduced.
 ### Prep Methods And Property Syntax
 
 A prep-bearing getter or setter is not a valid property accessor. The same
-restriction applies to named properties, indexed properties, nameless indexers,
-extension accessors, interface accessors, and virtual accessors. Such a function
-does not produce property metadata or property completion.
+restriction applies to named properties, indexed properties, extension
+accessors, interface accessors, and virtual accessors. Such a function does
+not produce property metadata or property completion.
 
 Property lookup still recognizes a prep-bearing accessor candidate before
 rejecting it so the diagnostic can name the accessor and require explicit
@@ -1062,7 +1044,6 @@ Metadata records property accessor facts structurally:
 
 - getter or setter accessor kind;
 - property name when present;
-- indexer marker for nameless accessors;
 - index parameter names;
 - setter value parameter name.
 
@@ -1119,7 +1100,7 @@ Changes here should cover:
 
 - getter and setter access, including const receiver behavior;
 - property assignment in statement and expression positions;
-- nameless indexers and named indexed properties;
+- named indexed properties;
 - `@index`, `@range`, from-end syntax, omitted range bounds, and defaults;
 - receiver length lookup through fixed arrays, `.length`, `.Length`, and
   `getLength()`;

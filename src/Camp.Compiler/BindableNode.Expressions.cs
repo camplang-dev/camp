@@ -270,12 +270,6 @@ public class MemberReferenceExpression : Expression
 	public List<FunctionDefinition> Candidates { get; } = [];
 }
 
-public class NamelessIndexerExpression : Expression
-{
-	public Expression? Target { get; set; }
-	public List<ArgumentExpression> Arguments { get; } = [];
-}
-
 public class UnaryExpression : Expression
 {
 	public UnaryOperator Operator { get; set; }

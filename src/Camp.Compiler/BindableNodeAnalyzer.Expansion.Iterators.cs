@@ -1764,8 +1764,6 @@ public sealed partial class BindableNodeAnalyzer
 				return ReferencesAnyName(member.Target, names);
 			case MemberReferenceExpression member:
 				return ReferencesAnyName(member.Target, names);
-			case NamelessIndexerExpression indexer:
-				return ReferencesAnyName(indexer.Target, names) || AnyArgumentReferencesName(indexer.Arguments, names);
 			case ArrayExpression array:
 				foreach (Expression element in array.Elements)
 					if (ReferencesAnyName(element, names))

@@ -301,8 +301,7 @@ Function objects may include:
 - `ascription` for callable newtype ascription;
 - `interfaceImplementation` for explicit interface slot implementation;
 - `interfaceSlotInitializer` for defaulted or optional interface methods;
-- `propertyName`, `propertyIndexer`, `propertyIndexParams`, and
-  `propertyValueParam`;
+- `propertyName`, `propertyIndexParams`, and `propertyValueParam`;
 - `typeParameters`;
 - `parameters`;
 - `metadata`.

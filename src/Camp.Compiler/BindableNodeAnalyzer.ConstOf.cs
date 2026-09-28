@@ -647,7 +647,6 @@ public sealed partial class BindableNodeAnalyzer
 			MemberExpression member => ExpressionSatisfiesConstOfAnchor(member.Target, anchor),
 			MemberReferenceExpression member => ExpressionSatisfiesConstOfAnchor(member.Target, anchor),
 			IndexExpression index => ExpressionSatisfiesConstOfAnchor(index.Target, anchor),
-			NamelessIndexerExpression indexer => ExpressionSatisfiesConstOfAnchor(indexer.Target, anchor),
 			UnaryExpression { Operator: UnaryOperator.AddressOf or UnaryOperator.PointerDereference } unary => ExpressionSatisfiesConstOfAnchor(unary.Operand, anchor),
 			AssignmentExpression assignment => ExpressionSatisfiesConstOfAnchor(assignment.Value, anchor),
 			CallExpression call => CallExpressionSatisfiesConstOfAnchor(call, anchor),

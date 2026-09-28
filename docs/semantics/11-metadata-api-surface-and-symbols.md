@@ -463,7 +463,6 @@ metadata serializer should identify:
 
 - accessor kind: getter or setter;
 - property name for named properties;
-- indexer marker for nameless `get`/`set`;
 - index parameter names;
 - setter value parameter name.
 

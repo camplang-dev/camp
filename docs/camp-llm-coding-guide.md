@@ -1261,6 +1261,7 @@ Stable agent habits:
 | Adding `within(default)` to ordinary console-app allocation | Use plain `new` or `(new)` unless allocator selection matters |
 | Qualifying target-typed enum values such as `Command.BUILD` | Use `BUILD` when the target enum type is known |
 | Adding absolute paths or local setup to committed docs | Keep local-only details out of committed docs |
+| Writing `receiver.[index]` / `receiver.[index] = value` (nameless property accessors are unsupported) | Use a named indexed property such as `receiver.Item[index]`, or an ordinary method call |
 
 ## Documentation Metadata
 

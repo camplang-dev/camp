@@ -270,11 +270,6 @@ public sealed partial class BindableNodeAnalyzer
 			case MemberReferenceExpression member:
 				CollectAsyncAwaitSites(member.Target, sites);
 				break;
-			case NamelessIndexerExpression indexer:
-				CollectAsyncAwaitSites(indexer.Target, sites);
-				foreach (ArgumentExpression argument in indexer.Arguments)
-					CollectAsyncAwaitSites(argument, sites);
-				break;
 			case PostfixUpdateExpression postfix:
 				CollectAsyncAwaitSites(postfix.Expression, sites);
 				break;
@@ -1489,7 +1484,6 @@ public sealed partial class BindableNodeAnalyzer
 			IndexExpression index => BodyAnalyzeIndexExpression(index, scope, typeScope),
 			MemberExpression member => BodyAnalyzeMemberExpression(member, scope, typeScope, targetType),
 			MemberReferenceExpression member => member.ResolvedType ?? ErrorType,
-			NamelessIndexerExpression indexer => BodyAnalyzeNamelessIndexerExpression(indexer, scope, typeScope),
 			UnaryExpression unary => BodyAnalyzeUnaryExpression(unary, scope, typeScope, targetType),
 			PostfixUpdateExpression postfix => BodyAnalyzePostfixUpdateExpression(postfix, scope, typeScope),
 			FinallyCleanupExpression finallyCleanup => BodyAnalyzeFinallyCleanupExpression(finallyCleanup, scope, typeScope, targetType),
@@ -4684,7 +4678,6 @@ public sealed partial class BindableNodeAnalyzer
 			IndexExpression index => GetExpressionDiagnosticSyntax(index.Target) ?? GetArgumentListDiagnosticSyntax(index.Arguments),
 			MemberExpression member => GetExpressionDiagnosticSyntax(member.Target),
 			MemberReferenceExpression member => GetExpressionDiagnosticSyntax(member.Target),
-			NamelessIndexerExpression indexer => GetExpressionDiagnosticSyntax(indexer.Target) ?? GetArgumentListDiagnosticSyntax(indexer.Arguments),
 			GroupedExpression grouped => GetGroupedExpressionDiagnosticSyntax(grouped),
 			ArrayExpression array => GetExpressionListDiagnosticSyntax(array.Elements),
 			InitializerExpression initializer => GetInitializerDiagnosticSyntax(initializer),
@@ -5438,16 +5431,6 @@ public sealed partial class BindableNodeAnalyzer
 					yield return call;
 				yield break;
 
-			case NamelessIndexerExpression nameless:
-				foreach (CallExpression call in EnumerateBaseConstructorCalls(nameless.Target))
-					yield return call;
-				foreach (ArgumentExpression argument in nameless.Arguments)
-				{
-					foreach (CallExpression call in EnumerateBaseConstructorCalls(argument))
-						yield return call;
-				}
-				yield break;
-
 			case UnaryExpression unary:
 				foreach (CallExpression call in EnumerateBaseConstructorCalls(unary.Context))
 					yield return call;
@@ -5544,30 +5527,6 @@ public sealed partial class BindableNodeAnalyzer
 		return BodyAnalyzeIndexExpression(index.Target, index.Arguments, scope, typeScope);
 	}
 
-	string BodyAnalyzeNamelessIndexerExpression(NamelessIndexerExpression indexer, BodyScope scope, AnalysisScope typeScope)
-	{
-		string targetType = BodyAnalyzeExpression(indexer.Target, scope, typeScope);
-		if (targetType == ErrorType)
-			return ErrorType;
-
-		TypeDefinition? type = GetTypeDefinition(targetType);
-		List<FunctionDefinition> getters = type is null ? [] : LookupPropertyGetters(type, "", indexer.SourceSyntax);
-		getters.AddRange(LookupExtensionFunctions(targetType, "get", indexer.SourceSyntax));
-		foreach (FunctionDefinition getter in getters)
-		{
-			EnsureFunctionSignatureAnalyzed(getter, typeScope);
-			if (!getter.Parameters.Exists(static parameter => parameter.Modifier == ParameterModifier.Prep)
-				|| !ReceiverCanCallFunction(targetType, getter, isPropertyGetterSyntax: true))
-				continue;
-
-			Report(GetRange(indexer.SourceSyntax), $"Property syntax is unavailable for prep method '{GetCallableName(getter)}'; call '{GetCallableName(getter)}()' explicitly.");
-			foreach (ArgumentExpression argument in indexer.Arguments)
-				BodyAnalyzeArgumentExpression(argument, scope, typeScope);
-			return ErrorType;
-		}
-
-		return BodyAnalyzeIndexExpression(indexer.Target, indexer.Arguments, scope, typeScope);
-	}
 
 	string BodyAnalyzeIndexExpression(Expression? target, List<ArgumentExpression> arguments, BodyScope scope, AnalysisScope typeScope)
 	{
@@ -6841,9 +6800,6 @@ public sealed partial class BindableNodeAnalyzer
 
 			case IndexExpression { Target: MemberExpression member } index:
 				return TryAnalyzePropertySetter(member, index.Arguments, assignment.Value, scope, typeScope, out propertyType);
-
-			case NamelessIndexerExpression indexer:
-				return TryAnalyzePrepNamelessPropertySetter(indexer, assignment.Value, scope, typeScope, out propertyType);
 
 			default:
 				return false;

@@ -444,27 +444,10 @@ class ReadingList
 	{
 		this.values[index] = value;
 	}
-
-	int get(@index nuint index)
-	{
-		return this.values[index];
-	}
-
-	void set(@index nuint index, int value)
-	{
-		this.values[index] = value;
-	}
 }
 
 int last = readings.Item[^1];
 readings.Item[0] = 10;
-```
-
-The exact method names `get` and `set` create a nameless indexer surface:
-
-```camp
-int first = readings.[0];
-readings.[1] = 20;
 ```
 
 Overloaded setters are useful when the index or key is stable and the assigned

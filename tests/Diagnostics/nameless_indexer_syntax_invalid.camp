@@ -1,0 +1,14 @@
+struct Row
+{
+	nuint getItem(this, @index int index) => index;
+	nuint get(this, @index int index) => 0;
+	nuint set(this, @index int index, nuint value) => value;
+}
+
+void main()
+{
+	Row row = default;
+	nuint a = row.[0];
+	row.[1] = 2;
+	nuint b = row.get(3);
+}

@@ -676,14 +676,6 @@ public class MemberPostfixPartSyntax : PostfixPartSyntax
 	public Token? Identifier { get; set; }
 }
 
-public class NamelessIndexerPostfixPartSyntax : PostfixPartSyntax
-{
-	public Token? DotToken { get; set; }
-	public Token? OpenBracketToken { get; set; }
-	public ArgumentListSyntax? ArgumentList { get; set; }
-	public Token? CloseBracketToken { get; set; }
-}
-
 public class GenericPostfixPartSyntax : PostfixPartSyntax
 {
 	public Token? LessThanToken { get; set; }

@@ -624,12 +624,6 @@ internal static class BindableNodeTraversal
 				if (member.Target is not null)
 					yield return member.Target;
 				break;
-			case NamelessIndexerExpression indexer:
-				if (indexer.Target is not null)
-					yield return indexer.Target;
-				foreach (ArgumentExpression child in indexer.Arguments)
-					yield return child;
-				break;
 			case UnaryExpression unary:
 				if (unary.Operand is not null)
 					yield return unary.Operand;
@@ -915,9 +909,6 @@ internal static class BindableNodeTraversal
 				break;
 			case MemberReferenceExpression member:
 				member.Target = Expression(member.Target);
-				break;
-			case NamelessIndexerExpression indexer:
-				indexer.Target = Expression(indexer.Target);
 				break;
 			case UnaryExpression unary:
 				unary.Operand = Expression(unary.Operand);

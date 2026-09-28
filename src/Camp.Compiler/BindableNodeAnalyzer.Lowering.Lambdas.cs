@@ -525,11 +525,6 @@ public sealed partial class BindableNodeAnalyzer
 			case MemberReferenceExpression member:
 				member.Target = RewriteLambdaCaptureReferences(member.Target, context, contextLocal);
 				break;
-			case NamelessIndexerExpression indexer:
-				indexer.Target = RewriteLambdaCaptureReferences(indexer.Target, context, contextLocal);
-				foreach (ArgumentExpression argument in indexer.Arguments)
-					argument.Value = RewriteLambdaCaptureReferences(argument.Value, context, contextLocal);
-				break;
 			case RangeExpression range:
 				range.Start = RewriteLambdaCaptureReferences(range.Start, context, contextLocal);
 				range.End = RewriteLambdaCaptureReferences(range.End, context, contextLocal);
@@ -925,7 +920,6 @@ public sealed partial class BindableNodeAnalyzer
 			MemberExpression member => TryFindCapturedMutationRoot(member.Target, captures, out capture),
 			MemberReferenceExpression member => TryFindCapturedMutationRoot(member.Target, captures, out capture),
 			IndexExpression index => TryFindCapturedMutationRoot(index.Target, captures, out capture),
-			NamelessIndexerExpression indexer => TryFindCapturedMutationRoot(indexer.Target, captures, out capture),
 			UnaryExpression { Operator: UnaryOperator.PointerDereference } unary => TryFindCapturedMutationRoot(unary.Operand, captures, out capture),
 			_ => false
 		};
@@ -1300,12 +1294,6 @@ public sealed partial class BindableNodeAnalyzer
 				break;
 			case MemberReferenceExpression member when member.Target is not null:
 				yield return member.Target;
-				break;
-			case NamelessIndexerExpression indexer:
-				if (indexer.Target is not null)
-					yield return indexer.Target;
-				foreach (ArgumentExpression argument in indexer.Arguments)
-					yield return argument;
 				break;
 			case RangeExpression range:
 				if (range.Start is not null)

@@ -187,12 +187,6 @@ public sealed partial class BindableNodeAnalyzer
 					return RewriteInstanceMethodDelegate(memberReference);
 				break;
 
-			case NamelessIndexerExpression nameless:
-				nameless.Target = LowerExpression(nameless.Target);
-				for (int i = 0; i < nameless.Arguments.Count; i++)
-					nameless.Arguments[i] = LowerArgument(nameless.Arguments[i]);
-				break;
-
 			case UnaryExpression unary:
 				unary.Context = LowerExpression(unary.Context);
 				unary.Operand = LowerExpression(unary.Operand);

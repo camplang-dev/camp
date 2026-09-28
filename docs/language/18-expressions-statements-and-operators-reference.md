@@ -241,8 +241,6 @@ Property syntax rewrites to eligible methods.
 | `value.Name = next` | `value.setName(next)` |
 | `value.Item[index]` | `value.getItem(index)` |
 | `value.Item[index] = next` | `value.setItem(index, next)` |
-| `value.[index]` | `value.get(index)` |
-| `value.[index] = next` | `value.set(index, next)` |
 | `await value.Result` | `await value.getResultAsync()` |
 
 After rewriting, the expression is analyzed as the method call. `thrown`,

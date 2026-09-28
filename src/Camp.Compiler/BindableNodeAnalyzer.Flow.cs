@@ -454,11 +454,6 @@ public sealed partial class BindableNodeAnalyzer
 				FlowAnalyzeExpression(member.Target, state);
 				break;
 
-			case NamelessIndexerExpression indexer:
-				FlowAnalyzeExpression(indexer.Target, state);
-				FlowAnalyzeArguments(indexer.Arguments, state);
-				break;
-
 			case UnaryExpression unary:
 				FlowAnalyzeUnaryExpression(unary, state);
 				break;

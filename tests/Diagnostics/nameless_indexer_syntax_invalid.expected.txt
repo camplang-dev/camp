@@ -1,0 +1,2 @@
+tests/Diagnostics/nameless_indexer_syntax_invalid.camp(11,16): error: Expected identifier.
+tests/Diagnostics/nameless_indexer_syntax_invalid.camp(12,6): error: Expected identifier.

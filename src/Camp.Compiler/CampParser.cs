@@ -2013,15 +2013,6 @@ public sealed class CampParser
 		if (IsOperator(".."))
 			return null;
 
-		if (Is(".") && PeekValue(1) == "[")
-			return new NamelessIndexerPostfixPartSyntax
-			{
-				DotToken = Take(),
-				OpenBracketToken = Expect("["),
-				ArgumentList = Is("]") ? null : ParseArgumentList("]"),
-				CloseBracketToken = Expect("]")
-			};
-
 		if (Is("."))
 			return new MemberPostfixPartSyntax { DotToken = Take(), Identifier = ExpectIdentifier() };
 

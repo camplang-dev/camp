@@ -273,9 +273,6 @@ public static class SyntaxNodeTraversal
 			case IndexPostfixPartSyntax syntax:
 				if (syntax.ArgumentList is not null) yield return syntax.ArgumentList;
 				break;
-			case NamelessIndexerPostfixPartSyntax syntax:
-				if (syntax.ArgumentList is not null) yield return syntax.ArgumentList;
-				break;
 			case GenericPostfixPartSyntax syntax:
 				if (syntax.TypeArgumentList is not null) yield return syntax.TypeArgumentList;
 				break;
@@ -833,12 +830,6 @@ public static class SyntaxNodeTraversal
 			case MemberPostfixPartSyntax syntax:
 				foreach (Token token in Tokens(syntax.DotToken)) yield return token;
 				foreach (Token token in Tokens(syntax.Identifier)) yield return token;
-				break;
-			case NamelessIndexerPostfixPartSyntax syntax:
-				foreach (Token token in Tokens(syntax.DotToken)) yield return token;
-				foreach (Token token in Tokens(syntax.OpenBracketToken)) yield return token;
-				if (syntax.ArgumentList is not null) foreach (Token token in Tokens(syntax.ArgumentList)) yield return token;
-				foreach (Token token in Tokens(syntax.CloseBracketToken)) yield return token;
 				break;
 			case GenericPostfixPartSyntax syntax:
 				foreach (Token token in Tokens(syntax.LessThanToken)) yield return token;

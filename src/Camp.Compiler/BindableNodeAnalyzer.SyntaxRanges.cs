@@ -188,7 +188,6 @@ public sealed partial class BindableNodeAnalyzer
 			CallPostfixPartSyntax call => call.OpenParenToken?.Range,
 			IndexPostfixPartSyntax index => index.OpenBracketToken?.Range,
 			MemberPostfixPartSyntax member => member.Identifier?.Range ?? member.DotToken?.Range,
-			NamelessIndexerPostfixPartSyntax indexer => indexer.OpenBracketToken?.Range ?? indexer.DotToken?.Range,
 			GenericPostfixPartSyntax generic => generic.LessThanToken?.Range,
 			PostfixOperatorPartSyntax op => op.Operator,
 			_ => null
