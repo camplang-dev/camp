@@ -2815,7 +2815,6 @@ public sealed class BindableNodeCodeSerializer
 		return op switch
 		{
 			BinaryOperator.LogicalOr => "||",
-			BinaryOperator.NullCoalescing => "??",
 			BinaryOperator.LogicalAnd => "&&",
 			BinaryOperator.BitwiseOr => "|",
 			BinaryOperator.BitwiseXor => "^",
@@ -2875,7 +2874,6 @@ public sealed class BindableNodeCodeSerializer
 		return op switch
 		{
 			BinaryOperator.LogicalOr => 4,
-			BinaryOperator.NullCoalescing => 4,
 			BinaryOperator.LogicalAnd => 5,
 			BinaryOperator.BitwiseOr => 6,
 			BinaryOperator.BitwiseXor => 7,

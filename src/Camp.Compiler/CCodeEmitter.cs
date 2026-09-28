@@ -7937,7 +7937,6 @@ public static class CCodeEmitter
             return op switch
             {
                 BinaryOperator.LogicalOr => "||",
-                BinaryOperator.NullCoalescing => "??",
                 BinaryOperator.LogicalAnd => "&&",
                 BinaryOperator.BitwiseOr => "|",
                 BinaryOperator.BitwiseXor => "^",

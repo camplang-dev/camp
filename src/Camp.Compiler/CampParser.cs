@@ -1865,7 +1865,7 @@ public sealed class CampParser
 			return null;
 
 		SkipTrivia();
-		foreach (string op in new[] { "||", "??", "&&", "==", "!=", "<=", ">=", "<<", ">>", "|", "^", "&", "<", ">", "+", "-", "*", "/", "%" })
+		foreach (string op in new[] { "||", "&&", "==", "!=", "<=", ">=", "<<", ">>", "|", "^", "&", "<", ">", "+", "-", "*", "/", "%" })
 		{
 			TokenRange? range = MatchOperatorAt(index, op);
 			if (range is null)

@@ -80,7 +80,6 @@ From tightest to loosest:
 | Bitwise AND | `&` |
 | Bitwise XOR | `^` |
 | Bitwise OR | <code>&#124;</code> |
-| Null coalescing | `??` |
 | Logical AND | `&&` |
 | Logical OR | <code>&#124;&#124;</code> |
 | Conditional | `?:` |
@@ -106,7 +105,6 @@ bitwise XOR operator.
 | Logical | `!`, `&&`, <code>&#124;&#124;</code> | `bool` |
 | Bitwise | `~`, `&`, <code>&#124;</code>, `^`, `<<`, `>>` | Integral result |
 | Conditional | `condition ? whenTrue : whenFalse` | Common/target-compatible result |
-| Null coalescing | `left ?? right` | Compatible non-null/optional result |
 
 Use interpolated strings when you want to build text from literal pieces and
 values:

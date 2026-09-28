@@ -499,7 +499,7 @@ public sealed partial class BindableNodeBuilder
 				break;
 
 			operatorIndex++;
-			int nextMinPrecedence = IsRightAssociative(op) ? precedence : precedence + 1;
+			int nextMinPrecedence = precedence + 1;
 			Expression? right = BuildBinaryExpressionTree(operands, parts, ref operatorIndex, nextMinPrecedence);
 
 			left = new BinaryExpression
@@ -796,7 +796,6 @@ public sealed partial class BindableNodeBuilder
 		return syntax?.Operator?.Value switch
 		{
 			"||" => BinaryOperator.LogicalOr,
-			"??" => BinaryOperator.NullCoalescing,
 			"&&" => BinaryOperator.LogicalAnd,
 			"|" => BinaryOperator.BitwiseOr,
 			"^" => BinaryOperator.BitwiseXor,
@@ -823,7 +822,6 @@ public sealed partial class BindableNodeBuilder
 		return op switch
 		{
 			BinaryOperator.LogicalOr => 1,
-			BinaryOperator.NullCoalescing => 2,
 			BinaryOperator.LogicalAnd => 3,
 			BinaryOperator.BitwiseOr => 4,
 			BinaryOperator.BitwiseXor => 5,
@@ -835,11 +833,6 @@ public sealed partial class BindableNodeBuilder
 			BinaryOperator.Multiply or BinaryOperator.Divide or BinaryOperator.Modulo => 11,
 			_ => 1
 		};
-	}
-
-	static bool IsRightAssociative(BinaryOperator op)
-	{
-		return op == BinaryOperator.NullCoalescing;
 	}
 
 	static UnaryOperator BuildUnaryOperator(UnaryPrefixSyntax syntax)

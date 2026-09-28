@@ -384,7 +384,6 @@ public enum UpdateOperator
 public enum BinaryOperator
 {
 	LogicalOr,
-	NullCoalescing,
 	LogicalAnd,
 	BitwiseOr,
 	BitwiseXor,
