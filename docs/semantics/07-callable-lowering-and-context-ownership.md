@@ -96,6 +96,12 @@ function symbol can be passed as a function pointer when the target callable
 shape matches after target specs, call specs, expanded parameters, return type,
 and `constof` rules are applied.
 
+When a known function declaration is target-typed as a matching delegate, the
+compiler supplies the context-bearing adapter and a null context in supported
+value positions, including call arguments, local initializers, assignments, and
+returns. A typed `fn` value is not a known declaration and cannot implicitly
+cross this callable kind boundary.
+
 Function pointer values are treated as escaped for lifetime purposes: the
 function symbol itself does not depend on a local closure context.
 

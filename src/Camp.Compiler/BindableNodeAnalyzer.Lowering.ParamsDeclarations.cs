@@ -1038,6 +1038,11 @@ public sealed partial class BindableNodeAnalyzer
 			values.AddRange(components);
 			return values;
 		}
+		if (TryCreateDirectFunctionDelegateComponents(initialValue, shape, out components))
+		{
+			values.AddRange(components);
+			return values;
+		}
 
 		if (initialValue is not null && TryCreatePrimitiveStringArrayInitialValues(initialValue, shape, declarations, out values))
 			return values;

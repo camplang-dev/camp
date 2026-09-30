@@ -75,6 +75,8 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (TryCheckInterfacePointerConversion(expected, actual, value, syntax, context))
 			return;
+		if (CanTargetTypeDirectFunctionAsDelegate(expected, actual, value))
+			return;
 
 		if (!CanAssignToType(expected, actual))
 			Report(GetRange(syntax), $"{context} cannot convert '{actual}' to '{expected}'.");

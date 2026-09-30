@@ -1501,6 +1501,12 @@ public static class CCodeEmitter
 
                     foreach (BindableNode node in EnumerateNodes(function.Body, []))
                     {
+                        if (node is MethodReferenceExpression { DelegateAdaptationTargetType: string adaptedType, Candidates.Count: 1 } method)
+                        {
+                            ParameterDefinition target = new() { ResolvedType = adaptedType };
+                            if (TryCreateDelegateThunk(method.Candidates[0], target, [], file, out DelegateThunk adaptedThunk))
+                                delegateThunksByExpression[method] = adaptedThunk;
+                        }
                         if (node is not CallExpression call)
                             continue;
 
@@ -4769,6 +4775,8 @@ public static class CCodeEmitter
         {
             if (expression is null)
                 return "0";
+            if (delegateThunksByExpression.TryGetValue(expression, out DelegateThunk? adaptedThunk))
+                return adaptedThunk.Name;
 
             return expression switch
             {
@@ -6024,6 +6032,7 @@ public static class CCodeEmitter
         {
             string formatted = FormatExpression(value);
             if (targetType is not null
+                && !delegateThunksByExpression.ContainsKey(value)
                 && TryFormatCallableAssignmentCast(targetType, value, erasedGenericNames, out string callableCast)
                 && IsCallableSymbolExpression(value)
                 && ShouldCastCallableAssignment(value, targetType))

@@ -3,6 +3,13 @@ int apply(delegate int(int) callback, int value)
 	return callback(value);
 }
 
+int twice(int value) => value * 2;
+
+delegate int(int) makeTwice()
+{
+	return twice;
+}
+
 export int main()
 {
 	delegate int(int) increment = value => value + 1;
@@ -10,5 +17,17 @@ export int main()
 		return 1;
 	if (apply(value => value * 2, 21) != 42)
 		return 2;
+	delegate int(int) initialized = twice;
+	if (initialized(21) != 42)
+		return 3;
+	delegate int(int) assigned;
+	assigned = twice;
+	if (assigned(21) != 42)
+		return 4;
+	delegate int(int) returned = makeTwice();
+	if (returned(21) != 42)
+		return 5;
+	if (apply(twice, 21) != 42)
+		return 6;
 	return 0;
 }

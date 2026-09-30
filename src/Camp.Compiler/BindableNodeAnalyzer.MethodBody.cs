@@ -4765,9 +4765,10 @@ public sealed partial class BindableNodeAnalyzer
 
 	bool CanTargetTypeDirectFunctionAsDelegate(string expected, string actual, Expression? value)
 	{
-		if (value is not NamedExpression named
-			|| !expressionRewrites.TryGetValue(named, out Expression? rewrite)
-			|| rewrite is not MethodReferenceExpression { Candidates.Count: 1 }
+		Expression? direct = value is NamedExpression named && expressionRewrites.TryGetValue(named, out Expression? rewrite)
+			? rewrite
+			: value;
+		if (direct is not MethodReferenceExpression { Candidates.Count: 1 }
 			|| !TryGetCallableShape(actual, out CallableShape source)
 			|| source.Kind != "fn"
 			|| !TryGetCallableShape(expected, out CallableShape target)

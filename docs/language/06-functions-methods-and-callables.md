@@ -568,6 +568,11 @@ A `fn` value is not the same as a `delegate`. It has no hidden context. That
 makes it useful for plain function tables and native callback surfaces that
 expect only a function target.
 
+A known function declaration can be used directly where a matching `delegate`
+is expected; the compiler supplies its context-free adapter. A stored `fn`
+value does not implicitly make that conversion. Wrap the value in a delegate
+lambda when an adapter is needed.
+
 Raw `fn*` erases the signature:
 
 ```camp

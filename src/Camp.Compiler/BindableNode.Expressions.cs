@@ -58,6 +58,7 @@ public class VariableReferenceExpression : Expression
 public class MethodReferenceExpression : Expression
 {
 	public List<FunctionDefinition> Candidates { get; } = [];
+	public string? DelegateAdaptationTargetType { get; set; }
 }
 
 public class TypeReferenceExpression : Expression

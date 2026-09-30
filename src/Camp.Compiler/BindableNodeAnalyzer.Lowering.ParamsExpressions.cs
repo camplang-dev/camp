@@ -1038,6 +1038,29 @@ public sealed partial class BindableNodeAnalyzer
 		return true;
 	}
 
+	bool TryCreateDirectFunctionDelegateComponents(Expression? expression, ParamsComponentShape shape, out List<Expression> components)
+	{
+		components = [];
+		if (expression is null
+			|| shape.Kind != ParamsComponentShapeKind.Delegate
+			|| shape.Components.Count != 2
+			|| !CanTargetTypeDirectFunctionAsDelegate(shape.TypeName, expression.ResolvedType ?? ErrorType, expression)
+			|| (expression is NamedExpression named && expressionRewrites.TryGetValue(named, out Expression? rewrite) ? rewrite : expression)
+				is not MethodReferenceExpression { Candidates.Count: 1 } method)
+			return false;
+
+		MethodReferenceExpression call = new()
+		{
+			SourceSyntax = expression.SourceSyntax,
+			ResolvedType = shape.Components[0].Type,
+			DelegateAdaptationTargetType = shape.Components[0].Type
+		};
+		call.Candidates.Add(method.Candidates[0]);
+		components.Add(call);
+		components.Add(NullLiteral(expression.SourceSyntax));
+		return true;
+	}
+
 	bool IsGenericCallableParameterTarget(string parameterType)
 	{
 		string type = StripTopLevelValueQualifiers(parameterType);
@@ -2537,7 +2560,8 @@ public sealed partial class BindableNodeAnalyzer
 				&& components.Count == shape.Components.Count)
 			{
 			}
-			else if (!TryCreateParamsComponentExpressions(expression, out components) || components.Count != shape.Components.Count)
+			else if ((!TryCreateParamsComponentExpressions(expression, out components) || components.Count != shape.Components.Count)
+				&& !TryCreateDirectFunctionDelegateComponents(expression, shape, out components))
 			{
 				return false;
 			}
