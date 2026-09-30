@@ -48,22 +48,23 @@ public static class CCodeEmitter
 
     static string FormatNumberLiteralForC(string text, bool negativeContext = false)
     {
-        if (!TryParseIntegerLiteral(text, out BigInteger magnitude, out bool unsignedSuffix, out string coreText))
+        if (!TryParseIntegerLiteral(text, out BigInteger magnitude, out bool unsignedSuffix, out bool longSuffix, out string coreText))
             return text;
 
-        bool needsLongLong = negativeContext
+        bool needsLongLong = longSuffix || (negativeContext
             ? magnitude > Int32MinMagnitude
-            : magnitude > UInt32MaxValue;
+            : magnitude > UInt32MaxValue);
         if (!needsLongLong)
             return text;
 
         return coreText + (unsignedSuffix ? "ULL" : "LL");
     }
 
-    static bool TryParseIntegerLiteral(string text, out BigInteger magnitude, out bool unsignedSuffix, out string coreText)
+    static bool TryParseIntegerLiteral(string text, out BigInteger magnitude, out bool unsignedSuffix, out bool longSuffix, out string coreText)
     {
         magnitude = BigInteger.Zero;
         unsignedSuffix = false;
+        longSuffix = false;
         coreText = text;
 
         if (string.IsNullOrWhiteSpace(text)
@@ -78,7 +79,8 @@ public static class CCodeEmitter
         }
         else if (text.EndsWith("l", StringComparison.OrdinalIgnoreCase))
         {
-            return false;
+            longSuffix = true;
+            coreText = text[..^1];
         }
 
         int radix = 10;

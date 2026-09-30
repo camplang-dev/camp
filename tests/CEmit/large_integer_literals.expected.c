@@ -32,6 +32,11 @@ uint64_t unsignedMaxBoundary(void)
 	return 4294967295u;
 }
 
+int64_t smallLongLiteralShift(void)
+{
+	return (((1LL << 32)) - 1);
+}
+
 // file: large_integer_literals.h
 #ifndef LARGE_INTEGER_LITERALS_H_
 #define LARGE_INTEGER_LITERALS_H_
@@ -44,6 +49,7 @@ int64_t negativeLarge(void);
 uint64_t hexLargeUnsigned(void);
 int64_t signedMinBoundary(void);
 uint64_t unsignedMaxBoundary(void);
+int64_t smallLongLiteralShift(void);
 
 #endif
 // file: large_integer_literals_private.h
@@ -69,6 +75,7 @@ int64_t negativeLarge(void);
 uint64_t hexLargeUnsigned(void);
 int64_t signedMinBoundary(void);
 uint64_t unsignedMaxBoundary(void);
+int64_t smallLongLiteralShift(void);
 
 /* Object declarations. */
 

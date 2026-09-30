@@ -27,3 +27,8 @@ export ulong unsignedMaxBoundary()
 {
 	return 4294967295u;
 }
+
+export long smallLongLiteralShift()
+{
+	return (1L << 32) - 1;
+}
