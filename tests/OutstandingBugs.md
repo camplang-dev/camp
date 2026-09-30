@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-196.
+Next bug number: BUG-197.
 
 ## Bug Template
 
@@ -1057,3 +1057,44 @@ Known Impact:
 Source code cannot store an expanded value as one object through `struct(T)`, which
 the reference lists as required for storing an expanded value in a local or field.
 Generic code that materializes a possibly expanded `T` cannot be written.
+
+## BUG-196: Indexing a `typenameof(T)` capability directly emits invalid C
+
+Date/Time: 2026-09-30 21:30 EDT
+
+Summary:
+In a generic function with a `typenameof(T)` capability parameter, the expression
+`typenameof(T)` is a type-name string value. Assigning it to a `string` and indexing
+that local works, but indexing the expression directly, as in `typenameof(T)[0]`,
+emits C that indexes the capability parameter, which is declared as `void*`, so the
+C compiler rejects it.
+
+Steps to Reproduce:
+
+1. Run `campc run index.camp --nostdlib --show-errorlevel` with:
+
+   ```camp
+   int firstIsI<T: copyable>(typenameof(T))
+   {
+       return typenameof(T)[0] == 'I' ? 1 : 0;
+   }
+
+   export int main()
+   {
+       return firstIsI<int>() - 1;
+   }
+   ```
+
+2. Change the body to `string name = typenameof(T); return name[0] == 'I' ? 1 : 0;`.
+   This version builds and exits with 0.
+
+Expected:
+Both versions build and exit with 0.
+
+Actual:
+The first fails in the C compiler: `error: invalid operands to binary expression ('void'
+and 'int')` for the generated `typenameof_T[0] == 'I'`.
+
+Known Impact:
+Type-name capabilities cannot be indexed in place. Workaround: copy into a `string`
+local first.
