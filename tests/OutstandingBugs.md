@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-190.
+Next bug number: BUG-191.
 
 ## Bug Template
 
@@ -672,3 +672,71 @@ The program exits with 6, using the base declaration's default of 3.
 Known Impact:
 Default arguments declared on an override are silently ignored for calls through
 the derived type. Workaround: do not declare different defaults on an override.
+
+## BUG-190: Generic construction through an interface lifecycle contract fails in C emission
+
+Date/Time: 2026-09-30 19:40 EDT
+
+Summary:
+The language reference describes generic APIs that require `T: implements Managed`
+for an interface that declares a constructor, and that ask for `vtableof(T: Managed)`
+to create and destroy values. Destroying such a value through the contract works,
+but constructing one with `new T()` (or `stackalloc T()`) is accepted by analysis
+and then fails during C emission with "C emission does not yet support expression
+node ConstructionExpression."
+
+Steps to Reproduce:
+
+1. Run `campc run create.camp --nostdlib --show-errorlevel` with:
+
+   ```camp
+   extern void* malloc(nuint size);
+   extern void free(void* ptr);
+
+   class Allocator
+   {
+       void* alloc(nuint size) { return malloc(size); }
+       void free(void* ptr) { free(ptr); }
+   }
+
+   interface Managed
+   {
+       Managed(within allocator);
+       ~Managed(within allocator);
+   }
+
+   sealed class Buffer: Managed
+   {
+       Buffer(within allocator) {}
+       ~Buffer(within allocator) {}
+   }
+
+   T* createOne<T: implements Managed>(Allocator* allocator, sizeof(T), vtableof(T: Managed))
+   {
+       return within (allocator) new T();
+   }
+
+   export int main()
+   {
+       Allocator* allocator = stackalloc Allocator();
+       Buffer* buffer = createOne<Buffer>(allocator);
+       within (allocator) delete buffer;
+       return 0;
+   }
+   ```
+
+2. Replace `new T()` with `stackalloc T()` (and drop the `return`). The same error
+   is reported.
+3. For comparison, a generic function that only deletes (`within (allocator) delete value;`
+   on a `T*` parameter with `vtableof(T: Managed)`) builds and runs.
+
+Expected:
+The program builds and exits with 0. The generic construction invokes the
+constructor recorded in the `Managed` lifecycle vtable.
+
+Actual:
+`C emission does not yet support expression node ConstructionExpression.`
+
+Known Impact:
+Generic code cannot create values through an interface constructor contract.
+Workaround: have the caller construct the value and pass a `T*`, or pass a factory.
