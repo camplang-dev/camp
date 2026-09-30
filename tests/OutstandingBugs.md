@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-185.
+Next bug number: BUG-186.
 
 ## Bug Template
 
@@ -416,3 +416,60 @@ Camp callers of a statically linked export whose native symbol starts with `__`
 cannot compile. Workaround: choose a native symbol without a leading double
 underscore, or have the consumer declare its own `extern` for the symbol and link
 the library through a native `--reference`.
+
+## BUG-185: Indirect `fn` call does not expand optional or delegate arguments
+
+Date/Time: 2026-09-30 16:45 EDT
+
+Summary:
+Optional (`T?`) and `delegate` parameters are expanded into several C parameters
+(a presence flag and value, or a function pointer and context). A direct call
+expands the matching arguments correctly. A call through an `fn` value with the
+same parameter types passes each such argument as a single C argument, so the
+generated call has too few arguments and clang rejects it. Array parameters, which
+also expand, are handled correctly in the same indirect call.
+
+Steps to Reproduce:
+
+1. Optional parameter. Build `campc build ind_opt.camp`:
+
+   ```camp
+   int f(int? value) { return 7; }
+
+   export int main()
+   {
+       int? a = (int?)3;
+       fn int(int?) p = f;
+       return p(a);
+   }
+   ```
+
+2. Delegate parameter:
+
+   ```camp
+   int s(int x) { return x; }
+   int f(delegate int(int) d) { return d(7); }
+
+   export int main()
+   {
+       delegate int(int) d = (int v) => s(v);
+       fn int(delegate int(int)) p = f;
+       return p(d);
+   }
+   ```
+
+3. For comparison, calling `f(a)` or `f(d)` directly in either program builds, and an
+   `fn int(int[])` indirect call with an array argument builds and runs.
+
+Expected:
+Steps 1 and 2 build. They exit with 7.
+
+Actual:
+clang reports "too few arguments to function call, expected 2, have 1" for
+`return p(a);` and for `return p(d);`. A function pointer with several expanded
+parameters (an array, an optional and a delegate) reports "expected 6, have 4".
+
+Known Impact:
+Indirect calls through `fn` values cannot take optional or delegate arguments.
+Workaround: call the function directly, or wrap the indirect call in a function
+that takes only scalar and array parameters.
