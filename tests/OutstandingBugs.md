@@ -677,7 +677,7 @@ Known Impact:
 Default arguments declared on an override are silently ignored for calls through
 the derived type. Workaround: do not declare different defaults on an override.
 
-## BUG-190: Generic construction through an interface lifecycle contract fails in C emission
+## BUG-190: Generic construction through an interface lifecycle contract is not supported
 
 Date/Time: 2026-09-30 19:40 EDT
 
@@ -687,7 +687,10 @@ for an interface that declares a constructor, and that ask for `vtableof(T: Mana
 to create and destroy values. Destroying such a value through the contract works,
 but constructing one with `new T()` (or `stackalloc T()`) is accepted by analysis
 and then fails during C emission with "C emission does not yet support expression
-node ConstructionExpression."
+node ConstructionExpression." When the interface constructor also declares value
+parameters, for example `Managed(int value, within allocator)` with `new T(value)`,
+analysis rejects the construction earlier with "No constructor or create method for
+'T' accepts 1 argument(s)."
 
 Steps to Reproduce:
 
@@ -731,7 +734,11 @@ Steps to Reproduce:
 
 2. Replace `new T()` with `stackalloc T()` (and drop the `return`). The same error
    is reported.
-3. For comparison, a generic function that only deletes (`within (allocator) delete value;`
+3. Change the interface constructor to `Managed(int value, within allocator)`, the
+   implementing constructor to `Buffer(int value, within allocator)`, and the call to
+   `new T(value)` (adding an `int value` parameter to `createOne`). The error is now
+   "No constructor or create method for 'T' accepts 1 argument(s)."
+4. For comparison, a generic function that only deletes (`within (allocator) delete value;`
    on a `T*` parameter with `vtableof(T: Managed)`) builds and runs.
 
 Expected:
@@ -739,7 +746,9 @@ The program builds and exits with 0. The generic construction invokes the
 constructor recorded in the `Managed` lifecycle vtable.
 
 Actual:
-`C emission does not yet support expression node ConstructionExpression.`
+`C emission does not yet support expression node ConstructionExpression.` for the
+parameterless form, and `No constructor or create method for 'T' accepts 1
+argument(s).` for the form with a value parameter.
 
 Known Impact:
 Generic code cannot create values through an interface constructor contract.
