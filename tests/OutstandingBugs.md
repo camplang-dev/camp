@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-191.
+Next bug number: BUG-192.
 
 ## Bug Template
 
@@ -744,3 +744,81 @@ Actual:
 Known Impact:
 Generic code cannot create values through an interface constructor contract.
 Workaround: have the caller construct the value and pass a `T*`, or pass a factory.
+
+## BUG-191: `delete` of a retained-allocator object frees with the global `free`, not the retained allocator
+
+Date/Time: 2026-09-30 19:55 EDT
+
+Summary:
+A class whose constructor declares `within this.allocator` remembers the
+allocator it was created with. The owning `delete` path must destroy the object
+and then free the complete object pointer through that retained allocator. The
+compiler instead emits a call to the global `free` after the destructor, so the
+retained allocator's `free` is never called and memory obtained from a custom
+allocator is released to the wrong owner. Construction is correct: the allocator's
+`alloc` is called.
+
+Steps to Reproduce:
+
+1. Run `campc run retained.camp --nostdlib --show-errorlevel` with:
+
+   ```camp
+   extern void __intrinsic_log_i32(int value);
+   extern void* malloc(nuint size);
+   extern void free(void* ptr);
+
+   interface Allocator
+   {
+       void* alloc(nuint size);
+       void* realloc(void* ptr, nuint newSize);
+       void free(void* ptr);
+   }
+
+   sealed class CountingAllocator: Allocator
+   {
+       CountingAllocator() {}
+       ~CountingAllocator() {}
+       void* alloc(nuint size): Allocator
+       {
+           __intrinsic_log_i32(1);
+           return malloc(size);
+       }
+       void* realloc(void* ptr, nuint newSize): Allocator { return null; }
+       void free(void* ptr): Allocator
+       {
+           __intrinsic_log_i32(2);
+           free(ptr);
+       }
+   }
+
+   class Counter
+   {
+       int value;
+       Counter(int initial, within this.allocator) { this.value = initial; }
+       ~Counter() {}
+   }
+
+   export int main()
+   {
+       CountingAllocator* counting = stackalloc CountingAllocator();
+       Allocator* allocator = counting;
+       Counter* item = within (allocator) new Counter(9);
+       delete item;
+       return 0;
+   }
+   ```
+
+   `__intrinsic_log_i32` must be linked in (for example `--reference` to a library
+   that provides it).
+
+Expected:
+The program logs `1` (allocation) and then `2` (free through the retained
+allocator).
+
+Actual:
+Only `1` is logged. The generated delete sequence is
+`(Counter_op_delete(target), free((void *)(target)))`, calling the global `free`.
+
+Known Impact:
+Retained-allocator objects are released with the wrong deallocator, which is
+undefined behavior for any allocator that does not wrap the global heap.
