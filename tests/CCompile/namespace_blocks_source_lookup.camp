@@ -19,13 +19,13 @@ namespace Tools
 
 	int rootBase()
 	{
-		return global::base();
+		return global::rootValue();
 	}
 }
 
 namespace global
 {
-	int base()
+	int rootValue()
 	{
 		return 100;
 	}

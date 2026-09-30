@@ -45,14 +45,14 @@ public sealed partial class BindableNodeAnalyzer
 
 	static readonly HashSet<string> ReservedWords = new(StringComparer.Ordinal)
 	{
-		"_", "abstract", "alias", "any", "as", "astring", "async", "auto", "bool", "break", "byte", "case", "catch",
-		"char", "class", "const", "constof", "continue", "copyable", "default", "delegate", "delete", "do", "double",
-		"else", "enum", "escaped", "export", "extern", "false", "finally", "fixed", "float",
-		"fn", "for", "foreach", "if", "implements", "in", "init", "int", "interface", "iter",
-		"inline", "long", "namespace", "new", "newtype", "nint", "null", "nuint", "once", "out", "overload", "override", "params", "public", "upon",
-		"return", "sbyte", "scoped", "sealed", "short", "sizeof", "static", "string", "struct", "switch",
-		"this", "thrown", "true", "try", "uchar", "uint", "ulong", "unscoped", "ushort", "untyped",
-		"unsafe", "using", "virtual", "void", "volatile", "vtableof", "wchar", "while", "within", "wstring", "yield"
+		"_", "abstract", "achar", "alias", "as", "astring", "async", "auto", "await", "base", "bool", "break", "byte",
+		"case", "catch", "char", "class", "classtype", "configured", "const", "constof", "continue", "default", "delegate",
+		"delete", "do", "double", "else", "enum", "escaped", "export", "extern", "false", "finally", "fixed", "float",
+		"fn", "for", "foreach", "goto", "if", "in", "inline", "int", "interface", "internal", "iter", "long", "namespace",
+		"new", "newtype", "nint", "null", "nuint", "once", "out", "overload", "override", "params", "postpone", "public",
+		"requires", "return", "sbyte", "scoped", "sealed", "short", "sizeof", "stackalloc", "static", "string", "struct",
+		"switch", "this", "throw", "thrown", "true", "try", "typenameof", "uchar", "uint", "ulong", "unscoped", "unsafe",
+		"ushort", "untyped", "using", "virtual", "void", "volatile", "vtableof", "wchar", "while", "within", "wstring", "yield"
 	};
 
 	static readonly HashSet<string> CReservedWords = new(StringComparer.Ordinal)
@@ -61,10 +61,7 @@ public sealed partial class BindableNodeAnalyzer
 		"extern", "float", "for", "goto", "if", "inline", "int", "long", "register", "restrict", "return",
 		"short", "signed", "sizeof", "static", "struct", "switch", "typedef", "union", "unsigned", "void",
 		"volatile", "while", "_Alignas", "_Alignof", "_Atomic", "_Bool", "_Complex", "_Generic", "_Imaginary",
-		"_Noreturn", "_Static_assert", "_Thread_local", "alignas", "alignof", "atomic_bool", "atomic_char",
-		"atomic_int", "atomic_long", "atomic_short", "atomic_uint", "atomic_ulong", "atomic_ushort", "bool",
-		"complex", "constexpr", "false", "generic", "imaginary", "nullptr", "noreturn", "static_assert",
-		"thread_local", "true", "typeof", "typeof_unqual"
+		"_Noreturn", "_Static_assert", "_Thread_local"
 	};
 
 	readonly List<AnalysisDiagnostic> diagnostics = [];

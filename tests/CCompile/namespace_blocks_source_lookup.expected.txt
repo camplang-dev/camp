@@ -6,7 +6,7 @@ static int App_value(void);
 static int Tools_value(void);
 static int Tools_local(void);
 static int Tools_rootBase(void);
-static int base(void);
+static int rootValue(void);
 static int App_main(void);
 
 static int App_value(void)
@@ -26,10 +26,10 @@ static int Tools_local(void)
 
 static int Tools_rootBase(void)
 {
-	return base();
+	return rootValue();
 }
 
-static int base(void)
+static int rootValue(void)
 {
 	return 100;
 }
