@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-184.
+Next bug number: BUG-185.
 
 ## Bug Template
 
@@ -676,3 +676,46 @@ Known Impact:
 A delegate variable cannot be initialized from, assigned, or returned as a plain
 function. Workaround: pass the function directly as a call argument, or wrap it in
 a lambda (`delegate int(int) callback = (int v) => twice(v);`).
+
+## BUG-184: An `fn` value passed to a `delegate` parameter is pointer-cast, not converted
+
+Date/Time: 2026-09-30 15:40 EDT
+
+Summary:
+An `fn` value has no context and is a different callable kind from a `delegate`,
+whose generated C function takes a leading context argument. Passing an `fn`
+variable where a `delegate` of the same signature is expected is accepted, and the
+generated C casts the function pointer to the delegate's pointer type without
+adapting the call. The callee is then invoked with an extra leading `NULL`
+context argument that it does not declare, so its real parameters are read from the
+wrong positions.
+
+Steps to Reproduce:
+
+1. Build and run with `campc run fn_to_delegate.camp --show-errorlevel`:
+
+   ```camp
+   int twice(int value) { return value * 2; }
+   int apply(delegate int(int) action, int value) { return action(value); }
+
+   export int main()
+   {
+       fn int(int) plain = twice;
+       return apply(plain, 21);
+   }
+   ```
+
+Expected:
+Either a diagnostic that an `fn` value does not convert to a `delegate`, or a
+conversion that adapts the call (as passing the function name `twice` directly
+does) and exits with 42.
+
+Actual:
+Builds without a diagnostic and exits with 0. The generated call is
+`apply((int (*)(void *arg0, int arg1))plain, NULL, 21)`: `twice` runs with the
+`NULL` context as its `value`.
+
+Known Impact:
+Silent wrong results (and undefined behavior for signatures with different
+parameter widths) when an `fn` value is used as a `delegate`. Workaround: pass the
+original function name, or wrap the `fn` call in a lambda.
