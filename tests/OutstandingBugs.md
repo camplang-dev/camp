@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-194.
+Next bug number: BUG-195.
 
 ## Bug Template
 
@@ -945,3 +945,60 @@ Generic interface dispatch on struct implementers is unreliable (wrong results o
 crashes, including for a generic class that keeps the vtable from its constructor).
 Workaround: use class implementers, or convert to an interface pointer outside the
 generic code.
+
+## BUG-194: A raw interface slot taken from a concrete class vtable does not recover the class receiver
+
+Date/Time: 2026-09-30 21:00 EDT
+
+Summary:
+Interface slots always receive the interface receiver (the address of the interface
+instance slot) as their first argument. For a class, calling a method through an
+interface pointer works, because the object's own vtable uses a thunk that converts
+the interface instance slot back to the class instance. A slot read directly from
+`vtableof(Class: Interface)` (or from the `vtableof(T: Interface)` capability inside
+a generic function) instead refers to the class method itself, so calling it with an
+interface pointer to a class passes the address of the object's interface field as
+`this`. The method then reads the wrong memory. The same slot taken for a struct
+implementer works.
+
+Steps to Reproduce:
+
+1. Run `campc run slot.camp --nostdlib --show-errorlevel --reference <library providing __intrinsic_log_i32>` with:
+
+   ```camp
+   extern void __intrinsic_log_i32(int value);
+   extern void* malloc(nuint size);
+   extern void free(void* ptr);
+
+   interface Readable { int read(int addend); }
+
+   sealed class ClassReader: Readable
+   {
+       int value;
+       ClassReader(int value) { this.value = value; }
+       int read(int addend): Readable { return this.value + addend; }
+   }
+
+   export int main()
+   {
+       ClassReader* classReader = stackalloc ClassReader(10);
+       Readable* classView = classReader;
+       __intrinsic_log_i32(classView.read(4));
+       fn int(Readable*, int) slot = vtableof(ClassReader: Readable).read;
+       __intrinsic_log_i32(slot(classView, 4));
+       return 0;
+   }
+   ```
+
+Expected:
+Both calls log 14.
+
+Actual:
+The first call logs 14. The second logs an unrelated value (for example 766181532),
+because the concrete class vtable stores `ClassReader_read` directly while the
+object's vtable stores a thunk that subtracts the interface field offset.
+
+Known Impact:
+Direct slot calls (including through `vtableof(T: Interface)` in generic code) give
+wrong results for class implementers whose interface field is not at offset zero.
+Workaround: call the method through the interface pointer instead of the raw slot.
