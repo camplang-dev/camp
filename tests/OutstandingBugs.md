@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-179.
+Next bug number: BUG-180.
 
 ## Bug Template
 
@@ -401,3 +401,59 @@ Known Impact:
 Any code that takes `.elements` (or otherwise reads a view member) straight from
 a slice of a fixed array fails in the C compiler. Workaround: bind the slice to a
 view first, for example `char[] view = text[..]; const char* pointer = view.elements;`.
+
+## BUG-179: Static consumer calls an export whose native symbol starts with underscores
+
+Date/Time: 2026-09-30 12:05 EDT
+
+Summary:
+A static library can export a function whose effective native symbol starts
+with two underscores, for example through `@symbol("__name")`. The library's Camp
+API lists the function, so a consumer can call it from Camp source, but the
+library's generated C API header omits it ("No exported declarations" when it is
+the only export). The consumer's generated C then calls an undeclared function
+and the C compiler rejects it.
+
+Steps to Reproduce:
+
+1. Create `lib/lib.camp`:
+
+   ```camp
+   namespace Q;
+
+   @symbol("__renamed_sym")
+   export void renamed(int value)
+   {
+   }
+   ```
+
+   with `lib/lib.campbuild` containing `--out-dir bin`, `--name qlib`, and
+   `lib.camp`.
+2. Create `app/app.camp`:
+
+   ```camp
+   export int main(string[] args)
+   {
+       Q::renamed(2);
+       return 0;
+   }
+   ```
+
+   with `app/app.campbuild` containing `--out-dir bin`, `--name app`,
+   `--artifact exec`, `app.camp`, and
+   `--project-reference ../lib/lib.campbuild:static`.
+3. Run `campc build app/app.campbuild`.
+
+Expected:
+The consumer builds and links. Renaming the symbol to one without a leading
+double underscore, for example `renamed_sym`, does build.
+
+Actual:
+clang reports "call to undeclared function '__renamed_sym'" for the generated
+consumer C. A `:shared` project reference to the same library builds.
+
+Known Impact:
+Camp callers of a statically linked export whose native symbol starts with `__`
+cannot compile. Workaround: choose a native symbol without a leading double
+underscore, or have the consumer declare its own `extern` for the symbol and link
+the library through a native `--reference`.
