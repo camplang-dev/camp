@@ -8681,6 +8681,115 @@ public sealed class CommandLineTests
 		Assert.DoesNotContain("ERRORLEVEL", compileFailure.StdOut, StringComparison.Ordinal);
 	}
 
+	[Theory]
+	[InlineData("1st_case.camp", "1st_case")]
+	[InlineData("04-1-x.camp", "04_1_x")]
+	[InlineData("my-tool.camp", "my_tool")]
+	[InlineData("hello.camp", "hello")]
+	public void Source_derived_artifact_stems_agree_for_build_and_run(string fileName, string stem)
+	{
+		string source = CreateTempCase("source-stem/" + fileName, "export int main(string[] args) { return 7; }");
+		string outDir = TempPath("source-stem-out-" + stem);
+		string target = NativeTargetForHost();
+		string artifactDirectory = Path.Combine(outDir, ArtifactDirectoryForHost(NativeBuildKind.Exec));
+
+		ProcessResult build = RunCampc("build", source, "--nostdlib", "--target", target, "--out-dir", outDir);
+		AssertCommandSucceeded(build);
+		Assert.True(File.Exists(NativeArtifactPathForTarget(target, NativeBuildKind.Exec, artifactDirectory, stem)));
+		Assert.True(File.Exists(Path.Combine(artifactDirectory, "build", stem + ".c")));
+		Assert.True(File.Exists(Path.Combine(artifactDirectory, "build", stem + ".h")));
+		Assert.True(File.Exists(Path.Combine(artifactDirectory, "build", stem + "_private.h")));
+
+		ProcessResult cached = RunCampc("build", source, "--nostdlib", "--target", target, "--out-dir", outDir, "--timing");
+		AssertCommandSucceeded(cached);
+		Assert.DoesNotContain("load sources and APIs", cached.StdErr, StringComparison.Ordinal);
+
+		ProcessResult run = RunCampc("run", source, "--nostdlib", "--target", target, "--out-dir", outDir, "--show-errorlevel");
+		Assert.Equal(7, run.ExitCode);
+		Assert.Equal("ERRORLEVEL 7\n", run.StdOut);
+	}
+
+	[Theory]
+	[InlineData("-", "stdin")]
+	[InlineData("", "camp")]
+	[InlineData("04-1-x.camp", "04_1_x")]
+	public void Artifact_file_stem_handles_stdin_empty_and_digit_first_names(string path, string expected)
+	{
+		Assert.Equal(expected, ArtifactFileStem.FromSourcePath(path));
+	}
+
+	[Fact]
+	public void Digit_first_library_emits_coherent_api_and_valid_c_header_guards()
+	{
+		string source = CreateTempCase("source-stem-library/04-1-x.camp", "export int answer() { return 42; }");
+		string outDir = TempPath("source-stem-library-out");
+		string target = NativeTargetForHost();
+		ProcessResult build = RunCampc("build", source, "--nostdlib", "--artifact", "static", "--target", target, "--out-dir", outDir);
+		AssertCommandSucceeded(build);
+
+		string artifactDirectory = Path.Combine(outDir, ArtifactDirectoryForHost(NativeBuildKind.Static));
+		string buildDirectory = Path.Combine(artifactDirectory, "build");
+		Assert.True(File.Exists(Path.Combine(buildDirectory, "04_1_x.c")));
+		Assert.True(File.Exists(Path.Combine(buildDirectory, "04_1_x.h")));
+		Assert.True(File.Exists(Path.Combine(buildDirectory, "04_1_x_private.h")));
+		Assert.True(File.Exists(Path.Combine(artifactDirectory, "04_1_x_api.h")));
+		Assert.True(File.Exists(Path.Combine(artifactDirectory, "04_1_x_api.camp")));
+		Assert.Contains("#ifndef _04_1_X_H_", File.ReadAllText(Path.Combine(buildDirectory, "04_1_x.h")), StringComparison.Ordinal);
+		Assert.Contains("#ifndef _04_1_X_PRIVATE_H_", File.ReadAllText(Path.Combine(buildDirectory, "04_1_x_private.h")), StringComparison.Ordinal);
+		Assert.Contains("#ifndef _04_1_X_API_H_", File.ReadAllText(Path.Combine(artifactDirectory, "04_1_x_api.h")), StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void Digit_first_test_and_coverage_artifacts_link_and_run()
+	{
+		string source = CreateTempCase("source-stem-tests/04-1-x.camp", """
+			int add(int left, int right) { return left + right; }
+
+			@test
+			void addWorks(thrown Assertion* assertion)
+			{
+				assert(add(2, 3) == 5);
+			}
+			""");
+		string outDir = TempPath("source-stem-tests-out");
+		string target = NativeTargetForHost();
+
+		ProcessResult test = RunCampc("test", source, "--target", target, "--out-dir", outDir);
+		AssertCommandSucceeded(test);
+		Assert.Contains("passed: addWorks", test.StdOut, StringComparison.Ordinal);
+		Assert.True(File.Exists(TestManifestPath(outDir, "04_1_x")));
+
+		ProcessResult cover = RunCampc("cover", source, "--target", target, "--out-dir", outDir);
+		AssertCommandSucceeded(cover);
+		Assert.Contains("passed: addWorks", cover.StdOut, StringComparison.Ordinal);
+		Assert.True(File.Exists(CoverageMapPath(outDir, "04_1_x")));
+		Assert.True(File.Exists(CoverageResultsPath(outDir, "04_1_x")));
+	}
+
+	[Fact]
+	public void Digit_first_source_derived_project_reference_resolves_its_artifacts()
+	{
+		string root = TempPath("source-stem-project-reference");
+		string libraryRoot = Path.Combine(root, "library");
+		string appRoot = Path.Combine(root, "app");
+		Directory.CreateDirectory(libraryRoot);
+		Directory.CreateDirectory(appRoot);
+		File.WriteAllText(Path.Combine(libraryRoot, "04-1-x.camp"), "export int answer() { return 42; }");
+		File.WriteAllText(Path.Combine(libraryRoot, "library.campbuild"), "--nostdlib\n04-1-x.camp\n");
+		string app = Path.Combine(appRoot, "main.camp");
+		File.WriteAllText(app, "export int main() { return answer() - 42; }");
+		string target = NativeTargetForHost();
+
+		ProcessResult first = RunCampc("run", app, "--nostdlib", "--target", target, "--project-reference", Path.Combine(libraryRoot, "library.campbuild") + ":static", "--out-dir", Path.Combine(appRoot, "out"));
+		AssertCommandSucceeded(first);
+		string libraryArtifactDirectory = Path.Combine(libraryRoot, "bin", ArtifactDirectoryForHost(NativeBuildKind.Static));
+		Assert.True(File.Exists(Path.Combine(libraryArtifactDirectory, "04_1_x_api.camp")));
+		Assert.True(File.Exists(NativeArtifactPathForTarget(target, NativeBuildKind.Static, libraryArtifactDirectory, "04_1_x")));
+
+		ProcessResult cached = RunCampc("run", app, "--nostdlib", "--target", target, "--project-reference", Path.Combine(libraryRoot, "library.campbuild") + ":static", "--out-dir", Path.Combine(appRoot, "out"), "--verbose");
+		AssertCommandSucceeded(cached);
+	}
+
 	[Fact]
 	public void Run_rejects_non_exec_artifact_before_building()
 	{

@@ -1106,10 +1106,9 @@ public sealed class LspServerTests
 		Directory.CreateDirectory(libraryBin);
 		File.WriteAllText(Path.Combine(libraryRoot, "library.campbuild"), """
 			--artifact static
-			--name library
-			src/*.camp
+			src/04-1-x.camp
 			""");
-		File.WriteAllText(Path.Combine(libraryBin, "library_api.camp"), """
+		File.WriteAllText(Path.Combine(libraryBin, "04_1_x_api.camp"), """
 			export extern class SharedWindow
 			{
 			}
@@ -1148,7 +1147,7 @@ public sealed class LspServerTests
 			context = new { includeDeclaration = true }
 		});
 		JsonArray result = references["result"]!.AsArray();
-		Assert.Contains(result, location => location?["uri"]?.GetValue<string>().EndsWith("library_api.camp", StringComparison.Ordinal) == true);
+		Assert.Contains(result, location => location?["uri"]?.GetValue<string>().EndsWith("04_1_x_api.camp", StringComparison.Ordinal) == true);
 		Assert.Contains(result, location => location?["uri"]?.GetValue<string>().EndsWith("main.camp", StringComparison.Ordinal) == true);
 	}
 

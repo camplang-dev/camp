@@ -691,9 +691,7 @@ public static class CCodeEmitter
     public static string GetProjectName(IReadOnlyList<SourceFile> files)
     {
         SourceFile? first = files.FirstOrDefault(static file => !file.IsApiHeader) ?? files.FirstOrDefault();
-        return first is null || first.Path == "-"
-            ? "stdin"
-            : SanitizeIdentifier(Path.GetFileNameWithoutExtension(first.Path));
+        return first is null ? "stdin" : ArtifactFileStem.FromSourcePath(first.Path);
     }
 
     public static string GetDefaultOutputDirectory(IReadOnlyList<SourceFile> files)
@@ -712,12 +710,12 @@ public static class CCodeEmitter
 
     static string GetCSourceFilename(SourceFile file)
     {
-        return SanitizeIdentifier(Path.GetFileNameWithoutExtension(file.Path == "-" ? "stdin" : file.Path)) + ".c";
+        return ArtifactFileStem.FromSourcePath(file.Path) + ".c";
     }
 
     static string GetHeaderFilename(SourceFile file)
     {
-        return SanitizeIdentifier(Path.GetFileNameWithoutExtension(file.Path == "-" ? "stdin" : file.Path)) + ".h";
+        return ArtifactFileStem.FromSourcePath(file.Path) + ".h";
     }
 
     static string BuildHeaderGuard(string name)

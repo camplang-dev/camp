@@ -493,7 +493,7 @@ public static class CompilerDriver
             if (!string.IsNullOrWhiteSpace(request.ProjectName))
                 return request.ProjectName!;
             string? firstSource = request.Files.FirstOrDefault(static file => file != "-");
-            return string.IsNullOrWhiteSpace(firstSource) ? "camp" : Path.GetFileNameWithoutExtension(firstSource);
+            return string.IsNullOrWhiteSpace(firstSource) ? "camp" : ArtifactFileStem.FromSourcePath(firstSource);
         }
 
         string ResolveArtifactOutputDirectory(TargetDefinition target, NativeBuildKind? buildKind, string profileName)
@@ -1407,12 +1407,14 @@ public static class CompilerDriver
         {
             string objectExtension = target.Capabilities.GetArtifactValue("object_ext", ".o");
             List<string> objects = [];
-            foreach (string source in ResolveInputPaths(request.Files).Concat(ResolveInputPaths(request.NativeSourceFiles)))
+            foreach (string source in ResolveInputPaths(request.Files))
             {
                 if (source.EndsWith("_api.camp", StringComparison.OrdinalIgnoreCase))
                     continue;
-                objects.Add(Path.Combine(buildDirectory, Path.GetFileNameWithoutExtension(source) + objectExtension));
+                objects.Add(Path.Combine(buildDirectory, ArtifactFileStem.FromSourcePath(source) + objectExtension));
             }
+            foreach (string source in ResolveInputPaths(request.NativeSourceFiles))
+                objects.Add(Path.Combine(buildDirectory, Path.GetFileNameWithoutExtension(source) + objectExtension));
             return objects;
         }
 

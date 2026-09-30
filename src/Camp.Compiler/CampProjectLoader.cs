@@ -414,7 +414,7 @@ public static class CampProjectLoader
 	{
 		apiHeader = null;
 		string projectDirectory = Path.GetDirectoryName(Path.GetFullPath(buildFile)) ?? workingDirectory;
-		string projectName = GetProjectReferenceName(buildFile, workingDirectory) ?? Path.GetFileNameWithoutExtension(buildFile);
+		string projectName = GetProjectReferenceName(buildFile, workingDirectory) ?? ArtifactFileStem.FromSourcePath(buildFile);
 			string profileName = string.IsNullOrWhiteSpace(consumerRequest.ProfileName) ? "DEBUG" : consumerRequest.ProfileName.ToUpperInvariant();
 			string expected = Path.Combine(projectDirectory, "bin", GetArtifactDirectoryName(consumerRequest, linkKind == DependencyLinkKind.Static ? NativeBuildKind.Static : NativeBuildKind.Shared, profileName), projectName + "_api.camp");
 		if (File.Exists(expected))
@@ -469,9 +469,13 @@ public static class CampProjectLoader
 		if (errors.Count > 0)
 			return null;
 		ParsedCampBuildOptions options = CampBuildOptionParser.Parse(args, allowPositionals: true, errors);
-		return errors.Count == 0
-			? options.SingleValues.LastOrDefault(static value => value.Key == "name").Value
-			: null;
+		if (errors.Count > 0)
+			return null;
+		string? explicitName = options.SingleValues.LastOrDefault(static value => value.Key == "name").Value;
+		if (!string.IsNullOrWhiteSpace(explicitName))
+			return explicitName;
+		string? source = options.Positionals.FirstOrDefault(static path => path.EndsWith(".camp", StringComparison.OrdinalIgnoreCase) && path.IndexOfAny(['*', '?', '[']) < 0);
+		return source is null ? null : ArtifactFileStem.FromSourcePath(source);
 	}
 
 	static CampProjectLoadResult Failed(CampProjectEnvironment environment, List<string> errors)

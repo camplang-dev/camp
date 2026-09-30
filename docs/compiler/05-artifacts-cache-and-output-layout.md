@@ -68,6 +68,13 @@ textapp.h
 textapp_private.h
 ```
 
+When no `--name` is given, source-derived artifact and generated-file stems
+come from the source filename without its extension: non-letter/digit
+characters become `_`, so `my-tool.camp` yields `my_tool` and `04-1-x.camp`
+yields `04_1_x`. A leading digit is retained in filenames; generated C header
+guards and other C identifiers are sanitized separately. Explicit `--name`
+values retain their existing spelling.
+
 The public header is for exported C-facing declarations. The private header is
 for generated implementation dependencies. Library builds also emit a Camp API
 header and a C API header:

@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-181.
+Next bug number: BUG-180.
 
 ## Bug Template
 
@@ -457,43 +457,3 @@ Camp callers of a statically linked export whose native symbol starts with `__`
 cannot compile. Workaround: choose a native symbol without a leading double
 underscore, or have the consumer declare its own `extern` for the symbol and link
 the library through a native `--reference`.
-
-## BUG-180: Digit-first source names produce mismatched executable artifact names
-
-Date/Time: 2026-09-30 12:45 EDT
-
-Summary:
-For a source-derived project name beginning with a digit, C emission prefixes
-the artifact filename with `_` as though it were a C identifier, while the
-command-line runner derives the unprefixed filename. The generated executable
-builds but `campc run` cannot find it.
-
-Steps to Reproduce:
-
-1. Save this standalone source as `1st_case.camp`, and also as `04-1-x.camp`:
-
-   ```camp
-   export int main(string[] args)
-   {
-       return 7;
-   }
-   ```
-
-2. With the compiler built from `c2f0d1a2a7cf9cd200ab964a4eea195529d79e8a`
-   (`v0.12.0-preview.1+c2f0d1a2a7cf9cd200ab964a4eea195529d79e8a`),
-   run `campc build 1st_case.camp --verbose` followed by
-   `campc run 1st_case.camp --show-errorlevel`. Repeat for `04-1-x.camp`.
-
-Expected:
-Build and run agree on the source-derived artifact names `1st_case` and
-`04_1_x`; both programs execute and print `ERRORLEVEL 7`.
-
-Actual:
-Build emits `_1st_case` and `_04_1_x`. Run reports
-`run could not find the generated executable: .../1st_case` or
-`.../04_1_x` and exits 1 without executing the program.
-
-Known Impact:
-Single-file programs whose filenames begin with a digit build but cannot run
-through `campc run` unless given an explicit non-digit-first `--name`. Generated
-C and header filenames also receive an unnecessary leading underscore.

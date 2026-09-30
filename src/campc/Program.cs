@@ -659,15 +659,7 @@ sealed class CampCli
         string? firstSource = request.Files.FirstOrDefault(static file => file != "-");
         return string.IsNullOrWhiteSpace(firstSource)
             ? "stdin"
-            : SanitizeIdentifier(Path.GetFileNameWithoutExtension(firstSource));
-    }
-
-    static string SanitizeIdentifier(string value)
-    {
-        StringBuilder builder = new();
-        foreach (char ch in value)
-            builder.Append(char.IsLetterOrDigit(ch) ? ch : '_');
-        return builder.ToString();
+            : ArtifactFileStem.FromSourcePath(firstSource);
     }
 
     static bool IsDirectRunOutputPath(string value)
@@ -1397,7 +1389,10 @@ sealed class CampCli
             string fullPath = Path.GetFullPath(source, projectRequest.WorkingDirectory);
             if (fullPath.EndsWith("_api.camp", StringComparison.OrdinalIgnoreCase))
                 continue;
-            objects.Add(Path.Combine(buildDirectory, Path.GetFileNameWithoutExtension(fullPath) + objectExtension));
+            string stem = source.EndsWith(".camp", StringComparison.OrdinalIgnoreCase)
+                ? ArtifactFileStem.FromSourcePath(fullPath)
+                : Path.GetFileNameWithoutExtension(fullPath);
+            objects.Add(Path.Combine(buildDirectory, stem + objectExtension));
         }
         return objects;
     }
@@ -1408,8 +1403,8 @@ sealed class CampCli
             return projectRequest.ProjectName!;
         string? firstSource = projectRequest.Files.FirstOrDefault(file => !file.EndsWith("_api.camp", StringComparison.OrdinalIgnoreCase));
         if (!string.IsNullOrWhiteSpace(firstSource))
-            return Path.GetFileNameWithoutExtension(firstSource);
-        return Path.GetFileNameWithoutExtension(buildFile);
+            return ArtifactFileStem.FromSourcePath(firstSource);
+        return ArtifactFileStem.FromSourcePath(buildFile);
     }
 
     static string ProjectReferenceOutputName(ParsedOptions projectOptions, string buildFile)
@@ -1419,8 +1414,8 @@ sealed class CampCli
             return projectName!;
         string? firstSource = projectOptions.Positionals.FirstOrDefault(static file => !file.EndsWith("_api.camp", StringComparison.OrdinalIgnoreCase));
         if (!string.IsNullOrWhiteSpace(firstSource) && !Glob.HasWildcards(firstSource!))
-            return Path.GetFileNameWithoutExtension(firstSource);
-        return Path.GetFileNameWithoutExtension(buildFile);
+            return ArtifactFileStem.FromSourcePath(firstSource);
+        return ArtifactFileStem.FromSourcePath(buildFile);
     }
 
     static bool ShouldInstrumentProjectReferenceForCoverage(CompilerRequest consumerRequest, string coverageSubjectName, DependencyLinkKind linkKind, int sharedCoverageCandidateCount)
