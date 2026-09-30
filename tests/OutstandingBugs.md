@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-193.
+Next bug number: BUG-194.
 
 ## Bug Template
 
@@ -888,3 +888,60 @@ Actual:
 Known Impact:
 Generic helpers with interface constraints cannot be composed. No source-level
 workaround exists other than not splitting the generic function.
+
+## BUG-193: Generic interface dispatch on a struct receiver passes the wrong receiver shape
+
+Date/Time: 2026-09-30 20:40 EDT
+
+Summary:
+A generic function constrained with `T: implements Interface` and taking
+`vtableof(T: Interface)` can call interface methods directly on a `T*` value. When
+`T` is a class this works. When `T` is a struct, the generated call passes the raw
+struct pointer where the interface method thunk expects an interface context (a
+pointer to the object together with its vtable), so the method reads unrelated
+memory and returns garbage or crashes. A generic class that stores the vtable from
+its constructor and dispatches the same way fails likewise.
+
+Steps to Reproduce:
+
+1. Run `campc run dispatch.camp --nostdlib --show-errorlevel` with:
+
+   ```camp
+   interface Reader { int read(); }
+
+   struct Value: Reader
+   {
+       int value;
+       int read(): Reader { return this.value; }
+   }
+
+   int readIt<T: implements Reader>(T* value, vtableof(T: Reader))
+   {
+       return value.read();
+   }
+
+   export int main()
+   {
+       Value* value = stackalloc Value();
+       value.value = 27;
+       return readIt(value) - 27;
+   }
+   ```
+
+2. Change `struct Value` to `class Value`. The program then exits with 0.
+
+Expected:
+Both programs exit with 0: the struct's `read` runs on the struct that `value`
+points to and returns 27.
+
+Actual:
+With the struct the program exits with 53 (an unrelated value). The generated code
+calls `vtableof_T_Reader->read((Reader **)(value))` where `value` is a plain
+`Value*`, but the vtable thunk `Value_Reader_read(Reader **ctx)` reinterprets `ctx`
+as an indirect context whose `ctx` field is the `Value*`.
+
+Known Impact:
+Generic interface dispatch on struct implementers is unreliable (wrong results or
+crashes, including for a generic class that keeps the vtable from its constructor).
+Workaround: use class implementers, or convert to an interface pointer outside the
+generic code.
