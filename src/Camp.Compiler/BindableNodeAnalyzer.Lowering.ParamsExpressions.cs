@@ -3181,6 +3181,22 @@ public sealed partial class BindableNodeAnalyzer
 	bool TryCreateParamsMemberComponentExpression(Expression? target, string name, out Expression componentExpression)
 	{
 		componentExpression = target ?? new MemberExpression { Name = name };
+		if (target is IndexExpression { Arguments.Count: 2 } slice
+			&& TryGetFixedArrayShape(slice.Target?.ResolvedType, out _, out _)
+			&& TryGetParamsComponentShape(null, slice.ResolvedType, "value", out ParamsComponentShape sliceShape)
+			&& sliceShape.Kind == ParamsComponentShapeKind.Array
+			&& sliceShape.Components.Any(component => component.Name == name)
+			&& TryCreateParamsComponentExpressions(slice, out List<Expression> sliceComponents)
+			&& sliceComponents.Count == sliceShape.Components.Count)
+		{
+			for (int i = 0; i < sliceComponents.Count; i++)
+			{
+				if (sliceShape.Components[i].Name != name)
+					continue;
+				componentExpression = sliceComponents[i];
+				return true;
+			}
+		}
 		if (!TryCreateParamsComponentExpressions(target, out List<Expression> targetComponents))
 			return false;
 

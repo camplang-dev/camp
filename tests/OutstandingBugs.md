@@ -361,47 +361,6 @@ A bounds-guarded conditional returning counted text from a string array can
 read out of bounds or crash. An explicit `if` that returns before indexing is
 a safe source workaround.
 
-## BUG-178: Member access on a slice of a fixed array emits invalid C
-
-Date/Time: 2026-09-30 11:50 EDT
-
-Summary:
-Reading `.elements` (or another view member) directly from a slice expression
-over a fixed inline array emits an invalid C expression. The slice bounds are
-written as a subscript, `array[0, N]`, and the member access is applied to that
-subscript. Binding the slice to an array-view local first works.
-
-Steps to Reproduce:
-
-1. Build this standalone source with `campc build repro.camp` on the native C
-   backend:
-
-   ```camp
-   export int main()
-   {
-       fixed char[4] text;
-       text[0] = 'a';
-       text[1] = '\0';
-       const char* pointer = text[..].elements;
-       return pointer[0] == 'a' ? 0 : 1;
-   }
-   ```
-
-2. Inspect the clang diagnostics for the generated C.
-
-Expected:
-The program compiles, and `text[..].elements` is the address of the first
-element of `text`; the program returns 0.
-
-Actual:
-The generated C contains `text[0, 4].elements`, and clang reports "member
-reference base type 'char' is not a structure or union".
-
-Known Impact:
-Any code that takes `.elements` (or otherwise reads a view member) straight from
-a slice of a fixed array fails in the C compiler. Workaround: bind the slice to a
-view first, for example `char[] view = text[..]; const char* pointer = view.elements;`.
-
 ## BUG-179: Static consumer calls an export whose native symbol starts with underscores
 
 Date/Time: 2026-09-30 12:05 EDT

@@ -68,6 +68,17 @@ export int main()
 	if (explicitUpper[..].compareTo("  HELLO, HELLO!  ") != 0)
 		return 28;
 
+	fixed char[4] sliceText = ['a', 'b', 'c', 'd'];
+	const char* fullElements = sliceText[..].elements;
+	if (fullElements[0] != 'a' || sliceText[..].length != 4)
+		return 29;
+	const char* middleElements = sliceText[1..3].elements;
+	if (middleElements[0] != 'b' || middleElements[1] != 'c' || sliceText[1..3].length != 2)
+		return 30;
+	const char[] middleView = sliceText[1..3];
+	if (middleView.elements[0] != 'b' || middleView.length != 2)
+		return 31;
+
 	if (upper[..].compareTo("  HELLO, HELLO!  ") != 0)
 		return 19;
 	if (lower[..].compareTo("  hello, hello!  ") != 0)

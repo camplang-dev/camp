@@ -100,6 +100,8 @@ rewrites are described in
 [Core Expression, Statement, And Access Semantics](14-core-expression-statement-and-access-semantics.md).
 Once those rules have chosen an access operation, ABI lowering still uses the
 array component shape described here.
+Direct `.elements` and `.length` access on a fixed-array slice reads the slice
+view's offset pointer and range count, just as access through a view local does.
 
 ## Target Specs On Expanded Carriers
 
