@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-188.
+Next bug number: BUG-189.
 
 ## Bug Template
 
@@ -580,3 +580,48 @@ Known Impact:
 A generic function over an integral representation type cannot convert its value
 to a concrete integer type. No source-level workaround exists other than not
 using the generic.
+
+## BUG-188: Declaring a constructor requires a visible `malloc` even when nothing allocates
+
+Date/Time: 2026-09-30 19:00 EDT
+
+Summary:
+When no function named `malloc` is visible (for example with the standard library
+disabled), merely declaring a constructor on a struct or class is an error,
+"Symbol 'malloc' could not be found", reported at the constructor. The program
+never uses `new`, and a constructor call on value storage or `stackalloc` storage
+does not allocate, so no allocation function should be needed. A constructor
+declaration should be accepted; only a `new` that actually uses the default heap
+should require a `malloc`.
+
+Steps to Reproduce:
+
+1. Build `campc build ctor.camp --nostdlib --out-dir out` with:
+
+   ```camp
+   struct Box
+   {
+       int tag;
+       Box(int t) { this.tag = t; }
+   }
+
+   export int main()
+   {
+       return 0;
+   }
+   ```
+
+2. Change `struct` to `class`. The result is the same.
+3. Add `extern void* malloc(nuint size);` and `extern void free(void* ptr);` at the
+   top. The program then builds, and `Box b = Box(4);` also runs correctly.
+
+Expected:
+The program builds without any allocation function, because nothing allocates.
+
+Actual:
+`ctor.camp(4,2): error: Symbol 'malloc' could not be found.` at the constructor.
+
+Known Impact:
+Freestanding and `--nostdlib` programs must declare `malloc` and `free` externs
+just to declare a constructor, even if they never allocate. Workaround: declare
+the two externs.
