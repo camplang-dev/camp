@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-189.
+Next bug number: BUG-190.
 
 ## Bug Template
 
@@ -625,3 +625,50 @@ Known Impact:
 Freestanding and `--nostdlib` programs must declare `malloc` and `free` externs
 just to declare a constructor, even if they never allocate. Workaround: declare
 the two externs.
+
+## BUG-189: A call on a derived class pointer uses the base method's default argument instead of the override's
+
+Date/Time: 2026-09-30 19:20 EDT
+
+Summary:
+A class method that overrides a virtual method may declare its own default
+argument value. A call made through the derived class type selects the derived
+declaration as the source callable surface, so the omitted argument should take
+the derived declaration's default. The compiler instead inserts the default from
+the base declaration. The same call shape through an interface implemented by a
+class correctly uses the default declared on the implementing class's own
+surface, so the behavior is inconsistent. A call made through the base type
+correctly uses the base default.
+
+Steps to Reproduce:
+
+1. Run `campc run override_default.camp --nostdlib --show-errorlevel` with:
+
+   ```camp
+   virtual class Base
+   {
+       virtual int scale(int value, int factor = 3) { return value * factor; }
+   }
+
+   sealed class Derived: Base
+   {
+       override int scale(int value, int factor = 4) { return value * factor; }
+   }
+
+   export int main()
+   {
+       Derived* derived = stackalloc Derived();
+       return derived.scale(2);
+   }
+   ```
+
+Expected:
+`derived.scale(2)` binds to `Derived.scale`, whose default is 4, so the program
+exits with 8.
+
+Actual:
+The program exits with 6, using the base declaration's default of 3.
+
+Known Impact:
+Default arguments declared on an override are silently ignored for calls through
+the derived type. Workaround: do not declare different defaults on an override.
