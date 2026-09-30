@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-183.
+Next bug number: BUG-184.
 
 ## Bug Template
 
@@ -605,3 +605,74 @@ Known Impact:
 Code that returns a view of a local array literal compiles and has undefined
 behavior at run time. Workaround: have the caller own the storage and return a
 view of it, or return a view of allocated storage.
+
+## BUG-183: Function-to-delegate conversion is only lowered for call arguments
+
+Date/Time: 2026-09-30 15:25 EDT
+
+Summary:
+A plain function name converts to a `delegate` with the same signature when it is
+passed as a call argument: the compiler generates a thunk that takes the extra
+context parameter. The same conversion is not lowered in other positions. As a
+declaration initializer the initializer is omitted from the generated C, leaving
+the delegate's function pointer and context uninitialized. As an assignment
+source or `return` value the C contains the raw function name, whose signature
+lacks the leading context parameter, so clang rejects it.
+
+Steps to Reproduce:
+
+1. Declaration initializer. Build and run with
+   `campc run init.camp --show-errorlevel`:
+
+   ```camp
+   int twice(int value) { return value * 2; }
+
+   export int main()
+   {
+       delegate int(int) callback = twice;
+       return callback(21);
+   }
+   ```
+
+2. Assignment. Replace the body of `main` with
+   `delegate int(int) callback; callback = twice; return callback(21);`.
+3. Return value:
+
+   ```camp
+   int twice(int value) { return value * 2; }
+   delegate int(int) make() { return twice; }
+
+   export int main()
+   {
+       delegate int(int) callback = make();
+       return callback(21);
+   }
+   ```
+
+4. For comparison, the argument form works:
+
+   ```camp
+   int twice(int value) { return value * 2; }
+   int apply(delegate int(int) action, int value) { return action(value); }
+
+   export int main()
+   {
+       return apply(twice, 21);
+   }
+   ```
+
+Expected:
+Steps 1 to 3 build and exit with 42, exactly as step 4 does.
+
+Actual:
+1. The generated C declares `int (* callback)(void *arg0, int arg1); void *callback_context;`
+   and never assigns them, then calls `callback(callback_context, 21)`. The
+   program crashes (exit 138 on macOS).
+2. clang rejects `callback = twice;` with an incompatible function pointer type.
+3. clang rejects `return twice;` for the same reason.
+4. Builds and exits with 42 (the call passes `__camp_delegate_twice, NULL`).
+
+Known Impact:
+A delegate variable cannot be initialized from, assigned, or returned as a plain
+function. Workaround: pass the function directly as a call argument, or wrap it in
+a lambda (`delegate int(int) callback = (int v) => twice(v);`).
