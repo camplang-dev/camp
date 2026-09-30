@@ -3,3 +3,27 @@ byte[] badLocalSpan()
 	fixed byte[4] local = [1, 2, 3, 4];
 	return local;
 }
+
+int[] badLiteralDirect()
+{
+	return [1, 2, 3];
+}
+
+int[] badLiteralView()
+{
+	int[] view = [1, 2, 3];
+	return view;
+}
+
+int[] badLiteralViewCopy()
+{
+	int[] view = [1, 2, 3];
+	int[] copied = view;
+	return copied;
+}
+
+int* badLocalPointer()
+{
+	int local = 1;
+	return &local;
+}

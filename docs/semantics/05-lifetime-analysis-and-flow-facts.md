@@ -302,6 +302,8 @@ fields derive their behavior from the storage containing the struct.
 Return expressions are checked against the function result lifetime. A result
 whose template is tied to a parameter can return a view of that parameter; a
 plain return from a local cannot be accepted as escaped.
+An array literal's local backing storage cannot be returned as a view, either
+directly or through one or more local view copies.
 
 Yield expressions are checked against iterator result lifetimes. Iterator state
 may retain local values across yields, so the analyzer must treat lifted locals

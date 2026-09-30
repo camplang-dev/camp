@@ -1,1 +1,5 @@
 tests/Diagnostics/fixed_array_span_lifetime_invalid.camp(4,9): error: Cannot return a span view to local fixed-size array storage.
+tests/Diagnostics/fixed_array_span_lifetime_invalid.camp(9,9): error: Return expression cannot return a view backed by a local array literal.
+tests/Diagnostics/fixed_array_span_lifetime_invalid.camp(15,9): error: Return expression cannot return a view backed by a local array literal.
+tests/Diagnostics/fixed_array_span_lifetime_invalid.camp(22,9): error: Return expression cannot return a view backed by a local array literal.
+tests/Diagnostics/fixed_array_span_lifetime_invalid.camp(28,9): error: Return expression cannot return a pointer-bearing value tied to local storage 'local'.

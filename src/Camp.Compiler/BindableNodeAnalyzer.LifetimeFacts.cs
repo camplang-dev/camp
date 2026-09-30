@@ -1216,6 +1216,12 @@ public sealed partial class BindableNodeAnalyzer
 			return;
 		}
 
+		if (valueFact.Kind == "scoped" && valueFact.Source == "array literal")
+		{
+			Report(GetRange(syntax), $"{context} cannot return a view backed by a local array literal.");
+			return;
+		}
+
 		string? localAnchor = valueFact.Anchors.FirstOrDefault(anchor => IsLocalLifetimeAnchor(anchor, scope));
 		if (localAnchor is not null)
 			Report(GetRange(syntax), $"{context} cannot return a pointer-bearing value tied to local storage '{localAnchor}'.");
