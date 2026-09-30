@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-195.
+Next bug number: BUG-196.
 
 ## Bug Template
 
@@ -1002,3 +1002,58 @@ Known Impact:
 Direct slot calls (including through `vtableof(T: Interface)` in generic code) give
 wrong results for class implementers whose interface field is not at offset zero.
 Workaround: call the method through the interface pointer instead of the raw slot.
+
+## BUG-195: Materialized `struct(T)` storage cannot be initialized, read, or converted
+
+Date/Time: 2026-09-30 21:15 EDT
+
+Summary:
+The expanded-forms reference describes `struct(T)` as the ordinary one-address
+storage form of an expanded value (an array, optional, or delegate). It is meant for
+a local or field that stores an expanded value as one object, and the reference shows
+its logical components being read as `stored.elements` and `stored.length`. Lowering
+may expand the storage back into components when passing it to a source parameter of
+the expanded form. The compiler accepts the `struct(int[])` type in a declaration but
+then rejects every use: its components are not found, an expanded value cannot
+initialize it, and it cannot be converted back to the expanded form.
+
+Steps to Reproduce:
+
+1. Build `campc build a.camp --nostdlib --out-dir out` with:
+
+   ```camp
+   export int main()
+   {
+       struct(byte[]) stored = default;
+       nuint count = stored.length;
+       return (int)count;
+   }
+   ```
+
+2. Build:
+
+   ```camp
+   export int main()
+   {
+       int[] source = [40, 2, 3];
+       struct(int[]) materialized = source;
+       int[] back = materialized;
+       return (int)back.length - 3;
+   }
+   ```
+
+3. Replace the array with an optional: `int? source = 5; struct(int?) m = source; int? back = m;`.
+
+Expected:
+The programs build. The first exits with 0, the second with 0 (`back.length` is 3).
+
+Actual:
+1. `Member 'length' could not be found on type 'struct(byte[])'.`
+2. `Declaration initializer cannot convert 'int[]' to 'struct(int[])'.` and
+   `Declaration initializer cannot convert 'struct(int[])' to 'int[]'.`
+3. The same two conversion errors for `int?`.
+
+Known Impact:
+Source code cannot store an expanded value as one object through `struct(T)`, which
+the reference lists as required for storing an expanded value in a local or field.
+Generic code that materializes a possibly expanded `T` cannot be written.
