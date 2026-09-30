@@ -581,18 +581,19 @@ A generic function over an integral representation type cannot convert its value
 to a concrete integer type. No source-level workaround exists other than not
 using the generic.
 
-## BUG-188: Declaring a constructor requires a visible `malloc` even when nothing allocates
+## BUG-188: Declaring a constructor or destructor requires visible `malloc` and `free` even when nothing allocates
 
 Date/Time: 2026-09-30 19:00 EDT
 
 Summary:
-When no function named `malloc` is visible (for example with the standard library
-disabled), merely declaring a constructor on a struct or class is an error,
-"Symbol 'malloc' could not be found", reported at the constructor. The program
-never uses `new`, and a constructor call on value storage or `stackalloc` storage
-does not allocate, so no allocation function should be needed. A constructor
-declaration should be accepted; only a `new` that actually uses the default heap
-should require a `malloc`.
+When no function named `malloc` or `free` is visible (for example with the
+standard library disabled), merely declaring a constructor on a struct or class
+is an error, "Symbol 'malloc' could not be found", reported at the constructor.
+Declaring a destructor reports "Symbol 'free' could not be found" in the same way.
+The program never uses `new` or the default heap, and a constructor call on value
+or `stackalloc` storage does not allocate, so no allocation function should be
+needed. The declarations should be accepted; only a `new` or `delete` that
+actually uses the default heap should require `malloc` and `free`.
 
 Steps to Reproduce:
 
@@ -612,19 +613,22 @@ Steps to Reproduce:
    ```
 
 2. Change `struct` to `class`. The result is the same.
-3. Add `extern void* malloc(nuint size);` and `extern void free(void* ptr);` at the
-   top. The program then builds, and `Box b = Box(4);` also runs correctly.
+3. Replace the constructor with `~Box() {}`. The error is now "Symbol 'free' could not
+   be found." at the destructor.
+4. Add `extern void* malloc(nuint size);` and `extern void free(void* ptr);` at the
+   top of the first program. It then builds, and `Box b = Box(4);` also runs correctly.
 
 Expected:
-The program builds without any allocation function, because nothing allocates.
+The programs build without any allocation function, because nothing allocates.
 
 Actual:
-`ctor.camp(4,2): error: Symbol 'malloc' could not be found.` at the constructor.
+`ctor.camp(4,2): error: Symbol 'malloc' could not be found.` at the constructor, or
+`error: Symbol 'free' could not be found.` at the destructor.
 
 Known Impact:
 Freestanding and `--nostdlib` programs must declare `malloc` and `free` externs
-just to declare a constructor, even if they never allocate. Workaround: declare
-the two externs.
+just to declare a constructor or destructor, even if they never allocate.
+Workaround: declare the two externs.
 
 ## BUG-189: A call on a derived class pointer uses the base method's default argument instead of the override's
 
