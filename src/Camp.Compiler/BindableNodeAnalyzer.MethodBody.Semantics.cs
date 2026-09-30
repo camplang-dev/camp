@@ -1097,9 +1097,16 @@ public sealed partial class BindableNodeAnalyzer
 
 		sourceCallable = ExpandCallableShape(sourceCallable);
 		targetCallable = ExpandCallableShape(targetCallable);
+		if (sourceCallable.Kind == "fn" && targetCallable.Kind == "delegate")
+		{
+			classification = new ConversionClassification(
+				ConversionLevel.ReconstructRequired,
+				ConversionReason.DelegateInvariant,
+				"A typed 'fn' value cannot implicitly convert to a 'delegate'; pass a function declaration directly or wrap the value in a delegate lambda.");
+			return true;
+		}
 
 		if (sourceCallable.Kind != targetCallable.Kind
-			&& !(sourceCallable.Kind == "fn" && targetCallable.Kind == "delegate")
 			&& !(sourceCallable.Kind == "delegate" && targetCallable.Kind == "once"))
 		{
 			classification = new ConversionClassification(

@@ -4746,6 +4746,8 @@ public sealed partial class BindableNodeAnalyzer
 			return;
 		if (TryCheckInterfacePointerConversion(expected, actual, value, syntax, context))
 			return;
+		if (CanTargetTypeDirectFunctionAsDelegate(expected, actual, value))
+			return;
 		if (CanAssignToType(expected, actual))
 			return;
 
@@ -4757,7 +4759,23 @@ public sealed partial class BindableNodeAnalyzer
 			return;
 		}
 
-		Report(GetRange(syntax), $"{context} cannot convert '{actual}' to '{expected}'.");
+		ConversionClassification conversion = ClassifyConversion(actual, expected);
+		Report(GetRange(syntax), conversion.Diagnostic ?? $"{context} cannot convert '{actual}' to '{expected}'.");
+	}
+
+	bool CanTargetTypeDirectFunctionAsDelegate(string expected, string actual, Expression? value)
+	{
+		if (value is not NamedExpression named
+			|| !expressionRewrites.TryGetValue(named, out Expression? rewrite)
+			|| rewrite is not MethodReferenceExpression { Candidates.Count: 1 }
+			|| !TryGetCallableShape(actual, out CallableShape source)
+			|| source.Kind != "fn"
+			|| !TryGetCallableShape(expected, out CallableShape target)
+			|| target.Kind != "delegate")
+			return false;
+
+		return CallableShapesAbiSlotCompatible(ExpandCallableShape(source), ExpandCallableShape(target), out bool lifetimeOnlyDifference)
+			&& !lifetimeOnlyDifference;
 	}
 
 	static ThisParameterDefinition CreateImplicitThisParameter(TypeDefinition containingType)

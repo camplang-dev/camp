@@ -4,6 +4,7 @@ int plusOne(int value) => value + 1;
 int plusLong(long value) => (int)value + 2;
 int readScoped(scoped int* value) => *value;
 void acceptEscaped(fn int(escaped int*) reader) {}
+int apply(delegate int(int) action, int value) => action(value);
 
 export void main()
 {
@@ -18,4 +19,6 @@ export void main()
 	fn int(int) badSignature = (fn int(int))longs;
 	fn* badDelegate = (fn*)callback;
 	acceptEscaped((fn int(escaped int*))readScoped);
+	fn int(int) plain = plusOne;
+	apply(plain, 21);
 }
