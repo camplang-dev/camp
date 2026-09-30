@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-181.
+Next bug number: BUG-182.
 
 ## Bug Template
 
@@ -457,3 +457,86 @@ Camp callers of a statically linked export whose native symbol starts with `__`
 cannot compile. Workaround: choose a native symbol without a leading double
 underscore, or have the consumer declare its own `extern` for the symbol and link
 the library through a native `--reference`.
+
+## BUG-181: Conditional expression with array-view call arms drops or over-evaluates its arms
+
+Date/Time: 2026-09-30 14:55 EDT
+
+Summary:
+A conditional expression whose arms are calls returning an array view (for
+example `int[]`) is lowered incorrectly. As a declaration initializer the whole
+initializer is omitted, so the declared view's pointer and length are never
+assigned. As an assignment or `return` value both arms are called instead of only
+the selected arm, so side effects of the unselected call run. Using the result
+directly as a member-access target, such as `.length`, emits invalid C. A
+conditional whose arms are plain array-view variables lowers correctly.
+
+Steps to Reproduce:
+
+1. Declaration initializer. Build and run this program with
+   `campc run cond_decl.camp --show-errorlevel`:
+
+   ```camp
+   int[] pick(int[] view) { return view; }
+
+   export int main()
+   {
+       int[] a = [7, 8, 9];
+       int[] b = [4, 5];
+       int[] s = true ? pick(a) : pick(b);
+       return (int)s.length;
+   }
+   ```
+
+2. Assignment. Build and run this program the same way:
+
+   ```camp
+   int[] tick(int[] view, int* calls)
+   {
+       *calls = *calls + 1;
+       return view;
+   }
+
+   export int main()
+   {
+       int[] a = [7, 8, 9];
+       int[] b = [4, 5];
+       int calls = 0;
+       int[] s = b;
+       s = true ? tick(a, &calls) : tick(b, &calls);
+       return calls;
+   }
+   ```
+
+3. Member access. Build this program:
+
+   ```camp
+   int[] pick(int[] view) { return view; }
+
+   export int main()
+   {
+       int[] a = [7, 8, 9];
+       int[] b = [4, 5];
+       return (int)(true ? pick(a) : pick(b)).length;
+   }
+   ```
+
+Expected:
+1. Exits with 3, the length of `a`.
+2. Exits with 1: only the selected arm is evaluated, like any other conditional.
+3. Builds and exits with 3.
+
+Actual:
+1. The generated C declares `int *s; uintptr_t s_length;` and never assigns them,
+   then returns `(int)(s_length)`. The exit code is an uninitialized value (216
+   on one macOS run).
+2. Exits with 2: both `tick` calls run before the conditional selects a result.
+3. clang rejects the generated C with "member reference base type 'int *' is not a
+   structure or union" for `(true ? pick(a, ...) : pick(b, ...)).length`.
+
+Known Impact:
+Conditional expressions that select between calls returning array views produce
+undefined values (as an initializer), repeated side effects (as an assignment or
+return value), or uncompilable C (as a member-access target). Workaround: use an
+`if`/`else` statement that assigns the view, or select between plain view
+variables and call afterwards.
