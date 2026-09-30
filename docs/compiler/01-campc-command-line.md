@@ -77,6 +77,13 @@ Program arguments are separated from build arguments with `--`. `run` defaults
 to `--artifact exec` when no artifact is specified, and it rejects non-executable
 artifact kinds before doing build work.
 
+Pass `--show-errorlevel` before `--` to append `ERRORLEVEL <n>` followed by LF
+to standard output after the application exits. The value is the exit status
+observed by the host process API; `campc run` also returns that status. The
+marker follows application output directly, without adding a leading newline.
+It is absent by default and when the application does not start and exit.
+After `--`, the same text is passed to the application as an ordinary argument.
+
 ## `test`
 
 `test` builds a native test harness executable, runs the selected tests, and

@@ -88,6 +88,7 @@ static RootCommand BuildCommandTree(CliEnvironment environment, string[] origina
     Command run = new("run", "Build an executable and run it.");
     run.Arguments.Add(SourcePatternsArgument());
     AddBuildOptions(run, buildOnly: true, testRunnerOptions: false);
+    run.Options.Add(new Option<bool>("--show-errorlevel") { Description = "Print the application's observed exit status to standard output after it exits." });
     run.SetAction(_ => CampCli.Run(originalArgs, environment));
     root.Subcommands.Add(run);
 
@@ -398,6 +399,9 @@ sealed class CampCli
         int separator = Array.IndexOf(args, "--");
         string[] buildArgs = separator >= 0 ? args[..separator] : args;
         string[] programArgs = separator >= 0 ? args[(separator + 1)..] : [];
+        bool showErrorLevel = buildArgs.Contains("--show-errorlevel", StringComparer.Ordinal);
+        if (showErrorLevel)
+            buildArgs = buildArgs.Where(static arg => arg != "--show-errorlevel").ToArray();
 
         Stopwatch total = Stopwatch.StartNew();
         CliTiming cliTiming = new();
@@ -456,6 +460,8 @@ sealed class CampCli
             total.Stop();
             cliTiming.Add("run executable", "cli", executableRun.Elapsed);
             WriteCliTiming(request, CommandKind.Run, total.Elapsed, process.ExitCode, cliTiming);
+            if (showErrorLevel)
+                Console.Out.Write("ERRORLEVEL " + process.ExitCode.ToString(CultureInfo.InvariantCulture) + "\n");
             return process.ExitCode;
         }
         catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)

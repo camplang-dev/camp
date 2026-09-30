@@ -73,6 +73,7 @@ public sealed class CommandLineTests
 		ProcessResult root = RunCampc("--help");
 		ProcessResult init = RunCampc("help", "init");
 		ProcessResult build = RunCampc("help", "build");
+		ProcessResult run = RunCampc("run", "--help");
 		ProcessResult test = RunCampc("help", "test");
 		ProcessResult package = RunCampc("help", "package");
 
@@ -97,6 +98,10 @@ public sealed class CommandLineTests
 		Assert.Contains("--explicit-requires", build.StdOut, StringComparison.Ordinal);
 		Assert.Contains("--implicit-requires", build.StdOut, StringComparison.Ordinal);
 		Assert.DoesNotContain("--define", build.StdOut, StringComparison.Ordinal);
+		Assert.Equal(0, run.ExitCode);
+		Assert.Contains("--show-errorlevel", run.StdOut, StringComparison.Ordinal);
+		Assert.DoesNotContain("--show-errorlevel", build.StdOut, StringComparison.Ordinal);
+		Assert.DoesNotContain("--show-errorlevel", test.StdOut, StringComparison.Ordinal);
 		Assert.Equal(0, test.ExitCode);
 		Assert.Contains("--list", test.StdOut, StringComparison.Ordinal);
 		Assert.Contains("--filter", test.StdOut, StringComparison.Ordinal);
@@ -8638,6 +8643,45 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Run_show_errorlevel_reports_only_exited_application_status()
+	{
+		string source = CreateTempCase("run_show_errorlevel.camp", """
+			export int main(string[] args)
+			{
+				Console.write("child");
+				if (args.length == 3 && args[1].compareTo("--show-errorlevel") == 0 && args[2].compareTo("fail") == 0)
+					return 7;
+				return 0;
+			}
+			""");
+		string outDir = TempPath("run-show-errorlevel-out");
+		string[] common = ["run", source, "--target", NativeTargetForHost(), "--out-dir", outDir];
+
+		ProcessResult zero = RunCampc([.. common, "--show-errorlevel"]);
+		Assert.Equal(0, zero.ExitCode);
+		Assert.Equal("childERRORLEVEL 0\n", zero.StdOut);
+
+		ProcessResult nonzero = RunCampc([.. common, "--show-errorlevel", "--", "--show-errorlevel", "fail"]);
+		Assert.Equal(7, nonzero.ExitCode);
+		Assert.Equal("childERRORLEVEL 7\n", nonzero.StdOut);
+
+		ProcessResult withoutOption = RunCampc([.. common, "--", "--show-errorlevel", "fail"]);
+		Assert.Equal(7, withoutOption.ExitCode);
+		Assert.Equal("child", withoutOption.StdOut);
+
+		ProcessResult buildOption = RunCampc("build", source, "--show-errorlevel");
+		Assert.NotEqual(0, buildOption.ExitCode);
+		Assert.Contains("Unknown option '--show-errorlevel'", buildOption.StdErr, StringComparison.Ordinal);
+		Assert.DoesNotContain("ERRORLEVEL", buildOption.StdOut, StringComparison.Ordinal);
+
+		string invalidSource = CreateTempCase("run_show_errorlevel_invalid.camp", "export int main() { return missingValue; }");
+		ProcessResult compileFailure = RunCampc("run", invalidSource, "--show-errorlevel", "--target", NativeTargetForHost());
+		Assert.NotEqual(0, compileFailure.ExitCode);
+		Assert.Contains("missingValue", compileFailure.StdErr, StringComparison.Ordinal);
+		Assert.DoesNotContain("ERRORLEVEL", compileFailure.StdOut, StringComparison.Ordinal);
+	}
+
+	[Fact]
 	public void Run_rejects_non_exec_artifact_before_building()
 	{
 		string temp = CreateTempCase("run_static.camp", """
@@ -8649,10 +8693,11 @@ public sealed class CommandLineTests
 			}
 			""");
 
-		ProcessResult result = RunCampc("run", temp, "--artifact", "static");
+		ProcessResult result = RunCampc("run", temp, "--artifact", "static", "--show-errorlevel");
 
 		Assert.NotEqual(0, result.ExitCode);
 		Assert.Contains("run requires --artifact exec", result.StdErr, StringComparison.Ordinal);
+		Assert.DoesNotContain("ERRORLEVEL", result.StdOut, StringComparison.Ordinal);
 	}
 
 	[Fact]
