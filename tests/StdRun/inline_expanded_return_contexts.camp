@@ -25,6 +25,30 @@ nuint callWithInlineExpandedReturn(const char[] source)
 	return lengthOf(firstTwo(source));
 }
 
+int conditionCalls;
+int leftCalls;
+int rightCalls;
+
+bool selectLeft(bool value)
+{
+	conditionCalls++;
+	return value;
+}
+
+int[] observedView(int[] value, bool isLeft)
+{
+	if (isLeft)
+		leftCalls++;
+	else
+		rightCalls++;
+	return value;
+}
+
+int[] returnSelectedView(bool takeLeft, int[] left, int[] right)
+{
+	return selectLeft(takeLeft) ? observedView(left, true) : observedView(right, false);
+}
+
 export int main()
 {
 	const char[] source = "abcd";
@@ -35,6 +59,37 @@ export int main()
 
 	if (callWithInlineExpandedReturn(source) != 2)
 		return 2;
+
+	fixed int[3] leftStorage = [11, 12, 13];
+	fixed int[2] rightStorage = [21, 22];
+	int[] left = leftStorage[..];
+	int[] right = rightStorage[..];
+
+	int[] selected = selectLeft(true) ? observedView(left, true) : observedView(right, false);
+	if (selected.length != 3 || selected[0] != 11 || conditionCalls != 1 || leftCalls != 1 || rightCalls != 0)
+		return 3;
+
+	selected = selectLeft(false) ? observedView(left, true) : observedView(right, false);
+	if (selected.length != 2 || selected[0] != 21 || conditionCalls != 2 || leftCalls != 1 || rightCalls != 1)
+		return 4;
+
+	selected = returnSelectedView(true, left, right);
+	if (selected.length != 3 || selected[0] != 11 || conditionCalls != 3 || leftCalls != 2 || rightCalls != 1)
+		return 5;
+	selected = returnSelectedView(false, left, right);
+	if (selected.length != 2 || selected[0] != 21 || conditionCalls != 4 || leftCalls != 2 || rightCalls != 2)
+		return 6;
+
+	nuint selectedLength = (selectLeft(false) ? observedView(left, true) : observedView(right, false)).length;
+	if (selectedLength != 2 || conditionCalls != 5 || leftCalls != 2 || rightCalls != 3)
+		return 7;
+	int selectedElement = (selectLeft(true) ? observedView(left, true) : observedView(right, false)).elements[0];
+	if (selectedElement != 11 || conditionCalls != 6 || leftCalls != 3 || rightCalls != 3)
+		return 8;
+
+	selected = selectLeft(false) ? left : right;
+	if (selected.length != 2 || selected[0] != 21 || conditionCalls != 7 || leftCalls != 3 || rightCalls != 3)
+		return 9;
 
 	return 0;
 }

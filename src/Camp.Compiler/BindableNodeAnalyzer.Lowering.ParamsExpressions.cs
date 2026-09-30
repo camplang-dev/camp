@@ -1497,6 +1497,15 @@ public sealed partial class BindableNodeAnalyzer
 		components = [];
 		if (conditional.WhenTrue is null || conditional.WhenFalse is null)
 			return false;
+		if (TryGetParamsComponentShape(null, conditional.ResolvedType, "value", out ParamsComponentShape registeredShape)
+			&& TryCreateRegisteredParamsExpansionComponents(conditional, registeredShape, out components))
+			return true;
+		if (currentStatementPrefix is not null
+			&& TryGetParamsComponentShape(null, conditional.ResolvedType, "value", out ParamsComponentShape resultShape)
+			&& resultShape.Components.Count > 1
+			&& IsExpandedReturnCallArm(conditional.WhenTrue, resultShape.Components.Count)
+			&& IsExpandedReturnCallArm(conditional.WhenFalse, resultShape.Components.Count))
+			return MaterializeConditionalExpandedCallResults(conditional, resultShape, out components);
 		if ((!TryCreateParamsComponentExpressions(conditional.WhenTrue, out List<Expression> trueComponents)
 				&& !TryCreatePrimitiveStringParamsComponentExpressions(conditional.WhenTrue, out trueComponents))
 			|| (!TryCreateParamsComponentExpressions(conditional.WhenFalse, out List<Expression> falseComponents)
@@ -1525,6 +1534,83 @@ public sealed partial class BindableNodeAnalyzer
 			});
 		}
 		return true;
+	}
+
+	bool IsExpandedReturnCallArm(Expression expression, int componentCount)
+	{
+		if (expression is not CallExpression call)
+			return false;
+		if (callTargets.TryGetValue(call, out FunctionDefinition? function))
+			return TryGetExpandedReturnShape(call, function, out ParamsComponentShape? shape)
+				&& shape.Components.Count == componentCount;
+		return TryGetCallableExpandedReturnShape(call, null, out ParamsComponentShape callableShape)
+			&& callableShape.Components.Count == componentCount;
+	}
+
+	bool MaterializeConditionalExpandedCallResults(ConditionalExpression conditional, ParamsComponentShape shape, out List<Expression> components)
+	{
+		components = [];
+		Expression condition = LowerScalarExpression(conditional.Condition) ?? conditional.Condition!;
+		DeclarationStatement conditionLocal = CreateGeneratedLocal(NewGeneratedLocalName("condition"), "bool", TypeReferenceForResolvedName("bool"), condition);
+		currentStatementPrefix!.Add(conditionLocal);
+
+		List<DeclarationTarget> targets = [];
+		foreach (ParamsComponent component in shape.Components)
+		{
+			DeclarationStatement local = CreateGeneratedLocal(NewGeneratedLocalName(component.Name), component.Type, TypeReferenceForResolvedName(component.Type), null);
+			currentStatementPrefix.Add(local);
+			targets.Add(local.Target);
+			components.Add(CreateVariableReference(local.Target, component.Type, conditional.SourceSyntax));
+		}
+
+		Statement trueBranch = CreateExpandedCallSelectionBranch(conditional.WhenTrue!, shape, targets);
+		Statement falseBranch = CreateExpandedCallSelectionBranch(conditional.WhenFalse!, shape, targets);
+		currentStatementPrefix.Add(new IfStatement
+		{
+			SourceSyntax = conditional.SourceSyntax,
+			ResolvedType = "void",
+			Condition = CreateVariableReference(conditionLocal.Target, "bool", conditional.Condition?.SourceSyntax),
+			Body = trueBranch,
+			ElseBody = falseBranch
+		});
+		RegisterParamsExpansion(conditional, shape, targets);
+		return true;
+	}
+
+	Statement CreateExpandedCallSelectionBranch(Expression call, ParamsComponentShape shape, List<DeclarationTarget> targets)
+	{
+		List<Statement> statements = [];
+		List<Statement>? previousPrefix = currentStatementPrefix;
+		List<Statement>? previousSuffix = currentStatementSuffix;
+		currentStatementPrefix = statements;
+		currentStatementSuffix = [];
+		try
+		{
+			TryCreateParamsComponentExpressions(call, out List<Expression> values);
+			for (int i = 0; i < targets.Count; i++)
+			{
+				statements.Add(new ExpressionStatement
+				{
+					SourceSyntax = call.SourceSyntax,
+					ResolvedType = "void",
+					Expression = new AssignmentExpression
+					{
+						SourceSyntax = call.SourceSyntax,
+						Target = CreateVariableReference(targets[i], shape.Components[i].Type),
+						Operator = AssignmentOperator.Assign,
+						Value = LowerExpression(values[i]),
+						ResolvedType = shape.Components[i].Type
+					}
+				});
+			}
+			statements.AddRange(currentStatementSuffix);
+		}
+		finally
+		{
+			currentStatementPrefix = previousPrefix;
+			currentStatementSuffix = previousSuffix;
+		}
+		return CreateBlock(statements);
 	}
 
 	bool TryCreateCastParamsComponentExpressions(CastExpression cast, out List<Expression> components)

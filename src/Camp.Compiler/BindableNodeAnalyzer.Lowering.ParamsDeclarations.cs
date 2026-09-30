@@ -1009,6 +1009,30 @@ public sealed partial class BindableNodeAnalyzer
 			return values;
 		}
 
+		if (initialValue is ConditionalExpression conditional
+			&& declarations is not null
+			&& conditional.WhenTrue is not null
+			&& conditional.WhenFalse is not null
+			&& IsExpandedReturnCallArm(conditional.WhenTrue, shape.Components.Count)
+			&& IsExpandedReturnCallArm(conditional.WhenFalse, shape.Components.Count))
+		{
+			List<Statement>? previousPrefix = currentStatementPrefix;
+			try
+			{
+				currentStatementPrefix = declarations;
+				if (TryCreateParamsComponentExpressions(conditional, out List<Expression> selectedComponents)
+					&& selectedComponents.Count == shape.Components.Count)
+				{
+					values.AddRange(selectedComponents);
+					return values;
+				}
+			}
+			finally
+			{
+				currentStatementPrefix = previousPrefix;
+			}
+		}
+
 		if (initialValue is not null && TryCreateParamsComponentExpressions(initialValue, out List<Expression> components) && components.Count == shape.Components.Count)
 		{
 			values.AddRange(components);
