@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-198.
+Next bug number: BUG-199.
 
 ## Bug Template
 
@@ -1053,4 +1053,56 @@ The consumer fails with `error: Call has too many arguments.` at `new Counter(5)
 Known Impact:
 Camp consumers of an exported class cannot call any constructor that has parameters
 through the generated API.
+
+## BUG-198: Names that collide with generated `create` and `destroy` helpers are not always diagnosed
+
+Date/Time: 2026-09-30 23:50 EDT
+
+Summary:
+The compiler generates `create` and `destroy` helpers for a class, and the helper
+names are reserved for the compiler even though source code cannot call them. A field
+or method with one of those names must produce an ordinary name-collision diagnostic.
+A method named `create` or `destroy` is diagnosed ("Duplicate method name"), but a field
+with the same name is accepted without any diagnostic. A global function that spells the
+generated symbol, such as `Counter_create`, is also accepted and then fails in the C
+compiler with "conflicting types".
+
+Steps to Reproduce:
+
+1. Build `campc build field.camp --nostdlib --out-dir out` with:
+
+   ```camp
+   extern void* malloc(nuint size);
+   extern void free(void* ptr);
+
+   class Counter
+   {
+       int create;
+       Counter() {}
+       ~Counter() {}
+   }
+
+   export int main()
+   {
+       return 0;
+   }
+   ```
+
+2. Change the field to `int destroy;`. The result is the same.
+3. For comparison, replace the field with `int create(int a) { return a; }`. The compiler
+   reports `Duplicate method name 'create'.`
+4. Replace the class body with a global function above it, `int Counter_create() { return 1; }`,
+   keeping the constructor and destructor.
+
+Expected:
+Steps 1, 2 and 4 each report a name-collision diagnostic at the declaration, the same
+kind of diagnostic as step 3.
+
+Actual:
+Steps 1 and 2 build without any diagnostic. Step 4 fails in the C compiler with
+`error: conflicting types for 'Counter_create'`.
+
+Known Impact:
+A field named `create` or `destroy`, or a function that spells a generated helper symbol,
+is accepted and may later conflict with the generated helper. Workaround: avoid those names.
 
