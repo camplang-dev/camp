@@ -837,20 +837,20 @@ Generic interface dispatch on struct implementers is unreliable (wrong results o
 crashes, including for a generic class that keeps the vtable from its constructor).
 Workaround: use class implementers.
 
-## BUG-194: A raw interface slot taken from a concrete class vtable does not recover the class receiver
+## BUG-194: A raw slot from a concrete vtable is typed with the interface receiver
 
 Date/Time: 2026-09-30 21:00 EDT
 
 Summary:
-Interface slots always receive the interface receiver (the address of the interface
-instance slot) as their first argument. For a class, calling a method through an
-interface pointer works, because the object's own vtable uses a thunk that converts
-the interface instance slot back to the class instance. A slot read directly from
-`vtableof(Class: Interface)` (or from the `vtableof(T: Interface)` capability inside
-a generic function) instead refers to the class method itself, so calling it with an
-interface pointer to a class passes the address of the object's interface field as
-`this`. The method then reads the wrong memory. The same slot taken for a struct
-implementer works.
+The vtable returned by `vtableof(ClassReader: Readable)` holds slots whose first
+parameter is the concrete receiver, `ClassReader*`. Inside a generic function,
+`vtableof(T: Readable)` holds slots whose first parameter is `T*`. The compiler
+instead gives such a slot the type `fn int(Readable*, int)`, which takes an interface
+pointer. The slot's function then runs on the wrong receiver, because the thunk that
+converts an interface context back to the class instance is not part of the raw slot.
+A raw slot should not be convertible to a function that takes an interface receiver
+without an explicit unsafe (or fenced) conversion, and the declared types
+`fn int(ClassReader*, int)` and `fn int(T*, int)` should be accepted.
 
 Steps to Reproduce:
 
@@ -874,24 +874,30 @@ Steps to Reproduce:
    {
        ClassReader* classReader = stackalloc ClassReader(10);
        Readable* classView = classReader;
-       __intrinsic_log_i32(classView.read(4));
        fn int(Readable*, int) slot = vtableof(ClassReader: Readable).read;
        __intrinsic_log_i32(slot(classView, 4));
        return 0;
    }
    ```
 
+2. Replace the `slot` declaration with
+   `fn int(ClassReader*, int) slot = vtableof(ClassReader: Readable).read;` and the call
+   with `slot(classReader, 4)`.
+
 Expected:
-Both calls log 14.
+Step 1 is rejected: a slot taking `ClassReader*` is not convertible to a function taking
+`Readable*` without an unsafe conversion. Step 2 builds and logs 14. In a generic
+function, `fn int(T*, int) slot = vtableof_T_Readable.read;` and `slot(value, addend)`
+are accepted for a `T*` receiver.
 
 Actual:
-The first call logs 14. The second logs an unrelated value (for example 766181532),
-because the concrete class vtable stores `ClassReader_read` directly while the
-object's vtable stores a thunk that subtracts the interface field offset.
+Step 1 builds and logs an unrelated value (for example 766181532), because the call
+passes the address of the object's interface field as `this`. Step 2 is rejected with
+`Declaration initializer cannot convert 'fn int(Readable*, int)' to 'fn int(ClassReader*, int)'.`
+The generic form is likewise rejected: `cannot convert 'fn int(Readable*, int)' to 'fn int(T*, int)'`.
 
 Known Impact:
-Direct slot calls (including through `vtableof(T: Interface)` in generic code) give
-wrong results for class implementers whose interface field is not at offset zero.
+Raw slot calls are unsafe and cannot be written with the correct receiver type.
 Workaround: call the method through the interface pointer instead of the raw slot.
 
 ## BUG-195: Materialized `struct(T)` storage cannot be initialized, read, or converted
