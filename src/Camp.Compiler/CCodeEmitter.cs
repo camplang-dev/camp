@@ -5983,6 +5983,15 @@ public static class CCodeEmitter
             if (assignment.Operator == AssignmentOperator.Assign
                 && assignment.Target?.ResolvedType is string targetType)
                 value = FormatAssignmentValueForTarget(targetType, assignment.Value!);
+            if (assignment.Target is MemberReferenceExpression { Member: FieldDefinition erasedField } erasedMember
+                && TryGetErasedScalarFieldType(erasedMember, erasedField, out string erasedType))
+            {
+                string rawTarget = FormatMemberReferenceRaw(erasedMember);
+                if (assignment.Operator == AssignmentOperator.Assign)
+                    return rawTarget + " = " + CastToErasedGeneric(value, erasedType);
+                string compoundOperator = FormatAssignmentOperator(assignment.Operator);
+                return rawTarget + " = " + CastToErasedGeneric("(" + CastFromErasedGeneric(rawTarget, erasedType) + " " + compoundOperator[..^1] + " " + value + ")", erasedType);
+            }
             return FormatExpression(assignment.Target) + " " + FormatAssignmentOperator(assignment.Operator) + " " + value;
         }
 
@@ -7234,6 +7243,34 @@ public static class CCodeEmitter
                 return FormatInterfaceFunctionMemberReference(member.Target, interfaceFunction);
             if (member.Member is VariableDefinition variable)
                 return CName(variable);
+            if (member.Member is FieldDefinition erasedScalarField
+                && TryGetErasedScalarFieldType(member, erasedScalarField, out string erasedScalarType))
+                return CastFromErasedGeneric(FormatMemberReferenceRaw(member), erasedScalarType);
+            return FormatMemberReferenceRaw(member);
+        }
+
+        // A field declared with an integral representation type parameter is stored in the erased carrier,
+        // while the member expression has the concrete scalar type of the constructed type argument.
+        bool TryGetErasedScalarFieldType(MemberReferenceExpression member, FieldDefinition field, out string concreteType)
+        {
+            concreteType = "";
+            if (member.Target is null
+                || field.Modifier == FieldModifier.Static
+                || member.ResolvedType is not string memberType
+                || !NeedsGenericScalarCast(memberType)
+                || StripTypeDecorators(field.ResolvedType ?? field.Type?.ResolvedType ?? "") is not string declaredType
+                || declaredType.Length == 0
+                || member.Target.ResolvedType is not string targetType
+                || !TryFindFieldOwner(targetType, field, out TypeDefinition? owner)
+                || owner is null
+                || !owner.GenericParameters.Any(parameter => parameter.Name == declaredType))
+                return false;
+            concreteType = memberType;
+            return true;
+        }
+
+        string FormatMemberReferenceRaw(MemberReferenceExpression member)
+        {
             if (member.Member is FieldDefinition field)
             {
                 if (FormatInterfaceSlotMember(member.Target, CName(field)) is string formattedInterfaceSlotMember)

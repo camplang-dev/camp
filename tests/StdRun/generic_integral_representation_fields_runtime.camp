@@ -1,0 +1,46 @@
+struct Slot<T: uint>
+{
+	T value;
+}
+
+struct Pair<T: long>
+{
+	T first;
+	T second;
+}
+
+class Box<T: int>
+{
+	T value;
+
+	Box(T value)
+	{
+		this.value = value;
+	}
+}
+
+export int main()
+{
+	Slot<uint>* slot = stackalloc Slot<uint>();
+	slot.value = 9;
+	uint stored = slot.value;
+	if (stored != 9)
+		return 1;
+	slot.value += 3;
+	if (slot.value != 12)
+		return 2;
+
+	Pair<long>* pair = stackalloc Pair<long>();
+	pair.first = 5000000000;
+	pair.second = pair.first + 1;
+	if (pair.second != 5000000001)
+		return 3;
+
+	Box<int>* box = new Box<int>(17);
+	int boxed = box.value;
+	delete box;
+	if (boxed != 17)
+		return 4;
+
+	return 0;
+}

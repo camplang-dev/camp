@@ -316,69 +316,6 @@ static flags might avoid this specific relocation, but it does not make the
 standard target's shared-library contract work and has not been validated as
 a general workaround for transitive or prebuilt static dependencies.
 
-## BUG-186: Integral representation-generic fields and parameters are emitted as `void*` without conversions
-
-Date/Time: 2026-09-30 17:05 EDT
-
-Summary:
-A type parameter with an integral representation constraint, such as `T: uint`,
-`T: int`, `T: byte` or `T: nint`, is lowered to `void*` in generated C for fields
-and parameters. Reading or writing such a value with an ordinary integer does not
-insert a conversion, so clang rejects the generated assignment or initialization
-("incompatible integer to pointer conversion" and "incompatible pointer to integer
-conversion"). The documented `CounterMap<T: uint>` example compiles only because
-the literal `0` is a valid C null pointer constant.
-
-Steps to Reproduce:
-
-1. Build and run `campc run slot.camp --show-errorlevel`:
-
-   ```camp
-   struct Slot<T: uint> { T value; }
-
-   export int main()
-   {
-       Slot<uint>* slot = stackalloc Slot<uint>();
-       slot.value = 9;
-       uint v = slot.value;
-       return (int)v;
-   }
-   ```
-
-2. The same failure occurs for a generic class field:
-
-   ```camp
-   class Box<T: int>
-   {
-       T value;
-       Box(T value) { this.value = value; }
-   }
-
-   export int main()
-   {
-       Box<int>* box = new Box<int>(17);
-       int v = box.value;
-       delete box;
-       return v;
-   }
-   ```
-
-Expected:
-Both programs build. The first exits with 9 and the second with 17.
-
-Actual:
-The generated C declares the field as `void* value;` and the class constructor as
-`Box_create(void* value)`. clang reports "incompatible integer to pointer
-conversion assigning to 'void *' from 'int'" for `slot->value = 9;` and
-"incompatible pointer to integer conversion initializing 'int' with an
-expression of type 'void *'" for `int v = box->value;`. Other integral
-constraints (`byte`, `long`, `nuint`, `nint`) fail the same way.
-
-Known Impact:
-Generic aggregates whose type parameter has an integral representation constraint
-cannot hold or return any value except zero. Workaround: declare the field with
-the concrete integer type instead of `T`.
-
 ## BUG-187: Explicit casts from an integral representation-generic value are rejected
 
 Date/Time: 2026-09-30 18:55 EDT
