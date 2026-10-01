@@ -1,0 +1,16 @@
+class Allocator
+{
+	void* alloc(nuint size) { return null; }
+	void free(void* ptr) { }
+}
+
+interface Managed
+{
+	Managed(within allocator);
+	~Managed(within allocator);
+}
+
+void create<T: implements Managed>(Allocator* allocator, sizeof(T), vtableof(T: Managed))
+{
+	T* value = within (allocator) stackalloc T();
+}

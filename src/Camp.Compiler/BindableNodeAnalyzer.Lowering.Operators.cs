@@ -299,8 +299,57 @@ public sealed partial class BindableNodeAnalyzer
 		};
 	}
 
+	// `new T(...)` for a type parameter constrained by an interface constructor calls the constructor slot
+	// recorded in the interface's lifecycle vtable; the slot allocates and constructs the value.
+	Expression CreateGenericInterfaceConstruction(ConstructionExpression construction, InterfaceDefinition interfaceDefinition, FunctionDefinition constructor)
+	{
+		string genericName = construction.Type?.ResolvedType ?? ErrorType;
+		Expression vtable = LowerVTableOfExpression(new VTableOfExpression
+		{
+			SourceSyntax = construction.SourceSyntax,
+			Type = new GenericParameterTypeReference { Name = genericName, ResolvedType = genericName },
+			InterfaceType = InterfaceType(interfaceDefinition),
+			ResolvedType = InterfaceResolvedName(interfaceDefinition) + "*"
+		});
+		CallExpression call = new()
+		{
+			SourceSyntax = construction.SourceSyntax,
+			Target = new MemberReferenceExpression
+			{
+				SourceSyntax = construction.SourceSyntax,
+				Target = new UnaryExpression
+				{
+					SourceSyntax = construction.SourceSyntax,
+					Operator = UnaryOperator.PointerDereference,
+					Operand = vtable,
+					ResolvedType = TryGetPointerElementType(vtable.ResolvedType ?? "") ?? InterfaceResolvedName(interfaceDefinition)
+				},
+				Name = CreateMethodName,
+				ResolvedType = BuildInterfaceEntryCallableType(interfaceDefinition, constructor)
+			},
+			ResolvedType = "any"
+		};
+		foreach (ArgumentExpression argument in construction.Arguments)
+			call.Arguments.Add(argument);
+		if (HasWithinParameter(constructor))
+		{
+			Expression? allocator = CurrentAllocator();
+			call.Arguments.Add(new ArgumentExpression { Value = allocator ?? NullLiteral(construction.SourceSyntax), ResolvedType = allocator?.ResolvedType ?? "#NULL" });
+		}
+		return new CastExpression
+		{
+			SourceSyntax = construction.SourceSyntax,
+			Kind = CastKind.Type,
+			Type = PointerTo(CloneType(construction.Type)!),
+			Expression = call,
+			ResolvedType = genericName + "*"
+		};
+	}
+
 	Expression RewriteConstruction(ConstructionExpression construction)
 	{
+		if (genericInterfaceConstructions.TryGetValue(construction, out (InterfaceDefinition Interface, FunctionDefinition Constructor) genericConstruction))
+			return CreateGenericInterfaceConstruction(construction, genericConstruction.Interface, genericConstruction.Constructor);
 		TypeReference? type = construction.Type;
 		string typeName = BaseConstructedType(type?.ResolvedType ?? construction.ResolvedType);
 		if (construction.ElementCount is not null && type is not null)

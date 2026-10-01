@@ -366,6 +366,12 @@ does not need a `within` parameter because the object already remembers its
 allocator. Interface lifecycle contracts are exact: a parameterless destructor
 slot and a `within` destructor slot are different contracts.
 
+Generic code constructs a value through the contract with `new T(...)` inside
+a `within` context. The call runs the constructor recorded in the
+`vtableof(T: Managed)` capability, which allocates and constructs the value
+using the allocation context passed for the `within allocator` parameter.
+`stackalloc T(...)` is not available through an interface constructor.
+
 Structs can implement constructor and destructor contracts. Classes can do so
 when they are sealed. An unsealed class has derived construction and deletion
 paths, so it cannot safely promise a single interface constructor shape for

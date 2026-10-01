@@ -17,6 +17,7 @@ public sealed partial class BindableNodeAnalyzer
 	readonly Dictionary<Expression, bool> expressionConstants = [];
 	readonly Dictionary<CallExpression, FunctionDefinition> callTargets = [];
 	readonly Dictionary<ConstructionExpression, FunctionDefinition> constructionTargets = [];
+	readonly Dictionary<ConstructionExpression, (InterfaceDefinition Interface, FunctionDefinition Constructor)> genericInterfaceConstructions = [];
 	readonly Dictionary<CallExpression, List<ParameterDefinition>> callableInvocationParameters = [];
 	readonly Dictionary<CallExpression, Dictionary<string, string>> callGenericSubstitutions = [];
 	readonly Dictionary<PreparedBufferExpression, CallExpression> preparedBufferCalls = [];
@@ -2743,6 +2744,19 @@ public sealed partial class BindableNodeAnalyzer
 		Dictionary<string, string> constructionGenericSubstitutions = [];
 		AddConstructedTypeGenericSubstitutions(targetType, constructionGenericSubstitutions);
 		FunctionDefinition? argumentFunction = constructor ?? create ?? diagnosticConstructor ?? diagnosticCreate;
+		if (argumentFunction is null
+			&& construction.Kind is ConstructionKind.New or ConstructionKind.StackAlloc
+			&& construction.ElementCount is null
+			&& TryGetGenericConstraintInterface(targetType, scope, out InterfaceDefinition? constraintInterface)
+			&& constraintInterface is not null
+			&& GetInterfaceMembers(constraintInterface).FirstOrDefault(member => member.Modifier == FunctionModifier.Constructor && CanCallWithArgumentCount(member.Parameters, construction.Arguments.Count)) is FunctionDefinition interfaceConstructor)
+		{
+			if (construction.Kind == ConstructionKind.StackAlloc)
+				Report(GetRange(construction.SourceSyntax), $"stackalloc cannot construct '{targetType}' through the interface constructor of '{constraintInterface.Name}'; the constructor allocates the value, so use new.");
+			else
+				genericInterfaceConstructions[construction] = (constraintInterface, interfaceConstructor);
+			argumentFunction = interfaceConstructor;
+		}
 		if (argumentFunction is null
 			&& construction.Arguments.Count > 0
 			&& construction.ElementCount is null

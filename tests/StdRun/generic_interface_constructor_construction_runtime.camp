@@ -1,0 +1,69 @@
+sealed class CountingAllocator: Allocator
+{
+	int allocations;
+
+	CountingAllocator()
+	{
+		this.allocations = 0;
+	}
+
+	~CountingAllocator()
+	{
+	}
+
+	void* alloc(nuint size): Allocator
+	{
+		this.allocations++;
+		return malloc(size);
+	}
+
+	void* realloc(void* ptr, nuint newSize): Allocator
+	{
+		return null;
+	}
+
+	void free(void* ptr): Allocator
+	{
+		free(ptr);
+	}
+}
+
+interface Counted
+{
+	Counted(int start, within allocator);
+	~Counted(within allocator);
+}
+
+sealed class CountedBox: Counted
+{
+	int value;
+
+	CountedBox(int start, within allocator)
+	{
+		this.value = start;
+	}
+
+	~CountedBox(within allocator)
+	{
+	}
+}
+
+T* createCounted<T: implements Counted>(Allocator* allocator, int start, vtableof(T: Counted))
+{
+	return within (allocator) new T(start);
+}
+
+export int main()
+{
+	CountingAllocator* counting = stackalloc CountingAllocator();
+	Allocator* allocator = counting;
+	CountedBox* box = createCounted<CountedBox>(allocator, 41);
+	if (box == null)
+		return 1;
+	if (counting.allocations != 1)
+		return 2;
+	if (box.value != 41)
+		return 3;
+	within (allocator) delete box;
+	return 0;
+}

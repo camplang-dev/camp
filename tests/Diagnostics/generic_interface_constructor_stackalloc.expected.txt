@@ -1,0 +1,1 @@
+tests/Diagnostics/generic_interface_constructor_stackalloc.camp(15,32): error: stackalloc cannot construct 'T' through the interface constructor of 'Managed'; the constructor allocates the value, so use new.
