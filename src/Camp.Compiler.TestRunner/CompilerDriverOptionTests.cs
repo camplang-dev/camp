@@ -310,24 +310,32 @@ public sealed class CompilerDriverOptionTests
 	}
 
 	[Fact]
-	public void Requires_is_contextual_and_not_statement_syntax()
+	public void Requires_is_reserved_and_not_statement_syntax()
 	{
-		string contextual = CreateTempCase("requires_contextual_keyword.camp", """
+		string reservedType = CreateTempCase("requires_reserved_type.camp", """
 			class requires
 			{
-				int value;
-			}
-
-			int useRequires(int requires)
-			{
-				int requiresLocal = requires;
-				return requiresLocal;
 			}
 
 			export int main()
 			{
-				requires value = { .value = useRequires(1) };
-				return value.value;
+				return 0;
+			}
+			""");
+		string reserved = CreateTempCase("requires_reserved_name.camp", """
+			class Holder
+			{
+				int requires;
+			}
+
+			int useRequires(int requires)
+			{
+				return requires;
+			}
+
+			export int main()
+			{
+				return 0;
 			}
 			""");
 		string invalidStatement = CreateTempCase("requires_invalid_statement.camp", """
@@ -341,7 +349,12 @@ public sealed class CompilerDriverOptionTests
 			}
 			""");
 
-		CompilerResult contextualResult = Execute(contextual, request =>
+		CompilerResult reservedTypeResult = Execute(reservedType, request =>
+		{
+			request.TargetName = "gcc-linux-x64";
+			request.NoStdLib = true;
+		});
+		CompilerResult reservedResult = Execute(reserved, request =>
 		{
 			request.TargetName = "gcc-linux-x64";
 			request.NoStdLib = true;
@@ -352,7 +365,11 @@ public sealed class CompilerDriverOptionTests
 			request.NoStdLib = true;
 		});
 
-		Assert.Equal(0, contextualResult.ExitCode);
+		Assert.NotEqual(0, reservedTypeResult.ExitCode);
+		Assert.Contains("requires_reserved_type.camp(1,7): error: Type name 'requires' is reserved.", reservedTypeResult.StdErr, StringComparison.Ordinal);
+		Assert.NotEqual(0, reservedResult.ExitCode);
+		Assert.Contains("requires_reserved_name.camp(3,6): error: Field name 'requires' is reserved.", reservedResult.StdErr, StringComparison.Ordinal);
+		Assert.Contains("requires_reserved_name.camp(6,21): error: Parameter name 'requires' is reserved.", reservedResult.StdErr, StringComparison.Ordinal);
 		Assert.NotEqual(0, invalidResult.ExitCode);
 		Assert.Contains("requires_invalid_statement.camp(5,10): error: Expected '}'.", invalidResult.StdErr, StringComparison.Ordinal);
 	}
