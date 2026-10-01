@@ -315,10 +315,21 @@ public sealed partial class BindableNodeAnalyzer
 			string genericName = VTableOfTypeName(vtableOf.Type);
 			if (!substitutions.TryGetValue(genericName, out string? concreteType))
 				concreteType = vtableOf.Type?.ResolvedType ?? genericName;
+			SyntaxNode? vtableSyntax = call.SourceSyntax ?? call.Target?.SourceSyntax;
+			// A type argument that is the caller's own type parameter forwards the caller's vtable capability.
+			Expression vtableValue = IsGenericParameterName(concreteType)
+				? LowerVTableOfExpression(new VTableOfExpression
+				{
+					SourceSyntax = vtableSyntax,
+					Type = new GenericParameterTypeReference { Name = concreteType, ResolvedType = concreteType },
+					InterfaceType = vtableOf.InterfaceType,
+					ResolvedType = vtableOf.ResolvedType ?? VTablePointerType(vtableOf.InterfaceType)
+				})
+				: CreateConcreteVTableExpression(concreteType, vtableOf, vtableSyntax);
 			call.Arguments.Insert(System.Math.Min(argumentIndex, call.Arguments.Count), new ArgumentExpression
 			{
-				SourceSyntax = call.SourceSyntax ?? call.Target?.SourceSyntax,
-				Value = CreateConcreteVTableExpression(concreteType, vtableOf, call.SourceSyntax ?? call.Target?.SourceSyntax),
+				SourceSyntax = vtableSyntax,
+				Value = vtableValue,
 				ResolvedType = vtableOf.ResolvedType ?? VTablePointerType(vtableOf.InterfaceType)
 			});
 		}

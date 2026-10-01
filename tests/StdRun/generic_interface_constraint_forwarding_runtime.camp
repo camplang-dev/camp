@@ -1,0 +1,44 @@
+interface Counter
+{
+	int read();
+}
+
+sealed class First: Counter
+{
+	int value;
+
+	First(int value)
+	{
+		this.value = value;
+	}
+
+	int read(): Counter
+	{
+		return this.value;
+	}
+}
+
+int readOne<T: implements Counter>(T* value, vtableof(T: Counter))
+{
+	return value.read();
+}
+
+int forwardExplicit<T: implements Counter>(T* value, vtableof(T: Counter))
+{
+	return readOne<T>(value);
+}
+
+int forwardInferred<T: implements Counter>(T* value, vtableof(T: Counter))
+{
+	return readOne(value);
+}
+
+export int main()
+{
+	First* first = stackalloc First(4);
+	if (forwardExplicit<First>(first) != 4)
+		return 1;
+	if (forwardInferred(first) != 4)
+		return 2;
+	return 0;
+}

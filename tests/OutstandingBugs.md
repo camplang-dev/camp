@@ -316,63 +316,6 @@ static flags might avoid this specific relocation, but it does not make the
 standard target's shared-library contract work and has not been validated as
 a general workaround for transitive or prebuilt static dependencies.
 
-## BUG-192: A type parameter's own `implements` constraint is not accepted when forwarded to another generic call
-
-Date/Time: 2026-09-30 20:20 EDT
-
-Summary:
-A generic function constrained with `T: implements Interface` cannot pass its own
-`T` on to another generic function that has the same constraint. The compiler
-reports "Type 'T' does not implement interface 'Interface'", as if `T` were an
-unconstrained type, even though the caller's constraint guarantees it. The
-interface vtable capability (`vtableof(T: Interface)`) is also available in the
-caller to forward.
-
-Steps to Reproduce:
-
-1. Run `campc run forward.camp --nostdlib --show-errorlevel` with:
-
-   ```camp
-   interface Counter { int read(); }
-
-   struct First: Counter
-   {
-       int value;
-       int read(): Counter { return this.value; }
-   }
-
-   int readOne<T: implements Counter>(T* value, vtableof(T: Counter))
-   {
-       return value.read();
-   }
-
-   int forward<T: implements Counter>(T* value, vtableof(T: Counter))
-   {
-       return readOne<T>(value);
-   }
-
-   export int main()
-   {
-       First first = {};
-       first.value = 4;
-       return forward<First>(&first) - 4;
-   }
-   ```
-
-2. Replace `readOne<T>(value)` with `readOne(value)` (inferred type argument). The same
-   error is reported.
-
-Expected:
-The program builds and exits with 0. The constraint on `forward`'s `T` satisfies
-the constraint of `readOne`, and the vtable capability is forwarded.
-
-Actual:
-`forward.camp(13,19): error: Type 'T' does not implement interface 'Counter'.`
-
-Known Impact:
-Generic helpers with interface constraints cannot be composed. No source-level
-workaround exists other than not splitting the generic function.
-
 ## BUG-193: Generic interface dispatch on a struct passes the raw pointer instead of an interface context
 
 Date/Time: 2026-09-30 20:40 EDT
