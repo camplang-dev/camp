@@ -278,6 +278,8 @@ Collision checks must include:
 - inline constants and static fields;
 - interface vtable variables and helper thunks;
 - virtual dispatch helpers;
+- generated lifecycle helpers such as `<TypeName>_create` and
+  `<TypeName>_destroy`;
 - `@symbol` overrides;
 - C reserved words and target reserved identifiers.
 

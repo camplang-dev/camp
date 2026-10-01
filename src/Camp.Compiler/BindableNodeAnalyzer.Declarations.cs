@@ -912,6 +912,14 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		SymbolCollisionSet collisions = new();
 		DeclarationParticipation participation = new(module);
+		foreach (TypeDefinition type in allTypeDefinitions)
+		{
+			if (!IncludesInDuplicateValidation(type, module, participation))
+				continue;
+			foreach (string symbol in GetGeneratedLifecycleSymbols(type))
+				collisions.TryAddSymbol(symbol, type, out _);
+		}
+
 		foreach (Definition definition in DuplicateValidationTopLevelDefinitions(module, participation))
 		{
 			foreach (DeclarationName name in GetDefinitionSymbolNames(definition))
@@ -971,6 +979,35 @@ public sealed partial class BindableNodeAnalyzer
 						: $"Symbol '{symbol}' is already declared in this scope as a component of '{componentOwner}'.");
 			}
 		}
+	}
+
+	IEnumerable<string> GetGeneratedLifecycleSymbols(TypeDefinition type)
+	{
+		if (type is not (ClassDefinition or StructDefinition) || type is ClassDefinition { Extern: not null })
+			yield break;
+
+		bool abstractClass = type is ClassDefinition { Modifier: ClassModifier.Abstract };
+		bool implicitHelpers = type is ClassDefinition && IsArtifactVisible(type) && !abstractClass;
+		bool hasConstructor = false;
+		bool hasDestructor = false;
+		bool hasDestroyHelper = false;
+		foreach (FunctionDefinition function in GetTypeFunctions(type))
+		{
+			if (function.Modifier == FunctionModifier.Constructor)
+				hasConstructor = true;
+			else if (IsDestructorFunction(function))
+			{
+				hasDestructor = true;
+				if (function.Modifier is not FunctionModifier.Override and not FunctionModifier.Sealed)
+					hasDestroyHelper = true;
+			}
+		}
+
+		string typeSymbol = EffectiveTypeSymbol(type);
+		if (!abstractClass && (hasConstructor || implicitHelpers))
+			yield return $"{typeSymbol}_{CreateMethodName}";
+		if (hasDestroyHelper || (implicitHelpers && !hasDestructor))
+			yield return $"{typeSymbol}_{DestroyMethodName}";
 	}
 
 	IEnumerable<Definition> DuplicateValidationTopLevelDefinitions(Module module, DeclarationParticipation participation)

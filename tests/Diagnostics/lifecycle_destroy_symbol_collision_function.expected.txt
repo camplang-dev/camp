@@ -1,0 +1,1 @@
+tests/Diagnostics/lifecycle_destroy_symbol_collision_function.camp(4,5): error: Duplicate symbol name 'Counter_destroy'.
