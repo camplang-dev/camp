@@ -308,12 +308,14 @@ public sealed partial class BindableNodeAnalyzer
 				}
 
 				Expression withinArgument = CurrentWithinArgument(call.SourceSyntax ?? call.Target?.SourceSyntax);
-				call.Arguments.Insert(argumentIndex, new ArgumentExpression
+				ArgumentExpression implicitWithin = new()
 				{
 					SourceSyntax = call.SourceSyntax ?? call.Target?.SourceSyntax,
 					Value = withinArgument,
 					ResolvedType = withinArgument.ResolvedType
-			});
+				};
+				implicitWithinArguments.Add(implicitWithin);
+				call.Arguments.Insert(argumentIndex, implicitWithin);
 			return;
 			}
 		}
@@ -352,6 +354,8 @@ public sealed partial class BindableNodeAnalyzer
 
 		RemoveDuplicateWithinArguments(within, call.Arguments);
 		RemoveNullBeforeCapturedAllocator(call.Arguments);
+		if (function is not null)
+			MoveWithinArgumentToAbiPosition(call, function, within);
 	}
 
 	void RemoveDuplicateWithinArguments(ParameterDefinition parameter, List<ArgumentExpression> arguments)

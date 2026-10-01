@@ -50,6 +50,11 @@ int callSlot<T: implements Readable>(T* value, int addend, vtableof(T: Readable)
 	return extracted == direct && direct == named ? extracted : -1;
 }
 
+int readWithin<T: implements Readable>(within allocator, T* value, sizeof(T), vtableof(T: Readable))
+{
+	return value.read(1);
+}
+
 export int main()
 {
 	ClassReader* classReader = stackalloc ClassReader(10);
@@ -94,5 +99,9 @@ export int main()
 		return 13;
 	if (structTable.bump(structInstance, 4) != 29 || structReader.value != 29)
 		return 14;
+	if (readWithin(classReader) != 20)
+		return 15;
+	if (readWithin(&structReader) != 30)
+		return 16;
 	return 0;
 }

@@ -16,6 +16,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	readonly Dictionary<Expression, bool> expressionConstants = [];
 	readonly Dictionary<CallExpression, FunctionDefinition> callTargets = [];
+	readonly HashSet<ArgumentExpression> implicitWithinArguments = new(ReferenceEqualityComparer.Instance);
 	readonly Dictionary<ConstructionExpression, FunctionDefinition> constructionTargets = [];
 	readonly Dictionary<ConstructionExpression, (InterfaceDefinition Interface, FunctionDefinition Constructor)> genericInterfaceConstructions = [];
 	readonly Dictionary<CallExpression, List<ParameterDefinition>> callableInvocationParameters = [];
@@ -5103,6 +5104,62 @@ public sealed partial class BindableNodeAnalyzer
 			currentParameter += consumed;
 		}
 		return arguments.Count;
+	}
+
+	int FindWithinArgumentIndex(ParameterDefinition within, List<ArgumentExpression> arguments)
+	{
+		for (int i = 0; i < arguments.Count; i++)
+			if (implicitWithinArguments.Contains(arguments[i]))
+				return i;
+		return FindSuppliedWithinArgumentIndex(within, arguments);
+	}
+
+	// Finds where a hidden capability argument belongs, ignoring the within argument, which is positioned separately.
+	int FindArgumentIndexForHiddenParameter(CallExpression call, FunctionDefinition function, List<ParameterDefinition> callableParameters, int parameterIndex, out ArgumentExpression? existing)
+	{
+		ParameterDefinition? within = GetWithinParameter(function);
+		int withinIndex = within is null ? -1 : FindWithinArgumentIndex(within, call.Arguments);
+		if (withinIndex < 0)
+		{
+			int index = FindArgumentIndexForCallableParameter(call.Arguments, callableParameters, parameterIndex);
+			existing = index < call.Arguments.Count ? call.Arguments[index] : null;
+			return index;
+		}
+
+		List<ArgumentExpression> visible = [.. call.Arguments];
+		visible.RemoveAt(withinIndex);
+		int visibleIndex = FindArgumentIndexForCallableParameter(visible, callableParameters, parameterIndex);
+		existing = visibleIndex < visible.Count ? visible[visibleIndex] : null;
+		return visibleIndex <= withinIndex ? visibleIndex : visibleIndex + 1;
+	}
+
+	// The ABI places a within parameter immediately before the next ordinary parameter, or last when none follows.
+	void MoveWithinArgumentToAbiPosition(CallExpression call, FunctionDefinition function, ParameterDefinition within)
+	{
+		int withinSourceIndex = function.Parameters.IndexOf(within);
+		ParameterDefinition? following = null;
+		for (int i = withinSourceIndex + 1; i < function.Parameters.Count; i++)
+		{
+			ParameterDefinition candidate = function.Parameters[i];
+			if (candidate is WithinParameterDefinition or SizeOfParameterDefinition or NameOfParameterDefinition or VTableOfParameterDefinition
+				|| candidate.Modifier == ParameterModifier.Within)
+				continue;
+			following = candidate;
+			break;
+		}
+		if (following is null)
+			return;
+
+		List<ParameterDefinition> callableParameters = GetCallableParametersForCall(function, IncludeExplicitThisArgument(call.Target, function));
+		int followingIndex = callableParameters.IndexOf(following);
+		int currentIndex = FindWithinArgumentIndex(within, call.Arguments);
+		if (followingIndex < 0 || currentIndex < 0)
+			return;
+
+		ArgumentExpression withinArgument = call.Arguments[currentIndex];
+		call.Arguments.RemoveAt(currentIndex);
+		int targetIndex = FindArgumentIndexForCallableParameter(call.Arguments, callableParameters, followingIndex);
+		call.Arguments.Insert(Math.Min(targetIndex, call.Arguments.Count), withinArgument);
 	}
 
 	void EnsureFunctionSignatureAnalyzed(FunctionDefinition function, AnalysisScope scope)

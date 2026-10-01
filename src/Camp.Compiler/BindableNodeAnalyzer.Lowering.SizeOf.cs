@@ -196,10 +196,9 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			if (parameters[i] is not SizeOfParameterDefinition sizeOf)
 				continue;
-			int argumentIndex = FindArgumentIndexForCallableParameter(call.Arguments, parameters, i);
-			if (argumentIndex < call.Arguments.Count
-				&& call.Arguments[argumentIndex].Modifier == ArgumentModifier.None
-				&& (call.Arguments[argumentIndex].Value is SizeOfExpression || IsGeneratedHiddenForwardingArgumentFor(sizeOf, call.Arguments[argumentIndex])))
+			int argumentIndex = FindArgumentIndexForHiddenParameter(call, function, parameters, i, out ArgumentExpression? existingArgument);
+			if (existingArgument is { Modifier: ArgumentModifier.None }
+				&& (existingArgument.Value is SizeOfExpression || IsGeneratedHiddenForwardingArgumentFor(sizeOf, existingArgument)))
 				continue;
 
 			string genericName = SizeOfTypeName(sizeOf.Type);

@@ -426,8 +426,8 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			if (parameters[i] is not NameOfParameterDefinition nameOf)
 				continue;
-			int argumentIndex = FindArgumentIndexForCallableParameter(call.Arguments, parameters, i);
-			if (argumentIndex < call.Arguments.Count && call.Arguments[argumentIndex].Modifier == ArgumentModifier.None && call.Arguments[argumentIndex].Value is not WithinExpression { Expression: null })
+			int argumentIndex = FindArgumentIndexForHiddenParameter(call, function, parameters, i, out ArgumentExpression? existingArgument);
+			if (existingArgument is { Modifier: ArgumentModifier.None } && existingArgument.Value is not WithinExpression { Expression: null })
 				continue;
 
 			string requestedTypeName = NameOfTypeName(nameOf.Type);
