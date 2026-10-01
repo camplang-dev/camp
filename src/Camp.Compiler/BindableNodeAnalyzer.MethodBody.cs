@@ -2492,8 +2492,8 @@ public sealed partial class BindableNodeAnalyzer
 				item.TargetStorageResolvedType = field.StorageType;
 				item.TargetStorageGenericNames.AddRange(field.StorageGenericNames);
 				item.ResolvedType = BodyAnalyzeExpression(item.Expression, scope, typeScope, field.Type);
-				ReportUnsupportedFunctionToDelegateInitializer(field.Type, item.ResolvedType ?? ErrorType, item.Expression?.SourceSyntax ?? item.SourceSyntax);
-				CheckInitializerFieldAssignable(field.Type, item.ResolvedType ?? ErrorType, item.Expression?.SourceSyntax ?? item.SourceSyntax);
+				if (!ReportUnsupportedFunctionToDelegateInitializer(field.Type, item.ResolvedType ?? ErrorType, item.Expression?.SourceSyntax ?? item.SourceSyntax))
+					CheckInitializerFieldAssignable(field.Type, item.ResolvedType ?? ErrorType, item.Expression?.SourceSyntax ?? item.SourceSyntax);
 				continue;
 			}
 
@@ -2519,8 +2519,8 @@ public sealed partial class BindableNodeAnalyzer
 			item.TargetStorageResolvedType = namedField.StorageType;
 			item.TargetStorageGenericNames.AddRange(namedField.StorageGenericNames);
 			item.ResolvedType = BodyAnalyzeExpression(item.Expression, scope, typeScope, namedField.Type);
-			ReportUnsupportedFunctionToDelegateInitializer(namedField.Type, item.ResolvedType ?? ErrorType, item.Expression?.SourceSyntax ?? item.SourceSyntax);
-			CheckInitializerFieldAssignable(namedField.Type, item.ResolvedType ?? ErrorType, item.Expression?.SourceSyntax ?? item.SourceSyntax);
+			if (!ReportUnsupportedFunctionToDelegateInitializer(namedField.Type, item.ResolvedType ?? ErrorType, item.Expression?.SourceSyntax ?? item.SourceSyntax))
+				CheckInitializerFieldAssignable(namedField.Type, item.ResolvedType ?? ErrorType, item.Expression?.SourceSyntax ?? item.SourceSyntax);
 		}
 	}
 
@@ -2545,13 +2545,14 @@ public sealed partial class BindableNodeAnalyzer
 		return true;
 	}
 
-	void ReportUnsupportedFunctionToDelegateInitializer(string targetType, string actualType, SyntaxNode? syntax)
+	bool ReportUnsupportedFunctionToDelegateInitializer(string targetType, string actualType, SyntaxNode? syntax)
 	{
 		if (!TryGetCallableShape(targetType, out CallableShape target) || target.Kind is not "delegate" and not "once")
-			return;
+			return false;
 		if (!TryGetCallableShape(actualType, out CallableShape actual) || actual.Kind != "fn")
-			return;
+			return false;
 		Report(GetRange(syntax), "Delegate field initializer cannot use a bare function because delegate storage requires a context-bearing call component. Use a delegate value or a function with an explicit context parameter.");
+		return true;
 	}
 
 	void AnalyzeExpandedInitializerExpression(InitializerExpression initializer, ParamsComponentShape shape, BodyScope scope, AnalysisScope typeScope)
