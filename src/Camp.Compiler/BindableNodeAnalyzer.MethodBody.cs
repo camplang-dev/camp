@@ -4787,7 +4787,8 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		ConversionClassification conversion = ClassifyConversion(actual, expected);
-		Report(GetRange(syntax), conversion.Diagnostic ?? $"{context} cannot convert '{actual}' to '{expected}'.");
+		string? reconstructHint = conversion.Level == ConversionLevel.ReconstructRequired ? conversion.Diagnostic : null;
+		Report(GetRange(syntax), reconstructHint ?? $"{context} cannot convert '{actual}' to '{expected}'.");
 	}
 
 	bool CanTargetTypeDirectFunctionAsDelegate(string expected, string actual, Expression? value)
