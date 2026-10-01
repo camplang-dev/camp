@@ -257,7 +257,8 @@ ordinary return covariance.
 ## Materialized Storage With `struct(T)`
 
 `struct(T)` materializes an expanded form into ordinary one-address storage. It
-is required when code needs:
+is hidden compiler storage, not a type that source code declares. It is the
+storage form the compiler uses when code needs:
 
 - a field or local storing an expanded value as one object;
 - an array element type for an expanded form;
@@ -265,11 +266,16 @@ is required when code needs:
 - erased generic storage for a possibly expanded `T`;
 - `sizeof(T)` of an expanded form.
 
+Source code may name `struct(T)` only behind an array or pointer declarator,
+such as `struct(int?)[]`. Declaring it directly as the type of a field,
+parameter, return value, global or local variable, or as an explicit cast
+target is an error.
+
 The materialized fields match logical component names, not necessarily ABI
-parameter names:
+parameter names; lowered output shows them:
 
 ```camp
-struct(byte[]) stored;
+struct(byte[]) stored; // lowered form only
 stored.elements;
 stored.length;
 ```

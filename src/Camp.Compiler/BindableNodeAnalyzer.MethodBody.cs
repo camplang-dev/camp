@@ -803,6 +803,7 @@ public sealed partial class BindableNodeAnalyzer
 		BodyAnalyzeDeclarationTarget(declaration.Target, scope, typeScope, initialType);
 		ValidateFixedStorageMarker(declaration.Target.Type, declaration.IsFixedStorage, declaration.Target.Type?.SourceSyntax ?? declaration.Target.SourceSyntax ?? declaration.SourceSyntax);
 		ValidateNoDirectExternClassType(declaration.Target.Type, declaration.Target.Type?.SourceSyntax ?? declaration.Target.SourceSyntax ?? declaration.SourceSyntax, "local variable storage");
+		ValidateNoDirectMaterializedStructType(declaration.Target.Type, declaration.Target.Type?.SourceSyntax ?? declaration.Target.SourceSyntax ?? declaration.SourceSyntax, "the type of a local variable");
 		ValidateNoExternClassArrayElement(declaration.Target.Type, declaration.Target.Type?.SourceSyntax ?? declaration.Target.SourceSyntax ?? declaration.SourceSyntax);
 		ValidateErasedGenericLocalStorage(declaration, initialType, scope);
 		if (declaration.InitialValue is not null)
@@ -2641,6 +2642,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (cast.Type is not null)
 			AnalyzeType(cast.Type, typeScope);
 		string targetType = cast.Type?.ResolvedType ?? ErrorType;
+		ValidateNoDirectMaterializedStructType(cast.Type, cast.Type?.SourceSyntax ?? cast.SourceSyntax, "an explicit cast target");
 		string structuralTargetType = ContainsLifetimeAnnotation(cast.Type) && !TryGetCallableShape(targetType, out _)
 			? StripLifetimeQualifiers(targetType)
 			: targetType;

@@ -816,6 +816,14 @@ public sealed partial class BindableNodeAnalyzer
 			Report(GetRange(syntax), $"Fixed-size array storage types are not valid as {usage}; use a pointer to the fixed array or a span array instead.");
 	}
 
+	// `struct(T)` is hidden carrier storage for an expanded value. Source code may name it only as the element
+	// or pointee of an array or pointer, never as the type of a field, parameter, return value, local, or cast.
+	void ValidateNoDirectMaterializedStructType(TypeReference? type, SyntaxNode? syntax, string usage)
+	{
+		if (type is not null && type.SourceSyntax is not null && UnwrapTypeDeclarators(type) is MaterializedStructTypeReference)
+			Report(GetRange(syntax), $"struct(T) is hidden storage for an expanded value and is not valid as {usage}.");
+	}
+
 	void ValidateNoDirectExternClassType(TypeReference? type, SyntaxNode? syntax, string usage)
 	{
 		if (IsDirectExternClassType(type))

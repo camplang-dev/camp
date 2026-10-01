@@ -1,0 +1,4 @@
+tests/Diagnostics/materialized_struct_declaration_rejected.camp(3,2): error: struct(T) is hidden storage for an expanded value and is not valid as field storage.
+tests/Diagnostics/materialized_struct_declaration_rejected.camp(6,1): error: struct(T) is hidden storage for an expanded value and is not valid as global variable storage.
+tests/Diagnostics/materialized_struct_declaration_rejected.camp(8,1): error: struct(T) is hidden storage for an expanded value and is not valid as a function return type.
+tests/Diagnostics/materialized_struct_declaration_rejected.camp(13,10): error: struct(T) is hidden storage for an expanded value and is not valid as a parameter type.

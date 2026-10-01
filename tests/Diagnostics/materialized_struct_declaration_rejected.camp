@@ -1,0 +1,16 @@
+struct Holder
+{
+	struct(int[]) inside;
+}
+
+struct(int[]) global;
+
+struct(int[]) make()
+{
+	return default;
+}
+
+int take(struct(int[]) param)
+{
+	return 0;
+}

@@ -1,0 +1,8 @@
+int use(int[] source)
+{
+	struct(int[]) copy = default;
+	auto cast = (struct(int[]))source;
+	struct(int?)[] allowedArrayElement = default;
+	struct(int[])* allowedPointer = default;
+	return 0;
+}

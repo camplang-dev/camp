@@ -1196,6 +1196,7 @@ public sealed partial class BindableNodeAnalyzer
 		ValidateNoLifetimeAnnotation(definition.Type, definition.Type?.SourceSyntax ?? definition.SourceSyntax, "variable types");
 		ValidateFixedStorageMarker(definition.Type, definition.IsFixedStorage, definition.Type?.SourceSyntax ?? definition.SourceSyntax);
 		ValidateNoDirectExternClassType(definition.Type, definition.Type?.SourceSyntax ?? definition.SourceSyntax, "global variable storage");
+		ValidateNoDirectMaterializedStructType(definition.Type, definition.Type?.SourceSyntax ?? definition.SourceSyntax, "global variable storage");
 		ValidateNoExternClassArrayElement(definition.Type, definition.Type?.SourceSyntax ?? definition.SourceSyntax);
 		definition.ResolvedType = definition.Type?.ResolvedType ?? ErrorType;
 		InitializeVariableLifetimeFacts(definition, scope);
@@ -1272,6 +1273,7 @@ public sealed partial class BindableNodeAnalyzer
 		ValidateFieldLifetimeAnnotation(definition, scope, containingType);
 		ValidateFixedStorageMarker(definition.Type, definition.IsFixedStorage, definition.Type?.SourceSyntax ?? definition.SourceSyntax);
 		ValidateNoDirectExternClassType(definition.Type, definition.Type?.SourceSyntax ?? definition.SourceSyntax, definition.Modifier == FieldModifier.Static ? "static field storage" : "field storage");
+		ValidateNoDirectMaterializedStructType(definition.Type, definition.Type?.SourceSyntax ?? definition.SourceSyntax, definition.Modifier == FieldModifier.Static ? "static field storage" : "field storage");
 		ValidateNoExternClassArrayElement(definition.Type, definition.Type?.SourceSyntax ?? definition.SourceSyntax);
 		if (containingType is NewtypeDefinition && definition.Modifier != FieldModifier.Static && IsDirectFixedArrayType(definition.Type))
 			Report(GetRange(definition.SourceSyntax), "Newtype instance fields may not use fixed-size array storage.");
@@ -1509,6 +1511,7 @@ public sealed partial class BindableNodeAnalyzer
 			definition.ResolvedType = AnalyzeOptionalType(definition.ReturnType, scope) ?? ErrorType;
 		ValidateNoDirectFixedArrayType(definition.ReturnType, definition.ReturnType?.SourceSyntax ?? definition.SourceSyntax, "a function return type");
 		ValidateNoDirectExternClassType(definition.ReturnType, definition.ReturnType?.SourceSyntax ?? definition.SourceSyntax, "a function return type");
+		ValidateNoDirectMaterializedStructType(definition.ReturnType, definition.ReturnType?.SourceSyntax ?? definition.SourceSyntax, "a function return type");
 		ValidateNoExternClassArrayElement(definition.ReturnType, definition.ReturnType?.SourceSyntax ?? definition.SourceSyntax);
 		AnalyzeOptionalConditionalInterfaceType(definition.CallableAscriptionType, scope);
 
@@ -2490,6 +2493,7 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			ValidateNoDirectFixedArrayType(definition.Type, definition.Type?.SourceSyntax ?? definition.SourceSyntax, "a parameter type");
 			ValidateNoDirectExternClassType(definition.Type, definition.Type?.SourceSyntax ?? definition.SourceSyntax, "a parameter type");
+			ValidateNoDirectMaterializedStructType(definition.Type, definition.Type?.SourceSyntax ?? definition.SourceSyntax, "a parameter type");
 			ValidateNoExternClassArrayElement(definition.Type, definition.Type?.SourceSyntax ?? definition.SourceSyntax);
 		}
 

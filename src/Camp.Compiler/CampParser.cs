@@ -613,7 +613,7 @@ public sealed class CampParser
 		while (IsAny(TypeDeclarationDeclarators))
 			declarators.Add(new TypeDeclarationDeclaratorSyntax { Keyword = Take() });
 
-		if ((Is("struct") || Is("class")) && PeekValue(1) == "iter")
+		if ((Is("struct") || Is("class")) && PeekValue(1) == "iter" || Is("struct") && PeekValue(1) == "(")
 		{
 			index = start;
 			return null;
@@ -2449,7 +2449,7 @@ public sealed class CampParser
 			return null;
 
 		Token? unsafeKeyword = TakeIf("unsafe");
-		Token? castKeyword = IsAny("params", "struct", "class")
+		Token? castKeyword = IsAny("params", "struct", "class") && PeekValue(1) != "("
 			? Take()
 			: null;
 

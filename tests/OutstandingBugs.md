@@ -316,59 +316,6 @@ static flags might avoid this specific relocation, but it does not make the
 standard target's shared-library contract work and has not been validated as
 a general workaround for transitive or prebuilt static dependencies.
 
-## BUG-195: `struct(T)` is accepted where it is not allowed and fails later in C
-
-Date/Time: 2026-09-30 21:15 EDT
-
-Summary:
-`struct(T)` is the materialized carrier of an expanded value (an array, optional or
-delegate). It exists so that generic receivers can take and return expanded values
-without knowing what they are. It is hidden storage, not a type that source code
-declares: it must not be the type of a field, a parameter, a local variable or an
-explicit cast, or appear in any declaration visible outside a function body. The
-compiler accepts it as a local variable type and as a parameter type without a
-diagnostic, and the generated C is then invalid. A field produces only the generic
-"Expected identifier" syntax error.
-
-Steps to Reproduce:
-
-1. Build `campc build a.camp --nostdlib --out-dir out` with:
-
-   ```camp
-   export int main()
-   {
-       struct(int[]) local = default;
-       return 0;
-   }
-   ```
-
-2. Build:
-
-   ```camp
-   int take(struct(int[]) param) { return 0; }
-
-   export int main()
-   {
-       return take(default);
-   }
-   ```
-
-3. Build `struct Holder { struct(int[]) inside; }`.
-
-Expected:
-Each program is rejected with a diagnostic that says `struct(T)` cannot be used as the
-type of a local variable, a parameter or a field (and cannot be used in an explicit
-cast).
-
-Actual:
-1. The C compiler fails: `initializing 'struct (unnamed struct ...)' with an expression of
-   incompatible type 'int'`.
-2. The C compiler fails: `conflicting types for 'take'`.
-3. `Expected identifier.` and `Expected ';'.`
-
-Known Impact:
-Misuse of the carrier type produces C compiler errors instead of a Camp diagnostic.
-
 ## BUG-196: The `typenameof(T)` capability parameter is emitted as `void*` instead of the string type
 
 Date/Time: 2026-09-30 21:30 EDT
