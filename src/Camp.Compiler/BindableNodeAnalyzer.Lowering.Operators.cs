@@ -1088,11 +1088,61 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (captureTarget && (isPointer || isThisPointer))
 			target = CaptureDeleteTarget(target, "deleteTarget");
+		if (isPointer && !suppressDeallocate && FindWitnessDestructor(currentRewriteFunction, deletedType) is FunctionDefinition witnessDestructor)
+			return new DeleteOperation(CreateWitnessDestructorCall(target, witnessDestructor), captureTarget ? target : null);
 		bool deallocate = opDelete?.Name != DestroyMethodName
 			&& !suppressDeallocate
 			&& (isPointer || isThisPointer)
 			&& deletedDefinition is not ClassDefinition { Extern: not null };
 		return new DeleteOperation(CreateDeleteExpression(target, opDelete, deallocate), captureTarget && (isPointer || isThisPointer) ? target : null);
+	}
+
+	// A generic pointer with a vtableof capability deletes through the witness destroy slot,
+	// which runs the destructor and releases the object itself.
+	FunctionDefinition? FindWitnessDestructor(FunctionDefinition? function, string deletedType)
+	{
+		if (function is null || !function.GenericParameters.Any(parameter => parameter.Name == deletedType))
+			return null;
+
+		foreach (ParameterDefinition parameter in function.Parameters)
+		{
+			if (parameter is not VTableOfParameterDefinition vtableOf
+				|| VTableOfTypeName(vtableOf.Type) != deletedType
+				|| vtableOf.InterfaceType is null
+				|| !TryGetInterfaceDefinition(vtableOf.InterfaceType, out InterfaceDefinition? interfaceDefinition)
+				|| interfaceDefinition is null)
+				continue;
+			foreach (FunctionDefinition member in GetFunctions(interfaceDefinition))
+				if (IsDestructorFunction(member))
+					return member;
+		}
+		return null;
+	}
+
+	CallExpression CreateWitnessDestructorCall(Expression target, FunctionDefinition destructor)
+	{
+		MemberReferenceExpression member = new()
+		{
+			SourceSyntax = target.SourceSyntax,
+			Target = target,
+			Name = destructor.Name,
+			Member = destructor,
+			ResolvedType = "void"
+		};
+		CallExpression call = new()
+		{
+			SourceSyntax = target.SourceSyntax,
+			ResolvedType = "void",
+			Target = member
+		};
+		if (HasWithinParameter(destructor))
+		{
+			Expression? allocator = CurrentAllocator();
+			call.Arguments.Add(new ArgumentExpression { Value = allocator ?? NullLiteral(destructor.SourceSyntax), ResolvedType = allocator?.ResolvedType ?? "#NULL" });
+		}
+		if (LowerInterfaceCall(call) && call.Target is MemberReferenceExpression slot)
+			slot.Name = DestroyMethodName;
+		return call;
 	}
 
 	Expression CaptureDeleteTarget(Expression target, string prefix)

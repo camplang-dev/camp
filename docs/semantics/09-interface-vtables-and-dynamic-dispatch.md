@@ -160,6 +160,14 @@ receiver-fixup adapter before calling `destroy`. Generated `destroy` runs
 allocator policy. Neither table path adds a second free. Ordinary `delete`
 still follows its own ownership and stack-storage rules.
 
+Interface lifecycle members are capabilities, not source-callable members of an
+interface pointer. `new T(...)` and `delete` on a generic `T*` reach them through
+the `vtableof(T: I)` witness; `delete` of an `I*` is invalid because the pointer
+carries no proof of how its object was allocated. Because the witness `destroy`
+slot frees the object, a delete through it requires a target proven `escaped`
+(an unannotated or unknown pointer is not proof). `new T(...)` through a witness
+always yields an escaped pointer, and `stackalloc T(...)` is not available.
+
 ## Struct Conformance
 
 Struct conformance binds methods directly against interface slots. Receiver

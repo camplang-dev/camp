@@ -376,6 +376,12 @@ a `within` context. The call runs the constructor recorded in the
 using the allocation context passed for the `within allocator` parameter.
 `stackalloc T(...)` is not available through an interface constructor.
 
+Deletion works the same way: generic code deletes a `T*` through the destructor
+recorded in the capability, and the pointer must be `escaped` (for example a
+result of `new T()` or a parameter declared `escaped T*`), because the
+destructor slot also frees the object. An interface pointer cannot be deleted;
+only the generic code that holds the capability can.
+
 Structs can implement constructor and destructor contracts. Classes can do so
 when they are sealed. An unsealed class has derived construction and deletion
 paths, so it cannot safely promise a single interface constructor shape for

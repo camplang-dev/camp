@@ -31,6 +31,8 @@ sealed class CountingAllocator: Allocator
 	}
 }
 
+int destroyed = 0;
+
 interface Counted
 {
 	Counted(int start, within allocator);
@@ -48,6 +50,7 @@ sealed class CountedBox: Counted
 
 	~CountedBox(within allocator)
 	{
+		destroyed++;
 	}
 }
 
@@ -62,12 +65,18 @@ struct CountedStruct: Counted
 
 	~CountedStruct(within allocator)
 	{
+		destroyed += 10;
 	}
 }
 
-T* createCounted<T: implements Counted>(Allocator* allocator, int start, vtableof(T: Counted))
+escaped T* createCounted<T: implements Counted>(Allocator* allocator, int start, vtableof(T: Counted))
 {
 	return within (allocator) new T(start);
+}
+
+void destroyCounted<T: implements Counted>(Allocator* allocator, escaped T* value, vtableof(T: Counted))
+{
+	within (allocator) delete value;
 }
 
 export int main()
@@ -102,5 +111,15 @@ export int main()
 	structDestroy(structValue, allocator);
 	if (counting.deallocations != 3)
 		return 8;
+
+	destroyed = 0;
+	CountedBox* generic = createCounted<CountedBox>(allocator, 7);
+	destroyCounted(allocator, generic);
+	if (destroyed != 1 || counting.deallocations != 4)
+		return 11;
+	CountedStruct* genericStruct = createCounted<CountedStruct>(allocator, 8);
+	destroyCounted(allocator, genericStruct);
+	if (destroyed != 11 || counting.deallocations != 5)
+		return 12;
 	return 0;
 }

@@ -1,1 +1,2 @@
 tests/Diagnostics/interface_lifecycle_capability_delete.camp(21,26): error: Cannot delete interface pointer 'IPlainDestroy*'; interface destructors are available only through a generic 'vtableof' capability.
+tests/Diagnostics/interface_lifecycle_capability_delete.camp(26,26): error: Delete through a 'vtableof' destructor requires an escaped target; the destroy slot frees the object and may not receive scoped, stack, or unproven storage.

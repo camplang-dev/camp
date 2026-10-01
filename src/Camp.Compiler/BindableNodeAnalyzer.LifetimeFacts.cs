@@ -361,11 +361,22 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		return construction.Kind switch
 		{
+			ConstructionKind.New when IsGenericConstructedType(construction, resolvedType, scope) => MakeLifetimeFact("escaped", null, "new"),
 			ConstructionKind.New => GetNewConstructionLifetimeFact(construction),
 			ConstructionKind.StackAlloc => MakeLifetimeFact("scoped", null, "stackalloc"),
 			ConstructionKind.Init or ConstructionKind.Selected => GetInitConstructionLifetimeFact(construction, resolvedType, scope),
 			_ => null
 		};
+	}
+
+	// An interface constructor allocates through its witness, so `new T()` always yields an escaped instance.
+	static bool IsGenericConstructedType(ConstructionExpression construction, string resolvedType, BodyScope scope)
+	{
+		string typeName = TryGetPointerElementType(resolvedType) ?? resolvedType;
+		foreach (GenericParameter parameter in scope.CurrentFunction.GenericParameters)
+			if (parameter.Name == typeName)
+				return true;
+		return false;
 	}
 
 	string? GetNewConstructionLifetimeFact(ConstructionExpression construction)
@@ -1280,8 +1291,8 @@ public sealed partial class BindableNodeAnalyzer
 			Report(GetRange(syntax), "Delete target cannot satisfy free parameter lifetime 'escaped'.");
 	}
 
-	// Interface constructors and destructors are capabilities; an interface pointer carries no proof of how its
-	// object was allocated, so it cannot be deleted.
+	// Constructors and destructors reach interface implementations only through a vtableof capability. The destroy
+	// slot frees the object, so the target must be provably escaped rather than merely unknown.
 	void ValidateCapabilityDeleteTarget(Expression? expression, string deleteType, BodyScope scope)
 	{
 		if (expression is WithinExpression { Expression: not null } within)
@@ -1289,11 +1300,20 @@ public sealed partial class BindableNodeAnalyzer
 			expression = within.Expression;
 			deleteType = expression.ResolvedType ?? deleteType;
 		}
-		if (expression is null || TryGetPointerElementType(deleteType) is null)
+		if (expression is null || TryGetPointerElementType(deleteType) is not string elementType)
 			return;
 
+		SyntaxNode? syntax = expression.SourceSyntax;
 		if (TryGetInterfacePointerDefinition(deleteType, out InterfaceDefinition? interfaceDefinition) && interfaceDefinition is not null)
-			Report(GetRange(expression.SourceSyntax), $"Cannot delete interface pointer '{deleteType}'; interface destructors are available only through a generic 'vtableof' capability.");
+		{
+			Report(GetRange(syntax), $"Cannot delete interface pointer '{deleteType}'; interface destructors are available only through a generic 'vtableof' capability.");
+			return;
+		}
+
+		if (FindWitnessDestructor(scope.CurrentFunction, elementType) is null)
+			return;
+		if (!TryParseLifetimeFact(GetExpressionLifetimeFact(expression), out LifetimeFact fact) || fact.Kind != "escaped")
+			Report(GetRange(syntax), "Delete through a 'vtableof' destructor requires an escaped target; the destroy slot frees the object and may not receive scoped, stack, or unproven storage.");
 	}
 
 	bool IsStackAllocBackedExpression(Expression? expression)
