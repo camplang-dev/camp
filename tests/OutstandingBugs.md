@@ -581,19 +581,17 @@ A generic function over an integral representation type cannot convert its value
 to a concrete integer type. No source-level workaround exists other than not
 using the generic.
 
-## BUG-189: A call on a derived class pointer uses the base method's default argument instead of the override's
+## BUG-189: An override may declare a default parameter value that differs from the base declaration
 
-Date/Time: 2026-09-30 19:20 EDT
+Date/Time: 2026-09-30 21:50 EDT
 
 Summary:
-A class method that overrides a virtual method may declare its own default
-argument value. A call made through the derived class type selects the derived
-declaration as the source callable surface, so the omitted argument should take
-the derived declaration's default. The compiler instead inserts the default from
-the base declaration. The same call shape through an interface implemented by a
-class correctly uses the default declared on the implementing class's own
-surface, so the behavior is inconsistent. A call made through the base type
-correctly uses the base default.
+A call through a virtual method always lowers to the base declaration, so the only
+default parameter values known at a call site are the ones the base method declares.
+An override therefore must either omit default values or repeat the base's values
+exactly (for information only). The compiler accepts an override that declares a
+different default value without any diagnostic, and the declared value is silently
+never used.
 
 Steps to Reproduce:
 
@@ -617,16 +615,20 @@ Steps to Reproduce:
    }
    ```
 
+2. Remove `= 4` from the override. The program builds and exits with 6, as it does
+   in step 1.
+
 Expected:
-`derived.scale(2)` binds to `Derived.scale`, whose default is 4, so the program
-exits with 8.
+Step 1 reports an error on the override's default value: an override's default must
+be omitted or identical to the base method's default. Step 2 is valid.
 
 Actual:
-The program exits with 6, using the base declaration's default of 3.
+Step 1 builds without a diagnostic and exits with 6 (the base default of 3). The
+override's `= 4` has no effect.
 
 Known Impact:
-Default arguments declared on an override are silently ignored for calls through
-the derived type. Workaround: do not declare different defaults on an override.
+Source can state a default that is never applied, which misleads readers. Workaround:
+omit the default on overrides.
 
 ## BUG-190: Generic construction through an interface lifecycle contract is not supported
 
