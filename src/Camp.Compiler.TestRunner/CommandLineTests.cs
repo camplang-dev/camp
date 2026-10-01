@@ -5577,6 +5577,50 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Static_project_reference_consumes_export_with_double_underscore_symbol()
+	{
+		string root = TempPath("project-reference-double-underscore-symbol");
+		string libraryRoot = Path.Combine(root, "library");
+		Directory.CreateDirectory(libraryRoot);
+		File.WriteAllText(Path.Combine(libraryRoot, "library.camp"), """
+			namespace Q;
+
+			@symbol("__renamed_sym")
+			export void renamed(int value)
+			{
+			}
+			""");
+		File.WriteAllText(Path.Combine(libraryRoot, "library.campbuild"), """
+			--nostdlib
+			--name qlib
+			library.camp
+			""");
+		string app = CreateTempCase("project_reference_double_underscore_app.camp", """
+			#build --nostdlib
+
+			export int main()
+			{
+				Q::renamed(2);
+				return 0;
+			}
+			""");
+
+		ProcessResult result = RunCampc(
+			"build",
+			app,
+			"--target",
+			NativeTargetForHost(),
+			"--artifact",
+			"exec",
+			"--project-reference",
+			Path.Combine(libraryRoot, "library.campbuild") + ":static",
+			"--out-dir",
+			TempPath("project-reference-double-underscore-build"));
+
+		AssertCommandSucceeded(result);
+	}
+
+	[Fact]
 	public void Static_project_reference_exposes_public_but_not_internal_api()
 	{
 		string root = TempPath("project-reference-public-static");

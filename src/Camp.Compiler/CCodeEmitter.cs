@@ -1852,7 +1852,7 @@ public static class CCodeEmitter
                 return false;
             if (function.Name.StartsWith("_", StringComparison.Ordinal) && function.Name is not "_create" and not "_destroy")
                 return false;
-            if (function.Symbol.Contains("__", StringComparison.Ordinal))
+            if (function.GeneratedInfo is not null && function.Symbol.Contains("__", StringComparison.Ordinal))
                 return false;
             return true;
         }
