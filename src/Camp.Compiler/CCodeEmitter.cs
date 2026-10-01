@@ -3919,6 +3919,11 @@ public static class CCodeEmitter
                     if (parameter is WithinParameterDefinition && parameter.Type is null)
                         continue;
                     string name = CName(parameter);
+                    if (parameter is NameOfParameterDefinition)
+                    {
+                        parts.Add(FormatOrdinaryParameterType(parameter, name).Declaration);
+                        continue;
+                    }
                     if (parameter is ThisParameterDefinition && TryGetExpandedArrayElementType(parameter.ResolvedType, out string thisElementType))
                     {
                         parts.Add(FormatTypeOrResolved(null, thisElementType + "*", name).Declaration);
@@ -6460,7 +6465,7 @@ public static class CCodeEmitter
                 return genericElementAddress;
             if (argument.Modifier == ArgumentModifier.None
                 && parameter?.Modifier != ParameterModifier.In
-                && parameter is not SizeOfParameterDefinition
+                && parameter is not SizeOfParameterDefinition and not NameOfParameterDefinition
                 && TryGetConcreteGenericType(rawExpectedParameterType, genericSubstitutions, out string? concreteType)
                 && NeedsGenericScalarCast(concreteType))
                 value = CastToErasedGeneric(value, concreteType);
@@ -8067,6 +8072,11 @@ public static class CCodeEmitter
                     if (parameter is WithinParameterDefinition && parameter.Type is null)
                         continue;
                     string name = UniqueCallableParameterName(CName(parameter), usedNames);
+                    if (parameter is NameOfParameterDefinition)
+                    {
+                        parts.Add(FormatOrdinaryParameterType(parameter, name).Declaration);
+                        continue;
+                    }
                     if (parameter.Modifier is ParameterModifier.Out or ParameterModifier.Thrown)
                     {
                         TypeReference? parameterType = parameter.Type;
@@ -8088,6 +8098,8 @@ public static class CCodeEmitter
 
         CType FormatOrdinaryParameterType(ParameterDefinition parameter, string name)
         {
+            if (parameter is NameOfParameterDefinition)
+                return FormatResolvedType("string", name);
             if (parameter is VTableOfParameterDefinition)
                 return parameter.ResolvedType is null
                     ? FormatTypeOrResolved(parameter.Type, parameter.ResolvedType, name)

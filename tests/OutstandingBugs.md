@@ -316,49 +316,6 @@ static flags might avoid this specific relocation, but it does not make the
 standard target's shared-library contract work and has not been validated as
 a general workaround for transitive or prebuilt static dependencies.
 
-## BUG-196: The `typenameof(T)` capability parameter is emitted as `void*` instead of the string type
-
-Date/Time: 2026-09-30 21:30 EDT
-
-Summary:
-In a generic function with a `typenameof(T)` capability parameter, the parameter is a
-type-name string, so it should have the C type that `string` lowers to (`const char *`).
-The compiler emits the parameter as `void*`. Copying it into a `string` local happens
-to work because C converts a `void*` implicitly, but any other use that needs the
-string type fails, for example indexing the expression directly with `typenameof(T)[0]`.
-
-Steps to Reproduce:
-
-1. Run `campc run index.camp --nostdlib --show-errorlevel` with:
-
-   ```camp
-   int firstIsI<T: copyable>(typenameof(T))
-   {
-       return typenameof(T)[0] == 'I' ? 1 : 0;
-   }
-
-   export int main()
-   {
-       return firstIsI<int>() - 1;
-   }
-   ```
-
-2. Change the body to `string name = typenameof(T); return name[0] == 'I' ? 1 : 0;`.
-   This version builds and exits with 0.
-
-Expected:
-Both versions build and exit with 0. The generated function takes a `const char *`
-parameter.
-
-Actual:
-The first fails in the C compiler: `error: invalid operands to binary expression ('void'
-and 'int')` for the generated `typenameof_T[0] == 'I'`. The generated signature is
-`static int firstIsI(void* typenameof_T)`.
-
-Known Impact:
-Type-name capabilities cannot be used in place. Workaround: copy into a `string` local
-first.
-
 ## BUG-197: The generated Camp API and JSON omit constructor parameters
 
 Date/Time: 2026-09-30 23:40 EDT

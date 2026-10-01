@@ -1,0 +1,19 @@
+int firstIsI<T: copyable>(typenameof(T))
+{
+	return typenameof(T)[0] == 'I' ? 1 : 0;
+}
+
+int secondIsN<T: copyable>(typenameof(T))
+{
+	string name = typenameof(T);
+	return name[1] == 'n' ? 1 : 0;
+}
+
+export int main()
+{
+	if (firstIsI<int>() != 1)
+		return 1;
+	if (secondIsN<int>() != 1)
+		return 2;
+	return 0;
+}
