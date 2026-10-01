@@ -815,12 +815,11 @@ Steps to Reproduce:
    }
    ```
 
-2. Replace the two lines that create `value` with `Value* value = new Value();` and
-   pass `value` (adding `extern void* malloc(nuint size);` and
-   `extern void free(void* ptr);` at the top, and `delete value;` before returning).
-   The result is the same.
-3. Change `struct Value` to `class Value` (and use `Value* value = new Value();`).
-   The program exits with 0.
+2. Give the struct a constructor, `Value(int value) { this.value = value; }`, and replace
+   the first two lines of `main` with `Value* value = new Value(27);`. Pass `value` to
+   `readIt`, and add `extern void* malloc(nuint size);` and `extern void free(void* ptr);`
+   at the top and `delete value;` before returning. The result is the same.
+3. Change `struct Value` to `class Value` in step 2. The program exits with 0.
 
 Expected:
 Every variant exits with 0: the struct's `read` runs on the struct that `value`
