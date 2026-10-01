@@ -115,7 +115,7 @@ typedef struct TextSinkVTable TextSinkVTable;
 typedef struct TextSinkSlot TextSinkSlot;
 
 struct TextSinkVTable {
-	void (*write)(TextSinkSlot *context, const char *text, size_t text_length);
+	void (*write)(void *context, const char *text, size_t text_length);
 };
 
 struct TextSinkSlot {
@@ -126,6 +126,9 @@ struct TextSinkSlot {
 That is not a promise about exact emitted names. It is the useful model:
 interface dispatch is a vtable load followed by an indirect call. The context
 comes from the `Interface*` value, not from a hidden runtime object.
+The erased `void*` slot does not make source receivers interchangeable: an
+explicit `TextSink` table slot takes `TextSink*`, while a
+`vtableof(Concrete: TextSink)` witness slot takes `Concrete*`.
 
 Readers coming from C# or Java can think of the vtable as the method table that
 tells the call which implementation to use. Readers coming from C can think of

@@ -652,8 +652,10 @@ from ordinary user parameters:
 
 - `sizeof(T)` lowers to a `nuint`-like ABI value and records target type `T`;
 - `typenameof(T)` records the type whose name is carried;
-- `vtableof(T: Interface)` records both the target type and interface type and
-  lowers to `const Interface*`;
+- `vtableof(T: Interface)` is a source witness capability identified by both
+  types; metadata records `capability: "vtableof"`, `targetType`, and
+  `interfaceType`. Its C storage lowers to `const Interface*`, but that erased
+  pointer is not the source type;
 - `within` parameters remain allocation-context parameters, not ordinary data
   values.
 

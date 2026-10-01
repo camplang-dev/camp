@@ -287,7 +287,7 @@ the explicit `index, count` values.
 | `target<T>(value)` | Explicit generic argument |
 | `target(value)` | Generic arguments may be inferred when possible |
 | `target(sizeof(T))` | Explicit generic size capability |
-| `target(vtableof(T: I))` | Explicit generic interface-vtable capability |
+| `target(vtableof(T: I))` | Explicit typed witness capability for `T` implementing `I` |
 
 No ordinary parameter or expanded component may be supplied more than once.
 Default arguments are inserted from the static signature being called.
@@ -463,7 +463,7 @@ allocator path.
 |---|---|
 | `sizeof(T)` | Size capability or concrete type size |
 | `typenameof(T)` | Source-level type name as `string` |
-| `vtableof(T: Interface)` | Interface vtable capability for a concrete/generic type |
+| `vtableof(T: Interface)` | Typed witness for a concrete/generic target and interface; ordinary slots take `T*` |
 | `symbolof(Name)` | Metadata-only symbol reference inside attribute arguments |
 | `await expression` | Await an async/callback-shaped operation |
 | `postpone call` | Capture a call for later invocation |

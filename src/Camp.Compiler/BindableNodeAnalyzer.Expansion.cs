@@ -600,7 +600,8 @@ public sealed partial class BindableNodeAnalyzer
 			if (!TryGetDirectInterface(baseType, interfaces, out InterfaceDefinition? interfaceDefinition) || interfaceDefinition is null)
 				continue;
 
-			EnsureInterfaceIndirectStruct(module, interfaceDefinition);
+			foreach (InterfaceDefinition entryInterface in GetInterfaceAndBaseInterfaces(interfaceDefinition, interfaces))
+				EnsureInterfaceIndirectStruct(module, entryInterface);
 			VariableDefinition vtableStorage = generatedDeclarations.Variable(GeneratedDeclarationCategory.Interface, "interface vtable storage", structDefinition);
 			vtableStorage.Name = InterfaceVTableName(structDefinition, interfaceDefinition) + "__storage";
 			vtableStorage.Symbol = InterfaceVTableName(structDefinition, interfaceDefinition) + "__storage";
@@ -660,6 +661,17 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			foreach (FunctionDefinition member in implementedInterface.Functions)
 			{
+				if (member.InterfaceSlotInitializer is not null
+					&& !IsNullInterfaceSlotInitializer(member.InterfaceSlotInitializer)
+					&& FindImplementationMethod(lowering.Type, member) is null)
+				{
+					FunctionDefinition witnessDefault = CreateWitnessDefaultThunkDeclaration(lowering, implementedInterface, member);
+					module.Definitions.Add(witnessDefault);
+					generatedInterfaceDefinitions.Add(witnessDefault);
+					interfaceThunkLowerings[witnessDefault] = new InterfaceThunkLowering(lowering, implementedInterface, member, WitnessDefault: true);
+					interfaceThunkFunctions[(lowering, implementedInterface, member)] = witnessDefault;
+					continue;
+				}
 				if (lowering.DirectEntries)
 					continue;
 				if (member.InterfaceSlotInitializer is not null && FindImplementationMethod(lowering.Type, member) is null)
@@ -672,6 +684,16 @@ public sealed partial class BindableNodeAnalyzer
 				interfaceThunkFunctions[(lowering, implementedInterface, member)] = thunk;
 			}
 		}
+	}
+
+	FunctionDefinition CreateWitnessDefaultThunkDeclaration(InterfaceImplementationLowering lowering, InterfaceDefinition entryInterface, FunctionDefinition member)
+	{
+		FunctionDefinition thunk = CreateInterfaceThunkDeclaration(lowering, entryInterface, member);
+		thunk.Name += "_witness_default";
+		thunk.Symbol += "_witness_default";
+		thunk.Parameters[0].Type = PointerTo(InterfaceType(lowering.Type));
+		thunk.Parameters[0].ResolvedType = $"{lowering.Type.Name}*";
+		return thunk;
 	}
 
 	FunctionDefinition CreateInterfaceThunkDeclaration(InterfaceImplementationLowering lowering, InterfaceDefinition entryInterface, FunctionDefinition member)
@@ -984,7 +1006,7 @@ public sealed partial class BindableNodeAnalyzer
 				{
 					Name = baseInterface.Name,
 					Symbol = baseInterface.Name,
-					Type = InterfaceType(baseInterface),
+					Type = TypeReferenceFor(LowerInterfaceDefinition(baseInterface)),
 					ResolvedType = baseInterface.Name,
 					EffectiveRequirement = baseInterface.EffectiveRequirement
 				});
@@ -1134,6 +1156,12 @@ public sealed partial class BindableNodeAnalyzer
 
 			if (member.InterfaceSlotInitializerKind == InterfaceSlotInitializerKind.Function && member.InterfaceSlotInitializerTarget is not null)
 			{
+				if (directEntries && TryFindInterfaceThunkFunction(lowering, interfaceDefinition, member, out FunctionDefinition? witnessDefaultThunk) && witnessDefaultThunk is not null)
+				{
+					MethodReferenceExpression witnessReference = new() { ResolvedType = BuildInterfaceEntryCallableType(interfaceDefinition, member) };
+					witnessReference.Candidates.Add(witnessDefaultThunk);
+					return witnessReference;
+				}
 				MethodReferenceExpression reference = new()
 				{
 					ResolvedType = BuildInterfaceEntryCallableType(interfaceDefinition, member)
@@ -1164,6 +1192,8 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			ResolvedType = "void"
 		};
+		if (lowering.WitnessDefault)
+			return CreateWitnessDefaultThunkBody(thunk, lowering, body);
 		if (lowering.Member.Modifier == FunctionModifier.Constructor)
 		{
 			FunctionDefinition? constructorImplementation = FindImplementationMethod(lowering.Implementation.Type, lowering.Member);
@@ -1294,6 +1324,44 @@ public sealed partial class BindableNodeAnalyzer
 			LowerCallArgumentConversions(call);
 		}
 
+		if (call.ResolvedType == "void")
+			body.Statements.Add(new ExpressionStatement { Expression = call, ResolvedType = "void" });
+		else
+			body.Statements.Add(new ReturnStatement { Expression = call, ResolvedType = "void" });
+		return body;
+	}
+
+	BlockStatement CreateWitnessDefaultThunkBody(FunctionDefinition thunk, InterfaceThunkLowering lowering, BlockStatement body)
+	{
+		FunctionDefinition target = lowering.Member.InterfaceSlotInitializerTarget!;
+		if (lowering.Implementation.IsStruct && IsInterfacePointerType(lowering.Member.ReturnType))
+			Report(GetNameRange(lowering.Member), $"Struct witness default slot '{lowering.EntryInterface.Name}.{GetCallableName(lowering.Member)}' cannot return an interface pointer because its scoped receiver carrier would escape.");
+		ParameterDefinition receiver = thunk.Parameters[0];
+		CallExpression call = new()
+		{
+			Target = new MethodReferenceExpression { ResolvedType = BuildFunctionValueType(target, isInstance: false) },
+			ResolvedType = target.ResolvedType ?? "void"
+		};
+		((MethodReferenceExpression)call.Target).Candidates.Add(target);
+		call.Arguments.Add(new ArgumentExpression
+		{
+			Value = new CastExpression
+			{
+				Kind = CastKind.Type,
+				Type = InterfaceInstanceType(lowering.EntryInterface),
+				Expression = CreateVariableReference(receiver, receiver.ResolvedType ?? ErrorType),
+				ResolvedType = $"{lowering.EntryInterface.Name}**"
+			},
+			ResolvedType = $"{lowering.EntryInterface.Name}**"
+		});
+		foreach (ParameterDefinition parameter in thunk.Parameters.Skip(1))
+			call.Arguments.Add(new ArgumentExpression
+			{
+				Value = CreateVariableReference(parameter, parameter.ResolvedType ?? ErrorType),
+				ResolvedType = parameter.ResolvedType ?? ErrorType
+			});
+		callTargets[call] = target;
+		ExpandParamsArguments(call);
 		if (call.ResolvedType == "void")
 			body.Statements.Add(new ExpressionStatement { Expression = call, ResolvedType = "void" });
 		else
@@ -1448,10 +1516,11 @@ public sealed partial class BindableNodeAnalyzer
 
 	// A struct-interface carrier points at an unnamed const object vtable (a C compound literal) formed where the
 	// carrier is built, so it lives as long as the block that holds the carrier.
-	Expression CreateStructObjectInterfaceVTableReference(InterfaceImplementationLowering lowering)
+	Expression CreateStructObjectInterfaceVTableReference(InterfaceImplementationLowering lowering, InterfaceDefinition? targetInterface = null)
 	{
-		string vtableType = "const " + lowering.Interface.Name;
-		InitializerExpression initializer = CreateInterfaceVTableInitializer(lowering, lowering.Interface, directEntries: false);
+		targetInterface ??= lowering.Interface;
+		string vtableType = "const " + targetInterface.Name;
+		InitializerExpression initializer = CreateInterfaceVTableInitializer(lowering, targetInterface, directEntries: false);
 		initializer.ResolvedType = vtableType;
 		return new UnaryExpression
 		{

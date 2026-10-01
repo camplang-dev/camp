@@ -7096,10 +7096,12 @@ public sealed class CommandLineTests
 		Assert.Equal(0, result.ExitCode);
 	}
 
-	[Fact]
-	public void Project_reference_consumes_exported_interface_accessors_and_vtables()
+	[Theory]
+	[InlineData("static")]
+	[InlineData("shared")]
+	public void Project_reference_consumes_exported_interface_accessors_and_vtables(string referenceKind)
 	{
-		string root = TempPath("project-reference-interface-accessors");
+		string root = TempPath("project-reference-interface-witness-" + referenceKind);
 		string libraryRoot = Path.Combine(root, "interfaces");
 		string librarySource = Path.Combine(libraryRoot, "src");
 		string appRoot = Path.Combine(root, "app");
@@ -7137,6 +7139,11 @@ public sealed class CommandLineTests
 					return 2;
 				}
 			}
+
+			export int readViaWitness<T: implements IValue>(T* target, vtableof(T: IValue))
+			{
+				return vtableof_T_IValue.value(target);
+			}
 			""");
 		File.WriteAllText(Path.Combine(libraryRoot, "interfaces.campbuild"), """
 			--nostdlib
@@ -7168,7 +7175,8 @@ public sealed class CommandLineTests
 				total += readValue(counter.IValue);
 				total += readValue(counter.getIValue());
 				total += readGeneric<Counter>(counter);
-				return total == 5 ? 0 : total;
+				total += readViaWitness<Counter>(counter);
+				return total == 6 ? 0 : total;
 			}
 		""");
 		string outDir = Path.Combine(appRoot, "bin");
@@ -7181,22 +7189,46 @@ public sealed class CommandLineTests
 			target,
 			"--verbose",
 			"--project-reference",
-			libraryRoot + ":static",
+			libraryRoot + ":" + referenceKind,
 			"--out-dir",
 			outDir);
 
 		AssertCommandSucceeded(result);
 		AssertGeneratedOrUnchanged(result.StdOut, "interface-app");
-		string api = File.ReadAllText(Path.Combine(libraryRoot, "bin", ArtifactDirectoryForTarget(target, NativeBuildKind.Static), "interfaces_api.camp"));
+		NativeBuildKind libraryKind = referenceKind == "static" ? NativeBuildKind.Static : NativeBuildKind.Shared;
+		string api = File.ReadAllText(Path.Combine(libraryRoot, "bin", ArtifactDirectoryForTarget(target, libraryKind), "interfaces_api.camp"));
 		Assert.Contains("export extern class Counter : IValue", api, StringComparison.Ordinal);
 		Assert.Contains("export extern constof(this) IValue* getIValue();", api, StringComparison.Ordinal);
 		Assert.Contains("export extern class NativeCounter : IValue", api, StringComparison.Ordinal);
 		Assert.Contains("export extern class NativeDerived : NativeCounter", api, StringComparison.Ordinal);
 		Assert.Contains("export struct StructCounter", api, StringComparison.Ordinal);
 		Assert.DoesNotContain("export struct StructCounter : IValue", api, StringComparison.Ordinal);
+		Assert.Contains("export extern int readViaWitness<T: implements IValue>(T* target, vtableof(T: IValue));", api, StringComparison.Ordinal);
 		string cApi = File.ReadAllText(Path.Combine(outDir, ArtifactDirectoryForHost(NativeBuildKind.Exec), "build", "interfaces_api.h"));
-		Assert.Contains("extern const IValue *Counter_IValue;", cApi, StringComparison.Ordinal);
+		Assert.Contains("const IValue *Counter_IValue;", cApi, StringComparison.Ordinal);
+		Assert.Contains("(* value)(void* ctx);", cApi, StringComparison.Ordinal);
 		Assert.DoesNotContain("StructCounter_IValue", cApi, StringComparison.Ordinal);
+		string cConsumer = Path.Combine(appRoot, "witness_consumer.c");
+		File.WriteAllText(cConsumer, """
+			#include "interfaces_api.h"
+			int witness_consumer(void)
+			{
+				Counter *counter = Counter_create();
+				if (counter == NULL) return 1;
+				int witness = Counter_IValue->value(counter);
+				IValue **instance = Counter_getIValue(counter);
+				int interface_value = (*instance)->value(instance);
+				int generic = readViaWitness(counter, Counter_IValue);
+				Counter_destroy(counter);
+				return witness == 1 && interface_value == 1 && generic == 1 ? 0 : 2;
+			}
+			""");
+		string cHeaderDirectory = Path.Combine(outDir, ArtifactDirectoryForHost(NativeBuildKind.Exec), "build");
+		string cObject = Path.Combine(appRoot, OperatingSystem.IsWindows() ? "witness_consumer.obj" : "witness_consumer.o");
+		ProcessResult cCompile = OperatingSystem.IsWindows()
+			? RunProcess("cl", ["/nologo", "/c", "/I" + cHeaderDirectory, "/Fo" + cObject, cConsumer], appRoot)
+			: RunProcess(OperatingSystem.IsMacOS() ? "clang" : "gcc", ["-std=c11", "-O2", "-I", cHeaderDirectory, "-c", cConsumer, "-o", cObject], appRoot);
+		AssertCommandSucceeded(cCompile);
 		ProcessResult run = RunExecutable(Path.Combine(outDir, ArtifactDirectoryForHost(NativeBuildKind.Exec), "interface-app" + ExecutableExtensionForHost()));
 		Assert.Equal(0, run.ExitCode);
 		Assert.Equal("", run.StdErr);

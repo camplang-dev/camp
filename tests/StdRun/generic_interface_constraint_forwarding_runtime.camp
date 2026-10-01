@@ -45,6 +45,18 @@ int forwardInferred<T: implements Counter>(T* value, vtableof(T: Counter))
 	return readOne(value);
 }
 
+struct iter int readThroughIterator<T: implements Counter>(T* value, vtableof(T: Counter))
+{
+	yield vtableof(T: Counter).read(value);
+	yield value.read();
+}
+
+int readThroughLambda<T: implements Counter>(T* value, vtableof(T: Counter))
+{
+	delegate int() read = () => vtableof_T_Counter.read(value);
+	return read();
+}
+
 export int main()
 {
 	First* first = stackalloc First(4);
@@ -52,11 +64,21 @@ export int main()
 		return 1;
 	if (forwardInferred(first) != 4)
 		return 2;
+	int firstTotal = 0;
+	foreach (auto firstItem in readThroughIterator<First>(first))
+		firstTotal += firstItem;
+	if (firstTotal != 8 || readThroughLambda<First>(first) != 4)
+		return 5;
 	Second second = default;
 	second.value = 9;
 	if (forwardExplicit<Second>(&second) != 9)
 		return 3;
 	if (forwardInferred(&second) != 9)
 		return 4;
+	int secondTotal = 0;
+	foreach (auto secondItem in readThroughIterator<Second>(&second))
+		secondTotal += secondItem;
+	if (secondTotal != 18 || readThroughLambda<Second>(&second) != 9)
+		return 6;
 	return 0;
 }

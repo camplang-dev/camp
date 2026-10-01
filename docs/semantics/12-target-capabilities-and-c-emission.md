@@ -212,6 +212,10 @@ chosen by analysis/lowering:
 - arrays as element pointer plus length components;
 - delegates/once values as call pointer plus context pointer;
 - interface instance slots as the interface vtable pointer/context shape;
+- witness tables and interface-context tables through one interface C layout,
+  with ordinary slot receivers erased to `void*` and witness constructor
+  results to `void*`; source receiver and result distinctions must already
+  have been checked before C emission;
 - params/grouped values as their component layout;
 - async functions as completion-callback ABI functions;
 - materialized generic returns as explicit storage where lowering requires it.

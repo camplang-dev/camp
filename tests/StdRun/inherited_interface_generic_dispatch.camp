@@ -1,12 +1,31 @@
 using Std;
 
-interface IPet
+interface IRootPet
+{
+	int tally(int amount);
+	int twice(int amount) = defaultTwice;
+}
+
+int defaultTwice(IRootPet* this, int amount)
+{
+	return this.tally(amount) + this.tally(amount);
+}
+
+interface IPet: IRootPet
 {
 	void feed(int amount);
 }
 
 class Pet: IPet
 {
+	int total;
+
+	int tally(int amount): IRootPet
+	{
+		this.total += amount;
+		return this.total;
+	}
+
 	void feed(int amount): IPet
 	{
 		Console.writeLine(amount);
@@ -15,6 +34,26 @@ class Pet: IPet
 
 class Dog: Pet
 {
+}
+
+struct Bird: IPet
+{
+	int total;
+
+	int tally(int amount): IRootPet
+	{
+		this.total += amount;
+		return this.total;
+	}
+
+	void feed(int amount): IPet
+	{
+	}
+}
+
+int twiceGeneric<T: implements IPet>(T* value, vtableof(T: IPet), vtableof(T: IRootPet))
+{
+	return value.twice(2);
 }
 
 void feedNonGeneric(IPet* pet, int amount)
@@ -36,4 +75,13 @@ export void main()
 	dog.feedGeneric(4);
 	IPet* pet = dog;
 	pet.feed(5);
+	Console.writeLine(twiceGeneric<Dog>(dog));
+	IRootPet* dogRoot = dog;
+	Console.writeLine(dogRoot.twice(1));
+	Bird bird = default;
+	Console.writeLine(twiceGeneric<Bird>(&bird));
+	IRootPet* birdRoot = &bird;
+	Console.writeLine(birdRoot.twice(1));
+	IRootPet birdTable = *birdRoot;
+	Console.writeLine(birdTable.twice(birdRoot, 1));
 }

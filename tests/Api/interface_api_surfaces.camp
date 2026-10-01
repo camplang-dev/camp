@@ -22,3 +22,8 @@ export struct ValueCounter : IValue
 		return 2;
 	}
 }
+
+export int useValue<T: implements IValue>(T* value, vtableof(T: IValue))
+{
+	return value.value();
+}

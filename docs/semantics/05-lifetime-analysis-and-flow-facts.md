@@ -237,6 +237,10 @@ valid escaped receiver relation. A class interface conversion can usually
 produce a stable interface pointer through stored class state, but the class
 receiver lifetime still determines whether the produced interface pointer may
 escape.
+For a struct witness default method, the generated adapter may create such a
+scoped carrier for the duration of the default call. That carrier must not
+escape through the default's receiver or result. A class witness default uses
+the object's stored interface slot, subject to the class receiver's lifetime.
 
 ## Prepared Result Lifetimes
 

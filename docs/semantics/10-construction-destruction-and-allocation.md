@@ -120,9 +120,10 @@ virtual hierarchy destructor rules:
   the correct override form.
 
 Destructor lowering must preserve base destruction order, field cleanup order,
-and generated `finally` cleanup paths. When a destructor participates in
-interface or virtual dispatch, the dispatch slot destroys object state; storage
-freeing remains part of the `delete`/allocator path.
+and generated `finally` cleanup paths. An interface destructor slot may call
+the generated `destroy` helper, which runs `_op_delete` and then deallocates
+owned storage through the selected or retained allocator. Ordinary `delete`
+uses its own ownership path; neither path may free the same instance twice.
 
 ## Base Initialization
 
@@ -462,6 +463,10 @@ as `~T()` does not implement `~I(within allocator)`, and `~T(within allocator)`
 does not implement `~I()`. Retained allocator classes therefore implement
 parameterless destructor contracts when their cleanup uses the retained
 allocator field instead of a call-site allocator.
+An unbound `vtableof(T: I)` constructor slot has no receiver, calls the
+concrete `create` helper, and returns `T*`; its destructor slot takes `T*` and
+calls `destroy`, not `_op_delete`. Interface-table destructor slots retain an
+`I*` receiver and recover the concrete instance before the destroy call.
 
 Virtual class lifecycle interacts with vtable assignment:
 

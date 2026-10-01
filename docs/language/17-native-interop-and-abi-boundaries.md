@@ -808,8 +808,9 @@ size_t byteLength(
 ```
 
 When generic code needs a source-level type name, it asks for `typenameof(T)`.
-When it dispatches through an interface constraint, it asks for
-`vtableof(T: Interface)`.
+When it dispatches through an interface constraint, it asks for a typed witness
+`vtableof(T: Interface)`; this is not an `Interface` table value or an
+`Interface*` instance pointer.
 
 ```camp
 export void writeAll<T: implements TextWritable>(
@@ -827,11 +828,17 @@ void writeAll(
 	size_t values_length,
 	TextSink *sink,
 	size_t sizeof_T,
-	const TextWritableVTable *vtableof_T_TextWritable);
+	const TextWritable *vtableof_T_TextWritable);
 ```
 
-Generics do not create a hidden reflection runtime. The ABI carries exactly the
-facts the erased body asked for.
+The same C table layout serves witnesses and interface dispatch, with ordinary
+slot receivers erased to `void*`. A C caller must pass a concrete `T*` to a
+witness slot and a valid interface carrier to an interface-table slot; the C
+type alone cannot check that pairing. Constructor results are erased to
+`void*` too. These function-pointer casts are validated only for the current
+x64 Clang/macOS, MSVC/Windows, and GCC/Linux Release targets; sanitizer/CFI
+indirect-call checks and other architectures/options are not validated.
+Generics do not create a hidden reflection runtime.
 
 ## Target-Conditioned Imports
 

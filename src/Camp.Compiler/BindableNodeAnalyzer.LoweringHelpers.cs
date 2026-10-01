@@ -1075,7 +1075,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	sealed record InterfaceImplementationLowering(TypeDefinition Type, InterfaceDefinition Interface, FieldDefinition? Field, VariableDefinition VTable, VariableDefinition VTableStorage, VariableDefinition? ObjectVTableStorage, bool DirectEntries, bool IsStruct, bool IsExternClass = false);
 
-	sealed record InterfaceThunkLowering(InterfaceImplementationLowering Implementation, InterfaceDefinition EntryInterface, FunctionDefinition Member);
+	sealed record InterfaceThunkLowering(InterfaceImplementationLowering Implementation, InterfaceDefinition EntryInterface, FunctionDefinition Member, bool WitnessDefault = false);
 
 	sealed record VirtualSlot(FunctionDefinition Declaration, FunctionDefinition? Implementation, FieldDefinition Field);
 

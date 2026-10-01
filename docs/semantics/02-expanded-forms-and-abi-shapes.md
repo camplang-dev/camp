@@ -298,6 +298,11 @@ Compiler writers must keep result semantics source-level:
   only the selected call, then takes every result component from that call;
 - metadata and API headers expose the source return type.
 
+Witness constructor results follow the same rule: their source result is
+`T*` even though the shared interface table's C function pointer returns
+erased `void*`. ABI expansion must not turn that erased pointer into an
+`Interface*` result or alter unrelated allocator/error components.
+
 Trailing `out` parameters that bind as source-level call results are not
 expanded returns, but they use similar caller-storage mechanics. Their
 source-form restrictions are documented in

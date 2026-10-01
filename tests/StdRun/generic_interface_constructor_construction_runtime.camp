@@ -1,10 +1,12 @@
 sealed class CountingAllocator: Allocator
 {
 	int allocations;
+	int deallocations;
 
 	CountingAllocator()
 	{
 		this.allocations = 0;
+		this.deallocations = 0;
 	}
 
 	~CountingAllocator()
@@ -24,6 +26,7 @@ sealed class CountingAllocator: Allocator
 
 	void free(void* ptr): Allocator
 	{
+		this.deallocations++;
 		free(ptr);
 	}
 }
@@ -48,6 +51,20 @@ sealed class CountedBox: Counted
 	}
 }
 
+struct CountedStruct: Counted
+{
+	int value;
+
+	CountedStruct(int start, within allocator)
+	{
+		this.value = start;
+	}
+
+	~CountedStruct(within allocator)
+	{
+	}
+}
+
 T* createCounted<T: implements Counted>(Allocator* allocator, int start, vtableof(T: Counted))
 {
 	return within (allocator) new T(start);
@@ -65,5 +82,25 @@ export int main()
 	if (box.value != 41)
 		return 3;
 	within (allocator) delete box;
+	if (counting.deallocations != 1)
+		return 4;
+
+	fn CountedBox*(int, Allocator*) createSlot = vtableof(CountedBox: Counted).create;
+	fn void(CountedBox*, Allocator*) destroySlot = vtableof(CountedBox: Counted).destroy;
+	CountedBox* direct = createSlot(57, allocator);
+	if (direct == null || direct.value != 57 || counting.allocations != 2)
+		return 5;
+	destroySlot(direct, allocator);
+	if (counting.deallocations != 2)
+		return 6;
+
+	fn CountedStruct*(int, Allocator*) structCreate = vtableof(CountedStruct: Counted).create;
+	fn void(CountedStruct*, Allocator*) structDestroy = vtableof(CountedStruct: Counted).destroy;
+	CountedStruct* structValue = structCreate(72, allocator);
+	if (structValue == null || structValue.value != 72 || counting.allocations != 3)
+		return 7;
+	structDestroy(structValue, allocator);
+	if (counting.deallocations != 3)
+		return 8;
 	return 0;
 }

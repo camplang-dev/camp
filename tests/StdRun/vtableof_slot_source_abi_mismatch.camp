@@ -6,18 +6,18 @@ internal interface IRefCount
 	void release();
 }
 
-fn void(IRefCount* context)[] releaseFunctions;
+fn void(RefThing* context)[] releaseFunctions;
 nuint usedReleaseFunctions;
 
-void addReleaseFunction(fn void(IRefCount* context) releaseFunction)
+void addReleaseFunction(fn void(RefThing* context) releaseFunction)
 {
 	releaseFunctions[usedReleaseFunctions] = releaseFunction;
 	usedReleaseFunctions++;
 }
 
-void captureRelease<T: implements IRefCount>(T* value, vtableof(T: IRefCount))
+void captureRelease<T: implements IRefCount>(T* value, out fn void(T*) release, vtableof(T: IRefCount))
 {
-	addReleaseFunction(vtableof_T_IRefCount.release);
+	release = vtableof_T_IRefCount.release;
 }
 
 class RefThing: IRefCount
@@ -42,16 +42,18 @@ class RefThing: IRefCount
 export int main()
 {
 	int releases = 0;
-	releaseFunctions = new fn void(IRefCount*)[1];
+	releaseFunctions = new fn void(RefThing*)[1];
 	auto thing = new RefThing(&releases) finally delete;
-	captureRelease<RefThing>(thing);
+	fn void(RefThing*) release = null;
+	captureRelease<RefThing>(thing, out release);
+	addReleaseFunction(release);
 
-	fn void(IRefCount*)[] copiedReleaseFunctions = new fn void(IRefCount*)[1];
-	releaseFunctions.copyTo<fn void(IRefCount*)>(copiedReleaseFunctions);
+	fn void(RefThing*)[] copiedReleaseFunctions = new fn void(RefThing*)[1];
+	releaseFunctions.copyTo<fn void(RefThing*)>(copiedReleaseFunctions);
 	delete releaseFunctions;
 	releaseFunctions = copiedReleaseFunctions;
 
-	releaseFunctions[0]((IRefCount*)thing);
+	releaseFunctions[0](thing);
 	delete releaseFunctions;
 	Console.writeLine(releases);
 	return 0;

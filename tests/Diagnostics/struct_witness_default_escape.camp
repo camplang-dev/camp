@@ -1,0 +1,13 @@
+interface ICarrier
+{
+	ICarrier* borrow() = defaultBorrow;
+}
+
+ICarrier* defaultBorrow(ICarrier* receiver)
+{
+	return null;
+}
+
+struct Carrier: ICarrier
+{
+}

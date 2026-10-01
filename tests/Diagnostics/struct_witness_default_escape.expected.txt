@@ -1,0 +1,1 @@
+tests/Diagnostics/struct_witness_default_escape.camp(3,12): error: Struct witness default slot 'ICarrier.borrow' cannot return an interface pointer because its scoped receiver carrier would escape.

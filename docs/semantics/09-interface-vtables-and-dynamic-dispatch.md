@@ -106,7 +106,12 @@ runtime fallback. The target must match the slot shape after adding the
 interface receiver parameter and applying ordinary callable compatibility rules.
 
 When an implementing type provides its own compatible method, that method wins.
-When it omits the slot, the generated vtable stores the default target.
+When it omits the slot, the interface-context table stores the default target.
+The witness table instead stores a generated adapter: it receives the concrete
+`T*`, obtains a valid `I*` interface carrier, and calls the default. A class
+carrier uses the object's interface slot; a struct carrier is scoped to that
+adapter call and cannot be returned or retained by the default. No adapter is
+needed merely to change the C pointer spelling of a direct implementation.
 
 ## Optional Slots
 
@@ -135,6 +140,11 @@ would need a different dispatch contract.
 
 Compiler writers must keep constructor slots out of ordinary interface-call
 lowering. Construction is a lifecycle operation, not a normal member call.
+An unbound witness constructor slot has no receiver, returns `T*`, and calls
+the selected concrete `create` helper with its allocator and error parameters.
+The shared C slot returns erased `void*`. An interface table constructor keeps
+its declared construction-result contract; a pointer cast alone is not an
+interface-view conversion if that contract requires a carrier.
 
 ## Interface Destructors
 
@@ -143,9 +153,12 @@ must have `void` result behavior and must be validated under the ordinary
 destructor rules. Interface vtable initializers are not valid on interface
 constructors or destructors.
 
-Destruction through an interface must preserve ownership and allocation rules:
-the interface slot can destroy the object state, but freeing storage still
-belongs to the allocation/delete path described in the lifecycle supplement.
+An unbound witness destructor slot takes `T*` and points to `destroy`, not
+`op_delete`. An interface-table destructor takes `I*` and may require a
+receiver-fixup adapter before calling `destroy`. Generated `destroy` runs
+`op_delete` and then frees allocated storage under the selected or retained
+allocator policy. Neither table path adds a second free. Ordinary `delete`
+still follows its own ownership and stack-storage rules.
 
 ## Struct Conformance
 
@@ -222,9 +235,13 @@ signature conflicts must be diagnosed.
 
 An interface can derive only from interfaces. A slot inherited from a base
 interface keeps its declaring receiver type for default-target matching and
-vtable layout. Derived interface lowering must preserve base slot order and
-avoid duplicate diamond slots where the same base contract is inherited through
-multiple paths.
+vtable layout. A derived C table embeds the base table layout in declaration
+order; a concrete witness for the base projects the base subtable rather than
+relabeling the whole derived table pointer. Derived interface lowering must
+preserve base slot order and avoid duplicate diamond slots where the same base
+contract is inherited through multiple paths. A struct carrier for a base
+interface uses the base's indirect context shape, even when the struct declares
+conformance through a derived interface.
 
 Interface-to-interface widening is an ordinary implicit conversion when the
 target is an exact base interface and the compiler can perform the required
@@ -236,12 +253,14 @@ rules in the conversion supplement.
 VTables are generated from interface shape and implementation mapping. Emitted
 names and slot order must be stable for ABI and tests.
 
-For each concrete implementation, the compiler generates an implementation
-vtable. Each slot is selected in this order:
+For each concrete implementation, the compiler generates a witness table and,
+when required, distinct interface-context table contents using the **same**
+named C table declaration. Each slot is selected in this order:
 
 1. a marked or otherwise accepted implementation method from the concrete type
    or inherited class implementation;
-2. the interface default initializer target;
+2. the interface default initializer target in an interface table, or its
+   concrete-receiver adapter in a witness table;
 3. `null` for an optional slot;
 4. diagnostic for a required slot.
 
@@ -275,6 +294,11 @@ pointer to the shared interface table declaration. It is not an interface table
 value, an interface-instance pointer, an object pointer, or an element-stride
 capability. An ordinary witness slot requires `T*`; an explicit interface-table
 slot requires `Interface*`. Generic array operations still request `sizeof(T)`.
+Extracted slots are unbound `fn` values, not delegates; neither receiver can be
+passed to the other's slot, even though both C entries have an erased `void*`
+receiver. Constructor slots have no receiver and return `T*`; destructor slots
+accept `T*`. Witness table storage retained by a class or generated helper is
+durable, whereas a struct interface carrier is only scoped.
 
 Validation must ensure that the second type is an interface and that the first
 type is either a concrete type implementing that interface or a generic
@@ -350,7 +374,12 @@ emitted in full.
 
 API headers must include enough interface declarations and implementation
 surface for downstream Camp compilations to type-check interface calls and
-`vtableof` expressions.
+`vtableof` expressions. They preserve the `vtableof(T: I)` form and recover
+both `T` and `I` on import. Metadata identifies a witness capability, its
+target type, and its interface; the erased C pointer is insufficient. A C
+header exposes the single table layout, so C callers must pair a witness table
+with a concrete object pointer and an interface table with a valid interface
+carrier. The header cannot enforce that semantic pairing.
 
 ## Diagnostics
 

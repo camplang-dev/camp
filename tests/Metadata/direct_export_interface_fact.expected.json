@@ -57,6 +57,36 @@
           "modifier": "destructor"
         }
       ]
+    },
+    {
+      "id": "function:readVisible",
+      "kind": "function",
+      "name": "readVisible",
+      "visibility": "export",
+      "extern": true,
+      "returnType": "int",
+      "typeParameters": [
+        {
+          "id": "function:readVisible/type-parameter:T",
+          "name": "T",
+          "constraint": "IVisible"
+        }
+      ],
+      "parameters": [
+        {
+          "id": "function:readVisible/parameter:value",
+          "name": "value",
+          "type": "T*"
+        },
+        {
+          "id": "function:readVisible/parameter:vtableof_T_IVisible",
+          "name": "vtableof_T_IVisible",
+          "type": "T",
+          "capability": "vtableof",
+          "targetType": "T",
+          "interfaceType": "IVisible"
+        }
+      ]
     }
   ]
 }

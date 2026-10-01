@@ -240,6 +240,12 @@ public sealed partial class BindableNodeAnalyzer
 		if (FindVTableOfParameter(currentRewriteFunction, genericName, interfaceName) is VTableOfParameterDefinition parameter)
 			return CreateVariableReference(parameter, parameter.ResolvedType ?? VTableOfParameterType(parameter));
 
+		// Iterator next methods retain the source capability in their generated state.
+		// An implicit constrained call can request it after iterator expression rewriting.
+		if (currentRewriteContainingType is TypeDefinition iteratorState
+			&& TryGetIteratorStateField(iteratorState, VTableOfParameterName(vtableOf.Type, vtableOf.InterfaceType)) is FieldDefinition iteratorWitness)
+			return ThisMemberReference(VTableOfParameterName(vtableOf.Type, vtableOf.InterfaceType), iteratorWitness.ResolvedType);
+
 		if (currentRewriteContainingType is ClassDefinition classDefinition
 			&& vtableOfFields.TryGetValue((classDefinition, genericName, interfaceName), out FieldDefinition? field))
 		{
@@ -367,12 +373,41 @@ public sealed partial class BindableNodeAnalyzer
 			return ErrorExpression(vtableOf.ResolvedType ?? ErrorType, syntax);
 		}
 
-		return new VariableReferenceExpression
+		Expression table = new VariableReferenceExpression
 		{
 			SourceSyntax = syntax,
 			Variable = lowering.VTable,
-			ResolvedType = new WitnessTypeIdentity(concreteType, vtableOf.InterfaceType.ResolvedType ?? interfaceDefinition.Name).ResolvedType
+			ResolvedType = lowering.VTable.ResolvedType
 		};
+		if (!ReferenceEquals(lowering.Interface, interfaceDefinition))
+			table = ProjectInheritedWitnessTable(table, lowering.Interface, interfaceDefinition);
+		table.ResolvedType = new WitnessTypeIdentity(concreteType, vtableOf.InterfaceType.ResolvedType ?? interfaceDefinition.Name).ResolvedType;
+		return table;
+	}
+
+	Expression ProjectInheritedWitnessTable(Expression table, InterfaceDefinition current, InterfaceDefinition target)
+	{
+		if (ReferenceEquals(current, target))
+			return table;
+		foreach (TypeReference baseType in current.BaseTypes)
+		{
+			if (!TryGetInterfaceDefinition(baseType, out InterfaceDefinition? baseInterface)
+				|| baseInterface is null || !InterfaceContainsBase(baseInterface, target))
+				continue;
+			Expression baseTable = new UnaryExpression
+			{
+				Operator = UnaryOperator.AddressOf,
+				Operand = new MemberReferenceExpression
+				{
+					Target = table,
+					Name = baseInterface.Name,
+					ResolvedType = baseInterface.Name
+				},
+				ResolvedType = $"const {baseInterface.Name}*"
+			};
+			return ProjectInheritedWitnessTable(baseTable, baseInterface, target);
+		}
+		return table;
 	}
 
 	static Expression ErrorExpression(string resolvedType, SyntaxNode? syntax)

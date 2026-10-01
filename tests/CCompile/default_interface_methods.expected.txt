@@ -2,49 +2,85 @@
 #include "default_interface_methods_private.h"
 
 /* Private file declarations. */
+void *malloc(uintptr_t size);
+void free(void *pointer);
 static int ICounter_defaultGetValue(ICounter **this, int value);
 static int BasicCounter_required(BasicCounter *this, int value);
-static ICounter **BasicCounter_getICounter(const BasicCounter *this);
 static void BasicCounter_op_initnew(BasicCounter *this);
+static BasicCounter *BasicCounter_create(void);
+static ICounter **BasicCounter_getICounter(const BasicCounter *this);
 static int CustomCounter_optional(CustomCounter *this, int value);
 static int CustomCounter_getValue(const CustomCounter *this, int value);
 static int CustomCounter_required(CustomCounter *this, int value);
 static ICounter **CustomCounter_getICounter(const CustomCounter *this);
 static void CustomCounter_op_initnew(CustomCounter *this);
+static int OffsetCounter_tag(OffsetCounter *this);
+static int OffsetCounter_required(OffsetCounter *this, int value);
+static void OffsetCounter_op_initnew(OffsetCounter *this);
+static OffsetCounter *OffsetCounter_create(void);
+static ITag **OffsetCounter_getITag(const OffsetCounter *this);
+static ICounter **OffsetCounter_getICounter(const OffsetCounter *this);
 static int StructCounter_required(StructCounter *this, int value);
 static int useCounter(ICounter **counter);
+static int BasicCounter_ICounter_getValue_witness_default(BasicCounter *ctx, int value);
+static int OffsetCounter_ICounter_getValue_witness_default(OffsetCounter *ctx, int value);
+static int OffsetCounter_ICounter_required(ICounter **ctx, int value);
+static int StructCounter_ICounter_getValue_witness_default(StructCounter *ctx, int value);
 static int StructCounter_ICounter_required(ICounter **ctx, int value);
 static const ICounter BasicCounter_ICounter__storage;
 static const ICounter *BasicCounter_ICounter;
 static const ICounter CustomCounter_ICounter__storage;
 static const ICounter *CustomCounter_ICounter;
+static const ITag OffsetCounter_ITag__storage;
+static const ITag *OffsetCounter_ITag;
+static const ICounter OffsetCounter_ICounter__storage;
+static const ICounter OffsetCounter_ICounter__object_storage;
+static const ICounter *OffsetCounter_ICounter;
 static const ICounter StructCounter_ICounter__storage;
 static const ICounter *StructCounter_ICounter;
 
-static const ICounter BasicCounter_ICounter__storage = { .optional = NULL, .getValue = (int (*)(void* arg0, int arg1))ICounter_defaultGetValue, .required = (int (*)(void* arg0, int arg1))BasicCounter_required };
+static const ICounter BasicCounter_ICounter__storage = { .optional = NULL, .getValue = (int (*)(void* arg0, int arg1))BasicCounter_ICounter_getValue_witness_default, .required = (int (*)(void* arg0, int arg1))BasicCounter_required };
 static const ICounter *BasicCounter_ICounter = &BasicCounter_ICounter__storage;
 static const ICounter CustomCounter_ICounter__storage = { .optional = (int (*)(void* arg0, int arg1))CustomCounter_optional, .getValue = (int (*)(void* arg0, int arg1))CustomCounter_getValue, .required = (int (*)(void* arg0, int arg1))CustomCounter_required };
 static const ICounter *CustomCounter_ICounter = &CustomCounter_ICounter__storage;
-static const ICounter StructCounter_ICounter__storage = { .optional = NULL, .getValue = (int (*)(void* arg0, int arg1))ICounter_defaultGetValue, .required = (int (*)(void* arg0, int arg1))StructCounter_required };
+static const ITag OffsetCounter_ITag__storage = { .tag = (int (*)(void* arg0))OffsetCounter_tag };
+static const ITag *OffsetCounter_ITag = &OffsetCounter_ITag__storage;
+static const ICounter OffsetCounter_ICounter__storage = { .optional = NULL, .getValue = (int (*)(void* arg0, int arg1))OffsetCounter_ICounter_getValue_witness_default, .required = (int (*)(void* arg0, int arg1))OffsetCounter_required };
+static const ICounter OffsetCounter_ICounter__object_storage = { .optional = NULL, .getValue = (int (*)(void* arg0, int arg1))ICounter_defaultGetValue, .required = (int (*)(void* arg0, int arg1))OffsetCounter_ICounter_required };
+static const ICounter *OffsetCounter_ICounter = &OffsetCounter_ICounter__storage;
+static const ICounter StructCounter_ICounter__storage = { .optional = NULL, .getValue = (int (*)(void* arg0, int arg1))StructCounter_ICounter_getValue_witness_default, .required = (int (*)(void* arg0, int arg1))StructCounter_required };
 static const ICounter *StructCounter_ICounter = &StructCounter_ICounter__storage;
 static int ICounter_defaultGetValue(ICounter **this, int value)
 {
-	return (value + 10);
+	return ((*this)->required(this, value) + 10);
 }
 
 static int BasicCounter_required(BasicCounter *this, int value)
 {
-	return value;
-}
-
-static ICounter **BasicCounter_getICounter(const BasicCounter *this)
-{
-	return (ICounter **)(&this->_vt_ICounter);
+	this->count += value;
+	return this->count;
 }
 
 static void BasicCounter_op_initnew(BasicCounter *this)
 {
 	this->_vt_ICounter = BasicCounter_ICounter;
+	this->count = 0;
+}
+
+static BasicCounter *BasicCounter_create(void)
+{
+	BasicCounter *_created0 = (BasicCounter *)(malloc(sizeof(BasicCounter)));
+	if ((_created0 != NULL))
+	{
+		*_created0 = (BasicCounter){0};
+		BasicCounter_op_initnew(_created0);
+	}
+	return _created0;
+}
+
+static ICounter **BasicCounter_getICounter(const BasicCounter *this)
+{
+	return (ICounter **)(&this->_vt_ICounter);
 }
 
 static int CustomCounter_optional(CustomCounter *this, int value)
@@ -72,9 +108,49 @@ static void CustomCounter_op_initnew(CustomCounter *this)
 	this->_vt_ICounter = CustomCounter_ICounter;
 }
 
+static int OffsetCounter_tag(OffsetCounter *this)
+{
+	return 1;
+}
+
+static int OffsetCounter_required(OffsetCounter *this, int value)
+{
+	this->count += value;
+	return this->count;
+}
+
+static void OffsetCounter_op_initnew(OffsetCounter *this)
+{
+	this->_vt_ITag = OffsetCounter_ITag;
+	this->_vt_ICounter = &OffsetCounter_ICounter__object_storage;
+	this->count = 0;
+}
+
+static OffsetCounter *OffsetCounter_create(void)
+{
+	OffsetCounter *_created1 = (OffsetCounter *)(malloc(sizeof(OffsetCounter)));
+	if ((_created1 != NULL))
+	{
+		*_created1 = (OffsetCounter){0};
+		OffsetCounter_op_initnew(_created1);
+	}
+	return _created1;
+}
+
+static ITag **OffsetCounter_getITag(const OffsetCounter *this)
+{
+	return (ITag **)(&this->_vt_ITag);
+}
+
+static ICounter **OffsetCounter_getICounter(const OffsetCounter *this)
+{
+	return (ICounter **)(&this->_vt_ICounter);
+}
+
 static int StructCounter_required(StructCounter *this, int value)
 {
-	return value;
+	this->count += value;
+	return this->count;
 }
 
 static int useCounter(ICounter **counter)
@@ -89,7 +165,86 @@ static int useCounter(ICounter **counter)
 
 int main(void)
 {
+	BasicCounter *_stack2 = (BasicCounter *)(__builtin_alloca(sizeof(BasicCounter)));
+	BasicCounter_op_initnew(_stack2);
+	BasicCounter *basic = _stack2;
+	if (((((int (*)(BasicCounter *arg0, int arg1))((BasicCounter_ICounter)->getValue))(basic, 2) != 12) || (basic->count != 2)))
+	{
+		return 1;
+	}
+	ICounter **basicInterface = BasicCounter_getICounter(basic);
+	if ((((*basicInterface)->getValue(basicInterface, 3) != 15) || (basic->count != 5)))
+	{
+		return 2;
+	}
+	ICounter *basicTable = *basicInterface;
+	if ((((*basicInterface)->getValue(basicInterface, 4) != 19) || (basic->count != 9)))
+	{
+		return 3;
+	}
+	if ((((int (*)(BasicCounter *arg0, int arg1))((BasicCounter_ICounter)->optional)) != NULL))
+	{
+		return 4;
+	}
+	OffsetCounter *_stack3 = (OffsetCounter *)(__builtin_alloca(sizeof(OffsetCounter)));
+	OffsetCounter_op_initnew(_stack3);
+	OffsetCounter *offset = _stack3;
+	if (((((int (*)(OffsetCounter *arg0, int arg1))((OffsetCounter_ICounter)->getValue))(offset, 2) != 12) || (offset->count != 2)))
+	{
+		return 9;
+	}
+	ICounter **offsetInterface = OffsetCounter_getICounter(offset);
+	if ((((*offsetInterface)->getValue(offsetInterface, 3) != 15) || (offset->count != 5)))
+	{
+		return 10;
+	}
+	StructCounter value = (StructCounter){0};
+	if (((((int (*)(StructCounter *arg0, int arg1))((StructCounter_ICounter)->getValue))(&value, 2) != 12) || (value.count != 2)))
+	{
+		return 5;
+	}
+	ICounter_Indirect _iface4;
+	_iface4._vt = &(const ICounter){ .optional = NULL, .getValue = (int (*)(void* arg0, int arg1))ICounter_defaultGetValue, .required = (int (*)(void* arg0, int arg1))StructCounter_ICounter_required };
+	_iface4.ctx = &value;
+	ICounter **valueInterface = (ICounter **)(&_iface4._vt);
+	if ((((*valueInterface)->getValue(valueInterface, 3) != 15) || (value.count != 5)))
+	{
+		return 6;
+	}
+	ICounter *valueTable = *valueInterface;
+	if ((((*valueInterface)->getValue(valueInterface, 4) != 19) || (value.count != 9)))
+	{
+		return 7;
+	}
+	if ((((int (*)(StructCounter *arg0, int arg1))((StructCounter_ICounter)->optional)) != NULL))
+	{
+		return 8;
+	}
 	return 0;
+}
+
+static int BasicCounter_ICounter_getValue_witness_default(BasicCounter *ctx, int value)
+{
+	return ICounter_defaultGetValue(BasicCounter_getICounter(ctx), value);
+}
+
+static int OffsetCounter_ICounter_getValue_witness_default(OffsetCounter *ctx, int value)
+{
+	return ICounter_defaultGetValue(OffsetCounter_getICounter(ctx), value);
+}
+
+static int OffsetCounter_ICounter_required(ICounter **ctx, int value)
+{
+	OffsetCounter *instance = (OffsetCounter *)(((uint8_t *)(ctx) - offsetof(OffsetCounter, _vt_ICounter)));
+	return OffsetCounter_required(instance, value);
+}
+
+static int StructCounter_ICounter_getValue_witness_default(StructCounter *ctx, int value)
+{
+	ICounter_Indirect _iface5;
+	_iface5._vt = &(const ICounter){ .optional = NULL, .getValue = (int (*)(void* arg0, int arg1))ICounter_defaultGetValue, .required = (int (*)(void* arg0, int arg1))StructCounter_ICounter_required };
+	_iface5.ctx = ctx;
+	return ICounter_defaultGetValue((ICounter **)(&_iface5._vt), value);
 }
 
 static int StructCounter_ICounter_required(ICounter **ctx, int value)
@@ -120,6 +275,8 @@ int main(void);
 typedef struct ICounter ICounter;
 typedef struct BasicCounter BasicCounter;
 typedef struct CustomCounter CustomCounter;
+typedef struct ITag ITag;
+typedef struct OffsetCounter OffsetCounter;
 typedef struct StructCounter StructCounter;
 typedef struct ICounter_Indirect ICounter_Indirect;
 
@@ -134,9 +291,13 @@ struct ICounter
 	int (* getValue)(void* ctx, int value);
 	int (* required)(void* ctx, int value);
 };
+struct ITag
+{
+	int (* tag)(void* ctx);
+};
 struct StructCounter
 {
-	char _camp_empty;
+	int count;
 };
 struct ICounter_Indirect
 {
@@ -146,10 +307,17 @@ struct ICounter_Indirect
 struct BasicCounter
 {
 	const ICounter *_vt_ICounter;
+	int count;
 };
 struct CustomCounter
 {
 	const ICounter *_vt_ICounter;
+};
+struct OffsetCounter
+{
+	const ITag *_vt_ITag;
+	const ICounter *_vt_ICounter;
+	int count;
 };
 
 /* Function declarations. */

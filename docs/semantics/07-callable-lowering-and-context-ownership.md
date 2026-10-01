@@ -440,8 +440,9 @@ Virtual class calls lower through the class vtable field and generated slot
 functions. Callable lowering should treat these as dispatch-preserving method
 references, not as plain direct function references.
 
-For generic interface calls, `vtableof(T: Interface)` supplies the slot table
-and the receiver is converted to the interface instance shape. See
+For generic interface calls, `vtableof(T: Interface)` supplies the witness slot
+table and the original `T*` receiver is passed without an interface-instance
+conversion. Ordinary `Interface*` calls use their interface carrier. See
 [Interface VTables And Dynamic Dispatch](09-interface-vtables-and-dynamic-dispatch.md).
 
 ## Async Callable Values

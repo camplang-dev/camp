@@ -1,3 +1,6 @@
+extern void* malloc(nuint size);
+extern void free(void* pointer);
+
 interface ICounter
 {
 	int optional(int value) = null;
@@ -7,14 +10,21 @@ interface ICounter
 
 int defaultGetValue(ICounter* this, int value)
 {
-	return value + 10;
+	return this.required(value) + 10;
 }
 
 class BasicCounter: ICounter
 {
+	int count;
+	BasicCounter()
+	{
+		this.count = 0;
+	}
+
 	int required(int value): ICounter
 	{
-		return value;
+		this.count += value;
+		return this.count;
 	}
 }
 
@@ -36,11 +46,37 @@ class CustomCounter: ICounter
 	}
 }
 
-struct StructCounter: ICounter
+interface ITag
 {
+	int tag();
+}
+
+class OffsetCounter: ITag, ICounter
+{
+	int count;
+
+	OffsetCounter()
+	{
+		this.count = 0;
+	}
+
+	int tag(): ITag => 1;
+
 	int required(int value): ICounter
 	{
-		return value;
+		this.count += value;
+		return this.count;
+	}
+}
+
+struct StructCounter: ICounter
+{
+	int count;
+
+	int required(int value): ICounter
+	{
+		this.count += value;
+		return this.count;
 	}
 }
 
@@ -54,5 +90,34 @@ int useCounter(ICounter* counter)
 
 export int main()
 {
+	BasicCounter* basic = stackalloc BasicCounter();
+	if (vtableof(BasicCounter: ICounter).getValue(basic, 2) != 12 || basic.count != 2)
+		return 1;
+	ICounter* basicInterface = basic;
+	if (basicInterface.getValue(3) != 15 || basic.count != 5)
+		return 2;
+	ICounter basicTable = *basicInterface;
+	if (basicTable.getValue(basicInterface, 4) != 19 || basic.count != 9)
+		return 3;
+	if (vtableof(BasicCounter: ICounter).optional != null)
+		return 4;
+	OffsetCounter* offset = stackalloc OffsetCounter();
+	if (vtableof(OffsetCounter: ICounter).getValue(offset, 2) != 12 || offset.count != 2)
+		return 9;
+	ICounter* offsetInterface = offset;
+	if (offsetInterface.getValue(3) != 15 || offset.count != 5)
+		return 10;
+
+	StructCounter value = default;
+	if (vtableof(StructCounter: ICounter).getValue(&value, 2) != 12 || value.count != 2)
+		return 5;
+	ICounter* valueInterface = &value;
+	if (valueInterface.getValue(3) != 15 || value.count != 5)
+		return 6;
+	ICounter valueTable = *valueInterface;
+	if (valueTable.getValue(valueInterface, 4) != 19 || value.count != 9)
+		return 7;
+	if (vtableof(StructCounter: ICounter).optional != null)
+		return 8;
 	return 0;
 }

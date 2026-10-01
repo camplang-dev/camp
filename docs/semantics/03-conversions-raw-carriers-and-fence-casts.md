@@ -277,6 +277,11 @@ interface casts must preserve the distinction between:
 - interface narrowing or side-casting;
 - raw pointer reinterpretation through a matching-depth fence.
 
+`vtableof(T: I)` is neither `I` nor `I*`; it is a witness whose unbound
+ordinary slots require `T*`. A raw pointer cast cannot convert a concrete
+receiver into the valid interface carrier needed by an explicit `I` table
+slot, nor can it satisfy the witness slot's source receiver check.
+
 A non-const class pointer implicitly converts to an implemented interface
 pointer. The compiler produces the correct interface-instance slot pointer; it
 is not merely an object pointer reinterpretation.

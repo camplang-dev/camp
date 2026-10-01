@@ -118,6 +118,11 @@ The compiler should reject `@awaitwith` on:
 - overload selectors or other non-runtime parameter forms;
 - more than one parameter in the same async definition.
 
+When a generated async/iterator/helper state retains `vtableof(T: I)`, it
+retains the witness's target-plus-interface identity and uses a durable table
+pointer. It must not reinterpret the state field as an interface-instance
+pointer or retain a scoped struct interface carrier across suspension.
+
 The marked parameter must have a type that resolves to an accessible resumer
 type. If the resumer value can be retained across suspension, lifetime analysis
 must require an escaped or otherwise frame-safe value.

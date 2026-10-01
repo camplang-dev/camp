@@ -8807,6 +8807,15 @@ public static class CCodeEmitter
             string type = resolvedType.Trim();
             if (WitnessTypeIdentity.TryParse(type, out WitnessTypeIdentity witness))
                 return FormatResolvedType(witness.CStorageType, declarator, normalizeInterfacePointer: false);
+            int witnessPointerCount = 0;
+            string witnessBase = type;
+            while (witnessBase.EndsWith('*'))
+            {
+                witnessPointerCount++;
+                witnessBase = witnessBase[..^1].TrimEnd();
+            }
+            if (witnessPointerCount > 0 && WitnessTypeIdentity.TryParse(witnessBase, out witness))
+                return FormatResolvedType(witness.CStorageType + new string('*', witnessPointerCount), declarator, normalizeInterfacePointer: false);
             if (type == "#ALLOCATOR")
                 type = AllocatorCTypeName();
             if (type == "fn*")

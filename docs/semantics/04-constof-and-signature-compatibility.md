@@ -244,6 +244,11 @@ Method references retain this declaration-shaped scalar result and prep slot.
 When an invocation transforms, the same resolved `constof` substitutions and
 anchor relationships are reused for both generated protocol calls.
 
+Extracted interface and witness slots remain unbound `fn` values. Their
+receiver types are part of callable compatibility: `fn R(I*, ...)` from an
+interface table is not assignable to `fn R(T*, ...)` from a
+`vtableof(T: I)` witness, regardless of the shared erased C slot layout.
+
 Return-position prep is a source-level spelling transform. In function,
 method, `fn`, `delegate`, and callable newtype declarations, `prep T[]` in the
 return position lowers to the same scalar length return and `prep T[] buffer =

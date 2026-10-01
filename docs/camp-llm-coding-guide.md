@@ -858,6 +858,14 @@ Agent-facing rules:
 
 - Bare `Interface` is the vtable-level form. `Interface*` is the ordinary
   interface-instance pointer used for calls.
+- `vtableof(T: Interface)` is a witness identified by both `T` and the
+  interface, not either of those two interface forms. Its ordinary unbound
+  `fn` slots take `T*`; an unbound slot from an `Interface` table takes
+  `Interface*`. Never cast one raw receiver to the other to make a call fit.
+- Witness constructor slots have no receiver and return `T*`; witness
+  destructor slots take `T*` and call `destroy` with the required allocator
+  arguments. They are not `op_delete` slots. C erases ordinary slot receivers
+  and constructor results, but source-level receiver checks remain mandatory.
 - Classes and structs can implement interfaces, but their ABI representation and
   dispatch storage differ. Classes store hidden per-interface vtable-pointer
   fields; structs convert through scoped adapter storage. Do not assume a class
@@ -954,7 +962,7 @@ Common capability patterns:
   of generic elements, default-fills erased storage, or copies `T: copyable`
   values through erased storage.
 - Use `typenameof(T)` only for diagnostic or metadata-style names.
-- Use `vtableof(T: SomeInterface)` when generic interface dispatch needs a table.
+- Use `vtableof(T: SomeInterface)` when generic interface dispatch needs a typed witness.
 - Use `T*`, `T[]`, or explicit erased storage for generic type fields. A field
   declared as plain `T value;` is invalid even when `T: copyable`; locals of
   type `T` are allowed inside functions with the needed runtime size capability.

@@ -549,7 +549,11 @@ public static class MetadataJsonSerializer
 				WriteDefaultExpression(json, parameter.DefaultValue);
 			}
 			if (parameter is VTableOfParameterDefinition vtable)
+			{
+				json.WriteString("capability", "vtableof");
+				WriteTypeProperty(json, "targetType", vtable.Type, vtable.Type?.ResolvedType);
 				WriteTypeProperty(json, "interfaceType", vtable.InterfaceType, vtable.InterfaceType?.ResolvedType);
+			}
 		}
 
 		static void WriteDefaultExpression(Utf8JsonWriter json, Expression expression)
