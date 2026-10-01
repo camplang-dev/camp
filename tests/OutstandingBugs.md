@@ -900,19 +900,19 @@ Known Impact:
 Raw slot calls are unsafe and cannot be written with the correct receiver type.
 Workaround: call the method through the interface pointer instead of the raw slot.
 
-## BUG-195: Materialized `struct(T)` storage cannot be initialized, read, or converted
+## BUG-195: `struct(T)` is accepted where it is not allowed and fails later in C
 
 Date/Time: 2026-09-30 21:15 EDT
 
 Summary:
-The expanded-forms reference describes `struct(T)` as the ordinary one-address
-storage form of an expanded value (an array, optional, or delegate). It is meant for
-a local or field that stores an expanded value as one object, and the reference shows
-its logical components being read as `stored.elements` and `stored.length`. Lowering
-may expand the storage back into components when passing it to a source parameter of
-the expanded form. The compiler accepts the `struct(int[])` type in a declaration but
-then rejects every use: its components are not found, an expanded value cannot
-initialize it, and it cannot be converted back to the expanded form.
+`struct(T)` is the materialized carrier of an expanded value (an array, optional or
+delegate). It exists so that generic receivers can take and return expanded values
+without knowing what they are. It is hidden storage, not a type that source code
+declares: it must not be the type of a field, a parameter, a local variable or an
+explicit cast, or appear in any declaration visible outside a function body. The
+compiler accepts it as a local variable type and as a parameter type without a
+diagnostic, and the generated C is then invalid. A field produces only the generic
+"Expected identifier" syntax error.
 
 Steps to Reproduce:
 
@@ -921,39 +921,37 @@ Steps to Reproduce:
    ```camp
    export int main()
    {
-       struct(byte[]) stored = default;
-       nuint count = stored.length;
-       return (int)count;
+       struct(int[]) local = default;
+       return 0;
    }
    ```
 
 2. Build:
 
    ```camp
+   int take(struct(int[]) param) { return 0; }
+
    export int main()
    {
-       int[] source = [40, 2, 3];
-       struct(int[]) materialized = source;
-       int[] back = materialized;
-       return (int)back.length - 3;
+       return take(default);
    }
    ```
 
-3. Replace the array with an optional: `int? source = 5; struct(int?) m = source; int? back = m;`.
+3. Build `struct Holder { struct(int[]) inside; }`.
 
 Expected:
-The programs build. The first exits with 0, the second with 0 (`back.length` is 3).
+Each program is rejected with a diagnostic that says `struct(T)` cannot be used as the
+type of a local variable, a parameter or a field (and cannot be used in an explicit
+cast).
 
 Actual:
-1. `Member 'length' could not be found on type 'struct(byte[])'.`
-2. `Declaration initializer cannot convert 'int[]' to 'struct(int[])'.` and
-   `Declaration initializer cannot convert 'struct(int[])' to 'int[]'.`
-3. The same two conversion errors for `int?`.
+1. The C compiler fails: `initializing 'struct (unnamed struct ...)' with an expression of
+   incompatible type 'int'`.
+2. The C compiler fails: `conflicting types for 'take'`.
+3. `Expected identifier.` and `Expected ';'.`
 
 Known Impact:
-Source code cannot store an expanded value as one object through `struct(T)`, which
-the reference lists as required for storing an expanded value in a local or field.
-Generic code that materializes a possibly expanded `T` cannot be written.
+Misuse of the carrier type produces C compiler errors instead of a Camp diagnostic.
 
 ## BUG-196: Indexing a `typenameof(T)` capability directly emits invalid C
 
