@@ -1,0 +1,19 @@
+interface Readable
+{
+	int read(int addend);
+}
+
+sealed class ClassReader: Readable
+{
+	int value;
+
+	int read(int addend): Readable
+	{
+		return this.value + addend;
+	}
+}
+
+void convert()
+{
+	fn int(Readable*, int) slot = vtableof(ClassReader: Readable).read;
+}

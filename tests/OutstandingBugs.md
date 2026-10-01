@@ -316,69 +316,6 @@ static flags might avoid this specific relocation, but it does not make the
 standard target's shared-library contract work and has not been validated as
 a general workaround for transitive or prebuilt static dependencies.
 
-## BUG-194: A raw slot from a concrete vtable is typed with the interface receiver
-
-Date/Time: 2026-09-30 21:00 EDT
-
-Summary:
-The vtable returned by `vtableof(ClassReader: Readable)` holds slots whose first
-parameter is the concrete receiver, `ClassReader*`. Inside a generic function,
-`vtableof(T: Readable)` holds slots whose first parameter is `T*`. The compiler
-instead gives such a slot the type `fn int(Readable*, int)`, which takes an interface
-pointer. The slot's function then runs on the wrong receiver, because the thunk that
-converts an interface context back to the class instance is not part of the raw slot.
-A raw slot should not be convertible to a function that takes an interface receiver
-without an explicit unsafe (or fenced) conversion, and the declared types
-`fn int(ClassReader*, int)` and `fn int(T*, int)` should be accepted.
-
-Steps to Reproduce:
-
-1. Run `campc run slot.camp --nostdlib --show-errorlevel --reference <library providing __intrinsic_log_i32>` with:
-
-   ```camp
-   extern void __intrinsic_log_i32(int value);
-   extern void* malloc(nuint size);
-   extern void free(void* ptr);
-
-   interface Readable { int read(int addend); }
-
-   sealed class ClassReader: Readable
-   {
-       int value;
-       ClassReader(int value) { this.value = value; }
-       int read(int addend): Readable { return this.value + addend; }
-   }
-
-   export int main()
-   {
-       ClassReader* classReader = stackalloc ClassReader(10);
-       Readable* classView = classReader;
-       fn int(Readable*, int) slot = vtableof(ClassReader: Readable).read;
-       __intrinsic_log_i32(slot(classView, 4));
-       return 0;
-   }
-   ```
-
-2. Replace the `slot` declaration with
-   `fn int(ClassReader*, int) slot = vtableof(ClassReader: Readable).read;` and the call
-   with `slot(classReader, 4)`.
-
-Expected:
-Step 1 is rejected: a slot taking `ClassReader*` is not convertible to a function taking
-`Readable*` without an unsafe conversion. Step 2 builds and logs 14. In a generic
-function, `fn int(T*, int) slot = vtableof_T_Readable.read;` and `slot(value, addend)`
-are accepted for a `T*` receiver.
-
-Actual:
-Step 1 builds and logs an unrelated value (for example 766181532), because the call
-passes the address of the object's interface field as `this`. Step 2 is rejected with
-`Declaration initializer cannot convert 'fn int(Readable*, int)' to 'fn int(ClassReader*, int)'.`
-The generic form is likewise rejected: `cannot convert 'fn int(Readable*, int)' to 'fn int(T*, int)'`.
-
-Known Impact:
-Raw slot calls are unsafe and cannot be written with the correct receiver type.
-Workaround: call the method through the interface pointer instead of the raw slot.
-
 ## BUG-195: `struct(T)` is accepted where it is not allowed and fails later in C
 
 Date/Time: 2026-09-30 21:15 EDT

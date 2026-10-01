@@ -269,6 +269,8 @@ public class MemberReferenceExpression : Expression
 	public TokenRange? NameRange { get; set; }
 	public BindableNode? Member { get; set; }
 	public List<FunctionDefinition> Candidates { get; } = [];
+	/// <summary>A vtable slot read through <c>vtableof</c>, typed with the concrete receiver instead of the interface context.</summary>
+	public bool IsConcreteVTableSlot { get; set; }
 }
 
 public class UnaryExpression : Expression

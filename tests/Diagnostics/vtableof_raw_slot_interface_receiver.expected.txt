@@ -1,0 +1,1 @@
+tests/Diagnostics/vtableof_raw_slot_interface_receiver.camp(18,64): error: Declaration initializer cannot convert 'fn int(ClassReader*, int)' to 'fn int(Readable*, int)'.

@@ -1,0 +1,55 @@
+interface Readable
+{
+	int read(int addend);
+}
+
+sealed class ClassReader: Readable
+{
+	int value;
+
+	ClassReader(int value)
+	{
+		this.value = value;
+	}
+
+	int read(int addend): Readable
+	{
+		return this.value + addend;
+	}
+}
+
+struct StructReader: Readable
+{
+	int value;
+
+	int read(int addend): Readable
+	{
+		return this.value + addend;
+	}
+}
+
+int callSlot<T: implements Readable>(T* value, int addend, vtableof(T: Readable))
+{
+	fn int(T*, int) slot = vtableof(T: Readable).read;
+	return slot(value, addend);
+}
+
+export int main()
+{
+	ClassReader* classReader = stackalloc ClassReader(10);
+	fn int(ClassReader*, int) classSlot = vtableof(ClassReader: Readable).read;
+	if (classSlot(classReader, 4) != 14)
+		return 1;
+
+	StructReader structReader = default;
+	structReader.value = 20;
+	fn int(StructReader*, int) structSlot = vtableof(StructReader: Readable).read;
+	if (structSlot(&structReader, 1) != 21)
+		return 2;
+
+	if (callSlot(classReader, 4) != 14)
+		return 3;
+	if (callSlot(&structReader, 5) != 25)
+		return 4;
+	return 0;
+}

@@ -5764,6 +5764,20 @@ public sealed partial class BindableNodeAnalyzer
 			return ErrorType;
 		}
 			string memberType = selected.Type;
+			bool concreteVTableSlot = false;
+			if (!isTypeTarget
+				&& selected.Node is FieldDefinition
+				&& member.Target is VTableOfExpression vtableOfTarget
+				&& TryGetCallableShape(memberType, out CallableShape slotShape)
+				&& slotShape.Kind == "fn"
+				&& slotShape.Parameters.Count > 0
+				&& TryGetInterfacePointerDefinition(slotShape.Parameters[0].Trim(), out _))
+			{
+				// A slot read from `vtableof(T: Interface)` takes the concrete receiver, not an interface context.
+				List<string> slotParameters = [$"{VTableOfTypeName(vtableOfTarget.Type)}*", .. slotShape.Parameters.Skip(1)];
+				memberType = BuildCallableType("fn", slotShape.ReturnType, slotParameters, slotShape.Spec, slotShape.CallSpec);
+				concreteVTableSlot = true;
+			}
 			if (!isTypeTarget
 				&& selected.Node is FunctionDefinition function
 				&& TryGetCallableShape(targetCallableType, out CallableShape targetShape)
@@ -5816,6 +5830,7 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		MemberReferenceExpression reference = CreateMemberReference(member, member.Target, memberType, selected.Node);
+		reference.IsConcreteVTableSlot = concreteVTableSlot;
 		if (selected.Node is FieldDefinition field)
 			reference.Name = field.Name;
 			expressionRewrites[member] = reference;

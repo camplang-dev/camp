@@ -7246,7 +7246,20 @@ public static class CCodeEmitter
             if (member.Member is FieldDefinition erasedScalarField
                 && TryGetErasedScalarFieldType(member, erasedScalarField, out string erasedScalarType))
                 return CastFromErasedGeneric(FormatMemberReferenceRaw(member), erasedScalarType);
+            if (member.Member is FieldDefinition slotField
+                && IsRetypedVTableSlot(member, slotField))
+                return "(" + FormatResolvedType(member.ResolvedType!, "").Declaration.Trim() + ")(" + FormatMemberReferenceRaw(member) + ")";
             return FormatMemberReferenceRaw(member);
+        }
+
+        // A slot read through a concrete vtable is typed with the concrete receiver; the stored entry keeps the
+        // interface-context signature, so the read needs a pointer cast.
+        static bool IsRetypedVTableSlot(MemberReferenceExpression member, FieldDefinition field)
+        {
+            return member.IsConcreteVTableSlot
+                && member.ResolvedType is string memberType
+                && (field.ResolvedType ?? field.Type?.ResolvedType) is string fieldType
+                && memberType != fieldType;
         }
 
         // A field declared with an integral representation type parameter is stored in the erased carrier,
