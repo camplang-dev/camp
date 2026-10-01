@@ -1,10 +1,10 @@
-int[] getArray()
+int[] getArray(int[] source)
 {
-	return [1, 2, 3];
+	return source;
 }
 
-int main()
+int main(int[] input)
 {
-	auto values = [getArray(), getArray()];
+	auto values = [getArray(input), getArray(input)];
 	return 0;
 }
