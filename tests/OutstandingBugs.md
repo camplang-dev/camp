@@ -809,7 +809,7 @@ Steps to Reproduce:
 
    export int main()
    {
-       Value value = Value();
+       Value value = default;
        value.value = 27;
        return readIt(&value) - 27;
    }
