@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-199.
+Next bug number: BUG-200.
 
 ## Bug Template
 
@@ -315,3 +315,44 @@ global data cannot build using the default target. A private target with PIC
 static flags might avoid this specific relocation, but it does not make the
 standard target's shared-library contract work and has not been validated as
 a general workaround for transitive or prebuilt static dependencies.
+
+## BUG-199: Generic call omits the `vtableof` argument when the callee has a `within` parameter
+
+Date/Time: 2026-10-01 19:05 EDT
+
+Summary:
+A call to a generic function that declares a `within` parameter together with
+`sizeof(T)` and `vtableof(T: I)` capability parameters is emitted without the
+`vtableof` capability argument. The generated C call has one argument fewer than
+the callee's parameter list, so the C compile fails. The same callee shape
+without a `within` parameter forwards the capability correctly. The interface
+does not need lifecycle members, and the call site does not need its own
+`within` context.
+
+Steps to Reproduce:
+
+1. Declare `interface IR { int get(); }` and a class `C` that implements it.
+2. Declare `int use<T: implements IR>(within allocator, T* x, sizeof(T), vtableof(T: IR)) { return x.get(); }`.
+3. Call `use<C>(c)` from an exported function and build.
+
+Expected:
+The call supplies the concrete `vtableof(C: IR)` witness for the capability
+parameter, in the callee's parameter order, and the build succeeds. Replacing
+`within allocator` with an ordinary `Allocator* al` parameter does build and
+passes the witness.
+
+Actual:
+The emitted call is `use(c, sizeof(C), NULL)` against a callee declared as
+`use(Allocator **allocator, void *x, uintptr_t sizeof_T, const IR *vtableof_T_IR)`.
+The witness is missing and the allocator and witness slots are misordered, so
+clang reports `too few arguments to function call, expected 4, have 3`. With a
+leading `within allocator, sizeof(T), vtableof(T: I)` callee called as
+`within (allocator) use<C>()`, the call is `use(sizeof(C), _allocator)` against
+`use(uintptr_t sizeof_T, const I *vtableof_T_I, Allocator **allocator)`.
+
+Known Impact:
+Generic functions that both take a `within` context and need `vtableof` dispatch
+cannot be called. Suspect area: `AddImplicitVTableOfArguments` treats an argument
+already present at the computed index as supplied, and the computed index may
+land on a `within` placeholder or context argument. Passing the allocator as an
+ordinary parameter avoids the problem.
