@@ -990,22 +990,8 @@ public static class MetadataJsonSerializer
 			json.WriteString("visibility", "export");
 			json.WriteBoolean("extern", true);
 			json.WriteString("modifier", "constructor");
-			FunctionDefinition? userConstructor = FindUnexportedUserConstructor(functions);
-			List<ParameterDefinition> constructorParameters = userConstructor is null ? [] : FilterApiParameters(userConstructor.Parameters);
-			bool addAllocator = LifecycleAllocatorPolicy.SyntheticConstructorUsesAllocator(module, definition, functions, retainsAllocator, MetadataAllocatorTypeAvailable())
-				&& !constructorParameters.Any(static parameter => parameter.Modifier == ParameterModifier.Within || parameter is WithinParameterDefinition);
-			if (constructorParameters.Count > 0 || addAllocator)
-			{
-				json.WriteStartArray("parameters");
-				foreach (ParameterDefinition parameter in constructorParameters)
-				{
-					WriteDefinition(json, parameter, includeKind: false, includeVisibility: false);
-					emitted.Add(parameter);
-				}
-				if (addAllocator)
-					WriteSyntheticWithinAllocatorParameterObject(json, GetId(definition) + "/function:" + definition.Name);
-				json.WriteEndArray();
-			}
+			if (LifecycleAllocatorPolicy.SyntheticConstructorUsesAllocator(module, definition, functions, retainsAllocator, MetadataAllocatorTypeAvailable()))
+				WriteSyntheticWithinAllocatorParameter(json, GetId(definition) + "/function:" + definition.Name);
 			json.WriteEndObject();
 		}
 
@@ -1026,18 +1012,13 @@ public static class MetadataJsonSerializer
 		static void WriteSyntheticWithinAllocatorParameter(Utf8JsonWriter json, string functionId)
 		{
 			json.WriteStartArray("parameters");
-			WriteSyntheticWithinAllocatorParameterObject(json, functionId);
-			json.WriteEndArray();
-		}
-
-		static void WriteSyntheticWithinAllocatorParameterObject(Utf8JsonWriter json, string functionId)
-		{
 			json.WriteStartObject();
 			json.WriteString("id", functionId + "/parameter:allocator");
 			json.WriteString("name", "allocator");
 			json.WriteString("modifier", "within");
 			json.WriteString("type", "Allocator*");
 			json.WriteEndObject();
+			json.WriteEndArray();
 		}
 
 		void WriteSyntheticInterfaceAccessor(Utf8JsonWriter json, ClassDefinition classDefinition, InterfaceDefinition interfaceDefinition)
@@ -1567,14 +1548,6 @@ public static class MetadataJsonSerializer
 			}
 
 			return true;
-		}
-
-		static FunctionDefinition? FindUnexportedUserConstructor(IReadOnlyList<FunctionDefinition> functions)
-		{
-			foreach (FunctionDefinition function in functions)
-				if (function.Modifier == FunctionModifier.Constructor && !IsGeneratedLifecycleDefinition(function))
-					return function;
-			return null;
 		}
 
 		static bool ShouldWriteSyntheticApiDestructor(ClassDefinition definition, IReadOnlyList<FunctionDefinition> functions)
