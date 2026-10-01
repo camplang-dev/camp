@@ -8,6 +8,7 @@ public sealed partial class BindableNodeAnalyzer
 	void ExpandParamsArguments(CallExpression call)
 	{
 		List<ParameterDefinition>? callableParameters;
+		bool sourceLevelArguments = false;
 		if (callTargets.TryGetValue(call, out FunctionDefinition? function))
 		{
 			bool includeExplicitThis = IncludeExplicitThisArgument(call.Target, function);
@@ -36,7 +37,8 @@ public sealed partial class BindableNodeAnalyzer
 		}
 		else
 		{
-			callableParameters = GetCallableParametersForExpression(call.Target);
+			sourceLevelArguments = IsSourceLevelFunctionPointerCall(call);
+			callableParameters = GetCallableParametersForExpression(call.Target, sourceLevelArguments);
 			if (callableParameters is not null
 				&& TryGetCallableShape(call.Target?.ResolvedType, out CallableShape callableShape)
 				&& callableShape.Parameters.Count > 0)
@@ -47,7 +49,22 @@ public sealed partial class BindableNodeAnalyzer
 					callableParameters = SubstituteCallableParameterTypes(callableParameters, substitutions);
 			}
 		}
-		ExpandParamsArguments(call.Arguments, callableParameters);
+		ExpandParamsArguments(call.Arguments, callableParameters, sourceLevelArguments);
+	}
+
+	// A function pointer type that still names source-level expanded parameters (arrays, optionals,
+	// delegates) receives one argument per source parameter. An already-expanded pointer type keeps
+	// the name-based component matching.
+	bool IsSourceLevelFunctionPointerCall(CallExpression call)
+	{
+		if (call.Target?.ResolvedType is not string type
+			|| !StripTopLevelValueQualifiers(type).StartsWith("fn ", System.StringComparison.Ordinal)
+			|| !TryGetCallableShape(type, out CallableShape shape)
+			|| shape.Kind != "fn")
+			return false;
+		return shape.Parameters.Any(parameter =>
+			TryGetParamsComponentShape(null, parameter, "arg", out ParamsComponentShape parameterShape)
+			&& parameterShape.Components.Count > 1);
 	}
 
 	void AddConstructedTypeGenericSubstitutions(string constructedType, Dictionary<string, string> substitutions)
@@ -174,14 +191,15 @@ public sealed partial class BindableNodeAnalyzer
 		return expanded;
 	}
 
-	List<ParameterDefinition>? GetCallableParametersForExpression(Expression? expression)
+	List<ParameterDefinition>? GetCallableParametersForExpression(Expression? expression, bool sourceLevel = false)
 	{
 		if (!TryGetCallableShape(expression?.ResolvedType, out CallableShape shape))
 			return null;
 
 		List<ParameterDefinition> parameters = [];
 		int index = shape.Kind == "fn" ? 0 : 1;
-		foreach (string parameterType in GetExpandedCallableParameterTypes(GetSourceCallableParameterTypes(shape)))
+		List<string> parameterTypes = GetSourceCallableParameterTypes(shape);
+		foreach (string parameterType in sourceLevel ? parameterTypes : GetExpandedCallableParameterTypes(parameterTypes))
 			parameters.Add(CreateCallableShapeParameter(parameterType, "arg" + index++.ToString(System.Globalization.CultureInfo.InvariantCulture)));
 		return parameters;
 	}
@@ -253,12 +271,15 @@ public sealed partial class BindableNodeAnalyzer
 		ExpandParamsArguments(arguments, callableParameters: null);
 	}
 
-	void ExpandParamsArguments(List<ArgumentExpression> arguments, List<ParameterDefinition>? callableParameters)
+	void ExpandParamsArguments(List<ArgumentExpression> arguments, List<ParameterDefinition>? callableParameters, bool sourceLevelArguments = false)
 	{
+		// Calls through callable values pass one argument per source parameter, so the parameter index
+		// can be counted directly instead of being recovered from component names.
+		int sourceParameterIndex = 0;
 		for (int i = 0; i < arguments.Count; i++)
 		{
 			ArgumentExpression argument = arguments[i];
-			int parameterIndex = GetCallableParameterIndex(arguments, callableParameters, i);
+			int parameterIndex = sourceLevelArguments ? sourceParameterIndex++ : GetCallableParameterIndex(arguments, callableParameters, i);
 			if (TryMaterializeGenericReturnInArgument(argument, callableParameters, parameterIndex))
 				continue;
 			if (TryMaterializeExpandedGenericOutArgument(argument, callableParameters, parameterIndex))

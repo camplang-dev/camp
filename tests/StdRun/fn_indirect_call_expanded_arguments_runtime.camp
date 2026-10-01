@@ -1,0 +1,38 @@
+int optionalValue(int? value)
+{
+	return value == default ? 0 : 7;
+}
+
+int applyDelegate(delegate int(int) callback)
+{
+	return callback(7);
+}
+
+int mixed(int[] items, int? value, delegate int(int) callback, int tail)
+{
+	return (int)items.length + callback(2) + tail;
+}
+
+int identity(int value)
+{
+	return value;
+}
+
+export int main()
+{
+	int? present = (int?)3;
+	fn int(int?) optionalCall = optionalValue;
+	if (optionalCall(present) != 7)
+		return 1;
+
+	delegate int(int) callback = (int value) => identity(value);
+	fn int(delegate int(int)) delegateCall = applyDelegate;
+	if (delegateCall(callback) != 7)
+		return 2;
+
+	int[] items = [1, 2, 3];
+	fn int(int[], int?, delegate int(int), int) mixedCall = mixed;
+	if (mixedCall(items, present, callback, 10) != 15)
+		return 3;
+	return 0;
+}
