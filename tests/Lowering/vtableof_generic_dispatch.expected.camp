@@ -54,7 +54,8 @@ fixed struct IRef_Indirect<U: void*>
 	const IRef* _vt;
 	U* ctx;
 }
-const IRef Handle_IRef__storage = {.retain = Handle_IRef_retain};
+const IRef Handle_IRef__storage = {.retain = Handle_retain};
+const IRef Handle_IRef__object_storage = {.retain = Handle_IRef_retain};
 const IRef* Handle_IRef = &Handle_IRef__storage;
 void Handle_IRef_retain(IRef** ctx)
 {

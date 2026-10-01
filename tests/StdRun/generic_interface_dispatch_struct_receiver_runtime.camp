@@ -1,0 +1,67 @@
+interface Reader
+{
+	int read();
+}
+
+struct Value: Reader
+{
+	int value;
+
+	Value(int value)
+	{
+		this.value = value;
+	}
+
+	int read(): Reader
+	{
+		return this.value;
+	}
+}
+
+int readIt<T: implements Reader>(T* value, vtableof(T: Reader))
+{
+	return value.read();
+}
+
+class Holder<T: implements Reader>
+{
+	T* target;
+
+	Holder(T* target, vtableof(T: Reader))
+	{
+		this.target = target;
+	}
+
+	int read(vtableof(T: Reader))
+	{
+		return this.target.read();
+	}
+}
+
+export int main()
+{
+	Value local = Value(27);
+	if (readIt(&local) != 27)
+		return 1;
+
+	Value* stacked = stackalloc Value(28);
+	if (readIt(stacked) != 28)
+		return 2;
+
+	Value* heap = within (default) new Value(29);
+	int heapResult = readIt(heap);
+	within (default) delete heap;
+	if (heapResult != 29)
+		return 3;
+
+	Reader* viaInterface = &local;
+	if (viaInterface.read() != 27)
+		return 4;
+
+	Holder<Value>* holder = within (default) new Holder<Value>(stacked);
+	int held = holder.read();
+	within (default) delete holder;
+	if (held != 28)
+		return 5;
+	return 0;
+}

@@ -316,69 +316,6 @@ static flags might avoid this specific relocation, but it does not make the
 standard target's shared-library contract work and has not been validated as
 a general workaround for transitive or prebuilt static dependencies.
 
-## BUG-193: Generic interface dispatch on a struct passes the raw pointer instead of an interface context
-
-Date/Time: 2026-09-30 20:40 EDT
-
-Summary:
-A generic function constrained with `T: implements Interface` and taking
-`vtableof(T: Interface)` can call interface methods directly on a `T*` value. The
-generated call must always pass an interface context (the object pointer together
-with its vtable) to the vtable entry, whatever the struct's storage: a local
-variable, a `stackalloc` object or a `new` object. A struct converted to an
-interface, or supplied to a generic function as an interface context, is always
-scoped; the callee may not retain it. For a class this works. For a struct the
-compiler passes the raw struct pointer where the interface method thunk expects an
-interface context, so the method reads unrelated memory and returns garbage or
-crashes. This happens for every kind of struct storage.
-
-Steps to Reproduce:
-
-1. Run `campc run dispatch.camp --nostdlib --show-errorlevel` with:
-
-   ```camp
-   interface Reader { int read(); }
-
-   struct Value: Reader
-   {
-       int value;
-       int read(): Reader { return this.value; }
-   }
-
-   int readIt<T: implements Reader>(T* value, vtableof(T: Reader))
-   {
-       return value.read();
-   }
-
-   export int main()
-   {
-       Value value = default;
-       value.value = 27;
-       return readIt(&value) - 27;
-   }
-   ```
-
-2. Give the struct a constructor, `Value(int value) { this.value = value; }`, and replace
-   the first two lines of `main` with `Value* value = new Value(27);`. Pass `value` to
-   `readIt`, and add `extern void* malloc(nuint size);` and `extern void free(void* ptr);`
-   at the top and `delete value;` before returning. The result is the same.
-3. Change `struct Value` to `class Value` in step 2. The program exits with 0.
-
-Expected:
-Every variant exits with 0: the struct's `read` runs on the struct that `value`
-refers to and returns 27.
-
-Actual:
-The struct variants crash (exit status 139) or return unrelated values. The
-generated code calls `vtableof_T_Reader->read((Reader **)(value))` where `value` is
-a plain `Value*`, but the vtable thunk `Value_Reader_read(Reader **ctx)` treats `ctx`
-as an indirect context whose `ctx` field is the `Value*`.
-
-Known Impact:
-Generic interface dispatch on struct implementers is unreliable (wrong results or
-crashes, including for a generic class that keeps the vtable from its constructor).
-Workaround: use class implementers.
-
 ## BUG-194: A raw slot from a concrete vtable is typed with the interface receiver
 
 Date/Time: 2026-09-30 21:00 EDT

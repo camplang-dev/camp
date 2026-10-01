@@ -8,9 +8,11 @@ static const int *getByPosition(const int *source, uintptr_t source_length);
 static void consumeConst(const int *source, uintptr_t source_length, const int *other, uintptr_t other_length);
 static const int *Getter_IConstGetter_get(IConstGetter **ctx, const int *source, uintptr_t source_length);
 static const IConstGetter Getter_IConstGetter__storage;
+static const IConstGetter Getter_IConstGetter__object_storage;
 static const IConstGetter *Getter_IConstGetter;
 
-static const IConstGetter Getter_IConstGetter__storage = { .get = Getter_IConstGetter_get };
+static const IConstGetter Getter_IConstGetter__storage = { .get = (const int *(*)(IConstGetter **arg0, const int *arg1, uintptr_t arg2))Getter_get };
+static const IConstGetter Getter_IConstGetter__object_storage = { .get = Getter_IConstGetter_get };
 static const IConstGetter *Getter_IConstGetter = &Getter_IConstGetter__storage;
 static const int *Getter_get(Getter *this, const int *source, uintptr_t source_length)
 {

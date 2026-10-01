@@ -6,9 +6,11 @@ static void Handle_retain(Handle *this);
 static int main(void);
 static void Handle_IRef_retain(IRef **ctx);
 static const IRef Handle_IRef__storage;
+static const IRef Handle_IRef__object_storage;
 static const IRef *Handle_IRef;
 
-static const IRef Handle_IRef__storage = { .retain = Handle_IRef_retain };
+static const IRef Handle_IRef__storage = { .retain = (void (*)(IRef **arg0))Handle_retain };
+static const IRef Handle_IRef__object_storage = { .retain = Handle_IRef_retain };
 static const IRef *Handle_IRef = &Handle_IRef__storage;
 static void Handle_retain(Handle *this)
 {
