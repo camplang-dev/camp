@@ -635,6 +635,9 @@ omit the default on overrides.
 Date/Time: 2026-09-30 19:40 EDT
 
 Summary:
+This is a regression: generic construction through an interface lifecycle contract
+used to work.
+
 The language reference describes generic APIs that require `T: implements Managed`
 for an interface that declares a constructor, and that ask for `vtableof(T: Managed)`
 to create and destroy values. Destroying such a value through the contract works,
@@ -644,6 +647,12 @@ node ConstructionExpression." When the interface constructor also declares value
 parameters, for example `Managed(int value, within allocator)` with `new T(value)`,
 analysis rejects the construction earlier with "No constructor or create method for
 'T' accepts 1 argument(s)."
+
+Interface constructors and destructors are a constraint capability, not a way to
+construct an interface pointer. Unless a vtable entry is invoked directly, they can
+only be called when the interface is used as a generic constraint
+(`T: implements Managed`), and they allocate and free instances of `T`, never
+interface pointers. The repro below follows that rule.
 
 Steps to Reproduce:
 
