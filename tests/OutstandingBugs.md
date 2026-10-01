@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-201.
+Next bug number: BUG-202.
 
 ## Bug Template
 
@@ -393,3 +393,46 @@ Known Impact:
 Interface-destructor delete cannot be compiled. No workaround other than calling
 the concrete type's destroy path directly instead of deleting through the
 interface.
+
+## BUG-201: `delete` of a generic `T*` skips the destructor and only frees
+
+Date/Time: 2026-10-01 19:30 EDT
+
+Summary:
+Inside a generic function whose type parameter is constrained with an interface
+that declares a constructor and destructor, `new T()` constructs through the
+`vtableof` witness's `create` slot, but `delete` of the resulting `T*` never
+calls the witness's `destroy` slot. The generated code only releases the memory,
+so the destructor is silently skipped. The same sequence on a concrete class
+runs the destructor and then frees.
+
+Steps to Reproduce:
+
+1. Declare `interface IM { IM(within allocator); ~IM(within allocator); int get(); }`,
+   an `Allocator` implementation that logs from `alloc` and `free`, and a class
+   `C: IM` whose destructor logs a distinct value.
+2. Declare `int cyc<T: implements IM>(Allocator* al, sizeof(T), vtableof(T: IM)) { T* x = within (al) new T(); int r = x.get(); within (al) { delete x; } return r; }`.
+3. Call `cyc<C>(allocator)` and observe the logged values. Compare with
+   `C* x = within (a) new C(); within (a) { delete x; }` in a non-generic function.
+
+Expected:
+The generic `delete x;` calls the witness `destroy` slot with the allocator. The
+destructor runs and the object is released through the allocator exactly once, as
+described for witness destructor slots in the interface vtable semantics
+supplement. Output matches the concrete case: allocate, destructor, free.
+
+Actual:
+The generic case logs allocate and free only; the destructor value is missing.
+The emitted C constructs with `vtableof_T_IM->create(allocator)` and deletes with
+only `(*allocator)->free(allocator, x)`. The `destroy` slot is present in the
+witness table but is never referenced. The delete lowering finds no destructor for
+the unresolved type `T`, treats the operation as a plain pointer free, and does
+not consult an in-scope `vtableof` capability.
+
+Known Impact:
+Destructors of types created and deleted through a generic lifecycle capability
+never run, so resources released or members cleaned up by the destructor leak
+without any diagnostic. A fixture whose destructors are empty passes despite this.
+Emitting a separate free after calling `destroy` would double-free, because
+`destroy` already deallocates. No workaround other than calling the destroy slot
+through the capability explicitly.
