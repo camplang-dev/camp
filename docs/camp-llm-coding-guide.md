@@ -59,9 +59,9 @@ High-impact distinctions:
 - Runtime `$"..."` eagerly produces text. With `auto`, the type is `string`.
   Use `stackalloc $"..."` for explicit short-lived text storage and
   `within(...) new $"..."` when heap lifetime is required.
-- Put a `struct` value on the stack as an ordinary local: `Value value = default;`,
-  or `Value value = Value(args);` when the struct declares a constructor (a struct
-  has no implicit empty constructor). Pass `&value` where a pointer is needed. `stackalloc` is
+- Put a `struct` value on the stack as an ordinary local: `Value value = Value();`
+  (no constructor runs if the struct declares none) or `Value value = default;`.
+  Pass `&value` where a pointer is needed. `stackalloc` is
   for storage whose size is not known at the declaration, such as `stackalloc T[count]`,
   `stackalloc $"..."` or an erased generic `T`; do not use it for a `struct` of
   known type.
