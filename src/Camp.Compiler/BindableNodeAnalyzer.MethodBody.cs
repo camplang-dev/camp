@@ -2625,6 +2625,16 @@ public sealed partial class BindableNodeAnalyzer
 		}
 	}
 
+	string? GetIntegralRepresentationCarrier(string type, BodyScope scope)
+	{
+		string bare = StripTopLevelValueQualifiers(type);
+		if (bare != BaseTypeName(bare)
+			|| FindBodyGenericParameter(scope, bare) is not GenericParameter { Constraint: PrimitiveTypeReference primitive, RequiresImplementation: false }
+			|| !IsIntegralPrimitive(primitive.Type))
+			return null;
+		return primitive.ResolvedType;
+	}
+
 	string BodyAnalyzeCastExpression(CastExpression cast, BodyScope scope, AnalysisScope typeScope)
 	{
 		if (cast.Type is not null)
@@ -2655,7 +2665,8 @@ public sealed partial class BindableNodeAnalyzer
 		}
 		else
 		{
-			ConversionClassification conversion = ClassifyConversion(sourceType, structuralTargetType);
+			// A value of an integral representation type parameter converts like its carrier type.
+			ConversionClassification conversion = ClassifyConversion(GetIntegralRepresentationCarrier(sourceType, scope) ?? sourceType, structuralTargetType);
 			if (!cast.Unsafe && conversion.Level == ConversionLevel.Unsafe)
 			{
 				Report(GetRange(cast.SourceSyntax), conversion.Diagnostic ?? $"Cast from '{sourceType}' to '{targetType}' requires unsafe.");

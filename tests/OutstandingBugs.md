@@ -316,50 +316,6 @@ static flags might avoid this specific relocation, but it does not make the
 standard target's shared-library contract work and has not been validated as
 a general workaround for transitive or prebuilt static dependencies.
 
-## BUG-187: Explicit casts from an integral representation-generic value are rejected
-
-Date/Time: 2026-09-30 18:55 EDT
-
-Summary:
-A value whose type is a type parameter with an integral representation
-constraint, such as `T: int`, cannot be explicitly cast to any type. The
-compiler reports "Invalid cast from 'T' to 'int'" even for a cast to the
-constraint's own carrier type. The carrier type is known, so an explicit cast to
-any type that the carrier can be cast to should be accepted, exactly as if the
-value had the carrier type.
-
-Steps to Reproduce:
-
-1. Build `campc build cast.camp --nostdlib --out-dir out` with:
-
-   ```camp
-   int toInt<T: int>(T value)
-   {
-       return (int)value;
-   }
-
-   export int main()
-   {
-       return toInt<int>(5) - 5;
-   }
-   ```
-
-2. Replace the cast with `(long)value` and the return type with `long`. The same
-   diagnostic is reported for `'long'`.
-
-Expected:
-Both programs build. A cast from `T: int` behaves as a cast from `int` to the
-target type, so the first program exits with 0.
-
-Actual:
-Both fail with `error: Invalid cast from 'T' to 'int'.` (respectively `'long'`)
-at the cast expression.
-
-Known Impact:
-A generic function over an integral representation type cannot convert its value
-to a concrete integer type. No source-level workaround exists other than not
-using the generic.
-
 ## BUG-189: An override may declare a default parameter value that differs from the base declaration
 
 Date/Time: 2026-09-30 21:50 EDT

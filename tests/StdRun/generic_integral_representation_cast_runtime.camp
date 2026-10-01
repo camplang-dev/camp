@@ -1,0 +1,25 @@
+long toLong<T: int>(T value)
+{
+	return (long)value;
+}
+
+byte toByte<T: uint>(T value)
+{
+	return (byte)value;
+}
+
+nuint toNuint<T: nuint>(T value)
+{
+	return (nuint)value;
+}
+
+export int main()
+{
+	if (toLong<int>(-5) != -5)
+		return 1;
+	if (toByte<uint>(300) != 44)
+		return 2;
+	if (toNuint<nuint>(7) != 7)
+		return 3;
+	return 0;
+}
