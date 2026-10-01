@@ -59,6 +59,11 @@ High-impact distinctions:
 - Runtime `$"..."` eagerly produces text. With `auto`, the type is `string`.
   Use `stackalloc $"..."` for explicit short-lived text storage and
   `within(...) new $"..."` when heap lifetime is required.
+- Put a `struct` value on the stack as an ordinary local: `Value value = Value();`
+  (or `= default`), and pass `&value` where a pointer is needed. `stackalloc` is
+  for storage whose size is not known at the declaration, such as `stackalloc T[count]`,
+  `stackalloc $"..."` or an erased generic `T`; do not use it for a `struct` of
+  known type.
 - Use `stackalloc T[count]` for short-lived dynamic scratch arrays that do not
   escape and do not cross `await` or `yield`. Use `fixed T[N]` for small inline
   fixed-size storage. Use `new T[count]` when the storage must outlive the
