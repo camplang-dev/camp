@@ -316,43 +316,6 @@ static flags might avoid this specific relocation, but it does not make the
 standard target's shared-library contract work and has not been validated as
 a general workaround for transitive or prebuilt static dependencies.
 
-## BUG-200: `delete` through an interface pointer calls an undeclared function and frees from the caller
-
-Date/Time: 2026-10-01 19:05 EDT
-
-Summary:
-`delete view;` where `view` is an interface pointer and the interface declares a
-destructor emits a call to a function that does not exist, followed by a direct
-free of the interface slot pointer from the caller. The interface destructor is
-implemented by the concrete type's `destroy` helper, which runs the destructor
-and deallocates the object; the caller must not free. The emitted C neither
-reaches `destroy` nor frees the correct pointer.
-
-Steps to Reproduce:
-
-1. Declare `interface IM { IM(within allocator); ~IM(within allocator); }` and a
-   class `C: IM` with a matching constructor and destructor.
-2. In a function that has an `Allocator*` named `allocator`, create the object
-   with `within (allocator) new C()`, convert it with `IM* view = item;`, and
-   write `delete view;` inside `within (allocator)`.
-3. Build.
-
-Expected:
-`delete view;` dispatches through the interface destructor slot, passing the
-allocator. The concrete `destroy` runs the destructor and releases the object
-through that allocator exactly once, and the caller emits no further free.
-
-Actual:
-The C contains `(IM_IM(_deleteTarget, allocator), ((allocator != NULL) ? (*allocator)->free(allocator, (void *)(_deleteTarget)) : free((void *)(_deleteTarget))))`.
-`IM_IM` is not declared, so clang reports `call to undeclared function`. If the
-name were corrected, the following free would still release an interface slot
-pointer (not the object start) a second time.
-
-Known Impact:
-Interface-destructor delete cannot be compiled. No workaround other than calling
-the concrete type's destroy path directly instead of deleting through the
-interface.
-
 ## BUG-201: `delete` of a generic `T*` skips the destructor and only frees
 
 Date/Time: 2026-10-01 19:30 EDT

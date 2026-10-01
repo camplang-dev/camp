@@ -1280,6 +1280,22 @@ public sealed partial class BindableNodeAnalyzer
 			Report(GetRange(syntax), "Delete target cannot satisfy free parameter lifetime 'escaped'.");
 	}
 
+	// Interface constructors and destructors are capabilities; an interface pointer carries no proof of how its
+	// object was allocated, so it cannot be deleted.
+	void ValidateCapabilityDeleteTarget(Expression? expression, string deleteType, BodyScope scope)
+	{
+		if (expression is WithinExpression { Expression: not null } within)
+		{
+			expression = within.Expression;
+			deleteType = expression.ResolvedType ?? deleteType;
+		}
+		if (expression is null || TryGetPointerElementType(deleteType) is null)
+			return;
+
+		if (TryGetInterfacePointerDefinition(deleteType, out InterfaceDefinition? interfaceDefinition) && interfaceDefinition is not null)
+			Report(GetRange(expression.SourceSyntax), $"Cannot delete interface pointer '{deleteType}'; interface destructors are available only through a generic 'vtableof' capability.");
+	}
+
 	bool IsStackAllocBackedExpression(Expression? expression)
 	{
 		return TryParseLifetimeFact(GetExpressionLifetimeFact(expression), out LifetimeFact fact)

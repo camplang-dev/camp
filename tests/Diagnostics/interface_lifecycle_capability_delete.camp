@@ -1,0 +1,22 @@
+extern void free(void* ptr);
+
+class Allocator
+{
+}
+
+interface IPlainDestroy
+{
+	~IPlainDestroy();
+}
+
+sealed class Plain : IPlainDestroy
+{
+	~Plain()
+	{
+	}
+}
+
+void deleteInterfacePointer(IPlainDestroy* view)
+{
+	within (default) delete view;
+}

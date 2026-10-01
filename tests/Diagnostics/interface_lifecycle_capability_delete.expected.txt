@@ -1,0 +1,1 @@
+tests/Diagnostics/interface_lifecycle_capability_delete.camp(21,26): error: Cannot delete interface pointer 'IPlainDestroy*'; interface destructors are available only through a generic 'vtableof' capability.
