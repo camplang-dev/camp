@@ -1088,13 +1088,18 @@ Steps to Reproduce:
    ```
 
 2. Rename the function to `Counter_destroy`. The result is the same.
+3. Remove the function and declare `static int create;` inside `Counter`. The symbol of the
+   static field is `Counter_create`, so it collides the same way. For comparison, a method named
+   `create` or `destroy` is diagnosed with `Duplicate method name`, and an instance field
+   named `create` is valid.
 
 Expected:
-Each program reports a duplicate-symbol diagnostic at the function.
+Each program reports a duplicate-symbol diagnostic at the declaration.
 
 Actual:
 The compiler reports no error. The C compiler fails with
-`error: conflicting types for 'Counter_create'` (respectively `'Counter_destroy'`).
+`error: conflicting types for 'Counter_create'` (respectively `'Counter_destroy'`), and
+`error: redefinition of 'Counter_create' as different kind of symbol` for the static field.
 
 Known Impact:
 Symbol collisions with generated helpers surface as C compiler errors. Workaround: avoid
