@@ -13,7 +13,7 @@ static int readValue(IValue **value)
 
 static int readGeneric(void *value, const IValue *vtableof_T_IValue)
 {
-	return vtableof_T_IValue->value((IValue **)(value));
+	return vtableof_T_IValue->value(value);
 }
 
 static int readConcrete(const IValue *vtableof_NativeCounter_IValue)
@@ -65,7 +65,7 @@ typedef struct NativeCounter NativeCounter;
 /* Layouts. */
 struct IValue
 {
-	int (* value)(IValue **ctx);
+	int (* value)(void* ctx);
 };
 
 /* Function declarations. */

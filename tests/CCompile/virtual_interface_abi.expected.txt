@@ -97,7 +97,7 @@ typedef struct _Counter _Counter;
 /* Layouts. */
 struct IValue
 {
-	int (* value)(IValue **ctx);
+	int (* value)(void* ctx);
 };
 struct _Allocator
 {

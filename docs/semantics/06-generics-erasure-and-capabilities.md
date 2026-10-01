@@ -212,12 +212,15 @@ available inside the generic body, report the operation that needs it.
 
 ### `vtableof(T: Interface)`
 
-`vtableof(T: Interface)` supplies the interface vtable pointer for generic
-interface dispatch. It requires the generic parameter to be constrained with an
+`vtableof(T: Interface)` supplies a witness capability for generic interface
+dispatch. It requires the generic parameter to be constrained with an
 interface implementation relation compatible with the requested interface.
 
-The value carried by the parameter has type `const Interface*`. It is a vtable
-capability, not an object pointer and not a layout capability. It must be
+The source type preserves both `T` and `Interface`; it is distinct from the
+interface table value `Interface` and interface-instance pointer `Interface*`.
+An ordinary slot extracted from the witness is an unbound `fn` with a `T*`
+receiver, whereas a slot extracted from an interface table takes `Interface*`.
+The capability is not an object pointer or a layout capability. It must be
 threaded through:
 
 - generic calls that need interface dispatch;
@@ -311,9 +314,9 @@ interface call conceptually turns:
 value.read()
 ```
 
-into a call through `vtableof(T: IReadable)` plus a cast of the generic receiver
-to the interface instance shape required by the slot. The interface supplement
-documents the physical vtable carrier in more detail.
+into a call through `vtableof(T: IReadable)` with the original `T*` receiver.
+It does not cast that receiver into an interface-instance pointer. The interface
+supplement documents the distinct physical table carrier in more detail.
 
 The validator must reject:
 

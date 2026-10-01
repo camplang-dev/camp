@@ -89,6 +89,12 @@ public sealed partial class BindableNodeAnalyzer
 				ValidateGenericArgumentUse(named);
 				break;
 
+			case WitnessTypeReference witness:
+				AnalyzeOptionalType(witness.TargetType, scope);
+				AnalyzeOptionalType(witness.InterfaceType, scope);
+				type.ResolvedType = FormatTypeReference(type);
+				break;
+
 			case AttributedTypeReference attributed:
 				AnalyzeOptionalType(attributed.Type, scope);
 				if (attributed.Attribute is not null)

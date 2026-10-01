@@ -33,11 +33,12 @@ public sealed partial class BindableNodeAnalyzer
 		parameter.Name = VTableOfParameterName(parameter.Type, parameter.InterfaceType);
 		parameter.Symbol = parameter.Name;
 		ValidateVTableOfRequest(parameter.Type, parameter.InterfaceType, parameter.SourceSyntax, scope);
+		parameter.WitnessType = CreateWitnessType(parameter.Type, parameter.InterfaceType);
 	}
 
 	string VTableOfParameterType(VTableOfParameterDefinition parameter)
 	{
-		return VTablePointerType(parameter.InterfaceType);
+		return (parameter.WitnessType ??= CreateWitnessType(parameter.Type, parameter.InterfaceType)).ResolvedType ?? ErrorType;
 	}
 
 	string BodyAnalyzeVTableOfExpressionCore(VTableOfExpression vtableOf, AnalysisScope typeScope)
@@ -47,7 +48,20 @@ public sealed partial class BindableNodeAnalyzer
 		if (vtableOf.InterfaceType is not null)
 			AnalyzeType(vtableOf.InterfaceType, typeScope);
 		ValidateVTableOfRequest(vtableOf.Type, vtableOf.InterfaceType, vtableOf.SourceSyntax, typeScope);
-		return VTablePointerType(vtableOf.InterfaceType);
+		vtableOf.WitnessType = CreateWitnessType(vtableOf.Type, vtableOf.InterfaceType);
+		return vtableOf.WitnessType.ResolvedType ?? ErrorType;
+	}
+
+	static WitnessTypeReference CreateWitnessType(TypeReference? targetType, TypeReference? interfaceType)
+	{
+		string target = targetType?.ResolvedType ?? VTableOfTypeName(targetType);
+		string @interface = interfaceType?.ResolvedType ?? VTableOfTypeName(interfaceType);
+		return new WitnessTypeReference
+		{
+			TargetType = targetType is null ? null : CloneType(targetType),
+			InterfaceType = interfaceType is null ? null : CloneType(interfaceType),
+			ResolvedType = new WitnessTypeIdentity(target, @interface).ResolvedType
+		};
 	}
 
 	void ValidateVTableOfRequest(TypeReference? type, TypeReference? interfaceType, SyntaxNode? syntax, AnalysisScope scope)
@@ -143,12 +157,6 @@ public sealed partial class BindableNodeAnalyzer
 		}
 	}
 
-	static string VTablePointerType(TypeReference? interfaceType)
-	{
-		string name = VTableOfTypeName(interfaceType);
-		return name == ErrorType ? ErrorType : "const " + name + "*";
-	}
-
 	void GenerateVTableOfFields(ClassDefinition classDefinition)
 	{
 		HashSet<(string GenericName, string InterfaceName)> generated = [];
@@ -172,8 +180,8 @@ public sealed partial class BindableNodeAnalyzer
 					SourceSyntax = vtableOf.SourceSyntax,
 					Name = VTableOfFieldName(vtableOf.Type, vtableOf.InterfaceType),
 					Symbol = VTableOfFieldName(vtableOf.Type, vtableOf.InterfaceType),
-						Type = vtableOf.InterfaceType is null || CloneType(vtableOf.InterfaceType) is not TypeReference interfaceType ? null : PointerTo(interfaceType),
-					ResolvedType = VTablePointerType(vtableOf.InterfaceType)
+					Type = CloneType(vtableOf.WitnessType ?? CreateWitnessType(vtableOf.Type, vtableOf.InterfaceType)),
+					ResolvedType = VTableOfParameterType(vtableOf)
 				};
 				classDefinition.Fields.Add(field);
 				vtableOfFields[(classDefinition, genericName, interfaceName)] = field;
@@ -206,7 +214,7 @@ public sealed partial class BindableNodeAnalyzer
 					SourceSyntax = parameter.SourceSyntax,
 					Target = CreateVTableOfFieldReference(classDefinition, field, parameter.SourceSyntax),
 					Operator = AssignmentOperator.Assign,
-					Value = CreateVariableReference(parameter, parameter.ResolvedType ?? VTablePointerType(vtableOf.InterfaceType)),
+					Value = CreateVariableReference(parameter, parameter.ResolvedType ?? VTableOfParameterType(vtableOf)),
 					ResolvedType = field.ResolvedType
 				}
 			});
@@ -220,17 +228,17 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (!IsGenericVTableOf(vtableOf, out string genericName, out string interfaceName))
 		{
-			string concreteType = VTableOfTypeName(vtableOf.Type);
+			string concreteType = vtableOf.Type?.ResolvedType ?? VTableOfTypeName(vtableOf.Type);
 			return CreateConcreteVTableExpression(concreteType, new VTableOfParameterDefinition
 			{
 				Type = vtableOf.Type,
 				InterfaceType = vtableOf.InterfaceType,
-				ResolvedType = VTablePointerType(vtableOf.InterfaceType)
+				ResolvedType = vtableOf.ResolvedType
 			}, vtableOf.SourceSyntax);
 		}
 
 		if (FindVTableOfParameter(currentRewriteFunction, genericName, interfaceName) is VTableOfParameterDefinition parameter)
-			return CreateVariableReference(parameter, parameter.ResolvedType ?? VTablePointerType(parameter.InterfaceType));
+			return CreateVariableReference(parameter, parameter.ResolvedType ?? VTableOfParameterType(parameter));
 
 		if (currentRewriteContainingType is ClassDefinition classDefinition
 			&& vtableOfFields.TryGetValue((classDefinition, genericName, interfaceName), out FieldDefinition? field))
@@ -323,14 +331,14 @@ public sealed partial class BindableNodeAnalyzer
 					SourceSyntax = vtableSyntax,
 					Type = new GenericParameterTypeReference { Name = concreteType, ResolvedType = concreteType },
 					InterfaceType = vtableOf.InterfaceType,
-					ResolvedType = vtableOf.ResolvedType ?? VTablePointerType(vtableOf.InterfaceType)
+					ResolvedType = new WitnessTypeIdentity(concreteType, vtableOf.InterfaceType?.ResolvedType ?? VTableOfTypeName(vtableOf.InterfaceType)).ResolvedType
 				})
 				: CreateConcreteVTableExpression(concreteType, vtableOf, vtableSyntax);
 			call.Arguments.Insert(System.Math.Min(argumentIndex, call.Arguments.Count), new ArgumentExpression
 			{
 				SourceSyntax = vtableSyntax,
 				Value = vtableValue,
-				ResolvedType = vtableOf.ResolvedType ?? VTablePointerType(vtableOf.InterfaceType)
+				ResolvedType = vtableValue.ResolvedType
 			});
 		}
 	}
@@ -363,7 +371,7 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			SourceSyntax = syntax,
 			Variable = lowering.VTable,
-			ResolvedType = lowering.VTable.ResolvedType ?? VTablePointerType(vtableOf.InterfaceType)
+			ResolvedType = new WitnessTypeIdentity(concreteType, vtableOf.InterfaceType.ResolvedType ?? interfaceDefinition.Name).ResolvedType
 		};
 	}
 

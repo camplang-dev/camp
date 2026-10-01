@@ -9,7 +9,7 @@ static int Counter_IValue_value(IValue **ctx);
 static const IValue Counter_IValue__storage;
 static const IValue *Counter_IValue;
 
-static const IValue Counter_IValue__storage = { .value = (int (*)(IValue **arg0))Counter_value };
+static const IValue Counter_IValue__storage = { .value = (int (*)(void* arg0))Counter_value };
 static const IValue *Counter_IValue = &Counter_IValue__storage;
 static int Counter_value(Counter *this)
 {
@@ -25,16 +25,16 @@ static int main(void)
 {
 	Counter c = (Counter){ .count = 12 };
 	IValue_Indirect _iface0;
-	_iface0._vt = &(const IValue){ .value = Counter_IValue_value };
+	_iface0._vt = &(const IValue){ .value = (int (*)(void* arg0))Counter_IValue_value };
 	_iface0.ctx = &c;
 	int v = readValue((IValue **)(&_iface0._vt));
 	IValue_Indirect _iface1;
-	_iface1._vt = &(const IValue){ .value = Counter_IValue_value };
+	_iface1._vt = &(const IValue){ .value = (int (*)(void* arg0))Counter_IValue_value };
 	_iface1.ctx = &c;
 	IValue **assigned = (IValue **)(&_iface1._vt);
 	v += readValue(assigned);
 	IValue_Indirect _iface2;
-	_iface2._vt = &(const IValue){ .value = Counter_IValue_value };
+	_iface2._vt = &(const IValue){ .value = (int (*)(void* arg0))Counter_IValue_value };
 	_iface2.ctx = &c;
 	v += readValue((IValue **)(&_iface2._vt));
 	return (v - 36);
@@ -67,7 +67,7 @@ typedef struct IValue_Indirect IValue_Indirect;
 /* Layouts. */
 struct IValue
 {
-	int (* value)(IValue **ctx);
+	int (* value)(void* ctx);
 };
 struct Counter
 {

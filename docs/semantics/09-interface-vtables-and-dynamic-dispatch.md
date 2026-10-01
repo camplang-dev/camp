@@ -49,23 +49,28 @@ interface IReadable
 }
 ```
 
-the source-level slot function shape is conceptually:
+the unbound interface-table slot function shape is conceptually:
 
 ```camp
 fn nuint(IReadable* this, byte[] buffer, thrown IoError error)
 ```
 
-The lowered ABI uses the interface instance slot as the first parameter. Since
-source `IReadable*` is the interface-instance pointer form, the physical first
-parameter is comparable to an interface slot pointer:
+The same ordinary slot read through `vtableof(T: IReadable)` instead takes
+`T*` as its source receiver. The one generated C table declaration erases its
+receiver parameter to `void*`. An ordinary interface-table entry may still use
+an adapter that accepts the physical interface-instance slot pointer (`IReadable**`)
+and recovers the concrete object; a direct witness entry can accept the concrete
+receiver. C function-pointer casts at the table boundary are limited to the
+validated target ABI. The physical source interface-instance pointer remains
+comparable to an interface slot pointer:
 
 ```camp
 fn nuint(IReadable** ctx, byte* buffer_elements, nuint buffer_length, thrown IoError error)
 ```
 
-The exact component expansion is governed by the expanded-forms supplement. The
-important rule here is that interface slots always receive the interface
-receiver explicitly as their first ABI parameter.
+The exact component expansion is governed by the expanded-forms supplement.
+The source receiver contract must be checked before C erasure; sharing the C
+layout does not make `T*` and `IReadable*` interchangeable.
 
 ## Required Slots
 
@@ -264,9 +269,12 @@ vtable variable for that concrete implementation. For a generic type parameter,
 - a generated iterator/lambda/helper field or parameter when the helper needs to
   preserve generic interface dispatch.
 
-The type of a vtable capability is `const Interface*`. It is not an object
-pointer and not an element-stride capability. Generic array operations must
-still request `sizeof(T)`.
+The witness is identified by both target type and interface. Generated parameters
+and retained fields preserve that identity even though their C storage uses a
+pointer to the shared interface table declaration. It is not an interface table
+value, an interface-instance pointer, an object pointer, or an element-stride
+capability. An ordinary witness slot requires `T*`; an explicit interface-table
+slot requires `Interface*`. Generic array operations still request `sizeof(T)`.
 
 Validation must ensure that the second type is an interface and that the first
 type is either a concrete type implementing that interface or a generic
@@ -284,8 +292,8 @@ The conversion paths are:
   accessor, possibly via the class that owns the implementation;
 - struct value to implemented interface: materialize a temporary indirect
   carrier and return its scoped interface slot pointer;
-- generic `T` to interface in a constrained generic body: use `vtableof` and
-  cast the receiver to the interface instance slot shape;
+- generic `T` ordinary method dispatch in a constrained generic body: use the
+  witness and pass the original `T*` receiver;
 - interface to base interface: cast or project through the inherited interface
   carrier;
 - unrelated interface cast: follow explicit/unsafe raw-fence rules.

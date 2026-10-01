@@ -1,1 +1,13 @@
-tests/Diagnostics/vtableof_raw_slot_interface_receiver.camp(18,64): error: Declaration initializer cannot convert 'fn int(ClassReader*, int)' to 'fn int(Readable*, int)'.
+tests/Diagnostics/vtableof_raw_slot_interface_receiver.camp(36,64): error: Declaration initializer cannot convert 'fn int(ClassReader*, int)' to 'fn int(Readable*, int)'.
+tests/Diagnostics/vtableof_raw_slot_interface_receiver.camp(39,39): error: Unbound slot receiver requires 'ClassReader*', not 'Readable*'.
+tests/Diagnostics/vtableof_raw_slot_interface_receiver.camp(41,19): error: Unbound slot receiver requires 'ClassReader*', not 'Readable*'.
+tests/Diagnostics/vtableof_raw_slot_interface_receiver.camp(44,18): error: Unbound slot receiver requires 'Readable*', not 'ClassReader*'.
+tests/Diagnostics/vtableof_raw_slot_interface_receiver.camp(46,17): error: Unbound slot receiver requires 'Readable*', not 'ClassReader*'.
+tests/Diagnostics/vtableof_raw_slot_interface_receiver.camp(49,40): error: Unbound slot receiver requires 'StructReader*', not 'Readable*'.
+tests/Diagnostics/vtableof_raw_slot_interface_receiver.camp(51,20): error: Unbound slot receiver requires 'StructReader*', not 'Readable*'.
+tests/Diagnostics/vtableof_raw_slot_interface_receiver.camp(55,17): error: Assignment cannot convert 'vtableof(StructReader: Readable)' to 'vtableof(ClassReader: Readable)'.
+tests/Diagnostics/vtableof_raw_slot_interface_receiver.camp(56,17): error: Assignment cannot convert 'vtableof(ClassReader: Other)' to 'vtableof(ClassReader: Readable)'.
+tests/Diagnostics/vtableof_raw_slot_interface_receiver.camp(57,17): error: Assignment cannot convert 'Readable' to 'vtableof(ClassReader: Readable)'.
+tests/Diagnostics/vtableof_raw_slot_interface_receiver.camp(58,15): error: Assignment cannot convert 'vtableof(ClassReader: Readable)' to 'Readable'.
+tests/Diagnostics/vtableof_raw_slot_interface_receiver.camp(59,19): error: Unbound slot receiver requires 'Readable*', not 'StructReader*'.
+tests/Diagnostics/vtableof_raw_slot_interface_receiver.camp(61,18): error: Unbound slot receiver requires 'Readable*', not 'StructReader*'.

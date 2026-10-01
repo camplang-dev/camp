@@ -179,6 +179,7 @@ public class VTableOfExpression : Expression
 {
 	public TypeReference? Type { get; set; }
 	public TypeReference? InterfaceType { get; set; }
+	internal WitnessTypeReference? WitnessType { get; set; }
 }
 
 public class NameOfExpression : Expression
@@ -269,8 +270,8 @@ public class MemberReferenceExpression : Expression
 	public TokenRange? NameRange { get; set; }
 	public BindableNode? Member { get; set; }
 	public List<FunctionDefinition> Candidates { get; } = [];
-	/// <summary>A vtable slot read through <c>vtableof</c>, typed with the concrete receiver instead of the interface context.</summary>
-	public bool IsConcreteVTableSlot { get; set; }
+	/// <summary>A source-typed interface or witness slot whose shared C field has an erased ABI signature.</summary>
+	public bool IsRetypedVTableSlot { get; set; }
 }
 
 public class UnaryExpression : Expression

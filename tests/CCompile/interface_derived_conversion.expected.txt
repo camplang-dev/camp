@@ -14,7 +14,7 @@ static int main(void);
 static const IValue BaseCounter_IValue__storage;
 static const IValue *BaseCounter_IValue;
 
-static const IValue BaseCounter_IValue__storage = { .value = (int (*)(IValue **arg0))BaseCounter_value };
+static const IValue BaseCounter_IValue__storage = { .value = (int (*)(void* arg0))BaseCounter_value };
 static const IValue *BaseCounter_IValue = &BaseCounter_IValue__storage;
 static int BaseCounter_value(BaseCounter *this)
 {
@@ -87,7 +87,7 @@ typedef struct DerivedCounter DerivedCounter;
 /* Layouts. */
 struct IValue
 {
-	int (* value)(IValue **ctx);
+	int (* value)(void* ctx);
 };
 struct BaseCounter
 {

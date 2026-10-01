@@ -8,9 +8,9 @@ static const IRef Widget_IRef__storage;
 static const IRef Handle_IRef__storage;
 static const IRef *Handle_IRef;
 
-static const IRef Widget_IRef__storage = { .retain = (void (*)(IRef **arg0))Widget_retain };
+static const IRef Widget_IRef__storage = { .retain = (void (*)(void* arg0))Widget_retain };
 const IRef *Widget_IRef = &Widget_IRef__storage;
-static const IRef Handle_IRef__storage = { .retain = (void (*)(IRef **arg0))Handle_retain };
+static const IRef Handle_IRef__storage = { .retain = (void (*)(void* arg0))Handle_retain };
 static const IRef *Handle_IRef = &Handle_IRef__storage;
 void Widget_retain(Widget *this)
 {
@@ -89,7 +89,7 @@ typedef struct IRef_Indirect IRef_Indirect;
 /* Layouts. */
 struct IRef
 {
-	void (* retain)(IRef **ctx);
+	void (* retain)(void* ctx);
 };
 struct Handle
 {

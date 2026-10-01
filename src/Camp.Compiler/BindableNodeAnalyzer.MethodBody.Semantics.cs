@@ -55,7 +55,7 @@ public sealed partial class BindableNodeAnalyzer
 			return;
 
 		if (!CanAssignToType(expected, actual))
-			Report(GetRange(syntax), $"{context} cannot convert '{actual}' to '{expected}'.");
+			Report(GetRange(syntax), $"{context} cannot convert '{WitnessTypeIdentity.Display(actual)}' to '{WitnessTypeIdentity.Display(expected)}'.");
 	}
 
 	void CheckAssignable(string expected, string actual, Expression? value, SyntaxNode? syntax, string context)
@@ -79,7 +79,7 @@ public sealed partial class BindableNodeAnalyzer
 			return;
 
 		if (!CanAssignToType(expected, actual))
-			Report(GetRange(syntax), $"{context} cannot convert '{actual}' to '{expected}'.");
+			Report(GetRange(syntax), $"{context} cannot convert '{WitnessTypeIdentity.Display(actual)}' to '{WitnessTypeIdentity.Display(expected)}'.");
 	}
 
 	bool TryReportInvalidCharacterLiteralTarget(string expected, Expression? value, SyntaxNode? syntax, string context)
@@ -202,6 +202,12 @@ public sealed partial class BindableNodeAnalyzer
 
 	ConversionClassification ClassifyConversion(string source, string target)
 	{
+		if (WitnessTypeIdentity.TryParse(source, out _)
+			|| WitnessTypeIdentity.TryParse(target, out _))
+			return new ConversionClassification(source == target ? ConversionLevel.Implicit : ConversionLevel.Forbidden,
+				source == target ? ConversionReason.None : ConversionReason.Invalid,
+				source == target ? null : $"Witness capability '{WitnessTypeIdentity.Display(source)}' cannot convert to '{WitnessTypeIdentity.Display(target)}'.");
+
 		if (NominalAliasShapesMatch(source, target))
 		{
 			string normalizedNominalSource = NormalizeNominalTypeAliases(source);
@@ -2479,7 +2485,14 @@ public sealed partial class BindableNodeAnalyzer
 
 	bool TryLookupInterfaceVTableSlotSymbols(string targetType, string name, SyntaxNode? referenceSyntax, List<BodySymbol> members)
 	{
-		if (!TryGetInterfaceVTableTarget(targetType, out InterfaceDefinition? interfaceDefinition) || interfaceDefinition is null)
+		bool witness = WitnessTypeIdentity.TryParse(targetType, out WitnessTypeIdentity identity);
+		InterfaceDefinition? interfaceDefinition;
+		if (witness)
+		{
+			if (!TryGetInterfaceDefinition(TypeReferenceForResolvedName(identity.Interface), out interfaceDefinition) || interfaceDefinition is null)
+				return false;
+		}
+		else if (!TryGetInterfaceVTableTarget(targetType, out interfaceDefinition) || interfaceDefinition is null)
 			return false;
 
 		StructDefinition lowered = LowerInterfaceDefinition(interfaceDefinition);
@@ -2489,7 +2502,7 @@ public sealed partial class BindableNodeAnalyzer
 				continue;
 
 			string fieldType = field.ResolvedType ?? field.Type?.ResolvedType ?? ErrorType;
-			string sourceType = TryGetInterfaceVTableSlotSourceType(interfaceDefinition, name, out string slotType)
+			string sourceType = TryGetInterfaceVTableSlotSourceType(interfaceDefinition, name, witness ? identity.Target : null, out string slotType)
 				? slotType
 				: fieldType;
 			members.Add(new BodySymbol(name, sourceType, field, IsConstantField(field)));
@@ -2497,21 +2510,25 @@ public sealed partial class BindableNodeAnalyzer
 		return true;
 	}
 
-	bool TryGetInterfaceVTableSlotSourceType(InterfaceDefinition interfaceDefinition, string name, out string slotType)
+	bool TryGetInterfaceVTableSlotSourceType(InterfaceDefinition interfaceDefinition, string name, string? witnessTarget, out string slotType)
 	{
 		foreach (FunctionDefinition function in GetInterfaceMembers(interfaceDefinition))
 		{
 			if (GetInterfaceEntryName(function) != name)
 				continue;
 
-			List<string> parameters = [$"{interfaceDefinition.Name}*"];
+			List<string> parameters = [];
+			if (function.Modifier != FunctionModifier.Constructor)
+				parameters.Add($"{witnessTarget ?? interfaceDefinition.Name}*");
 			foreach (ParameterDefinition parameter in function.Parameters)
 			{
 				if (parameter is ThisParameterDefinition)
 					continue;
 				parameters.Add(parameter.ResolvedType ?? ErrorType);
 			}
-			string returnType = function.Modifier == FunctionModifier.Constructor ? "any*" : function.ResolvedType ?? ErrorType;
+			string returnType = function.Modifier == FunctionModifier.Constructor
+				? witnessTarget is null ? "any*" : witnessTarget + "*"
+				: function.ResolvedType ?? ErrorType;
 			slotType = $"fn{FormatCallSpec(function.CallSpec)} {returnType}({string.Join(", ", parameters)})";
 			return true;
 		}
@@ -2529,7 +2546,7 @@ public sealed partial class BindableNodeAnalyzer
 		TypeShape? interfaceShape = shape.Kind switch
 		{
 			TypeShapeKind.Pointer when shape.Element is { Kind: TypeShapeKind.Named } element && element.Qualifiers.IsConst => element,
-			TypeShapeKind.Named when shape.Qualifiers.IsConst => shape,
+			TypeShapeKind.Named => shape,
 			_ => null
 		};
 		if (interfaceShape is null)

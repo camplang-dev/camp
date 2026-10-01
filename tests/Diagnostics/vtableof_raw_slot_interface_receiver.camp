@@ -3,7 +3,12 @@ interface Readable
 	int read(int addend);
 }
 
-sealed class ClassReader: Readable
+interface Other
+{
+	int probe();
+}
+
+sealed class ClassReader: Readable, Other
 {
 	int value;
 
@@ -11,9 +16,47 @@ sealed class ClassReader: Readable
 	{
 		return this.value + addend;
 	}
+
+	int probe(): Other
+	{
+		return this.value;
+	}
+}
+
+struct StructReader: Readable
+{
+	int read(int addend): Readable
+	{
+		return addend;
+	}
 }
 
 void convert()
 {
 	fn int(Readable*, int) slot = vtableof(ClassReader: Readable).read;
+	ClassReader* classReader = default;
+	Readable* classInterface = classReader;
+	vtableof(ClassReader: Readable).read(classInterface, 1);
+	fn int(ClassReader*, int) classWitnessSlot = vtableof(ClassReader: Readable).read;
+	classWitnessSlot(classInterface, 1);
+	Readable classTable = *classInterface;
+	auto classWitness = vtableof(ClassReader: Readable);
+	classTable.read(classReader, 1);
+	fn int(Readable*, int) classTableSlot = classTable.read;
+	classTableSlot(classReader, 1);
+	StructReader structReader = default;
+	Readable* structInterface = &structReader;
+	vtableof(StructReader: Readable).read(structInterface, 1);
+	fn int(StructReader*, int) structWitnessSlot = vtableof(StructReader: Readable).read;
+	structWitnessSlot(structInterface, 1);
+	Readable structTable = *structInterface;
+	auto structWitness = vtableof(StructReader: Readable);
+	auto otherWitness = vtableof(ClassReader: Other);
+	classWitness = structWitness;
+	classWitness = otherWitness;
+	classWitness = classTable;
+	classTable = classWitness;
+	structTable.read(&structReader, 1);
+	fn int(Readable*, int) structTableSlot = structTable.read;
+	structTableSlot(&structReader, 1);
 }

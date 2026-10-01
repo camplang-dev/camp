@@ -9,7 +9,7 @@ static void heapFree(IAllocator **allocator, void *ptr);
 static IAllocator *HeapAllocatorStorage;
 static IAllocator ** const HeapAllocator;
 
-static IAllocator HeapAllocatorStorage__storage = { .alloc = heapAlloc, .free = heapFree };
+static IAllocator HeapAllocatorStorage__storage = { .alloc = (void *(*)(void* arg0, uintptr_t arg1))heapAlloc, .free = (void (*)(void* arg0, void *arg1))heapFree };
 static IAllocator *HeapAllocatorStorage = &HeapAllocatorStorage__storage;
 static IAllocator ** const HeapAllocator = &HeapAllocatorStorage;
 static void *heapAlloc(IAllocator **allocator, uintptr_t size)
@@ -26,7 +26,7 @@ int main(void)
 {
 	void *ptr = (*HeapAllocator)->alloc(HeapAllocator, 16);
 	(*HeapAllocator)->free(HeapAllocator, ptr);
-	IAllocator localAllocator__storage = (IAllocator){ .alloc = heapAlloc, .free = heapFree };
+	IAllocator localAllocator__storage = (IAllocator){ .alloc = (void *(*)(void* arg0, uintptr_t arg1))heapAlloc, .free = (void (*)(void* arg0, void *arg1))heapFree };
 	IAllocator *localAllocator = &localAllocator__storage;
 	IAllocator **selected = &localAllocator;
 	void *localPtr = (*selected)->alloc(selected, 8);
@@ -61,8 +61,8 @@ typedef struct IAllocator IAllocator;
 /* Layouts. */
 struct IAllocator
 {
-	void *(* alloc)(IAllocator **ctx, uintptr_t size);
-	void (* free)(IAllocator **ctx, void *ptr);
+	void *(* alloc)(void* ctx, uintptr_t size);
+	void (* free)(void* ctx, void *ptr);
 };
 
 /* Function declarations. */

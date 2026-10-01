@@ -263,6 +263,14 @@ public sealed partial class BindableNodeAnalyzer
 
 	static TypeReference TypeReferenceForResolvedName(string typeName, SyntaxNode? sourceSyntax = null)
 	{
+		if (WitnessTypeIdentity.TryParse(typeName, out WitnessTypeIdentity witness))
+			return new WitnessTypeReference
+			{
+				SourceSyntax = sourceSyntax,
+				TargetType = TypeReferenceForResolvedName(witness.Target),
+				InterfaceType = TypeReferenceForResolvedName(witness.Interface),
+				ResolvedType = typeName
+			};
 		TypeShapeParser parser = new(typeName);
 		if (parser.TryParse(out TypeShape shape) && parser.IsEnd && ShouldUseTypeShapeReference(shape))
 			return TypeReferenceForTypeShape(shape, sourceSyntax);

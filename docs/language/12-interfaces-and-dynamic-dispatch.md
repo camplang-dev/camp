@@ -66,8 +66,9 @@ Camp makes a distinction that is easy to miss at first:
 
 | Form | Meaning |
 |---|---|
-| `TextSink` | The vtable-level interface form. |
-| `TextSink*` | An interface pointer used for ordinary dynamic calls. |
+| `TextSink` | An interface table value; its unbound ordinary slots take `TextSink*`. |
+| `TextSink*` | An interface-instance pointer used for ordinary dynamic calls. |
+| `vtableof(T: TextSink)` | A witness for `T`; its unbound ordinary slots take `T*`. |
 
 Most code uses `TextSink*`.
 
@@ -641,7 +642,10 @@ void writeTwice<T: implements TextSink>(
 
 `T: implements TextSink` says the concrete type must explicitly implement the
 interface. `vtableof(T: TextSink)` supplies the vtable capability needed for
-erased generic dispatch.
+erased generic dispatch. It is a witness for this particular `T` and interface,
+not a `TextSink` table value. For example, `vtableof(T: TextSink).write(sink,
+"first")` uses a `T*` receiver; an unbound slot read from a `TextSink` table
+requires a `TextSink*` receiver instead.
 
 You do not need `vtableof` for ordinary non-generic interface pointers:
 

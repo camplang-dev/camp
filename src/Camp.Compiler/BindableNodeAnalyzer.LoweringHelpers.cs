@@ -440,7 +440,11 @@ public sealed partial class BindableNodeAnalyzer
 			WithinParameterDefinition => new WithinParameterDefinition(),
 			SizeOfParameterDefinition => new SizeOfParameterDefinition(),
 			NameOfParameterDefinition => new NameOfParameterDefinition(),
-			VTableOfParameterDefinition vtableOf => new VTableOfParameterDefinition { InterfaceType = CloneType(vtableOf.InterfaceType) },
+			VTableOfParameterDefinition vtableOf => new VTableOfParameterDefinition
+			{
+				InterfaceType = CloneType(vtableOf.InterfaceType),
+				WitnessType = vtableOf.WitnessType is null ? null : (WitnessTypeReference)CloneType(vtableOf.WitnessType)!
+			},
 			_ => new ParameterDefinition()
 		};
 		clone.SourceSyntax = parameter.SourceSyntax;
@@ -477,6 +481,7 @@ public sealed partial class BindableNodeAnalyzer
 			NamedTypeReference named => CloneNamed(named),
 			TypeDefinitionReference definition => CloneDefinitionReference(definition),
 			GenericParameterTypeReference generic => new GenericParameterTypeReference { Name = generic.Name, Parameter = generic.Parameter, ResolvedType = generic.ResolvedType },
+			WitnessTypeReference witness => new WitnessTypeReference { TargetType = CloneType(witness.TargetType), InterfaceType = CloneType(witness.InterfaceType) },
 			AllocatorTypeReference => new AllocatorTypeReference(),
 			ClassTypeReference classType => new ClassTypeReference { Definition = classType.Definition },
 			ThisTypeReference => new ThisTypeReference(),

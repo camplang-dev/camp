@@ -15,7 +15,7 @@ static int main(void);
 static const IRetainedDestroy Retained_IRetainedDestroy__storage;
 static const IRetainedDestroy *Retained_IRetainedDestroy;
 
-static const IRetainedDestroy Retained_IRetainedDestroy__storage = { .destroy = (void (*)(IRetainedDestroy **arg0))Retained_destroy };
+static const IRetainedDestroy Retained_IRetainedDestroy__storage = { .destroy = (void (*)(void* arg0))Retained_destroy };
 static const IRetainedDestroy *Retained_IRetainedDestroy = &Retained_IRetainedDestroy__storage;
 static void *Allocator_alloc(Allocator *this, uintptr_t size)
 {
@@ -98,7 +98,7 @@ typedef struct Retained Retained;
 /* Layouts. */
 struct IRetainedDestroy
 {
-	void (* destroy)(IRetainedDestroy **ctx);
+	void (* destroy)(void* ctx);
 };
 struct Allocator
 {

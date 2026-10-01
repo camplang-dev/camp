@@ -17,7 +17,7 @@ static int readTransformed_lambda0(void *_context, int value);
 static const IValue Counter_IValue__storage;
 static const IValue *Counter_IValue;
 
-static const IValue Counter_IValue__storage = { .value = (int (*)(IValue **arg0))Counter_value, .transform = (int (*)(IValue **arg0, int arg1, int (* arg2)(void *arg0, int arg1), void *arg3))Counter_transform };
+static const IValue Counter_IValue__storage = { .value = (int (*)(void* arg0))Counter_value, .transform = (int (*)(void* arg0, int arg1, int (* arg2)(void *arg0, int arg1), void *arg3))Counter_transform };
 static const IValue *Counter_IValue = &Counter_IValue__storage;
 static int Counter_value(Counter *this)
 {
@@ -112,8 +112,8 @@ typedef struct Counter Counter;
 /* Layouts. */
 struct IValue
 {
-	int (* value)(IValue **ctx);
-	int (* transform)(IValue **ctx, int input, int (* apply)(void *arg0, int arg1), void *apply_context);
+	int (* value)(void* ctx);
+	int (* transform)(void* ctx, int input, int (* apply)(void *arg0, int arg1), void *apply_context);
 };
 struct Counter
 {

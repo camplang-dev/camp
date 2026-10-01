@@ -21,11 +21,11 @@ static const ICounter *CustomCounter_ICounter;
 static const ICounter StructCounter_ICounter__storage;
 static const ICounter *StructCounter_ICounter;
 
-static const ICounter BasicCounter_ICounter__storage = { .optional = NULL, .getValue = ICounter_defaultGetValue, .required = (int (*)(ICounter **arg0, int arg1))BasicCounter_required };
+static const ICounter BasicCounter_ICounter__storage = { .optional = NULL, .getValue = (int (*)(void* arg0, int arg1))ICounter_defaultGetValue, .required = (int (*)(void* arg0, int arg1))BasicCounter_required };
 static const ICounter *BasicCounter_ICounter = &BasicCounter_ICounter__storage;
-static const ICounter CustomCounter_ICounter__storage = { .optional = (int (*)(ICounter **arg0, int arg1))CustomCounter_optional, .getValue = (int (*)(ICounter **arg0, int arg1))CustomCounter_getValue, .required = (int (*)(ICounter **arg0, int arg1))CustomCounter_required };
+static const ICounter CustomCounter_ICounter__storage = { .optional = (int (*)(void* arg0, int arg1))CustomCounter_optional, .getValue = (int (*)(void* arg0, int arg1))CustomCounter_getValue, .required = (int (*)(void* arg0, int arg1))CustomCounter_required };
 static const ICounter *CustomCounter_ICounter = &CustomCounter_ICounter__storage;
-static const ICounter StructCounter_ICounter__storage = { .optional = NULL, .getValue = ICounter_defaultGetValue, .required = (int (*)(ICounter **arg0, int arg1))StructCounter_required };
+static const ICounter StructCounter_ICounter__storage = { .optional = NULL, .getValue = (int (*)(void* arg0, int arg1))ICounter_defaultGetValue, .required = (int (*)(void* arg0, int arg1))StructCounter_required };
 static const ICounter *StructCounter_ICounter = &StructCounter_ICounter__storage;
 static int ICounter_defaultGetValue(ICounter **this, int value)
 {
@@ -130,9 +130,9 @@ typedef struct ICounter_Indirect ICounter_Indirect;
 /* Layouts. */
 struct ICounter
 {
-	int (* optional)(ICounter **ctx, int value);
-	int (* getValue)(ICounter **ctx, int value);
-	int (* required)(ICounter **ctx, int value);
+	int (* optional)(void* ctx, int value);
+	int (* getValue)(void* ctx, int value);
+	int (* required)(void* ctx, int value);
 };
 struct StructCounter
 {

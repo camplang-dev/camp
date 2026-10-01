@@ -801,6 +801,7 @@ public sealed partial class BindableNodeAnalyzer
 			return;
 
 		BodyAnalyzeDeclarationTarget(declaration.Target, scope, typeScope, initialType);
+		declaration.Target.UnboundSlotReceiverType = GetUnboundSlotReceiverType(declaration.InitialValue);
 		ValidateFixedStorageMarker(declaration.Target.Type, declaration.IsFixedStorage, declaration.Target.Type?.SourceSyntax ?? declaration.Target.SourceSyntax ?? declaration.SourceSyntax);
 		ValidateNoDirectExternClassType(declaration.Target.Type, declaration.Target.Type?.SourceSyntax ?? declaration.Target.SourceSyntax ?? declaration.SourceSyntax, "local variable storage");
 		ValidateNoDirectMaterializedStructType(declaration.Target.Type, declaration.Target.Type?.SourceSyntax ?? declaration.Target.SourceSyntax ?? declaration.SourceSyntax, "the type of a local variable");
@@ -2054,11 +2055,12 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			named.ResolvedType = symbol.Type;
 			expressionConstants[named] = symbol.IsConstant;
-			expressionRewrites[named] = new VariableReferenceExpression
-			{
-				SourceSyntax = named.SourceSyntax,
-				Variable = symbol.Node,
-				ResolvedType = symbol.Type,
+				expressionRewrites[named] = new VariableReferenceExpression
+				{
+					SourceSyntax = named.SourceSyntax,
+					Variable = symbol.Node,
+					ResolvedType = symbol.Type,
+					UnboundSlotReceiverType = symbol.Node.UnboundSlotReceiverType,
 				SlotLifetimeFact = symbol.Node.SlotLifetimeFact,
 				ValueLifetimeFact = symbol.Node.ValueLifetimeFact ?? symbol.Node.SlotLifetimeFact
 			};
@@ -3824,6 +3826,7 @@ public sealed partial class BindableNodeAnalyzer
 			missingArgumentSyntax: GetCallTargetNameDiagnosticSyntax(call.Target),
 			callDisplayName: GetCallableInvocationDisplayName(call.Target),
 			allowOmittedPrepParameter: true,
+			callTarget: call.Target,
 			binding: binding);
 		returnType = SubstituteCallableConstOfReturnType(callableType, callable.ReturnType, constOfAnchors);
 		PreparedBufferExpression? preparedResult = null;
@@ -3841,6 +3844,22 @@ public sealed partial class BindableNodeAnalyzer
 		if (targetType is not null && (preparedResult is null || !TryApplyPreparedResultConversion(preparedResult, returnType, targetType)))
 			CheckAssignable(targetType, returnType, call, call.SourceSyntax, "Call result");
 		return true;
+	}
+
+	string? GetUnboundSlotReceiverType(Expression? expression)
+	{
+		if (expression is null)
+			return null;
+		if (expression.UnboundSlotReceiverType is string receiver)
+			return receiver;
+		if (expressionRewrites.TryGetValue(expression, out Expression? rewrite) && !ReferenceEquals(rewrite, expression))
+			return GetUnboundSlotReceiverType(rewrite);
+		return expression switch
+		{
+			VariableReferenceExpression { Variable: BindableNode variable } => variable.UnboundSlotReceiverType,
+			ParenthesizedExpression parenthesized => GetUnboundSlotReceiverType(parenthesized.Expression),
+			_ => null
+		};
 	}
 
 	static bool IsRawFunctionPointerType(string? type)
@@ -4208,6 +4227,18 @@ public sealed partial class BindableNodeAnalyzer
 					? iteratorProtocolType
 					: targetType;
 				bool isTypeTarget = IsTypeReferenceExpression(member.Target);
+				if (!isTypeTarget && (WitnessTypeIdentity.TryParse(lookupTargetType, out _)
+					|| TryGetInterfaceVTableTarget(lookupTargetType, out _)))
+				{
+					member.ResolvedType = BodyAnalyzeMemberExpression(member, scope, typeScope);
+					if (TryGetCallableShape(member.ResolvedType, out CallableShape slotShape) && slotShape.Parameters.Count > 0)
+					{
+						member.UnboundSlotReceiverType = slotShape.Parameters[0];
+						if (expressionRewrites.TryGetValue(member, out Expression? slotRewrite))
+							slotRewrite.UnboundSlotReceiverType = slotShape.Parameters[0];
+					}
+					return null;
+				}
 				List<FunctionDefinition> functions = isTypeTarget
 					? LookupStaticMemberFunctions(lookupTargetType, member.Name, member.SourceSyntax)
 					: LookupMemberFunctions(lookupTargetType, member.Name, member.SourceSyntax);
@@ -4370,7 +4401,13 @@ public sealed partial class BindableNodeAnalyzer
 							&& ((TryGetLambdaCallableShape(expected, out _, out bool expectedEscapedLambda) && expectedEscapedLambda)
 								|| (TryGetLambdaCallableShape(actual, out _, out bool actualEscapedLambda) && actualEscapedLambda));
 						if (!deferredEscapedLambda)
-							CheckCallArgumentAssignable(structuralExpected, actual, arguments[i].Value, argumentSyntax, "Argument", function, genericSubstitutions, genericParameterNames);
+						{
+							string? unboundReceiver = i == 0 ? GetUnboundSlotReceiverType(callTarget) : null;
+							if (unboundReceiver is not null && StripLifetimeQualifiers(actual) != StripLifetimeQualifiers(unboundReceiver))
+								Report(GetRange(argumentSyntax), $"Unbound slot receiver requires '{unboundReceiver}', not '{actual}'.");
+							else
+								CheckCallArgumentAssignable(structuralExpected, actual, arguments[i].Value, argumentSyntax, "Argument", function, genericSubstitutions, genericParameterNames);
+						}
 						if (CanLiftToOptional(actual, expected))
 							arguments[i].ResolvedType = expected;
 						AnalyzeAggregateInitializerPointerArgument(arguments[i], analysisParameter, expected, scope, typeScope, fallbackSyntax);
@@ -4789,7 +4826,7 @@ public sealed partial class BindableNodeAnalyzer
 
 		ConversionClassification conversion = ClassifyConversion(actual, expected);
 		string? reconstructHint = conversion.Level == ConversionLevel.ReconstructRequired ? conversion.Diagnostic : null;
-		Report(GetRange(syntax), reconstructHint ?? $"{context} cannot convert '{actual}' to '{expected}'.");
+		Report(GetRange(syntax), reconstructHint ?? $"{context} cannot convert '{WitnessTypeIdentity.Display(actual)}' to '{WitnessTypeIdentity.Display(expected)}'.");
 	}
 
 	bool CanTargetTypeDirectFunctionAsDelegate(string expected, string actual, Expression? value)
@@ -5768,20 +5805,10 @@ public sealed partial class BindableNodeAnalyzer
 			return ErrorType;
 		}
 			string memberType = selected.Type;
-			bool concreteVTableSlot = false;
-			if (!isTypeTarget
+			bool retypedVTableSlot = !isTypeTarget
 				&& selected.Node is FieldDefinition
-				&& member.Target is VTableOfExpression vtableOfTarget
-				&& TryGetCallableShape(memberType, out CallableShape slotShape)
-				&& slotShape.Kind == "fn"
-				&& slotShape.Parameters.Count > 0
-				&& TryGetInterfacePointerDefinition(slotShape.Parameters[0].Trim(), out _))
-			{
-				// A slot read from `vtableof(T: Interface)` takes the concrete receiver, not an interface context.
-				List<string> slotParameters = [$"{VTableOfTypeName(vtableOfTarget.Type)}*", .. slotShape.Parameters.Skip(1)];
-				memberType = BuildCallableType("fn", slotShape.ReturnType, slotParameters, slotShape.Spec, slotShape.CallSpec);
-				concreteVTableSlot = true;
-			}
+				&& (WitnessTypeIdentity.TryParse(lookupTargetType, out _)
+					|| TryGetInterfaceVTableTarget(lookupTargetType, out _));
 			if (!isTypeTarget
 				&& selected.Node is FunctionDefinition function
 				&& TryGetCallableShape(targetCallableType, out CallableShape targetShape)
@@ -5834,7 +5861,12 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		MemberReferenceExpression reference = CreateMemberReference(member, member.Target, memberType, selected.Node);
-		reference.IsConcreteVTableSlot = concreteVTableSlot;
+			reference.IsRetypedVTableSlot = retypedVTableSlot;
+			if (retypedVTableSlot && TryGetCallableShape(memberType, out CallableShape unboundSlot) && unboundSlot.Parameters.Count > 0)
+			{
+				member.UnboundSlotReceiverType = unboundSlot.Parameters[0];
+				reference.UnboundSlotReceiverType = unboundSlot.Parameters[0];
+			}
 		if (selected.Node is FieldDefinition field)
 			reference.Name = field.Name;
 			expressionRewrites[member] = reference;

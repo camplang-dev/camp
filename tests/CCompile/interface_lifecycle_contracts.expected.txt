@@ -27,10 +27,10 @@ static const IManaged ManagedStruct_IManaged__storage;
 static const IManaged *ManagedStruct_IManaged;
 
 _ManagedClass _ManagedClass__vt = { 0 };
-static const IManaged ManagedClass_IManaged__storage = { .create = (void* (*)(Allocator *arg0))ManagedClass_create, .destroy = (void (*)(IManaged **arg0, Allocator *arg1))ManagedClass_destroy };
-static const IManaged ManagedClass_IManaged__object_storage = { .create = ManagedClass_IManaged_create, .destroy = ManagedClass_IManaged_destroy };
+static const IManaged ManagedClass_IManaged__storage = { .create = (void* (*)(Allocator *arg0))ManagedClass_create, .destroy = (void (*)(void* arg0, Allocator *arg1))ManagedClass_destroy };
+static const IManaged ManagedClass_IManaged__object_storage = { .create = (void* (*)(Allocator *arg0))ManagedClass_IManaged_create, .destroy = (void (*)(void* arg0, Allocator *arg1))ManagedClass_IManaged_destroy };
 static const IManaged *ManagedClass_IManaged = &ManagedClass_IManaged__storage;
-static const IManaged ManagedStruct_IManaged__storage = { .create = (void* (*)(Allocator *arg0))ManagedStruct_create, .destroy = (void (*)(IManaged **arg0, Allocator *arg1))ManagedStruct_destroy };
+static const IManaged ManagedStruct_IManaged__storage = { .create = (void* (*)(Allocator *arg0))ManagedStruct_create, .destroy = (void (*)(void* arg0, Allocator *arg1))ManagedStruct_destroy };
 static const IManaged *ManagedStruct_IManaged = &ManagedStruct_IManaged__storage;
 static void *Allocator_alloc(Allocator *this, uintptr_t size)
 {
@@ -177,7 +177,7 @@ typedef struct IManaged_Indirect IManaged_Indirect;
 struct IManaged
 {
 	void* (* create)(Allocator *allocator);
-	void (* destroy)(IManaged **ctx, Allocator *allocator);
+	void (* destroy)(void* ctx, Allocator *allocator);
 };
 struct ManagedStruct
 {

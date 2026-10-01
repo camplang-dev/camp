@@ -20,10 +20,10 @@ static const ISecond Pair_ISecond__storage;
 static const ISecond Pair_ISecond__object_storage;
 static const ISecond *Pair_ISecond;
 
-static const IFirst Pair_IFirst__storage = { .first = (int (*)(IFirst **arg0))Pair_first };
+static const IFirst Pair_IFirst__storage = { .first = (int (*)(void* arg0))Pair_first };
 static const IFirst *Pair_IFirst = &Pair_IFirst__storage;
-static const ISecond Pair_ISecond__storage = { .second = (int (*)(ISecond **arg0))Pair_second };
-static const ISecond Pair_ISecond__object_storage = { .second = Pair_ISecond_second };
+static const ISecond Pair_ISecond__storage = { .second = (int (*)(void* arg0))Pair_second };
+static const ISecond Pair_ISecond__object_storage = { .second = (int (*)(void* arg0))Pair_ISecond_second };
 static const ISecond *Pair_ISecond = &Pair_ISecond__storage;
 static int Pair_first(Pair *this)
 {
@@ -116,11 +116,11 @@ typedef struct Pair Pair;
 /* Layouts. */
 struct IFirst
 {
-	int (* first)(IFirst **ctx);
+	int (* first)(void* ctx);
 };
 struct ISecond
 {
-	int (* second)(ISecond **ctx);
+	int (* second)(void* ctx);
 };
 struct Pair
 {

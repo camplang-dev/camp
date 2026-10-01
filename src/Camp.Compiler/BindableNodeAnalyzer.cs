@@ -1258,6 +1258,7 @@ public sealed partial class BindableNodeAnalyzer
 			null => ErrorType,
 			TypeDefinitionReference definition => definition.ResolvedType ?? AddTypeArguments(definition.Name, definition.TypeArguments),
 			GenericParameterTypeReference genericParameter => genericParameter.Name,
+			WitnessTypeReference witness => new WitnessTypeIdentity(FormatTypeReference(witness.TargetType), FormatTypeReference(witness.InterfaceType)).ResolvedType,
 			AllocatorTypeReference => AllocatorType,
 			NamedTypeReference named => named.ResolvedType ?? BuildNamedTypeSourceName(named),
 			ClassTypeReference => "classtype",

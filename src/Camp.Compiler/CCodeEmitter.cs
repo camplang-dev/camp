@@ -7253,15 +7253,14 @@ public static class CCodeEmitter
                 return CastFromErasedGeneric(FormatMemberReferenceRaw(member), erasedScalarType);
             if (member.Member is FieldDefinition slotField
                 && IsRetypedVTableSlot(member, slotField))
-                return "(" + FormatResolvedType(member.ResolvedType!, "").Declaration.Trim() + ")(" + FormatMemberReferenceRaw(member) + ")";
+                return "((" + FormatResolvedType(member.ResolvedType!, "").Declaration.Trim() + ")(" + FormatMemberReferenceRaw(member) + "))";
             return FormatMemberReferenceRaw(member);
         }
 
-        // A slot read through a concrete vtable is typed with the concrete receiver; the stored entry keeps the
-        // interface-context signature, so the read needs a pointer cast.
+        // Source-typed slot reads recover their callable signature from the shared erased C table layout.
         static bool IsRetypedVTableSlot(MemberReferenceExpression member, FieldDefinition field)
         {
-            return member.IsConcreteVTableSlot
+            return member.IsRetypedVTableSlot
                 && member.ResolvedType is string memberType
                 && (field.ResolvedType ?? field.Type?.ResolvedType) is string fieldType
                 && memberType != fieldType;
@@ -7291,6 +7290,8 @@ public static class CCodeEmitter
         {
             if (member.Member is FieldDefinition field)
             {
+                if (member.IsRetypedVTableSlot)
+                    return "(" + FormatMemberTarget(member.Target) + ")->" + CName(field);
                 if (FormatInterfaceSlotMember(member.Target, CName(field)) is string formattedInterfaceSlotMember)
                     return formattedInterfaceSlotMember;
                 if (TryFormatShadowFieldReference(member, field, out string shadowFieldReference))
@@ -7416,8 +7417,10 @@ public static class CCodeEmitter
         {
             string name = SanitizeIdentifier(BindableNodeAnalyzer.GetCallableName(function));
             if (target is UnaryExpression { Operator: UnaryOperator.PointerDereference, Operand: Expression operand }
-                && operand.ResolvedType is string operandType
-                && !operandType.TrimEnd().EndsWith("**", StringComparison.Ordinal))
+                && (WitnessTypeIdentity.TryParse(operand.ResolvedType, out _)
+                    || operand is VariableReferenceExpression { Variable: VTableOfParameterDefinition }
+                    || operand is MemberReferenceExpression { Member: FieldDefinition { Type: WitnessTypeReference } }
+                    || operand.ResolvedType is string operandType && !operandType.TrimEnd().EndsWith("**", StringComparison.Ordinal)))
                 return FormatExpression(operand) + "->" + name;
             return "(*" + FormatExpression(target) + ")->" + name;
         }
@@ -7426,6 +7429,11 @@ public static class CCodeEmitter
         {
             if (target is null)
                 return null;
+            if (target is UnaryExpression { Operator: UnaryOperator.PointerDereference, Operand: Expression witnessOperand }
+                && (WitnessTypeIdentity.TryParse(witnessOperand.ResolvedType, out _)
+                    || witnessOperand is VariableReferenceExpression { Variable: VTableOfParameterDefinition }
+                    || witnessOperand is MemberReferenceExpression { Member: FieldDefinition { Type: WitnessTypeReference } }))
+                return FormatExpression(witnessOperand) + "->" + SanitizeIdentifier(name);
             if (target is UnaryExpression { Operator: UnaryOperator.PointerDereference, Operand: Expression operand }
                 && TryGetPointerElementType(operand.ResolvedType, out string operandElementType)
                 && TryFindInterfaceStruct(InterfaceStructNameFromPointerElement(operandElementType), name, out _))
@@ -7741,14 +7749,19 @@ public static class CCodeEmitter
             foreach (InitializerItem item in initializer.Items)
             {
                 string? targetType = item.TargetStorageResolvedType ?? item.TargetResolvedType ?? item.ResolvedType;
+                string? target = FormatInitializerTarget(item.Target);
                 string value = item.Expression switch
                 {
                     null => "0",
                     ArrayExpression array when TryGetFixedArrayElementType(targetType ?? "", out _) => FormatFixedArrayInitializer(array),
                     InitializerExpression nested => FormatInitializer(nested, includeType: false),
+                    MethodReferenceExpression method when initializer.ResolvedType is string owner
+                        && IsInterfaceResolvedName(StripTopLevelConstForC(owner))
+                        && target is not null
+                        && TryFormatErasedInterfaceSlotCast(owner, target, targetType, out string slotCast)
+                        => "(" + slotCast + ")" + FormatExpression(method),
                     _ => FormatAssignmentValueForTarget(targetType, item.Expression, item.TargetStorageGenericNames)
                 };
-                string? target = FormatInitializerTarget(item.Target);
                 items.Add(target is null ? value : "." + target + " = " + value);
             }
             string body = items.Count == 0 ? "{ 0 }" : "{ " + string.Join(", ", items) + " }";
@@ -7757,6 +7770,24 @@ public static class CCodeEmitter
 
             string type = FormatTypeOrResolved(null, initializer.ResolvedType, "").Declaration.Trim();
             return "(" + type + ")" + body;
+        }
+
+        bool TryFormatErasedInterfaceSlotCast(string owner, string fieldName, string? sourceType, out string cast)
+        {
+            cast = "";
+            if (TryFindInterfaceStruct(StripTopLevelConstForC(owner), fieldName, out StructDefinition? interfaceStruct)
+                && interfaceStruct?.Fields.FirstOrDefault(candidate => CName(candidate) == fieldName || candidate.Name == fieldName)?.ResolvedType is string fieldType
+                && TryFormatResolvedCallableCast(fieldType, out cast))
+                return true;
+            if (sourceType is null
+                || !TryParseResolvedCallableType(sourceType, out string returnType, out List<string> parameters, out string? targetSpec, out string? callSpec))
+                return false;
+            if (fieldName == "create")
+                returnType = "any";
+            else if (parameters.Count > 0)
+                parameters[0] = "any";
+            cast = FormatInlineResolvedFunctionPointer(returnType, parameters, "", targetSpec, callSpec);
+            return true;
         }
 
         string FormatGroupedExpression(GroupedExpression grouped)
@@ -8648,6 +8679,7 @@ public static class CCodeEmitter
                 NamedTypeReference named when ShouldFormatResolvedType(named.ResolvedType) => FormatResolvedType(named.ResolvedType!, declarator),
                 NamedTypeReference named => new CType(CTypeName(named) + " " + declarator),
                 GenericTypeReference generic => FormatType(generic.Type, declarator),
+                WitnessTypeReference witness => FormatResolvedType(witness.ResolvedType ?? "void*", declarator),
                 GenericParameterTypeReference => new CType("void* " + declarator),
                 AnyTypeReference => new CType("void* " + declarator),
                 AutoTypeReference => new CType("void* " + declarator),
@@ -8773,6 +8805,8 @@ public static class CCodeEmitter
         CType FormatResolvedType(string resolvedType, string declarator, bool normalizeInterfacePointer = true)
         {
             string type = resolvedType.Trim();
+            if (WitnessTypeIdentity.TryParse(type, out WitnessTypeIdentity witness))
+                return FormatResolvedType(witness.CStorageType, declarator, normalizeInterfacePointer: false);
             if (type == "#ALLOCATOR")
                 type = AllocatorCTypeName();
             if (type == "fn*")

@@ -112,16 +112,8 @@ public sealed partial class BindableNodeAnalyzer
 				SourceSyntax = member.SourceSyntax,
 				Type = new GenericParameterTypeReference { Name = genericName, ResolvedType = genericName },
 				InterfaceType = InterfaceType(interfaceDefinition),
-				ResolvedType = InterfaceResolvedName(interfaceDefinition) + "*"
+				ResolvedType = new WitnessTypeIdentity(genericName, interfaceDefinition.Name).ResolvedType
 			});
-			context = new CastExpression
-			{
-				SourceSyntax = context.SourceSyntax,
-				Kind = CastKind.Type,
-				Type = PointerTo(PointerTo(InterfaceType(interfaceDefinition))),
-				Expression = context,
-				ResolvedType = InterfaceResolvedName(interfaceDefinition) + "**"
-			};
 			slotTarget = new UnaryExpression
 			{
 				SourceSyntax = member.Target.SourceSyntax,
@@ -185,23 +177,15 @@ public sealed partial class BindableNodeAnalyzer
 			SourceSyntax = member.SourceSyntax,
 			Type = new GenericParameterTypeReference { Name = genericName, ResolvedType = genericName },
 			InterfaceType = InterfaceType(interfaceDefinition),
-			ResolvedType = InterfaceResolvedName(interfaceDefinition) + "*"
+			ResolvedType = new WitnessTypeIdentity(genericName, interfaceDefinition.Name).ResolvedType
 		});
-		context = new CastExpression
-		{
-			SourceSyntax = context.SourceSyntax,
-			Kind = CastKind.Type,
-			Type = PointerTo(PointerTo(InterfaceType(interfaceDefinition))),
-			Expression = context,
-			ResolvedType = InterfaceResolvedName(interfaceDefinition) + "**"
-		};
 
 		Expression slot = new MemberExpression
 		{
 			SourceSyntax = member.SourceSyntax,
 			Target = vtable,
 			Name = GetCallableName(function),
-			ResolvedType = BuildFlattenedFunctionValueType(function, $"{InterfaceResolvedName(interfaceDefinition)}**")
+			ResolvedType = BuildFlattenedFunctionValueType(function, $"{genericName}*")
 		};
 		if (TryGetParamsComponentShape(null, member.ResolvedType, "value", out ParamsComponentShape delegateShape)
 			&& delegateShape.Components.Count > 0

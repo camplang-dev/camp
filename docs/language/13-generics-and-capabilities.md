@@ -486,8 +486,11 @@ void retainTwice<T: implements Retainable>(
 ```
 
 `T: implements Retainable` says the concrete type explicitly implements the
-interface. `vtableof(T: Retainable)` supplies the interface vtable needed for
-erased dispatch.
+interface. `vtableof(T: Retainable)` supplies a typed witness for this particular
+`T` and interface. Its unbound ordinary slots take `T*`, including when the
+slot is copied into a local `fn` value or the witness is forwarded to another
+generic call. An ordinary `Retainable*` interface call instead uses an interface
+instance pointer; a slot extracted from a `Retainable` table takes `Retainable*`.
 
 A simplified C-shaped view looks like this:
 
@@ -499,9 +502,10 @@ void retainTwice(void *value, const RetainableVTable *vtable)
 }
 ```
 
-Real emitted code may adjust the receiver context differently for class and
-struct implementations. The useful source rule is that the generic value is
-still a concrete `T`, and the vtable capability supplies the dynamic call path.
+The emitted table has an erased C receiver slot, but source typing still keeps
+these receiver kinds distinct. The useful source rule is that the generic value
+remains a concrete `T`; a raw cast to an interface-instance pointer is not a
+substitute for witness dispatch.
 
 That distinction matters when a generic API wants to keep something for later.
 A call-only algorithm can often accept `T*` plus `vtableof(T: Interface)`.

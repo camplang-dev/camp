@@ -10,6 +10,8 @@ public abstract class BindableNode
 	public string? ResolvedType { get; set; }
 	public string? SlotLifetimeFact { get; set; }
 	public string? ValueLifetimeFact { get; set; }
+	[XmlIgnore]
+	public string? UnboundSlotReceiverType { get; set; }
 	internal NodeProvenance? Provenance { get; set; }
 }
 
@@ -313,6 +315,7 @@ public class SizeOfParameterDefinition : ParameterDefinition
 public class VTableOfParameterDefinition : ParameterDefinition
 {
 	public TypeReference? InterfaceType { get; set; }
+	internal WitnessTypeReference? WitnessType { get; set; }
 }
 
 public class NameOfParameterDefinition : ParameterDefinition
@@ -362,6 +365,14 @@ public class GenericParameterTypeReference : TypeReference
 {
 	public string Name { get; set; } = "";
 	public GenericParameter? Parameter { get; set; }
+}
+
+// Compiler-only semantic type. There is no source type declarator for a witness;
+// source APIs spell the capability as vtableof(T: I).
+public class WitnessTypeReference : TypeReference
+{
+	public TypeReference? TargetType { get; set; }
+	public TypeReference? InterfaceType { get; set; }
 }
 
 public class AllocatorTypeReference : TypeReference

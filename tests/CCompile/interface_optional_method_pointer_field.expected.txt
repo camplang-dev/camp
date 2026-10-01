@@ -10,7 +10,7 @@ static int Widget_transform_lambda0(void *_context, int current);
 static const IHost Host_IHost__storage;
 static const IHost *Host_IHost;
 
-static const IHost Host_IHost__storage = { .onValue = (int (*)(IHost **arg0))Host_onValue, .onTransform = (int (*)(IHost **arg0, int arg1, int (* arg2)(void *arg0, int arg1), void *arg3))Host_onTransform };
+static const IHost Host_IHost__storage = { .onValue = (int (*)(void* arg0))Host_onValue, .onTransform = (int (*)(void* arg0, int arg1, int (* arg2)(void *arg0, int arg1), void *arg3))Host_onTransform };
 static const IHost *Host_IHost = &Host_IHost__storage;
 static int Host_onValue(Host *this)
 {
@@ -146,8 +146,8 @@ typedef struct Widget_transform_lambdaContext0 Widget_transform_lambdaContext0;
 /* Layouts. */
 struct IHost
 {
-	int (* onValue)(IHost **ctx);
-	int (* onTransform)(IHost **ctx, int value, int (* transform)(void *arg0, int arg1), void *transform_context);
+	int (* onValue)(void* ctx);
+	int (* onTransform)(void* ctx, int value, int (* transform)(void *arg0, int arg1), void *transform_context);
 };
 struct Widget_transform_lambdaContext0
 {

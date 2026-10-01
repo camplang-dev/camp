@@ -837,7 +837,9 @@ public sealed partial class BindableNodeAnalyzer
 				break;
 
 			case VTableOfParameterDefinition vtableOf:
-				node.ResolvedType = VTablePointerType(vtableOf.InterfaceType);
+				node.ResolvedType = vtableOf.WitnessType?.ResolvedType
+					?? new WitnessTypeIdentity(vtableOf.Type?.ResolvedType ?? VTableOfTypeName(vtableOf.Type),
+						vtableOf.InterfaceType?.ResolvedType ?? VTableOfTypeName(vtableOf.InterfaceType)).ResolvedType;
 				break;
 
 			case ParameterDefinition parameter when parameter.Type is not null:
@@ -1054,8 +1056,8 @@ public sealed partial class BindableNodeAnalyzer
 			{
 				Name = "ctx",
 				Symbol = "ctx",
-				Type = InterfaceInstanceType(owner),
-				ResolvedType = $"{owner.Name}**"
+				Type = new AnyTypeReference { ResolvedType = "any" },
+				ResolvedType = "any"
 			});
 		foreach (ParameterDefinition parameter in member.Parameters)
 		{
@@ -1637,7 +1639,7 @@ public sealed partial class BindableNodeAnalyzer
 			return cached;
 		List<string> parameters = [];
 		if (member.Modifier != FunctionModifier.Constructor)
-			parameters.Add($"{owner.Name}**");
+			parameters.Add("any");
 		foreach (ParameterDefinition parameter in member.Parameters)
 		{
 			if (parameter is ThisParameterDefinition)

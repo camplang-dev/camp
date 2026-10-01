@@ -1,6 +1,7 @@
 interface Readable
 {
 	int read(int addend);
+	int bump(int delta);
 }
 
 sealed class ClassReader: Readable
@@ -16,6 +17,12 @@ sealed class ClassReader: Readable
 	{
 		return this.value + addend;
 	}
+
+	int bump(int delta): Readable
+	{
+		this.value += delta;
+		return this.value;
+	}
 }
 
 struct StructReader: Readable
@@ -26,12 +33,21 @@ struct StructReader: Readable
 	{
 		return this.value + addend;
 	}
+
+	int bump(int delta): Readable
+	{
+		this.value += delta;
+		return this.value;
+	}
 }
 
 int callSlot<T: implements Readable>(T* value, int addend, vtableof(T: Readable))
 {
 	fn int(T*, int) slot = vtableof(T: Readable).read;
-	return slot(value, addend);
+	int extracted = slot(value, addend);
+	int direct = vtableof(T: Readable).read(value, addend);
+	int named = vtableof_T_Readable.read(value, addend);
+	return extracted == direct && direct == named ? extracted : -1;
 }
 
 export int main()
@@ -40,16 +56,43 @@ export int main()
 	fn int(ClassReader*, int) classSlot = vtableof(ClassReader: Readable).read;
 	if (classSlot(classReader, 4) != 14)
 		return 1;
+	if (vtableof(ClassReader: Readable).read(classReader, 6) != 16)
+		return 5;
 
 	StructReader structReader = default;
 	structReader.value = 20;
 	fn int(StructReader*, int) structSlot = vtableof(StructReader: Readable).read;
 	if (structSlot(&structReader, 1) != 21)
 		return 2;
+	if (vtableof(StructReader: Readable).read(&structReader, 2) != 22)
+		return 6;
+
+	Readable* classInstance = classReader;
+	Readable classTable = *classInstance;
+	fn int(Readable*, int) classTableSlot = classTable.read;
+	if (classTableSlot(classInstance, 3) != 13)
+		return 7;
+	Readable* structInstance = &structReader;
+	Readable structTable = *structInstance;
+	fn int(Readable*, int) structTableSlot = structTable.read;
+	if (structTableSlot(structInstance, 3) != 23)
+		return 8;
 
 	if (callSlot(classReader, 4) != 14)
 		return 3;
 	if (callSlot(&structReader, 5) != 25)
 		return 4;
+	if (vtableof(ClassReader: Readable).bump(classReader, 2) != 12 || classReader.value != 12)
+		return 9;
+	if (classInstance.bump(3) != 15 || classReader.value != 15)
+		return 10;
+	if (classTable.bump(classInstance, 4) != 19 || classReader.value != 19)
+		return 11;
+	if (vtableof(StructReader: Readable).bump(&structReader, 2) != 22 || structReader.value != 22)
+		return 12;
+	if (structInstance.bump(3) != 25 || structReader.value != 25)
+		return 13;
+	if (structTable.bump(structInstance, 4) != 29 || structReader.value != 29)
+		return 14;
 	return 0;
 }

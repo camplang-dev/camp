@@ -10,7 +10,7 @@ static void run(IWriter **writer, ConsoleWriter *concrete);
 static const IWriter ConsoleWriter_IWriter__storage;
 static const IWriter *ConsoleWriter_IWriter;
 
-static const IWriter ConsoleWriter_IWriter__storage = { .writeInt = (void (*)(IWriter **arg0, int arg1))ConsoleWriter_writeInt, .writeString = (void (*)(IWriter **arg0, const char *arg1))ConsoleWriter_writeString };
+static const IWriter ConsoleWriter_IWriter__storage = { .writeInt = (void (*)(void* arg0, int arg1))ConsoleWriter_writeInt, .writeString = (void (*)(void* arg0, const char *arg1))ConsoleWriter_writeString };
 static const IWriter *ConsoleWriter_IWriter = &ConsoleWriter_IWriter__storage;
 static void ConsoleWriter_writeInt(ConsoleWriter *this, int value)
 {
@@ -57,8 +57,8 @@ typedef struct ConsoleWriter ConsoleWriter;
 /* Layouts. */
 struct IWriter
 {
-	void (* writeInt)(IWriter **ctx, int value);
-	void (* writeString)(IWriter **ctx, const char *value);
+	void (* writeInt)(void* ctx, int value);
+	void (* writeString)(void* ctx, const char *value);
 };
 struct ConsoleWriter
 {

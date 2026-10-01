@@ -8,7 +8,7 @@ static const int *Box_IRead_getValue(IRead **ctx);
 static const IRead Box_IRead__storage;
 static const IRead *Box_IRead;
 
-static const IRead Box_IRead__storage = { .getValue = (const int *(*)(IRead **arg0))Box_getValue };
+static const IRead Box_IRead__storage = { .getValue = (const int *(*)(void* arg0))Box_getValue };
 static const IRead *Box_IRead = &Box_IRead__storage;
 static const int *Box_getValue(const Box *this)
 {
@@ -28,7 +28,7 @@ int main(void)
 	int *direct = (int *)(Box_getValue(&box));
 	const int *readonlyDirect = (int *)(Box_getValue(&readonly));
 	IRead_Indirect _iface0;
-	_iface0._vt = &(const IRead){ .getValue = Box_IRead_getValue };
+	_iface0._vt = &(const IRead){ .getValue = (const int *(*)(void* arg0))Box_IRead_getValue };
 	_iface0.ctx = &box;
 	IRead **reader = (IRead **)(&_iface0._vt);
 	return ((((*direct + *readonlyDirect) + readInterface(reader)) == 53) ? 0 : 1);
@@ -70,7 +70,7 @@ typedef struct IRead_Indirect IRead_Indirect;
 /* Layouts. */
 struct IRead
 {
-	const int *(* getValue)(IRead **ctx);
+	const int *(* getValue)(void* ctx);
 };
 struct Box
 {

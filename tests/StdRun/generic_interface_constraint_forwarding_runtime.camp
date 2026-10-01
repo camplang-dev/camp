@@ -18,9 +18,21 @@ sealed class First: Counter
 	}
 }
 
+struct Second: Counter
+{
+	int value;
+
+	int read(): Counter
+	{
+		return this.value;
+	}
+}
+
 int readOne<T: implements Counter>(T* value, vtableof(T: Counter))
 {
-	return value.read();
+	int viaMethod = value.read();
+	int viaNamedCapability = vtableof_T_Counter.read(value);
+	return viaMethod == viaNamedCapability ? viaMethod : -1;
 }
 
 int forwardExplicit<T: implements Counter>(T* value, vtableof(T: Counter))
@@ -40,5 +52,11 @@ export int main()
 		return 1;
 	if (forwardInferred(first) != 4)
 		return 2;
+	Second second = default;
+	second.value = 9;
+	if (forwardExplicit<Second>(&second) != 9)
+		return 3;
+	if (forwardInferred(&second) != 9)
+		return 4;
 	return 0;
 }
