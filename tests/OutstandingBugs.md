@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-199.
+Next bug number: BUG-200.
 
 ## Bug Template
 
@@ -1105,4 +1105,49 @@ Steps 1 and 2 build without any diagnostic. Step 4 fails in the C compiler with
 Known Impact:
 A field named `create` or `destroy`, or a function that spells a generated helper symbol,
 is accepted and may later conflict with the generated helper. Workaround: avoid those names.
+
+## BUG-199: The diagnostic for a missing `malloc` or `free` does not explain the allocation policy
+
+Date/Time: 2026-09-30 23:55 EDT
+
+Summary:
+With an implicit allocation policy (the default for an executable artifact), the
+compiler generates `create()` and `destroy()` helpers that use `malloc` and `free`.
+When the standard library is disabled and no such functions are declared, the error
+is reported at the constructor or destructor as "Symbol 'malloc' could not be found."
+or "Symbol 'free' could not be found.". Nothing mentions the allocation policy or the
+generated helpers, so the program appears to have no use for `malloc` at all (for
+example when it never uses `new`). When the class also has a member named `free`, the
+destructor instead reports "Member method 'free' requires explicit 'this.' qualification."
+
+Steps to Reproduce:
+
+1. Build `campc build a.camp --nostdlib --out-dir out` with:
+
+   ```camp
+   class Box
+   {
+       int tag;
+       Box() {}
+       ~Box() {}
+   }
+
+   export int main()
+   {
+       return 0;
+   }
+   ```
+
+Expected:
+A diagnostic that says the implicit allocation policy requires functions named `malloc`
+and `free` for the generated `create()` and `destroy()` helpers, and how to supply them
+(declare them as extern functions, or use the standard library or an explicit policy).
+
+Actual:
+`a.camp(4,2): error: Symbol 'malloc' could not be found.` and
+`a.camp(5,3): error: Symbol 'free' could not be found.`
+
+Known Impact:
+Hard to diagnose for authors of freestanding programs. Workaround: declare
+`extern void* malloc(nuint size);` and `extern void free(void* ptr);`.
 
