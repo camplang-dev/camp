@@ -1,5 +1,5 @@
-// file: _01_numeric_source_filename.c
-#include "_01_numeric_source_filename_private.h"
+// file: 01_numeric_source_filename.c
+#include "01_numeric_source_filename_private.h"
 
 
 int main(void)
@@ -7,16 +7,16 @@ int main(void)
 	return 0;
 }
 
-// file: _01_numeric_source_filename.h
+// file: 01_numeric_source_filename.h
 #ifndef _01_NUMERIC_SOURCE_FILENAME_H_
 #define _01_NUMERIC_SOURCE_FILENAME_H_
 
-#include "_01_numeric_source_filename_private.h"
+#include "01_numeric_source_filename_private.h"
 
 int main(void);
 
 #endif
-// file: _01_numeric_source_filename_private.h
+// file: 01_numeric_source_filename_private.h
 #ifndef _01_NUMERIC_SOURCE_FILENAME_PRIVATE_H_
 #define _01_NUMERIC_SOURCE_FILENAME_PRIVATE_H_
 
@@ -40,4 +40,4 @@ int main(void);
 
 #endif
 // compile
-compiled: _01_numeric_source_filename.c
+compiled: 01_numeric_source_filename.c
