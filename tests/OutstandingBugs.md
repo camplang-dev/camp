@@ -953,16 +953,16 @@ Actual:
 Known Impact:
 Misuse of the carrier type produces C compiler errors instead of a Camp diagnostic.
 
-## BUG-196: Indexing a `typenameof(T)` capability directly emits invalid C
+## BUG-196: The `typenameof(T)` capability parameter is emitted as `void*` instead of the string type
 
 Date/Time: 2026-09-30 21:30 EDT
 
 Summary:
-In a generic function with a `typenameof(T)` capability parameter, the expression
-`typenameof(T)` is a type-name string value. Assigning it to a `string` and indexing
-that local works, but indexing the expression directly, as in `typenameof(T)[0]`,
-emits C that indexes the capability parameter, which is declared as `void*`, so the
-C compiler rejects it.
+In a generic function with a `typenameof(T)` capability parameter, the parameter is a
+type-name string, so it should have the C type that `string` lowers to (`const char *`).
+The compiler emits the parameter as `void*`. Copying it into a `string` local happens
+to work because C converts a `void*` implicitly, but any other use that needs the
+string type fails, for example indexing the expression directly with `typenameof(T)[0]`.
 
 Steps to Reproduce:
 
@@ -984,12 +984,14 @@ Steps to Reproduce:
    This version builds and exits with 0.
 
 Expected:
-Both versions build and exit with 0.
+Both versions build and exit with 0. The generated function takes a `const char *`
+parameter.
 
 Actual:
 The first fails in the C compiler: `error: invalid operands to binary expression ('void'
-and 'int')` for the generated `typenameof_T[0] == 'I'`.
+and 'int')` for the generated `typenameof_T[0] == 'I'`. The generated signature is
+`static int firstIsI(void* typenameof_T)`.
 
 Known Impact:
-Type-name capabilities cannot be indexed in place. Workaround: copy into a `string`
-local first.
+Type-name capabilities cannot be used in place. Workaround: copy into a `string` local
+first.
