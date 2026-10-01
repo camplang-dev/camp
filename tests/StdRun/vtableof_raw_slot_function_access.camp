@@ -6,14 +6,13 @@ internal interface IRefCount
 	void release();
 }
 
-fn void(IRefCount* context) capturedRelease;
-fn void(IRefCount* context) capturedReleaseFromDereference;
-
 void captureRelease<T: implements IRefCount>(T* value, vtableof(T: IRefCount))
 {
 	value.retain();
-	capturedRelease = vtableof_T_IRefCount.release;
-	capturedReleaseFromDereference = (*vtableof_T_IRefCount).release;
+	fn void(T* context) capturedRelease = vtableof_T_IRefCount.release;
+	fn void(T* context) capturedReleaseFromExpression = vtableof(T: IRefCount).release;
+	capturedRelease(value);
+	capturedReleaseFromExpression(value);
 }
 
 class RefThing: IRefCount
@@ -44,8 +43,6 @@ export int main()
 	int releases = 0;
 	auto thing = new RefThing(&retains, &releases) finally delete;
 	captureRelease<RefThing>(thing);
-	capturedRelease((IRefCount*)thing);
-	capturedReleaseFromDereference((IRefCount*)thing);
 	Console.writeLine(retains);
 	Console.writeLine(releases);
 	return 0;

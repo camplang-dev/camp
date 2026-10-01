@@ -13,7 +13,7 @@ static void Counter_op_initnew(Counter *this);
 static const ICounterReader Counter_ICounterReader__storage;
 static const ICounterReader *Counter_ICounterReader;
 
-static const ICounterReader Counter_ICounterReader__storage = { .readCount = (int (*)(ICounterReader **arg0))Counter_readCount };
+static const ICounterReader Counter_ICounterReader__storage = { .readCount = (int (*)(void* arg0))Counter_readCount };
 static const ICounterReader *Counter_ICounterReader = &Counter_ICounterReader__storage;
 static uintptr_t Date_format(const Date *this, char *buffer, uintptr_t buffer_length)
 {
@@ -118,7 +118,7 @@ typedef int (* CounterReader)(void *context);
 /* Layouts. */
 struct ICounterReader
 {
-	int (* readCount)(ICounterReader **ctx);
+	int (* readCount)(void* ctx);
 };
 struct Date
 {

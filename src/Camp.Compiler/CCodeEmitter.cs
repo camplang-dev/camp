@@ -7598,7 +7598,9 @@ public static class CCodeEmitter
 
         static bool IsPointerLike(string? type)
         {
-            return !string.IsNullOrWhiteSpace(type) && type.TrimEnd().EndsWith("*", StringComparison.Ordinal);
+            return !string.IsNullOrWhiteSpace(type)
+                && (type.TrimEnd().EndsWith("*", StringComparison.Ordinal)
+                    || WitnessTypeIdentity.TryParse(type.Trim(), out _));
         }
 
         string FormatVariableReference(BindableNode? variable)

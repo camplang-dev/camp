@@ -366,7 +366,7 @@ public sealed class SemanticTests
 
 		SemanticCompiler.AssertNoDiagnostics(compilation);
 		FunctionDefinition thunk = Assert.Single(compilation.Module.Definitions.OfType<FunctionDefinition>(), static function => function.GeneratedInfo?.Reason == "interface thunk");
-		Assert.Contains(SemanticCompiler.Descendants<MethodReferenceExpression>(compilation.Module), reference => reference.Candidates.Contains(thunk));
+		Assert.Contains(SemanticCompiler.Descendants<MethodReferenceExpression>(thunk.Body!), static reference => reference.Candidates.Any(candidate => candidate.Symbol == "Value_getValue"));
 		Assert.Contains(SemanticCompiler.Descendants<MethodReferenceExpression>(compilation.Module), static reference => reference.Candidates.Any(candidate => candidate.Symbol == "Leaf__getValue"));
 	}
 

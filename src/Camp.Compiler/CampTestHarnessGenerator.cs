@@ -833,7 +833,7 @@ public static class CampTestHarnessGenerator
 		string allocatorType = CTypeName(allocator.Type);
 		builder.AppendLine("static const unsigned char camp_test_uninitialized_pattern = 0xA5;");
 		builder.AppendLine();
-		builder.AppendLine("static void *camp_test_allocator_alloc(" + allocatorType + " **ctx, uintptr_t size)");
+		builder.AppendLine("static void *camp_test_allocator_alloc(void *ctx, uintptr_t size)");
 		builder.AppendLine("{");
 		builder.AppendLine("\t(void)ctx;");
 		builder.AppendLine("\tvoid *ptr = malloc(size);");
@@ -845,7 +845,7 @@ public static class CampTestHarnessGenerator
 		builder.AppendLine();
 		if (allocator.ReallocField is not null)
 		{
-			builder.AppendLine("static void *camp_test_allocator_realloc(" + allocatorType + " **ctx, void *ptr, uintptr_t new_size)");
+			builder.AppendLine("static void *camp_test_allocator_realloc(void *ctx, void *ptr, uintptr_t new_size)");
 			builder.AppendLine("{");
 			builder.AppendLine("\t(void)ctx;");
 			builder.AppendLine("\tif (ptr == 0)");
@@ -877,7 +877,7 @@ public static class CampTestHarnessGenerator
 			builder.AppendLine("}");
 			builder.AppendLine();
 		}
-		builder.AppendLine("static void camp_test_allocator_free(" + allocatorType + " **ctx, void *ptr)");
+		builder.AppendLine("static void camp_test_allocator_free(void *ctx, void *ptr)");
 		builder.AppendLine("{");
 		builder.AppendLine("\t(void)ctx;");
 		builder.AppendLine("\tif (ptr == 0)");
