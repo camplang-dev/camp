@@ -718,7 +718,7 @@ public sealed partial class BindableNodeAnalyzer
 				{
 				Target = CreateInterfaceIndirectMember(localReference, "_vt", $"const {InterfaceResolvedName(targetInterface)}*"),
 				Operator = AssignmentOperator.Assign,
-				Value = CreateObjectInterfaceVTableReference(lowering),
+				Value = CreateStructObjectInterfaceVTableReference(lowering),
 				ResolvedType = $"const {InterfaceResolvedName(targetInterface)}*"
 			}
 		});

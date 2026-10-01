@@ -6,13 +6,11 @@ void *malloc(uintptr_t size);
 static void Handle_IRef_retain(IRef **ctx);
 static const IRef Widget_IRef__storage;
 static const IRef Handle_IRef__storage;
-static const IRef Handle_IRef__object_storage;
 static const IRef *Handle_IRef;
 
 static const IRef Widget_IRef__storage = { .retain = (void (*)(IRef **arg0))Widget_retain };
 const IRef *Widget_IRef = &Widget_IRef__storage;
 static const IRef Handle_IRef__storage = { .retain = (void (*)(IRef **arg0))Handle_retain };
-static const IRef Handle_IRef__object_storage = { .retain = Handle_IRef_retain };
 static const IRef *Handle_IRef = &Handle_IRef__storage;
 void Widget_retain(Widget *this)
 {

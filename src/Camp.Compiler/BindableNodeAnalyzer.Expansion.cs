@@ -610,17 +610,9 @@ public sealed partial class BindableNodeAnalyzer
 			module.Definitions.Add(vtableStorage);
 			generatedInterfaceDefinitions.Add(vtableStorage);
 
-			// The exported vtable holds direct entries that take the struct receiver; interface contexts built
-			// from a struct use the object vtable, whose entries convert the context back to the struct.
-			VariableDefinition objectVTableStorage = generatedDeclarations.Variable(GeneratedDeclarationCategory.Interface, "interface object vtable storage", structDefinition);
-			objectVTableStorage.Name = InterfaceVTableName(structDefinition, interfaceDefinition) + "__object_storage";
-			objectVTableStorage.Symbol = InterfaceVTableName(structDefinition, interfaceDefinition) + "__object_storage";
-			objectVTableStorage.Type = new ConstTypeReference { Type = InterfaceType(interfaceDefinition), ResolvedType = "const " + interfaceDefinition.Name };
-			objectVTableStorage.ResolvedType = "const " + interfaceDefinition.Name;
-			ApplyCombinedRequirement(objectVTableStorage, structDefinition, interfaceDefinition);
-			module.Definitions.Add(objectVTableStorage);
-			generatedInterfaceDefinitions.Add(objectVTableStorage);
-
+			// The exported vtable holds direct entries that take the struct receiver. Interface carriers built from a
+			// struct point at an unnamed object vtable formed at the conversion site, whose entries convert the context
+			// back to the struct.
 			VariableDefinition vtable = generatedDeclarations.Variable(GeneratedDeclarationCategory.Interface, "interface vtable export", structDefinition);
 			vtable.Name = InterfaceVTableName(structDefinition, interfaceDefinition);
 			vtable.Symbol = InterfaceVTableName(structDefinition, interfaceDefinition);
@@ -636,7 +628,7 @@ public sealed partial class BindableNodeAnalyzer
 			module.Definitions.Add(vtable);
 			generatedInterfaceDefinitions.Add(vtable);
 
-			InterfaceImplementationLowering lowering = new(structDefinition, interfaceDefinition, Field: null, vtable, vtableStorage, objectVTableStorage, DirectEntries: false, IsStruct: true);
+			InterfaceImplementationLowering lowering = new(structDefinition, interfaceDefinition, Field: null, vtable, vtableStorage, ObjectVTableStorage: null, DirectEntries: false, IsStruct: true);
 			implementations.Add(lowering);
 			GenerateInterfaceThunks(module, lowering, interfaceDefinition, interfaces);
 		}
@@ -742,7 +734,6 @@ public sealed partial class BindableNodeAnalyzer
 			foreach (InterfaceImplementationLowering lowering in lowerings)
 			{
 				lowering.VTableStorage.InitialValue = CreateInterfaceVTableInitializer(lowering, lowering.Interface, directEntries: true);
-				lowering.ObjectVTableStorage!.InitialValue = CreateInterfaceVTableInitializer(lowering, lowering.Interface, directEntries: false);
 			}
 		}
 
@@ -1449,6 +1440,21 @@ public sealed partial class BindableNodeAnalyzer
 				Variable = lowering.ObjectVTableStorage,
 				ResolvedType = lowering.ObjectVTableStorage.ResolvedType
 			},
+			ResolvedType = lowering.VTable.ResolvedType
+		};
+	}
+
+	// A struct-interface carrier points at an unnamed const object vtable (a C compound literal) formed where the
+	// carrier is built, so it lives as long as the block that holds the carrier.
+	Expression CreateStructObjectInterfaceVTableReference(InterfaceImplementationLowering lowering)
+	{
+		string vtableType = "const " + lowering.Interface.Name;
+		InitializerExpression initializer = CreateInterfaceVTableInitializer(lowering, lowering.Interface, directEntries: false);
+		initializer.ResolvedType = vtableType;
+		return new UnaryExpression
+		{
+			Operator = UnaryOperator.AddressOf,
+			Operand = initializer,
 			ResolvedType = lowering.VTable.ResolvedType
 		};
 	}
