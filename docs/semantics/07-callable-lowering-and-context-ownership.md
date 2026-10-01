@@ -118,6 +118,11 @@ values into ABI components, delegate context calls, interface vtable calls,
 expanded receiver calls, generated `out` storage, `sizeof`, `typenameof`,
 `vtableof`, or `within` arguments.
 
+An override's default values must be omitted or textually identical to the
+inherited declaration's defaults, because a call through a virtual method binds
+to the base declaration. Declaration validation reports any other default on an
+override.
+
 Source-capture defaults are ordinary default values at the declaration surface,
 but their values are computed at the call site during this insertion step:
 

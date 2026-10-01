@@ -594,6 +594,11 @@ Use:
 - `override` when implementing a virtual base member;
 - `sealed` when inheritance or overriding should stop.
 
+A call through a virtual method lowers to the base declaration, so the base
+method's default parameter values are the only defaults that are ever applied.
+An override may omit a default or repeat the base method's default exactly; an
+override that declares a different default value is an error.
+
 ## Extern Classes And Native Objects
 
 `extern class` describes a native or separately implemented object boundary.

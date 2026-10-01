@@ -1,0 +1,25 @@
+virtual class Base
+{
+	virtual int scale(int value, int factor = 3, int offset = 1) { return value * factor + offset; }
+	virtual int plain(int value) { return value; }
+}
+
+sealed class Derived: Base
+{
+	override int scale(int value, int factor = 4, int offset = 1) { return value * factor + offset; }
+}
+
+sealed class Extra: Base
+{
+	override int plain(int value = 5) { return value; }
+}
+
+sealed class Omitted: Base
+{
+	override int scale(int value, int factor, int offset) { return value; }
+}
+
+sealed class Repeated: Base
+{
+	override int scale(int value, int factor = 3, int offset = 1) { return value; }
+}

@@ -1,0 +1,2 @@
+tests/Diagnostics/override_default_value_mismatch.camp(9,45): error: Default value for parameter 'factor' of override 'scale' must be omitted or identical to the default value of the inherited method.
+tests/Diagnostics/override_default_value_mismatch.camp(14,33): error: Default value for parameter 'value' of override 'plain' must be omitted or identical to the default value of the inherited method.

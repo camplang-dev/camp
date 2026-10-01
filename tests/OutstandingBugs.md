@@ -316,55 +316,6 @@ static flags might avoid this specific relocation, but it does not make the
 standard target's shared-library contract work and has not been validated as
 a general workaround for transitive or prebuilt static dependencies.
 
-## BUG-189: An override may declare a default parameter value that differs from the base declaration
-
-Date/Time: 2026-09-30 21:50 EDT
-
-Summary:
-A call through a virtual method always lowers to the base declaration, so the only
-default parameter values known at a call site are the ones the base method declares.
-An override therefore must either omit default values or repeat the base's values
-exactly (for information only). The compiler accepts an override that declares a
-different default value without any diagnostic, and the declared value is silently
-never used.
-
-Steps to Reproduce:
-
-1. Run `campc run override_default.camp --nostdlib --show-errorlevel` with:
-
-   ```camp
-   virtual class Base
-   {
-       virtual int scale(int value, int factor = 3) { return value * factor; }
-   }
-
-   sealed class Derived: Base
-   {
-       override int scale(int value, int factor = 4) { return value * factor; }
-   }
-
-   export int main()
-   {
-       Derived* derived = stackalloc Derived();
-       return derived.scale(2);
-   }
-   ```
-
-2. Remove `= 4` from the override. The program builds and exits with 6, as it does
-   in step 1.
-
-Expected:
-Step 1 reports an error on the override's default value: an override's default must
-be omitted or identical to the base method's default. Step 2 is valid.
-
-Actual:
-Step 1 builds without a diagnostic and exits with 6 (the base default of 3). The
-override's `= 4` has no effect.
-
-Known Impact:
-Source can state a default that is never applied, which misleads readers. Workaround:
-omit the default on overrides.
-
 ## BUG-190: Generic construction through an interface lifecycle contract is not supported
 
 Date/Time: 2026-09-30 19:40 EDT

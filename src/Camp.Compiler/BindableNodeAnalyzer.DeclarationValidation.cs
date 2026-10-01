@@ -954,6 +954,7 @@ public sealed partial class BindableNodeAnalyzer
 					Report(GetNameRange(function), $"Override '{GetCallableName(function)}' must preserve the base declaration's {overloadShapeMismatch}.");
 				if (!IsAtLeastAsAvailable(function, inherited, owner.EffectiveRequirement))
 					Report(GetNameRange(function), $"Override '{GetCallableName(function)}' must be at least as available as inherited member '{inherited.Name}'.");
+				ValidateOverrideDefaultValues(function, inherited);
 				return;
 			}
 		}
@@ -981,6 +982,31 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		Report(GetNameRange(function), $"{function.Modifier} method '{function.Name}' must match an inherited virtual or abstract method.");
+	}
+
+	// Calls through a virtual method lower to the base declaration, so only its default values are ever applied.
+	void ValidateOverrideDefaultValues(FunctionDefinition function, FunctionDefinition inherited)
+	{
+		List<ParameterDefinition> parameters = function.Parameters.Where(static parameter => parameter is not ThisParameterDefinition).ToList();
+		List<ParameterDefinition> inheritedParameters = inherited.Parameters.Where(static parameter => parameter is not ThisParameterDefinition).ToList();
+		for (int i = 0; i < parameters.Count && i < inheritedParameters.Count; i++)
+		{
+			Expression? defaultValue = parameters[i].DefaultValue;
+			if (defaultValue is null)
+				continue;
+
+			string text = DefaultValueSourceText(defaultValue);
+			Expression? inheritedDefault = inheritedParameters[i].DefaultValue;
+			if (inheritedDefault is not null && text == DefaultValueSourceText(inheritedDefault))
+				continue;
+
+			Report(GetRange(defaultValue.SourceSyntax ?? parameters[i].SourceSyntax), $"Default value for parameter '{parameters[i].Name}' of override '{GetCallableName(function)}' must be omitted or identical to the default value of the inherited method.");
+		}
+	}
+
+	static string DefaultValueSourceText(Expression defaultValue)
+	{
+		return GetFullSourceRange(defaultValue.SourceSyntax) is TokenRange range ? NormalizeSourceCaptureText(range) : "";
 	}
 
 	void ValidateInheritedMethodNames(ClassDefinition definition)
