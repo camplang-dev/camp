@@ -1054,30 +1054,29 @@ Known Impact:
 Camp consumers of an exported class cannot call any constructor that has parameters
 through the generated API.
 
-## BUG-198: Names that collide with generated `create` and `destroy` helpers are not always diagnosed
+## BUG-198: Generated `<TypeName>_create` and `<TypeName>_destroy` symbols are not treated as existing symbols
 
 Date/Time: 2026-09-30 23:50 EDT
 
 Summary:
-The compiler generates `create` and `destroy` helpers for a class, and the helper
-names are reserved for the compiler even though source code cannot call them. A field
-or method with one of those names must produce an ordinary name-collision diagnostic.
-A method named `create` or `destroy` is diagnosed ("Duplicate method name"), but a field
-with the same name is accepted without any diagnostic. A global function that spells the
-generated symbol, such as `Counter_create`, is also accepted and then fails in the C
-compiler with "conflicting types".
+The compiler generates `<TypeName>_create` and `<TypeName>_destroy` for a class. Source
+cannot call them, but they must be treated as symbols that exist, so any declaration whose
+symbol would collide with them triggers the usual duplicate-symbol diagnostic. A global
+function named `Counter_create` or `Counter_destroy` is accepted by the compiler and then
+fails in the C compiler with "conflicting types".
 
 Steps to Reproduce:
 
-1. Build `campc build field.camp --nostdlib --out-dir out` with:
+1. Build `campc build clash.camp --nostdlib --out-dir out` with:
 
    ```camp
    extern void* malloc(nuint size);
    extern void free(void* ptr);
 
+   int Counter_create() { return 1; }
+
    class Counter
    {
-       int create;
        Counter() {}
        ~Counter() {}
    }
@@ -1088,20 +1087,15 @@ Steps to Reproduce:
    }
    ```
 
-2. Change the field to `int destroy;`. The result is the same.
-3. For comparison, replace the field with `int create(int a) { return a; }`. The compiler
-   reports `Duplicate method name 'create'.`
-4. Replace the class body with a global function above it, `int Counter_create() { return 1; }`,
-   keeping the constructor and destructor.
+2. Rename the function to `Counter_destroy`. The result is the same.
 
 Expected:
-Steps 1, 2 and 4 each report a name-collision diagnostic at the declaration, the same
-kind of diagnostic as step 3.
+Each program reports a duplicate-symbol diagnostic at the function.
 
 Actual:
-Steps 1 and 2 build without any diagnostic. Step 4 fails in the C compiler with
-`error: conflicting types for 'Counter_create'`.
+The compiler reports no error. The C compiler fails with
+`error: conflicting types for 'Counter_create'` (respectively `'Counter_destroy'`).
 
 Known Impact:
-A field named `create` or `destroy`, or a function that spells a generated helper symbol,
-is accepted and may later conflict with the generated helper. Workaround: avoid those names.
+Symbol collisions with generated helpers surface as C compiler errors. Workaround: avoid
+those names.
