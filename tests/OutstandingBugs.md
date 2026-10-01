@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-197.
+Next bug number: BUG-198.
 
 ## Bug Template
 
@@ -994,3 +994,63 @@ and 'int')` for the generated `typenameof_T[0] == 'I'`. The generated signature 
 Known Impact:
 Type-name capabilities cannot be used in place. Workaround: copy into a `string` local
 first.
+
+## BUG-197: The generated Camp API and JSON omit constructor parameters
+
+Date/Time: 2026-09-30 23:40 EDT
+
+Summary:
+When a library exports a class whose constructor takes parameters, the generated C
+header declares the matching `Counter_create(int initial)`, but the generated Camp API
+file and the JSON metadata describe the constructor with no parameters. A Camp consumer
+that uses the generated API therefore cannot pass constructor arguments. The metadata
+reference requires lifecycle constructor signatures to be serialized in the shape that
+downstream Camp consumers need to type-check.
+
+Steps to Reproduce:
+
+1. Build a library with `campc build counterlib.campbuild`, where the build file lists
+   `--nostdlib` and `counter.camp`:
+
+   ```camp
+   extern void* malloc(nuint size);
+   extern void free(void* ptr);
+
+   export class Counter
+   {
+       int value;
+       Counter(int initial) { this.value = initial; }
+       ~Counter() {}
+       export int get() { return this.value; }
+   }
+   ```
+
+2. Inspect `counterlib_api.camp`: the class is `export extern class Counter` with
+   `export extern Counter();`, and `counterlib_api.json` lists the constructor without
+   parameters. `counterlib_api.h` has `Counter *Counter_create(int initial);`.
+3. Build a consumer with `--nostdlib --api counterlib_api.camp --reference libcounterlib.a`:
+
+   ```camp
+   extern void* malloc(nuint size);
+   extern void free(void* ptr);
+
+   export int main()
+   {
+       Counter* c = new Counter(5);
+       int r = c.get() - 5;
+       delete c;
+       return r;
+   }
+   ```
+
+Expected:
+The Camp API declares `export extern Counter(int initial);`, the JSON lists the
+`initial` parameter, and the consumer builds and exits with 0.
+
+Actual:
+The consumer fails with `error: Call has too many arguments.` at `new Counter(5)`.
+
+Known Impact:
+Camp consumers of an exported class cannot call any constructor that has parameters
+through the generated API.
+
