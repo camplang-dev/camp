@@ -1529,14 +1529,22 @@ public sealed partial class BindableNodeAnalyzer
 			&& IsExpandedReturnCallArm(conditional.WhenTrue, resultShape.Components.Count)
 			&& IsExpandedReturnCallArm(conditional.WhenFalse, resultShape.Components.Count))
 			return MaterializeConditionalExpandedCallResults(conditional, resultShape, out components);
-		if ((!TryCreateParamsComponentExpressions(conditional.WhenTrue, out List<Expression> trueComponents)
-				&& !TryCreatePrimitiveStringParamsComponentExpressions(conditional.WhenTrue, out trueComponents))
-			|| (!TryCreateParamsComponentExpressions(conditional.WhenFalse, out List<Expression> falseComponents)
-				&& !TryCreatePrimitiveStringParamsComponentExpressions(conditional.WhenFalse, out falseComponents))
+		List<Statement>? truePrefix = currentStatementPrefix is null ? null : [];
+		List<Statement>? falsePrefix = currentStatementPrefix is null ? null : [];
+		if (!TryCreateConditionalArmComponents(conditional.WhenTrue, truePrefix, out List<Expression> trueComponents)
+			|| !TryCreateConditionalArmComponents(conditional.WhenFalse, falsePrefix, out List<Expression> falseComponents)
 			|| trueComponents.Count == 0
 			|| trueComponents.Count != falseComponents.Count)
 		{
 			return false;
+		}
+
+		if (conditional.Condition is not null
+			&& currentStatementPrefix is not null
+			&& (truePrefix!.Count > 0 || falsePrefix!.Count > 0))
+		{
+			// An arm needed statements of its own; they may only run when the arm is selected.
+			return MaterializeConditionalArmComponents(conditional, truePrefix, trueComponents, falsePrefix!, falseComponents, out components);
 		}
 
 		if (conditional.Condition is null)
@@ -1557,6 +1565,95 @@ public sealed partial class BindableNodeAnalyzer
 			});
 		}
 		return true;
+	}
+
+	bool TryCreateConditionalArmComponents(Expression arm, List<Statement>? armPrefix, out List<Expression> armComponents)
+	{
+		List<Statement>? previousPrefix = currentStatementPrefix;
+		if (armPrefix is not null)
+			currentStatementPrefix = armPrefix;
+		try
+		{
+			return TryCreateParamsComponentExpressions(arm, out armComponents)
+				|| TryCreatePrimitiveStringParamsComponentExpressions(arm, out armComponents);
+		}
+		finally
+		{
+			currentStatementPrefix = previousPrefix;
+		}
+	}
+
+	bool MaterializeConditionalArmComponents(
+		ConditionalExpression conditional,
+		List<Statement> truePrefix,
+		List<Expression> trueComponents,
+		List<Statement> falsePrefix,
+		List<Expression> falseComponents,
+		out List<Expression> components)
+	{
+		components = [];
+		Expression condition = LowerScalarExpression(conditional.Condition) ?? conditional.Condition!;
+		DeclarationStatement conditionLocal = CreateGeneratedLocal(NewGeneratedLocalName("condition"), "bool", TypeReferenceForResolvedName("bool"), condition);
+		currentStatementPrefix!.Add(conditionLocal);
+
+		List<DeclarationTarget> targets = [];
+		List<string> types = [];
+		for (int i = 0; i < trueComponents.Count; i++)
+		{
+			string type = trueComponents[i].ResolvedType ?? falseComponents[i].ResolvedType ?? ErrorType;
+			DeclarationStatement local = CreateGeneratedLocal(NewGeneratedLocalName("conditionalValue"), type, TypeReferenceForResolvedName(type), null);
+			currentStatementPrefix.Add(local);
+			targets.Add(local.Target);
+			types.Add(type);
+			components.Add(CreateVariableReference(local.Target, type, conditional.SourceSyntax));
+		}
+
+		Statement trueBranch = CreateConditionalArmSelectionBranch(conditional.WhenTrue!, truePrefix, trueComponents, targets, types);
+		Statement falseBranch = CreateConditionalArmSelectionBranch(conditional.WhenFalse!, falsePrefix, falseComponents, targets, types);
+		currentStatementPrefix.Add(new IfStatement
+		{
+			SourceSyntax = conditional.SourceSyntax,
+			ResolvedType = "void",
+			Condition = CreateVariableReference(conditionLocal.Target, "bool", conditional.Condition?.SourceSyntax),
+			Body = trueBranch,
+			ElseBody = falseBranch
+		});
+		return true;
+	}
+
+	Statement CreateConditionalArmSelectionBranch(Expression arm, List<Statement> armPrefix, List<Expression> armComponents, List<DeclarationTarget> targets, List<string> types)
+	{
+		List<Statement> statements = [..armPrefix];
+		List<Statement>? previousPrefix = currentStatementPrefix;
+		List<Statement>? previousSuffix = currentStatementSuffix;
+		currentStatementPrefix = statements;
+		currentStatementSuffix = [];
+		try
+		{
+			for (int i = 0; i < targets.Count; i++)
+			{
+				statements.Add(new ExpressionStatement
+				{
+					SourceSyntax = arm.SourceSyntax,
+					ResolvedType = "void",
+					Expression = new AssignmentExpression
+					{
+						SourceSyntax = arm.SourceSyntax,
+						Target = CreateVariableReference(targets[i], types[i]),
+						Operator = AssignmentOperator.Assign,
+						Value = LowerExpression(armComponents[i]),
+						ResolvedType = types[i]
+					}
+				});
+			}
+			statements.AddRange(currentStatementSuffix);
+		}
+		finally
+		{
+			currentStatementPrefix = previousPrefix;
+			currentStatementSuffix = previousSuffix;
+		}
+		return CreateBlock(statements);
 	}
 
 	bool IsExpandedReturnCallArm(Expression expression, int componentCount)

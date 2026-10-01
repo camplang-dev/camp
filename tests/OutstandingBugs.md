@@ -316,51 +316,6 @@ static flags might avoid this specific relocation, but it does not make the
 standard target's shared-library contract work and has not been validated as
 a general workaround for transitive or prebuilt static dependencies.
 
-## BUG-176: Unchosen conditional string-array arm is indexed eagerly
-
-Date/Time: 2026-09-28 04:18 EDT
-
-Summary:
-When a conditional expression returns a counted text view and one arm indexes
-an array of strings, the native C backend evaluates the index expression before
-testing the condition. A guard in the condition therefore cannot protect an
-invalid index in the unchosen arm.
-
-Steps to Reproduce:
-
-1. Run this standalone source with `campc run repro.camp` on the native C
-   backend:
-
-   ```camp
-   const char[] choose(string[] values, uint raw)
-   {
-       return raw == 0 || raw > values.length ? default : values[raw - 1];
-   }
-
-   export int main()
-   {
-       string[] values = new string[1] finally delete;
-       values[0] = "seven";
-       return choose(values, 0).length == 0 ? 0 : 1;
-   }
-   ```
-
-2. Inspect the emitted C for `choose` if the process does not fault on the
-   host. The backend computes `values[(raw - 1)]` before the C conditional.
-
-Expected:
-With `raw == 0`, the conditional chooses `default` without evaluating or
-indexing the other arm; the program returns 0.
-
-Actual:
-The emitted C indexes `values[raw - 1]` before checking the condition. On
-macOS x86-64 the standalone program exited with code 139.
-
-Known Impact:
-A bounds-guarded conditional returning counted text from a string array can
-read out of bounds or crash. An explicit `if` that returns before indexing is
-a safe source workaround.
-
 ## BUG-179: Static consumer calls an export whose native symbol starts with underscores
 
 Date/Time: 2026-09-30 12:05 EDT

@@ -1,0 +1,17 @@
+const char[] choose(string[] values, uint raw)
+{
+	return raw == 0 || raw > values.length ? default : values[raw - 1];
+}
+
+export int main()
+{
+	string[] values = new string[1] finally delete;
+	values[0] = "seven";
+	if (choose(values, 0).length != 0)
+		return 1;
+	if (choose(values, 2).length != 0)
+		return 2;
+	if (choose(values, 1).length != 5)
+		return 3;
+	return 0;
+}
