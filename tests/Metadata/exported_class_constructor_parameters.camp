@@ -1,0 +1,10 @@
+extern void* malloc(nuint size);
+extern void free(void* ptr);
+
+export class Counter
+{
+	int value;
+	Counter(int initial, long step) { this.value = initial; }
+	~Counter() {}
+	export int get() { return this.value; }
+}

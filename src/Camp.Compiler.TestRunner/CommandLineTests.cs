@@ -1522,6 +1522,67 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Static_project_api_preserves_exported_class_constructor_parameters()
+	{
+		string source = CreateTempCase("static_api_constructor_parameters/library.camp", """
+			extern void* malloc(nuint size);
+			extern void free(void* ptr);
+
+			export class Counter
+			{
+				int value;
+				Counter(int initial) { this.value = initial; }
+				~Counter() {}
+				export int get() { return this.value; }
+			}
+			""");
+		string outDir = TempPath("static-api-constructor-parameters-out");
+
+		ProcessResult result = RunCampc(
+			"build",
+			source,
+			"--nostdlib",
+			"--artifact",
+			"static",
+			"--target",
+			NativeTargetForHost(),
+			"--out-dir",
+			outDir,
+			"--name",
+			"static_api_constructor_parameters");
+
+		AssertCommandSucceeded(result);
+		string artifactDirectory = Path.Combine(outDir, ArtifactDirectoryForHost(NativeBuildKind.Static));
+		string apiPath = Path.Combine(artifactDirectory, "static_api_constructor_parameters_api.camp");
+		Assert.Contains("export extern Counter(int initial);", File.ReadAllText(apiPath), StringComparison.Ordinal);
+		Assert.Contains("\"name\": \"initial\"", File.ReadAllText(Path.Combine(artifactDirectory, "static_api_constructor_parameters_api.json")), StringComparison.Ordinal);
+
+		string consumer = CreateTempCase("static_api_constructor_parameters_consumer/main.camp", """
+			extern void* malloc(nuint size);
+			extern void free(void* ptr);
+
+			void make()
+			{
+				Counter* c = new Counter(5);
+				delete c;
+			}
+			""");
+		ProcessResult consumerResult = RunCampc(
+			"build",
+			consumer,
+			"--nostdlib",
+			"--artifact",
+			"none",
+			"--api",
+			apiPath,
+			"--out-dir",
+			TempPath("static-api-constructor-parameters-consumer-out"),
+			"--name",
+			"static_api_constructor_parameters_consumer");
+		AssertCommandSucceeded(consumerResult);
+	}
+
+	[Fact]
 	public void Static_project_api_header_omits_parameter_documentation()
 	{
 		string source = CreateTempCase("static_api_parameter_documentation/library.camp", """

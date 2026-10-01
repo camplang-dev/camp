@@ -603,10 +603,24 @@ public sealed class BindableNodeCodeSerializer
 			WriteApiVisibilityPrefix(definition!);
 			writer.Write("extern ");
 			writer.Write(definition!.Name);
-			if (LifecycleAllocatorPolicy.SyntheticConstructorUsesAllocator(currentModule, definition, functions, retainsAllocator, ApiAllocatorTypeAvailable()))
-				writer.WriteLine(retainsAllocator ? "(within this.allocator);" : "(within allocator);");
-			else
-				writer.WriteLine("();");
+			FunctionDefinition? userConstructor = functions.FirstOrDefault(function => function.Modifier == FunctionModifier.Constructor && !IsGeneratedLifecycleDefinition(function));
+			List<ParameterDefinition> constructorParameters = userConstructor is null ? [] : FilterApiParameters(userConstructor.Parameters);
+			bool addAllocator = LifecycleAllocatorPolicy.SyntheticConstructorUsesAllocator(currentModule, definition, functions, retainsAllocator, ApiAllocatorTypeAvailable())
+				&& !constructorParameters.Any(static parameter => parameter.Modifier == ParameterModifier.Within || parameter is WithinParameterDefinition);
+			writer.Write("(");
+			for (int i = 0; i < constructorParameters.Count; i++)
+			{
+				if (i > 0)
+					writer.Write(", ");
+				WriteParameter(constructorParameters[i]);
+			}
+			if (addAllocator)
+			{
+				if (constructorParameters.Count > 0)
+					writer.Write(", ");
+				writer.Write(retainsAllocator ? "within this.allocator" : "within allocator");
+			}
+			writer.WriteLine(");");
 			wrote = true;
 		}
 		if (hasSyntheticDelete)
@@ -758,6 +772,12 @@ public sealed class BindableNodeCodeSerializer
 			|| function.GeneratedInfo?.Category == GeneratedDeclarationCategory.VirtualDispatch
 			|| IsGeneratedConstructorLifecycleFunction(function)
 			|| IsGeneratedVirtualImplementationFunction(function);
+	}
+
+	static bool IsGeneratedLifecycleDefinition(FunctionDefinition function)
+	{
+		return function.GeneratedInfo?.Category == GeneratedDeclarationCategory.Lifecycle
+			|| function.Provenance?.Category == GeneratedDeclarationCategory.Lifecycle;
 	}
 
 	static bool IsGeneratedConstructorLifecycleFunction(FunctionDefinition function)
