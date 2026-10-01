@@ -1,0 +1,7 @@
+export class Counter
+{
+	int value;
+	Counter(int initial) { this.value = initial; }
+	~Counter() {}
+	export int get() { return this.value; }
+}

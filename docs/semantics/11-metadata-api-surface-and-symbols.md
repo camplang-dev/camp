@@ -564,7 +564,9 @@ Lifecycle constructor/destructor signatures must be serialized in the shape
 that downstream Camp consumers need to type-check. A retained allocator source
 constructor written with `within this.allocator` is serialized as a constructor
 with a `within allocator` parameter of type `Allocator*`; the generated retained
-field is not serialized. A retained allocator destructor is serialized as
+field is not serialized. A constructor that is not exported is not part of the API
+or metadata surface; an exported class with only non-exported constructors
+serializes no constructor. A retained allocator destructor is serialized as
 parameterless unless the actual lifecycle contract declares a `within`
 destructor. Interface destructor metadata preserves this exact distinction.
 

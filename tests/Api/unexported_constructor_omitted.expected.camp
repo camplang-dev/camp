@@ -1,0 +1,6 @@
+export extern class Counter
+{
+	export extern ~Counter();
+
+	export extern int get();
+}

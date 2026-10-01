@@ -682,7 +682,7 @@ public sealed class BindableNodeCodeSerializer
 
 		foreach (FunctionDefinition function in functions)
 		{
-			if (function.Modifier == FunctionModifier.Constructor && IsVisibleInApiSurface(function))
+			if (function.Modifier == FunctionModifier.Constructor && (IsVisibleInApiSurface(function) || !IsGeneratedLifecycleDefinition(function)))
 				return false;
 		}
 
@@ -758,6 +758,12 @@ public sealed class BindableNodeCodeSerializer
 			|| function.GeneratedInfo?.Category == GeneratedDeclarationCategory.VirtualDispatch
 			|| IsGeneratedConstructorLifecycleFunction(function)
 			|| IsGeneratedVirtualImplementationFunction(function);
+	}
+
+	static bool IsGeneratedLifecycleDefinition(FunctionDefinition function)
+	{
+		return function.GeneratedInfo?.Category == GeneratedDeclarationCategory.Lifecycle
+			|| function.Provenance?.Category == GeneratedDeclarationCategory.Lifecycle;
 	}
 
 	static bool IsGeneratedConstructorLifecycleFunction(FunctionDefinition function)

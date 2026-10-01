@@ -1543,7 +1543,7 @@ public static class MetadataJsonSerializer
 
 			foreach (FunctionDefinition function in functions)
 			{
-				if (!IsGeneratedLifecycleDefinition(function) && function.Modifier == FunctionModifier.Constructor && function.Export is not null)
+				if (!IsGeneratedLifecycleDefinition(function) && function.Modifier == FunctionModifier.Constructor)
 					return false;
 			}
 

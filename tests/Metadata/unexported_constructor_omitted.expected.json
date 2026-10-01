@@ -1,0 +1,38 @@
+{
+  "format": "camp.metadata",
+  "version": 1,
+  "module": {
+    "name": "unexported_constructor_omitted"
+  },
+  "view": {
+    "visibility": "export",
+    "level": "api",
+    "generated": false
+  },
+  "declarations": [
+    {
+      "id": "class:Counter",
+      "kind": "class",
+      "name": "Counter",
+      "visibility": "export",
+      "extern": true,
+      "functions": [
+        {
+          "id": "class:Counter/function:~Counter",
+          "name": "~Counter",
+          "visibility": "export",
+          "extern": true,
+          "modifier": "destructor"
+        },
+        {
+          "id": "class:Counter/function:get",
+          "name": "get",
+          "symbol": "Counter_get",
+          "visibility": "export",
+          "extern": true,
+          "returnType": "int"
+        }
+      ]
+    }
+  ]
+}
