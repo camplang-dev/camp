@@ -1,0 +1,3 @@
+tests/Diagnostics/lifecycle_helper_symbol_collisions.camp(4,5): error: Duplicate symbol name 'Counter_create'.
+tests/Diagnostics/lifecycle_helper_symbol_collisions.camp(6,5): error: Duplicate symbol name 'Counter_destroy'.
+tests/Diagnostics/lifecycle_helper_symbol_collisions.camp(16,16): error: Duplicate symbol name 'Widget_create'.

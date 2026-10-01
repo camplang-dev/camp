@@ -1,1 +1,0 @@
-tests/Diagnostics/lifecycle_create_symbol_collision_static_field.camp(6,16): error: Duplicate symbol name 'Counter_create'.

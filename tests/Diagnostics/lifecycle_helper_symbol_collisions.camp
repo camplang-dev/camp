@@ -3,10 +3,19 @@ extern void free(void* ptr);
 
 int Counter_create() { return 1; }
 
+int Counter_destroy() { return 1; }
+
 class Counter
 {
     Counter() {}
     ~Counter() {}
+}
+
+class Widget
+{
+    static int create;
+    Widget() {}
+    ~Widget() {}
 }
 
 export int main()
