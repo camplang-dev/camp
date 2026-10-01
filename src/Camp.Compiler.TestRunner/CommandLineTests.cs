@@ -5772,7 +5772,7 @@ public sealed class CommandLineTests
 
 			export escaped class Owner
 			{
-				Owner(within this.allocator)
+				export Owner(within this.allocator)
 				{
 				}
 
