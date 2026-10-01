@@ -2,11 +2,8 @@
 
 ## Status
 
-Pending implementation. The maintainer approved this proposal for a focused
-bootstrap compiler handoff. Its source-level witness and interface distinctions,
-shared C table layout, and documentation requirements govern that work. Follow
-the proposal lifecycle in `../../compiler-development-guide.md`; the execution
-handoff remains outside the proposal archive.
+Accepted and implemented in DEV-014. This proposal records the approved design;
+current behavior is specified by the living language and semantics guides.
 
 ## Proposal Date
 
@@ -365,24 +362,24 @@ variation. Existing starting points include `vtableof_generic_dispatch`,
 `vtableof_slot_source_abi_mismatch`: an expected runtime result must not preserve
 an invalid source-level receiver assignment merely because erased C permits it.
 
-- [ ] Direct and generic witness calls, interface calls, and explicit interface
+- [x] Direct and generic witness calls, interface calls, and explicit interface
   table calls produce correct results; both wrong-receiver directions diagnose.
-- [ ] Extracted slot types remain correct through concrete/generic expressions,
+- [x] Extracted slot types remain correct through concrete/generic expressions,
   named parameters, stored fields, forwarding, and API round-trips.
-- [ ] Constructors have no receiver and the proper result type; destroy slots
+- [x] Constructors have no receiver and the proper result type; destroy slots
   preserve allocator and deallocation behavior without invoking `op_delete` as
   a substitute or freeing twice.
-- [ ] Default/optional slots, interface inheritance, and existing permitted
+- [x] Default/optional slots, interface inheritance, and existing permitted
   concrete inheritance work without new reimplementation/override semantics.
-- [ ] C output uses one table struct definition per interface shape, erased
+- [x] C output uses one table struct definition per interface shape, erased
   receiver/result pointers where specified, direct entries where compatible,
   and no erasure-only thunks on validated configurations.
-- [ ] Scoped struct-interface compound literals and durable retained witness
+- [x] Scoped struct-interface compound literals and durable retained witness
   storage each obey their own lifetime requirements.
-- [ ] Exported/static/shared producer-consumer cases preserve the distinction
+- [x] Exported/static/shared producer-consumer cases preserve the distinction
   through Camp APIs and metadata, and the shared C header is usable by a C caller.
-- [ ] Canonical docs no longer describe witnesses as interface-vtable values.
-- [ ] Target/toolchain support and remaining instrumentation restrictions are
+- [x] Canonical docs no longer describe witnesses as interface-vtable values.
+- [x] Target/toolchain support and remaining instrumentation restrictions are
   stated explicitly, not inferred from a single host result.
 
 Use focused local development tests, then focused optimized native and
