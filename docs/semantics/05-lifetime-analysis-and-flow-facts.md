@@ -198,6 +198,9 @@ Expression lifetime facts are propagated through body analysis:
   activation segment. Slices, views, casts that preserve carriers, locals, and
   prepared/interpolated results derived from that storage preserve the
   stackalloc-backed origin.
+- A catch variable of pointer-bearing type receives an `escaped` fact, because a
+  thrown value outlives the frame that threw it. A caught pointer may therefore
+  be deleted.
 - Capture-free lambdas can be treated as escaped callable values; captured
   lambdas depend on the target callable lifetime and generated context
   ownership.

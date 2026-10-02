@@ -162,6 +162,9 @@ The catch variable is an ordinary local scoped to the catch body. It can be
 inspected, translated to another error type, logged, or used to choose a
 fallback.
 
+If the catch variable is a pointer, it is `escaped`: a thrown value outlives the
+frame that threw it, so the handler owns it and may `delete` it.
+
 Multiple calls inside the same try block can flow to the same catch:
 
 ```camp
