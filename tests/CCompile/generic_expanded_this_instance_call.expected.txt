@@ -31,7 +31,7 @@ static void *Array_copyArray(const void *this, uintptr_t this_length, uintptr_t 
 	Array_copyTo(this, this_length, elements, elements_length, sizeof_T);
 	{
 		(*result_length) = elements_length;
-		return elements;
+		return (void*)(elements);
 	}
 }
 

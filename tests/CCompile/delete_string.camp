@@ -3,13 +3,13 @@ extern void free(void* ptr);
 
 void deleteNow()
 {
-	string text = (string)malloc(16);
+	string text = (escaped string)malloc(16);
 	delete text;
 }
 
 void deleteFinally()
 {
-	string text = (string)malloc(16) finally delete;
+	string text = (escaped string)malloc(16) finally delete;
 	_ = text;
 }
 

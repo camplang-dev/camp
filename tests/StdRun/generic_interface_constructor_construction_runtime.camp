@@ -13,13 +13,13 @@ sealed class CountingAllocator: Allocator
 	{
 	}
 
-	void* alloc(nuint size): Allocator
+	escaped void* alloc(nuint size): Allocator
 	{
 		this.allocations++;
 		return malloc(size);
 	}
 
-	void* realloc(void* ptr, nuint newSize): Allocator
+	escaped void* realloc(void* ptr, nuint newSize): Allocator
 	{
 		return null;
 	}

@@ -10,12 +10,12 @@ inline nuint HASHMAP_EMPTY = (nuint)0;
 public class HashMap<K: copyable, V: copyable>
 {
 	HashPolicy<K> policy;
-	K[] keys;
-	V[] values;
-	nuint[] buckets;
-	nuint[] next;
-	nuint[] hashes;
-	bool[] occupied;
+	escaped K[] keys;
+	escaped V[] values;
+	escaped nuint[] buckets;
+	escaped nuint[] next;
+	escaped nuint[] hashes;
+	escaped bool[] occupied;
 	nuint length;
 	nuint used;
 	nuint firstFree;

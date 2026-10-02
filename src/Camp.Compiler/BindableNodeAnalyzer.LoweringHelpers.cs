@@ -723,6 +723,7 @@ public sealed partial class BindableNodeAnalyzer
 		FunctionDefinition? malloc = FindMallocFunction(syntax);
 		if (malloc is null && allocatorSurfaceValidationEnabled)
 			Report(syntax, "Allocation requires an accessible function named 'malloc' that takes a single integer parameter.");
+		RequireEscapedAllocatorReturn(malloc, "malloc", syntax);
 		CallExpression call = new()
 		{
 			SourceSyntax = syntax,
@@ -733,6 +734,16 @@ public sealed partial class BindableNodeAnalyzer
 		return call;
 	}
 
+	// `new` always yields an escaped value, so the allocator it lowers to must declare that it returns one.
+	void RequireEscapedAllocatorReturn(FunctionDefinition? allocator, string name, SyntaxNode? syntax)
+	{
+		if (allocator is null || !allocatorSurfaceValidationEnabled)
+			return;
+		if (TryParseLifetimeFact(GetFunctionReturnLifetimeFact(allocator, "alloc"), out LifetimeFact fact) && fact.Kind == "escaped")
+			return;
+		Report(syntax, $"Allocation function '{name}' must return an escaped pointer because 'new' yields an escaped value.");
+	}
+
 	CallExpression CreateAllocatorAllocCall(Expression allocator, Expression size, SyntaxNode? syntax)
 	{
 		allocator = NormalizeAllocatorPatternExpression(allocator);
@@ -741,6 +752,7 @@ public sealed partial class BindableNodeAnalyzer
 			Report(syntax, $"Allocator type '{allocator.ResolvedType ?? ErrorType}' must provide an accessible method named 'alloc' that takes a single integer parameter.");
 		if (alloc is null && !allocatorSurfaceValidationEnabled)
 			alloc = CreateSyntheticAllocatorPatternMethod(allocator.ResolvedType, "alloc", "void*");
+		RequireEscapedAllocatorReturn(alloc, $"{AllocatorPatternReceiverType(allocator.ResolvedType)}.alloc", syntax);
 		MemberReferenceExpression target = new()
 		{
 			SourceSyntax = syntax,

@@ -1,0 +1,29 @@
+extern escaped void* malloc(nuint size);
+extern void free(escaped void* ptr);
+
+escaped delegate int() makeCounter(int start)
+{
+	return new delegate () => start;
+}
+
+void deleteScopedParameter(delegate int() callback)
+{
+	delete callback;
+}
+
+void deleteEscapedParameter(escaped delegate int() callback)
+{
+	delete callback;
+}
+
+void deleteEscapedLocal()
+{
+	auto callback = makeCounter(3);
+	delete callback;
+}
+
+void deleteScopedLocal(delegate int() source)
+{
+	delegate int() callback = source;
+	delete callback;
+}

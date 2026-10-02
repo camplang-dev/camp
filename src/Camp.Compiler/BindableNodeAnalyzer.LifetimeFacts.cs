@@ -239,7 +239,7 @@ public sealed partial class BindableNodeAnalyzer
 			&& expressionRewrites.TryGetValue(declaration.InitialValue, out Expression? rewrittenInitialValue)
 			&& !ReferenceEquals(rewrittenInitialValue, declaration.InitialValue))
 		{
-			initialValueFact = GetExpressionLifetimeFact(rewrittenInitialValue);
+			initialValueFact = GetExpressionLifetimeFact(rewrittenInitialValue) ?? initialValueFact;
 		}
 		if (declaration.IsStackAllocStorage && !string.IsNullOrWhiteSpace(name))
 			initialValueFact = MakeLifetimeFact("scoped", name, "stackalloc slot");
@@ -267,6 +267,9 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			if (GetExpressionLifetimeFact(rewritten) is string rewrittenFact)
 				expression.ValueLifetimeFact = rewrittenFact;
+			else if (rewritten is MemberReferenceExpression { Member: FieldDefinition field } fieldReference
+				&& GetFieldReferenceLifetimeFact(fieldReference, field, resolvedType, scope) is string fieldFact)
+				expression.ValueLifetimeFact = fieldFact;
 			return;
 		}
 
@@ -285,12 +288,12 @@ public sealed partial class BindableNodeAnalyzer
 				?? (IsFunctionPointerResolvedType(resolvedType) ? MakeLifetimeFact("escaped", null, "function pointer cast") : null)
 				?? GetExpressionLifetimeFact(cast.Expression),
 			PreparedBufferExpression prepared => prepared.HeapAllocated
-				? MakeLifetimeFact("unknown", null, "new")
+				? MakeLifetimeFact("escaped", null, "new")
 				: prepared.StackAllocated
 					? MakeLifetimeFact("scoped", null, "stackalloc")
 					: MakeLifetimeFact("scoped", null, "init"),
 			InterpolatedStringExpression interpolation => interpolation.HeapAllocated
-				? MakeLifetimeFact("unknown", null, "new")
+				? MakeLifetimeFact("escaped", null, "new")
 				: interpolation.StackAllocated
 					? MakeLifetimeFact("scoped", null, "stackalloc")
 					: IsLifetimePointerBearingResolvedType(resolvedType, scope)
@@ -381,8 +384,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	string? GetNewConstructionLifetimeFact(ConstructionExpression construction)
 	{
-		FunctionDefinition? malloc = FindMallocFunction(construction.SourceSyntax);
-		return GetFunctionReturnLifetimeFact(malloc, "new") ?? MakeLifetimeFact("unknown", null, "new");
+		return MakeLifetimeFact("escaped", null, "new");
 	}
 
 	string? GetWithinExpressionLifetimeFact(WithinExpression within, string resolvedType, BodyScope scope)
@@ -562,6 +564,18 @@ public sealed partial class BindableNodeAnalyzer
 		return targetFact is not null ? targetFact + ":element" : null;
 	}
 
+	// A rewritten field read has no MemberExpression of its own, so the field's slot fact supplies the value fact.
+	string? GetFieldReferenceLifetimeFact(MemberReferenceExpression reference, FieldDefinition field, string resolvedType, BodyScope scope)
+	{
+		if (!IsLifetimePointerBearingResolvedType(resolvedType, scope))
+			return null;
+		if (IsEscapedStorage(field))
+			return MakeLifetimeFact("escaped", field.Name, "field");
+
+		string? targetFact = GetExpressionLifetimeFact(reference.Target);
+		return targetFact is not null ? targetFact + ":member" : MakeLifetimeFact("scoped", null, "member");
+	}
+
 	string? GetMemberLifetimeFact(MemberExpression member, string resolvedType, BodyScope scope)
 	{
 		if (!IsLifetimePointerBearingResolvedType(resolvedType, scope))
@@ -645,6 +659,10 @@ public sealed partial class BindableNodeAnalyzer
 		}
 		if (TryGetResolvedTypeLifetime(function.ReturnType?.ResolvedType ?? resolvedType, out string lifetimeKind))
 			return new LifetimeFact(lifetimeKind, [], "return type");
+
+		// A generated create helper allocates, so its result is an escaped instance.
+		if (generatedCreateHelpers.Contains(function))
+			return new LifetimeFact("escaped", [], "create");
 
 		if (IsReceiverBearingDeclaration(function))
 			return new LifetimeFact("unscoped", ["this"], "return default");
@@ -1262,17 +1280,15 @@ public sealed partial class BindableNodeAnalyzer
 		Report(GetRange(syntax), "Yield expression cannot yield a pointer-bearing value that does not outlive the iterator frame.");
 	}
 
-	// A pointer scoped to caller context (derived from a parameter) may be on the caller's stack, so deleting it
-	// would free the wrong thing. Stackalloc cleanup deletes skip this check and the free.
+	// Only an escaped pointer may be freed. Stackalloc cleanup deletes skip this check and the free.
 	void CheckLifetimeDeleteAgainstFree(Expression? expression, SyntaxNode? syntax, BodyScope scope)
 	{
-		if (!IsPointerBearingResolvedType(expression?.ResolvedType))
+		if (!IsPointerBearingResolvedType(expression?.ResolvedType) || expression is ThisExpression)
 			return;
 
-		if (!TryParseLifetimeFact(GetExpressionLifetimeFact(expression), out LifetimeFact actualFact))
+		if (TryParseLifetimeFact(GetExpressionLifetimeFact(expression), out LifetimeFact fact) && fact.Kind is "escaped" or "null" or "default")
 			return;
-		if (actualFact.Kind == "scoped" && (IsStackAllocLifetimeFact(actualFact) || actualFact.Source is "address-of" || actualFact.Source.Contains("parameter", StringComparison.Ordinal) || actualFact.Anchors.Any(anchor => IsParameterLifetimeAnchor(anchor, scope))))
-			Report(GetRange(syntax), "Delete target cannot satisfy free parameter lifetime 'escaped'.");
+		Report(GetRange(syntax), "Delete target must be an escaped pointer.");
 	}
 
 	// Constructors and destructors reach interface implementations only through a vtableof capability. The destroy

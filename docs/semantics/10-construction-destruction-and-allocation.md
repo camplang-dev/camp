@@ -293,9 +293,17 @@ compiler cannot infer native ownership semantics. For class hierarchies,
 destructor dispatch must respect virtual destructor slots when the hierarchy
 uses virtual dispatch.
 
-Deletion of delegate/postponed/lambda contexts follows callable ownership
-rules. Do not delete arbitrary delegate contexts merely because a delegate value
-goes out of scope.
+Deleting a delegate value frees its context the way deleting an array frees its
+elements, with the same lifetime rules: only an `escaped` delegate may be
+deleted, a null context is a no-op, and a scoped or caller-scoped delegate is
+rejected. `delete delegate;` remains the preferred form inside a `new delegate`
+lambda that cleans up its own context. Do not delete delegate contexts merely
+because a delegate value goes out of scope.
+
+`new` always produces an `escaped` value, so the allocation function it lowers
+to (`malloc`, or the selected allocator's `alloc`) must be declared to return
+`escaped`. A `new` that lowers to an allocator without that annotation is a
+diagnostic; this keeps allocators honest about the lifetime of what they return.
 
 ## Allocator Selection
 

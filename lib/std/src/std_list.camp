@@ -9,7 +9,7 @@ namespace Std;
 /// All methods that accept indexes or ranges are safe to call with out-of-range values.
 public class List<T: copyable>
 {
-	T[] items;
+	escaped T[] items;
 	nuint length;
 
 	/// Initializes an empty list and remembers the allocator used for storage.

@@ -1,0 +1,2 @@
+tests/Diagnostics/delete_delegate_lifetime.camp(11,9): error: Delete target must be an escaped pointer.
+tests/Diagnostics/delete_delegate_lifetime.camp(28,9): error: Delete target must be an escaped pointer.

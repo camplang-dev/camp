@@ -16,6 +16,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	readonly Dictionary<Expression, bool> expressionConstants = [];
 	readonly Dictionary<CallExpression, FunctionDefinition> callTargets = [];
+	readonly HashSet<FunctionDefinition> generatedCreateHelpers = new(ReferenceEqualityComparer.Instance);
 	readonly HashSet<ArgumentExpression> implicitWithinArguments = new(ReferenceEqualityComparer.Instance);
 	readonly Dictionary<ConstructionExpression, FunctionDefinition> constructionTargets = [];
 	readonly Dictionary<ConstructionExpression, (InterfaceDefinition Interface, FunctionDefinition Constructor)> genericInterfaceConstructions = [];
@@ -510,6 +511,12 @@ public sealed partial class BindableNodeAnalyzer
 
 			case CatchStatement catchStatement:
 				BodyAnalyzeDeclarationTarget(catchStatement.Target, scope, typeScope, targetType: ErrorType);
+				// A thrown value outlives the frame that threw it, so a caught pointer-bearing value is escaped.
+				if (IsLifetimePointerBearingResolvedType(catchStatement.Target.ResolvedType, scope))
+				{
+					catchStatement.Target.SlotLifetimeFact = MakeLifetimeFact("escaped", null, "catch");
+					catchStatement.Target.ValueLifetimeFact = catchStatement.Target.SlotLifetimeFact;
+				}
 				BodyAnalyzeOptionalStatement(catchStatement.Body, scope, typeScope);
 				break;
 
@@ -7023,7 +7030,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	void RequireExplicitWithinForDelete(Expression? expression, string expressionType, BodyScope scope, string message)
 	{
-		if (RequiresExplicitWithinPolicy(expression?.SourceSyntax, scope) && IsPointerStorageDeleteType(expressionType))
+		if (RequiresExplicitWithinPolicy(expression?.SourceSyntax, scope) && (IsPointerStorageDeleteType(expressionType) || IsDelegateValueType(expressionType)))
 			Report(GetRange(expression?.SourceSyntax), message);
 	}
 

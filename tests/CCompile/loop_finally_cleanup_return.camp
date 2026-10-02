@@ -1,4 +1,4 @@
-export extern void* malloc(nuint size);
+export extern escaped void* malloc(nuint size);
 export extern void free(void* ptr);
 
 class Owner

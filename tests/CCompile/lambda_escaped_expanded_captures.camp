@@ -24,13 +24,13 @@ escaped delegate int() makeDelegateReader()
 export int main()
 {
 	auto spanCount = makeSpanCount();
-	delete spanCount.context;
+	delete spanCount;
 
 	auto optionalReader = makeOptionalReader();
-	delete optionalReader.context;
+	delete optionalReader;
 
 	auto delegateReader = makeDelegateReader();
-	delete delegateReader.context;
+	delete delegateReader;
 
 	return 0;
 }

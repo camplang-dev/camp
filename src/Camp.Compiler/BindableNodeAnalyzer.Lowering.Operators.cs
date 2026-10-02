@@ -1050,6 +1050,7 @@ public sealed partial class BindableNodeAnalyzer
 		bool isPrimitiveStringPointer = primitiveStringElementType is not null;
 		bool isPointer = elementType is not null || isPrimitiveStringPointer;
 		bool isArray = TryGetArrayElementType(targetType) is not null;
+		bool isDelegate = !isPointer && !isArray && IsDelegateValueType(targetType);
 		bool isThisPointer = target is ThisExpression
 			&& typeDefinitions.TryGetValue(BaseTypeName(targetType), out TypeDefinition? thisType)
 			&& thisType is ClassDefinition;
@@ -1069,7 +1070,7 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		SyntaxNode? reportSyntax = target?.SourceSyntax ?? sourceExpression?.SourceSyntax;
-		if (!isPointer && !isThisPointer && !isArray && opDelete is null)
+		if (!isPointer && !isThisPointer && !isArray && !isDelegate && opDelete is null)
 			Report(reportSyntax, $"delete requires a pointer or a type with a destructor, not '{targetType}'.");
 		if (deletedDefinition is ClassDefinition { Extern: not null } && opDelete is null)
 			Report(reportSyntax, $"delete requires an explicit destructor for extern class '{deletedDefinition.Name}'.");
@@ -1084,6 +1085,17 @@ public sealed partial class BindableNodeAnalyzer
 			if (captureTarget)
 				elements = CaptureDeleteTarget(elements, "deleteElements");
 			return new DeleteOperation(CreateFreeCall(elements), captureTarget ? elements : null);
+		}
+
+		// Deleting a delegate releases its context the way deleting an array releases its elements.
+		if (isDelegate)
+		{
+			if (suppressDeallocate)
+				return new DeleteOperation(new LiteralExpression { Kind = LiteralKind.Null, Text = "null", ResolvedType = "void" }, null);
+			Expression context = CreateDelegateContextAccess(target);
+			if (captureTarget)
+				context = CaptureDeleteTarget(context, "deleteTarget");
+			return new DeleteOperation(CreateFreeCall(context), captureTarget ? context : null);
 		}
 
 		if (captureTarget && (isPointer || isThisPointer))
@@ -1632,6 +1644,26 @@ public sealed partial class BindableNodeAnalyzer
 				&& IsRepeatableArrayLengthExpression(conditional.WhenTrue)
 				&& IsRepeatableArrayLengthExpression(conditional.WhenFalse),
 			_ => false
+		};
+	}
+
+	bool IsDelegateValueType(string? type)
+	{
+		return TryGetParamsComponentShape(null, type, "value", out ParamsComponentShape shape)
+			&& shape.Kind == ParamsComponentShapeKind.Delegate
+			&& shape.Components.Count > 1;
+	}
+
+	Expression CreateDelegateContextAccess(Expression target)
+	{
+		if (TryCreateParamsComponentExpressions(target, out List<Expression> components) && components.Count > 1)
+			return components[1];
+
+		return new MemberExpression
+		{
+			Target = target,
+			Name = "context",
+			ResolvedType = "void*"
 		};
 	}
 

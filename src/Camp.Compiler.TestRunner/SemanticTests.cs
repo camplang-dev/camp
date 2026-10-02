@@ -159,7 +159,7 @@ public sealed class SemanticTests
 
 			export newtype Id: int;
 
-			extern void* malloc(nuint size);
+			extern escaped void* malloc(nuint size);
 
 			export class Box: IFace
 			{
@@ -391,7 +391,7 @@ public sealed class SemanticTests
 	public void Declaration_expansion_exposes_generated_declarations_without_lowering_helpers()
 	{
 		SemanticCompilation compilation = SemanticCompiler.CompileDeclarations("""
-			extern void* malloc(nuint size);
+			extern escaped void* malloc(nuint size);
 
 			export class Box
 			{
@@ -433,7 +433,7 @@ public sealed class SemanticTests
 				int getValue();
 			}
 
-			extern void* malloc(nuint size);
+			extern escaped void* malloc(nuint size);
 
 			export class Box: IFace
 			{
@@ -568,7 +568,7 @@ public sealed class SemanticTests
 		SemanticCompilation compilation = SemanticCompiler.CompileLowered("""
 			namespace Tools;
 
-			extern void* malloc(nuint size);
+			extern escaped void* malloc(nuint size);
 			extern void free(void* pointer);
 			extern void capture(string function = caller(functionname), string qualified = caller(qualifiedname));
 

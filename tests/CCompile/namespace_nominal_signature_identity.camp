@@ -1,6 +1,6 @@
 namespace Win32::Forms;
 
-extern void* malloc(nuint size);
+extern escaped void* malloc(nuint size);
 extern void free(void* ptr);
 
 abstract class RefCounted
@@ -46,7 +46,7 @@ virtual class Form: Control
 
 class PropertyBag
 {
-	PropertyEntry[] entries;
+	escaped PropertyEntry[] entries;
 	fn void(RefCounted*)[] releaseFunctions;
 
 	void ensureEntryCapacity(nuint newLength)

@@ -4,11 +4,11 @@ namespace Std;
 
 /// Allocates a native heap block.
 @symbol("malloc")
-public extern void* malloc(nuint size);
+public extern escaped void* malloc(nuint size);
 
 /// Resizes a native heap block.
 @symbol("realloc")
-public extern void* realloc(void* ptr, nuint new_size);
+public extern escaped void* realloc(void* ptr, nuint new_size);
 
 /// Releases a native heap block.
 @symbol("free")
@@ -18,19 +18,19 @@ public extern void free(void* ptr);
 /// other standard-library APIs that need caller-selected allocation.
 public interface Allocator
 {
-	void* alloc(nuint size);
-	void* realloc(void* ptr, nuint newSize);
+	escaped void* alloc(nuint size);
+	escaped void* realloc(void* ptr, nuint newSize);
 	void free(void* ptr);
 }
 
 /// Allocates from the process heap.
-void* heapAllocatorAlloc(Allocator* allocator, nuint size)
+escaped void* heapAllocatorAlloc(Allocator* allocator, nuint size)
 {
 	return malloc(size);
 }
 
 /// Resizes a process-heap allocation.
-void* heapAllocatorRealloc(Allocator* allocator, void* ptr, nuint newSize)
+escaped void* heapAllocatorRealloc(Allocator* allocator, void* ptr, nuint newSize)
 {
 	return realloc(ptr, newSize);
 }

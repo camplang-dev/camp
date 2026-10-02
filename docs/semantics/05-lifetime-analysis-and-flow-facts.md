@@ -189,8 +189,9 @@ Expression lifetime facts are propagated through body analysis:
   lifetime.
 - Calls substitute the callee's return lifetime template through the call-site
   argument facts.
-- `new` derives its value fact from the allocator or allocation helper return
-  contract; if that cannot be resolved, it remains unknown rather than escaped.
+- `new` always yields an `escaped` value fact. Because the fact does not depend
+  on the allocator, the `malloc` or `alloc` that a `new` lowers to must itself be
+  declared to return `escaped`; otherwise the `new` is a diagnostic.
 - Constructor-shaped type calls and initializer lists combine retained facts
   from pointer-bearing constructor arguments and fields.
 - `stackalloc` produces a scoped stackalloc-backed fact tied to the current

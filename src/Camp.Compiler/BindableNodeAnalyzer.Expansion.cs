@@ -2114,6 +2114,7 @@ public sealed partial class BindableNodeAnalyzer
 		method.Modifier = FunctionModifier.Static;
 		method.ReturnType = PointerTo(CloneType(typeReference)!);
 		method.ResolvedType = $"{type.Name}*";
+		generatedCreateHelpers.Add(method);
 		CopyLifecycleParameters(constructor.Parameters, method.Parameters);
 		bool retainsAllocator = LifecycleAllocatorPolicy.GetRetainedAllocatorParameter(constructor) is not null;
 		bool createHelperUsesAllocator = LifecycleAllocatorPolicy.CreateHelperUsesAllocator(currentModule, type, constructor, retainsAllocator, SourceAllocatorTypeAvailable());

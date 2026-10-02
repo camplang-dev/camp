@@ -3,7 +3,7 @@ newtype delegate void EscapedDelegate(escaped this);
 newtype delegate void NormalDelegate();
 newtype delegate int CounterReader();
 
-extern void* malloc(nuint size);
+extern escaped void* malloc(nuint size);
 
 class Date
 {

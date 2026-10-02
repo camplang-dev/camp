@@ -1,9 +1,11 @@
 <?xml version="1.0" encoding="utf-16"?>
 <Module ResolvedType="#MODULE">
   <Definitions>
-    <FunctionDefinition InvokerName="malloc" Name="malloc" Symbol="malloc" Extern="" ResolvedType="void*">
-      <ReturnType Type="PointerTypeReference" ResolvedType="void*">
-        <ElementType Type="Void" ResolvedType="void" />
+    <FunctionDefinition InvokerName="malloc" Name="malloc" Symbol="malloc" Extern="" ResolvedType="escaped void*">
+      <ReturnType Type="PointerTypeReference" ResolvedType="escaped void*">
+        <ElementType Type="EscapedTypeReference" LifetimeBinding="escaped:explicit" ResolvedType="escaped void">
+          <Type Type="Void" ResolvedType="void" />
+        </ElementType>
       </ReturnType>
       <Parameters>
         <ParameterDefinition LifetimeBinding="scoped:default parameter" Name="size" Symbol="size" ResolvedType="nuint">
@@ -112,8 +114,8 @@
             </Target>
             <InitialValue Type="LiteralExpression" Kind="Number" Text="64" Value="64" ResolvedType="nuint" ValueLifetimeFact="escaped:explicit cast" />
           </DeclarationStatement>
-          <DeclarationStatement ResolvedType="void" SlotLifetimeFact="scoped(heap):slot" ValueLifetimeFact="unknown:new">
-            <Target Type="DeclarationTarget" ResolvedType="byte*" SlotLifetimeFact="scoped(heap):slot" ValueLifetimeFact="unknown:new">
+          <DeclarationStatement ResolvedType="void" SlotLifetimeFact="scoped(heap):slot" ValueLifetimeFact="escaped:new">
+            <Target Type="DeclarationTarget" ResolvedType="byte*" SlotLifetimeFact="scoped(heap):slot" ValueLifetimeFact="escaped:new">
               <Names>
                 <Value>heap</Value>
               </Names>
@@ -122,10 +124,10 @@
               <Type Type="PointerTypeReference" ResolvedType="byte*">
                 <ElementType Type="Byte" ResolvedType="byte" />
               </Type>
-              <Expression Type="CallExpression" ResolvedType="void*">
-                <Target Type="MethodReferenceExpression" ResolvedType="void*">
+              <Expression Type="CallExpression" ResolvedType="escaped void*">
+                <Target Type="MethodReferenceExpression" ResolvedType="escaped void*">
                   <Candidates>
-                    <Function Name="malloc" ResolvedType="void*" />
+                    <Function Name="malloc" ResolvedType="escaped void*" />
                   </Candidates>
                 </Target>
                 <Arguments>
@@ -141,8 +143,8 @@
               </Expression>
             </InitialValue>
           </DeclarationStatement>
-          <DeclarationStatement ResolvedType="void" SlotLifetimeFact="scoped(heap):slot" ValueLifetimeFact="unknown:new">
-            <Target Type="DeclarationTarget" ResolvedType="nuint" SlotLifetimeFact="scoped(heap):slot" ValueLifetimeFact="unknown:new">
+          <DeclarationStatement ResolvedType="void" SlotLifetimeFact="scoped(heap):slot" ValueLifetimeFact="escaped:new">
+            <Target Type="DeclarationTarget" ResolvedType="nuint" SlotLifetimeFact="scoped(heap):slot" ValueLifetimeFact="escaped:new">
               <Names>
                 <Value>heap_length</Value>
               </Names>

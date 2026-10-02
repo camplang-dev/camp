@@ -15,7 +15,7 @@ class Target
 	}
 }
 
-Target* createWhenCallbackIsPresent(Options options)
+escaped Target* createWhenCallbackIsPresent(Options options)
 {
 	Target* target = default;
 	if (options.callback == default)

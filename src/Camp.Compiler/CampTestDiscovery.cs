@@ -311,9 +311,16 @@ public static class CampTestDiscovery
 		return function is not null;
 	}
 
+	// An allocator declares its result `escaped`; the harness only cares about the pointer shape.
+	static string FormatAllocatorReturnType(FunctionDefinition function)
+	{
+		string type = FormatType(function.ReturnType, function.ResolvedType);
+		return type.StartsWith("escaped ", StringComparison.Ordinal) ? type["escaped ".Length..] : type;
+	}
+
 	static bool IsAllocatorAllocFunction(FunctionDefinition function)
 	{
-		return FormatType(function.ReturnType, function.ResolvedType) == "void*"
+		return FormatAllocatorReturnType(function) == "void*"
 			&& function.Parameters.Count == 1
 			&& FormatType(function.Parameters[0].Type, function.Parameters[0].ResolvedType) == "nuint";
 	}
@@ -327,7 +334,7 @@ public static class CampTestDiscovery
 
 	static bool IsAllocatorReallocFunction(FunctionDefinition function)
 	{
-		return FormatType(function.ReturnType, function.ResolvedType) == "void*"
+		return FormatAllocatorReturnType(function) == "void*"
 			&& function.Parameters.Count == 2
 			&& FormatType(function.Parameters[0].Type, function.Parameters[0].ResolvedType) == "void*"
 			&& FormatType(function.Parameters[1].Type, function.Parameters[1].ResolvedType) == "nuint";

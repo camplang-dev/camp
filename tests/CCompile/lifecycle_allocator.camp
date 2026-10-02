@@ -1,9 +1,9 @@
-extern void* malloc(nuint size);
+extern escaped void* malloc(nuint size);
 extern void free(void* ptr);
 
 class Allocator
 {
-	void* alloc(nuint size)
+	escaped void* alloc(nuint size)
 	{
 		return malloc(size);
 	}
@@ -26,7 +26,7 @@ struct Buffer
 		delete this.item;
 	}
 
-	int* item;
+	escaped int* item;
 }
 
 class Holder

@@ -10,11 +10,11 @@ inline nuint HASH_EMPTY = (nuint)0;
 public class HashSet<K: copyable>
 {
 	HashPolicy<K> policy;
-	K[] keys;
-	nuint[] buckets;
-	nuint[] next;
-	nuint[] hashes;
-	bool[] occupied;
+	escaped K[] keys;
+	escaped nuint[] buckets;
+	escaped nuint[] next;
+	escaped nuint[] hashes;
+	escaped bool[] occupied;
 	nuint length;
 	nuint used;
 	nuint firstFree;

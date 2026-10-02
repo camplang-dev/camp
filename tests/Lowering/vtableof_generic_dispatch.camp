@@ -3,7 +3,7 @@ interface IRef
 	void retain();
 }
 
-extern void* malloc(nuint size);
+extern escaped void* malloc(nuint size);
 extern void free(void* ptr);
 
 class Widget: IRef

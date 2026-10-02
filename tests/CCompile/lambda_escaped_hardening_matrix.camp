@@ -78,11 +78,11 @@ export int main()
 {
 	auto adder = makeBlockAdder(3);
 	int total = adder(7);
-	delete adder.context;
+	delete adder;
 
 	auto length = makeSpanLength({ "hello", 5 });
 	total = total + (int)length();
-	delete length.context;
+	delete length;
 
 	auto box = new Box();
 	box.value = 20;

@@ -1,8 +1,8 @@
-extern void* malloc(nuint size);
+extern escaped void* malloc(nuint size);
 
 struct Allocator
 {
-	void* alloc(nuint size) => malloc(size);
+	escaped void* alloc(nuint size) => malloc(size);
 }
 
 char[] duplicate(const char[] values, within allocator)

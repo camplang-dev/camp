@@ -8,7 +8,7 @@ enum ReadError: int
 	FAILED = 1,
 }
 
-byte[] readBytes(thrown ReadError error)
+escaped byte[] readBytes(thrown ReadError error)
 {
 	byte[] bytes = new byte[1];
 	bytes[0] = 42;

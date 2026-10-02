@@ -539,7 +539,7 @@ public sealed class LanguageServiceTests
 		string root = CreateTempDirectory("language-service-iterator-this");
 		string source = Path.Combine(root, "main.camp");
 		string text = """
-			extern void* malloc(nuint size);
+			extern escaped void* malloc(nuint size);
 			extern void free(void* ptr);
 
 			struct Range
@@ -588,7 +588,7 @@ public sealed class LanguageServiceTests
 		string root = CreateTempDirectory("language-service-member-mapping");
 		string source = Path.Combine(root, "main.camp");
 		string text = """
-		extern void* malloc(nuint size);
+		extern escaped void* malloc(nuint size);
 		extern void free(void* ptr);
 
 		interface ICounter
@@ -645,7 +645,7 @@ public sealed class LanguageServiceTests
 		string root = CreateTempDirectory("language-service-type-and-member-tokens");
 		string source = Path.Combine(root, "main.camp");
 		string text = """
-		extern void* malloc(nuint size);
+		extern escaped void* malloc(nuint size);
 		extern void free(void* ptr);
 
 		class Form
@@ -745,7 +745,7 @@ public sealed class LanguageServiceTests
 		string root = CreateTempDirectory("language-service-mixed-symbols");
 		string source = Path.Combine(root, "main.camp");
 		string text = """
-		extern void* malloc(nuint size);
+		extern escaped void* malloc(nuint size);
 		extern void free(void* ptr);
 
 		newtype delegate void Handler();

@@ -643,9 +643,23 @@ Use this only when the callback contract makes self-cleanup correct, such as a
 one-shot native callback that will not call the delegate again. When you use
 `finally delete delegate`, make it the final cleanup registration in that
 lambda. It is invalid in `fn` lambdas, scoped delegate lambdas, direct `once`
-lambdas, and ordinary lambdas that did not use `new delegate`. Do not delete
-`.context` directly; the generated context layout is compiler-owned. The
-source contract is that a delegate has callable behavior plus context.
+lambdas, and ordinary lambdas that did not use `new delegate`.
+
+`delete delegate` is the preferred cleanup inside the lambda, but it is not the
+only way to release a delegate's context. Outside the lambda, delete the
+delegate value itself, as you would delete an array. This frees the generated
+context and does nothing when the context is null:
+
+```camp
+auto callback = makeOneShotScore(5);
+int score = callback();
+delete callback;
+```
+
+Only an `escaped` delegate may be deleted; a scoped delegate, such as an
+unannotated parameter, is rejected. Do not delete `.context` directly; the
+generated context layout is compiler-owned. The source contract is that a
+delegate has callable behavior plus context.
 
 ## `once` Callbacks
 

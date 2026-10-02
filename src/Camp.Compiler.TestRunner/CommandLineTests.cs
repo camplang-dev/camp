@@ -1362,13 +1362,13 @@ public sealed class CommandLineTests
 			namespace HarnessAllocatorCli;
 
 			@symbol("malloc")
-			export extern void* malloc(nuint size);
+			export extern escaped void* malloc(nuint size);
 			@symbol("free")
 			export extern void free(void* ptr);
 
 			class Allocator
 			{
-				void* alloc(nuint size)
+				escaped void* alloc(nuint size)
 				{
 					return malloc(size);
 				}
@@ -1763,7 +1763,7 @@ public sealed class CommandLineTests
 			using StaticApiInterfaceArgument;
 
 			@symbol("malloc")
-			extern void* malloc(nuint size);
+			extern escaped void* malloc(nuint size);
 			@symbol("free")
 			extern void free(void* ptr);
 
@@ -2669,13 +2669,13 @@ public sealed class CommandLineTests
 			namespace HarnessLeakCli;
 
 			@symbol("malloc")
-			export extern void* malloc(nuint size);
+			export extern escaped void* malloc(nuint size);
 			@symbol("free")
 			export extern void free(void* ptr);
 
 			interface Allocator
 			{
-				void* alloc(nuint size);
+				escaped void* alloc(nuint size);
 				void free(void* ptr);
 			}
 
@@ -2896,8 +2896,8 @@ public sealed class CommandLineTests
 
 			interface Allocator
 			{
-				void* alloc(nuint size);
-				void* realloc(void* ptr, nuint size);
+				escaped void* alloc(nuint size);
+				escaped void* realloc(void* ptr, nuint size);
 				void free(void* ptr);
 			}
 
@@ -3011,13 +3011,13 @@ public sealed class CommandLineTests
 			namespace HarnessIgnoreLeakCli;
 
 			@symbol("malloc")
-			export extern void* malloc(nuint size);
+			export extern escaped void* malloc(nuint size);
 			@symbol("free")
 			export extern void free(void* ptr);
 
 			interface Allocator
 			{
-				void* alloc(nuint size);
+				escaped void* alloc(nuint size);
 				void free(void* ptr);
 			}
 
@@ -3110,13 +3110,13 @@ public sealed class CommandLineTests
 			namespace CoverageHarnessLeaks;
 
 			@symbol("malloc")
-			export extern void* malloc(nuint size);
+			export extern escaped void* malloc(nuint size);
 			@symbol("free")
 			export extern void free(void* ptr);
 
 			interface Allocator
 			{
-				void* alloc(nuint size);
+				escaped void* alloc(nuint size);
 				void free(void* ptr);
 			}
 
@@ -4825,7 +4825,7 @@ public sealed class CommandLineTests
 		string baseSource = CreateTempCase("override_namespace_base.camp", """
 			namespace A::B;
 
-			export extern void* malloc(nuint size);
+			export extern escaped void* malloc(nuint size);
 			export extern void free(void* ptr);
 
 			export virtual class Base
@@ -4876,7 +4876,7 @@ public sealed class CommandLineTests
 	public void Enum_value_shorthand_works_in_comparisons_on_either_side()
 	{
 		string source = CreateTempCase("enum_comparison_shorthand.camp", """
-			extern void* malloc(nuint size);
+			extern escaped void* malloc(nuint size);
 			extern void free(void* pointer);
 
 			bool isSolid(PenStyle style = SOLID)
@@ -4905,7 +4905,7 @@ public sealed class CommandLineTests
 	public void Invalid_finally_delete_reports_source_range()
 	{
 		string source = CreateTempCase("finally_delete_range.camp", """
-			extern void* malloc(nuint size);
+			extern escaped void* malloc(nuint size);
 			extern void free(void* pointer);
 
 			newtype HBRUSH: nint;
@@ -5001,7 +5001,7 @@ public sealed class CommandLineTests
 	public void Within_allocation_policy_uses_defaults_flags_and_file_override()
 	{
 		string source = CreateTempCase("within_policy.camp", """
-			export extern void* malloc(nuint size);
+			export extern escaped void* malloc(nuint size);
 			export extern void free(void* ptr);
 
 			export int main()
@@ -5014,7 +5014,7 @@ public sealed class CommandLineTests
 		string buildPragmaSource = CreateTempCase("within_policy_build_pragma.camp", """
 			#build --explicit-within
 
-			export extern void* malloc(nuint size);
+			export extern escaped void* malloc(nuint size);
 			export extern void free(void* ptr);
 
 			export int main()
@@ -5027,7 +5027,7 @@ public sealed class CommandLineTests
 		string fileImplicitSource = CreateTempCase("within_policy_file_implicit.camp", """
 			#within implicit
 
-			export extern void* malloc(nuint size);
+			export extern escaped void* malloc(nuint size);
 			export extern void free(void* ptr);
 
 			export int main()
@@ -5040,7 +5040,7 @@ public sealed class CommandLineTests
 		string fileExplicitSource = CreateTempCase("within_policy_file_explicit.camp", """
 			#within explicit
 
-			export extern void* malloc(nuint size);
+			export extern escaped void* malloc(nuint size);
 			export extern void free(void* ptr);
 
 			export int main()
@@ -6107,7 +6107,7 @@ public sealed class CommandLineTests
 		Directory.CreateDirectory(librarySource);
 		Directory.CreateDirectory(appRoot);
 		File.WriteAllText(Path.Combine(librarySource, "library.camp"), """
-			extern void* malloc(nuint size);
+			extern escaped void* malloc(nuint size);
 			extern void free(void* ptr);
 
 			export interface IShadowValue
@@ -6211,7 +6211,7 @@ public sealed class CommandLineTests
 		Directory.CreateDirectory(librarySource);
 		Directory.CreateDirectory(appRoot);
 		File.WriteAllText(Path.Combine(librarySource, "library.camp"), """
-			extern void* malloc(nuint size);
+			extern escaped void* malloc(nuint size);
 			extern void free(void* ptr);
 
 			export class NativeShadowHost
@@ -6239,7 +6239,7 @@ public sealed class CommandLineTests
 			#build --nostdlib
 			#build --artifact exec
 
-			extern void* malloc(nuint size);
+			extern escaped void* malloc(nuint size);
 			extern void free(void* ptr);
 
 			shadow class LocalShadow: NativeShadowHost
@@ -6904,7 +6904,7 @@ public sealed class CommandLineTests
 		File.WriteAllText(source, """
 			using Std;
 
-			extern void* malloc(nuint size);
+			extern escaped void* malloc(nuint size);
 			extern void free(void* pointer);
 
 			export escaped interface IRefCount
@@ -7052,7 +7052,7 @@ public sealed class CommandLineTests
 			""");
 		string component = Path.Combine(root, "component.camp");
 		File.WriteAllText(component, """
-			extern void* malloc(nuint size);
+			extern escaped void* malloc(nuint size);
 			extern void free(void* pointer);
 
 			export escaped class Component: IRefCount
@@ -7108,7 +7108,7 @@ public sealed class CommandLineTests
 		Directory.CreateDirectory(librarySource);
 		Directory.CreateDirectory(appRoot);
 		File.WriteAllText(Path.Combine(librarySource, "interfaces.camp"), """
-			extern void* malloc(nuint size);
+			extern escaped void* malloc(nuint size);
 			extern void free(void* pointer);
 
 			export interface IValue
@@ -7244,7 +7244,7 @@ public sealed class CommandLineTests
 		Directory.CreateDirectory(librarySource);
 		Directory.CreateDirectory(appRoot);
 		File.WriteAllText(Path.Combine(librarySource, "alloc.camp"), """
-			export extern void* malloc(nuint size);
+			export extern escaped void* malloc(nuint size);
 			export extern void free(void* pointer);
 			""");
 		File.WriteAllText(Path.Combine(librarySource, "widgets.camp"), """
@@ -7729,7 +7729,7 @@ public sealed class CommandLineTests
 		string source = Path.Combine(root, "src");
 		Directory.CreateDirectory(source);
 		File.WriteAllText(Path.Combine(source, "alloc.camp"), """
-			export extern void* malloc(nuint size);
+			export extern escaped void* malloc(nuint size);
 			export extern void free(void* ptr);
 			""");
 		File.WriteAllText(Path.Combine(source, "helper.camp"), """
@@ -7782,7 +7782,7 @@ public sealed class CommandLineTests
 		string source = Path.Combine(root, "src");
 		Directory.CreateDirectory(source);
 		File.WriteAllText(Path.Combine(source, "alloc.camp"), """
-			export extern void* malloc(nuint size);
+			export extern escaped void* malloc(nuint size);
 			export extern void free(void* ptr);
 			""");
 		File.WriteAllText(Path.Combine(source, "component.camp"), """
@@ -7846,7 +7846,7 @@ public sealed class CommandLineTests
 		string librarySource = Path.Combine(libraryRoot, "src");
 		Directory.CreateDirectory(librarySource);
 		File.WriteAllText(Path.Combine(librarySource, "alloc.camp"), """
-			export extern void* malloc(nuint size);
+			export extern escaped void* malloc(nuint size);
 			export extern void free(void* ptr);
 			""");
 		File.WriteAllText(Path.Combine(librarySource, "button.camp"), """
@@ -7970,7 +7970,7 @@ public sealed class CommandLineTests
 
 			using AliasProjection;
 
-			extern void* malloc(nuint size);
+			extern escaped void* malloc(nuint size);
 			extern void free(void* ptr);
 
 			virtual class Control
@@ -9493,7 +9493,7 @@ public sealed class CommandLineTests
 		return """
 			namespace WithinPolicyTests;
 
-			export extern void* malloc(nuint size);
+			export extern escaped void* malloc(nuint size);
 			export extern void free(void* ptr);
 
 			struct TestFailure

@@ -10,6 +10,6 @@ export int main()
 {
 	auto callback = makeCounter(7);
 	int result = callback();
-	delete callback.context;
+	delete callback;
 	return result == 7 ? 0 : 1;
 }

@@ -627,6 +627,7 @@ contains multiple fields.
 | `throw value;` | Write compatible thrown value and exit current path |
 | `delete value;` | Destroy/deallocate operand |
 | `delete delegate;` | Delete generated context inside a valid `new delegate` lambda |
+| `delete callback;` | Delete the context of an escaped delegate value, like `delete array;` |
 
 ```camp
 try
@@ -647,7 +648,8 @@ the same. `catch` handles error flow. `out` is ordinary success data.
 `delete delegate` is not a general delete operand. It is valid only inside a
 `new delegate` lambda, where it refers to the generated delegate context. In a
 void-returning lambda it may be the final statement; in a non-void lambda, use
-`finally delete delegate` as the final cleanup registration.
+`finally delete delegate` as the final cleanup registration. To release the
+context of an escaped delegate value elsewhere, use `delete callback;`.
 
 ## `within` Statements
 

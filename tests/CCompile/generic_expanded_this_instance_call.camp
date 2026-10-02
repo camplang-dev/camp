@@ -1,4 +1,4 @@
-extern void* malloc(nuint size);
+extern escaped void* malloc(nuint size);
 extern void free(void* ptr);
 
 void copyTo<T: copyable>(const T[] this, T[] destination, sizeof(T))
@@ -11,7 +11,7 @@ void copyTo<T: copyable>(const T[] this, T[] destination, sizeof(T))
 		destination[i] = this[i];
 }
 
-T[] copyArray<T: copyable>(const T[] this, sizeof(T))
+escaped T[] copyArray<T: copyable>(const T[] this, sizeof(T))
 {
 	T[] elements = new T[this.length];
 	this.copyTo<T>(elements);
