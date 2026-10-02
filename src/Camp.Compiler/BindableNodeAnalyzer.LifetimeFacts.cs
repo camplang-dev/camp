@@ -1262,38 +1262,22 @@ public sealed partial class BindableNodeAnalyzer
 		Report(GetRange(syntax), "Yield expression cannot yield a pointer-bearing value that does not outlive the iterator frame.");
 	}
 
+	// A pointer scoped to caller context (derived from a parameter) may be on the caller's stack, so deleting it
+	// would free the wrong thing. Stackalloc cleanup deletes skip this check and the free.
 	void CheckLifetimeDeleteAgainstFree(Expression? expression, SyntaxNode? syntax, BodyScope scope)
 	{
 		if (!IsPointerBearingResolvedType(expression?.ResolvedType))
 			return;
 
-		FunctionDefinition? free = FindFreeFunction(syntax);
-		if (free is null)
+		if (!TryParseLifetimeFact(GetExpressionLifetimeFact(expression), out LifetimeFact actualFact))
 			return;
-
-		ParameterDefinition? pointerParameter = GetPatternValueParameters(free).FirstOrDefault();
-		if (pointerParameter?.LifetimeBinding is not string requiredLifetime)
-			return;
-
-		if (!TryParseLifetimeFact(requiredLifetime, out LifetimeFact requiredFact))
-			return;
-
-		if (requiredFact.Kind != "escaped")
-			return;
-
-		string? factText = GetExpressionLifetimeFact(expression);
-		if (!TryParseLifetimeFact(factText, out LifetimeFact actualFact))
-			return;
-		if (actualFact.Kind is "escaped" or "unknown")
-			return;
-
-		if (actualFact.Kind == "scoped" && (IsStackAllocLifetimeFact(actualFact) || actualFact.Anchors.Any(anchor => IsLocalLifetimeAnchor(anchor, scope))))
+		if (actualFact.Kind == "scoped" && (IsStackAllocLifetimeFact(actualFact) || actualFact.Source is "address-of" || actualFact.Source.Contains("parameter", StringComparison.Ordinal) || actualFact.Anchors.Any(anchor => IsParameterLifetimeAnchor(anchor, scope))))
 			Report(GetRange(syntax), "Delete target cannot satisfy free parameter lifetime 'escaped'.");
 	}
 
 	// Constructors and destructors reach interface implementations only through a vtableof capability. The destroy
 	// slot frees the object, so the target must be provably escaped rather than merely unknown.
-	void ValidateCapabilityDeleteTarget(Expression? expression, string deleteType, BodyScope scope)
+	bool ValidateCapabilityDeleteTarget(Expression? expression, string deleteType, BodyScope scope)
 	{
 		if (expression is WithinExpression { Expression: not null } within)
 		{
@@ -1301,19 +1285,20 @@ public sealed partial class BindableNodeAnalyzer
 			deleteType = expression.ResolvedType ?? deleteType;
 		}
 		if (expression is null || TryGetPointerElementType(deleteType) is not string elementType)
-			return;
+			return false;
 
 		SyntaxNode? syntax = expression.SourceSyntax;
 		if (TryGetInterfacePointerDefinition(deleteType, out InterfaceDefinition? interfaceDefinition) && interfaceDefinition is not null)
 		{
 			Report(GetRange(syntax), $"Cannot delete interface pointer '{deleteType}'; interface destructors are available only through a generic 'vtableof' capability.");
-			return;
+			return true;
 		}
 
 		if (FindWitnessDestructor(scope.CurrentFunction, elementType) is null)
-			return;
+			return false;
 		if (!TryParseLifetimeFact(GetExpressionLifetimeFact(expression), out LifetimeFact fact) || fact.Kind != "escaped")
 			Report(GetRange(syntax), "Delete through a 'vtableof' destructor requires an escaped target; the destroy slot frees the object and may not receive scoped, stack, or unproven storage.");
+		return true;
 	}
 
 	bool IsStackAllocBackedExpression(Expression? expression)
@@ -1406,6 +1391,13 @@ public sealed partial class BindableNodeAnalyzer
 			return false;
 
 		return symbol.Node is DeclarationStatement or DeclarationTarget or CatchStatement;
+	}
+
+	bool IsParameterLifetimeAnchor(string anchor, BodyScope scope)
+	{
+		return anchor != "this"
+			&& scope.TryLookup(anchor, out BodySymbol symbol)
+			&& symbol.Node is ParameterDefinition;
 	}
 
 	bool IsInParameterLifetimeAnchor(string anchor, BodyScope scope)

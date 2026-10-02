@@ -31,3 +31,13 @@ void badDelete()
 	Widget local = Widget();
 	delete &local;
 }
+
+void badDeleteParameter(Widget* borrowed)
+{
+	delete borrowed;
+}
+
+void goodDeleteEscapedParameter(escaped Widget* owned)
+{
+	delete owned;
+}

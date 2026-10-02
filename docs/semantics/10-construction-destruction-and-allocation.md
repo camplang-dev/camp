@@ -271,6 +271,17 @@ The `delete` sequence is conceptually:
 5. avoid double cleanup on transfer paths where `finally` cleanup already owns
    the value.
 
+The target's lifetime decides what `delete` may do:
+
+- an escaped pointer (an allocation result, an `escaped` parameter or result)
+  runs the destructor and then frees;
+- a pointer to this activation's own `stackalloc` storage, like a stack-local
+  value, runs only the destructor, because the compiler knows it owns no heap
+  memory;
+- a pointer scoped to caller context (a parameter without `escaped`, which is
+  scoped by default) or to a local's address is rejected, because the callee
+  cannot know whether it points at the stack.
+
 Null safety belongs to the `delete` operation, not to destructor bodies or
 generated destructor helpers. A destructor, `_op_delete` helper, or virtual
 destructor slot is called only for a non-null target and may assume it received
