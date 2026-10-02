@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-203.
+Next bug number: BUG-204.
 
 ## Bug Template
 
@@ -354,3 +354,48 @@ local (`Holder<int>* h = s.a; delete h;`) fails the same way.
 Known Impact:
 Any struct or class that owns a generic-class pointer in an `escaped` field
 cannot delete it directly. Workaround: `delete (escaped Holder<int>*)s.a;`.
+
+## BUG-203: Visible class layout fields are inaccessible across files and through derived receivers
+
+Date/Time: 2026-10-02 09:11 EDT
+
+Summary:
+An unmodified instance field of a non-extern class is accessible in the
+definition's source file but rejected from another file of the same module,
+even when the class definition is visible there. Access through a derived-class
+receiver also fails to find a field declared in a visible base layout.
+
+Steps to Reproduce:
+
+1. Build a module from these two Camp files with `--nostdlib --artifact none`.
+   The first file declares:
+
+   ```camp
+   internal class Base { int value; }
+   internal class Derived: Base { int extra; }
+   int sameFile(Base* item) { item.value = 1; return item.value; }
+   ```
+
+2. The second file declares:
+
+   ```camp
+   int otherFile(Base* item) { item.value = 2; return item.value; }
+   int inherited(Derived* item) { item.value = 3; return item.value; }
+   ```
+
+Expected:
+All functions compile. Source with access to a non-extern class's complete
+definition can read and write its instance fields, including fields of a
+visible base layout. The rule does not expose fields through an opaque imported
+class API.
+
+Actual:
+Both `otherFile` accesses report that member `value` is declared in another
+file but is not exported. Both `inherited` accesses report that member `value`
+could not be found on `Derived*`. `sameFile` is accepted.
+
+Known Impact:
+Unrelated same-module code cannot directly use visible class fields across
+source files, and derived receivers cannot directly access inherited fields.
+Adding accessors or moving code into the class definition's file works around
+some cross-file cases but does not restore inherited-field lookup.
