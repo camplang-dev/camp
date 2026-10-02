@@ -1,0 +1,24 @@
+int read(in int* value)
+{
+	return *value;
+}
+
+int readConst(in const int* value)
+{
+	return *value;
+}
+
+export int main()
+{
+	int number = 5;
+	int* pointer = &number;
+	if (read(&number) != 5)
+		return 1;
+	if (read(pointer) != 5)
+		return 2;
+	if (readConst(&number) != 5)
+		return 3;
+	if (readConst(pointer) != 5)
+		return 4;
+	return 0;
+}

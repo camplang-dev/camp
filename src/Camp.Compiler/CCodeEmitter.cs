@@ -6607,7 +6607,7 @@ public static class CCodeEmitter
 
         string FormatInArgument(Expression? expression, string value, string? concreteType)
         {
-            if (TryFormatForwardedInArgument(expression, out string forwarded))
+            if (TryFormatForwardedInArgument(expression, concreteType, out string forwarded))
                 return forwarded;
 
             string type = string.IsNullOrWhiteSpace(concreteType)
@@ -6618,7 +6618,7 @@ public static class CCodeEmitter
             return "&(" + type + "){" + value + "}";
         }
 
-        bool TryFormatForwardedInArgument(Expression? expression, out string value)
+        bool TryFormatForwardedInArgument(Expression? expression, string? parameterType, out string value)
         {
             value = "";
             switch (expression)
@@ -6626,7 +6626,9 @@ public static class CCodeEmitter
                 case IndexExpression index when TryFormatGenericArrayElementAddress(index, out string address):
                     value = address;
                     return true;
-                case UnaryExpression { Operator: UnaryOperator.AddressOf } addressOf:
+                // Forward an existing value's storage, not a pointer-valued &expression passed to in T*.
+                case UnaryExpression { Operator: UnaryOperator.AddressOf, Operand.ResolvedType: string operandType } addressOf
+                    when parameterType is not null && StripTypeQualifiers(operandType) == StripTypeQualifiers(parameterType):
                     value = FormatExpression(addressOf);
                     return true;
                 case VariableReferenceExpression { Variable: ParameterDefinition { Modifier: ParameterModifier.In } parameter }:
