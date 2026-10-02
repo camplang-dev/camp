@@ -1476,6 +1476,9 @@ public sealed partial class BindableNodeAnalyzer
 			case AttributedTypeReference attributed:
 				return TryGetFieldLifetimeAnnotation(attributed.Type, out kind, out anchors, out binding);
 
+			case GenericTypeReference generic:
+				return TryGetFieldLifetimeAnnotation(generic.Type, out kind, out anchors, out binding);
+
 			case ConstTypeReference constType:
 				return TryGetFieldLifetimeAnnotation(constType.Type, out kind, out anchors, out binding);
 

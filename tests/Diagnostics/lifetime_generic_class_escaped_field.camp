@@ -1,0 +1,42 @@
+class Holder<T>
+{
+	T value;
+}
+
+class Plain
+{
+	int value;
+}
+
+struct StructOwner
+{
+	escaped Holder<int>* generic;
+	escaped Plain* plain;
+}
+
+class ClassOwner
+{
+	escaped Holder<int>* generic;
+}
+
+void deleteStructField(StructOwner* owner)
+{
+	delete owner.generic;
+	delete owner.plain;
+}
+
+void deleteStructFieldViaLocal(StructOwner* owner)
+{
+	Holder<int>* item = owner.generic;
+	delete item;
+}
+
+void deleteClassField(ClassOwner* owner)
+{
+	delete owner.generic;
+}
+
+void rejectScopedPointer(Holder<int>* item)
+{
+	delete item;
+}

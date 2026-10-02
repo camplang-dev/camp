@@ -1,0 +1,1 @@
+tests/Diagnostics/lifetime_generic_class_escaped_field.camp(41,9): error: Delete target must be an escaped pointer.
