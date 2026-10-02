@@ -113,6 +113,14 @@ generic parameter scopes, receiver scopes, and body-local declarations. A symbol
 found through one scope layer should not silently bypass a more local
 declaration with the same name unless the language rule explicitly permits it.
 
+For an ordinary instance field, visibility of a non-extern class definition
+grants access to its layout, including unmodified fields. This applies in other
+files of the same module and to fields inherited from a visible base class.
+The field's lack of a visibility modifier is not a class-private access rule.
+An imported class API is an opaque `extern` declaration, however, so its
+consumers cannot bind fields omitted from that API. Static fields and methods
+retain their own declaration visibility rules.
+
 ## Namespace Context
 
 The parser accepts namespace statements in the file prelude and namespace

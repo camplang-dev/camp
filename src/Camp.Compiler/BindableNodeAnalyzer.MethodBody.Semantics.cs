@@ -2254,10 +2254,13 @@ public sealed partial class BindableNodeAnalyzer
 		switch (type)
 		{
 			case ClassDefinition classDefinition:
-				foreach (FieldDefinition field in classDefinition.Fields)
+				foreach (ClassDefinition candidateClass in EnumerateClassAndBases(classDefinition))
 				{
-					if (field.Name == name && !IsMemberVisible(field, classDefinition, referenceSyntax))
-						return field;
+					foreach (FieldDefinition field in candidateClass.Fields)
+					{
+						if (field.Name == name && !IsMemberVisible(field, candidateClass, referenceSyntax))
+							return field;
+					}
 				}
 				break;
 
@@ -2423,13 +2426,35 @@ public sealed partial class BindableNodeAnalyzer
 		switch (type)
 		{
 			case ClassDefinition classDefinition:
-				Dictionary<string, string> classSubstitutions = [];
-				AddConstructedTypeGenericSubstitutions(targetType, classSubstitutions);
-				foreach (FieldDefinition field in classDefinition.Fields)
+				string constructedClassType = targetType;
+				for (ClassDefinition? candidateClass = classDefinition; candidateClass is not null;)
 				{
-					if (field.Name == name && IsMemberVisible(field, classDefinition, referenceSyntax))
-						members.Add(new BodySymbol(name, SubstituteGenericType(field.ResolvedType ?? ErrorType, classSubstitutions), field));
-					AddExpandedFieldMemberSymbol(members, field, name, classDefinition, referenceSyntax, classSubstitutions);
+					Dictionary<string, string> classSubstitutions = [];
+					AddConstructedTypeGenericSubstitutions(constructedClassType, classSubstitutions);
+					foreach (FieldDefinition field in candidateClass.Fields)
+					{
+						if (field.Name == name && IsMemberVisible(field, candidateClass, referenceSyntax))
+							members.Add(new BodySymbol(name, SubstituteGenericType(field.ResolvedType ?? ErrorType, classSubstitutions), field));
+						AddExpandedFieldMemberSymbol(members, field, name, candidateClass, referenceSyntax, classSubstitutions);
+					}
+					if (members.Count > 0)
+						break;
+					ClassDefinition? baseClass = GetDirectBaseClass(candidateClass);
+					if (baseClass is null)
+						break;
+					TypeReference? baseReference = null;
+					foreach (TypeReference declaredBase in candidateClass.BaseTypes)
+					{
+						if (BaseTypeName(declaredBase.ResolvedType ?? FormatTypeReference(declaredBase)) == baseClass.Name)
+						{
+							baseReference = declaredBase;
+							break;
+						}
+					}
+					constructedClassType = baseReference is null
+						? baseClass.Name
+						: SubstituteGenericType(baseReference.ResolvedType ?? FormatTypeReference(baseReference), classSubstitutions);
+					candidateClass = baseClass;
 				}
 				break;
 

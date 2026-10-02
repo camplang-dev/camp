@@ -14,9 +14,10 @@ allocation, inheritance, virtual dispatch, interface storage, or lifecycle is
 the point.
 
 That choice also says something important at the ABI boundary. Struct fields
-are visible when a struct is exposed across the ABI. Class fields are not:
-outside code can hold a class pointer and call exported functions, but it
-cannot reach into the object's fields.
+are visible when a struct is exposed across the ABI. An imported class API is
+opaque: outside code can hold a class pointer and call exported functions, but
+it cannot reach into the object's fields. Source that can see the non-extern
+class definition can access its instance fields directly.
 
 This chapter explains the user-facing model: what the declarations mean, how
 construction and destruction work, what `new`, `stackalloc`, constructor calls,
@@ -269,6 +270,13 @@ class Counter
 }
 ```
 
+The unmodified `value` field is accessible to any source that can see this
+complete class definition, including unrelated functions in another file of
+the same module. A derived receiver can also access fields of a visible base
+layout. Field access still needs a valid receiver and obeys constness,
+configuration requirements, and lifetime rules. It does not reveal fields of
+an opaque class imported from another module.
+
 Static members belong to the type rather than to one instance:
 
 ```camp
@@ -308,8 +316,9 @@ field.
 Methods put behavior next to the struct or class state they operate on. In a
 class, they are where object identity usually becomes useful: methods can
 observe fields, mutate fields, enforce invariants, participate in virtual
-dispatch, and expose a stable API while the fields stay private to the
-implementation.
+dispatch, and expose a stable API while the fields remain hidden from consumers
+of the opaque module API. They are not restricted to class methods within
+source that can see the full class definition.
 
 ```camp
 class Counter
@@ -326,8 +335,8 @@ class Counter
 Receiver details matter, but they belong to the callable surface of the method:
 whether the receiver is const, escaped, virtual, interface-dispatched, or
 captured into a method reference. The functions and callables chapter covers
-that side. For object design, the important point is that methods are the
-ordinary way to let callers use an object without exposing its fields.
+that side. Across an opaque module API, methods are the ordinary way to let
+callers use an object without exposing its fields.
 
 ## Constructors And Initialization
 

@@ -103,7 +103,9 @@ Filtering should consider:
 - top-level `export`, `public`, and `internal`;
 - static class containers that own visible static members;
 - export projection declarations and their selected names/members/interfaces;
-- type members with member-level visibility;
+- methods and static type members with member-level visibility, and struct
+  fields where the struct layout is exposed; ordinary class instance fields
+  follow visible source layout but are omitted from opaque imported class APIs;
 - source declarations referenced by exported signatures;
 - base classes/interfaces needed to interpret a declaration;
 - callable newtype targets;
@@ -113,6 +115,14 @@ Filtering should consider:
 Filtering should not leak private generated declarations merely because an
 exported declaration lowers through them. Use stubs where a referenced identity
 is useful but the full declaration is outside the selected view.
+
+A consumer's generated Camp API class declaration is `extern` and has no
+instance-field layout, even when the producing module's source can access
+those fields. Public/static linking does not turn this opaque declaration into
+the producing module's complete class definition. The generated C consumer
+header likewise keeps the class opaque; only the producing module's internal C
+header needs the complete layout. Source-visible methods and static members
+are still filtered by their own API visibility.
 
 Export filtering is stricter than public filtering. If an exported declaration
 or selected projection member mentions a source type, that type must be visible

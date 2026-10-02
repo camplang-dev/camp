@@ -165,8 +165,8 @@ typedef struct ImageInfo {
 ```
 
 This is one of Camp's most important ABI distinctions. Changing an exported
-struct field changes the public layout contract. Changing private fields in a
-class does not change the public class layout, because callers only hold
+struct field changes the public layout contract. Changing implementation fields
+in a class does not change the public class layout, because callers only hold
 pointers to the opaque type.
 
 Use a struct when visible layout is the API. Use a class when the implementation

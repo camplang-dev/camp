@@ -156,6 +156,23 @@ generated label should keep provenance back to the property access, range
 argument, declaration target, discard target, or transfer statement that caused
 it.
 
+## Instance Field Access Through Visible Layout
+
+If a caller can see a non-extern class's complete definition, ordinary
+instance fields in that layout are readable and, through a mutable receiver,
+writable. No separate `public` field annotation or class-private access check
+is required. This includes unrelated functions in another source file and
+derived-class receivers: lookup follows the existing class/base hierarchy,
+uses the declaring field's type with the appropriate generic substitutions,
+and accesses the original base storage. Existing shadowing and ambiguity rules
+still apply.
+
+The rule does not make an unavailable class visible. An imported API class is
+opaque (`extern`) and supplies no instance fields to look up, including base
+fields. Field requirements, receiver/type validity, constness, and lifetime
+checks continue to apply. Methods and static declarations remain subject to
+their own visibility and emitted-symbol rules.
+
 ## Static Class Member Access
 
 A static class name is a source member-access target, not a value and not a

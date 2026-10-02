@@ -213,6 +213,13 @@ Types can contain fields and members. A member belongs to its containing type
 and participates in lookup, receiver binding, visibility, and generated API
 surface.
 
+When source can see a non-extern class's complete definition, it can access
+that class's instance fields, including unmodified fields and visible inherited
+fields. A separate `public` annotation on each field is not needed. This is
+different from importing a class through a module API: the imported class is
+opaque and its fields are not present there. Methods and static members still
+have their own visibility rules.
+
 ```camp
 class Counter
 {
@@ -296,7 +303,7 @@ Visibility modifiers are part of the declaration's contract.
 | `internal` | Make this declaration visible to other Camp source in the current project. |
 | `public` | Make this declaration visible to statically linked Camp modules in the final artifact. |
 | `export` | Put this declaration directly on the external API/ABI boundary. |
-| no visibility keyword | Keep it private to the relevant source scope. |
+| no visibility keyword | Keep a declaration in its local source scope; instance fields of a visible class or struct layout remain accessible through that layout. |
 | `extern` | The implementation or definition is provided outside Camp. |
 
 Use `export` deliberately. It is not just "public, but louder." An exported

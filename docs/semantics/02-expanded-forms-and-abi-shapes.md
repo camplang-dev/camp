@@ -47,6 +47,13 @@ Compiler writers must preserve both views:
 - C emission must use the ABI components;
 - metadata and API headers should prefer the source form.
 
+The same source-versus-ABI distinction matters for nominal layouts. A visible
+non-extern class definition exposes its instance fields to source in that
+module, including inherited fields, and the internal C layout supports those
+accesses. An imported class API remains opaque and does not serialize those
+fields. An exposed struct, in contrast, carries its field layout across the
+module/API boundary.
+
 ## Component Naming
 
 Component names must be stable. For a binding named `items`, examples include:

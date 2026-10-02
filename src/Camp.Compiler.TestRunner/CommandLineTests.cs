@@ -722,9 +722,34 @@ public sealed class CommandLineTests
 			""");
 		File.WriteAllText(Path.Combine(root, "src", "helper.camp"), """
 			namespace Sample;
-			internal sealed class TraceSink
+			internal class Root
+			{
+				int count;
+			}
+
+			class FileLocal
+			{
+				int hidden;
+			}
+			""");
+		File.WriteAllText(Path.Combine(root, "src", "middle.camp"), """
+			namespace Sample;
+			internal class Middle: Root
+			{
+				int padding;
+			}
+			""");
+		File.WriteAllText(Path.Combine(root, "src", "sink.camp"), """
+			namespace Sample;
+			internal sealed class TraceSink: Middle
 			{
 				TraceSink() { }
+
+				internal int increment()
+				{
+					this.count += 1;
+					return this.count;
+				}
 			}
 			""");
 		File.WriteAllText(Path.Combine(root, "src", "test.camp"), """
@@ -736,6 +761,10 @@ public sealed class CommandLineTests
 			{
 				TraceSink* sink = new TraceSink() finally delete;
 				assert(sink != null);
+				sink.count = 41;
+				assert(sink.count == 41);
+				assert(sink.increment() == 42);
+				assert(sink.count == 42);
 			}
 			""");
 		string outDir = Path.Combine(root, "out");
@@ -744,6 +773,14 @@ public sealed class CommandLineTests
 
 		AssertCommandSucceeded(result);
 		Assert.Contains("passed: Sample::constructInternal", result.StdOut, StringComparison.Ordinal);
+		string inaccessible = Path.Combine(root, "inaccessible.camp");
+		File.WriteAllText(inaccessible, """
+			namespace Sample;
+			int readHidden(FileLocal* value) => value.hidden;
+			""");
+		ProcessResult hidden = RunCampc("build", Path.Combine(root, "src", "helper.camp"), inaccessible, "--nostdlib", "--artifact", "none", "--out-dir", Path.Combine(root, "inaccessible-out"));
+		Assert.NotEqual(0, hidden.ExitCode);
+		Assert.Contains("Type 'FileLocal' is declared in another file but is not exported.", hidden.StdErr, StringComparison.Ordinal);
 	}
 
 	[Fact]
@@ -5630,6 +5667,9 @@ public sealed class CommandLineTests
 		Directory.CreateDirectory(librarySource);
 		Directory.CreateDirectory(appRoot);
 		File.WriteAllText(Path.Combine(librarySource, "library.camp"), """
+			extern escaped void* malloc(nuint size);
+			extern void free(void* ptr);
+
 			public enum Format
 			{
 				ONE,
@@ -5644,6 +5684,17 @@ public sealed class CommandLineTests
 			internal int internalValue()
 			{
 				return 2;
+			}
+
+			public class VisibleBase
+			{
+				int hiddenState;
+
+				public int readState() => this.hiddenState;
+			}
+
+			public class VisibleDerived: VisibleBase
+			{
 			}
 
 			export int exportedValue()
@@ -5661,6 +5712,8 @@ public sealed class CommandLineTests
 			#build --nostdlib
 			#build --artifact none
 
+			int useHandle(VisibleDerived* value) => value.readState();
+
 			export int main()
 			{
 				return publicValue() + exportedValue() - 42;
@@ -5676,17 +5729,32 @@ public sealed class CommandLineTests
 				return internalValue();
 			}
 			""");
+		string badFieldApp = Path.Combine(appRoot, "bad-field.camp");
+		File.WriteAllText(badFieldApp, """
+			#build --nostdlib
+			#build --artifact none
+
+			int readHidden(VisibleDerived* value) => value.hiddenState;
+			""");
 		string target = NativeTargetForHost();
 
 		ProcessResult good = RunCampc("build", goodApp, "--target", target, "--project-reference", libraryRoot + ":static", "--out-dir", Path.Combine(appRoot, "good-bin"));
 		ProcessResult bad = RunCampc("build", badApp, "--target", target, "--project-reference", libraryRoot + ":static", "--out-dir", Path.Combine(appRoot, "bad-bin"));
+		ProcessResult badField = RunCampc("build", badFieldApp, "--target", target, "--project-reference", libraryRoot + ":static", "--out-dir", Path.Combine(appRoot, "bad-field-bin"));
 
 		AssertCommandSucceeded(good);
 		Assert.NotEqual(0, bad.ExitCode);
 		Assert.Contains("Symbol 'internalValue' could not be found.", bad.StdErr, StringComparison.Ordinal);
+		Assert.NotEqual(0, badField.ExitCode);
+		Assert.Contains("Member 'hiddenState' could not be found", badField.StdErr, StringComparison.Ordinal);
 		string api = File.ReadAllText(Path.Combine(libraryRoot, "bin", ArtifactDirectoryForTarget(target, NativeBuildKind.Static), "visibility-lib_api.camp"));
 		Assert.Contains("public extern int publicValue();", api, StringComparison.Ordinal);
+		Assert.Contains("extern class VisibleDerived", api, StringComparison.Ordinal);
+		Assert.Contains("readState", api, StringComparison.Ordinal);
+		Assert.DoesNotContain("hiddenState", api, StringComparison.Ordinal);
 		Assert.DoesNotContain("internalValue", api, StringComparison.Ordinal);
+		string cApi = File.ReadAllText(Path.Combine(libraryRoot, "bin", ArtifactDirectoryForTarget(target, NativeBuildKind.Static), "visibility-lib_api.h"));
+		Assert.DoesNotContain("hiddenState", cApi, StringComparison.Ordinal);
 
 		string bareRoot = Path.Combine(root, "bare");
 		string renamedRoot = Path.Combine(root, "renamed");
@@ -6010,9 +6078,23 @@ public sealed class CommandLineTests
 		Directory.CreateDirectory(librarySource);
 		Directory.CreateDirectory(appRoot);
 		File.WriteAllText(Path.Combine(librarySource, "library.camp"), """
+			extern escaped void* malloc(nuint size);
+			extern void free(void* ptr);
+
 			public int publicValue()
 			{
 				return 20;
+			}
+
+			export class ExportedBase
+			{
+				int hiddenState;
+
+				export int readState() => this.hiddenState;
+			}
+
+			export class ExportedDerived: ExportedBase
+			{
 			}
 
 			export int exportedValue()
@@ -6030,6 +6112,8 @@ public sealed class CommandLineTests
 			#build --nostdlib
 			#build --artifact none
 
+			int useHandle(ExportedDerived* value) => value.readState();
+
 			export int main()
 			{
 				return exportedValue() - 22;
@@ -6045,20 +6129,34 @@ public sealed class CommandLineTests
 				return publicValue();
 			}
 			""");
+		string badFieldApp = Path.Combine(appRoot, "bad-field.camp");
+		File.WriteAllText(badFieldApp, """
+			#build --nostdlib
+			#build --artifact none
+
+			int readHidden(ExportedDerived* value) => value.hiddenState;
+			""");
 		string target = NativeTargetForHost();
 
 		ProcessResult good = RunCampc("build", goodApp, "--target", target, "--project-reference", libraryRoot + ":shared", "--out-dir", Path.Combine(appRoot, "good-bin"));
 		ProcessResult bad = RunCampc("build", badApp, "--target", target, "--project-reference", libraryRoot + ":shared", "--out-dir", Path.Combine(appRoot, "bad-bin"));
+		ProcessResult badField = RunCampc("build", badFieldApp, "--target", target, "--project-reference", libraryRoot + ":shared", "--out-dir", Path.Combine(appRoot, "bad-field-bin"));
 
 		AssertCommandSucceeded(good);
 		Assert.NotEqual(0, bad.ExitCode);
 		Assert.Contains("Symbol 'publicValue' could not be found.", bad.StdErr, StringComparison.Ordinal);
+		Assert.NotEqual(0, badField.ExitCode);
+		Assert.Contains("Member 'hiddenState' could not be found", badField.StdErr, StringComparison.Ordinal);
 		string api = File.ReadAllText(Path.Combine(libraryRoot, "bin", ArtifactDirectoryForTarget(target, NativeBuildKind.Shared), "visibility-lib_api.camp"));
 		Assert.DoesNotContain("publicValue", api, StringComparison.Ordinal);
 		Assert.Contains("export extern int exportedValue();", api, StringComparison.Ordinal);
+		Assert.Contains("extern class ExportedDerived", api, StringComparison.Ordinal);
+		Assert.Contains("readState", api, StringComparison.Ordinal);
+		Assert.DoesNotContain("hiddenState", api, StringComparison.Ordinal);
 		string cApi = File.ReadAllText(Path.Combine(libraryRoot, "bin", ArtifactDirectoryForTarget(target, NativeBuildKind.Shared), "visibility-lib_api.h"));
 		Assert.DoesNotContain("publicValue", cApi, StringComparison.Ordinal);
 		Assert.Contains("exportedValue", cApi, StringComparison.Ordinal);
+		Assert.DoesNotContain("hiddenState", cApi, StringComparison.Ordinal);
 	}
 
 	[Fact]

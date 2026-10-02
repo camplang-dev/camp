@@ -1,9 +1,20 @@
 class Processor
 {
 	byte x;
+	requires (OS_WIN32)
+	{
+		int gated;
+	}
 
 	void scale(const this)
 	{
 		this.x = 3;
 	}
 }
+
+void writeFromOutside(const Processor* item)
+{
+	item.x = 4;
+}
+
+int readUnavailable(Processor* item) => item.gated;

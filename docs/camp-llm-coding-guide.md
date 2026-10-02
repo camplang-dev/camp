@@ -305,6 +305,15 @@ declarations at the narrowest visibility that works:
 Do not combine visibility modifiers unless the docs or nearby code show that the
 combination is valid for that declaration kind.
 
+Do not treat an unmodified class instance field as C++/C# private. When source
+can see a non-extern class's complete definition, unrelated code in another
+file of the same module and derived-class code can read or write its fields
+through a valid receiver. The same applies to visible inherited fields.
+Imported class API declarations are opaque `extern` classes with no instance
+fields, even for static project references; use their exposed methods or
+handles instead. Field requirements, constness, and lifetime rules still apply,
+and method/static declaration visibility is independent of layout access.
+
 Artifact-specific guidance:
 
 - Executables: use `export int main(...)` for the program entry point. Most
