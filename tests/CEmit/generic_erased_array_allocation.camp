@@ -3,7 +3,7 @@ extern void free(void* ptr);
 
 class Buffer<T: copyable>
 {
-	T[] items;
+	escaped T[] items;
 
 	Buffer(sizeof(T))
 	{

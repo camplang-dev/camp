@@ -26,7 +26,7 @@ class Object
 		delete this.buffer;
 	}
 
-	int[] buffer;
+	escaped int[] buffer;
 }
 
 void acceptsAllocator(within Allocator* allocator)

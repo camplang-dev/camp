@@ -1008,7 +1008,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	static bool ValueOutlivesFact(LifetimeFact actual, LifetimeFact required)
 	{
-		if (actual.Kind == "escaped" || actual.Kind == "unknown" || required.Kind == "unknown")
+		if (actual.Kind is "escaped" or "unknown" or "null" or "default" || required.Kind == "unknown")
 			return true;
 		if (required.Kind == "escaped")
 			return actual.Kind == "escaped";
@@ -1046,7 +1046,10 @@ public sealed partial class BindableNodeAnalyzer
 			return;
 
 		UpdateAggregateComponentLifetimeFact(target, valueFact);
-		if (TryGetStorageNode(target, out BindableNode? storage) && storage is not null)
+		// An instance field is declared once but stored per instance, so its value fact belongs to the
+		// aggregate (updated above), never to the shared field definition.
+		if (TryGetStorageNode(target, out BindableNode? storage) && storage is not null
+			&& storage is not FieldDefinition { Modifier: not FieldModifier.Static })
 			storage.ValueLifetimeFact = valueFact;
 	}
 

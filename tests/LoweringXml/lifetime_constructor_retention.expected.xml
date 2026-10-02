@@ -23,8 +23,8 @@
     </FunctionDefinition>
     <StructDefinition Name="View" Symbol="View" ResolvedType="View">
       <Fields>
-        <FieldDefinition Name="text" Symbol="text" ResolvedType="const char*" SlotLifetimeFact="scoped(text):slot" ValueLifetimeFact="unscoped:explicit" />
-        <FieldDefinition Name="text_length" Symbol="text_length" ResolvedType="nuint" SlotLifetimeFact="scoped(text):slot" ValueLifetimeFact="unscoped:explicit" />
+        <FieldDefinition Name="text" Symbol="text" ResolvedType="const char*" SlotLifetimeFact="scoped(text):slot" ValueLifetimeFact="scoped(text):slot" />
+        <FieldDefinition Name="text_length" Symbol="text_length" ResolvedType="nuint" SlotLifetimeFact="scoped(text):slot" ValueLifetimeFact="scoped(text):slot" />
       </Fields>
       <Functions>
         <FunctionDefinition Modifier="Constructor" InvokerName="View" ReceiverLifetimeBinding="scoped:default receiver" Name="View" Symbol="View_View" ResolvedType="View">

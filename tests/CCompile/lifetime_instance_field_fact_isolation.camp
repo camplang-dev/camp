@@ -1,0 +1,36 @@
+extern escaped void* malloc(nuint size);
+extern void free(escaped void* ptr);
+
+struct Item
+{
+	uint id;
+	const char[] path;
+}
+
+struct Holder
+{
+	const Item[] items;
+	uint count;
+}
+
+// Storing a heap array in one Holder local must not make the field look escaped for a different local.
+uint heapUser()
+{
+	Item[] items = new Item[1] finally delete;
+	Holder input = default;
+	input.items = items;
+	return (uint)input.items.length;
+}
+
+uint stackUser()
+{
+	Item[] items = [ { 1, "a.camp" } ];
+	Holder input = default;
+	input.items = items;
+	return (uint)input.items.length;
+}
+
+export int main()
+{
+	return heapUser() + stackUser() == 2 ? 0 : 1;
+}

@@ -16,7 +16,7 @@ class Allocator
 
 class Object
 {
-	int* buffer;
+	escaped int* buffer;
 	nuint buffer_length;
 
 	Object(within Allocator* allocator);

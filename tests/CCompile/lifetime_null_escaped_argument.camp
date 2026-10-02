@@ -1,0 +1,21 @@
+class Box
+{
+	bool appended;
+
+	void append(escaped string value)
+	{
+		this.appended = value == null;
+	}
+}
+
+bool take(escaped string value)
+{
+	return value == null;
+}
+
+export int main()
+{
+	Box* box = stackalloc Box();
+	box.append(null);
+	return take(null) && box.appended ? 0 : 1;
+}

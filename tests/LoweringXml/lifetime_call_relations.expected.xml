@@ -111,8 +111,8 @@
     </FunctionDefinition>
     <ClassDefinition Name="Buffer" Symbol="Buffer" ResolvedType="Buffer">
       <Fields>
-        <FieldDefinition Name="items" Symbol="items" ResolvedType="char*" SlotLifetimeFact="scoped(items):slot" ValueLifetimeFact="unscoped:explicit" />
-        <FieldDefinition Name="items_length" Symbol="items_length" ResolvedType="nuint" SlotLifetimeFact="scoped(items):slot" ValueLifetimeFact="unscoped:explicit" />
+        <FieldDefinition Name="items" Symbol="items" ResolvedType="char*" SlotLifetimeFact="scoped(items):slot" ValueLifetimeFact="scoped(items):slot" />
+        <FieldDefinition Name="items_length" Symbol="items_length" ResolvedType="nuint" SlotLifetimeFact="scoped(items):slot" ValueLifetimeFact="scoped(items):slot" />
       </Fields>
       <Functions>
         <FunctionDefinition InvokerName="setItems" ReceiverLifetimeBinding="scoped:default receiver" Name="setItems" Symbol="Buffer_setItems" ResolvedType="void">
