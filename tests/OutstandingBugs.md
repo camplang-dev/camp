@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-204.
+Next bug number: BUG-205.
 
 ## Bug Template
 
@@ -315,3 +315,45 @@ global data cannot build using the default target. A private target with PIC
 static flags might avoid this specific relocation, but it does not make the
 standard target's shared-library contract work and has not been validated as
 a general workaround for transitive or prebuilt static dependencies.
+
+## BUG-204: Passing an address-of expression to an `in` pointer parameter crashes
+
+Date/Time: 2026-10-02 18:10 EDT
+
+Summary:
+An `in T*` parameter is lowered as `T**`: the argument is stored in a temporary
+pointer whose address is passed. When the argument expression is an address-of
+expression such as `&value`, the temporary is not created and the pointer value
+itself is passed where a pointer to a pointer is expected. The call compiles but
+reads through a wrong address. The same call works when the pointer is first
+stored in a local variable, and `in` parameters of non-pointer types accept
+literal and computed arguments.
+
+Steps to Reproduce:
+
+1. Compile and run this program:
+
+   ```camp
+   int read(in int* value) { return *value; }
+   export int main()
+   {
+   	int number = 5;
+   	return read(&number) - 5;
+   }
+   ```
+
+2. Replace the call with `int* pointer = &number; return read(pointer) - 5;` and
+   run again.
+
+Expected:
+Both programs return 0. The language treats an `in` parameter as a value
+parameter whose argument may be any expression of the parameter's type.
+
+Actual:
+The first program exits with status 139 (segmentation fault). The generated C
+declares `static int read(int **value);` and calls `read(&number)`, passing an
+`int *` where an `int **` is required. The second program returns 0.
+
+Known Impact:
+Calls that pass `&x` directly to an `in T*` or `in const T*` parameter crash at
+run time. Storing the address in a local first avoids it.
