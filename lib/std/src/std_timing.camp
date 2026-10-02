@@ -88,7 +88,7 @@ requires (SUBSYSTEM_POSIX)
 
 	void* timingPosixTimerThread(void* context)
 	{
-		TimingTimerState* state = (TimingTimerState*)context;
+		TimingTimerState* state = (escaped TimingTimerState*)context;
 		TimerHandle handle = (TimerHandle)(nint)state;
 
 		while (!state.cancelled)
@@ -173,7 +173,7 @@ requires (OS_WIN32)
 
 	_winapi uint timingWindowsTimerThread(void* context)
 	{
-		TimingTimerState* state = (TimingTimerState*)context;
+		TimingTimerState* state = (escaped TimingTimerState*)context;
 		TimerHandle handle = (TimerHandle)(nint)state;
 
 		while (!state.cancelled)

@@ -369,7 +369,7 @@ escaped string readCopy(CharReader this, bool stopAtNewline, within allocator, t
 	return (string)buffer;
 }
 
-escaped char* CharReader_growBuffer(char* buffer, nuint length, nuint capacity, within allocator, thrown IoError error)
+escaped char* CharReader_growBuffer(escaped char* buffer, nuint length, nuint capacity, within allocator, thrown IoError error)
 {
 	nuint nextCapacity = capacity == 0 ? 64 : capacity * 2;
 	char[] nextArray = new char[nextCapacity];
