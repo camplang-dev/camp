@@ -59,6 +59,7 @@ public sealed class TargetCapabilityTests
 		Assert.Equal(32, linuxX86.Capabilities.GetNaturalIntegerWidth(null));
 		Assert.Equal(32, linuxX86.Capabilities.GetPointerWidth(null, null, functionPointer: false));
 		Assert.Equal(".so", linuxX64.Capabilities.GetArtifactValue("shared_ext"));
+		Assert.Equal("-fPIC", linuxX64.Capabilities.GetCEmitterValue("static_cflags"));
 		Assert.Contains("-fPIC", linuxX64.Capabilities.GetCEmitterValue("shared_cflags"), StringComparison.Ordinal);
 		Assert.Equal(".so", linuxX86.Capabilities.GetArtifactValue("shared_ext"));
 	}

@@ -6769,29 +6769,48 @@ public sealed class CommandLineTests
 		Assert.Equal(0, run.ExitCode);
 	}
 
-	[Fact]
-	public void Shared_project_reference_absorbs_static_dependency_on_macos()
+	[Theory]
+	[InlineData("DEBUG")]
+	[InlineData("RELEASE")]
+	public void Shared_project_reference_absorbs_static_dependency(string profile)
 	{
-		if (!OperatingSystem.IsMacOS())
-			Assert.Skip("Shared project-reference runtime smoke is currently macOS-only.");
-		string root = TempPath("project-reference-shared-static-dep-macos");
+		if (!OperatingSystem.IsMacOS() && !OperatingSystem.IsLinux())
+			Assert.Skip("Shared/static project-reference runtime smoke requires macOS or Linux.");
+		if (OperatingSystem.IsLinux() && !GccCanLink("-m64"))
+			Assert.Skip("gcc -m64 cannot link a native executable on this host.");
+		string targetName = NativeTargetForHost();
+		Assert.True(TargetCatalog.TryLoadCached(Path.Combine(FindRepositoryRoot(), "targets"), out TargetCatalog? catalog, out string? error), error);
+		Assert.True(catalog!.TryGetTarget(targetName, out TargetDefinition? target));
+		string ArtifactDirectory(NativeBuildKind kind) => BuildArtifactLayout.GetArtifactDirectoryName(target!, kind, profile);
+		string sharedExtension = target!.Capabilities.GetArtifactValue("shared_ext");
+		string root = TempPath("project-reference-shared-static-dep-" + profile);
 		string aRoot = Path.Combine(root, "a");
+		string cRoot = Path.Combine(root, "c");
 		string bRoot = Path.Combine(root, "b");
 		string appRoot = Path.Combine(root, "app");
 		Directory.CreateDirectory(Path.Combine(aRoot, "src"));
+		Directory.CreateDirectory(Path.Combine(cRoot, "src"));
 		Directory.CreateDirectory(Path.Combine(bRoot, "src"));
 		Directory.CreateDirectory(appRoot);
-		File.WriteAllText(Path.Combine(aRoot, "src", "a.camp"), "export int aValue() => 20;\n");
+		File.WriteAllText(Path.Combine(aRoot, "src", "a.camp"), "export int aCounter = 20;\nexport int aValue() => aCounter;\n");
 		File.WriteAllText(Path.Combine(aRoot, "a.campbuild"), """
 			--nostdlib
 			--name a
 			src/*.camp
 			""");
-		File.WriteAllText(Path.Combine(bRoot, "src", "b.camp"), "export int bValue() => aValue() + 22;\n");
+		File.WriteAllText(Path.Combine(cRoot, "src", "c.camp"), "export int cCounter = 2;\nexport int cValue() => aValue() + cCounter;\n");
+		string cProject = Path.Combine(cRoot, "c.campbuild");
+		File.WriteAllText(cProject, $$"""
+			--nostdlib
+			--name middle
+			--project-reference {{aRoot}}:static
+			src/*.camp
+			""");
+		File.WriteAllText(Path.Combine(bRoot, "src", "b.camp"), "export int bValue() => cValue() + 20;\n");
 		File.WriteAllText(Path.Combine(bRoot, "b.campbuild"), $$"""
 			--nostdlib
 			--name b
-			--project-reference {{aRoot}}:static
+			--project-reference {{cRoot}}:static
 			src/*.camp
 			""");
 		string app = Path.Combine(appRoot, "app.camp");
@@ -6805,24 +6824,36 @@ public sealed class CommandLineTests
 			}
 			""");
 		string outDir = Path.Combine(appRoot, "bin");
+		ProcessResult prebuild = RunCampc("build", cProject, "--artifact", "static", "--target", targetName, "--profile", profile);
+		AssertCommandSucceeded(prebuild);
+		string aArchive = Path.Combine(aRoot, "bin", ArtifactDirectory(NativeBuildKind.Static), "liba.a");
+		string cArchive = Path.Combine(cRoot, "bin", ArtifactDirectory(NativeBuildKind.Static), "libmiddle.a");
+		AssertArchiveOwnsOnly(aArchive, "a");
+		AssertArchiveOwnsOnly(cArchive, "c");
+		DateTime aWriteTime = File.GetLastWriteTimeUtc(aArchive);
+		DateTime cWriteTime = File.GetLastWriteTimeUtc(cArchive);
 
 		ProcessResult result = RunCampc(
 			"build",
 			app,
 			"--target",
-			"clang-macos-x64",
+			targetName,
+			"--profile",
+			profile,
 			"--project-reference",
 			bRoot,
 			"--out-dir",
 			outDir);
 
 		AssertCommandSucceeded(result);
-		string appArtifactDirectory = Path.Combine(outDir, ArtifactDirectoryForTarget("clang-macos-x64", NativeBuildKind.Exec));
-		Assert.True(File.Exists(Path.Combine(aRoot, "bin", ArtifactDirectoryForTarget("clang-macos-x64", NativeBuildKind.Static), "liba.a")));
-		Assert.True(File.Exists(Path.Combine(bRoot, "bin", ArtifactDirectoryForTarget("clang-macos-x64", NativeBuildKind.Shared), "libb.dylib")));
-		Assert.True(File.Exists(Path.Combine(appArtifactDirectory, "libb.dylib")));
+		string appArtifactDirectory = Path.Combine(outDir, ArtifactDirectory(NativeBuildKind.Exec));
+		Assert.Equal(aWriteTime, File.GetLastWriteTimeUtc(aArchive));
+		Assert.Equal(cWriteTime, File.GetLastWriteTimeUtc(cArchive));
+		Assert.True(File.Exists(Path.Combine(bRoot, "bin", ArtifactDirectory(NativeBuildKind.Shared), "libb" + sharedExtension)));
+		Assert.True(File.Exists(Path.Combine(appArtifactDirectory, "libb" + sharedExtension)));
 		Assert.False(File.Exists(Path.Combine(appArtifactDirectory, "liba.a")));
-		Assert.True(File.Exists(Path.Combine(appArtifactDirectory, "shared-static-app")));
+		Assert.False(File.Exists(Path.Combine(appArtifactDirectory, "libmiddle.a")));
+		AssertCommandSucceeded(RunExecutable(Path.Combine(appArtifactDirectory, "shared-static-app")));
 	}
 
 	[Fact]

@@ -268,54 +268,6 @@ tests): the proposal requires diagnosing `@testname` when placed on a
 source shape cannot currently be written at all, so it cannot be proven with
 a compiling golden fixture until this parser gap is fixed.
 
-## BUG-175: Linux shared artifacts cannot link static dependencies with global data
-
-Date/Time: 2026-09-28 02:15 EDT
-
-Summary:
-The built-in `gcc-linux-x64` target compiles static Camp dependencies without
-position-independent code, then links their archives into shared artifacts.
-When a required object references an exported global, GNU `ld` rejects its
-`R_X86_64_PC32` relocation. The shared artifact never builds.
-
-Steps to Reproduce:
-
-1. Create a static Camp project with this source:
-
-   ```camp
-   namespace PicRepro;
-   export int counter = 42;
-   export int readCounter() => counter;
-   ```
-
-2. Create a shared Camp project with
-   `--project-reference ../lib/lib.campbuild:static` and this source:
-
-   ```camp
-   using PicRepro;
-   namespace PicReproConsumer;
-   export int read() => readCounter();
-   ```
-
-3. Build the shared project using the built-in `gcc-linux-x64` target.
-
-Expected:
-The compiler produces a usable shared library from supported project
-references, arranging for any static objects included in it to be linkable as
-position-independent code.
-
-Actual:
-The static dependency compiles without `-fPIC`; `ld` reports
-`relocation R_X86_64_PC32 against symbol 'PicRepro_counter' can not be used
-when making a shared object; recompile with -fPIC` and fails the link.
-
-Known Impact:
-Linux shared Camp libraries with static dependencies containing exported
-global data cannot build using the default target. A private target with PIC
-static flags might avoid this specific relocation, but it does not make the
-standard target's shared-library contract work and has not been validated as
-a general workaround for transitive or prebuilt static dependencies.
-
 ## BUG-210: Member access through a const pointer emits C value access
 
 Date/Time: 2026-10-02 22:35 EDT

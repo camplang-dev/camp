@@ -329,6 +329,13 @@ members do not survive. Shared builds may produce both a runtime library and an
 import library. If an import library exists, downstream link commands use it;
 otherwise they link the shared library itself.
 
+The built-in `gcc-linux-x64` target compiles static-library sources with
+`-fPIC` as well as shared-library sources. Its static archives can therefore
+be linked into shared libraries, including cached archives and transitive
+static project or package dependencies. Private targets must likewise use
+compatible static compile flags when their archives are intended for shared
+library consumers.
+
 ## Frameworks
 
 `--framework` is valid only when a native artifact is being built, the artifact
