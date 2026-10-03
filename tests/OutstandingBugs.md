@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-212.
+Next bug number: BUG-213.
 
 ## Bug Template
 
@@ -354,3 +354,47 @@ Qualification cannot be used as an alternative to an import when the two
 namespaces overlap in vocabulary, which is the case the language reference
 recommends it for. Adding the import works around it. Confirmed with the Release
 compiler at HEAD.
+
+## BUG-212: Same-named struct types in different namespaces are treated as one type
+
+Date/Time: 2026-10-03 12:10 EDT
+
+Summary:
+Type identity ignores the namespace of a struct. Two structs with the same simple
+name in different namespaces are accepted as interchangeable by semantic
+analysis, and the program fails only when the generated C is compiled, because
+the emitted C types have different names. Structs with different simple names
+are correctly rejected.
+
+Steps to Reproduce:
+
+1. Compile this program:
+
+   ```camp
+   namespace A { public struct Box { int side; } }
+   namespace B { public struct Box { int side; } }
+
+   export int main()
+   {
+       A::Box a = default;
+       B::Box b = a;
+       return b.side;
+   }
+   ```
+2. Replace the declaration with an assignment (`b = a;`), or pass `a` to a
+   function that takes `B::Box`, and compile again.
+
+Expected:
+Types with the same simple source name are distinct when their effective
+namespaces differ, and compatibility checks compare resolved type definitions.
+Each variant fails with a conversion diagnostic at the offending expression,
+as it does for `struct First {}` and `struct Second {}` (`Declaration
+initializer cannot convert 'First' to 'Second'.`).
+
+Actual:
+Semantic analysis succeeds. The native build then fails with a clang error such
+as `initializing 'BBox' with an expression of incompatible type 'ABox'`.
+
+Known Impact:
+A mismatch between same-named types goes undiagnosed at the Camp level, so the
+error points at generated C. Using distinct simple names avoids it.
