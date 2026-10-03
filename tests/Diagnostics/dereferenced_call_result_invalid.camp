@@ -1,0 +1,11 @@
+int* identity(int* value) => value;
+void consume(bool value) { }
+bool read(int* value) => *identity(value);
+
+export int main()
+{
+	int number = 6;
+	bool invalid = *identity(&number);
+	consume(*identity(&number));
+	return 0;
+}

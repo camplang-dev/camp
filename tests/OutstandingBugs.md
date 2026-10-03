@@ -316,45 +316,6 @@ static flags might avoid this specific relocation, but it does not make the
 standard target's shared-library contract work and has not been validated as
 a general workaround for transitive or prebuilt static dependencies.
 
-## BUG-208: Dereferencing a call result is checked as the pointer itself
-
-Date/Time: 2026-10-02 22:40 EDT
-
-Summary:
-When a dereferenced call result, `*f(...)`, is converted to a target type (a
-local initializer, a call argument, or a return value), the conversion check
-uses the call's pointer result type instead of the dereferenced type. The
-compiler then rejects a valid program. Parenthesizing the call, `*(f(...))`,
-does not help; using the dereference inside a larger expression does.
-
-Steps to Reproduce:
-
-1. Compile and run this program:
-
-   ```camp
-   int* identity(int* value) => value;
-   export int main()
-   {
-   	int number = 6;
-   	int read = *identity(&number);
-   	return read;
-   }
-   ```
-
-Expected:
-`*identity(&number)` has type `int`, so the program compiles and exits with
-status 6.
-
-Actual:
-Compilation fails with `Call result cannot convert 'int*' to 'int'.` at the
-dereference. Passing `*identity(&number)` as an `int` argument fails the same
-way, while `*identity(&number) + 0` compiles and runs correctly.
-
-Known Impact:
-A function returning a pointer cannot be dereferenced directly where a value
-of the pointee type is expected. Storing the pointer in a local first, or
-using the dereference inside a larger expression, avoids it.
-
 ## BUG-209: A const pointer level emits an undefined C type name
 
 Date/Time: 2026-10-02 23:05 EDT

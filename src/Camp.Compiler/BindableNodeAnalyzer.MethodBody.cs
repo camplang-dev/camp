@@ -6150,6 +6150,8 @@ public sealed partial class BindableNodeAnalyzer
 
 		string? operandTargetType = unary.Operator == UnaryOperator.Throw
 			? GetFunctionThrownParameter(scope.CurrentFunction)?.ResolvedType ?? scope.CurrentIteratorThrownType ?? GetFunctionThrownReturnType(scope.CurrentFunction)
+			: unary.Operator == UnaryOperator.PointerDereference
+			? null
 			: targetType;
 		string operandType = BodyAnalyzeExpression(unary.Operand, scope, typeScope, operandTargetType);
 		if (unary.Context is not null)

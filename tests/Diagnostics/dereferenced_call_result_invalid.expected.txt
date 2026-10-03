@@ -1,0 +1,3 @@
+tests/Diagnostics/dereferenced_call_result_invalid.camp(3,26): error: Return expression cannot convert 'int' to 'bool'.
+tests/Diagnostics/dereferenced_call_result_invalid.camp(8,17): error: Declaration initializer cannot convert 'int' to 'bool'.
+tests/Diagnostics/dereferenced_call_result_invalid.camp(9,10): error: Argument cannot convert 'int' to 'bool'.

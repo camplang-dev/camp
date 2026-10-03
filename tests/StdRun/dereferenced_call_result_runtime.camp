@@ -1,0 +1,24 @@
+int* identity(int* value) => value;
+int pass(int value) => value;
+int read(int* value) => *identity(value);
+long readWide(int* value) => *identity(value);
+
+export int main()
+{
+	int number = 6;
+	int direct = *identity(&number);
+	int parenthesized = *(identity(&number));
+	if (direct != 6 || parenthesized != 6)
+		return 1;
+	if (pass(*identity(&number)) != 6 || read(&number) != 6 || readWide(&number) != 6)
+		return 2;
+	int assigned = 0;
+	assigned = *identity(&number);
+	if (assigned != 6 || *identity(&number) + 0 != 6 || number != 6)
+		return 3;
+	fn int*(int*) callable = identity;
+	int indirect = *callable(&number);
+	if (indirect != 6)
+		return 4;
+	return 0;
+}
