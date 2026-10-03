@@ -390,6 +390,6 @@ The native build fails. The generated C declares the parameters as
 `unknown type name 'intPtr'`.
 
 Known Impact:
-Pointers to const pointers cannot be used in parameters, and likely not in
-locals, fields or results either. No workaround keeps the const pointer level;
-dropping the inner `const` avoids it.
+Pointers to const pointers cannot be used in parameters or locals (a local
+`int* const* view` fails the same way). No workaround keeps the const pointer
+level; dropping the inner `const` avoids it.
