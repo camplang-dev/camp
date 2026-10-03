@@ -87,3 +87,13 @@ void wrongTypeNamedTest(@testname int name, thrown Assertion* assertion)
 void tooManyNamedTest(@testname string first, @testname string second, thrown Assertion* assertion)
 {
 }
+
+@factorytest
+void implicitWithinNamedTest(@testname within allocator, thrown Assertion* assertion)
+{
+}
+
+@factorytest
+void explicitWithinNamedTest(@testname within Allocator* allocator, thrown Assertion* assertion)
+{
+}

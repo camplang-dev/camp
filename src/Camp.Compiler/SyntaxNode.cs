@@ -215,6 +215,7 @@ public class MemberDeclaratorSyntax : SyntaxNode
 
 public abstract class ParameterSyntax : SyntaxNode
 {
+	public List<AttributeSyntax>? Attributes { get; set; }
 }
 
 public class ValueParameterSyntax : ParameterSyntax

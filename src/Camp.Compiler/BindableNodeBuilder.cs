@@ -2158,6 +2158,20 @@ public sealed partial class BindableNodeBuilder
 
 	ParameterDefinition BuildParameterDefinition(ParameterSyntax syntax)
 	{
+		ParameterDefinition parameter = BuildParameterDefinitionCore(syntax);
+		if (syntax.Attributes is not null)
+		{
+			// Prefix attributes precede attributes on ordinary value declarators.
+			List<AttributeConstructor> declaratorAttributes = [.. parameter.Attributes];
+			parameter.Attributes.Clear();
+			ApplyDefinitionAttributes(parameter, syntax.Attributes);
+			parameter.Attributes.AddRange(declaratorAttributes);
+		}
+		return parameter;
+	}
+
+	ParameterDefinition BuildParameterDefinitionCore(ParameterSyntax syntax)
+	{
 		switch (syntax)
 		{
 			case ValueParameterSyntax value:

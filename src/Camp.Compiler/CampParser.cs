@@ -1324,9 +1324,22 @@ public sealed class CampParser
 
 	ParameterSyntax? ParseParameter()
 	{
+		int attributeStart = index;
+		int attributeDiagnosticStart = diagnostics.Count;
+		List<AttributeSyntax>? attributes = ParseAttributes();
+		// Keep ordinary parameter declarators unchanged, but consume attributes
+		// before dispatching the keyword-led parameter forms.
+		if (!IsAny("within", "sizeof", "typenameof", "vtableof"))
+		{
+			index = attributeStart;
+			attributes = null;
+			diagnostics.RemoveRange(attributeDiagnosticStart, diagnostics.Count - attributeDiagnosticStart);
+		}
+
 		if (Is("sizeof"))
 			return new SizeOfParameterSyntax
 			{
+				Attributes = attributes,
 				SizeOfKeyword = Take(),
 				OpenParenToken = Expect("("),
 				Type = ParseType(),
@@ -1336,6 +1349,7 @@ public sealed class CampParser
 		if (Is("typenameof"))
 			return new NameOfParameterSyntax
 			{
+				Attributes = attributes,
 				NameOfKeyword = Take(),
 				OpenParenToken = Expect("("),
 				Type = ParseType(),
@@ -1345,6 +1359,7 @@ public sealed class CampParser
 		if (Is("vtableof"))
 			return new VTableOfParameterSyntax
 			{
+				Attributes = attributes,
 				VTableOfKeyword = Take(),
 				OpenParenToken = Expect("("),
 				Type = ParseType(),
@@ -1359,9 +1374,9 @@ public sealed class CampParser
 		{
 			Token? lifetime = ValueIsAny(PeekValue(0), "scoped", "unscoped", "escaped") ? Take() : null;
 			if (Is("this") && PeekValue(1) == "." && Peek(2)?.Class == TokenClass.Identifier)
-				return new WithinParameterSyntax { WithinKeyword = within, LifetimeKeyword = lifetime, ThisKeyword = Take(), DotToken = Expect("."), Identifier = TakeIdentifier() };
+				return new WithinParameterSyntax { Attributes = attributes, WithinKeyword = within, LifetimeKeyword = lifetime, ThisKeyword = Take(), DotToken = Expect("."), Identifier = TakeIdentifier() };
 			if (IsIdentifier() && ValueIsAny(PeekValue(1), ",", ")"))
-				return new WithinParameterSyntax { WithinKeyword = within, LifetimeKeyword = lifetime, Identifier = TakeIdentifier() };
+				return new WithinParameterSyntax { Attributes = attributes, WithinKeyword = within, LifetimeKeyword = lifetime, Identifier = TakeIdentifier() };
 		}
 		index = start;
 
@@ -1377,13 +1392,14 @@ public sealed class CampParser
 			};
 
 		index = start;
-		return ParseValueParameter();
+		return ParseValueParameter(attributes);
 	}
 
-	ValueParameterSyntax? ParseValueParameter()
+	ValueParameterSyntax? ParseValueParameter(List<AttributeSyntax>? attributes)
 	{
 		ValueParameterSyntax syntax = new()
 		{
+			Attributes = attributes,
 			WithinKeyword = TakeIf("within"),
 			Declarators = []
 		};

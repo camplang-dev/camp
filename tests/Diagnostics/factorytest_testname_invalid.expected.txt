@@ -12,3 +12,5 @@ tests/Diagnostics/factorytest_testname_invalid.camp(72,2): error: @testname is v
 tests/Diagnostics/factorytest_testname_invalid.camp(77,22): error: @testname is not valid on a thrown parameter.
 tests/Diagnostics/factorytest_testname_invalid.camp(82,25): error: @testname parameter type must be string or const char[].
 tests/Diagnostics/factorytest_testname_invalid.camp(87,47): error: @factorytest functions may have at most one @testname parameter.
+tests/Diagnostics/factorytest_testname_invalid.camp(92,30): error: @testname is not valid on a within parameter.
+tests/Diagnostics/factorytest_testname_invalid.camp(97,30): error: @testname is not valid on a within parameter.

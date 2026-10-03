@@ -6,6 +6,9 @@ public static class SyntaxNodeTraversal
 {
 	public static IEnumerable<SyntaxNode> Children(SyntaxNode node)
 	{
+		if (node is ParameterSyntax parameter)
+			foreach (AttributeSyntax attribute in parameter.Attributes ?? []) yield return attribute;
+
 		switch (node)
 		{
 			case CompilationUnitSyntax syntax:
@@ -368,6 +371,10 @@ public static class SyntaxNodeTraversal
 
 	public static IEnumerable<Token> Tokens(SyntaxNode node)
 	{
+		if (node is ParameterSyntax parameter)
+			foreach (AttributeSyntax attribute in parameter.Attributes ?? [])
+				foreach (Token token in Tokens(attribute)) yield return token;
+
 		switch (node)
 		{
 			case CompilationUnitSyntax syntax:
