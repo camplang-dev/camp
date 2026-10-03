@@ -483,7 +483,21 @@ public sealed partial class BindableNodeAnalyzer
 		foreach (TypeDefinition definition in allTypeDefinitions)
 		{
 			string symbol = ResolvedNominalTypeName(definition);
-			if (symbol == definition.Name)
+			if (symbol == definition.Name || !type.Contains(symbol, StringComparison.Ordinal))
+				continue;
+			// A simple spelling is an alias for the resolved name only when it
+			// identifies one type. Never erase the identity of namespace siblings.
+			bool distinctSameNamedType = false;
+			foreach (TypeDefinition candidate in allTypeDefinitions)
+			{
+				if (candidate.Name == definition.Name
+					&& !StringEqualsNamespace(GetDefinitionNamespace(candidate), GetDefinitionNamespace(definition)))
+				{
+					distinctSameNamedType = true;
+					break;
+				}
+			}
+			if (distinctSameNamedType)
 				continue;
 			type = ReplaceTypeToken(type, symbol, definition.Name);
 		}
