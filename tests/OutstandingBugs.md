@@ -268,50 +268,6 @@ tests): the proposal requires diagnosing `@testname` when placed on a
 source shape cannot currently be written at all, so it cannot be proven with
 a compiling golden fixture until this parser gap is fixed.
 
-## BUG-210: Member access through a const pointer emits C value access
-
-Date/Time: 2026-10-02 22:35 EDT
-
-Summary:
-Member access through a pointer with a top-level `const` qualifier emits C's
-value-member operator (`.`) instead of its pointer-member operator (`->`).
-The Camp expression is valid, but the generated C fails to compile.
-
-Steps to Reproduce:
-
-1. Compile and run this program:
-
-   ```camp
-   struct Item
-   {
-       int value;
-   }
-
-   int read(Item* const value) => value.value;
-
-   export int main()
-   {
-       Item item = { .value = 7 };
-       return read(&item);
-   }
-   ```
-
-Expected:
-Camp uses `.` for member access through pointers. The program compiles and
-exits with status 7; the C backend emits `value->value`.
-
-Actual:
-The C backend emits `value.value` for the `Item * const` parameter. Clang
-rejects it with `member reference type 'Item *const' is a pointer; did you
-mean to use '->'?`.
-
-Known Impact:
-Reading struct members through top-level const pointers fails native
-compilation, including when the pointer comes from dereferencing a pointer
-to a const pointer. Copying the dereferenced struct to a value local before
-reading its member avoids this defect. Confirmed with the Release compiler
-at `403e9d13`, before the BUG-208 and BUG-209 fixes.
-
 ## BUG-211: Qualified name requires an import of its namespace
 
 Date/Time: 2026-10-03 12:38 EDT

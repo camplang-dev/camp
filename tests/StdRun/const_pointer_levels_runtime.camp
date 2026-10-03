@@ -11,9 +11,12 @@ struct Item
 
 int readItem(Item* const* value)
 {
-	Item copy = **value;
-	return copy.value;
+	return (*value).value;
 }
+
+int readConstItem(Item* const value) => value.value;
+int readVolatileItem(Item* volatile value) => value.value;
+int readQualifiedItem(const Item* const volatile value) => value.value;
 
 export int main()
 {
@@ -36,5 +39,12 @@ export int main()
 	Item* itemPointer = &item;
 	if (readItem(&itemPointer) != 7)
 		return 6;
+	if (readConstItem(itemPointer) != 7 || readVolatileItem(itemPointer) != 7
+		|| readQualifiedItem(itemPointer) != 7)
+		return 7;
+	Item* const local = itemPointer;
+	local.value = 9;
+	if (local.value != 9 || item.value != 9)
+		return 8;
 	return 0;
 }

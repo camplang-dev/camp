@@ -22,6 +22,21 @@ int readDeepPointer(int * const * const *value)
 	return ***value;
 }
 
+int readConstItem(Item * const value)
+{
+	return value->value;
+}
+
+int readVolatileItem(Item * volatile value)
+{
+	return value->value;
+}
+
+int readIndirectItem(Item * const *value)
+{
+	return (*value)->value;
+}
+
 // file: const_pointer_levels.h
 #ifndef CONST_POINTER_LEVELS_H_
 #define CONST_POINTER_LEVELS_H_
@@ -32,6 +47,9 @@ int readConstPointer(int * const *value);
 int readConstToConst(const int * const *value);
 int readVolatilePointer(int * volatile *value);
 int readDeepPointer(int * const * const *value);
+int readConstItem(Item * const value);
+int readVolatileItem(Item * volatile value);
+int readIndirectItem(Item * const *value);
 
 #endif
 // file: const_pointer_levels_private.h
@@ -43,18 +61,26 @@ int readDeepPointer(int * const * const *value);
 #include <stdbool.h>
 
 /* Forward declarations. */
+typedef struct Item Item;
 
 /* Enums. */
 
 /* Newtypes. */
 
 /* Layouts. */
+struct Item
+{
+	int value;
+};
 
 /* Function declarations. */
 int readConstPointer(int * const *value);
 int readConstToConst(const int * const *value);
 int readVolatilePointer(int * volatile *value);
 int readDeepPointer(int * const * const *value);
+int readConstItem(Item * const value);
+int readVolatileItem(Item * volatile value);
+int readIndirectItem(Item * const *value);
 
 /* Object declarations. */
 
