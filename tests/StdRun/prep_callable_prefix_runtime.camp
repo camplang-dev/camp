@@ -1,6 +1,7 @@
 using Std;
 
 newtype fn nuint Writer(prep char[] buffer = default);
+newtype delegate nuint Renderer(int, prep char[]);
 
 export void main()
 {
@@ -17,6 +18,45 @@ export void main()
 	Console.writeLine(interfaceWriter.write());
 	Console.writeLine(implementation.writeGeneric());
 	Console.writeLine(implementation.writeVirtual());
+
+	fn nuint(prep char[]) indirect = writeText;
+	Console.writeLine(indirect());
+	delegate nuint(prep char[] buffer) plain = writeText;
+	Console.writeLine(plain(default));
+	Console.writeLine(plain());
+	Renderer renderer = renderCount;
+	Console.writeLine(renderer(4, default));
+	char[] rendered = renderer(4);
+	Console.writeLine(rendered.length);
+	Console.writeLine(rendered[0]);
+
+	Box box = { 10 };
+	delegate nuint(int, prep char[]) bound = box.render;
+	Console.writeLine(bound(2, default));
+	char[] boundText = bound(2);
+	Console.writeLine(boundText.length);
+	Console.writeLine(boundText[0]);
+	char[] heapBoundText = within (default) (new) bound(3);
+	Console.writeLine(heapBoundText.length);
+	delete heapBoundText.elements;
+}
+
+nuint renderCount(int value, prep char[] buffer = default)
+{
+	if (buffer.length > 0)
+		buffer[0] = 'r';
+	return (nuint)value;
+}
+
+struct Box
+{
+	int size;
+	nuint render(int value, prep char[] buffer = default)
+	{
+		if (buffer.length > 0)
+			buffer[0] = 'b';
+		return (nuint)(value + this.size);
+	}
 }
 
 nuint writeText(prep char[] buffer = default)

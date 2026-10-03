@@ -12,6 +12,8 @@ public sealed class PrepParserTests
 		CompilationUnitSyntax syntax = Parse("""
 			nuint format(prep char[] buffer = default);
 			void consume(prep ident);
+			void accept(fn nuint(int, prep char[]) formatter, delegate nuint(prep char[]) renderer);
+			newtype fn nuint Formatter(int, prep char[]);
 			""", out IReadOnlyList<ParseDiagnostic> diagnostics);
 
 		Assert.Empty(diagnostics);
@@ -22,6 +24,9 @@ public sealed class PrepParserTests
 		Assert.Null(parameters[1].Declarators);
 		Assert.Equal("prep", Assert.IsType<QualifiedNameTypeSyntax>(parameters[1].Type).Identifier?.Value);
 		Assert.Equal("ident", parameters[1].Identifier?.Value);
+		List<ValueParameterSyntax> unnamedPrep = parameters.Where(parameter => parameter.Identifier is null
+			&& parameter.Declarators?.Any(item => item.Keyword?.Value == "prep") == true).ToList();
+		Assert.Equal(3, unnamedPrep.Count);
 	}
 
 	[Fact]

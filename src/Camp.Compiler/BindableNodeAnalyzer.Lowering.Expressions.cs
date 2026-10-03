@@ -546,6 +546,10 @@ public sealed partial class BindableNodeAnalyzer
 			ResolvedType = components[1].ResolvedType
 		});
 		call.ResolvedType = callable.ReturnType;
+		// Subsequent lowering passes must bind the lowered call, including its context,
+		// rather than rebinding it against the delegate's source-level parameter list.
+		if (GetCallableParametersForExpression(call.Target) is List<ParameterDefinition> loweredParameters)
+			callableInvocationParameters[call] = loweredParameters;
 		return true;
 	}
 

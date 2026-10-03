@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 
 namespace Camp.Compiler;
@@ -1445,11 +1446,19 @@ public sealed class CampParser
 		int diagnosticStart = diagnostics.Count;
 		TakeIf("prep");
 		TypeSyntax? type = ParseType(requireIdentifierAfterTerminalTargetSpec: true);
-		bool result = type is not null && IsIdentifier();
+		// Preserve contextual type-name uses such as `prep value`. An unnamed prep slot
+		// is unambiguous when its following type contains an array declarator.
+		bool result = type is not null && (IsIdentifier()
+			|| IsAny(",", ")", "=") && ContainsArrayType(type));
 		index = start;
 		if (diagnostics.Count > diagnosticStart)
 			diagnostics.RemoveRange(diagnosticStart, diagnostics.Count - diagnosticStart);
 		return result;
+	}
+
+	static bool ContainsArrayType(TypeSyntax type)
+	{
+		return type is ArrayTypeSyntax || SyntaxNodeTraversal.Children(type).OfType<TypeSyntax>().Any(ContainsArrayType);
 	}
 
 	AssignmentSyntax ParseAssignment(bool consumeSemicolon)

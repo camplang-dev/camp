@@ -351,7 +351,9 @@ size/write protocol through an ordinary function or method surface.
 
 `prep` is a contextual parameter modifier, not a globally reserved word. It is
 recognized as a modifier only when tentative parameter parsing can consume a
-complete following type and parameter name. Thus `prep char[] buffer` uses the
+complete following type and a parameter name, or an unnamed array type followed
+by a parameter-list delimiter.
+Thus `prep char[] buffer` and an unnamed callable slot `prep char[]` use the
 modifier, while `prep value` may use `prep` as the type name and `value` as the
 parameter name. Capitalization is not part of this decision. Outside that
 parameter context, `prep` is an ordinary identifier or type name.

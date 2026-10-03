@@ -28,5 +28,15 @@ export int main()
 	window.windowState.destroy = (sender) => { Console.writeLine("destroy"); };
 
 	window.raiseHandler(state => state.click);
+	Console.writeLine(choose()(4));
+	fn int(int) chosen = choose();
+	Console.writeLine(chosen(5));
+	Console.writeLine(chooseWithArgument(true)(6));
+	Console.writeLine(chooseWithArgument(false)(6));
 	return 0;
 }
+
+int twice(int value) { return value * 2; }
+fn int(int) choose() { return twice; }
+int identity(int value) { return value; }
+fn int(int) chooseWithArgument(bool doubleValue) { return doubleValue ? twice : identity; }

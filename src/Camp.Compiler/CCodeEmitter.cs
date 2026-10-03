@@ -1709,7 +1709,8 @@ public static class CCodeEmitter
                 ParameterModifier.Thrown => "thrown " + type,
                 ParameterModifier.Within => "within " + type,
                 ParameterModifier.Upon => "upon " + type,
-                ParameterModifier.Prep => "prep " + type,
+                // Prep is a source contract; lowered buffer components have the ordinary array ABI.
+                ParameterModifier.Prep => type,
                 _ => type
             };
         }
@@ -3721,7 +3722,7 @@ public static class CCodeEmitter
             {
                 if (function.ReturnType is RawFunctionPointerTypeReference || IsRawFunctionPointerResolvedType(function.ResolvedType))
                     return FormatInlineResolvedFunctionPointer("void", new List<string>(), name + FormatParameters(function), GetRawFunctionPointerTargetSpec(function), null);
-                return FormatTypeOrResolved(function.ReturnType, function.ResolvedType, name).Declaration + FormatParameters(function);
+                return FormatTypeOrResolved(function.ReturnType, function.ResolvedType, name + FormatParameters(function)).Declaration;
             }
 
             List<string> parameters = FormatFunctionParameterParts(function);
