@@ -196,6 +196,17 @@ records. Running
 passed `defaultEscapedOwnerDestroys` with exit 0. The isolated native harness
 also passed with one 18,488-byte allocation, one free, and no live allocations.
 
+On 2026-10-03 the existing minimal fixture was checked again with the macOS
+Release compiler at `c8f92f50e20b70f91fe3ef6af000bbfd20208b10`:
+`bin/campc test tmp/bug-155.camp --out-dir tmp/bug-155-current-out --name bug-155-current`.
+Its isolated test passed. An enlarged fixture with the same sidecar sizes and
+256 records was also checked with
+`bin/campc test tmp/bug-155-large-current.camp --out-dir tmp/bug-155-large-current-out --name bug-155-large-current`.
+Default destruction, populated-array destruction, and an unrelated isolated
+test all passed. The first two recorded respectively one allocation/one free
+and four allocations/four frees, with zero live allocations. These fixtures
+still do not reproduce the original failure, so the report remains unconfirmed.
+
 No compiler change, regression, or bug classification is warranted without the
 original crashing source snapshot, generated C, compiler binary or revision, or
 exact test invocation and environment that produced exit 139.
