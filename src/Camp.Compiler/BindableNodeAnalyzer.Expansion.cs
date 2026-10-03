@@ -1218,13 +1218,7 @@ public sealed partial class BindableNodeAnalyzer
 				reference.Candidates.Add(constructorImplementation);
 
 			foreach (ParameterDefinition parameter in thunk.Parameters)
-			{
-				constructorCall.Arguments.Add(new ArgumentExpression
-				{
-					Value = CreateVariableReference(parameter, parameter.ResolvedType ?? ErrorType),
-					ResolvedType = parameter.ResolvedType ?? ErrorType
-				});
-			}
+				constructorCall.Arguments.Add(CreateForwardedInterfaceArgument(parameter));
 			if (constructorImplementation is not null)
 			{
 				callTargets[constructorCall] = constructorImplementation;
@@ -1316,11 +1310,7 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			if (parameter == ctx)
 				continue;
-			call.Arguments.Add(new ArgumentExpression
-			{
-				Value = CreateVariableReference(parameter, parameter.ResolvedType ?? ErrorType),
-				ResolvedType = parameter.ResolvedType ?? ErrorType
-			});
+			call.Arguments.Add(CreateForwardedInterfaceArgument(parameter));
 		}
 		if (call.Target is MemberReferenceExpression { Member: FunctionDefinition implementation })
 		{
@@ -1361,11 +1351,7 @@ public sealed partial class BindableNodeAnalyzer
 			ResolvedType = $"{lowering.EntryInterface.Name}**"
 		});
 		foreach (ParameterDefinition parameter in thunk.Parameters.Skip(1))
-			call.Arguments.Add(new ArgumentExpression
-			{
-				Value = CreateVariableReference(parameter, parameter.ResolvedType ?? ErrorType),
-				ResolvedType = parameter.ResolvedType ?? ErrorType
-			});
+			call.Arguments.Add(CreateForwardedInterfaceArgument(parameter));
 		callTargets[call] = target;
 		ExpandParamsArguments(call);
 		if (call.ResolvedType == "void")
@@ -1374,6 +1360,19 @@ public sealed partial class BindableNodeAnalyzer
 			body.Statements.Add(new ReturnStatement { Expression = call, ResolvedType = "void" });
 		return body;
 	}
+
+	static ArgumentExpression CreateForwardedInterfaceArgument(ParameterDefinition parameter) => new()
+	{
+		SourceSyntax = parameter.SourceSyntax,
+		Modifier = parameter.Modifier switch
+		{
+			ParameterModifier.Out => ArgumentModifier.Out,
+			ParameterModifier.Thrown => ArgumentModifier.Catch,
+			_ => ArgumentModifier.None
+		},
+		Value = CreateVariableReference(parameter, parameter.ResolvedType ?? ErrorType),
+		ResolvedType = parameter.ResolvedType ?? ErrorType
+	};
 
 	Expression CreateShadowInterfaceDataFixup(InterfaceThunkLowering lowering, ParameterDefinition ctx, ClassDefinition shadowClass)
 	{

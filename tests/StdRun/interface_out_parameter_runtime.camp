@@ -1,0 +1,42 @@
+interface Reader
+{
+	void read(out int result);
+}
+
+sealed class StoredClass: Reader
+{
+	int value;
+
+	void read(out int result): Reader
+	{
+		result = this.value;
+	}
+}
+
+struct StoredStruct: Reader
+{
+	int value;
+
+	void read(out int result): Reader
+	{
+		result = this.value;
+	}
+}
+
+export int main()
+{
+	StoredClass* classValue = stackalloc StoredClass();
+	classValue.value = 7;
+	Reader* classReader = classValue;
+	int result = 0;
+	classReader.read(out result);
+	if (result != 7)
+		return 1;
+
+	StoredStruct structValue = { .value = 11 };
+	Reader* structReader = &structValue;
+	structReader.read(out result);
+	if (result != 11)
+		return 2;
+	return 0;
+}

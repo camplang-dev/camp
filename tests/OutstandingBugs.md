@@ -316,51 +316,6 @@ static flags might avoid this specific relocation, but it does not make the
 standard target's shared-library contract work and has not been validated as
 a general workaround for transitive or prebuilt static dependencies.
 
-## BUG-206: An interface call drops the address of an `out` argument
-
-Date/Time: 2026-10-02 20:14 EDT
-
-Summary:
-When an interface method has an `out` parameter, the generated dispatch thunk
-passes the dereferenced slot value to the implementation instead of the slot
-address it received. The emitted C then fails to compile. Both class and
-struct implementations are affected.
-
-Steps to Reproduce:
-
-1. Compile and run this program:
-
-   ```camp
-   interface Reader { void read(out int result); }
-   sealed class Stored: Reader
-   {
-   	int value;
-   	void read(out int result): Reader { result = this.value; }
-   }
-   export int main()
-   {
-   	Stored* stored = stackalloc Stored();
-   	stored.value = 7;
-   	Reader* reader = stored;
-   	int result = 0;
-   	reader.read(out result);
-   	return result;
-   }
-   ```
-
-Expected:
-The interface call writes 7 into the caller's `result` slot and the program
-exits with 7.
-
-Actual:
-The native build fails: the thunk calls the implementation with `(*result)`,
-and the C compiler reports `incompatible integer to pointer conversion passing
-'int' to parameter of type 'int *'`.
-
-Known Impact:
-Interface methods cannot return additional results through `out` parameters.
-Calling the implementation directly instead of through the interface works.
-
 ## BUG-207: Repeated unary minus or plus becomes a decrement or increment
 
 Date/Time: 2026-10-02 20:24 EDT
