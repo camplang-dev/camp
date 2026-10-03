@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-209.
+Next bug number: BUG-210.
 
 ## Bug Template
 
@@ -316,42 +316,6 @@ static flags might avoid this specific relocation, but it does not make the
 standard target's shared-library contract work and has not been validated as
 a general workaround for transitive or prebuilt static dependencies.
 
-## BUG-207: Repeated unary minus or plus becomes a decrement or increment
-
-Date/Time: 2026-10-02 20:24 EDT
-
-Summary:
-Two adjacent unary `-` operators, or two adjacent unary `+` operators, are
-emitted without separation, so the generated C reads them as a prefix `--` or
-`++`. The expression then modifies its operand instead of negating it twice or
-leaving it unchanged.
-
-Steps to Reproduce:
-
-1. Compile and run this program:
-
-   ```camp
-   export int main()
-   {
-   	int x = 5;
-   	int y = - -x;
-   	int z = + +x;
-   	return x * 100 + y * 10 + z;
-   }
-   ```
-
-Expected:
-`- -x` and `+ +x` both evaluate to 5 and leave `x` unchanged, so the program
-returns 555 (exit status 43 after truncation to 8 bits).
-
-Actual:
-The generated C contains `--x` and `++x`. `x` is decremented and then
-incremented, `y` is 4, and the program exits with status 33.
-
-Known Impact:
-Any double negation or double unary plus silently changes both the result and
-the operand. Parenthesizing the inner operation, as in `-(-x)`, avoids it.
-
 ## BUG-208: Dereferencing a call result is checked as the pointer itself
 
 Date/Time: 2026-10-02 22:40 EDT
@@ -390,3 +354,42 @@ Known Impact:
 A function returning a pointer cannot be dereferenced directly where a value
 of the pointee type is expected. Storing the pointer in a local first, or
 using the dereference inside a larger expression, avoids it.
+
+## BUG-209: A const pointer level emits an undefined C type name
+
+Date/Time: 2026-10-02 23:05 EDT
+
+Summary:
+A pointer type whose pointee is itself a const-qualified pointer, such as
+`int* const*` or `const int* const*`, is emitted in the generated C as a
+pointer to an undeclared typedef name (`intPtr`). The generated C does not
+compile, so any program using the type fails to build.
+
+Steps to Reproduce:
+
+1. Compile and run this program:
+
+   ```camp
+   int readConstPointer(int* const* value) => **value;
+   int readConstToConst(const int* const* value) => **value;
+   export int main()
+   {
+   	int number = 6;
+   	int* pointer = &number;
+   	return readConstPointer(&pointer) + readConstToConst(&pointer);
+   }
+   ```
+
+Expected:
+Postfix `const` follows the C rule: `int* const*` is a pointer to a const
+pointer to `int`. The program compiles and exits with status 12.
+
+Actual:
+The native build fails. The generated C declares the parameters as
+`intPtr *value` and `const intPtr *value`, and clang reports
+`unknown type name 'intPtr'`.
+
+Known Impact:
+Pointers to const pointers cannot be used in parameters, and likely not in
+locals, fields or results either. No workaround keeps the const pointer level;
+dropping the inner `const` avoids it.
