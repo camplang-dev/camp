@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-218.
+Next bug number: BUG-219.
 
 ## Bug Template
 
@@ -73,3 +73,36 @@ at the `prep` slot.
 Known Impact:
 Prep-bearing callable types must name the prep slot
 (`fn nuint(int, prep char[] buffer)`) or use the return-position spelling.
+
+## BUG-218: Omitting the prep slot when calling a delegate fails to compile
+
+Date/Time: 2026-10-03 18:17 EDT
+
+Summary:
+Calling a delegate whose type carries a prep slot, without supplying that slot,
+should select the prepared-result call. Instead compilation fails with a
+diagnostic that reports an argument as already supplied and gives no source
+location. This happens whether the delegate targets a plain function or a
+bound method. The same omission through an `fn` value or a callable newtype
+works, and the delegate call works when the prep slot is supplied explicitly.
+
+Steps to Reproduce:
+
+1. Declare a struct `Box` with an `int size` field and a method
+   `nuint render(int value, prep char[] buffer = default) { return (nuint)(value + this.size); }`.
+2. In a function body, create `Box box = { 10 };` and
+   `delegate nuint(int, prep char[] buffer) bound = box.render;`.
+3. Write `char[] text = bound(2);` and compile.
+
+Expected:
+The call compiles and `text.length` is 12. Omitting the prep slot on a call
+through any prep-bearing callable surface, including a bound delegate, selects
+the transformed prepared-result call.
+
+Actual:
+`(no line,column) error: Argument 'arg1' was already supplied.`
+
+Known Impact:
+Prepared results cannot be requested through delegates. Supplying the buffer
+explicitly and sizing the storage by hand works for bound-method targets.
+
