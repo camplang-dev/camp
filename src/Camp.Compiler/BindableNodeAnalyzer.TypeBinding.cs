@@ -1142,6 +1142,10 @@ public sealed partial class BindableNodeAnalyzer
 		if (named.Qualifiers.Count == 0 && named.TypeArguments.Count > 0 && aliasDefinitions.ContainsKey(named.Name))
 			Report(GetRange(named.SourceSyntax), $"Alias '{named.Name}' cannot be used with generic type arguments.");
 
+		if (named.Qualifiers.Count == 0 && !scope.TryGetGenericParameter(named.Name, out _)
+			&& ReportIfAmbiguousTypeName(named.Name, named.SourceSyntax))
+			return ErrorType;
+
 		if (TryGetStaticClassDefinition(named, out StaticClassDefinition? staticClassDefinition) && staticClassDefinition is not null)
 		{
 			if (named.Qualifiers.Count == 0 && !IsDefinitionVisible(staticClassDefinition, named.SourceSyntax))

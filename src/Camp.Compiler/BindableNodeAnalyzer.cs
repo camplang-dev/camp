@@ -167,6 +167,11 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (named.Qualifiers.Count == 0)
 		{
+			if (TryGetAmbiguousTypeName(named.Name, named.SourceSyntax, out _, out _))
+			{
+				definition = null;
+				return false;
+			}
 			foreach (TypeDefinition candidate in allTypeDefinitions)
 			{
 				if (!IsSameNamedProjectionClone(candidate)
@@ -233,6 +238,11 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (named.Qualifiers.Count == 0)
 		{
+			if (TryGetAmbiguousTypeName(named.Name, named.SourceSyntax, out _, out _))
+			{
+				definition = null;
+				return false;
+			}
 			foreach (StaticClassDefinition candidate in allStaticClassDefinitions)
 			{
 				if (candidate.Name == named.Name
@@ -268,6 +278,37 @@ public sealed partial class BindableNodeAnalyzer
 
 		definition = null;
 		return false;
+	}
+
+	bool TryGetAmbiguousTypeName(string name, SyntaxNode? referenceSyntax, out Definition? first, out Definition? second)
+	{
+		first = null;
+		second = null;
+		foreach (Definition candidate in allTypeDefinitions.Cast<Definition>().Concat(allStaticClassDefinitions))
+		{
+			if (candidate.Name != name
+				|| candidate is TypeDefinition type && IsSameNamedProjectionClone(type)
+				|| !IsUnqualifiedDefinitionVisible(candidate, referenceSyntax))
+				continue;
+			// The effective namespace takes precedence over imported namespaces.
+			if (IsDefinitionInReferenceNamespace(candidate, referenceSyntax))
+				return false;
+			if (first is null)
+				first = candidate;
+			else if (!ReferenceEquals(first, candidate))
+				second ??= candidate;
+		}
+		return second is not null;
+	}
+
+	bool ReportIfAmbiguousTypeName(string name, SyntaxNode? referenceSyntax)
+	{
+		if (!TryGetAmbiguousTypeName(name, referenceSyntax, out Definition? first, out Definition? second))
+			return false;
+		string firstName = FormatSourceTypeName(first!);
+		string secondName = FormatSourceTypeName(second!);
+		Report(GetRange(referenceSyntax), $"Type name '{name}' is ambiguous between '{firstName}' and '{secondName}'; qualify the name or import it selectively.");
+		return true;
 	}
 
 	bool IsDefinitionVisible(Definition definition, SyntaxNode? referenceSyntax)
@@ -530,7 +571,7 @@ public sealed partial class BindableNodeAnalyzer
 		return true;
 	}
 
-	string FormatSourceTypeName(TypeDefinition definition)
+	string FormatSourceTypeName(Definition definition)
 	{
 		string? namespaceName = GetDefinitionNamespace(definition);
 		return string.IsNullOrWhiteSpace(namespaceName)

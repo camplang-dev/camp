@@ -2005,6 +2005,11 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (named.Qualifiers.Count == 0)
 		{
+			if (TryGetAmbiguousTypeName(named.Name, named.SourceSyntax, out _, out _))
+			{
+				typeDefinition = null;
+				return false;
+			}
 			foreach (TypeDefinition candidate in allTypeDefinitions)
 			{
 				if (candidate.Name == named.Name
@@ -2161,6 +2166,9 @@ public sealed partial class BindableNodeAnalyzer
 			}
 		}
 
+		if (named.Qualifiers.Count == 0 && ReportIfAmbiguousTypeName(named.Name, named.SourceSyntax))
+			return ErrorType;
+
 		if (TryGetNamedExpressionTypeDefinition(named, out TypeDefinition? typeDefinition) && typeDefinition is not null)
 		{
 			if (ReportIfExportProjectionSourceTypeReference(typeDefinition, named.SourceSyntax))
@@ -2257,7 +2265,7 @@ public sealed partial class BindableNodeAnalyzer
 			if (value.Name != named.Name)
 				continue;
 
-			enumType = enumDefinition.Name;
+			enumType = ResolvedNominalTypeName(enumDefinition);
 			named.ResolvedType = enumType;
 			expressionConstants[named] = true;
 			expressionRewrites[named] = new VariableReferenceExpression
@@ -6840,6 +6848,8 @@ public sealed partial class BindableNodeAnalyzer
 			return false;
 		if (named.Qualifiers.Count == 0 && (scope.TryLookup(named.Name, out _) || LookupGlobalStorageSymbol(named.Name, named.SourceSyntax) is not null))
 			return false;
+		if (named.Qualifiers.Count == 0 && ReportIfAmbiguousTypeName(named.Name, named.SourceSyntax))
+			return true;
 
 		string typeName = named.Name;
 		if (named.Qualifiers.Count == 0 && TryResolveAlias(named.Name, AliasTargetKind.Type, named.SourceSyntax, out AliasDefinition? alias))
