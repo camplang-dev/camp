@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-208.
+Next bug number: BUG-209.
 
 ## Bug Template
 
@@ -351,3 +351,42 @@ incremented, `y` is 4, and the program exits with status 33.
 Known Impact:
 Any double negation or double unary plus silently changes both the result and
 the operand. Parenthesizing the inner operation, as in `-(-x)`, avoids it.
+
+## BUG-208: Dereferencing a call result is checked as the pointer itself
+
+Date/Time: 2026-10-02 22:40 EDT
+
+Summary:
+When a dereferenced call result, `*f(...)`, is converted to a target type (a
+local initializer, a call argument, or a return value), the conversion check
+uses the call's pointer result type instead of the dereferenced type. The
+compiler then rejects a valid program. Parenthesizing the call, `*(f(...))`,
+does not help; using the dereference inside a larger expression does.
+
+Steps to Reproduce:
+
+1. Compile and run this program:
+
+   ```camp
+   int* identity(int* value) => value;
+   export int main()
+   {
+   	int number = 6;
+   	int read = *identity(&number);
+   	return read;
+   }
+   ```
+
+Expected:
+`*identity(&number)` has type `int`, so the program compiles and exits with
+status 6.
+
+Actual:
+Compilation fails with `Call result cannot convert 'int*' to 'int'.` at the
+dereference. Passing `*identity(&number)` as an `int` argument fails the same
+way, while `*identity(&number) + 0` compiles and runs correctly.
+
+Known Impact:
+A function returning a pointer cannot be dereferenced directly where a value
+of the pointee type is expected. Storing the pointer in a local first, or
+using the dereference inside a larger expression, avoids it.
