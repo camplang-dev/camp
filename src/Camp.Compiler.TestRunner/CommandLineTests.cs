@@ -2147,8 +2147,9 @@ public sealed class CommandLineTests
 					+ Util::marker + Util::Tools.get() + global::offset() + (int)choice - 35;
 			}
 			""");
+		string target = OperatingSystem.IsWindows() ? CompilerDefaults.TargetName : NativeTargetForHost();
 		string[] arguments = [OperatingSystem.IsWindows() ? "build" : "run", "declarations.camp", "main.camp",
-			"--nostdlib", "--target", NativeTargetForHost(), "--out-dir", Path.Combine(root, "out")];
+			"--nostdlib", "--target", target, "--out-dir", Path.Combine(root, "out")];
 		if (OperatingSystem.IsWindows())
 			arguments = [.. arguments, "--artifact", "none"];
 		AssertCommandSucceeded(RunCampcIn(root, arguments));
