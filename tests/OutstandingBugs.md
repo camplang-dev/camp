@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-213.
+Next bug number: BUG-214.
 
 ## Bug Template
 
@@ -398,3 +398,50 @@ as `initializing 'BBox' with an expression of incompatible type 'ABox'`.
 Known Impact:
 A mismatch between same-named types goes undiagnosed at the Camp level, so the
 error points at generated C. Using distinct simple names avoids it.
+
+## BUG-213: Unqualified type name matching two imported namespaces silently picks one
+
+Date/Time: 2026-10-03 12:20 EDT
+
+Summary:
+When two imported namespaces each declare a type with the same simple name, an
+unqualified use of that name is accepted and resolves to one of them without a
+diagnostic. The language reference says overlapping imports make an unqualified
+name ambiguous and that it should be qualified or imported selectively. The
+compiler already rejects the same situation for functions.
+
+Steps to Reproduce:
+
+1. In one source file declare
+   `namespace Left { public struct Box { int leftSide; } }` and
+   `namespace Right { public struct Box { int rightSide; } }`.
+2. In a second source file write:
+
+   ```camp
+   using Left;
+   using Right;
+
+   export int main()
+   {
+       Box box = default;
+       box.leftSide = 1;
+       return box.leftSide - 1;
+   }
+   ```
+3. Compile and run the program.
+
+Expected:
+Compilation fails because `Box` matches declarations in two imported
+namespaces. Qualifying the name (`Left::Box`) or importing only one namespace
+makes it compile. The same applies to an enum name or enum value.
+
+Actual:
+The program compiles and exits with status 0; the first imported namespace's
+`Box` is chosen silently. Two functions of the same name in the two namespaces
+are rejected with `Multiple candidates found for call target`, so the behavior
+is inconsistent between functions and types.
+
+Known Impact:
+A program can bind to the wrong type when an import is added that happens to
+overlap an existing one, and the choice depends on import order. Qualifying the
+name avoids it.
