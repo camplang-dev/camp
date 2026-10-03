@@ -158,6 +158,13 @@ the payload without respecting the optional's specified bit is invalid. The
 specified component is part of the value contract, not a spare implementation
 detail.
 
+`T?` converts to `U?` exactly when `T` converts to `U`, with the same
+classification (implicit, explicit, or unsafe): the payload component converts as
+`T` to `U` and the specified component is carried unchanged, whether or not it is
+set. This is the optional's own conversion rather than a tunnel through it, so
+nothing converts deeper than the payload's conversion: `int[]?` does not convert to
+`long[]?`.
+
 ## Delegates And `once`
 
 `delegate R(...)` and `once R(...)` are context-carrying callable expanded

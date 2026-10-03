@@ -80,7 +80,8 @@ High-impact distinctions:
   restrictive.
 - Unsafe casts do not tunnel into arrays, delegates, optionals, interfaces, or
   other expanded forms. Convert the carrier intentionally, then reconstruct the
-  expanded value.
+  expanded value. An optional's own conversion is not a tunnel: `T?` casts to
+  `U?` exactly as `T` casts to `U`, with `.specified` carried.
 - Interface dispatch is a language feature. Source code should not hand-build
   Camp interface table storage.
 
@@ -544,7 +545,10 @@ if (maybeCount.specified)
 ```
 
 Optional payload conversions are not raw reinterpretations. Casts do not tunnel
-through optional payloads unless the language defines that conversion. If nested
+through optional payloads unless the language defines that conversion. The
+language defines one: `T?` converts to `U?` exactly when `T` converts to `U`,
+implicitly or by the same cast, converting `.value` and carrying `.specified`
+unchanged. Nothing converts deeper than that payload conversion. If nested
 optional storage is required, materialize the inner optional shape rather than
 assuming direct `T??` spelling is valid in every context.
 

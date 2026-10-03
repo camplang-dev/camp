@@ -75,6 +75,7 @@ It does not tunnel through type constructors:
 | `delegate void(byte* _near)` | `delegate void(byte* _far)` | Reconstruct or use an explicit callable value. |
 | `fn void(byte* _near)` | `fn void(byte* _far)` | Callable casts do not insert argument conversions. |
 | `Box<byte* _near>*` | `Box<byte* _far>*` | Generic arguments are invariant unless class rules say otherwise. |
+| `(byte* _near)?` | `(byte* _far)?` | The optional's own conversion: `.value` converts as `byte* _near` to `byte* _far`; `.specified` is carried. |
 
 This invariant is critical for ABI correctness. A direct conversion of the outer
 value must not secretly rewrite element types, generic arguments, callable

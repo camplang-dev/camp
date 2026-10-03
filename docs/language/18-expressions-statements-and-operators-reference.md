@@ -425,6 +425,17 @@ Conversions do not tunnel through arrays, optionals, delegates, generic
 arguments, or callable signatures. Reconstruct the outer value when an inner
 component changes type.
 
+An optional's own conversion is its payload's conversion, not a tunnel: `T?`
+converts to `U?` exactly when `T` converts to `U`, implicitly or by the same
+cast, converting `.value` and carrying `.specified` unchanged. Nothing converts
+deeper than that payload conversion, so `int[]?` does not become `long[]?`.
+
+```camp
+int? count = { 300, true };
+long? wide = count;            // implicit, as int converts to long
+byte? narrow = (byte?)count;   // explicit, as (byte)300; still specified
+```
+
 ## Construction, Initialization, And Cleanup Expressions
 
 | Form | Meaning |
