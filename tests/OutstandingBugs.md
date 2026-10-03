@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-211.
+Next bug number: BUG-212.
 
 ## Bug Template
 
@@ -311,3 +311,46 @@ compilation, including when the pointer comes from dereferencing a pointer
 to a const pointer. Copying the dereferenced struct to a value local before
 reading its member avoids this defect. Confirmed with the Release compiler
 at `403e9d13`, before the BUG-208 and BUG-209 fixes.
+
+## BUG-211: Qualified name requires an import of its namespace
+
+Date/Time: 2026-10-03 12:00 EDT
+
+Summary:
+A name qualified with its namespace (`Namespace::name`) is rejected unless the
+file also imports that namespace. The language semantics say qualification
+searches the named namespace directly and does not require a `using`; the
+`global::` form likewise names the root namespace without an import.
+
+Steps to Reproduce:
+
+1. Declare `namespace Util { public int twice(int value) { return value * 2; } }`
+   in one source file.
+2. In a second source file of the same program, with no `using` declaration, write:
+
+   ```camp
+   export int main()
+   {
+       return Util::twice(1) - 2;
+   }
+   ```
+3. Compile and run the program.
+
+Expected:
+The program compiles and exits with status 0. Qualifying a function, type or
+enum value with its full namespace path works without an import, including a
+multi-segment path such as `Geometry::Metrics::perimeter(1)` for
+`namespace Geometry::Metrics`. A namespace alias (`using Geometry::Metrics as M;`)
+still does not make `Metrics::perimeter` valid.
+
+Actual:
+Compilation fails with `Symbol 'Util::twice' could not be found.` The same
+happens for a multi-segment qualifier and for types. The error disappears only
+after adding `using Util;`. A declaration in the same source file as the use is
+found without any import, so the defect is visible only across source files.
+
+Known Impact:
+Qualification cannot be used as an alternative to an import when the two
+namespaces overlap in vocabulary, which is the case the language reference
+recommends it for. Adding the import works around it. Confirmed with the Release
+compiler at HEAD.
