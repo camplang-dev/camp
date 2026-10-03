@@ -314,7 +314,7 @@ at `403e9d13`, before the BUG-208 and BUG-209 fixes.
 
 ## BUG-211: Qualified name requires an import of its namespace
 
-Date/Time: 2026-10-03 12:00 EDT
+Date/Time: 2026-10-03 12:38 EDT
 
 Summary:
 A name qualified with its namespace (`Namespace::name`) is rejected unless the
@@ -357,7 +357,7 @@ compiler at HEAD.
 
 ## BUG-212: Same-named struct types in different namespaces are treated as one type
 
-Date/Time: 2026-10-03 12:10 EDT
+Date/Time: 2026-10-03 12:38 EDT
 
 Summary:
 Type identity ignores the namespace of a struct. Two structs with the same simple
@@ -401,7 +401,7 @@ error points at generated C. Using distinct simple names avoids it.
 
 ## BUG-213: Unqualified type name matching two imported namespaces silently picks one
 
-Date/Time: 2026-10-03 12:20 EDT
+Date/Time: 2026-10-03 12:38 EDT
 
 Summary:
 When two imported namespaces each declare a type with the same simple name, an
