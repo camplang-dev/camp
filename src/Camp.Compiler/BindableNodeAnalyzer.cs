@@ -146,7 +146,7 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			if (!TryGetNamedTypeDefinition(named, out definition))
 				return false;
-			if (definition is not null && !IsDefinitionVisible(definition, named.SourceSyntax))
+			if (definition is not null && named.Qualifiers.Count == 0 && !IsDefinitionVisible(definition, named.SourceSyntax))
 			{
 				definition = null;
 				return false;
@@ -462,14 +462,15 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (qualifiers.Count == 0)
 			return IsDefinitionVisible(definition, referenceSyntax);
+		if (!IsDefinitionRequirementSatisfied(definition))
+			return false;
 		TokenRange? referenceRange = GetRange(referenceSyntax);
 		if (referenceRange is not TokenRange range)
 			return true;
 		string? qualifier = NormalizeSourceNamespaceQualifier(qualifiers);
 		string? namespaceName = GetDefinitionNamespace(definition);
 		if (StringEqualsNamespace(namespaceName, qualifier))
-			return (definition.IsApiHeader || IsDefinitionInSameFile(definition, referenceSyntax) || IsNamespaceVisible(namespaceName, range.Sequence))
-				&& IsDefinitionAccessibleWithoutImport(definition, referenceSyntax);
+			return IsDefinitionAccessibleWithoutImport(definition, referenceSyntax);
 		string alias = string.Join("::", qualifiers);
 		return TryResolveNamespaceAlias(alias, range.Sequence, out string? aliasedNamespace)
 			&& StringEqualsNamespace(aliasedNamespace, namespaceName)

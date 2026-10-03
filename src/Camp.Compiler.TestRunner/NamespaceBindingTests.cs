@@ -6,6 +6,76 @@ namespace Camp.Compiler.Tests;
 public sealed class NamespaceBindingTests
 {
 	[Theory]
+	[InlineData("Util", "int value = Util::twice(1);")]
+	[InlineData("Geometry::Metrics", "int value = Geometry::Metrics::twice(1);")]
+	[InlineData("global", "int value = global::twice(1);")]
+	[InlineData("Util", "Util::Box value = default;")]
+	[InlineData("Util", "auto value = Util::Box();")]
+	[InlineData("Util", "Util::Choice value = Util::Choice.Second;")]
+	[InlineData("Util", "int value = Util::marker;")]
+	[InlineData("Util", "int value = Util::Tools.get();")]
+	public void Qualified_names_across_files_do_not_require_imports(string namespaceName, string statement)
+	{
+		SemanticCompilation compilation = SemanticCompiler.CompileLowered(
+			("declarations.camp", $$"""
+				namespace {{namespaceName}}
+				{
+					public int twice(int value) => value * 2;
+					public struct Box { int side; }
+					public enum Choice { First, Second }
+					public inline int marker = 7;
+					static class Tools { public static int get() => 9; }
+				}
+				"""),
+			("use.camp", $$"""
+				namespace App;
+				void test() { {{statement}} }
+				"""));
+		SemanticCompiler.AssertNoDiagnostics(compilation);
+	}
+
+	[Theory]
+	[InlineData("int hidden() => 1;", "int value = Util::hidden();")]
+	[InlineData("struct Hidden { }", "Util::Hidden value = default;")]
+	[InlineData("requires (FALSE) public int hidden() => 1;", "int value = Util::hidden();")]
+	[InlineData("requires (FALSE) public struct Hidden { }", "Util::Hidden value = default;")]
+	[InlineData("public int visible() => 1;", "int value = visible();")]
+	[InlineData("public struct Visible { }", "Visible value = default;")]
+	public void Qualification_does_not_expose_file_local_or_unimported_unqualified_names(string declaration, string statement)
+	{
+		SemanticCompilation compilation = SemanticCompiler.CompileLowered(
+			("declarations.camp", $$"""
+				namespace Util { {{declaration}} }
+				"""),
+			("use.camp", $$"""
+				void test() { {{statement}} }
+				"""));
+		Assert.Empty(compilation.ParseDiagnostics);
+		Assert.Empty(compilation.BindDiagnostics);
+		Assert.NotEmpty(compilation.AnalysisDiagnostics);
+	}
+
+	[Theory]
+	[InlineData("M", true)]
+	[InlineData("Geometry::Metrics", true)]
+	[InlineData("Metrics", false)]
+	public void Namespace_alias_does_not_import_the_final_namespace_segment(string qualifier, bool valid)
+	{
+		SemanticCompilation compilation = SemanticCompiler.CompileLowered(
+			("declarations.camp", """
+				namespace Geometry::Metrics { public int twice(int value) => value * 2; }
+				"""),
+			("use.camp", $$"""
+				using Geometry::Metrics as M;
+				void test() { int value = {{qualifier}}::twice(1); }
+				"""));
+		if (valid)
+			SemanticCompiler.AssertNoDiagnostics(compilation);
+		else
+			Assert.NotEmpty(compilation.AnalysisDiagnostics);
+	}
+
+	[Theory]
 	[InlineData("public struct Box { int side; }", "Box value = default;")]
 	[InlineData("public struct Box { int side; }", "auto value = Box();")]
 	[InlineData("public enum Box { One, Two }", "Box value = default;")]

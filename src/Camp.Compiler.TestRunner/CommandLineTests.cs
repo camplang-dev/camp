@@ -2118,6 +2118,43 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Qualified_namespace_names_across_source_files_build_without_imports()
+	{
+		string root = TempPath("qualified-namespace-cross-file");
+		Directory.CreateDirectory(root);
+		File.WriteAllText(Path.Combine(root, "declarations.camp"), """
+			namespace Util
+			{
+				public int twice(int value) => value * 2;
+				public struct Box { int side; }
+				public enum Choice { First, Second }
+				public inline int marker = 7;
+				static class Tools { public static int get() => 9; }
+			}
+			namespace Geometry::Metrics { public int perimeter(int side) => side * 4; }
+			namespace global { public int offset() => 3; }
+			""");
+		File.WriteAllText(Path.Combine(root, "main.camp"), """
+			namespace App;
+			export int main()
+			{
+				Util::Box box = default;
+				box.side = Util::twice(3);
+				auto constructed = Util::Box();
+				constructed.side = 1;
+				Util::Choice choice = Util::Choice.Second;
+				return box.side + constructed.side + Geometry::Metrics::perimeter(2)
+					+ Util::marker + Util::Tools.get() + global::offset() + (int)choice - 35;
+			}
+			""");
+		string[] arguments = [OperatingSystem.IsWindows() ? "build" : "run", "declarations.camp", "main.camp",
+			"--nostdlib", "--target", NativeTargetForHost(), "--out-dir", Path.Combine(root, "out")];
+		if (OperatingSystem.IsWindows())
+			arguments = [.. arguments, "--artifact", "none"];
+		AssertCommandSucceeded(RunCampcIn(root, arguments));
+	}
+
+	[Fact]
 	public void Transitive_project_reference_api_type_does_not_shadow_same_simple_name_source_type()
 	{
 		string root = TempPath("transitive-api-type-source-shadow");
