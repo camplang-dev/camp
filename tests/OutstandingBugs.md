@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-219.
+Next bug number: BUG-220.
 
 ## Bug Template
 
@@ -105,4 +105,37 @@ Actual:
 Known Impact:
 Prepared results cannot be requested through delegates. Supplying the buffer
 explicitly and sizing the storage by hand works for bound-method targets.
+
+## BUG-219: A plain function assigned to a prep-bearing delegate type produces invalid C
+
+Date/Time: 2026-10-03 18:17 EDT
+
+Summary:
+A plain function can be assigned to a delegate type; the compiler supplies the
+hidden context parameter the delegate target expects. When the delegate type
+carries a prep slot, that adaptation is skipped: the function is assigned
+directly to a function pointer whose first parameter is the context, and the C
+compiler rejects the incompatible pointer types. The same assignment to a
+delegate type without `prep` works, as does assigning a bound method to the
+prep-bearing delegate type.
+
+Steps to Reproduce:
+
+1. Declare `nuint render(int value, prep char[] buffer = default) { return (nuint)value; }`.
+2. In a function body, write
+   `delegate nuint(int, prep char[] buffer) bound = render;` and
+   `nuint length = bound(5, default);`.
+3. Build.
+
+Expected:
+The program builds and `length` is 5.
+
+Actual:
+Native compilation fails with an `incompatible function pointer types` error:
+the delegate's function pointer takes a leading `void*` context parameter and
+the function does not.
+
+Known Impact:
+Plain functions cannot be used as prep-bearing delegates. Assigning to an `fn`
+type or a callable newtype with the same prep slot works.
 
