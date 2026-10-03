@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-215.
+Next bug number: BUG-216.
 
 ## Bug Template
 
@@ -215,3 +215,34 @@ Reported Impact:
 The original report describes compiler modules that need an escaped owner to
 retain portable sidecar sections as unable to extend that owner safely. This
 impact remains unverified pending the missing reproduction evidence.
+
+## BUG-215: An optional converts to an optional of a different payload type
+
+Date/Time: 2026-10-03 15:00 EDT
+
+Summary:
+An optional value is accepted where an optional of a different payload type is
+required, both implicitly and through an explicit cast, whenever the payload
+types have an implicit numeric conversion. The language rules say conversions do
+not tunnel through optionals: an optional of one payload type is not convertible
+to an optional of another, and the outer value must be reconstructed instead.
+Narrowing payload pairs are already rejected, so only widening pairs slip
+through.
+
+Steps to Reproduce:
+
+1. Declare `int? narrow = { 3, true };` in a function body.
+2. Declare `long? wide = narrow;` and, separately, `long? cast = (long?)narrow;`.
+3. Compile and run, reading `wide.value`.
+
+Expected:
+Both declarations are rejected because the optional conversion would tunnel
+through the optional to its payload.
+
+Actual:
+Both declarations compile and the program reads the widened payload `3`.
+
+Known Impact:
+Programs can depend on an optional-to-optional conversion that the language
+forbids. Write the reconstruction explicitly, for example
+`long? wide = narrow.specified ? { narrow.value, true } : default;`.
