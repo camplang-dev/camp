@@ -2497,7 +2497,7 @@ public sealed class CampParser
 	{
 		GroupedExpressionItemSyntax syntax = new();
 
-		if (IsIdentifier() && PeekValue(1) == ":")
+		if (IsIdentifier() && PeekValue(1) == ":" && PeekValue(2) != ":")
 		{
 			syntax.Identifier = TakeIdentifier();
 			syntax.ColonToken = Expect(":");
@@ -2756,7 +2756,7 @@ public sealed class CampParser
 	{
 		ArgumentSyntax syntax = new();
 
-		if (IsIdentifier() && PeekValue(1) == ":")
+		if (IsIdentifier() && PeekValue(1) == ":" && PeekValue(2) != ":")
 		{
 			syntax.Identifier = TakeIdentifier();
 			syntax.ColonToken = Expect(":");

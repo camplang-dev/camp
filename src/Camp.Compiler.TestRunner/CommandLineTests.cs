@@ -2136,15 +2136,17 @@ public sealed class CommandLineTests
 			""");
 		File.WriteAllText(Path.Combine(root, "main.camp"), """
 			namespace App;
+			int id(int value) => value;
+			Util::Choice enumId(Util::Choice value) => value;
 			export int main()
 			{
 				Util::Box box = default;
 				box.side = Util::twice(3);
 				auto constructed = Util::Box();
 				constructed.side = 1;
-				Util::Choice choice = Util::Choice.Second;
-				return box.side + constructed.side + Geometry::Metrics::perimeter(2)
-					+ Util::marker + Util::Tools.get() + global::offset() + (int)choice - 35;
+				Util::Choice choice = enumId(Util::Choice.Second);
+				return id(Util::twice(3)) + constructed.side + id(Geometry::Metrics::perimeter(2))
+					+ id(value: Util::marker) + id((Util::Tools.get())) + id(global::offset()) + (int)choice - 35;
 			}
 			""");
 		string target = OperatingSystem.IsWindows() ? CompilerDefaults.TargetName : NativeTargetForHost();

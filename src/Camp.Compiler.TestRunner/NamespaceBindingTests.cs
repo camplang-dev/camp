@@ -6,6 +6,41 @@ namespace Camp.Compiler.Tests;
 public sealed class NamespaceBindingTests
 {
 	[Theory]
+	[InlineData("id(Util::twice(3))")]
+	[InlineData("id(Geometry::Metrics::twice(3))")]
+	[InlineData("id(global::twice(3))")]
+	[InlineData("id(M::twice(3))")]
+	[InlineData("id(Util::marker)")]
+	[InlineData("id(Util::Tools.get())")]
+	[InlineData("enumId(Util::Choice.Second)")]
+	[InlineData("id((Util::twice(3)))")]
+	[InlineData("id(value: Util::twice(3))")]
+	[InlineData("id(value: id(Util::twice(3)))")]
+	public void Qualified_call_arguments_bind_across_files(string expression)
+	{
+		SemanticCompilation compilation = SemanticCompiler.CompileLowered(
+			("declarations.camp", """
+				namespace Util
+				{
+					public int twice(int value) => value * 2;
+					public enum Choice { First, Second }
+					public inline int marker = 7;
+					static class Tools { public static int get() => 9; }
+				}
+				namespace Geometry::Metrics { public int twice(int value) => value * 2; }
+				namespace global { public int twice(int value) => value * 2; }
+				"""),
+			("use.camp", $$"""
+				using Geometry::Metrics as M;
+				namespace App;
+				int id(int value) => value;
+				Util::Choice enumId(Util::Choice value) => value;
+				void test() { auto value = {{expression}}; }
+				"""));
+		SemanticCompiler.AssertNoDiagnostics(compilation);
+	}
+
+	[Theory]
 	[InlineData("Util", "int value = Util::twice(1);")]
 	[InlineData("Geometry::Metrics", "int value = Geometry::Metrics::twice(1);")]
 	[InlineData("global", "int value = global::twice(1);")]
