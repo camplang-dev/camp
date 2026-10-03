@@ -290,6 +290,12 @@ public sealed partial class BindableNodeAnalyzer
 			arguments.Add(new ArgumentExpression
 			{
 				SourceSyntax = parameter.SourceSyntax,
+				Modifier = parameter.Modifier switch
+				{
+					ParameterModifier.Out => ArgumentModifier.Out,
+					ParameterModifier.Thrown => ArgumentModifier.Catch,
+					_ => ArgumentModifier.None
+				},
 				Value = new VariableReferenceExpression
 				{
 					SourceSyntax = parameter.SourceSyntax,

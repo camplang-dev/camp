@@ -1,0 +1,33 @@
+virtual class Source
+{
+	virtual void read(out int result)
+	{
+		result = 5;
+	}
+}
+
+virtual class Derived: Source
+{
+	override void read(out int result)
+	{
+		result = 9;
+	}
+}
+
+export int main()
+{
+	Source* source = new Source() finally delete;
+	Derived* derived = new Derived() finally delete;
+	Source* polymorphic = (Source*)derived;
+	int result = 0;
+	source.read(out result);
+	if (result != 5)
+		return 1;
+	derived.read(out result);
+	if (result != 9)
+		return 2;
+	polymorphic.read(out result);
+	if (result != 9)
+		return 3;
+	return 0;
+}

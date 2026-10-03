@@ -574,6 +574,10 @@ public sealed partial class BindableNodeAnalyzer
 				state.Assign(named.Name);
 				break;
 
+			case VariableReferenceExpression { Variable: ParameterDefinition parameter } when state.Function.Parameters.Contains(parameter):
+				state.Assign(parameter.Name);
+				break;
+
 			case ParenthesizedExpression parenthesized:
 				AssignExpressionTarget(parenthesized.Expression, state);
 				break;

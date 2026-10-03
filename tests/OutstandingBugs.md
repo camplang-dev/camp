@@ -316,42 +316,6 @@ static flags might avoid this specific relocation, but it does not make the
 standard target's shared-library contract work and has not been validated as
 a general workaround for transitive or prebuilt static dependencies.
 
-## BUG-205: A virtual method with an `out` parameter cannot assign it
-
-Date/Time: 2026-10-02 20:10 EDT
-
-Summary:
-Declaring an `out` parameter on a `virtual` method makes the method body
-invalid: an ordinary assignment to the parameter is reported as a use that
-requires an `out` argument, and the parameter is then reported as unassigned.
-The same method compiles and runs correctly when it is not virtual, so the
-failure is specific to virtual (and override) declarations. The method does
-not need to be called for the error to appear.
-
-Steps to Reproduce:
-
-1. Compile this program:
-
-   ```camp
-   virtual class Source { virtual void read(out int result) { result = 1; } }
-   export int main() => 0;
-   ```
-
-Expected:
-The program compiles. An `out` parameter is part of the callable shape, and
-the method assigns it before returning, as required.
-
-Actual:
-The compiler reports `Out parameters require an 'out' argument.` at the
-assignment and `Out parameter 'result' must be assigned before returning.` at
-the parameter. Removing `virtual` makes the same body compile and write the
-caller's slot.
-
-Known Impact:
-Virtual and override methods cannot return additional results through `out`
-parameters. Non-virtual methods and functions are unaffected; a virtual
-method can return a result struct instead.
-
 ## BUG-206: An interface call drops the address of an `out` argument
 
 Date/Time: 2026-10-02 20:14 EDT
