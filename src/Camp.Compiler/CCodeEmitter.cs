@@ -6570,7 +6570,8 @@ public static class CCodeEmitter
 
         static bool IsResolvedPointerType(string type)
         {
-            return type.TrimEnd().EndsWith("*", StringComparison.Ordinal);
+            // Storage qualifiers belong to the pointer, not to its pointee.
+            return StripTrailingStorageQualifiers(StripLifetimeOnly(type.Trim())).EndsWith("*", StringComparison.Ordinal);
         }
 
         static bool IsExpandedArrayParameterReference(Expression? expression)

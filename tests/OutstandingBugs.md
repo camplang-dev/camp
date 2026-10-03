@@ -44,34 +44,4 @@ Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
 
-## BUG-216: A method called through a const-qualified pointer receives the pointer's address
-
-Date/Time: 2026-10-03 17:14 EDT
-
-Summary:
-When a method is called through a receiver whose type is a pointer with a
-top-level `const` (`T* const`, either declared that way or produced by
-dereferencing a `T* const*`), the generated call passes the address of the
-pointer value instead of the pointer itself, as if the receiver were a struct
-value. The method then reads its fields from the wrong storage. Field reads
-through the same pointer are correct, and a method called through
-`const T* const` is correct. A top-level `const` only stops the pointer from
-being reassigned; member access through it follows the ordinary pointer rule.
-
-Steps to Reproduce:
-
-1. Declare `struct Pair { int a; int getA() { return this.a; } }`.
-2. Declare `int methodTop(Pair* const pair) => pair.getA();`.
-3. In `main`, set a `Pair`'s `a` to 3, log `methodTop(&pair)`, and run.
-
-Expected:
-The program logs `3`, the same as calling `getA()` through a plain `Pair*`.
-
-Actual:
-The program logs an unrelated value. The generated C passes `&pair` (the
-address of the `Pair* const` parameter) to `Pair_getA`; the same happens for a
-`Counter* const` local and for `(*counter).getN()` through `Counter* const*`.
-
-Known Impact:
-Methods called through a top-level const pointer read garbage. Copy the
-pointer into an unqualified pointer local first, or read the fields directly.
+No outstanding bugs.

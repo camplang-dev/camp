@@ -6,8 +6,14 @@ export int readDeepPointer(int* const* const* value) => ***value;
 export struct Item
 {
 	int value;
+	int getValue() => this.value;
 }
 
 export int readConstItem(Item* const value) => value.value;
 export int readVolatileItem(Item* volatile value) => value.value;
 export int readIndirectItem(Item* const* value) => (*value).value;
+
+export int callConstItem(Item* const value) => value.getValue();
+export int callQualifiedItem(const Item* const value) => value.getValue();
+export int callIndirectItem(Item* const* value) => (*value).getValue();
+export int callValueItem(Item value) => value.getValue();

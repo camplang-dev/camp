@@ -7,6 +7,8 @@ int readInPointer(in int* const* value) => **value;
 struct Item
 {
 	int value;
+	int getValue() => this.value;
+	void setValue(int value) { this.value = value; }
 }
 
 int readItem(Item* const* value)
@@ -17,6 +19,18 @@ int readItem(Item* const* value)
 int readConstItem(Item* const value) => value.value;
 int readVolatileItem(Item* volatile value) => value.value;
 int readQualifiedItem(const Item* const volatile value) => value.value;
+
+int callConstItem(Item* const value) => value.getValue();
+int callQualifiedItem(const Item* const value) => value.getValue();
+int callIndirectItem(Item* const* value) => (*value).getValue();
+int callValueItem(Item value) => value.getValue();
+
+class Counter
+{
+	int n;
+	Counter(int n) { this.n = n; }
+	int getN() => this.n;
+}
 
 export int main()
 {
@@ -46,5 +60,17 @@ export int main()
 	local.value = 9;
 	if (local.value != 9 || item.value != 9)
 		return 8;
+	if (callConstItem(itemPointer) != 9
+		|| callQualifiedItem(itemPointer) != 9 || callIndirectItem(&itemPointer) != 9
+		|| callValueItem(item) != 9 || local.getValue() != 9)
+		return 9;
+	local.setValue(11);
+	if (item.value != 11)
+		return 10;
+	auto counter = stackalloc Counter(13);
+	Counter* const constCounter = counter;
+	Counter* const* counterView = &counter;
+	if (constCounter.getN() != 13 || (*counterView).getN() != 13)
+		return 11;
 	return 0;
 }
