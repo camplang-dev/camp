@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-220.
+Next bug number: BUG-221.
 
 ## Bug Template
 
@@ -138,4 +138,32 @@ the function does not.
 Known Impact:
 Plain functions cannot be used as prep-bearing delegates. Assigning to an `fn`
 type or a callable newtype with the same prep slot works.
+
+## BUG-220: A function that returns an fn value produces invalid C
+
+Date/Time: 2026-10-03 18:28 EDT
+
+Summary:
+A function whose declared result type is an `fn` callable type compiles through
+semantic analysis, but the generated C declares it with a malformed declarator:
+the function's own parameter list is placed inside the pointer declarator and
+the returned function type's parameter list is lost, so the C compiler reports
+that a function cannot return a function type.
+
+Steps to Reproduce:
+
+1. Declare `int twice(int value) { return value * 2; }`.
+2. Declare `fn int(int) choose() { return twice; }`.
+3. Call `choose()(4)` and build.
+
+Expected:
+The program builds and the call returns 8.
+
+Actual:
+Native compilation fails: `error: function cannot return function type 'int (void)'`
+at a declaration of the form `static int (* choose)(int arg0)(void);`.
+
+Known Impact:
+Functions cannot return `fn` values. Keeping the function value in an `fn`
+local or passing it as an argument works.
 
