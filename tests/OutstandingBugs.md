@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-207.
+Next bug number: BUG-208.
 
 ## Bug Template
 
@@ -396,3 +396,39 @@ and the C compiler reports `incompatible integer to pointer conversion passing
 Known Impact:
 Interface methods cannot return additional results through `out` parameters.
 Calling the implementation directly instead of through the interface works.
+
+## BUG-207: Repeated unary minus or plus becomes a decrement or increment
+
+Date/Time: 2026-10-02 20:24 EDT
+
+Summary:
+Two adjacent unary `-` operators, or two adjacent unary `+` operators, are
+emitted without separation, so the generated C reads them as a prefix `--` or
+`++`. The expression then modifies its operand instead of negating it twice or
+leaving it unchanged.
+
+Steps to Reproduce:
+
+1. Compile and run this program:
+
+   ```camp
+   export int main()
+   {
+   	int x = 5;
+   	int y = - -x;
+   	int z = + +x;
+   	return x * 100 + y * 10 + z;
+   }
+   ```
+
+Expected:
+`- -x` and `+ +x` both evaluate to 5 and leave `x` unchanged, so the program
+returns 555 (exit status 43 after truncation to 8 bits).
+
+Actual:
+The generated C contains `--x` and `++x`. `x` is decremented and then
+incremented, `y` is 4, and the program exits with status 33.
+
+Known Impact:
+Any double negation or double unary plus silently changes both the result and
+the operand. Parenthesizing the inner operation, as in `-(-x)`, avoids it.
