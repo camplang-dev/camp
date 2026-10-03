@@ -1,0 +1,4 @@
+export int readConstPointer(int* const* value) => **value;
+export int readConstToConst(const int* const* value) => **value;
+export int readVolatilePointer(int* volatile* value) => **value;
+export int readDeepPointer(int* const* const* value) => ***value;

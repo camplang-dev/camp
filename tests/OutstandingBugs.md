@@ -316,45 +316,6 @@ static flags might avoid this specific relocation, but it does not make the
 standard target's shared-library contract work and has not been validated as
 a general workaround for transitive or prebuilt static dependencies.
 
-## BUG-209: A const pointer level emits an undefined C type name
-
-Date/Time: 2026-10-02 23:05 EDT
-
-Summary:
-A pointer type whose pointee is itself a const-qualified pointer, such as
-`int* const*` or `const int* const*`, is emitted in the generated C as a
-pointer to an undeclared typedef name (`intPtr`). The generated C does not
-compile, so any program using the type fails to build.
-
-Steps to Reproduce:
-
-1. Compile and run this program:
-
-   ```camp
-   int readConstPointer(int* const* value) => **value;
-   int readConstToConst(const int* const* value) => **value;
-   export int main()
-   {
-   	int number = 6;
-   	int* pointer = &number;
-   	return readConstPointer(&pointer) + readConstToConst(&pointer);
-   }
-   ```
-
-Expected:
-Postfix `const` follows the C rule: `int* const*` is a pointer to a const
-pointer to `int`. The program compiles and exits with status 12.
-
-Actual:
-The native build fails. The generated C declares the parameters as
-`intPtr *value` and `const intPtr *value`, and clang reports
-`unknown type name 'intPtr'`.
-
-Known Impact:
-Pointers to const pointers cannot be used in parameters or locals (a local
-`int* const* view` fails the same way). No workaround keeps the const pointer
-level; dropping the inner `const` avoids it.
-
 ## BUG-210: Member access through a const pointer emits C value access
 
 Date/Time: 2026-10-02 22:35 EDT

@@ -1,0 +1,40 @@
+int readConstPointer(int* const* value) => **value;
+int readConstToConst(const int* const* value) => **value;
+int readVolatilePointer(int* volatile* value) => **value;
+int readDeepPointer(int* const* const* value) => ***value;
+int readInPointer(in int* const* value) => **value;
+
+struct Item
+{
+	int value;
+}
+
+int readItem(Item* const* value)
+{
+	Item copy = **value;
+	return copy.value;
+}
+
+export int main()
+{
+	int number = 6;
+	int* pointer = &number;
+	if (readConstPointer(&pointer) + readConstToConst(&pointer) != 12)
+		return 1;
+	int* const* view = &pointer;
+	const int* const* constView = &pointer;
+	if (**view != 6 || **constView != 6)
+		return 2;
+	if (readVolatilePointer(&pointer) != 6 || readDeepPointer(&view) != 6)
+		return 3;
+	if (readInPointer(view) != 6)
+		return 4;
+	auto inferredView = view;
+	if (**inferredView != 6)
+		return 5;
+	Item item = { .value = 7 };
+	Item* itemPointer = &item;
+	if (readItem(&itemPointer) != 7)
+		return 6;
+	return 0;
+}

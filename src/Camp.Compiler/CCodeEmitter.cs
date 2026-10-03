@@ -8970,6 +8970,14 @@ public static class CCodeEmitter
                 if (spec.Length > 0)
                     pointerDeclarator = string.IsNullOrWhiteSpace(pointerDeclarator) ? spec : pointerDeclarator + " " + spec;
             }
+            // A qualifier between pointer levels belongs to the remaining pointee type.
+            // Format that type recursively so its qualifiers stay on the correct level.
+            if (pointerCount > 0 && (type.EndsWith(" const", StringComparison.Ordinal)
+                || type.EndsWith(" volatile", StringComparison.Ordinal)
+                || type.EndsWith(" escaped", StringComparison.Ordinal)
+                || type.EndsWith(" scoped", StringComparison.Ordinal)
+                || type.EndsWith(" unscoped", StringComparison.Ordinal)))
+                return FormatResolvedType(qualifierPart + type, pointerDeclarator, normalizeInterfacePointer);
             if (type == "fn*")
                 return new CType(FormatInlineResolvedFunctionPointer("void", new List<string>(), pointerDeclarator, explicitTargetSpec ?? GetDefaultTargetTypeSpec(functionPointer: true), null));
             if (type.StartsWith("fn* ", StringComparison.Ordinal))
