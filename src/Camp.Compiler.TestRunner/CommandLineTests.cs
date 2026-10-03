@@ -4635,6 +4635,7 @@ public sealed class CommandLineTests
 			}
 			""");
 		string outDir = TempPath("debug-info-out");
+		ResetDirectory(outDir);
 
 		ProcessResult result = RunCampc(
 			"build",
@@ -4778,7 +4779,7 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
-	public void Using_imports_hide_unimported_unselected_and_unaliased_symbols()
+	public void Using_imports_hide_unimported_and_unselected_symbols_but_allow_qualified_names()
 	{
 		string root = TempPath("using-import-negative");
 		Directory.CreateDirectory(root);
@@ -4819,8 +4820,8 @@ public sealed class CommandLineTests
 		Assert.Contains("Symbol 'getValue' is declared in namespace 'Lib' but is not imported by this file.", noImportResult.StdErr, StringComparison.Ordinal);
 		Assert.NotEqual(0, selectedResult.ExitCode);
 		Assert.Contains("Symbol 'getValue' is declared in namespace 'Lib' but is not imported by this file.", selectedResult.StdErr, StringComparison.Ordinal);
-		Assert.NotEqual(0, aliasOriginalResult.ExitCode);
-		Assert.Contains("Symbol 'Lib::getValue' could not be found.", aliasOriginalResult.StdErr, StringComparison.Ordinal);
+		// Namespace aliases affect imports, not explicit qualification (BUG-211).
+		AssertCommandSucceeded(aliasOriginalResult);
 	}
 
 	[Fact]
