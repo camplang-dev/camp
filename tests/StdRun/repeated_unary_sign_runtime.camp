@@ -1,0 +1,20 @@
+int fileDoubleNegative = - -5;
+int fileDoublePositive = + +5;
+
+export int main()
+{
+	int value = 5;
+	int doubleNegative = - -value;
+	int doublePositive = + +value;
+	int tripleNegative = - - -value;
+	int triplePositive = + + +value;
+	if (value != 5)
+		return 1;
+	if (doubleNegative != 5 || doublePositive != 5)
+		return 2;
+	if (tripleNegative != -5 || triplePositive != 5)
+		return 3;
+	if (fileDoubleNegative != 5 || fileDoublePositive != 5)
+		return 4;
+	return 0;
+}

@@ -7714,8 +7714,8 @@ public static class CCodeEmitter
             string? operand = FormatFileScopeConstantExpression(unary.Operand, seen);
             return operand is null ? null : unary.Operator switch
             {
-                UnaryOperator.Plus => "+" + operand,
-                UnaryOperator.Minus => "-" + operand,
+                UnaryOperator.Plus => FormatUnarySign('+', operand),
+                UnaryOperator.Minus => FormatUnarySign('-', operand),
                 UnaryOperator.LogicalNot => "!" + operand,
                 UnaryOperator.BitwiseNot => "~" + operand,
                 _ => null
@@ -7869,9 +7869,9 @@ public static class CCodeEmitter
                 operand = castedOperand;
             return unary.Operator switch
             {
-                UnaryOperator.Plus => "+" + operand,
+                UnaryOperator.Plus => FormatUnarySign('+', operand),
                 UnaryOperator.Minus when unary.Operand is LiteralExpression { Kind: LiteralKind.Number } literal => "-" + FormatNumberLiteralForC(literal.Text, negativeContext: true),
-                UnaryOperator.Minus => "-" + operand,
+                UnaryOperator.Minus => FormatUnarySign('-', operand),
                 UnaryOperator.LogicalNot => "!" + operand,
                 UnaryOperator.BitwiseNot => "~" + operand,
                 UnaryOperator.AddressOf => "&" + operand,
@@ -7881,6 +7881,10 @@ public static class CCodeEmitter
                 _ => UnsupportedExpression(unary)
             };
         }
+
+        // Avoid lexing adjacent unary signs as C's ++ or -- operators.
+        static string FormatUnarySign(char sign, string operand) =>
+            operand.Length > 0 && operand[0] == sign ? sign + "(" + operand + ")" : sign + operand;
 
         string FormatLiteral(LiteralExpression literal)
         {
