@@ -2070,9 +2070,10 @@ public sealed partial class BindableNodeAnalyzer
 			}
 		}
 
-		if (namespaceFunctions.Count > 0)
-			return namespaceFunctions;
-		return functions;
+		List<FunctionDefinition> selected = namespaceFunctions.Count > 0 ? namespaceFunctions : functions;
+		foreach (FunctionDefinition function in selected)
+			ReportIfExportProjectionSourceReference(function, name.SourceSyntax);
+		return selected;
 	}
 
 	static void AddFunctionCandidate(List<FunctionDefinition> functions, FunctionDefinition candidate)
@@ -2140,7 +2141,10 @@ public sealed partial class BindableNodeAnalyzer
 		foreach (Definition definition in ActiveCurrentDefinitions())
 		{
 			if (definition is VariableDefinition variable && IsDefinitionNamed(variable, name.Name) && IsStorageNameVisible(variable, name, referenceSyntax))
+			{
+				ReportIfExportProjectionSourceReference(variable, referenceSyntax);
 				return new BodySymbol(name.Name, variable.ResolvedType ?? variable.Type?.ResolvedType ?? ErrorType, variable, IsConstantVariable(variable));
+			}
 			if (name.Qualifiers.Count == 0 && definition is TypeDefinition type)
 			{
 				foreach (FieldDefinition field in GetTypeFields(type))
@@ -2159,7 +2163,10 @@ public sealed partial class BindableNodeAnalyzer
 		foreach (Definition definition in ActiveCurrentDefinitions())
 		{
 			if (definition is VariableDefinition variable && IsDefinitionNamed(variable, name) && IsUnqualifiedDefinitionVisible(variable, referenceSyntax))
+			{
+				ReportIfExportProjectionSourceReference(variable, referenceSyntax);
 				return new BodySymbol(name, variable.ResolvedType ?? variable.Type?.ResolvedType ?? ErrorType, variable, IsConstantVariable(variable));
+			}
 			if (definition is TypeDefinition type)
 			{
 				foreach (FieldDefinition field in GetTypeFields(type))

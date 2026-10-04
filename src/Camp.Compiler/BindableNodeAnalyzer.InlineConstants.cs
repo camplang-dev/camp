@@ -499,6 +499,7 @@ public sealed partial class BindableNodeAnalyzer
 				foreach (Definition definition in ActiveCurrentDefinitions())
 					if (definition is VariableDefinition variable && (variable.Name == named.Name || variable.Symbol == named.Name))
 				{
+					ReportIfExportProjectionSourceReference(variable, named.SourceSyntax);
 					node = variable;
 					return true;
 				}

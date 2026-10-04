@@ -578,14 +578,25 @@ public sealed partial class BindableNodeAnalyzer
 
 	bool ReportIfExportProjectionSourceTypeReference(TypeDefinition definition, SyntaxNode? referenceSyntax)
 	{
+		return ReportIfExportProjectionSourceReference(definition, referenceSyntax);
+	}
+
+	bool ReportIfExportProjectionSourceReference(Definition definition, SyntaxNode? referenceSyntax)
+	{
 		if (definition.IsApiHeader)
 			return false;
-		if (definition.GeneratedInfo is not { Source: TypeDefinition source } generated
-			|| !generated.Reason.StartsWith("export projection for ", StringComparison.Ordinal))
+		if (definition.GeneratedInfo is not { Source: Definition source } generated
+			|| !generated.Reason.StartsWith("export projection for ", StringComparison.Ordinal)
+			|| definition.Name == source.Name)
 			return false;
 
 		string sourceName = FormatSourceTypeName(source);
-		Report(GetRange(referenceSyntax), $"Export projection name '{definition.Name}' is only used by the exported API surface; use the source type name '{sourceName}' within this module.");
+		string kind = source is TypeDefinition ? "type " : "";
+		TokenRange? range = GetRange(referenceSyntax);
+		string message = $"Export projection name '{definition.Name}' is only used by the exported API surface; use the source {kind}name '{sourceName}' within this module.";
+		// Call-target probing and constant evaluation can revisit one source reference.
+		if (!diagnostics.Any(diagnostic => Equals(diagnostic.Range, range) && diagnostic.Message == message))
+			Report(range, message);
 		return true;
 	}
 
@@ -1479,6 +1490,7 @@ public sealed partial class BindableNodeAnalyzer
 		}
 		if (candidate.TargetKind != kind)
 			return false;
+		ReportIfExportProjectionSourceReference(candidate, referenceSyntax);
 		alias = candidate;
 		return true;
 	}
@@ -1492,6 +1504,7 @@ public sealed partial class BindableNodeAnalyzer
 				continue;
 			if (!IsImportedQualifiedName(candidate, named.Qualifiers, named.SourceSyntax))
 				continue;
+			ReportIfExportProjectionSourceReference(candidate, named.SourceSyntax);
 			alias = candidate;
 			return true;
 		}

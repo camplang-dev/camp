@@ -8200,6 +8200,91 @@ public sealed class CommandLineTests
 		Assert.NotEqual(0, result.ExitCode);
 		Assert.Contains("Export projection name 'LocalAllocator' is only used by the exported API surface", result.StdErr, StringComparison.Ordinal);
 		Assert.Contains("use the source type name 'Std::Allocator'", result.StdErr, StringComparison.Ordinal);
+
+		// Renamed non-type projections must obey the same producer-only boundary,
+		// including qualified references, signatures, initializers and function values.
+		(string Declarations, string Reference, string ExternalName, string SourceName)[] cases =
+		[
+			("public int addOne(int value) => value + 1; export addOne as projected_add_one;",
+				"int use() => NAME(1);", "projected_add_one", "addOne"),
+			("public int addOne(int value) => value + 1; export addOne as projected_add_one;",
+				"int use() { fn int(int) callback = NAME; return callback(1); }", "projected_add_one", "addOne"),
+			("public inline int LIMIT = 7; export LIMIT as EXPORTED_LIMIT;",
+				"int use() => NAME;", "EXPORTED_LIMIT", "LIMIT"),
+			("public inline int LIMIT = 7; export LIMIT as EXPORTED_LIMIT;",
+				"inline int OTHER = NAME;", "EXPORTED_LIMIT", "LIMIT"),
+			("public alias Count = int; export Count as ExportedCount;",
+				"int use() { NAME value = 1; return value; }", "ExportedCount", "Count"),
+			("public alias Count = int; export Count as ExportedCount;",
+				"NAME use(NAME value) => value;", "ExportedCount", "Count")
+		];
+		for (int index = 0; index < cases.Length; index++)
+		{
+			var testCase = cases[index];
+			foreach (string qualifier in new[] { "", "Sample::" })
+			{
+				string reference = testCase.Reference.Replace("NAME", qualifier + testCase.ExternalName, StringComparison.Ordinal);
+				string source = CreateTempCase($"projection-source-{index}-{qualifier.Length}.camp",
+					"namespace Sample;\n" + testCase.Declarations + "\n" + reference);
+				ProcessResult rejected = RunCampc("build", source, "--nostdlib", "--artifact", "none",
+					"--out-dir", TempPath($"projection-source-{index}-{qualifier.Length}-out"));
+				Assert.NotEqual(0, rejected.ExitCode);
+				Assert.Contains($"Export projection name '{testCase.ExternalName}' is only used by the exported API surface", rejected.StdErr, StringComparison.Ordinal);
+				Assert.Contains($"'Sample::{testCase.SourceName}'", rejected.StdErr, StringComparison.Ordinal);
+			}
+
+			string valid = CreateTempCase($"projection-original-{index}.camp",
+				"namespace Sample;\n" + testCase.Declarations + "\n" + testCase.Reference.Replace("NAME", testCase.SourceName, StringComparison.Ordinal));
+			AssertCommandSucceeded(RunCampc("build", valid, "--nostdlib", "--artifact", "none",
+				"--out-dir", TempPath($"projection-original-{index}-out")));
+
+			if (index % 2 == 0)
+			{
+				string declarations = CreateTempCase($"projection-cross-file-{index}-declarations.camp",
+					"namespace Sample;\n" + testCase.Declarations);
+				string reference = CreateTempCase($"projection-cross-file-{index}-reference.camp",
+					"namespace Sample;\n" + testCase.Reference.Replace("NAME", "Sample::" + testCase.ExternalName, StringComparison.Ordinal));
+				ProcessResult rejected = RunCampc("build", declarations, reference, "--nostdlib", "--artifact", "none",
+					"--out-dir", TempPath($"projection-cross-file-{index}-out"));
+				Assert.NotEqual(0, rejected.ExitCode);
+				Assert.Contains($"Export projection name '{testCase.ExternalName}' is only used by the exported API surface", rejected.StdErr, StringComparison.Ordinal);
+			}
+		}
+
+		// The external names remain valid when consumed through the generated API.
+		string library = CreateTempCase("projection-values-library.camp", """
+			namespace Sample;
+			public alias Count = int;
+			public inline int LIMIT = 7;
+			public int addOne(int value) => value + 1;
+			export Count as ExportedCount;
+			export LIMIT as EXPORTED_LIMIT;
+			export addOne as projected_add_one;
+			public alias BareCount = int;
+			public inline int BARE_LIMIT = 2;
+			public int bareAdd(BareCount value) => value + BARE_LIMIT;
+			export BareCount;
+			export BARE_LIMIT;
+			export bareAdd;
+			export Count sourceValue() => addOne(LIMIT) + bareAdd(1);
+			""");
+		string libraryOut = TempPath("projection-values-library-out");
+		string target = NativeTargetForHost();
+		AssertCommandSucceeded(RunCampc("build", library, "--nostdlib", "--artifact", "static",
+			"--name", "projection-values", "--target", target, "--out-dir", libraryOut));
+		string api = Path.Combine(libraryOut, ArtifactDirectoryForTarget(target, NativeBuildKind.Static), "projection-values_api.camp");
+		string consumer = CreateTempCase("projection-values-consumer.camp", """
+			using Sample;
+			export int main()
+			{
+				ExportedCount value = projected_add_one(EXPORTED_LIMIT);
+				Sample::ExportedCount other = Sample::projected_add_one(Sample::EXPORTED_LIMIT);
+				BareCount bare = bareAdd(BARE_LIMIT);
+				return value + other + bare - 20;
+			}
+			""");
+		AssertCommandSucceeded(RunCampc("build", consumer, "--nostdlib", "--artifact", "none",
+			"--api", api, "--target", target, "--out-dir", TempPath("projection-values-consumer-out")));
 	}
 
 	[Fact]
