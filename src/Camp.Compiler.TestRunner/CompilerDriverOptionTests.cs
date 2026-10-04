@@ -573,8 +573,9 @@ public sealed class CompilerDriverOptionTests
 	[Fact]
 	public void Local_and_global_symbols_take_precedence_over_configuration_flags()
 	{
+		// Ordinary storage can be shadowed; inline constant names are reserved.
 		string source = CreateTempCase("configuration_flag_symbol_precedence.camp", """
-			export inline int TRUE = 1;
+			export const int TRUE = 1;
 			export inline int FALSE = 0;
 
 			export int main()
