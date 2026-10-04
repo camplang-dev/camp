@@ -1,5 +1,20 @@
 tests/Diagnostics/inline_constants_fixed_enums_invalid.camp(1,20): error: Inline constants cannot be extern.
 tests/Diagnostics/inline_constants_fixed_enums_invalid.camp(2,13): error: Inline constants require an initializer.
+tests/Diagnostics/inline_constants_fixed_enums_invalid.camp(23,2): error: Name 'A' conflicts with inline constant 'A'; inline constant names cannot be reused.
+tests/Diagnostics/inline_constants_fixed_enums_invalid.camp(28,2): error: Name 'A' conflicts with inline constant 'A'; inline constant names cannot be reused.
+tests/Diagnostics/inline_constants_fixed_enums_invalid.camp(29,2): error: Name 'B' conflicts with inline constant 'B'; inline constant names cannot be reused.
+tests/Diagnostics/inline_constants_fixed_enums_invalid.camp(39,23): error: Name 'A' conflicts with inline constant 'A'; inline constant names cannot be reused.
+tests/Diagnostics/inline_constants_fixed_enums_invalid.camp(40,23): error: Name 'B' conflicts with inline constant 'B'; inline constant names cannot be reused.
+tests/Diagnostics/inline_constants_fixed_enums_invalid.camp(46,18): error: Name 'value' conflicts with inline constant 'value'; inline constant names cannot be reused.
+tests/Diagnostics/inline_constants_fixed_enums_invalid.camp(51,6): error: Name 'value' conflicts with inline constant 'value'; inline constant names cannot be reused.
+tests/Diagnostics/inline_constants_fixed_enums_invalid.camp(52,8): error: Name 'value' conflicts with inline constant 'value'; inline constant names cannot be reused.
+tests/Diagnostics/inline_constants_fixed_enums_invalid.camp(53,11): error: Name 'value' conflicts with inline constant 'value'; inline constant names cannot be reused.
+tests/Diagnostics/inline_constants_fixed_enums_invalid.camp(55,15): error: Name 'value' conflicts with inline constant 'value'; inline constant names cannot be reused.
+tests/Diagnostics/inline_constants_fixed_enums_invalid.camp(56,31): error: Name 'value' conflicts with inline constant 'value'; inline constant names cannot be reused.
+tests/Diagnostics/inline_constants_fixed_enums_invalid.camp(59,26): error: Name 'value' conflicts with inline constant 'value'; inline constant names cannot be reused.
+tests/Diagnostics/inline_constants_fixed_enums_invalid.camp(66,15): error: Name 'limit' conflicts with inline constant 'Settings::limit'; inline constant names cannot be reused.
+tests/Diagnostics/inline_constants_fixed_enums_invalid.camp(69,20): error: Name 'NATIVE_LIMIT' conflicts with inline constant 'Settings::limit'; inline constant names cannot be reused.
+tests/Diagnostics/inline_constants_fixed_enums_invalid.camp(70,21): error: Name 'Limits_DEFAULT_CAPACITY' conflicts with inline constant 'DEFAULT_CAPACITY'; inline constant names cannot be reused.
 tests/Diagnostics/inline_constants_fixed_enums_invalid.camp(4,12): error: Inline constant initializer cannot reference storage variable 'STORAGE'.
 tests/Diagnostics/inline_constants_fixed_enums_invalid.camp(7,17): error: Inline constant initializer has a dependency cycle.
 tests/Diagnostics/inline_constants_fixed_enums_invalid.camp(8,17): error: Inline constant initializer has a dependency cycle.

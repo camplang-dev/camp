@@ -7,6 +7,10 @@ export inline nuint NATIVE_BYTES = sizeof(nuint);
 export inline nuint NATIVE_BITS = sizeof(nuint) * 8;
 export const uint MIN_PLAYERS = 1;
 
+int storage = 1;
+int identity(int input) { return input; }
+int storageIdentity(int storage) { return storage; }
+
 class Widget
 {
 }
@@ -38,5 +42,7 @@ export int main()
 		return 4;
 	if (NO_WIDGET != null || NO_CALLBACK != null || APP_NAME == null)
 		return 1;
+	if (identity(7) != 7 || storageIdentity(8) != 8)
+		return 5;
 	return (int)total;
 }

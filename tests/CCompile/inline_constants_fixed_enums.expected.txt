@@ -1,6 +1,10 @@
 // file: inline_constants_fixed_enums.c
 #include "inline_constants_fixed_enums_private.h"
 
+/* Private file declarations. */
+static int identity(int input);
+static int storageIdentity(int storage);
+static int storage;
 
 #define MAX_DEVICES ((uint32_t)10)
 #define NO_WIDGET ((Widget *)0)
@@ -8,6 +12,17 @@
 #define APP_NAME ((const char *)"Camp")
 #define Limits_DEFAULT_CAPACITY ((uint32_t)16)
 const uint32_t MIN_PLAYERS = 1;
+static int storage = 1;
+static int identity(int input)
+{
+	return input;
+}
+
+static int storageIdentity(int storage)
+{
+	return storage;
+}
+
 int main(void)
 {
 	uint32_t total = ((((MAX_PLAYERS + INTERNAL_LIMIT) + Limits_DEFAULT_CAPACITY) + (uint32_t)(Difficulty_HARD)) + MIN_PLAYERS);
@@ -26,6 +41,10 @@ int main(void)
 	if ((((NO_WIDGET != NULL) || (NO_CALLBACK != NULL)) || (APP_NAME == NULL)))
 	{
 		return 1;
+	}
+	if (((identity(7) != 7) || (storageIdentity(8) != 8)))
+	{
+		return 5;
 	}
 	return (int)(total);
 }

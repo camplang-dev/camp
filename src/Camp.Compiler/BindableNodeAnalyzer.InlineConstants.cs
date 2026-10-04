@@ -7,6 +7,65 @@ namespace Camp.Compiler;
 
 public sealed partial class BindableNodeAnalyzer
 {
+	void ValidateInlineConstantNameReuse(Module module)
+	{
+		// Collect first so declaration order cannot hide a constant. Walk source
+		// bodies as well as signatures: even an unused local must diagnose before
+		// lowering, and macros are not limited to the ordinary lexical scope.
+		List<BindableNode> nodes = [.. BindableNodeTraversal.Enumerate(module, [])];
+		Dictionary<string, Definition> macroSymbols = new(StringComparer.Ordinal);
+		Dictionary<string, List<VariableDefinition>> sourceNames = new(StringComparer.Ordinal);
+		foreach (BindableNode node in nodes)
+		{
+			if (node is not (VariableDefinition { IsInline: true } or FieldDefinition { IsInline: true }))
+				continue;
+			Definition constant = (Definition)node;
+			if (!string.IsNullOrWhiteSpace(constant.Symbol))
+				macroSymbols.TryAdd(constant.Symbol, constant);
+			// Out-of-scope constants such as int.MIN are type members, not
+			// unqualified globals. Only their emitted symbol is globally reserved.
+			if (constant is VariableDefinition { OutOfScopeOwnerType: null, OutOfScopeOwnerName: null } variable)
+			{
+				if (!sourceNames.TryGetValue(variable.Name, out List<VariableDefinition>? matches))
+					sourceNames[variable.Name] = matches = [];
+				matches.Add(variable);
+			}
+		}
+
+		foreach (BindableNode node in nodes)
+		{
+			if (node.SourceSyntax is null)
+				continue;
+			switch (node)
+			{
+				case Definition definition when definition is not (VariableDefinition { IsInline: true } or FieldDefinition { IsInline: true }):
+					ValidateName(definition.Name, GetNameRange(definition), definition);
+					if (definition.Symbol != definition.Name && macroSymbols.ContainsKey(definition.Symbol))
+						ValidateName(definition.Symbol, GetNameRange(definition), definition);
+					break;
+				case DeclarationTarget target:
+					foreach (string name in target.Names)
+						ValidateName(name, GetDeclarationTargetNameRange(target.SourceSyntax, name), target);
+					break;
+				case LambdaParameter parameter:
+					ValidateName(GetLambdaParameterSymbolName(parameter), GetLambdaParameterNameRange(parameter.SourceSyntax), parameter);
+					break;
+			}
+		}
+
+		void ValidateName(string? name, TokenRange? range, BindableNode node)
+		{
+			if (string.IsNullOrWhiteSpace(name) || name == "_")
+				return;
+			if (!macroSymbols.TryGetValue(name, out Definition? constant) && sourceNames.TryGetValue(name, out List<VariableDefinition>? matches))
+				constant = matches.Find(candidate => IsUnqualifiedDefinitionVisible(candidate, node.SourceSyntax));
+			if (constant is null || ReferenceEquals(constant, node))
+				return;
+			string owner = string.IsNullOrWhiteSpace(constant.Namespace) ? constant.Name : constant.Namespace + "::" + constant.Name;
+			Report(range, $"Name '{name}' conflicts with inline constant '{owner}'; inline constant names cannot be reused.");
+		}
+	}
+
 	void AnalyzeInlineConstantsAndEnumValues(Module module)
 	{
 		foreach (Definition definition in ActiveDefinitions(module))

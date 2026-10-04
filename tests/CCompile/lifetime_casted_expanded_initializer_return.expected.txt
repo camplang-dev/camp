@@ -3,6 +3,7 @@
 
 /* Private file declarations. */
 static char *spanFrom(char *owner, uintptr_t owner_length, char *elements, uintptr_t length, uintptr_t *result_length);
+static Payload payloadFrom(char *owner, uintptr_t owner_length, Payload item);
 
 static char *spanFrom(char *owner, uintptr_t owner_length, char *elements, uintptr_t length, uintptr_t *result_length)
 {
@@ -10,6 +11,11 @@ static char *spanFrom(char *owner, uintptr_t owner_length, char *elements, uintp
 		(*result_length) = length;
 		return elements;
 	}
+}
+
+static Payload payloadFrom(char *owner, uintptr_t owner_length, Payload item)
+{
+	return (item);
 }
 
 int main(void)
@@ -32,6 +38,44 @@ int main(void)
 	{
 		return 2;
 	}
+	Payload payload = (Payload){ 42 };
+	Envelope records[1] = {0};
+	((Envelope *)(records))[0] = (Envelope){ (payload) };
+	if ((((Envelope *)(records))[0].payload.value != 42))
+	{
+		return 3;
+	}
+	((Envelope *)(records))[0] = (Envelope){ ((Payload){ 43 }) };
+	if ((((Envelope *)(records))[0].payload.value != 43))
+	{
+		return 4;
+	}
+	((Envelope *)(records))[0] = (Envelope){ (payload) };
+	if ((((Envelope *)(records))[0].payload.value != 42))
+	{
+		return 5;
+	}
+	((Envelope *)(records))[0] = (Envelope){ payloadFrom(owner, owner_length, payload) };
+	if ((((Envelope *)(records))[0].payload.value != 42))
+	{
+		return 6;
+	}
+	((Envelope *)(records))[0] = (Envelope){ payload };
+	if ((((Envelope *)(records))[0].payload.value != 42))
+	{
+		return 7;
+	}
+	int64_t widened = (int64_t)(payload.value);
+	if ((widened != 42))
+	{
+		return 8;
+	}
+	DataPointerPayload borrowed = (DataPointerPayload){ &payload.value };
+	DataPointerPayload trusted = (borrowed);
+	if ((*trusted.value != 42))
+	{
+		return 9;
+	}
 	return 0;
 }
 
@@ -53,12 +97,27 @@ int main(void);
 #include <stdbool.h>
 
 /* Forward declarations. */
+typedef struct Payload Payload;
+typedef struct Envelope Envelope;
+typedef struct DataPointerPayload DataPointerPayload;
 
 /* Enums. */
 
 /* Newtypes. */
 
 /* Layouts. */
+struct Payload
+{
+	int value;
+};
+struct Envelope
+{
+	Payload payload;
+};
+struct DataPointerPayload
+{
+	int *value;
+};
 
 /* Function declarations. */
 int main(void);

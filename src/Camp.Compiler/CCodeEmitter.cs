@@ -4834,6 +4834,14 @@ public static class CCodeEmitter
 
         string FormatCastExpression(CastExpression cast)
         {
+            string targetType = StripTypeQualifiers(StripLifetimeOnly(cast.Type?.ResolvedType ?? cast.ResolvedType ?? ""));
+            string sourceType = StripTypeQualifiers(StripLifetimeOnly(cast.Expression?.ResolvedType ?? ""));
+            // Lifetime assertions and value qualifiers do not convert aggregate
+            // storage. C has no portable struct-to-same-struct cast; retain the
+            // analyzed cast node and its lifetime facts, but emit only the value.
+            if (targetType == sourceType && IsAggregateValueType(targetType))
+                return "(" + FormatExpression(cast.Expression) + ")";
+
             string type = TryGetErasedGenericStoragePointerCastType(cast.Type, out string erasedType)
                 ? erasedType
                 : TryGetInterfacePointerCastType(cast.Type, out string interfaceName)

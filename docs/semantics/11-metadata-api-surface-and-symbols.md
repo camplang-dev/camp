@@ -296,6 +296,13 @@ Collision checks must include:
 When a collision is caused by a generated component, the diagnostic should name
 the source declaration that owns the component.
 
+Inline constant names are reserved against declaration reuse, including in
+parameters, locals, lambda parameters, and fields. Ordinary lexical shadowing
+does not permit reuse of an accessible top-level inline constant's source name.
+Emitted inline macro symbols are also reserved across scopes, including symbols
+selected by `@symbol` or generated for static inline fields. Diagnose reuse at
+the source declaration before lowering, identifying the conflicting constant.
+
 ## Metadata IDs
 
 Metadata IDs are stable opaque strings within a metadata document. They are

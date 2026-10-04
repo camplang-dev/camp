@@ -42,3 +42,30 @@ enum SymbolCollide: byte
 
 @symbol("CONFIG_H_")
 inline uint BAD_HEADER_SYMBOL = 1;
+
+int identity(int value) { return value; }
+inline int value = 11;
+
+void reuseLocals()
+{
+	int value = 17;
+	{ int value = 18; }
+	for (int value = 0; value < 1; value++) { }
+	fixed int[1] values = { 1 };
+	foreach (int value in values) { }
+	delegate int(int) callback = value => value;
+}
+
+struct ReuseMember { int value; }
+
+namespace Settings
+{
+	@symbol("NATIVE_LIMIT")
+	public inline int limit = 5;
+
+	int read(int limit) { return limit; }
+}
+
+int nativeName(int NATIVE_LIMIT) { return NATIVE_LIMIT; }
+int memberMacro(int Limits_DEFAULT_CAPACITY) { return Limits_DEFAULT_CAPACITY; }
+struct Limits { inline int DEFAULT_CAPACITY = 16; }

@@ -3,14 +3,14 @@
 
 /* Private file declarations. */
 static int SourceBoundary_increment(int value);
-static int (* SourceBoundary_getIncrement)(int arg0)(void);
+static int (* SourceBoundary_getIncrement(void))(int arg0);
 
 static int SourceBoundary_increment(int value)
 {
 	return (value + 1);
 }
 
-static int (* SourceBoundary_getIncrement)(int arg0)(void)
+static int (* SourceBoundary_getIncrement(void))(int arg0)
 {
 	return SourceBoundary_increment;
 }

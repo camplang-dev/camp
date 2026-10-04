@@ -3,6 +3,19 @@ char[] spanFrom(char[] owner, char* elements, nuint length)
 	return (unscoped(owner) char[]){ elements, length };
 }
 
+struct Payload { int value; }
+struct Envelope { Payload payload; }
+
+namespace Data
+{
+	public struct PointerPayload { int* value; }
+}
+
+Payload payloadFrom(char[] owner, Payload item)
+{
+	return (unscoped(owner) Payload)item;
+}
+
 export int main()
 {
 	fixed char[4] buffer = "test";
@@ -17,5 +30,30 @@ export int main()
 		return 1;
 	if (span[2] != 's')
 		return 2;
+
+	Payload payload = { 42 };
+	fixed Envelope[1] records = default;
+	records[0] = { (escaped Payload)payload };
+	if (records[0].payload.value != 42)
+		return 3;
+	records[0] = { (escaped Payload){ 43 } };
+	if (records[0].payload.value != 43)
+		return 4;
+	records[0] = { (scoped Payload)payload };
+	if (records[0].payload.value != 42)
+		return 5;
+	records[0] = { payloadFrom(owner, payload) };
+	if (records[0].payload.value != 42)
+		return 6;
+	records[0] = { (escaped)payload };
+	if (records[0].payload.value != 42)
+		return 7;
+	long widened = (escaped long)payload.value;
+	if (widened != 42)
+		return 8;
+	Data::PointerPayload borrowed = { &payload.value };
+	Data::PointerPayload trusted = (escaped Data::PointerPayload)borrowed;
+	if (*trusted.value != 42)
+		return 9;
 	return 0;
 }
