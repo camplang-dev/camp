@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-223.
+Next bug number: BUG-224.
 
 ## Bug Template
 
@@ -151,3 +151,94 @@ Typed lifetime fences on struct values prevent native MSVC builds. Use
 first initialize a local struct value and then apply the lifetime-only fence
 when storing it. Preserve the lifetime assertion and the ownership conditions
 that justify it; removing the assertion is not the workaround.
+
+## BUG-223: Cached Windows test harness runs stale shared runtime DLL
+
+Date/Time: 2026-10-04 10:58 EDT
+
+Summary:
+On Windows/MSVC, a cached test harness can keep executing an old copied DLL
+after its shared project reference has rebuilt. An implementation-only change
+can leave the import library's content unchanged, allowing the consumer's
+artifact cache to remain valid. The cached test path runs the harness without
+refreshing the companion runtime DLL beside it.
+
+Steps to Reproduce:
+
+1. Use compiler revision `850dfa1b1d1987739e96d7c77c27bc030fe6b856` on Windows
+   with the MSVC x64 toolchain available. Create two sibling directories,
+   `lib` and `consumer`, containing these files:
+
+   `lib/value.camp`:
+
+   ```camp
+   export int revisionValue() => 1;
+   ```
+
+   `lib/value.campbuild`:
+
+   ```text
+   --name cache_value
+   --out-dir out
+   value.camp
+   ```
+
+   `consumer/test.camp`:
+
+   ```camp
+   requires (TEST_MODULE);
+   namespace Cache;
+
+   @test
+   void sharedRuntimeFreshness(thrown Assertion*)
+   {
+       assert(revisionValue() == 1);
+   }
+   ```
+
+   `consumer/test.campbuild`:
+
+   ```text
+   --name cache_consumer
+   --out-dir out
+   --project-reference ../lib/value.campbuild:shared
+   test.camp
+   ```
+
+2. Run `campc test consumer/test.campbuild --target msvc-windows-x64 --verbose`.
+   The initial test passes.
+3. Change only `lib/value.camp` to `export int revisionValue() => 2;` and run
+   the same command again. Keep the consumer test unchanged.
+4. Compare the producer DLL at
+   `lib/bin/msvc-windows-x64_shared_DEBUG/cache_value.dll` with the staged DLL
+   at `consumer/out/msvc-windows-x64_DEBUG_TEST/cache_value.dll`.
+5. Copy the rebuilt producer DLL over the staged consumer DLL and rerun the
+   same test command.
+
+Expected:
+The second run executes the current rebuilt shared library and fails the
+assertion because `revisionValue()` now returns 2. Reusing the consumer
+executable is valid when its ABI inputs are unchanged, but its runtime
+dependencies must be current. The shared-output contract in
+`docs/compiler/05-artifacts-cache-and-output-layout.md` distinguishes the
+runtime DLL from the import library and requires downstream executables to
+copy referenced shared runtime files beside themselves. External test modules
+consume project references through their normal shared-library API and native
+library, as documented in
+`docs/semantics/12-target-capabilities-and-c-emission.md`.
+
+Actual:
+The producer rebuilds and emits a different DLL, while its import library's
+content remains unchanged. The staged consumer DLL remains the old version,
+and the second run incorrectly passes. After manually copying the current DLL,
+the unchanged cached test correctly fails at `test.camp:7` with
+`revisionValue() == 1` and exit status 1.
+
+Known Impact:
+Windows tests using shared project references can falsely pass or fail and
+produce invalid baseline comparisons after implementation-only library
+changes. Refreshing the staged DLL beside the cached test executable is a
+verified workaround. The full-build path copies shared runtime references;
+the cache-hit path in `CompilerDriver.TryUseCurrentTestHarness` omits that
+step. Artifact cache inputs include the native import library but not its
+companion runtime DLL.
