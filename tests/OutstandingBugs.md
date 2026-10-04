@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-226.
+Next bug number: BUG-227.
 
 ## Bug Template
 
@@ -43,3 +43,47 @@ Actual:
 Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
+
+## BUG-226: C emission calls an inactive gated declaration in a guarded short-circuit operand
+
+Date/Time: 2026-10-04 19:48 EDT
+
+Summary:
+A declaration with a `requires (F)` requirement is not emitted when `F` is false
+in the selected configuration. A call to it that is guarded by
+`configured(F) && gated()` passes semantic analysis, but the emitted C still
+contains the call, with the guard folded to `false`. The C compiler then fails
+because the function was never declared or defined. The same guard written as an
+`if` statement or a conditional expression works, because the inactive branch is
+dropped.
+
+Steps to Reproduce:
+
+1. Build with `-d F=false` and `--nostdlib`.
+2. Compile:
+   ```camp
+   extern void __intrinsic_log_i32(int value);
+   requires (F) int onlyF() { return 11; }
+   export int main()
+   {
+   	if (configured(F) && onlyF() == 11) __intrinsic_log_i32(1);
+   	__intrinsic_log_i32(2);
+   	return 0;
+   }
+   ```
+
+Expected:
+The program builds and prints `2`. The guarded operand of `&&` (and of `||` with a
+negated or disjoint guard) is not reachable when the guard is false, so the call
+to the inactive declaration must not be emitted.
+
+Actual:
+Semantic analysis succeeds, then the native build fails:
+`call to undeclared function 'onlyF'` at `if ((false && (onlyF() == 11)))` in the
+generated C.
+
+Known Impact:
+Any guarded use of a gated declaration inside a `&&` or `||` operand fails to
+build when the requirement is false for the selected target. Workaround: guard
+with an `if` statement or a conditional expression instead.
+
