@@ -6901,13 +6901,13 @@ public sealed partial class BindableNodeAnalyzer
 			{
 				SourceSyntax = named.SourceSyntax,
 				Name = staticClassDefinition.Name,
-				ResolvedType = staticClassDefinition.Name
+				ResolvedType = ResolvedStaticClassName(staticClassDefinition)
 			};
 			TypeReferenceExpression staticClassExpression = new()
 			{
 				SourceSyntax = named.SourceSyntax,
 				Type = containerReference,
-				ResolvedType = staticClassDefinition.Name
+				ResolvedType = ResolvedStaticClassName(staticClassDefinition)
 			};
 			expressionRewrites[named] = staticClassExpression;
 			if (originalTarget is not null && !ReferenceEquals(originalTarget, named))

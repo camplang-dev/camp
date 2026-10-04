@@ -317,10 +317,15 @@ public sealed partial class BindableNodeAnalyzer
 			else
 			{
 				allStaticClassDefinitions.Add(staticClassDefinition);
+				if (ambiguousStaticClassNames.Contains(staticClassDefinition.Name))
+					continue;
 				if (!staticClassDefinitions.ContainsKey(staticClassDefinition.Name))
 					staticClassDefinitions[staticClassDefinition.Name] = staticClassDefinition;
 				else
+				{
 					staticClassDefinitions.Remove(staticClassDefinition.Name);
+					ambiguousStaticClassNames.Add(staticClassDefinition.Name);
+				}
 			}
 		}
 	}

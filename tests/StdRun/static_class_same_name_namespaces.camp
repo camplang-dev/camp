@@ -1,0 +1,33 @@
+using Std;
+
+namespace Left
+{
+	static class Counter
+	{
+		static int total = 100;
+		static int next(int step) { return Counter.total + step; }
+	}
+}
+
+namespace Right
+{
+	static class Counter
+	{
+		static int total = 200;
+		static int next(int step) { return Counter.total + step; }
+	}
+}
+
+export int main(string[] args)
+{
+	if (Left::Counter.next(1) != 101)
+		return 1;
+	if (Right::Counter.next(1) != 201)
+		return 2;
+	Left::Counter.total = 7;
+	if (Left::Counter.total != 7 || Right::Counter.total != 200)
+		return 3;
+	if (Left::Counter.next(1) != 8)
+		return 4;
+	return 0;
+}

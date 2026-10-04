@@ -69,6 +69,7 @@ public sealed partial class BindableNodeAnalyzer
 	readonly Dictionary<string, TypeDefinition> qualifiedTypeDefinitions = new(StringComparer.Ordinal);
 	readonly List<TypeDefinition> allTypeDefinitions = [];
 	readonly Dictionary<string, StaticClassDefinition> staticClassDefinitions = new(StringComparer.Ordinal);
+	readonly HashSet<string> ambiguousStaticClassNames = new(StringComparer.Ordinal);
 	readonly Dictionary<string, StaticClassDefinition> qualifiedStaticClassDefinitions = new(StringComparer.Ordinal);
 	readonly List<StaticClassDefinition> allStaticClassDefinitions = [];
 	readonly GeneratedDeclarationFactory generatedDeclarations = new();
@@ -525,6 +526,22 @@ public sealed partial class BindableNodeAnalyzer
 	static string NamespaceLookupKey(string? namespaceName, string name)
 	{
 		return (namespaceName ?? "") + "\u001F" + name;
+	}
+
+	// A static class name shared by several namespaces is not a unique key, so such containers resolve to
+	// their namespace-qualified lookup key instead of the simple name.
+	string ResolvedStaticClassName(StaticClassDefinition definition)
+	{
+		return ambiguousStaticClassNames.Contains(definition.Name)
+			? DefinitionLookupKey(definition)
+			: definition.Name;
+	}
+
+	bool TryGetStaticClassByResolvedName(string name, out StaticClassDefinition? definition)
+	{
+		if (staticClassDefinitions.TryGetValue(name, out definition))
+			return true;
+		return qualifiedStaticClassDefinitions.TryGetValue(name, out definition);
 	}
 
 	string ResolvedNominalTypeName(TypeDefinition definition)

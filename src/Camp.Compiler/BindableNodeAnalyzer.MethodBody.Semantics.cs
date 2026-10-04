@@ -2346,7 +2346,7 @@ public sealed partial class BindableNodeAnalyzer
 				if (function.Modifier == FunctionModifier.Static)
 					functions.Add(function);
 		}
-		if (staticClassDefinitions.TryGetValue(ownerName, out StaticClassDefinition? staticClassDefinition))
+		if (TryGetStaticClassByResolvedName(ownerName, out StaticClassDefinition? staticClassDefinition) && staticClassDefinition is not null)
 		{
 			foreach (FunctionDefinition function in staticClassDefinition.Functions)
 				if (function.Modifier == FunctionModifier.Static
@@ -2652,7 +2652,7 @@ public sealed partial class BindableNodeAnalyzer
 					members.Add(new BodySymbol(name, getter.ResolvedType ?? ErrorType, getter));
 			}
 		}
-		if (staticClassDefinitions.TryGetValue(ownerName, out StaticClassDefinition? staticClassDefinition))
+		if (TryGetStaticClassByResolvedName(ownerName, out StaticClassDefinition? staticClassDefinition) && staticClassDefinition is not null)
 		{
 			foreach (FieldDefinition field in staticClassDefinition.Fields)
 			{
