@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-222.
+Next bug number: BUG-223.
 
 ## Bug Template
 
@@ -100,3 +100,54 @@ generated-code errors instead of a source-level semantic diagnostic. The same
 macro also corrupts same-named local declarations in a larger reproduced
 program. Use distinct names for parameters, locals and other declarations;
 inline constant names must not be used to test permitted lexical shadowing.
+
+## BUG-222: Typed lifetime fences emit nonportable C struct casts
+
+Date/Time: 2026-10-04 01:37 EDT
+
+Summary:
+A lifetime fence that explicitly repeats a struct value's type emits a C cast
+from that struct to the same struct. MSVC rejects the generated aggregate cast,
+so valid Camp source fails native compilation. The documented lifetime-only
+form preserves the lifetime assertion and avoids the emitted C cast.
+
+Steps to Reproduce:
+
+1. On Windows with the MSVC native toolchain available, use compiler revision
+   `e2dce5956412d8c76a02a16d17e0988db11fc78d` and save this as `struct_fence.camp`:
+
+   ```camp
+   struct Payload { int value; }
+   struct Envelope { Payload payload; }
+
+   export int main()
+   {
+       Payload payload = { 42 };
+       fixed Envelope[1] records = default;
+       records[0] = { (escaped Payload)payload };
+       return records[0].payload.value - 42;
+   }
+   ```
+
+2. Run `campc run struct_fence.camp --nostdlib --out-dir out`.
+3. Replace `(escaped Payload)payload` with `(escaped)payload` and repeat.
+
+Expected:
+Both forms compile and run with exit status 0. The Lifetime Cast Syntax rules
+in `docs/semantics/03-conversions-raw-carriers-and-fence-casts.md` allow lifetime
+assertions to combine with type syntax and distinguish lifetime analysis from
+value conversion. Repeating the unchanged struct type requires no native value
+conversion; emission must preserve the value without a nonportable C cast.
+
+Actual:
+The typed form emits an initializer containing `(Payload)(payload)` and MSVC
+reports C2440, "'type cast': cannot convert from 'Payload' to 'Payload'". The
+lifetime-only form compiles and runs with exit status 0. The same failure was
+observed for a typed lifetime fence around a struct aggregate initializer.
+
+Known Impact:
+Typed lifetime fences on struct values prevent native MSVC builds. Use
+`(escaped)value` when the type is unchanged. For a typed aggregate initializer,
+first initialize a local struct value and then apply the lifetime-only fence
+when storing it. Preserve the lifetime assertion and the ownership conditions
+that justify it; removing the assertion is not the workaround.
