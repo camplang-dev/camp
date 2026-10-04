@@ -242,3 +242,43 @@ verified workaround. The full-build path copies shared runtime references;
 the cache-hit path in `CompilerDriver.TryUseCurrentTestHarness` omits that
 step. Artifact cache inputs include the native import library but not its
 companion runtime DLL.
+
+Permanent Fix Guidance:
+Before executing a cached harness in `CompilerDriver.TryUseCurrentTestHarness`,
+refresh its shared runtime dependencies using the same target-aware resolution
+and `TryCopySharedRuntimeReferences` behavior as the full test-build path.
+Resolve rooted native references, including Windows import-library references
+whose runtime is the sibling DLL. Include shared package dependencies as well
+as explicit/project references; the cache-hit path runs before package
+preparation, so the full-build `packageLibraries` list is not yet available
+there. Preserve or recover the required dependency information rather than
+silently omitting those libraries.
+
+Runtime staging and native linking have different freshness requirements.
+An unchanged import library may permit reusing the executable while a changed
+runtime DLL still needs copying. Merely validating the import library again
+does not fix the defect. Adding DLLs to cache inputs can force a full rebuild,
+but refreshing runtime dependencies on reuse also handles a deleted staged
+DLL and avoids unnecessary recompilation for implementation-only changes.
+Propagate copy failures as command failures before executing the harness,
+consistent with the full-build path. Retain list-only test discovery behavior.
+
+Regression Verification:
+
+- Automate the Windows/MSVC two-project reproduction in
+  `src/Camp.Compiler.TestRunner/CommandLineTests.cs`, alongside existing test
+  cache and shared project-reference coverage. Verify that the producer DLL
+  changed while the import-library content did not, so the test exercises this
+  cache-hit defect rather than an ordinary consumer rebuild.
+- After the library changes from returning 1 to returning 2, the unchanged
+  consumer test must fail without a manual copy. Verify that its staged DLL
+  matches the producer DLL and that the cached harness was reused when its
+  native link inputs were unchanged.
+- Delete only the staged DLL and rerun the cached test. It must restore the
+  current DLL and report the same correct assertion failure.
+- Rerun with no changes and verify normal cache reuse remains intact. Exercise
+  copy-error reporting and the applicable shared-package dependency path.
+- Inspect `TryUseCurrentTopLevelArtifact` for the same runtime-staging omission
+  in cached executable builds and cover it if confirmed. That adjacent path
+  was identified by source inspection; the reproduction above confirms only
+  the test-harness path.
