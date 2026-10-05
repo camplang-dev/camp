@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-228.
+Next bug number: BUG-229.
 
 ## Bug Template
 
@@ -78,3 +78,33 @@ Known Impact:
 Wrong or misplaced specifiers on globals and fields are not caught, and an
 unproven target specifier can be accepted silently. Writing the specifier after
 the type validates correctly.
+
+## BUG-228: Declarations may be named after a target specifier
+
+Date/Time: 2026-10-05 00:49 America/Toronto
+
+Summary:
+A name that the selected target (or the language) defines as a call specifier or
+type specifier is accepted as the name of a declaration. A specifier name is
+meaningful in type position, so reusing it as a variable name makes the
+declaration ambiguous to read and to parse. A local variable must not be named
+after any typespec or callspec, including the compiler-defined `_targetcall` and
+`_targettype`.
+
+Steps to Reproduce:
+
+1. Compile an exported entry point whose body declares locals such as `int
+   _cdecl = 1;`, `int _near = 2;` and `int _targetcall = 3;`.
+2. Build it. The same names are also accepted for parameters, fields, global
+   variables and function names.
+
+Expected:
+Each declaration is rejected because the name is a specifier.
+
+Actual:
+The build succeeds and the variables are usable by that name.
+
+Known Impact:
+Specifier names can be shadowed by ordinary declarations. The two compilers must
+agree on which names are rejected, so the goldens cannot cover this until the
+bootstrap diagnoses it.
