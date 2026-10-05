@@ -21,8 +21,8 @@ int main(void)
 	PacketHeader *restored = (PacketHeader *)(erased);
 	void (* rawFn)(void) = getRawFn();
 	consumeRawFn(rawFn);
-	Base *base = 0;
-	Derived *derivedAgain = (Derived *)(base);
+	Base *baseValue = 0;
+	Derived *derivedAgain = (Derived *)(baseValue);
 	return (((((((((mutableBytes == 0) || (twoLevelBytes == 0)) || (headerFromRaw == 0)) || (other == 0)) || (bytesAgain == 0)) || (restored == 0)) || (rawFn == 0)) || (derivedAgain == 0)) ? 0 : 0);
 }
 

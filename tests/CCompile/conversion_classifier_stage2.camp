@@ -41,8 +41,8 @@ export int main()
 	fn* rawFn = getRawFn();
 	consumeRawFn(rawFn);
 
-	Base* base = default;
-	Derived* derivedAgain = (unsafe Derived*)base;
+	Base* baseValue = default;
+	Derived* derivedAgain = (unsafe Derived*)baseValue;
 
 	return mutableBytes == default || twoLevelBytes == default || headerFromRaw == default || other == default || bytesAgain == default || restored == default || rawFn == default || derivedAgain == default ? 0 : 0;
 }

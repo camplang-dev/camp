@@ -1230,8 +1230,10 @@ Rules for generated interop code:
 - Spec names use lowercase ASCII spelling `_[a-z][a-z0-9]*(?:_[a-z0-9]+)*`.
   Put callspecs before method/type declarations or immediately after a concrete
   callable keyword, and typespecs after the written carrier. A callable's typespec
-  follows its parameter list: `fn _pascal nint() _far`. Named callable-newtype
-  references cannot add specs. Never use the old two-prefix form.
+  follows its parameter list: `fn _pascal nint() _far`. For a callable newtype,
+  write `newtype fn _pascal nint Callback() _far;`; the suffix follows the
+  declaration parameters. Named callable-newtype references cannot add specs.
+  Never use the old two-prefix form.
 - Typespec carriers are `nint`, `nuint`, strings, pointers, dynamic arrays,
   optionals, raw `fn*`, and concrete callables. Other primitives, fixed arrays,
   generic instantiations themselves and plain named types/aliases are ineligible.

@@ -7,21 +7,6 @@ namespace Camp.Compiler;
 
 public sealed record ParseDiagnostic(TokenRange? Range, string Message, string? Code = null, DiagnosticSeverity Severity = DiagnosticSeverity.Error);
 
-public sealed class CampParserOptions
-{
-	public static CampParserOptions Empty { get; } = new([], []);
-
-	public CampParserOptions(IEnumerable<string> typeSpecs, IEnumerable<string> callSpecs)
-	{
-		// Kept as a source-compatible wrapper; supplied names never influence grammar.
-	}
-
-	public static CampParserOptions FromTarget(TargetDefinition? target)
-	{
-		return Empty;
-	}
-}
-
 public sealed class CampParser
 {
 	static readonly string[] TypeDeclarationKeywords = ["struct", "class", "interface", "params", "enum", "newtype"];
@@ -37,16 +22,16 @@ public sealed class CampParser
 	bool seenNonPreludeCompilationUnitItem;
 	int namespaceBlockDepth;
 
-	public CampParser(TokenSequence tokens, CampParserOptions? options = null)
+	public CampParser(TokenSequence tokens)
 	{
 		this.tokens = tokens;
 	}
 
 	public IReadOnlyList<ParseDiagnostic> Diagnostics => diagnostics;
 
-	public static CompilationUnitSyntax Parse(TokenSequence tokens, out IReadOnlyList<ParseDiagnostic> diagnostics, CampParserOptions? options = null)
+	public static CompilationUnitSyntax Parse(TokenSequence tokens, out IReadOnlyList<ParseDiagnostic> diagnostics)
 	{
-		CampParser parser = new(tokens, options);
+		CampParser parser = new(tokens);
 		CompilationUnitSyntax syntax = parser.ParseCompilationUnit();
 		diagnostics = parser.Diagnostics;
 		return syntax;

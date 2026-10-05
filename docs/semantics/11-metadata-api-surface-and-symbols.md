@@ -553,6 +553,13 @@ The serializer should preserve:
 - newtype underlying type and callable-newtype surface;
 - source visibility and extern status.
 
+When present, `declarationCallspec` records the leading callspec on a type or
+static class declaration. A callable newtype separately records its callable
+`callspec` and carrier `targetspec`. Type strings use the source postfix
+typespec placement. Preserve explicit default markers in these declared facts;
+effective ABI comparisons normalize them using the selected target's defaults.
+API reparsing must retain this intent along with parameter names and defaults.
+
 Generated fields such as virtual vtable pointers or stored `vtableof` fields
 should be hidden unless the source API explicitly exposes them.
 Generated retained allocator fields from `within this.allocator` are lifecycle

@@ -171,8 +171,8 @@ public static class SyntaxNodeTraversal
 				if (syntax.Type is not null) yield return syntax.Type;
 				break;
 			case TargetTypeSpecTypeSyntax syntax:
-				if (syntax.Specifier is not null) yield return syntax.Specifier;
 				if (syntax.Type is not null) yield return syntax.Type;
+				if (syntax.Specifier is not null) yield return syntax.Specifier;
 				break;
 			case QualifiedNameTypeSyntax syntax:
 				foreach (SyntaxNode child in syntax.Qualifiers ?? []) yield return child;
@@ -483,7 +483,7 @@ public static class SyntaxNodeTraversal
 			case AliasTargetCandidateSyntax syntax:
 				if (syntax.Condition is not null) foreach (Token token in Tokens(syntax.Condition)) yield return token;
 				foreach (Token token in Tokens(syntax.ColonToken)) yield return token;
-				if (syntax.Specifier is not null) if (syntax.Specifier is not null) foreach (Token token in Tokens(syntax.Specifier)) yield return token;
+				if (syntax.Specifier is not null) foreach (Token token in Tokens(syntax.Specifier)) yield return token;
 				if (syntax.TargetName is not null) foreach (Token token in Tokens(syntax.TargetName)) yield return token;
 				foreach (Token token in Tokens(syntax.CommaToken)) yield return token;
 				break;
@@ -496,10 +496,19 @@ public static class SyntaxNodeTraversal
 				if (syntax.CallSpec is not null) foreach (Token token in Tokens(syntax.CallSpec)) yield return token;
 				foreach (SyntaxNode child in syntax.AdditionalCallSpecs ?? []) foreach (Token token in Tokens(child)) yield return token;
 				foreach (Token token in Tokens(syntax.Keyword)) yield return token;
-				if (syntax.Type is not null) foreach (Token token in Tokens(syntax.Type)) yield return token;
+				if (syntax.Type is CallableTypeSyntax newtypeCallable && syntax.Keyword?.Value == "newtype")
+				{
+					foreach (Token token in CallableTokens(newtypeCallable, includeTargetSpec: false)) yield return token;
+				}
+				else if (syntax.Type is not null) foreach (Token token in Tokens(syntax.Type)) yield return token;
 				foreach (Token token in Tokens(syntax.Identifier)) yield return token;
 				if (syntax.GenericParameterList is not null) foreach (Token token in Tokens(syntax.GenericParameterList)) yield return token;
 				if (syntax.ParameterList is not null) foreach (Token token in Tokens(syntax.ParameterList)) yield return token;
+				if (syntax.Type is CallableTypeSyntax trailingCallable && syntax.Keyword?.Value == "newtype")
+				{
+					if (trailingCallable.TargetSpec is not null) foreach (Token token in Tokens(trailingCallable.TargetSpec)) yield return token;
+					foreach (SyntaxNode child in trailingCallable.AdditionalTargetSpecs ?? []) foreach (Token token in Tokens(child)) yield return token;
+				}
 				foreach (Token token in Tokens(syntax.ColonToken)) yield return token;
 				if (syntax.UnderlyingTypeList is not null) foreach (Token token in Tokens(syntax.UnderlyingTypeList)) yield return token;
 				foreach (Token token in Tokens(syntax.SemicolonToken)) yield return token;
@@ -600,13 +609,7 @@ public static class SyntaxNodeTraversal
 				foreach (Token token in Tokens(syntax.ThisKeyword)) yield return token;
 				break;
 			case CallableTypeSyntax syntax:
-				foreach (Token token in Tokens(syntax.CallableKeyword)) yield return token;
-				if (syntax.CallSpec is not null) foreach (Token token in Tokens(syntax.CallSpec)) yield return token;
-				foreach (SyntaxNode child in syntax.AdditionalCallSpecs ?? []) foreach (Token token in Tokens(child)) yield return token;
-				if (syntax.ReturnType is not null) foreach (Token token in Tokens(syntax.ReturnType)) yield return token;
-				if (syntax.ParameterList is not null) foreach (Token token in Tokens(syntax.ParameterList)) yield return token;
-				if (syntax.TargetSpec is not null) foreach (Token token in Tokens(syntax.TargetSpec)) yield return token;
-				foreach (SyntaxNode child in syntax.AdditionalTargetSpecs ?? []) foreach (Token token in Tokens(child)) yield return token;
+				foreach (Token token in CallableTokens(syntax)) yield return token;
 				break;
 			case PrepReturnTypeSyntax syntax:
 				foreach (Token token in Tokens(syntax.PrepKeyword)) yield return token;
@@ -670,8 +673,8 @@ public static class SyntaxNodeTraversal
 				if (syntax.Type is not null) foreach (Token token in Tokens(syntax.Type)) yield return token;
 				break;
 			case TargetTypeSpecTypeSyntax syntax:
-				if (syntax.Specifier is not null) foreach (Token token in Tokens(syntax.Specifier)) yield return token;
 				if (syntax.Type is not null) foreach (Token token in Tokens(syntax.Type)) yield return token;
+				if (syntax.Specifier is not null) foreach (Token token in Tokens(syntax.Specifier)) yield return token;
 				break;
 			case QualifiedNameTypeSyntax syntax:
 				foreach (SyntaxNode child in syntax.Qualifiers ?? []) foreach (Token token in Tokens(child)) yield return token;
@@ -1050,6 +1053,20 @@ public static class SyntaxNodeTraversal
 				foreach (Token token in Tokens(syntax.EqualsToken)) yield return token;
 				if (syntax.Expression is not null) foreach (Token token in Tokens(syntax.Expression)) yield return token;
 				break;
+		}
+	}
+
+	static IEnumerable<Token> CallableTokens(CallableTypeSyntax syntax, bool includeTargetSpec = true)
+	{
+		foreach (Token token in Tokens(syntax.CallableKeyword)) yield return token;
+		if (syntax.CallSpec is not null) foreach (Token token in Tokens(syntax.CallSpec)) yield return token;
+		foreach (SyntaxNode child in syntax.AdditionalCallSpecs ?? []) foreach (Token token in Tokens(child)) yield return token;
+		if (syntax.ReturnType is not null) foreach (Token token in Tokens(syntax.ReturnType)) yield return token;
+		if (syntax.ParameterList is not null) foreach (Token token in Tokens(syntax.ParameterList)) yield return token;
+		if (includeTargetSpec)
+		{
+			if (syntax.TargetSpec is not null) foreach (Token token in Tokens(syntax.TargetSpec)) yield return token;
+			foreach (SyntaxNode child in syntax.AdditionalTargetSpecs ?? []) foreach (Token token in Tokens(child)) yield return token;
 		}
 	}
 

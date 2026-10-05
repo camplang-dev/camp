@@ -72,6 +72,22 @@ The exact component expansion is governed by the expanded-forms supplement.
 The source receiver contract must be checked before C erasure; sharing the C
 layout does not make `T*` and `IReadable*` interchangeable.
 
+### Declared And Effective Calling Conventions
+
+A method's leading callspec precedes its result type. Callable types within the
+signature place callspecs after their keyword and carrier typespecs after their
+parameter list. A callable-newtype declaration places the carrier typespec after
+its declaration parameter list. These source positions do not change vtable
+layout, override compatibility, ascription, or availability proofs.
+
+For interface implementation, an omitted callspec may inherit the interface
+slot's effective convention. Explicit `_targetcall`, including through a
+specifier alias, chooses the target default and must match that slot's effective
+convention; it cannot inherit a different convention. API output must retain an
+explicit marker rather than turning it into omission. Virtual overrides retain
+their existing signature and availability requirements. Effective ABI
+normalization must not erase declared intent before contract validation.
+
 ## Required Slots
 
 Required slots must be supplied by implementing structs and classes.

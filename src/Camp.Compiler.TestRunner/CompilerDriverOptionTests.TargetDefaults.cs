@@ -30,6 +30,16 @@ public sealed partial class CompilerDriverOptionTests
 			export string _targettype stringIdentity(string _targettype value) => value;
 			export int[] _targettype arrayIdentity(int[] _targettype value) => value;
 			export int apply(fn _targetcall int(int) _targettype callback, int value) => callback(value);
+			export extern void optionalParameters(int* _targettype _value = null,
+				int* _targettype = null, fn _targetcall int(int) _targettype _callback = null);
+			@symbol("_targetcall") export int nativeOperation(int value) => value + 3;
+			@symbol("class") export int reservedOperation(int value) => value + 4;
+			export struct NativeData
+			{
+				@symbol("_targettype") int nativeField;
+				@symbol("class") int keywordField;
+			}
+			export int readData(NativeData* data) => data.nativeField + data.keywordField;
 			""");
 		string consumer = CreateTempCase("target_defaults_consumer.camp", """
 			export int main()
@@ -56,9 +66,13 @@ public sealed partial class CompilerDriverOptionTests
 				delegate _targetcall int(int) _targettype closure = value => value + 1;
 				delegate int(int) plainClosure = closure;
 				closure = plainClosure;
+				NativeData data = default;
+				data.nativeField = 7;
+				data.keywordField = 8;
 				return platformOperation(1) == 2 && projectedOperation(1) == 3
 					&& apply(plain, 4) == 4 && closure(4) == 5 && count == 3
-					&& values.length == 0 && plainPointer == null && recovered(6) == 6 ? 0 : 1;
+					&& values.length == 0 && plainPointer == null && recovered(6) == 6
+					&& nativeOperation(1) == 4 && reservedOperation(1) == 5 && readData(&data) == 15 ? 0 : 1;
 			}
 			""");
 		foreach (string target in new[] { "gcc-linux-x64", "clang-macos-x64", "msvc-windows-x86", NativeTargetForHost() }.Distinct())
@@ -74,6 +88,11 @@ public sealed partial class CompilerDriverOptionTests
 			Assert.Contains("_targetcall", api.StdOut, StringComparison.Ordinal);
 			Assert.Contains("_targettype", api.StdOut, StringComparison.Ordinal);
 			Assert.Contains("projectedOperation", api.StdOut, StringComparison.Ordinal);
+			Assert.Contains("int* _targettype _value = null", api.StdOut, StringComparison.Ordinal);
+			Assert.Contains("_callback = null", api.StdOut, StringComparison.Ordinal);
+			Assert.Contains("@symbol(\"_targetcall\")", api.StdOut, StringComparison.Ordinal);
+			Assert.Contains("@symbol(\"class\")", api.StdOut, StringComparison.Ordinal);
+			Assert.Contains("int nativeField", api.StdOut, StringComparison.Ordinal);
 			string apiFile = CreateTempCase("target_defaults_" + target + "_api.camp", api.StdOut);
 			CompilerResult library = Execute(producer, request =>
 			{
@@ -87,8 +106,11 @@ public sealed partial class CompilerDriverOptionTests
 			Assert.True(library.ExitCode == 0, library.StdErr);
 			string emitted = string.Join("\n", library.GeneratedFiles.Where(path => Path.GetExtension(path) is ".c" or ".h").Select(File.ReadAllText));
 			Assert.NotEmpty(emitted);
-			Assert.DoesNotContain("_targetcall", emitted, StringComparison.Ordinal);
-			Assert.DoesNotContain("_targettype", emitted, StringComparison.Ordinal);
+			Assert.DoesNotMatch(@"\b_target(?:call|type)\s+[A-Za-z_*]", emitted);
+			Assert.Contains("_targetcall(", emitted, StringComparison.Ordinal);
+			Assert.Contains("class(", emitted, StringComparison.Ordinal);
+			Assert.Contains("data->_targettype", emitted, StringComparison.Ordinal);
+			Assert.Contains("data->class", emitted, StringComparison.Ordinal);
 			if (target == "msvc-windows-x86")
 				Assert.Contains("__stdcall", emitted, StringComparison.Ordinal);
 			string metadata = File.ReadAllText(Directory.GetFiles(output, "*_api.json", SearchOption.AllDirectories).Single());
@@ -100,6 +122,17 @@ public sealed partial class CompilerDriverOptionTests
 				Assert.Equal("_targetcall", ordinary.GetProperty("callspec").GetString());
 				JsonElement pointer = document.RootElement.GetProperty("declarations").EnumerateArray().Single(d => d.GetProperty("name").GetString() == "pointerIdentity");
 				Assert.Contains("_targettype", pointer.GetProperty("returnType").GetString(), StringComparison.Ordinal);
+				JsonElement[] declarations = document.RootElement.GetProperty("declarations").EnumerateArray().ToArray();
+				JsonElement callback = declarations.Single(d => d.GetProperty("name").GetString() == "Callback");
+				Assert.Equal("_targetcall", callback.GetProperty("callspec").GetString());
+				Assert.Equal("_targettype", callback.GetProperty("targetspec").GetString());
+				JsonElement native = declarations.Single(d => d.GetProperty("name").GetString() == "nativeOperation");
+				Assert.Equal("_targetcall", native.GetProperty("symbol").GetString());
+				JsonElement data = declarations.Single(d => d.GetProperty("name").GetString() == "NativeData");
+				JsonElement field = data.GetProperty("fields").EnumerateArray().Single(f => f.GetProperty("name").GetString() == "nativeField");
+				Assert.Equal("_targettype", field.GetProperty("symbol").GetString());
+				JsonElement optional = declarations.Single(d => d.GetProperty("name").GetString() == "optionalParameters");
+				Assert.Equal("_value", optional.GetProperty("parameters")[0].GetProperty("name").GetString());
 			}
 
 			CompilerResult app = Execute(consumer, request =>
@@ -141,9 +174,8 @@ public sealed partial class CompilerDriverOptionTests
 				string _type text, nint _type number, byte* _type * _type nested,
 				byte* _type const qualified);
 			""";
-		foreach (CampParserOptions? options in new CampParserOptions?[] { null, CampParserOptions.Empty, new([], []), CampParserOptions.FromTarget(null) })
 		{
-			CompilationUnitSyntax syntax = CampParser.Parse(new TokenSequence(CampTokenizer.Tokenize(source)), out var parseDiagnostics, options);
+			CompilationUnitSyntax syntax = CampParser.Parse(new TokenSequence(CampTokenizer.Tokenize(source)), out var parseDiagnostics);
 			Assert.Empty(parseDiagnostics);
 			Module module = BindableNodeBuilder.Build(syntax, out var bindDiagnostics);
 			Assert.Empty(bindDiagnostics);
@@ -232,11 +264,14 @@ public sealed partial class CompilerDriverOptionTests
 	public void Target_defaults_preserve_explicit_interface_intent_and_diagnostics()
 	{
 		string positive = CreateTempCase("target_defaults_interfaces.camp", """
-			alias _defaultcall = _targetcall;
+			export alias _defaultcall = _targetcall;
 			export interface DefaultFace { _targetcall int value(); }
 			export interface ForeignFace { _stdcall int value(); }
 			struct Explicit: DefaultFace { _defaultcall int value(): DefaultFace => 1; }
 			struct Omitted: ForeignFace { int value(): ForeignFace => 2; }
+			virtual class Base { virtual _targetcall int value() => 1; }
+			virtual class OmittedOverride: Base { override int value() => 2; }
+			virtual class ExplicitOverride: Base { override _defaultcall int value() => 3; }
 			export int main() => 0;
 			""");
 		CompilerResult valid = Execute(positive, request => { request.TargetName = "msvc-windows-x86"; request.NoStdLib = true; });
@@ -248,7 +283,7 @@ public sealed partial class CompilerDriverOptionTests
 		Assert.True(api.ExitCode == 0, api.StdErr);
 		Assert.Contains("_targetcall", api.StdOut, StringComparison.Ordinal);
 		string apiFile = CreateTempCase("target_defaults_interfaces_api.camp", api.StdOut);
-		string imported = CreateTempCase("target_defaults_interface_consumer.camp", "struct Consumer: ForeignFace { _targetcall int value(): ForeignFace => 0; }");
+		string imported = CreateTempCase("target_defaults_interface_consumer.camp", "struct Consumer: ForeignFace { _defaultcall int value(): ForeignFace => 0; }");
 		CompilerResult mismatch = Execute(imported, request =>
 		{
 			request.TargetName = "msvc-windows-x86";

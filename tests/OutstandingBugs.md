@@ -282,3 +282,87 @@ Known Impact:
 The two forms of the same operation disagree. The beta compiler currently
 accepts the compound forms as well, so a golden cannot cover them until the
 bootstrap decides.
+
+## BUG-238: Newtypes accept arithmetic, ordering, bitwise, shift, unary and update operators
+
+Date/Time: 2026-10-05 12:37 America/Toronto
+
+Summary:
+A newtype is not a numeric type even when its carrier is numeric. The only
+operators defined on a newtype are `==` and `!=` between two values of the same
+newtype. The compiler accepts every other operator on a newtype whose carrier is
+an integer.
+
+Steps to Reproduce:
+
+1. Declare `newtype Meters: int;` and an exported entry point with `Meters a =
+   (Meters)1; Meters b = (Meters)2;`.
+2. Add `a < b`, `a + b`, `a - b`, `a * b`, `a / b`, `a % b`, `a & b`, `a | b`,
+   `a << 1`, `-a`, `~a`, `+a`, `a++`, `++a`, `a += b` and `a |= b`.
+3. Build it.
+
+Expected:
+Each of these is rejected; only `a == b` and `a != b` are accepted.
+
+Actual:
+No diagnostic for any of them. (Using a newtype as a condition, and converting it
+to a bool, are rejected.)
+
+Known Impact:
+A newtype can be used as a number, which defeats its purpose. Beta rejects all of
+these with SEMANTIC_INVALID_NEWTYPE_OPERATION.
+
+## BUG-239: Character literal escapes do not follow the C# rules
+
+Date/Time: 2026-10-05 12:37 America/Toronto
+
+Summary:
+Camp uses the C# escape rules: \' \" \\ \0 \a \b \e \f \n \r \t \v, \x
+with one to four hex digits, \u with exactly four and \U with exactly eight.
+The compiler accepts some invalid escapes and rejects a valid one.
+
+Steps to Reproduce:
+
+1. Compile an exported entry point with `char a = '\q';`, `char b = '\u12';`,
+   `char c = '\u123';`, `wchar d = '\U00041';` and `char f = '\1';`.
+2. Compile `wchar g = '\x0041';`.
+
+Expected:
+The first five are rejected ("Character literal must contain exactly one Unicode
+scalar value"). The sixth is accepted as U+0041.
+
+Actual:
+The first five are accepted (`'\q'` is 'q', `'\u12'` is U+0012, `'\1'` is 1). The
+sixth is rejected: a \x escape is limited to two hex digits.
+
+Known Impact:
+Malformed escapes are silently reinterpreted. Beta follows the C# rules.
+
+## BUG-240: String literal escapes are copied to C unchanged
+
+Date/Time: 2026-10-05 12:37 America/Toronto
+
+Summary:
+The escapes in a string literal are not validated or translated by Camp; the text
+is emitted into the C source as written, so C's escape rules apply instead of the
+C# rules Camp uses. A malformed escape becomes a C compiler warning or error, and
+a valid one can change meaning.
+
+Steps to Reproduce:
+
+1. Compile `const char[] a = "\x0041";`, `const char[] b = "\u12";`,
+   `const char[] c = "\q";` and `const char[] d = "\x41B";` in an exported entry
+   point.
+2. Build it.
+
+Expected:
+`"\x0041"` is "A"; `"\u12"`, `"\q"` are rejected; `"\x41B"` is U+041B.
+
+Actual:
+The native build fails ("hex escape sequence out of range", "incomplete universal
+character name") or only warns ("unknown escape sequence '\q'"). In C a \x escape
+consumes every following hex digit.
+
+Known Impact:
+Escape errors have no Camp source location, and string and character literals
+disagree on what an escape means.

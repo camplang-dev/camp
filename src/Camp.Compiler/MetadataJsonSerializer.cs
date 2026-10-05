@@ -337,6 +337,8 @@ public static class MetadataJsonSerializer
 
 		void WriteTypeDefinition(Utf8JsonWriter json, TypeDefinition type)
 		{
+			if (!string.IsNullOrWhiteSpace(type.CallSpec))
+				json.WriteString("declarationCallspec", type.CallSpec);
 			if (type.GenericParameters.Count > 0)
 			{
 				json.WriteStartArray("typeParameters");
@@ -394,6 +396,8 @@ public static class MetadataJsonSerializer
 
 		void WriteStaticClassDefinition(Utf8JsonWriter json, StaticClassDefinition definition)
 		{
+			if (!string.IsNullOrWhiteSpace(definition.CallSpec))
+				json.WriteString("declarationCallspec", definition.CallSpec);
 			string? previousStaticClassName = currentStaticClassName;
 			currentStaticClassName = definition.Name;
 			WriteFieldArray(json, "fields", definition.Fields, classFields: true);
@@ -427,6 +431,8 @@ public static class MetadataJsonSerializer
 					json.WriteString("callableType", GetCallableTypeName(callable.Kind));
 					if (!string.IsNullOrWhiteSpace(callable.CallSpec))
 						json.WriteString("callspec", callable.CallSpec);
+					if (!string.IsNullOrWhiteSpace(callable.TargetSpec))
+						json.WriteString("targetspec", callable.TargetSpec);
 					WriteTypeProperty(json, "returnType", callable.ReturnType, callable.ReturnType?.ResolvedType);
 					break;
 				case IterTypeReference iter:

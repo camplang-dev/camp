@@ -28,15 +28,15 @@ export void main()
 	const byte* constBytes = default;
 	byte* bytes = default;
 	PacketHeader* packet = default;
-	Base* base = default;
+	Base* baseValue = default;
 	Plain* plain = default;
 	fn* rawFn = default;
 
 	byte* mutableBytes = (byte*)constBytes;
 	byte** twoLevelBytes = (byte**)bytes;
 	PacketHeader* directHeader = (PacketHeader*)bytes;
-	Derived* derived = (Derived*)base;
-	Unrelated* unrelated = (Unrelated*)base;
+	Derived* derived = (Derived*)baseValue;
+	Unrelated* unrelated = (Unrelated*)baseValue;
 	IThing* fabricated = (IThing*)plain;
 	nuint badBits = (nuint)rawFn;
 }

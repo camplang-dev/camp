@@ -7,7 +7,7 @@ namespace Camp.Compiler.Tests;
 public sealed class SpecifierParserTests
 {
 	[Fact]
-	public void Grammar_and_occurrence_ranges_are_independent_of_catalog_names()
+	public void Grammar_and_occurrence_ranges_use_only_the_written_source()
 	{
 		const string source = """
 			_rect /* before result */ _far _get();
@@ -19,34 +19,27 @@ public sealed class SpecifierParserTests
 			alias _choice = _targetcall;
 			alias _qualified = Space::_call;
 			""";
-		CompilationUnitSyntax[] trees = new[] { CampParserOptions.Empty, new CampParserOptions(["_rect", "_a", "_type"], ["_far", "_get", "_call"]) }
-			.Select(options => Parse(source, options)).ToArray();
-		Assert.Equal(CompilerXmlSerializer.SerializeSyntax(trees[0]).ToString(), CompilerXmlSerializer.SerializeSyntax(trees[1]).ToString());
-		MemberDeclarationSyntax[] members = Flatten(trees[0]).OfType<MemberDeclarationSyntax>().ToArray();
+		CompilationUnitSyntax tree = Parse(source);
+		MemberDeclarationSyntax[] members = Flatten(tree).OfType<MemberDeclarationSyntax>().ToArray();
 		Assert.Equal("_rect", members[0].CallSpec?.Value);
 		Assert.Equal("_far", Assert.IsType<QualifiedNameTypeSyntax>(members[0].Type).Identifier?.Value);
 		Assert.Equal("_get", members[0].Identifier?.Value);
 		Assert.Null(members[1].CallSpec);
 		Assert.Equal("_rect", Assert.IsType<QualifiedNameTypeSyntax>(members[1].Type).Identifier?.Value);
-		CallableTypeSyntax[] callables = Flatten(trees[0]).OfType<CallableTypeSyntax>().ToArray();
+		CallableTypeSyntax[] callables = Flatten(tree).OfType<CallableTypeSyntax>().ToArray();
 		Assert.Null(callables[0].CallSpec);
 		Assert.Equal("_a", Assert.IsType<QualifiedNameTypeSyntax>(callables[0].ReturnType).Identifier?.Value);
 		Assert.Equal("_call", callables[1].CallSpec?.Value);
 		Assert.Equal("_type", callables[1].TargetSpec?.Value);
 		Assert.Single(members[4].AdditionalCallSpecs!);
-		SpecifierSyntax[] occurrences = Flatten(trees[0]).OfType<SpecifierSyntax>().ToArray();
+		SpecifierSyntax[] occurrences = Flatten(tree).OfType<SpecifierSyntax>().ToArray();
 		Assert.Equal(8, occurrences.Length);
 		Assert.All(occurrences, occurrence => Assert.NotNull(occurrence.Range));
 		Assert.Equal(occurrences.Length, occurrences.Select(occurrence => occurrence.Range).Distinct().Count());
-		AliasDeclarationSyntax qualified = Flatten(trees[0]).OfType<AliasDeclarationSyntax>().Last();
+		AliasDeclarationSyntax qualified = Flatten(tree).OfType<AliasDeclarationSyntax>().Last();
 		Assert.Single(Assert.Single(qualified.TargetCandidates!).TargetName!.Qualifiers!);
-		string[] errors = new[] { CampParserOptions.Empty, new CampParserOptions(["_Far"], ["_Far"]) }.Select(options =>
-		{
-			CampParser.Parse(new TokenSequence(CampTokenizer.Tokenize("_Far int x;")), out var diagnostics, options);
-			Assert.NotEmpty(diagnostics);
-			return string.Join("\n", diagnostics.Select(diagnostic => $"{diagnostic.Range?.Index}: {diagnostic.Message}"));
-		}).ToArray();
-		Assert.Equal(errors[0], errors[1]);
+		CampParser.Parse(new TokenSequence(CampTokenizer.Tokenize("_Far int x;")), out var diagnostics);
+		Assert.NotEmpty(diagnostics);
 	}
 
 	[Theory]
@@ -103,11 +96,13 @@ public sealed class SpecifierParserTests
 		Assert.Equal("_targetcall", callable.CallSpec?.Value);
 		Assert.Equal("_targettype", callable.TargetSpec?.Value);
 		Assert.Equal("_value", Assert.IsType<ValueParameterSyntax>(Assert.Single(declaration.ParameterList!.Parameters!)).Identifier?.Value);
+		Token[] tokens = SyntaxNodeTraversal.Tokens(tree).ToArray();
+		Assert.Equal(tokens.Select(token => token.Index).Order(), tokens.Select(token => token.Index));
 	}
 
-	static CompilationUnitSyntax Parse(string source, CampParserOptions? options = null)
+	static CompilationUnitSyntax Parse(string source)
 	{
-		CompilationUnitSyntax tree = CampParser.Parse(new TokenSequence(CampTokenizer.Tokenize(source)), out IReadOnlyList<ParseDiagnostic> diagnostics, options);
+		CompilationUnitSyntax tree = CampParser.Parse(new TokenSequence(CampTokenizer.Tokenize(source)), out IReadOnlyList<ParseDiagnostic> diagnostics);
 		Assert.True(diagnostics.Count == 0, string.Join("\n", diagnostics) + "\n" + CompilerXmlSerializer.SerializeSyntax(tree));
 		return tree;
 	}

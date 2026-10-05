@@ -1,9 +1,9 @@
 // @ target test-abi-slot-compatible
 
 export void abiCompatible(
-	fn int(byte* _large) acceptsLarge,
-	fn int(byte* _small) acceptsSmall)
+	fn int(byte* large) acceptsLarge,
+	fn int(byte* small) acceptsSmall)
 {
-	fn int(byte* _small) targetSmall = acceptsLarge;
-	fn int(byte* _large) targetLarge = acceptsSmall;
+	fn int(byte* small) targetSmall = acceptsLarge;
+	fn int(byte* large) targetLarge = acceptsSmall;
 }

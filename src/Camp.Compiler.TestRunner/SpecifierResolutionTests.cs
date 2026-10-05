@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
 using Xunit;
 
 namespace Camp.Compiler.Tests;
@@ -153,6 +154,19 @@ public sealed class SpecifierResolutionTests
 		SemanticCompilation roundTrip = SemanticCompiler.CompileDeclarations(api);
 		SemanticCompiler.AssertNoDiagnostics(roundTrip);
 		Assert.Equal("_value", SemanticCompiler.Function(roundTrip, "apply").Parameters[1].Name);
+		foreach (SemanticCompilation snapshot in new[] { compilation, roundTrip })
+		{
+			using JsonDocument metadata = JsonDocument.Parse(MetadataJsonSerializer.Serialize(snapshot.Compilation, MetadataVisibility.All));
+			JsonElement[] declarations = metadata.RootElement.GetProperty("declarations").EnumerateArray().ToArray();
+			JsonElement callback = declarations.Single(d => d.GetProperty("name").GetString() == "Callback");
+			Assert.Equal("_targetcall", callback.GetProperty("callspec").GetString());
+			Assert.Equal("_targettype", callback.GetProperty("targetspec").GetString());
+			JsonElement parameter = callback.GetProperty("parameters")[0];
+			Assert.Equal("_p", parameter.GetProperty("name").GetString());
+			Assert.Equal("null", parameter.GetProperty("defaultValue").GetString());
+			Assert.Equal("_targetcall", declarations.Single(d => d.GetProperty("name").GetString() == "Surface").GetProperty("declarationCallspec").GetString());
+			Assert.Equal("_targetcall", declarations.Single(d => d.GetProperty("name").GetString() == "Helpers").GetProperty("declarationCallspec").GetString());
+		}
 	}
 
 	[Fact]

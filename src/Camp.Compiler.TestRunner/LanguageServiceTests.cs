@@ -10,6 +10,35 @@ namespace Camp.Compiler.Tests;
 public sealed class LanguageServiceTests
 {
 	[Fact]
+	public void Specifier_syntax_and_parse_errors_match_cli_across_targets_disk_cache_and_overlays()
+	{
+		string root = CreateTempDirectory("language-service-specifiers");
+		string source = Path.Combine(root, "main.camp");
+		foreach (string text in new[]
+		{
+			"newtype fn _targetcall int Callback(int* _targettype _value = null) _targettype; extern void use(fn _unknown int() _targettype callback);",
+			"extern _Far int broken();"
+		})
+		{
+			File.WriteAllText(source, text);
+			CompilationUnitSyntax expected = CampParser.Parse(new TokenSequence(CampTokenizer.Tokenize(text)), out var errors);
+			foreach (string target in new[] { "clang-macos-x64", "msvc-windows-x86" })
+			{
+				CompilerRequest request = Request(root, source);
+				request.TargetName = target;
+				foreach (bool overlay in new[] { false, false, true })
+				{
+					CampAnalysisSnapshot snapshot = CampLanguageService.Analyze(request,
+						overlay ? [new CampSourceOverlay(source, text, Version: 1)] : null);
+					SourceFile file = snapshot.Compilation.Files.Single(f => f.FullPath == source);
+					Assert.Equal(CompilerXmlSerializer.SerializeSyntax(expected).ToString(), CompilerXmlSerializer.SerializeSyntax(file.SyntaxTree!).ToString());
+					Assert.Equal(errors.Select(e => (e.Range?.Index, e.Message)), file.ParseDiagnostics.Select(e => (e.Range?.Index, e.Message)));
+				}
+			}
+		}
+	}
+
+	[Fact]
 	public void Analysis_uses_in_memory_overlay_instead_of_disk_text()
 	{
 		string root = CreateTempDirectory("language-service-overlay");

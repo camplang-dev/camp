@@ -198,7 +198,9 @@ a nondefault interface convention. Aliases and API round-tripping preserve this
 distinction.
 
 Native emission follows the existing unannotated carrier/declaration paths and
-never emits either built-in spelling as C. Generated callable helpers and export
+emits neither built-in spelling as an ABI annotation. An explicit
+`@symbol("_targetcall")` or `@symbol("_targettype")` still preserves that native
+identifier when the target permits it. Generated callable helpers and export
 forwarders must preserve the same effective ABI.
 
 ## Requirement-Aware Native Emission

@@ -30,6 +30,28 @@ Any compiler path that compares callables should use the shared callable-shape
 service or an equivalent centralized helper. Do not compare callable strings by
 ad hoc splitting in a feature-specific pass.
 
+### Source Specifier Slots And Contract Intent
+
+For each concrete callable family (`fn`, `delegate`, `async`, and `once`), a
+callspec follows the keyword and a carrier typespec follows the parameter list:
+`fn _pascal nint() _near`. A callable newtype places its name before its
+declaration parameters: `newtype fn _pascal nint Callback() _near;`. A reference
+to `Callback` is a named type and cannot receive a postfix typespec. The result
+type and nested parameters retain their own independent carrier slots.
+
+Each slot accepts one occurrence, including when two occurrences have identical
+spellings or resolve through aliases to the same effective spec. Syntax records
+every occurrence and its range before ABI normalization. The precise spelling,
+carrier table, and parameter-name disambiguation rules are defined in
+[Conversions, Raw Carriers, And Fence Casts](03-conversions-raw-carriers-and-fence-casts.md).
+
+Explicit `_targetcall` selects the target's default convention. Preserve that
+declared intent through specifier aliases and source/API serialization, even
+when the effective callable shape equals an unannotated shape. Omission remains
+distinct wherever an implementation may inherit a contract convention.
+`_targettype` selects the carrier's target default. These spellings change no
+conversion, ascription, nominal-newtype, ownership, or requirement-proof rule.
+
 ### Anonymous Callable Parameter Names
 
 Anonymous callable types may omit formal parameter names, but the compiler still

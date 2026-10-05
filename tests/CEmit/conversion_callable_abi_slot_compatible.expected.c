@@ -2,10 +2,10 @@
 #include "conversion_callable_abi_slot_compatible_private.h"
 
 
-void abiCompatible(int32_t (* acceptsLarge)(uint8_t *_large), int32_t (* acceptsSmall)(uint8_t *_small))
+void abiCompatible(int32_t (* acceptsLarge)(uint8_t *large), int32_t (* acceptsSmall)(uint8_t *small))
 {
-	int32_t (* targetSmall)(uint8_t *_small) = acceptsLarge;
-	int32_t (* targetLarge)(uint8_t *_large) = acceptsSmall;
+	int32_t (* targetSmall)(uint8_t *small) = acceptsLarge;
+	int32_t (* targetLarge)(uint8_t *large) = acceptsSmall;
 }
 
 // file: conversion_callable_abi_slot_compatible.h
@@ -14,7 +14,7 @@ void abiCompatible(int32_t (* acceptsLarge)(uint8_t *_large), int32_t (* accepts
 
 #include "conversion_callable_abi_slot_compatible_private.h"
 
-void abiCompatible(int32_t (* acceptsLarge)(uint8_t *_large), int32_t (* acceptsSmall)(uint8_t *_small));
+void abiCompatible(int32_t (* acceptsLarge)(uint8_t *large), int32_t (* acceptsSmall)(uint8_t *small));
 
 #endif
 // file: conversion_callable_abi_slot_compatible_private.h
@@ -34,7 +34,7 @@ void abiCompatible(int32_t (* acceptsLarge)(uint8_t *_large), int32_t (* accepts
 /* Layouts. */
 
 /* Function declarations. */
-void abiCompatible(int32_t (* acceptsLarge)(uint8_t *_large), int32_t (* acceptsSmall)(uint8_t *_small));
+void abiCompatible(int32_t (* acceptsLarge)(uint8_t *large), int32_t (* acceptsSmall)(uint8_t *small));
 
 /* Object declarations. */
 
