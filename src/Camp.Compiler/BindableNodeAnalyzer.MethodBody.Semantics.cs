@@ -1608,84 +1608,36 @@ public sealed partial class BindableNodeAnalyzer
 		return true;
 	}
 
+	bool TryReportIntegerLiteralOutOfRange(Expression expression, string? targetType)
+	{
+		if (targetType is null || !TryGetIntegerTypeBounds(targetType, out BigInteger min, out BigInteger max)
+			|| !TryParseIntegerLiteralValue(expression, out BigInteger value, out string literalText)
+			|| value >= min && value <= max)
+			return false;
+
+		Report(GetRange(expression.SourceSyntax), $"Integer literal '{literalText}' is outside the range of type '{targetType}'.");
+		return true;
+	}
+
 	static bool TryParseIntegerLiteralValue(Expression? expression, out BigInteger value, out string literalText)
 	{
 		value = BigInteger.Zero;
 		literalText = "";
-		if (expression is UnaryExpression { Operator: UnaryOperator.Minus, Operand: LiteralExpression { Kind: LiteralKind.Number } literal })
+		if (expression is ParenthesizedExpression parenthesized)
+			return TryParseIntegerLiteralValue(parenthesized.Expression, out value, out literalText);
+		if (expression is UnaryExpression { Operator: UnaryOperator.Minus or UnaryOperator.Plus } unary
+			&& TryParseIntegerLiteralValue(unary.Operand, out value, out literalText))
 		{
-			literalText = "-" + literal.Text;
-			if (!TryParseIntegerLiteralMagnitude(literal.Text, out value))
-				return false;
-			value = -value;
+			literalText = (unary.Operator == UnaryOperator.Minus ? "-" : "+") + literalText;
+			if (unary.Operator == UnaryOperator.Minus)
+				value = -value;
 			return true;
-		}
-		if (expression is UnaryExpression { Operator: UnaryOperator.Plus, Operand: LiteralExpression { Kind: LiteralKind.Number } plusLiteral })
-		{
-			literalText = "+" + plusLiteral.Text;
-			return TryParseIntegerLiteralMagnitude(plusLiteral.Text, out value);
 		}
 		if (expression is not LiteralExpression { Kind: LiteralKind.Number } number)
 			return false;
 
 		literalText = number.Text;
-		return TryParseIntegerLiteralMagnitude(number.Text, out value);
-	}
-
-	static bool TryParseIntegerLiteralMagnitude(string text, out BigInteger magnitude)
-	{
-		magnitude = BigInteger.Zero;
-		if (string.IsNullOrWhiteSpace(text)
-			|| text.Contains('.', StringComparison.Ordinal)
-			|| text.Contains('p', StringComparison.OrdinalIgnoreCase))
-			return false;
-
-		string coreText = text;
-		if (coreText.EndsWith("u", StringComparison.OrdinalIgnoreCase))
-			coreText = coreText[..^1];
-		else if (coreText.EndsWith("l", StringComparison.OrdinalIgnoreCase))
-			return false;
-
-		int radix = 10;
-		int start = 0;
-		if (coreText.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
-		{
-			radix = 16;
-			start = 2;
-		}
-		else if (coreText.StartsWith("0b", StringComparison.OrdinalIgnoreCase))
-		{
-			radix = 2;
-			start = 2;
-		}
-		else if (coreText.Contains('e', StringComparison.OrdinalIgnoreCase))
-		{
-			return false;
-		}
-
-		if (start >= coreText.Length)
-			return false;
-
-		for (int i = start; i < coreText.Length; i++)
-		{
-			char ch = coreText[i];
-			if (ch == '_')
-				continue;
-
-			int digit = ch switch
-			{
-				>= '0' and <= '9' => ch - '0',
-				>= 'a' and <= 'f' => ch - 'a' + 10,
-				>= 'A' and <= 'F' => ch - 'A' + 10,
-				_ => -1
-			};
-			if (digit < 0 || digit >= radix)
-				return false;
-
-			magnitude = magnitude * radix + digit;
-		}
-
-		return true;
+		return NumericLiteralParser.TryParseIntegerMagnitude(number.Text, out value);
 	}
 
 	bool TryGetIntegerTypeBounds(string type, out BigInteger min, out BigInteger max)

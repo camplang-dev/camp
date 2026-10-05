@@ -1,0 +1,7 @@
+tests/Diagnostics/integer_literal_target_ranges.camp(3,11): error: Integer literal '256' is outside the range of type 'byte'.
+tests/Diagnostics/integer_literal_target_ranges.camp(4,12): error: Integer literal '32768' is outside the range of type 'short'.
+tests/Diagnostics/integer_literal_target_ranges.camp(5,10): error: Integer literal '2147483648' is outside the range of type 'int'.
+tests/Diagnostics/integer_literal_target_ranges.camp(6,11): error: Integer literal '4294967296' is outside the range of type 'uint'.
+tests/Diagnostics/integer_literal_target_ranges.camp(7,12): error: Integer literal '18446744073709551616' is outside the range of type 'ulong'.
+tests/Diagnostics/integer_literal_target_ranges.camp(8,11): error: Integer literal '-9223372036854775809' is outside the range of type 'long'.
+tests/Diagnostics/integer_literal_target_ranges.camp(9,11): error: Integer literal '0x100UL' is outside the range of type 'byte'.

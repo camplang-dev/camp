@@ -12,6 +12,21 @@ treat them as parser conveniences: most of these forms affect overload
 resolution, lifetime facts, generated temporaries, metadata, or ABI-visible
 calls.
 
+## Integer Literal Target Ranges
+
+An integer literal used with a primitive integral target must fit that target's
+range. Body analysis checks the exact integer value before C emission, including
+decimal, hexadecimal, and integer suffixes. This
+applies to initialization, assignment, return values, arguments, and aggregate
+elements wherever a target type is supplied. Natural integer bounds follow the
+selected target and type specifier.
+
+Parentheses do not bypass the check. For unary `+` or `-` on a literal, check the
+signed value as a whole rather than the positive magnitude; this preserves
+signed minimum values such as `int value = -2147483648;`. Range checking does
+not relax ordinary conversion rules for promoted unary expressions or explicit
+casts. An out-of-range literal produces a diagnostic at its source expression.
+
 ## Character Literals
 
 A character literal denotes exactly one Unicode scalar value. Decoding first

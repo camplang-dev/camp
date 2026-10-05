@@ -1462,7 +1462,7 @@ public sealed partial class BindableNodeAnalyzer
 		}
 	}
 
-	string BodyAnalyzeExpression(Expression? expression, BodyScope scope, AnalysisScope typeScope, string? targetType = null)
+	string BodyAnalyzeExpression(Expression? expression, BodyScope scope, AnalysisScope typeScope, string? targetType = null, bool checkIntegerLiteralRange = true)
 	{
 		if (expression is null)
 			return ErrorType;
@@ -1480,7 +1480,7 @@ public sealed partial class BindableNodeAnalyzer
 			GroupedExpression grouped => BodyAnalyzeGroupedExpression(grouped, scope, typeScope),
 			ArrayExpression array => BodyAnalyzeArrayExpression(array, scope, typeScope, targetType),
 			InitializerExpression initializer => BodyAnalyzeInitializerExpression(initializer, scope, typeScope, targetType),
-			ParenthesizedExpression parenthesized => BodyAnalyzeExpression(parenthesized.Expression, scope, typeScope, targetType),
+			ParenthesizedExpression parenthesized => BodyAnalyzeExpression(parenthesized.Expression, scope, typeScope, targetType, checkIntegerLiteralRange),
 			CastExpression cast => BodyAnalyzeCastExpression(cast, scope, typeScope),
 			ConstructionExpression construction => BodyAnalyzeConstructionExpression(construction, scope, typeScope, targetType),
 			WithinExpression within => BodyAnalyzeWithinExpression(within, scope, typeScope, targetType),
@@ -1498,7 +1498,7 @@ public sealed partial class BindableNodeAnalyzer
 			IndexExpression index => BodyAnalyzeIndexExpression(index, scope, typeScope),
 			MemberExpression member => BodyAnalyzeMemberExpression(member, scope, typeScope, targetType),
 			MemberReferenceExpression member => member.ResolvedType ?? ErrorType,
-			UnaryExpression unary => BodyAnalyzeUnaryExpression(unary, scope, typeScope, targetType),
+			UnaryExpression unary => BodyAnalyzeUnaryExpression(unary, scope, typeScope, targetType, checkIntegerLiteralRange),
 			PostfixUpdateExpression postfix => BodyAnalyzePostfixUpdateExpression(postfix, scope, typeScope),
 			FinallyCleanupExpression finallyCleanup => BodyAnalyzeFinallyCleanupExpression(finallyCleanup, scope, typeScope, targetType),
 			BinaryExpression binary => BodyAnalyzeBinaryExpression(binary, scope, typeScope, targetType),
@@ -1508,6 +1508,9 @@ public sealed partial class BindableNodeAnalyzer
 			_ => ErrorType
 		};
 
+		if (checkIntegerLiteralRange && type != ErrorType && expression is not ParenthesizedExpression
+			&& TryReportIntegerLiteralOutOfRange(expression, targetType))
+			type = ErrorType;
 		expression.ResolvedType = type;
 		ApplyExpressionLifetimeFact(expression, type, scope, typeScope);
 		return type;
@@ -6155,7 +6158,7 @@ public sealed partial class BindableNodeAnalyzer
 			&& rewrittenTarget is TypeReferenceExpression;
 	}
 
-	string BodyAnalyzeUnaryExpression(UnaryExpression unary, BodyScope scope, AnalysisScope typeScope, string? targetType)
+	string BodyAnalyzeUnaryExpression(UnaryExpression unary, BodyScope scope, AnalysisScope typeScope, string? targetType, bool checkIntegerLiteralRange)
 	{
 		if (unary.Operator == UnaryOperator.Postpone)
 			return BodyAnalyzePostponeExpression(unary, scope, typeScope, targetType);
@@ -6167,7 +6170,10 @@ public sealed partial class BindableNodeAnalyzer
 			: unary.Operator == UnaryOperator.PointerDereference
 			? null
 			: targetType;
-		string operandType = BodyAnalyzeExpression(unary.Operand, scope, typeScope, operandTargetType);
+		// A signed literal is checked as a whole: its positive magnitude may exceed
+		// the signed maximum while its negation is the valid minimum.
+		bool signedLiteral = TryParseIntegerLiteralValue(unary, out _, out _);
+		string operandType = BodyAnalyzeExpression(unary.Operand, scope, typeScope, operandTargetType, checkIntegerLiteralRange && !signedLiteral);
 		if (unary.Context is not null)
 			BodyAnalyzeExpression(unary.Context, scope, typeScope);
 

@@ -44,33 +44,6 @@ Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
 
-## BUG-233: Integer literals outside the range of their target are accepted
-
-Date/Time: 2026-10-05 11:21 America/Toronto
-
-Summary:
-An integer literal that does not fit the primitive type it initializes or is
-assigned to is accepted and silently truncated by the C compiler. Enum values and
-newtype literals are range-checked; ordinary primitive targets are not.
-
-Steps to Reproduce:
-
-1. Compile an exported entry point containing `byte a = 256;`, `short b = 32768;`,
-   `int c = 2147483648;`, `uint d = 4294967296;` and `ulong e = 18446744073709551616;`.
-2. Build it.
-
-Expected:
-Each literal is rejected because its value is outside the target type's range.
-
-Actual:
-No diagnostic for the first four; clang warns that the value changes (256 becomes
-0). The last fails in the C compile ("integer literal is too large to be
-represented in any integer type") because the emitted C literal is invalid.
-
-Known Impact:
-Wrong values are stored silently. A literal wider than 64 bits surfaces as a C
-compiler error with no Camp source location.
-
 ## BUG-234: auto with no inferable type has no Camp diagnostic
 
 Date/Time: 2026-10-05 11:21 America/Toronto
