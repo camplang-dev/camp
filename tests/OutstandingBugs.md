@@ -44,28 +44,6 @@ Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
 
-## BUG-232: Assigning to an inline constant is not diagnosed
-
-Date/Time: 2026-10-05 10:53 America/Toronto
-
-Summary:
-An `inline` constant can be the target of an assignment without a diagnostic.
-
-Steps to Reproduce:
-
-1. Compile `inline int LIMIT = 10;` with an exported entry point containing
-   `LIMIT = 11;`.
-2. Build it.
-
-Expected:
-The assignment is rejected because an inline constant is a compile-time value.
-
-Actual:
-No diagnostic. The native build fails with "expression is not assignable".
-
-Known Impact:
-Same as BUG-229.
-
 ## BUG-233: Integer literals outside the range of their target are accepted
 
 Date/Time: 2026-10-05 11:21 America/Toronto

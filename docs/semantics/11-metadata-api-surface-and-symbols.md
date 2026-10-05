@@ -712,6 +712,13 @@ Inline constants and fixed enum values appear as source constants. The metadata
 value should preserve the constant kind and value rather than forcing consumers
 to parse source text.
 
+An inline constant is a compile-time value, not mutable storage. Assignment,
+compound assignment, and prefix or postfix updates must be rejected during body
+analysis at the constant reference, even when its declared type has no `const`
+qualifier. This rule also applies to namespace-qualified and static member
+references. Reading a constant into an ordinary mutable variable does not make
+that variable an inline constant.
+
 Supported inline values include scalar constants, enum values, scalar/pointer
 newtype constants, pointer null, function-pointer null, and string-like values
 as supported by the compiler. Unsupported inline constant types should diagnose

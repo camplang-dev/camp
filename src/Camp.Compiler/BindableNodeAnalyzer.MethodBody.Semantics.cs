@@ -126,6 +126,23 @@ public sealed partial class BindableNodeAnalyzer
 
 	void RequireMutableWriteTarget(Expression? target, string targetType, SyntaxNode? syntax, string context, BodyScope scope)
 	{
+		Expression? storage = target;
+		while (storage is ParenthesizedExpression parenthesized)
+			storage = parenthesized.Expression;
+		if (storage is not null && expressionRewrites.TryGetValue(storage, out Expression? storageRewrite))
+			storage = storageRewrite;
+		BindableNode? declaration = storage switch
+		{
+			VariableReferenceExpression variable => variable.Variable,
+			MemberReferenceExpression memberReference => memberReference.Member,
+			_ => null
+		};
+		if (declaration is VariableDefinition { IsInline: true } or FieldDefinition { IsInline: true })
+		{
+			Report(GetRange(storage?.SourceSyntax ?? syntax), $"{context} is an inline constant and cannot be assigned.");
+			return;
+		}
+
 		if (IsStorageAccessThroughConstReceiver(target))
 		{
 			Report(GetRange(syntax), $"{context} is const and cannot be assigned.");
