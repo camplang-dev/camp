@@ -72,6 +72,7 @@ code. Ordinary Camp users should start with the language guide.
 ## 4. `constof` And Signature Compatibility
 
 - Terms
+- Writes To Const Storage
 - Anchor Binding
 - Caller-Visible Substitution
 - Callee View

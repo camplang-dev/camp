@@ -22,6 +22,13 @@ Use these terms consistently:
 
 `thrown` slots are not ordinary output positions for `constof` variance.
 
+## Writes To Const Storage
+
+Both prefix and postfix `++`/`--` require mutable target storage. Body analysis
+must reject updates to const values, fields accessed through const receivers,
+and dereferenced const pointees, with a diagnostic on the source update target.
+These checks must run before lowering and C emission.
+
 ## Anchor Binding
 
 `constof(anchor)` binds `anchor` in the current signature scope. Valid anchors

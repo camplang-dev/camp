@@ -44,34 +44,6 @@ Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
 
-## BUG-229: Prefix increment and decrement do not check for const targets
-
-Date/Time: 2026-10-05 10:53 America/Toronto
-
-Summary:
-`++target` and `--target` are not rejected when the target is read-only, while
-the postfix forms `target++` and `target--` are. The generated C then fails to
-compile instead of the compiler reporting a diagnostic.
-
-Steps to Reproduce:
-
-1. Compile an exported entry point with `const int c = 1; ++c; --c;`, a
-   `const` struct local with `++box.value;`, and `const int* view = &value;
-   ++*view; --*view;`.
-2. Build it.
-
-Expected:
-Each prefix update is rejected as an update of a const target, the way
-`c++`, `box.value++` and `(*view)--` are ("Update target is const and cannot be
-assigned.").
-
-Actual:
-No diagnostic. The native build fails with, for example, "cannot assign to
-variable 'c' with const-qualified type 'const int'".
-
-Known Impact:
-A user error surfaces as a C compiler failure with no Camp source location.
-
 ## BUG-230: Writes through a const array view are not diagnosed
 
 Date/Time: 2026-10-05 10:53 America/Toronto

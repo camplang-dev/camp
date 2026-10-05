@@ -6205,6 +6205,11 @@ public sealed partial class BindableNodeAnalyzer
 					Report(GetRange(unary.Operand?.SourceSyntax), $"Unary operator requires a numeric operand, not '{operandType}'.");
 				return PromoteInteger(operandType);
 
+			case UnaryOperator.Increment:
+			case UnaryOperator.Decrement:
+				RequireMutableWriteTarget(unary.Operand, operandType, unary.Operand?.SourceSyntax, "Update target", scope);
+				return operandType;
+
 			default:
 				return operandType;
 		}
