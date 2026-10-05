@@ -294,3 +294,59 @@ call rather than an array element and fail with "expression is not assignable".
 Known Impact:
 Valid direct array-property indexing fails without a Camp source diagnostic.
 Copying the getter result into a local view and indexing that view works.
+
+## BUG-242: A type alias hides the unavailability of a gated target
+
+Date/Time: 2026-10-05 15:40 America/Toronto
+
+Summary:
+Using an ordinary alias whose target type is declared under a `requires` condition
+skips the availability check that the target type itself would get. The unproven
+requirement is accepted, and the build then fails during native compilation.
+
+Steps to Reproduce:
+
+1. Declare `requires (FA) struct H { int x; }` and the unconditional `alias HA = H;`.
+2. Add `int f(HA a) { return 0; }` and `export int main() { return 0; }`.
+3. Build with `-d FA=false`.
+
+Expected:
+The use of `HA` in an unconditional declaration is rejected like a use of `H`:
+"Type 'H' requires configuration 'FA', but that requirement is not proven here."
+
+Actual:
+No Camp diagnostic. The C compiler reports "unknown type name 'H'" for the
+generated declaration of `f`.
+
+Known Impact:
+Availability errors surface as native compiler failures when the type is named
+through an alias. Naming `H` directly is rejected correctly.
+
+## BUG-243: An argument spelled `context` or `otherContext` drops the length of a slice argument
+
+Date/Time: 2026-10-05 15:41 America/Toronto
+
+Summary:
+In a call that passes a slice such as `atoms[..]`, an argument identifier spelled
+`context` or `otherContext` makes the emitted C call omit the slice length. Other
+spellings (`first`, `ctx`, `declaration`) emit the call correctly.
+
+Steps to Reproduce:
+
+1. Declare `public struct T { bool pick(uint id, uint[] atoms, uint* count) { *count = (uint)atoms.length; return id != 0; } }`.
+2. Add a method `public bool implies(uint context, uint declaration)` with
+   `fixed uint[16] atoms = default; uint n = 0;` that calls
+   `this.pick(context, atoms[..], &n)` and `this.pick(declaration, atoms[..], &n)`.
+3. Add `export int main() { T t = default; return t.implies(1, 2) ? 1 : 0; }` and build.
+
+Expected:
+Both calls pass `atoms` with its length 16.
+
+Actual:
+The call using `context` is emitted as `T_pick(this, context, atoms[0, 16], &n)`, a
+comma expression with one argument fewer than the function takes, and Clang fails
+with "too few arguments to function call, expected 5, have 4". The call using
+`declaration` is emitted correctly. Renaming the argument fixes it.
+
+Known Impact:
+A valid call fails in native compilation with no Camp source diagnostic.
