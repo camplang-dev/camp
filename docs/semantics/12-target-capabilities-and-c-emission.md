@@ -124,7 +124,8 @@ The declaration is simply unavailable for that target.
 
 Native emission filters declarations whose effective requirements are false for
 the selected target. It also constant-folds `configured(...)` and prunes
-selected `if (configured(...))` branches so emitted C does not reference
+selected `if (configured(...))` branches and unreachable short-circuit operands
+so emitted C does not reference
 declarations that were filtered out.
 
 Emission filtering is deliberately later than parsing and semantic analysis.

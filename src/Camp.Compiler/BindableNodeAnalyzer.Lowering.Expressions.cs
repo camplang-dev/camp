@@ -12,6 +12,11 @@ public sealed partial class BindableNodeAnalyzer
 			&& !ReferenceEquals(rewritten, expression))
 			return LowerExpression(rewritten);
 
+		// Keep the left operand's effects, but never lower unreachable right-side
+		// calls, expanded-return temporaries, or cleanups.
+		if (expression is BinaryExpression shortCircuit && TryGetShortCircuitedLeft(shortCircuit, out Expression? left))
+			return LowerScalarExpression(left);
+
 		switch (expression)
 		{
 			case null:
@@ -379,6 +384,52 @@ public sealed partial class BindableNodeAnalyzer
 			Body = CreateBlock(branchStatements)
 		});
 		return CreateVariableReference(local.Target, valueType);
+	}
+
+	bool TryGetShortCircuitedLeft(BinaryExpression binary, out Expression? left)
+	{
+		left = binary.Left;
+		return binary.Operator is BinaryOperator.LogicalAnd or BinaryOperator.LogicalOr
+			&& TryGetKnownBooleanValue(left, out bool value)
+			&& (binary.Operator == BinaryOperator.LogicalAnd ? !value : value);
+	}
+
+	bool TryGetKnownBooleanValue(Expression? expression, out bool value)
+	{
+		// A known result is not necessarily pure: runtimeCheck() && false is false,
+		// but runtimeCheck() must still run.
+		if (expression is not null && expressionRewrites.TryGetValue(expression, out Expression? rewritten)
+			&& !ReferenceEquals(expression, rewritten))
+			return TryGetKnownBooleanValue(rewritten, out value);
+		switch (expression)
+		{
+			case LiteralExpression { Kind: LiteralKind.True or LiteralKind.False } literal:
+				value = literal.Kind == LiteralKind.True;
+				return true;
+			case ParenthesizedExpression parenthesized:
+				return TryGetKnownBooleanValue(parenthesized.Expression, out value);
+			case UnaryExpression { Operator: UnaryOperator.LogicalNot } unary
+				when TryGetKnownBooleanValue(unary.Operand, out bool operand):
+				value = !operand;
+				return true;
+			case BinaryExpression { Operator: BinaryOperator.LogicalAnd or BinaryOperator.LogicalOr } binary:
+				bool leftKnown = TryGetKnownBooleanValue(binary.Left, out bool leftValue);
+				bool isAnd = binary.Operator == BinaryOperator.LogicalAnd;
+				if (leftKnown && (isAnd ? !leftValue : leftValue))
+				{
+					value = leftValue;
+					return true;
+				}
+				if (TryGetKnownBooleanValue(binary.Right, out bool rightValue)
+					&& (leftKnown || (isAnd ? !rightValue : rightValue)))
+				{
+					value = rightValue;
+					return true;
+				}
+				break;
+		}
+		value = false;
+		return false;
 	}
 
 	bool TryRewriteMaterializedGenericIndexedMemberAccess(MemberExpression member, out Expression expression)

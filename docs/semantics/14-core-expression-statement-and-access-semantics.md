@@ -106,6 +106,12 @@ sides in the body. A disjunction such as
 `(configured(A) && useA()) || (configured(B) && useB())` proves the appropriate
 condition in each operand but proves no single condition for the whole body.
 
+Logical `||` analyzes its right operand with the left side's negative proof.
+For example, `configured(!A) || useA()` proves `A` in `useA()`. Logical `!`
+exchanges positive and negative proof; a false disjunction proves each of its
+operands false. These facts do not turn a disjunction's true body into an `A`
+proof.
+
 Conditional expressions also propagate availability proof into their arms:
 
 ```camp
@@ -138,11 +144,11 @@ For example, inside `if (configured(OS_WIN32 || OS_LINUX))`, a nested
 `configured(OS_WIN32) ? win32Value() : linuxValue()` expression may use the
 false arm to prove Linux when the surrounding requirement also allows macOS.
 
-Negative proof is intentionally conservative. The first version applies it to
-direct `configured(EXPR)` conditions in conditional expressions and `else`
-bodies. It does not infer negative facts after a terminating `if` without an
-`else`; source should use an explicit `else` block when the negated context is
-needed.
+Negative proof is intentionally conservative. It applies to `configured(EXPR)`
+conditions, logical negations and false disjunctions in guarded operands,
+conditional expressions and `else` bodies. It does not infer negative facts
+after a terminating `if` without an `else`; source should use an explicit `else`
+block when the negated context is needed.
 
 Requirement-aware return validation may use a function requirement such as
 `requires (A || B)` together with terminating `if (configured(A))` and

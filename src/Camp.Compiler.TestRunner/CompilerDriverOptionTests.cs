@@ -811,6 +811,11 @@ public sealed class CompilerDriverOptionTests
 				else
 					return macValue();
 			}
+
+			bool guardedAnd() => configured(APP_WIN) && winValue() == 1;
+			bool guardedOr() => configured(!APP_WIN) || winValue() == 1;
+			bool negatedOr() => !configured(APP_WIN) || winValue() == 1;
+			bool selectedOr() => (configured(APP_WIN) && winValue() == 1) || (configured(APP_LINUX) && linuxValue() == 2);
 			""");
 		string invalid = CreateTempCase("requirement_conditional_expression_flow_invalid.camp", """
 			requires (APP_WIN)
@@ -830,6 +835,9 @@ public sealed class CompilerDriverOptionTests
 			{
 				return configured(APP_WIN) ? winValue() : linuxValue();
 			}
+
+			bool invalidOr() => configured(APP_WIN) || winValue() == 1;
+			bool invalidAnd() => configured(!APP_WIN) && winValue() == 1;
 			""");
 
 		CompilerResult validResult = Execute(valid, request =>
@@ -853,6 +861,7 @@ public sealed class CompilerDriverOptionTests
 		Assert.NotEqual(0, invalidResult.ExitCode);
 		Assert.Contains("linuxValue", invalidResult.StdErr, StringComparison.Ordinal);
 		Assert.Contains("APP_LINUX", invalidResult.StdErr, StringComparison.Ordinal);
+		Assert.Equal(2, invalidResult.StdErr.Split("Symbol 'winValue' requires configuration 'APP_WIN'", StringSplitOptions.None).Length - 1);
 	}
 
 	[Fact]

@@ -21,10 +21,96 @@ int platformValue()
 
 export int main()
 {
+	int checks = checkShortCircuit();
+	if (checks != 0)
+		return checks + 10;
 	int value = platformValue();
 	if (configured(SUBSYSTEM_POSIX))
 		return value == 11 ? 0 : 1;
 	if (configured(OS_WIN32))
 		return value == 22 ? 0 : 2;
 	return 3;
+}
+
+int calls;
+
+bool mark()
+{
+	calls++;
+	return true;
+}
+
+requires (OS_WIN32)
+bool windowsCheck() => mark();
+
+requires (SUBSYSTEM_POSIX)
+bool posixCheck() => mark();
+
+requires (OS_WIN32)
+const char[] windowsText() => "w";
+
+requires (SUBSYSTEM_POSIX)
+const char[] posixText() => "p";
+
+bool checkText(const char[] text) => mark() && text.length == 1;
+
+requires (OS_WIN32)
+bool windowsThrowingCheck(thrown int error) => mark();
+
+bool throwingCheck(thrown int error)
+{
+	return configured(OS_WIN32) && windowsThrowingCheck();
+}
+
+int checkShortCircuit()
+{
+	calls = 0;
+	bool windows = (configured(OS_WIN32)) && windowsCheck();
+	bool posix = configured(SUBSYSTEM_POSIX) && posixCheck();
+	if (windows != configured(OS_WIN32) || posix != configured(SUBSYSTEM_POSIX) || calls != 1)
+		return 1;
+
+	calls = 0;
+	windows = configured(!OS_WIN32) || windowsCheck();
+	posix = !configured(SUBSYSTEM_POSIX) || posixCheck();
+	if (!windows || !posix || calls != 1)
+		return 2;
+
+	calls = 0;
+	bool selected = (configured(OS_WIN32) && windowsCheck()) || (configured(SUBSYSTEM_POSIX) && posixCheck());
+	if (!selected || calls != 1)
+		return 3;
+
+	calls = 0;
+	windows = configured(OS_WIN32) && checkText(windowsText());
+	posix = configured(!SUBSYSTEM_POSIX) || checkText(posixText());
+	if (windows != configured(OS_WIN32) || !posix || calls != 1)
+		return 4;
+
+	calls = 0;
+	windows = (mark() && configured(OS_WIN32)) && windowsCheck();
+	if (windows != configured(OS_WIN32) || calls != (configured(OS_WIN32) ? 2 : 1))
+		return 5;
+	calls = 0;
+	posix = (mark() || configured(!SUBSYSTEM_POSIX)) || posixCheck();
+	if (!posix || calls != 1)
+		return 6;
+
+	calls = 0;
+	int error = 0;
+	windows = throwingCheck(catch error);
+	if (windows != configured(OS_WIN32) || error != 0 || calls != (configured(OS_WIN32) ? 1 : 0))
+		return 7;
+
+	calls = 0;
+	if (!configured(!OS_WIN32) && windowsCheck())
+		windowsCheck();
+	if (calls != (configured(OS_WIN32) ? 2 : 0))
+		return 8;
+	calls = 0;
+	if ((mark() && configured(OS_WIN32)) && windowsCheck())
+		windowsCheck();
+	if (calls != (configured(OS_WIN32) ? 3 : 1))
+		return 9;
+	return 0;
 }

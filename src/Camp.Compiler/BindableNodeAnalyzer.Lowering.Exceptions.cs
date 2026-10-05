@@ -594,6 +594,10 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (expression is null)
 			return null;
+		// Prune before throw capture can materialize the unreachable operand.
+		// Evaluate the left expression itself, not a literal, to preserve its effects.
+		if (expression is BinaryExpression shortCircuit && TryGetShortCircuitedLeft(shortCircuit, out Expression? left))
+			return LowerExpressionForThrowCapture(left, errorTarget);
 
 		switch (expression)
 		{

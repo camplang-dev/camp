@@ -6538,7 +6538,12 @@ public sealed partial class BindableNodeAnalyzer
 		else
 		{
 			left = BodyAnalyzeExpression(binary.Left, scope, typeScope);
-			ConfigurationFlagExpression? leftProof = binary.Operator == BinaryOperator.LogicalAnd ? GetPositiveRequirementProof(binary.Left) : null;
+			ConfigurationFlagExpression? leftProof = binary.Operator switch
+			{
+				BinaryOperator.LogicalAnd => GetPositiveRequirementProof(binary.Left),
+				BinaryOperator.LogicalOr => GetNegativeDirectRequirementProof(binary.Left),
+				_ => null
+			};
 			right = "";
 			WithRequirementProof(leftProof, () =>
 			{
@@ -6572,6 +6577,8 @@ public sealed partial class BindableNodeAnalyzer
 				return configured;
 			case BinaryExpression { Operator: BinaryOperator.LogicalAnd } binary:
 				return ConfigurationFlagExpressionBinder.And(GetPositiveRequirementProof(binary.Left), GetPositiveRequirementProof(binary.Right));
+			case UnaryExpression { Operator: UnaryOperator.LogicalNot } unary:
+				return GetNegativeDirectRequirementProof(unary.Operand);
 			default:
 				return null;
 		}
@@ -6580,9 +6587,15 @@ public sealed partial class BindableNodeAnalyzer
 	ConfigurationFlagExpression? GetNegativeDirectRequirementProof(Expression? expression)
 	{
 		expression = UnwrapParenthesizedExpression(expression);
-		return expression is CallExpression call && TryGetConfiguredRequirement(call, out ConfigurationFlagExpression? configured)
-			? ConfigurationFlagExpressionBinder.Not(configured)
-			: null;
+		return expression switch
+		{
+			CallExpression call when TryGetConfiguredRequirement(call, out ConfigurationFlagExpression? configured)
+				=> ConfigurationFlagExpressionBinder.Not(configured),
+			UnaryExpression { Operator: UnaryOperator.LogicalNot } unary => GetPositiveRequirementProof(unary.Operand),
+			BinaryExpression { Operator: BinaryOperator.LogicalOr } binary
+				=> ConfigurationFlagExpressionBinder.And(GetNegativeDirectRequirementProof(binary.Left), GetNegativeDirectRequirementProof(binary.Right)),
+			_ => null
+		};
 	}
 
 	bool TryGetConfiguredRequirement(CallExpression call, out ConfigurationFlagExpression? requirement)

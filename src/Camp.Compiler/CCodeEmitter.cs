@@ -4711,8 +4711,16 @@ public static class CCodeEmitter
 
         void WriteIfStatement(TextWriter writer, IfStatement ifStatement, int indent)
         {
-            if (TryEvaluateConfiguredCondition(ifStatement.Condition, out bool configuredValue))
+            bool pureCondition = TryEvaluateConfiguredCondition(ifStatement.Condition, out bool configuredValue);
+            if (pureCondition || TryEvaluateConfiguredCondition(ifStatement.Condition, out configuredValue, allowEffects: true))
             {
+                // A runtime prefix can still have effects even when configuration
+                // fixes the condition's result, e.g. runtimeCheck() && false.
+                if (!pureCondition)
+                {
+                    WriteIndent(writer, indent);
+                    writer.WriteLine("(void)(" + FormatExpression(ifStatement.Condition) + ");");
+                }
                 if (configuredValue)
                     WriteEmbeddedStatement(writer, ifStatement.Body, indent);
                 else if (ifStatement.ElseBody is not null)
@@ -5699,11 +5707,33 @@ public static class CCodeEmitter
             return text;
         }
 
-        bool TryEvaluateConfiguredCondition(Expression? expression, out bool value)
+        bool TryEvaluateConfiguredCondition(Expression? expression, out bool value, bool allowEffects = false)
         {
             value = false;
             if (expression is ParenthesizedExpression parenthesized)
-                return TryEvaluateConfiguredCondition(parenthesized.Expression, out value);
+                return TryEvaluateConfiguredCondition(parenthesized.Expression, out value, allowEffects);
+            if (expression is UnaryExpression { Operator: UnaryOperator.LogicalNot } unary
+                && TryEvaluateConfiguredCondition(unary.Operand, out bool operand, allowEffects))
+            {
+                value = !operand;
+                return true;
+            }
+            if (expression is BinaryExpression { Operator: BinaryOperator.LogicalAnd or BinaryOperator.LogicalOr } binary)
+            {
+                bool isAnd = binary.Operator == BinaryOperator.LogicalAnd;
+                bool leftKnown = TryEvaluateConfiguredCondition(binary.Left, out bool leftValue, allowEffects);
+                if (leftKnown && (isAnd ? !leftValue : leftValue))
+                {
+                    value = leftValue;
+                    return true;
+                }
+                if (TryEvaluateConfiguredCondition(binary.Right, out bool rightValue, allowEffects)
+                    && (leftKnown || allowEffects && (isAnd ? !rightValue : rightValue)))
+                {
+                    value = rightValue;
+                    return true;
+                }
+            }
             if (expression is LiteralExpression { Kind: LiteralKind.True })
             {
                 value = true;
