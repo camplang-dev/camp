@@ -1,0 +1,9 @@
+void test()
+{
+	string a = "\q";
+	string b = "\u12";
+	string c = "\1";
+	string d = "\U00110000";
+	auto e = $"bad\q";
+	auto f = $"{1}\u123";
+}

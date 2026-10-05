@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Text;
 
 namespace Camp.Compiler;
@@ -188,7 +187,7 @@ public sealed partial class BindableNodeBuilder
 			LiteralKind.True => true,
 			LiteralKind.False => false,
 			LiteralKind.Null => null,
-			LiteralKind.String => DecodeStringLiteral(literal.Value),
+			LiteralKind.String => DecodeStringLiteral(literal.Value, syntax),
 			_ => literal.Value
 		};
 		int? codePoint = null;
@@ -240,7 +239,7 @@ public sealed partial class BindableNodeBuilder
 					expression.Segments.Add(new InterpolatedStringTextSegment
 					{
 						SourceSyntax = text,
-						Text = DecodeStringContent(text.Text, 0, text.Text.Length)
+						Text = DecodeStringContent(text.Text, 0, text.Text.Length, syntax)
 					});
 					break;
 
@@ -883,7 +882,7 @@ public sealed partial class BindableNodeBuilder
 		return BuildExpression(syntax, context);
 	}
 
-	static string DecodeStringLiteral(string text)
+	string DecodeStringLiteral(string text, SyntaxNode syntax)
 	{
 		if (text.Length < 2)
 			return text;
@@ -892,91 +891,13 @@ public sealed partial class BindableNodeBuilder
 		if (text[^1] != quote || quote is not ('"' or '\'' or '`'))
 			return text;
 
-		return DecodeStringContent(text, 1, text.Length - 1);
+		return DecodeStringContent(text, 1, text.Length - 1, syntax);
 	}
 
-	static string DecodeStringContent(string text, int start, int end)
+	string DecodeStringContent(string text, int start, int end, SyntaxNode syntax)
 	{
-		StringBuilder builder = new();
-
-		for (int i = start; i < end; i++)
-		{
-			char c = text[i];
-			if (c != '\\' || i + 1 >= end)
-			{
-				builder.Append(c);
-				continue;
-			}
-
-			char escaped = text[++i];
-			switch (escaped)
-			{
-				case '0':
-					builder.Append('\0');
-					break;
-				case 'a':
-					builder.Append('\a');
-					break;
-				case 'b':
-					builder.Append('\b');
-					break;
-				case 'f':
-					builder.Append('\f');
-					break;
-				case 'n':
-					builder.Append('\n');
-					break;
-				case 'r':
-					builder.Append('\r');
-					break;
-				case 't':
-					builder.Append('\t');
-					break;
-				case 'v':
-					builder.Append('\v');
-					break;
-				case '\\':
-				case '"':
-				case '\'':
-				case '`':
-					builder.Append(escaped);
-					break;
-				case 'x':
-					AppendHexEscape(builder, text, ref i, maxDigits: 2);
-					break;
-				case 'u':
-					AppendHexEscape(builder, text, ref i, maxDigits: 4);
-					break;
-				case 'U':
-					AppendHexEscape(builder, text, ref i, maxDigits: 8);
-					break;
-				default:
-					builder.Append(escaped);
-					break;
-			}
-		}
-
-		return builder.ToString();
-	}
-
-	static void AppendHexEscape(StringBuilder builder, string text, ref int index, int maxDigits)
-	{
-		int start = index + 1;
-		int end = start;
-		int limit = Math.Min(text.Length - 1, start + maxDigits);
-
-		while (end < limit && Uri.IsHexDigit(text[end]))
-			end++;
-
-		if (end == start)
-			return;
-
-		string digits = text[start..end];
-		if (int.TryParse(digits, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out int value)
-			&& value <= 0x10FFFF
-			&& value is not (>= 0xD800 and <= 0xDFFF))
-			builder.Append(char.ConvertFromUtf32(value));
-
-		index = end - 1;
+		if (!LiteralEscapeDecoder.TryDecode(text.AsSpan(start, end - start), out string value, allowSurrogateEscapes: true))
+			Report(syntax, "String literal contains an invalid escape sequence.");
+		return value;
 	}
 }

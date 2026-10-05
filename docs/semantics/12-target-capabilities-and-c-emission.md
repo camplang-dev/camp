@@ -263,6 +263,12 @@ resolved target C type, such as `((uint16_t)0xE9)` or `((uint32_t)0x1F600)`, so
 generated C does not depend on implementation-defined multicharacter or
 wide-character literal behavior.
 
+Emit string literals from their decoded values, never by copying source escape
+spellings into C. Narrow literals use the same encoded bytes as their element
+counts and fixed-storage copies. Use bounded C escapes so following digits
+cannot extend an escape, including an embedded NUL followed by a digit. Wide
+strings preserve UTF-16 units and use C-safe escapes or unit storage.
+
 ## C Emission Preconditions
 
 C emission requires a lowered bindable tree with no unresolved/error marker

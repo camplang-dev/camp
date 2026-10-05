@@ -1,0 +1,33 @@
+export int main()
+{
+	const char[] ascii = "\x0041\u0042\U00000043";
+	if (ascii.length != 3 || ascii[0] != 'A' || ascii[1] != 'B' || ascii[2] != 'C') return 1;
+	const char[] variableHex = "\x41B";
+	if (variableHex.length != 2 || variableHex[0] != (char)0xD0 || variableHex[1] != (char)0x9B) return 2;
+	const char[] trailingHex = "\x0041B";
+	if (trailingHex.length != 2 || trailingHex[0] != 'A' || trailingHex[1] != 'B') return 3;
+	const char[] nul = "\01\02\07";
+	if (nul.length != 6 || nul[0] != (char)0 || nul[1] != '1' || nul[2] != (char)0 || nul[3] != '2' || nul[4] != (char)0 || nul[5] != '7') return 4;
+	const char[] controls = "\a\b\e\f\n\r\t\v\\\"\'";
+	if (controls.length != 11 || controls[0] != '\a' || controls[1] != '\b' || controls[2] != '\e' || controls[3] != '\f' || controls[4] != '\n' || controls[5] != '\r' || controls[6] != '\t' || controls[7] != '\v' || controls[8] != '\\' || controls[9] != '\"' || controls[10] != '\'') return 5;
+	const char[] face = "\U0001F600";
+	const char[] pair = "\uD83D\uDE00";
+	if (face.length != 4 || pair.length != 4 || face[0] != (char)0xF0 || face[1] != (char)0x9F || face[2] != (char)0x98 || face[3] != (char)0x80) return 6;
+	for (nuint i = 0; i < face.length; i++) { if (face[i] != pair[i]) return 7; }
+	const wchar[] wide = "\x41B\U0001F600\01\e";
+	if (wide.length != 6 || wide[0] != (wchar)0x41B || wide[1] != (wchar)0xD83D || wide[2] != (wchar)0xDE00 || wide[3] != (wchar)0 || wide[4] != '1' || wide[5] != '\e') return 8;
+	const wchar[] loneSurrogate = "\uD800";
+	if (loneSurrogate.length != 1 || loneSurrogate[0] != (wchar)0xD800) return 9;
+	const achar[] ansi = "\x0041\01\e";
+	if (ansi.length != 4 || ansi[0] != (achar)65 || ansi[1] != (achar)0 || ansi[2] != (achar)49 || ansi[3] != (achar)27) return 10;
+	fixed char[4] storage = "\x0041\01";
+	if (storage[0] != 'A' || storage[1] != (char)0 || storage[2] != '1' || storage[3] != (char)0) return 11;
+	int number = 7;
+	const char[] interpolated = $"\x0041{number}\x41B";
+	if (interpolated.length != 4 || interpolated[0] != 'A' || interpolated[1] != '7' || interpolated[2] != (char)0xD0 || interpolated[3] != (char)0x9B) return 12;
+	const char[] constantText = $"\x41B\01";
+	if (constantText.length != 4 || constantText[0] != (char)0xD0 || constantText[1] != (char)0x9B || constantText[2] != (char)0 || constantText[3] != '1') return 13;
+	const char[] punctuation = "\u003F\u003F/";
+	if (punctuation.length != 3 || punctuation[0] != '?' || punctuation[1] != '?' || punctuation[2] != '/') return 14;
+	return 0;
+}

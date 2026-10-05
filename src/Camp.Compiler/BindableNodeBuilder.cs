@@ -2552,6 +2552,7 @@ public sealed partial class BindableNodeBuilder
 		return expression switch
 		{
 			LiteralExpressionSyntax literal => literal.Literal?.Range,
+			InterpolatedStringExpressionSyntax interpolation => interpolation.Literal?.Range,
 			QualifiedNameExpressionSyntax name => name.Identifier?.Range,
 			ThisExpressionSyntax thisExpression => thisExpression.ThisKeyword?.Range,
 			DefaultExpressionSyntax defaultExpression => defaultExpression.DefaultKeyword?.Range,

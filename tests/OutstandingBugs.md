@@ -44,35 +44,6 @@ Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
 
-## BUG-240: String literal escapes are copied to C unchanged
-
-Date/Time: 2026-10-05 12:37 America/Toronto
-
-Summary:
-The escapes in a string literal are not validated or translated by Camp; the text
-is emitted into the C source as written, so C's escape rules apply instead of the
-C# rules Camp uses. A malformed escape becomes a C compiler warning or error, and
-a valid one can change meaning.
-
-Steps to Reproduce:
-
-1. Compile `const char[] a = "\x0041";`, `const char[] b = "\u12";`,
-   `const char[] c = "\q";` and `const char[] d = "\x41B";` in an exported entry
-   point.
-2. Build it.
-
-Expected:
-`"\x0041"` is "A"; `"\u12"`, `"\q"` are rejected; `"\x41B"` is U+041B.
-
-Actual:
-The native build fails ("hex escape sequence out of range", "incomplete universal
-character name") or only warns ("unknown escape sequence '\q'"). In C a \x escape
-consumes every following hex digit.
-
-Known Impact:
-Escape errors have no Camp source location, and string and character literals
-disagree on what an escape means.
-
 ## BUG-241: Direct indexing of an array returned by a property lowers as an accessor argument
 
 Date/Time: 2026-10-05 15:06 America/Toronto

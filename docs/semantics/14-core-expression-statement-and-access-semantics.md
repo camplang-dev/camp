@@ -77,6 +77,12 @@ Ordinary assignment to a `bool` remains valid.
 
 ## Character Literals
 
+Ordinary string literals and interpolation text use the same escape spellings
+listed below. Invalid escapes are diagnosed at their Camp source segment before
+native compilation. String `\u` and `\x` escapes can denote UTF-16 code units;
+unlike characters, a string can contain multiple units, including surrogate
+pairs. A `\U` escape always denotes a valid Unicode scalar.
+
 A character literal denotes exactly one Unicode scalar value. Decoding first
 applies the ordinary string/character escape rules, then validates the decoded
 text as one scalar value. Empty literals, multi-scalar literals, malformed

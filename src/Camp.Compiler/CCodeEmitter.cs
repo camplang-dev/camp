@@ -2487,9 +2487,29 @@ public static class CCodeEmitter
             };
         }
 
-        static string FormatCStringLiteral(string value)
+        static string FormatCStringLiteral(string value, string elementType = "char")
         {
-            return "\"" + EscapeCString(value, quote: '"') + "\"";
+            StringBuilder builder = new("\"");
+            foreach (byte unit in StringLiteralEncoding.GetBytes(value, elementType))
+            {
+                builder.Append(unit switch
+                {
+                    (byte)'\\' => "\\\\",
+                    (byte)'"' => "\\\"",
+                    (byte)'?' => "\\?",
+                    7 => "\\a",
+                    8 => "\\b",
+                    9 => "\\t",
+                    10 => "\\n",
+                    11 => "\\v",
+                    12 => "\\f",
+                    13 => "\\r",
+                    >= 32 and <= 126 => ((char)unit).ToString(),
+                    // Three octal digits prevent a following digit from extending the escape.
+                    _ => "\\" + Convert.ToString(unit, 8).PadLeft(3, '0')
+                });
+            }
+            return builder.Append('"').ToString();
         }
 
         static string FormatCCharacterLiteral(string value)
@@ -7936,7 +7956,7 @@ public static class CCodeEmitter
             return literal.Kind switch
             {
                 LiteralKind.Number => FormatNumberLiteralForC(literal.Text),
-                LiteralKind.String => literal.Text,
+                LiteralKind.String => FormatCStringLiteral(literal.Value as string ?? "", IsAnsiStringLiteralType(literal.ResolvedType) ? "achar" : "char"),
                 LiteralKind.Character => FormatCharacterLiteral(literal),
                 LiteralKind.True => "true",
                 LiteralKind.False => "false",
@@ -7998,13 +8018,19 @@ public static class CCodeEmitter
             return type is "wstring" or "wchar*" or "wchar[]";
         }
 
+        static bool IsAnsiStringLiteralType(string? type)
+        {
+            type = StripTypeQualifiers(type ?? "");
+            return type is "astring" or "achar*" or "achar[]";
+        }
+
         string FormatWideStringLiteral(LiteralExpression literal)
         {
-            string prefix = compilation.Target?.Capabilities.GetCapabilityValue("wstring_prefix") ?? "";
-            if (!string.IsNullOrWhiteSpace(prefix))
-                return prefix + FormatWideCampStringLiteral(literal.Value as string ?? "");
-
             string text = literal.Value as string ?? "";
+            string prefix = compilation.Target?.Capabilities.GetCapabilityValue("wstring_prefix") ?? "";
+            if (!string.IsNullOrWhiteSpace(prefix) && !ContainsUnpairedSurrogate(text))
+                return prefix + FormatWideCampStringLiteral(text);
+
             if (currentWideStringLiteralNames.TryGetValue(text, out string? existingName))
                 return existingName;
 
@@ -8017,6 +8043,19 @@ public static class CCodeEmitter
             currentWideStringLiteralNames.Add(text, name);
             currentWideStringLiterals.Add((name, string.Join(", ", units)));
             return name;
+        }
+
+        static bool ContainsUnpairedSurrogate(string text)
+        {
+            for (int i = 0; i < text.Length; i++)
+            {
+                if (!char.IsSurrogate(text[i]))
+                    continue;
+                if (!char.IsHighSurrogate(text[i]) || i + 1 == text.Length || !char.IsLowSurrogate(text[i + 1]))
+                    return true;
+                i++;
+            }
+            return false;
         }
 
         static string FormatWideCampStringLiteral(string value)
@@ -8033,6 +8072,9 @@ public static class CCodeEmitter
                     case '"':
                         builder.Append("\\\"");
                         break;
+                    case '?':
+                        builder.Append("\\?");
+                        break;
                     case '\n':
                         builder.Append("\\n");
                         break;
@@ -8043,7 +8085,7 @@ public static class CCodeEmitter
                         builder.Append("\\t");
                         break;
                     case '\0':
-                        builder.Append("\\0");
+                        builder.Append("\\000");
                         break;
                     default:
                         if (char.IsHighSurrogate(ch) && i + 1 < value.Length && char.IsLowSurrogate(value[i + 1]))
@@ -8055,6 +8097,10 @@ public static class CCodeEmitter
                         else if (ch is >= ' ' and <= '~')
                         {
                             builder.Append(ch);
+                        }
+                        else if (ch < ' ' || ch == 127)
+                        {
+                            builder.Append('\\').Append(Convert.ToString(ch, 8).PadLeft(3, '0'));
                         }
                         else
                         {

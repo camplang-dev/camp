@@ -3,19 +3,21 @@ using Std;
 export int main()
 {
 	const char[] box = "┌";
+	fixed char[3] boxBytes = [(char)0xE2, (char)0x94, (char)0x8C];
 	if (box.length != 3)
 		return 1;
-	if (box.compareTo("\xE2\x94\x8C") != 0)
+	if (box.compareTo(boxBytes[..]) != 0)
 		return 2;
 
 	const char[] mixed = "A┌é";
+	fixed char[6] mixedBytes = ['A', (char)0xE2, (char)0x94, (char)0x8C, (char)0xC3, (char)0xA9];
 	if (mixed.length != 6)
 		return 3;
-	if (mixed.compareTo("A\xE2\x94\x8C\xC3\xA9") != 0)
+	if (mixed.compareTo(mixedBytes[..]) != 0)
 		return 4;
 
 	fixed char[3] interpolatedBox = $"┌";
-	if (interpolatedBox[..].compareTo("\xE2\x94\x8C") != 0)
+	if (interpolatedBox[..].compareTo(boxBytes[..]) != 0)
 		return 5;
 
 	const wchar[] wide = "Aé\U0001F600";

@@ -159,6 +159,11 @@ const char[] label = "ready";
 const char* nativeText = "native";
 ```
 
+Strings and characters use C# escape spellings, including `\n`, `\t`, `\\`,
+`\"`, and `\e` (escape, U+001B). Hexadecimal `\x` consumes one to four digits;
+`\u` requires four and `\U` requires eight. For example, `"\x0041"` is `"A"`,
+while `"\x41B"` is `"Л"`. Unknown and incomplete escapes are compiler errors.
+
 The same pattern exists for wide and system-code-page text: `wstring` pairs
 with `wchar` storage, and `astring` pairs with `achar` storage. Use those forms
 when an API or target boundary is explicitly UTF-16-oriented or native

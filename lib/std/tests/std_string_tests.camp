@@ -32,7 +32,7 @@ void utf8StringSearchTrimCaseJoinAndEmbeddedNulls(thrown Assertion* assertion)
 	assert("alpha".compareTo("Bravo", true) == -1, "case-insensitive compareTo should report UTF-8 strings in ascending order");
 	assert("Bravo".compareTo("alpha", true) == 1, "case-insensitive compareTo should report UTF-8 strings in descending order");
 
-	string accent = "caf\xC3\xA9";
+	string accent = "caf\u00E9";
 	assert(accent[..].countUChars() == 4, "countUChars should count UTF-8 code points");
 	assert(accent[..].getUChar(3) == (uchar)233, "getUChar should decode UTF-8 code points");
 	assert(accent[..].getUCharUnits(3) == 2, "getUCharUnits should report UTF-8 unit count");

@@ -39,7 +39,7 @@ export int main()
 	if (text.compareTo("  Hello, hello!  ") != 0)
 		return 12;
 
-	string accent = "caf\xC3\xA9";
+	string accent = "caf\u00E9";
 	if (accent[..].countUChars() != 4)
 		return 13;
 	if (accent[..].getUChar(3) != (uchar)233)

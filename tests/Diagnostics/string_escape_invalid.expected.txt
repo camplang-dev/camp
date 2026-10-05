@@ -1,0 +1,6 @@
+tests/Diagnostics/string_escape_invalid.camp(3,13): error: String literal contains an invalid escape sequence.
+tests/Diagnostics/string_escape_invalid.camp(4,13): error: String literal contains an invalid escape sequence.
+tests/Diagnostics/string_escape_invalid.camp(5,13): error: String literal contains an invalid escape sequence.
+tests/Diagnostics/string_escape_invalid.camp(6,13): error: String literal contains an invalid escape sequence.
+tests/Diagnostics/string_escape_invalid.camp(7,11): error: String literal contains an invalid escape sequence.
+tests/Diagnostics/string_escape_invalid.camp(8,11): error: String literal contains an invalid escape sequence.
