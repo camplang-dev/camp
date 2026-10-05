@@ -2,9 +2,9 @@
 
 ## Status
 
-Pending. Numbered and moved to pending with maintainer approval on 2026-10-05.
-Not yet implemented or accepted. This lifecycle transition does not itself
-authorize implementation.
+Accepted and implemented in DEV-016 on 2026-10-05. This proposal records the
+approved design; current behavior is specified by the living language and
+semantics guides.
 
 ## Proposal Date
 
@@ -432,39 +432,39 @@ Prefer extending existing dense parser, semantic, target, API, and C-emission
 tests. Planned maintained cases and implementation should be ready before the
 focused verification run; do not add redundant coverage after a passing run.
 
-- [ ] Identical source yields identical specifier nodes/ranges and parse errors
+- [x] Identical source yields identical specifier nodes/ranges and parse errors
   with no catalog and with differing catalogs; editor parsing uses the same rule.
-- [ ] All spelling examples, ordinary unknown spec-shaped names, and reserved
+- [x] All spelling examples, ordinary unknown spec-shaped names, and reserved
   catalog-name collisions behave as specified, including BUG-228 cases.
-- [ ] Explicit `@symbol` names matching specs or Camp reserved words are not
+- [x] Explicit `@symbol` names matching specs or Camp reserved words are not
   rejected by Camp source-name checks. Function and struct-field cases preserve
   source lookup, native spelling, visibility, and API round-tripping. Genuine
   native collisions or target-invalid names still receive diagnostics.
-- [ ] All four positions, declaration backtracking, callable result-name
+- [x] All four positions, declaration backtracking, callable result-name
   ambiguity, casts, parameter delimiters/defaults, and disambiguators are covered.
-- [ ] Invalid leading globals/fields/locals are diagnosed (including BUG-227),
+- [x] Invalid leading globals/fields/locals are diagnosed (including BUG-227),
   rather than ignored or interpreted as supported prefix typespecs.
-- [ ] Every eligible/ineligible carrier category is covered, including nested
+- [x] Every eligible/ineligible carrier category is covered, including nested
   independent carriers, generic instantiation rejection, strings, optionals,
   raw `fn*`, and callable-newtype declarations versus references.
-- [ ] Identical and conflicting duplicates are rejected before normalization;
+- [x] Identical and conflicting duplicates are rejected before normalization;
   one spec per independent carrier remains valid.
-- [ ] Alias chains, cycles, ordered fallback validation, alias-name categories,
+- [x] Alias chains, cycles, ordered fallback validation, alias-name categories,
   and mixed-kind alternatives are tested. An unselected branch still has its
   kind validated without requiring it to be active on the current target.
-- [ ] Unknown, wrong-kind, invalid-carrier, and requirement-not-proven cases
+- [x] Unknown, wrong-kind, invalid-carrier, and requirement-not-proven cases
   remain distinguishable; guarded known-spec uses remain valid.
-- [ ] Both language markers work without stdlib/target declarations; omission
+- [x] Both language markers work without stdlib/target declarations; omission
   versus explicit `_targetcall` is preserved across interface/override contracts,
   aliases, and API round trips. Native output contains neither marker as a
   specifier; an explicitly requested native symbol of that spelling is preserved.
-- [ ] Existing conversion/cast, ascription, interface/override, and callable-
+- [x] Existing conversion/cast, ascription, interface/override, and callable-
   newtype tests retain their semantic expectations. Syntax migrations may change
   fixture spelling and relevant diagnostics, not relax or redefine those rules.
-- [ ] Emitted Camp API reparses without catalog-sensitive syntax, preserves
+- [x] Emitted Camp API reparses without catalog-sensitive syntax, preserves
   parameter names/defaults, and retains declared ABI intent; representative
   native declarations/callbacks still compile and execute on supported hosts.
-- [ ] Living docs describe the same grammar and resolution rules; obsolete
+- [x] Living docs describe the same grammar and resolution rules; obsolete
   syntax is not silently accepted as a second supported dialect.
 
 Use focused macOS development tests and targeted Windows/Linux checks for native
