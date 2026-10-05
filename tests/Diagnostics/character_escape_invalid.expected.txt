@@ -1,0 +1,5 @@
+tests/Diagnostics/character_escape_invalid.camp(3,11): error: Character literal must contain exactly one Unicode scalar value.
+tests/Diagnostics/character_escape_invalid.camp(4,11): error: Character literal must contain exactly one Unicode scalar value.
+tests/Diagnostics/character_escape_invalid.camp(5,11): error: Character literal must contain exactly one Unicode scalar value.
+tests/Diagnostics/character_escape_invalid.camp(6,11): error: Character literal must contain exactly one Unicode scalar value.
+tests/Diagnostics/character_escape_invalid.camp(7,11): error: Character literal must contain exactly one Unicode scalar value.

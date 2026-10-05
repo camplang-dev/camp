@@ -188,13 +188,15 @@ public sealed partial class BindableNodeBuilder
 			LiteralKind.True => true,
 			LiteralKind.False => false,
 			LiteralKind.Null => null,
-			LiteralKind.String or LiteralKind.Character => DecodeStringLiteral(literal.Value),
+			LiteralKind.String => DecodeStringLiteral(literal.Value),
 			_ => literal.Value
 		};
 		int? codePoint = null;
-		if (kind == LiteralKind.Character && value is string characterText)
+		if (kind == LiteralKind.Character)
 		{
-			if (TryGetSingleUnicodeScalar(characterText, out int scalar))
+			bool decoded = LiteralEscapeDecoder.TryDecode(literal.Value.AsSpan(1, literal.Value.Length - 2), out string characterText);
+			value = characterText;
+			if (decoded && TryGetSingleUnicodeScalar(characterText, out int scalar))
 				codePoint = scalar;
 			else
 				Report(syntax, "Character literal must contain exactly one Unicode scalar value.");

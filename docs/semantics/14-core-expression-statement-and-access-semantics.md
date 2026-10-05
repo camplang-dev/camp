@@ -82,6 +82,11 @@ applies the ordinary string/character escape rules, then validates the decoded
 text as one scalar value. Empty literals, multi-scalar literals, malformed
 escapes, and unpaired or escaped surrogate code points are invalid.
 
+Character escapes are `\'`, `\"`, `\\`, `\0`, `\a`, `\b`, `\e`, `\f`,
+`\n`, `\r`, `\t`, and `\v`; `\e` denotes U+001B. A `\x` escape consumes
+one to four hexadecimal digits, `\u` requires exactly four, and `\U` requires
+exactly eight. Unknown escapes and octal escapes such as `\1` are invalid.
+
 When no useful target type is available, including `auto`, a character literal
 uses the narrowest ordinary character-code primitive that can represent the
 scalar:

@@ -1,0 +1,8 @@
+void test()
+{
+	auto a = '\q';
+	auto b = '\u12';
+	auto c = '\u123';
+	auto d = '\U00041';
+	auto e = '\1';
+}

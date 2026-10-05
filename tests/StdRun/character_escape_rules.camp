@@ -1,0 +1,12 @@
+export int main()
+{
+	if ('\x4' != (char)4 || '\x41' != 'A' || '\x041' != 'A' || '\x0041' != 'A') return 1;
+	if ('\u0041' != 'A' || '\U00000041' != 'A' || '\e' != (char)27) return 2;
+	if ('\0' != (char)0 || '\a' != (char)7 || '\b' != (char)8) return 3;
+	if ('\f' != (char)12 || '\n' != (char)10 || '\r' != (char)13) return 4;
+	if ('\t' != (char)9 || '\v' != (char)11 || '\\' != (char)92) return 5;
+	if ('\'' != (char)39 || '\"' != (char)34) return 6;
+	if ('\uFFFF' != (wchar)65535 || '\U0010FFFF' != (uchar)0x10FFFF) return 7;
+	if ('\U0001F600' != '😀') return 8;
+	return 0;
+}

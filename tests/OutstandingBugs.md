@@ -44,32 +44,6 @@ Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
 
-## BUG-239: Character literal escapes do not follow the C# rules
-
-Date/Time: 2026-10-05 12:37 America/Toronto
-
-Summary:
-Camp uses the C# escape rules: \' \" \\ \0 \a \b \e \f \n \r \t \v, \x
-with one to four hex digits, \u with exactly four and \U with exactly eight.
-The compiler accepts some invalid escapes and rejects a valid one.
-
-Steps to Reproduce:
-
-1. Compile an exported entry point with `char a = '\q';`, `char b = '\u12';`,
-   `char c = '\u123';`, `wchar d = '\U00041';` and `char f = '\1';`.
-2. Compile `wchar g = '\x0041';`.
-
-Expected:
-The first five are rejected ("Character literal must contain exactly one Unicode
-scalar value"). The sixth is accepted as U+0041.
-
-Actual:
-The first five are accepted (`'\q'` is 'q', `'\u12'` is U+0012, `'\1'` is 1). The
-sixth is rejected: a \x escape is limited to two hex digits.
-
-Known Impact:
-Malformed escapes are silently reinterpreted. Beta follows the C# rules.
-
 ## BUG-240: String literal escapes are copied to C unchanged
 
 Date/Time: 2026-10-05 12:37 America/Toronto
