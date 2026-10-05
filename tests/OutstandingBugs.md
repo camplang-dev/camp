@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-227.
+Next bug number: BUG-228.
 
 ## Bug Template
 
@@ -44,3 +44,37 @@ Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
 
+## BUG-227: Specifiers written before a global or field declaration are silently ignored
+
+Date/Time: 2026-10-04 23:55 America/Toronto
+
+Summary:
+A call or type specifier written before the type of a global variable or an
+aggregate field is accepted and discarded without validation. Specifiers apply
+to the carrier they decorate, and call specifiers apply only to concrete
+callables, so a call specifier on a non-callable carrier must be rejected and a
+type specifier must be validated like any other. Instead the same specifier in
+local-declaration position is validated, and the same specifier after the type
+is validated, which makes the global and field behavior inconsistent.
+
+Steps to Reproduce:
+
+1. Compile a source file with global declarations such as `_targetcall int
+   value;`, `_cdecl int value;` and `_far byte* pointer;`, and a struct with a
+   field `_targetcall int field;`, on a target where `_far` is not proven.
+2. Build it.
+
+Expected:
+Each declaration is diagnosed: a call specifier on `int` is not valid on a
+non-callable carrier, and `_far` reports that its requirement is not proven
+here, as the equivalent local declaration `_far byte* local = null;` and the
+trailing form `byte* _far pointer;` already do.
+
+Actual:
+The build succeeds with no diagnostics and the specifier has no effect. In
+function bodies the same leading specifier is diagnosed.
+
+Known Impact:
+Wrong or misplaced specifiers on globals and fields are not caught, and an
+unproven target specifier can be accepted silently. Writing the specifier after
+the type validates correctly.
