@@ -17,6 +17,8 @@ internal static class CallableShapeService
 {
 	public static string BuildCallableType(string kind, string returnType, List<string> parameters, string? targetSpec = null, string? callSpec = null)
 	{
+		targetSpec = CompilerDefinedSpecs.EffectiveType(targetSpec);
+		callSpec = CompilerDefinedSpecs.EffectiveCall(callSpec);
 		string specs = "";
 		if (!string.IsNullOrWhiteSpace(targetSpec))
 			specs += " " + targetSpec;
@@ -124,8 +126,8 @@ internal static class CallableShapeService
 				return false;
 		}
 
-		return source.Spec == target.Spec
-			&& source.CallSpec == target.CallSpec
+		return CompilerDefinedSpecs.Effective(source.Spec) == CompilerDefinedSpecs.Effective(target.Spec)
+			&& CompilerDefinedSpecs.EffectiveCall(source.CallSpec) == CompilerDefinedSpecs.EffectiveCall(target.CallSpec)
 			&& source.ReturnType == target.ReturnType
 			&& (!compareThis || source.This == target.This);
 	}
@@ -134,8 +136,8 @@ internal static class CallableShapeService
 	{
 		if (source.Parameters.Count != target.Parameters.Count)
 			return false;
-		if (source.Spec != target.Spec
-			|| source.CallSpec != target.CallSpec
+		if (CompilerDefinedSpecs.Effective(source.Spec) != CompilerDefinedSpecs.Effective(target.Spec)
+			|| CompilerDefinedSpecs.EffectiveCall(source.CallSpec) != CompilerDefinedSpecs.EffectiveCall(target.CallSpec)
 			|| compareThis && source.This != target.This)
 			return false;
 		if (!SlotTypesCompatible(source.ReturnType, target.ReturnType, outputPosition: true, eraseConstOfQualifiers))

@@ -885,7 +885,7 @@ public sealed partial class BindableNodeAnalyzer
 			string word = ReadIdentifier();
 			if (word.StartsWith("_", StringComparison.Ordinal))
 			{
-				targetSpec = word;
+				targetSpec = CompilerDefinedSpecs.EffectiveType(word);
 				return true;
 			}
 

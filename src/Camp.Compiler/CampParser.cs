@@ -13,8 +13,8 @@ public sealed class CampParserOptions
 
 	public CampParserOptions(IEnumerable<string> typeSpecs, IEnumerable<string> callSpecs)
 	{
-		TypeSpecs = new HashSet<string>(typeSpecs, StringComparer.Ordinal);
-		CallSpecs = new HashSet<string>(callSpecs, StringComparer.Ordinal);
+		TypeSpecs = new HashSet<string>(typeSpecs, StringComparer.Ordinal) { CompilerDefinedSpecs.TargetType };
+		CallSpecs = new HashSet<string>(callSpecs, StringComparer.Ordinal) { CompilerDefinedSpecs.TargetCall };
 	}
 
 	public IReadOnlySet<string> TypeSpecs { get; }

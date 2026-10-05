@@ -80,7 +80,7 @@ errors in Camp source.
 ## Type Specs And Call Specs
 
 Type specs apply to target-capable carrier types. Call specs apply to concrete
-callables. The parser accepts every callspec/typespec declared by the target
+callables. In addition to the compiler-defined specs below, the parser accepts every callspec/typespec declared by the target
 chain, not only the specs configured for the selected native target. Semantic
 validation then checks whether the current requirement context proves the spec's
 declared requirement.
@@ -119,6 +119,37 @@ Concrete targets configure platform flags and provide native spellings for the
 specs they actually emit. A use of `_winapi` in a `requires (OS_WIN32)`
 declaration is valid even when another target parses the same file for metadata.
 The declaration is simply unavailable for that target.
+
+### Compiler-Defined Default Specs
+
+`_targetcall` is a callspec and `_targettype` is a typespec defined by the language,
+not target files. Both are unconditionally available, including in target-free
+analysis and targets without a base. Their names cannot be shadowed by source
+declarations or configured by targets as specs, widths, default domains, or
+conversion endpoints. They do not participate in target typespec ordering.
+
+`_targetcall` selects the ordinary target calling convention. `_targettype`
+selects the representation of the same carrier with no explicit typespec:
+code-pointer and data-pointer defaults are separate, natural integers retain
+their default integer representation, and selected variants still apply.
+Existing placement and carrier restrictions apply to both built-ins.
+
+Aliases may resolve to these specs, including as conditional fallbacks:
+`alias _someapi = configured(OS_WIN32): _stdcall, _targetcall;`.
+Declared specs remain available for API/metadata serialization, but effective
+type identities, signature comparisons, conversions, and width queries treat
+the markers as default. This does not merge any other named ABI domains.
+Conflicting explicit specs on the same carrier or callable are diagnosed before
+normalization, even when one of them is a default marker.
+
+Explicit `_targetcall` on an interface implementation is an ABI choice: it must
+match the interface's effective convention. Only an omitted callspec may inherit
+a nondefault interface convention. Aliases and API round-tripping preserve this
+distinction.
+
+Native emission follows the existing unannotated carrier/declaration paths and
+never emits either built-in spelling as C. Generated callable helpers and export
+forwarders must preserve the same effective ABI.
 
 ## Requirement-Aware Native Emission
 

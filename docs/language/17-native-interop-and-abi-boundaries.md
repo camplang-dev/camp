@@ -386,8 +386,20 @@ export newtype fn _stdcall int WindowProcedure(
 	nint lparam);
 ```
 
-The selected target defines which call specs are valid. A call spec is part of
+The selected target defines its platform call specs. A call spec is part of
 the callable's ABI contract and participates in callable compatibility.
+
+The compiler-defined `_targetcall` explicitly selects the target's default
+calling convention and is available on every target. Use it as the fallback
+when only one platform needs an override:
+
+```camp
+alias _someapi = configured(OS_WIN32): _stdcall, _targetcall;
+extern _someapi int platformOperation(int value);
+```
+
+Unlike an omitted callspec, explicit `_targetcall` on an interface implementation
+does not inherit a nondefault interface convention; that mismatch is an error.
 
 Type specs describe target-specific carrier variants:
 
@@ -401,6 +413,17 @@ These matter on targets that distinguish pointer spaces, function-pointer
 domains, or natural-integer carriers. A type spec applies to the carrier it is
 written on; it does not automatically tunnel through arrays, delegates, generic
 arguments, or other constructed types.
+
+The compiler-defined `_targettype` selects that carrier's ordinary target
+default, including the selected target variant. It is available everywhere that
+a typespec is otherwise allowed:
+
+```camp
+alias _someptr = configured(OS_WIN16): _far, _targettype;
+byte* _someptr buffer;
+```
+
+Code pointers, data pointers, and natural integers each retain their own defaults.
 
 ## Newtypes, Enums, And Inline Constants
 

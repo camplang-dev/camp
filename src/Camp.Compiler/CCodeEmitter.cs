@@ -5236,6 +5236,8 @@ public static class CCodeEmitter
 
         string FormatFunctionPointerDeclarator(string name, string? targetSpec = null, string? callSpec = null)
         {
+            if (targetSpec == CompilerDefinedSpecs.TargetType)
+                targetSpec = GetDefaultTargetTypeSpec(functionPointer: true);
             string pointer = "*";
             string targetSpecSpelling = FormatTypeSpec(targetSpec);
             string callSpecSpelling = FormatCallSpec(callSpec).Trim();
@@ -9038,10 +9040,10 @@ public static class CCodeEmitter
             if (space < 0 || space == type.Length - 1)
                 return null;
             string candidate = type[(space + 1)..].Trim();
-            if (compilation.Target?.Capabilities.HasTypeSpec(candidate) != true)
+            if (candidate != CompilerDefinedSpecs.TargetType && compilation.Target?.Capabilities.HasTypeSpec(candidate) != true)
                 return null;
             type = type[..space].TrimEnd();
-            return candidate;
+            return CompilerDefinedSpecs.EffectiveType(candidate);
         }
 
         bool IsInterfaceResolvedName(string type)
@@ -9116,6 +9118,8 @@ public static class CCodeEmitter
 
         CType FormatQualifiedType(string qualifier, TypeReference? inner, string declarator)
         {
+            while (inner is TargetTypeSpecTypeReference { Specifier: CompilerDefinedSpecs.TargetType } defaultSpec)
+                inner = defaultSpec.Type;
             if (inner is PointerTypeReference or ArrayTypeReference or OptionalTypeReference or GenericTypeReference or RawFunctionPointerTypeReference or CallableTypeReference or TargetTypeSpecTypeReference)
                 return FormatType(inner, declarator + " " + qualifier);
             CType formatted = FormatType(inner, declarator);
@@ -9124,6 +9128,8 @@ public static class CCodeEmitter
 
         CType FormatTargetSpecType(TargetTypeSpecTypeReference targetSpec, string declarator)
         {
+            if (targetSpec.Specifier == CompilerDefinedSpecs.TargetType)
+                return FormatType(targetSpec.Type, declarator);
             string cSpec = FormatTypeSpec(targetSpec.Specifier);
             if (cSpec.Length == 0)
                 return FormatType(targetSpec.Type, declarator);
@@ -9179,6 +9185,7 @@ public static class CCodeEmitter
 
         string FormatDataPointerDeclarator(string declarator, string? explicitTargetSpec)
         {
+            explicitTargetSpec = CompilerDefinedSpecs.EffectiveType(explicitTargetSpec);
             string targetSpec = FormatTypeSpec(explicitTargetSpec ?? GetDefaultTargetTypeSpec(functionPointer: false));
             if (targetSpec.Length > 0)
                 return "* " + targetSpec + " " + declarator;
@@ -9234,6 +9241,7 @@ public static class CCodeEmitter
 
         string FormatCallSpec(string? spec)
         {
+            spec = CompilerDefinedSpecs.EffectiveCall(spec);
             if (string.IsNullOrWhiteSpace(spec))
                 return "";
             return compilation.Target?.CallSpecs.TryGetValue(spec, out string? spelling) == true ? spelling : spec;
@@ -9241,6 +9249,7 @@ public static class CCodeEmitter
 
         string FormatTypeSpec(string? spec)
         {
+            spec = CompilerDefinedSpecs.EffectiveType(spec);
             if (string.IsNullOrWhiteSpace(spec))
                 return "";
             return compilation.Target?.TypeSpecs.TryGetValue(spec, out string? spelling) == true ? spelling : spec;
@@ -9416,21 +9425,21 @@ public static class CCodeEmitter
                     return text;
 
                 if (kind == CallablePrefixSpecKind.TargetSpec)
-                    targetSpec = candidate;
+                    targetSpec = CompilerDefinedSpecs.EffectiveType(candidate);
                 else
-                    callSpec = candidate;
+                    callSpec = CompilerDefinedSpecs.EffectiveCall(candidate);
                 text = text[(space + 1)..].TrimStart();
             }
         }
 
         bool TryClassifyCallablePrefixSpec(string candidate, out CallablePrefixSpecKind kind)
         {
-            if (compilation.Target?.Capabilities.HasTypeSpec(candidate) == true)
+            if (candidate == CompilerDefinedSpecs.TargetType || compilation.Target?.Capabilities.HasTypeSpec(candidate) == true)
             {
                 kind = CallablePrefixSpecKind.TargetSpec;
                 return true;
             }
-            if (compilation.Target?.Capabilities.HasCallSpec(candidate) == true)
+            if (candidate == CompilerDefinedSpecs.TargetCall || compilation.Target?.Capabilities.HasCallSpec(candidate) == true)
             {
                 kind = CallablePrefixSpecKind.CallSpec;
                 return true;

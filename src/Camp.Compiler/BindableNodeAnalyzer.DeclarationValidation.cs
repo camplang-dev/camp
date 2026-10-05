@@ -584,7 +584,7 @@ public sealed partial class BindableNodeAnalyzer
 			}
 
 			string? expectedCallSpec = GetInterfaceMemberEffectiveCallSpec(member);
-			if (!string.IsNullOrWhiteSpace(function.CallSpec) && function.CallSpec != expectedCallSpec)
+			if (!string.IsNullOrWhiteSpace(function.CallSpec) && CompilerDefinedSpecs.EffectiveCall(function.CallSpec) != CompilerDefinedSpecs.EffectiveCall(expectedCallSpec))
 				Report(GetRange(function.SourceSyntax), $"Method '{function.Name}' uses callspec '{function.CallSpec}', but interface member '{interfaceDefinition.Name}.{required.DisplayName}' requires {(string.IsNullOrWhiteSpace(expectedCallSpec) ? "no callspec" : $"callspec '{expectedCallSpec}'")}.");
 			else if (string.IsNullOrWhiteSpace(function.CallSpec) && !string.IsNullOrWhiteSpace(expectedCallSpec))
 				function.CallSpec = expectedCallSpec;

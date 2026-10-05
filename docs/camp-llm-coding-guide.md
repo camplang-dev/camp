@@ -1242,6 +1242,12 @@ Rules for generated interop code:
   `configured(...)` rather than hiding declarations with source conditionals.
 - Use conditional aliases for platform string/symbol families when needed:
   `alias TSTRING = configured(UNICODE): wstring, astring;`.
+- For a platform-only ABI override, use a compiler-defined default fallback:
+  `alias _someapi = configured(OS_WIN32): _stdcall, _targetcall;`.
+  `_targetcall` and `_targettype` are available on every target; do not assume
+  `_cdecl` or `_near` is a universal default. `_targettype` follows existing
+  carrier restrictions and selects that carrier's default representation.
+  Explicit `_targetcall` does not inherit a nondefault interface callspec.
 - Use explicit integer widths for ABI-visible values.
 - Keep ownership and cleanup paired in the Camp wrapper, not scattered through
   callers.

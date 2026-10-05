@@ -518,6 +518,7 @@ public sealed class TargetDefinition
 
 	public int GetNaturalIntegerWidth(string? typeSpec)
 	{
+		typeSpec = CompilerDefinedSpecs.EffectiveType(typeSpec);
 		if (typeSpec is not null && Sections.NaturalIntegerWidths.TryGetValue(typeSpec, out int width))
 			return width;
 		return Sections.NaturalIntegerWidths.TryGetValue("", out int defaultWidth) ? defaultWidth : 32;
@@ -554,6 +555,7 @@ public sealed class TargetDefinition
 
 	public int GetPointerWidth(string? typeSpec, bool functionPointer)
 	{
+		typeSpec = CompilerDefinedSpecs.EffectiveType(typeSpec);
 		typeSpec ??= functionPointer ? Sections.DefaultFunctionPointerTypeSpec : Sections.DefaultDataPointerTypeSpec;
 		if (typeSpec is not null && Sections.PointerWidths.TryGetValue(typeSpec, out int width))
 			return width;
@@ -562,6 +564,8 @@ public sealed class TargetDefinition
 
 	public bool CanWidenTypeSpec(string? source, string? target)
 	{
+		source = CompilerDefinedSpecs.EffectiveType(source);
+		target = CompilerDefinedSpecs.EffectiveType(target);
 		if (source == target)
 			return true;
 		if (target is null)
@@ -575,6 +579,8 @@ public sealed class TargetDefinition
 
 	public bool AreTypeSpecsCompatible(string? source, string? target)
 	{
+		source = CompilerDefinedSpecs.EffectiveType(source);
+		target = CompilerDefinedSpecs.EffectiveType(target);
 		if (source == target)
 			return true;
 		if (source is null)
@@ -586,6 +592,8 @@ public sealed class TargetDefinition
 
 	public TargetConversionLevel ClassifyTypeSpecConversion(TargetConversionCarrier carrier, string? source, string? target)
 	{
+		source = CompilerDefinedSpecs.EffectiveType(source);
+		target = CompilerDefinedSpecs.EffectiveType(target);
 		if (source == target)
 			return carrier == TargetConversionCarrier.AbiSlot ? TargetConversionLevel.Compatible : TargetConversionLevel.Implicit;
 		if (source is not null && target is not null
@@ -769,6 +777,7 @@ internal sealed class TargetSections
 		foreach (SectionData section in data.Sections)
 		{
 			ParsedSectionName parsed = ParseSectionName(section.SectionName);
+			ValidateCompilerDefinedSpecs(parsed.BaseName, section);
 			if (parsed.Variants.Count > 0)
 			{
 				ValidateConditionalVariants(section.SectionName, parsed.Variants);
@@ -853,6 +862,22 @@ internal sealed class TargetSections
 				else if (sectionName.StartsWith("conversion.", StringComparison.Ordinal))
 					MergeConversionPolicySection(sectionName, section);
 				break;
+		}
+	}
+
+	static void ValidateCompilerDefinedSpecs(string sectionName, SectionData section)
+	{
+		if (sectionName is not ("callspec" or "declare.callspec" or "typespec" or "declare.typespec" or "pointer" or "nint")
+			&& !sectionName.StartsWith("conversion.", StringComparison.Ordinal))
+			return;
+		foreach (KeyData key in section.Keys)
+		{
+			IEnumerable<string> names = key.KeyName.Split(["->"], StringSplitOptions.TrimEntries);
+			if (sectionName == "typespec" && key.KeyName == "default")
+				names = names.Concat(key.Value.Split('/', StringSplitOptions.TrimEntries));
+			foreach (string name in names)
+				if (CompilerDefinedSpecs.IsReserved(name))
+					throw new InvalidDataException($"Spec '{name}' is compiler-defined and cannot be configured in [{section.SectionName}].");
 		}
 	}
 

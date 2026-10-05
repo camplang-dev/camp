@@ -1253,7 +1253,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (string.IsNullOrWhiteSpace(name))
 			return;
 
-		if (ReservedWords.Contains(name))
+		if (ReservedWords.Contains(name) || CompilerDefinedSpecs.IsReserved(name))
 		{
 			Report(range, $"{CultureInfo.InvariantCulture.TextInfo.ToTitleCase(symbolKind)} name '{name}' is reserved.", DiagnosticCodes.ReservedIdentifier);
 			return;
@@ -1352,7 +1352,7 @@ public sealed partial class BindableNodeAnalyzer
 			EscapedTypeReference escaped => FormatTypeDeclarator("escaped", escaped.Type),
 			ScopedTypeReference scoped => FormatTypeDeclarator(BuildAnchoredDeclarator("scoped", scoped.Anchors), scoped.Type),
 			UnscopedTypeReference unscoped => FormatTypeDeclarator(BuildAnchoredDeclarator("unscoped", unscoped.Anchors), unscoped.Type),
-			TargetTypeSpecTypeReference targetSpec => $"{FormatTypeReference(targetSpec.Type)} {targetSpec.Specifier}",
+			TargetTypeSpecTypeReference targetSpec => FormatTypeReference(targetSpec.Type) + FormatCallSpec(targetSpec.Specifier),
 			RawFunctionPointerTypeReference => "fn*",
 			CallableTypeReference callable => $"{GetCallableKindName(callable.Kind)}{FormatCallSpec(callable.TargetSpec)}{FormatCallSpec(callable.CallSpec)} {FormatTypeReference(callable.ReturnType)}({string.Join(", ", GetParameterTypeNames(callable.Parameters))})",
 			IterTypeReference iter => FormatIterTypeReference(iter),
@@ -1408,6 +1408,8 @@ public sealed partial class BindableNodeAnalyzer
 
 	static string FormatTypeDeclarator(string keyword, TypeReference? inner)
 	{
+		while (inner is TargetTypeSpecTypeReference { Specifier: CompilerDefinedSpecs.TargetType } defaultSpec)
+			inner = defaultSpec.Type;
 		string innerText = FormatTypeReference(inner);
 		return inner is CallableTypeReference
 			? $"{keyword} {innerText}"
@@ -1418,6 +1420,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	static string FormatCallSpec(string? callSpec)
 	{
+		callSpec = CompilerDefinedSpecs.Effective(callSpec);
 		return string.IsNullOrWhiteSpace(callSpec) ? "" : " " + callSpec;
 	}
 

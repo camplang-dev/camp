@@ -1198,7 +1198,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	bool CallableSignatureNeedsFence(CallableShape source, CallableShape target)
 	{
-		if (source.CallSpec != target.CallSpec || !CallableSpecsAbiSlotCompatible(source.Spec, target.Spec))
+		if (CompilerDefinedSpecs.EffectiveCall(source.CallSpec) != CompilerDefinedSpecs.EffectiveCall(target.CallSpec) || !CallableSpecsAbiSlotCompatible(source.Spec, target.Spec))
 			return true;
 		if (CallableSlotNeedsFence(source.ReturnType, target.ReturnType))
 			return true;
@@ -1235,7 +1235,7 @@ public sealed partial class BindableNodeAnalyzer
 		lifetimeOnlyDifference = false;
 		if (source.Parameters.Count != target.Parameters.Count)
 			return false;
-		if (source.CallSpec != target.CallSpec)
+		if (CompilerDefinedSpecs.EffectiveCall(source.CallSpec) != CompilerDefinedSpecs.EffectiveCall(target.CallSpec))
 			return false;
 		if (!CallableSpecsAbiSlotCompatible(source.Spec, target.Spec))
 			return false;
@@ -1273,6 +1273,8 @@ public sealed partial class BindableNodeAnalyzer
 
 	bool CallableSpecsAbiSlotCompatible(string? sourceSpec, string? targetSpec)
 	{
+		sourceSpec = CompilerDefinedSpecs.Effective(sourceSpec);
+		targetSpec = CompilerDefinedSpecs.Effective(targetSpec);
 		if (sourceSpec == targetSpec)
 			return true;
 		if (selectedTarget is null)
@@ -3182,8 +3184,8 @@ public sealed partial class BindableNodeAnalyzer
 		actual = ExpandCallableShape(actual);
 		receiver = ExpandCallableShape(receiver);
 		if (actual.Kind != receiver.Kind
-			|| actual.Spec != receiver.Spec
-			|| actual.CallSpec != receiver.CallSpec
+			|| CompilerDefinedSpecs.Effective(actual.Spec) != CompilerDefinedSpecs.Effective(receiver.Spec)
+			|| CompilerDefinedSpecs.EffectiveCall(actual.CallSpec) != CompilerDefinedSpecs.EffectiveCall(receiver.CallSpec)
 			|| actual.Parameters.Count != receiver.Parameters.Count
 			|| actual.This != receiver.This)
 			return false;

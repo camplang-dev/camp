@@ -203,7 +203,7 @@ public sealed partial class BindableNodeAnalyzer
 			parameters.Add(FormatSignatureParameter(parameter, anchors));
 		}
 
-		return new CallableShape(kind, null, function.CallSpec, FormatSignatureTypeReference(function.ReturnType, anchors), parameters, GetThisContract(GetExplicitThisParameter(function) ?? function.EffectiveThisParameter));
+		return new CallableShape(kind, null, CompilerDefinedSpecs.EffectiveCall(function.CallSpec), FormatSignatureTypeReference(function.ReturnType, anchors), parameters, GetThisContract(GetExplicitThisParameter(function) ?? function.EffectiveThisParameter));
 	}
 
 	bool TryBuildNewtypeSourceCallableShape(NewtypeDefinition definition, out CallableShape shape)
@@ -216,7 +216,7 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (definition.UnderlyingType is CallableTypeReference callable)
 		{
-			shape = new CallableShape(GetCallableKindName(callable.Kind), callable.TargetSpec, callable.CallSpec, FormatSignatureTypeReference(callable.ReturnType, anchors), [.. definition.Parameters.Where(parameter => parameter is not ThisParameterDefinition).Select(parameter => FormatSignatureParameter(parameter, anchors))], thisContract);
+			shape = new CallableShape(GetCallableKindName(callable.Kind), CompilerDefinedSpecs.EffectiveType(callable.TargetSpec), CompilerDefinedSpecs.EffectiveCall(callable.CallSpec), FormatSignatureTypeReference(callable.ReturnType, anchors), [.. definition.Parameters.Where(parameter => parameter is not ThisParameterDefinition).Select(parameter => FormatSignatureParameter(parameter, anchors))], thisContract);
 			return true;
 		}
 
@@ -241,7 +241,7 @@ public sealed partial class BindableNodeAnalyzer
 				continue;
 			parameters.Add(FormatSignatureParameter(parameter, anchors));
 		}
-		return new CallableShape("fn", null, member.CallSpec, FormatSignatureTypeReference(member.ReturnType, anchors), parameters);
+		return new CallableShape("fn", null, CompilerDefinedSpecs.EffectiveCall(member.CallSpec), FormatSignatureTypeReference(member.ReturnType, anchors), parameters);
 	}
 
 	static Dictionary<string, string> BuildSignatureAnchorMap(List<ParameterDefinition> parameters)
@@ -316,7 +316,7 @@ public sealed partial class BindableNodeAnalyzer
 			EscapedTypeReference escaped => FormatTypeDeclarator("escaped", escaped.Type is null ? null : new RawFormattedTypeReference(FormatSignatureTypeReference(escaped.Type, anchors))),
 			ScopedTypeReference scoped => FormatTypeDeclarator(BuildAnchoredDeclarator("scoped", scoped.Anchors), scoped.Type is null ? null : new RawFormattedTypeReference(FormatSignatureTypeReference(scoped.Type, anchors))),
 			UnscopedTypeReference unscoped => FormatTypeDeclarator(BuildAnchoredDeclarator("unscoped", unscoped.Anchors), unscoped.Type is null ? null : new RawFormattedTypeReference(FormatSignatureTypeReference(unscoped.Type, anchors))),
-			TargetTypeSpecTypeReference targetSpec => $"{FormatSignatureTypeReference(targetSpec.Type, anchors)} {targetSpec.Specifier}",
+			TargetTypeSpecTypeReference targetSpec => FormatSignatureTypeReference(targetSpec.Type, anchors) + FormatCallSpec(targetSpec.Specifier),
 			CallableTypeReference callable => $"{GetCallableKindName(callable.Kind)}{FormatCallSpec(callable.TargetSpec)}{FormatCallSpec(callable.CallSpec)} {FormatSignatureTypeReference(callable.ReturnType, anchors)}({string.Join(", ", callable.Parameters.Select(parameter => FormatSignatureParameter(parameter, anchors)))})",
 			IterTypeReference iter => $"{(iter.IsAsync ? "async iter" : "iter")}({string.Join(", ", iter.Parameters.Select(parameter => FormatSignatureParameter(parameter, anchors)))})",
 			GroupedParamsTypeReference grouped => $"params({FormatSignatureTypeReference(grouped.StructType, anchors)})",

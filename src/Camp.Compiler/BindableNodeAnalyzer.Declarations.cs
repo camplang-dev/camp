@@ -491,14 +491,14 @@ public sealed partial class BindableNodeAnalyzer
 			return true;
 		}
 
-		if (alias.TargetQualifiers.Count == 0 && selectedTarget?.Capabilities.HasCallSpec(alias.TargetName) == true)
+		if (alias.TargetQualifiers.Count == 0 && (alias.TargetName == CompilerDefinedSpecs.TargetCall || selectedTarget?.Capabilities.HasCallSpec(alias.TargetName) == true))
 		{
 			alias.TargetKind = AliasTargetKind.CallSpec;
 			alias.ResolvedTargetName = alias.TargetName;
 			return true;
 		}
 
-		if (alias.TargetQualifiers.Count == 0 && selectedTarget?.Capabilities.HasTypeSpec(alias.TargetName) == true)
+		if (alias.TargetQualifiers.Count == 0 && (alias.TargetName == CompilerDefinedSpecs.TargetType || selectedTarget?.Capabilities.HasTypeSpec(alias.TargetName) == true))
 		{
 			alias.TargetKind = AliasTargetKind.TypeSpec;
 			alias.ResolvedTargetName = alias.TargetName;
@@ -1992,7 +1992,8 @@ public sealed partial class BindableNodeAnalyzer
 
 	static bool CallableSpecsDiffer(CallableShape source, CallableShape target)
 	{
-		return source.Spec != target.Spec || source.CallSpec != target.CallSpec;
+		return CompilerDefinedSpecs.Effective(source.Spec) != CompilerDefinedSpecs.Effective(target.Spec)
+			|| CompilerDefinedSpecs.EffectiveCall(source.CallSpec) != CompilerDefinedSpecs.EffectiveCall(target.CallSpec);
 	}
 
 	static string CallableSpecDescription(CallableShape shape)

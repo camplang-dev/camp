@@ -7,7 +7,7 @@ using Xunit;
 
 namespace Camp.Compiler.Tests;
 
-public sealed class CompilerDriverOptionTests
+public sealed partial class CompilerDriverOptionTests
 {
 	[Fact]
 	public void Variants_control_target_owned_defines()
