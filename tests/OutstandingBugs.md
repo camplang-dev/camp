@@ -295,3 +295,55 @@ Known Impact:
 The smallest value of `sbyte` and `short`, and any negative constant, cannot be
 written without a cast. Once BUG-233 is fixed the same minus handling must
 range-check the negated literal. The beta compiler rejects these the same way.
+
+## BUG-236: Prefix increment and decrement do not check the operand type
+
+Date/Time: 2026-10-05 11:57 America/Toronto
+
+Summary:
+`++target` and `--target` accept a `bool`, a pointer or a struct, while the
+postfix forms are rejected ("Update operator requires a numeric operand").
+
+Steps to Reproduce:
+
+1. Compile an exported entry point with `bool flag = true; ++flag; --flag;`,
+   `int* pointer = &value; ++pointer;` and `Box box = default; ++box;`.
+2. Build it.
+
+Expected:
+Each prefix update is rejected the way `flag++`, `pointer++` and `box++` are.
+
+Actual:
+No diagnostic for the prefix forms. (Together with BUG-229 the prefix forms skip
+both the const check and the operand type check.)
+
+Known Impact:
+A bool, pointer or struct can be incremented with the prefix operator, which the
+language does not allow.
+
+## BUG-237: Compound bitwise assignment accepts bool operands
+
+Date/Time: 2026-10-05 11:57 America/Toronto
+
+Summary:
+`flag &= other`, `flag |= other` and `flag ^= other` on `bool` operands are
+accepted, while `flag & other`, `flag | other` and `flag ^ other` are rejected
+("Bitwise operators require integral operands, not 'bool' and 'bool'"). Under
+the rule that a bool is not a number, the compound forms should be rejected too.
+
+Steps to Reproduce:
+
+1. Compile an exported entry point with `bool flag = true; bool other = false;
+   flag &= other; flag |= other; flag ^= other;`.
+2. Build it.
+
+Expected:
+Each compound assignment is rejected like the plain bitwise operator.
+
+Actual:
+No diagnostic. (`flag <<= 1` is rejected as an int-to-bool assignment.)
+
+Known Impact:
+The two forms of the same operation disagree. The beta compiler currently
+accepts the compound forms as well, so a golden cannot cover them until the
+bootstrap decides.
