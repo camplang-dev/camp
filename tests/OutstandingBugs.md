@@ -44,31 +44,6 @@ Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
 
-## BUG-231: Updating a getter-only property is not diagnosed
-
-Date/Time: 2026-10-05 10:53 America/Toronto
-
-Summary:
-`value.Name = next` and `value.Name += next` are rejected when the type has a
-`getName()` but no `setName()` ("Property 'Name' is not writable"), but
-`value.Name++` is accepted.
-
-Steps to Reproduce:
-
-1. Declare `class Holder { int stored; int getTotal() => this.stored; }` and
-   compile an exported entry point containing `Holder* h = &holder; h.Total++;`.
-2. Build it.
-
-Expected:
-The update is rejected because the property has no setter.
-
-Actual:
-No diagnostic. The generated C is `Holder_getTotal(...)++`, which fails with
-"expression is not assignable".
-
-Known Impact:
-Same as BUG-229.
-
 ## BUG-232: Assigning to an inline constant is not diagnosed
 
 Date/Time: 2026-10-05 10:53 America/Toronto

@@ -231,6 +231,12 @@ bind the accessor during body analysis and lower the access to a call that
 preserves receiver, argument, generic, lifetime, `within`, `thrown`, and
 `constof` behavior.
 
+Assignments, compound assignments, and prefix or postfix updates of a property
+require a setter. A getter-only property is readable but cannot be a write
+target; body analysis must report the missing setter at the property access.
+Updating an element through an array view returned by a getter writes the
+backing array, so that operation does not require a setter for the property.
+
 Getter candidates are methods named `getX`, where `X` is the property name.
 They must return a non-`void` result. A getter-compatible method that omits an
 explicit receiver uses an implicit `const this` receiver. This is why a `get`

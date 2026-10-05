@@ -148,6 +148,34 @@ public sealed partial class BindableNodeAnalyzer
 		RequireMutableWriteTarget(targetType, syntax, context);
 	}
 
+	void RequireWritablePropertyUpdate(Expression? target)
+	{
+		while (target is ParenthesizedExpression parenthesized)
+			target = parenthesized.Expression;
+		bool indexed = target is IndexExpression;
+		if (target is IndexExpression index)
+			target = index.Target;
+		if (target is not null && expressionRewrites.TryGetValue(target, out Expression? rewrite))
+			target = rewrite;
+		if (target is not MemberReferenceExpression getter || !IsPropertyGetterReference(getter))
+			return;
+		FunctionDefinition function = (FunctionDefinition)getter.Member!;
+		// Indexing a view returned by a parameterless getter writes its elements,
+		// rather than assigning the property itself.
+		if (indexed && GetCallableParameters(function.Parameters).Count == 0)
+			return;
+
+		string receiverType = getter.Target?.ResolvedType ?? ErrorType;
+		List<FunctionDefinition> setters = IsTypeReferenceExpression(getter.Target)
+			? LookupStaticMemberFunctions(receiverType, "set" + getter.Name, getter.SourceSyntax)
+			: GetTypeDefinition(receiverType) is TypeDefinition type
+				? LookupPropertySetters(type, getter.Name, getter.SourceSyntax)
+				: [];
+		setters.AddRange(LookupExtensionFunctions(receiverType, "set" + getter.Name, getter.SourceSyntax));
+		if (setters.Count == 0)
+			Report(GetRange(getter.SourceSyntax), $"Property '{getter.Name}' is not writable on type '{receiverType}'.");
+	}
+
 	bool IsStorageAccessThroughConstReceiver(Expression? expression)
 	{
 		if (expression is MemberExpression member
