@@ -108,3 +108,104 @@ Known Impact:
 Specifier names can be shadowed by ordinary declarations. The two compilers must
 agree on which names are rejected, so the goldens cannot cover this until the
 bootstrap diagnoses it.
+
+## BUG-229: Prefix increment and decrement do not check for const targets
+
+Date/Time: 2026-10-05 10:53 America/Toronto
+
+Summary:
+`++target` and `--target` are not rejected when the target is read-only, while
+the postfix forms `target++` and `target--` are. The generated C then fails to
+compile instead of the compiler reporting a diagnostic.
+
+Steps to Reproduce:
+
+1. Compile an exported entry point with `const int c = 1; ++c; --c;`, a
+   `const` struct local with `++box.value;`, and `const int* view = &value;
+   ++*view; --*view;`.
+2. Build it.
+
+Expected:
+Each prefix update is rejected as an update of a const target, the way
+`c++`, `box.value++` and `(*view)--` are ("Update target is const and cannot be
+assigned.").
+
+Actual:
+No diagnostic. The native build fails with, for example, "cannot assign to
+variable 'c' with const-qualified type 'const int'".
+
+Known Impact:
+A user error surfaces as a C compiler failure with no Camp source location.
+
+## BUG-230: Writes through a const array view are not diagnosed
+
+Date/Time: 2026-10-05 10:53 America/Toronto
+
+Summary:
+Assigning to, or incrementing, an element of a `const` array view is accepted by
+analysis. Writes through a `const` pointer and to a `const` struct are
+diagnosed.
+
+Steps to Reproduce:
+
+1. Compile `void touch(const int[] items) { items[0] = 7; items[1]++; ++items[1]; }`
+   and call it from an exported entry point.
+2. Build it.
+
+Expected:
+Each write is rejected because the elements of a `const` view are read-only.
+
+Actual:
+No diagnostic. The native build fails with "read-only variable is not
+assignable".
+
+Known Impact:
+Same as BUG-229: the error is reported by the C compiler without a Camp source
+location, and a different backend could accept the write.
+
+## BUG-231: Updating a getter-only property is not diagnosed
+
+Date/Time: 2026-10-05 10:53 America/Toronto
+
+Summary:
+`value.Name = next` and `value.Name += next` are rejected when the type has a
+`getName()` but no `setName()` ("Property 'Name' is not writable"), but
+`value.Name++` is accepted.
+
+Steps to Reproduce:
+
+1. Declare `class Holder { int stored; int getTotal() => this.stored; }` and
+   compile an exported entry point containing `Holder* h = &holder; h.Total++;`.
+2. Build it.
+
+Expected:
+The update is rejected because the property has no setter.
+
+Actual:
+No diagnostic. The generated C is `Holder_getTotal(...)++`, which fails with
+"expression is not assignable".
+
+Known Impact:
+Same as BUG-229.
+
+## BUG-232: Assigning to an inline constant is not diagnosed
+
+Date/Time: 2026-10-05 10:53 America/Toronto
+
+Summary:
+An `inline` constant can be the target of an assignment without a diagnostic.
+
+Steps to Reproduce:
+
+1. Compile `inline int LIMIT = 10;` with an exported entry point containing
+   `LIMIT = 11;`.
+2. Build it.
+
+Expected:
+The assignment is rejected because an inline constant is a compile-time value.
+
+Actual:
+No diagnostic. The native build fails with "expression is not assignable".
+
+Known Impact:
+Same as BUG-229.
