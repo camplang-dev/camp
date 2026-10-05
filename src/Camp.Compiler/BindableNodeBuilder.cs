@@ -386,7 +386,7 @@ public sealed partial class BindableNodeBuilder
 			{
 				SourceSyntax = candidateSyntax,
 				Condition = candidateSyntax.Condition is null ? null : BuildExpression(candidateSyntax.Condition, "Alias condition"),
-				TargetName = candidateSyntax.TargetName?.Identifier?.Value ?? ""
+				TargetName = candidateSyntax.Specifier?.Value ?? candidateSyntax.TargetName?.Identifier?.Value ?? ""
 			};
 			foreach (QualifierSyntax qualifier in candidateSyntax.TargetName?.Qualifiers ?? [])
 				if (qualifier.Identifier is not null)
@@ -467,6 +467,14 @@ public sealed partial class BindableNodeBuilder
 	}
 
 	Definition? BuildTypeDefinition(TypeDeclarationSyntax syntax)
+	{
+		Definition? definition = BuildTypeDefinitionCore(syntax);
+		if (definition is TypeDefinition type) type.CallSpec = syntax.CallSpec?.Value;
+		if (definition is StaticClassDefinition staticClass) staticClass.CallSpec = syntax.CallSpec?.Value;
+		return definition;
+	}
+
+	Definition? BuildTypeDefinitionCore(TypeDeclarationSyntax syntax)
 	{
 		switch (syntax.Keyword?.Value)
 		{
@@ -2470,6 +2478,7 @@ public sealed partial class BindableNodeBuilder
 	{
 		return syntax switch
 		{
+			SpecifierSyntax specifier => specifier.Range,
 			CompilationUnitSyntax compilationUnit => compilationUnit.Items is [CompilationUnitItemSyntax first, ..] ? GetRange(first) : null,
 				CompilationUnitItemSyntax item => GetRangeOrNull(item.ImportExportDeclaration) ?? GetRangeOrNull(item.FileMetadataAttribute) ?? GetRangeOrNull(item.RequirementScope) ?? GetRangeOrNull(item.NamespaceBlock) ?? GetRangeOrNull(item.AliasDeclaration) ?? GetRangeOrNull(item.Declaration),
 				RequirementScopeSyntax requirement => requirement.RequiresKeyword?.Range,

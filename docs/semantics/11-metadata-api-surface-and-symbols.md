@@ -160,6 +160,19 @@ the container to hold visible members or visible metadata.
 Source names and ABI symbols are separate. `@symbol` overrides emitted native
 symbols but should not change source lookup.
 
+The attribute string may be a known specifier or a Camp reserved word, including
+`_targetcall` and `_targettype`, when the native target permits it. C identifier,
+C reserved-word and native collision restrictions still apply. On a struct
+field the override names the emitted member, not a linker symbol. Camp API
+headers preserve the source declaration name and `@symbol` together.
+
+Serialize a callable callspec after its keyword and its typespec after its
+parameter list, including callable-newtype declarations. Preserve explicit
+`_targetcall` through aliases and API output: omission may inherit a nondefault
+contract, while an explicit default must match it. Anonymous/defaulted parameters
+retain their interpretation. A spec-shaped parameter name on an eligible
+unfilled carrier needs `_targettype` before the name in generated source.
+
 Compiler code should keep these name concepts distinct:
 
 - **source name:** what the programmer writes and what lookup sees;

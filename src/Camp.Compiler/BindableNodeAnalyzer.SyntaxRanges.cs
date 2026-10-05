@@ -82,6 +82,8 @@ public sealed partial class BindableNodeAnalyzer
 		return syntax switch
 		{
 			null => null,
+			SpecifierSyntax specifier => specifier.Range,
+			AliasTargetCandidateSyntax candidate => candidate.Specifier?.Range ?? GetRange(candidate.TargetName),
 			CompilationUnitSyntax compilationUnit => compilationUnit.Items is [CompilationUnitItemSyntax first, ..] ? GetRange(first) : null,
 				CompilationUnitItemSyntax item => GetRange(item.ImportExportDeclaration) ?? GetRange(item.FileMetadataAttribute) ?? GetRange(item.RequirementScope) ?? GetRange(item.NamespaceBlock) ?? GetRange(item.AliasDeclaration) ?? GetRange(item.Declaration),
 				RequirementScopeSyntax requirement => requirement.RequiresKeyword?.Range,

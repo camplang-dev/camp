@@ -2,10 +2,10 @@
 // @ variant large
 
 export void targetSpecs(
-	fn _near _pascal nint() nearFunction,
-	fn _far _pascal nint() farFunction,
+	fn _pascal nint() _near nearFunction,
+	fn _pascal nint() _far farFunction,
 	fn* _near nearRaw)
 {
-	fn _near _pascal nint() badCast = (unsafe fn _near _pascal nint())farFunction;
+	fn _pascal nint() _near badCast = (unsafe fn _pascal nint() _near)farFunction;
 	fn* _far farRaw = (fn* _far)nearRaw;
 }

@@ -15,11 +15,34 @@ public sealed class TargetCatalog
 	static int cacheMisses;
 	static int cacheBypasses;
 	readonly Dictionary<string, TargetDefinition> targets;
+	readonly HashSet<string> knownCallSpecs = new(StringComparer.Ordinal);
+	readonly HashSet<string> knownTypeSpecs = new(StringComparer.Ordinal);
 
 	TargetCatalog(Dictionary<string, TargetDefinition> targets)
 	{
 		this.targets = targets;
+		foreach (TargetDefinition target in targets.Values)
+		{
+			target.Catalog = this;
+			knownCallSpecs.UnionWith(target.SyntaxCallSpecs.Keys);
+			knownTypeSpecs.UnionWith(target.SyntaxTypeSpecs.Keys);
+			foreach (TargetConditionalSection conditional in target.Sections.ConditionalSections)
+			{
+				HashSet<string>? names = conditional.SectionName switch
+				{
+					"callspec" or "declare.callspec" => knownCallSpecs,
+					"typespec" or "declare.typespec" => knownTypeSpecs,
+					_ => null
+				};
+				if (names is not null)
+					foreach (KeyData key in conditional.Section.Keys)
+						if (key.KeyName != "default") names.Add(key.KeyName);
+			}
+		}
 	}
+
+	internal bool HasCallSpec(string name) => knownCallSpecs.Contains(name);
+	internal bool HasTypeSpec(string name) => knownTypeSpecs.Contains(name);
 
 	public IReadOnlyDictionary<string, TargetDefinition> Targets => targets;
 
@@ -393,6 +416,7 @@ static class TargetIniParser
 
 public sealed class TargetDefinition
 {
+	internal TargetCatalog? Catalog { get; set; }
 	internal TargetDefinition(string name, string? baseName, string path, TargetSections sections, TargetVariantSelection? variantSelection = null)
 	{
 		Name = name;
@@ -535,7 +559,7 @@ public sealed class TargetDefinition
 		sections.CopyFrom(Sections);
 		sections.ApplyVariantOverlays(selection);
 		sections.ValidateTargetMetadata();
-		return new TargetDefinition(Name, BaseName, Path, sections, selection);
+		return new TargetDefinition(Name, BaseName, Path, sections, selection) { Catalog = Catalog };
 	}
 
 	public string GetVariantDirectoryName()
@@ -872,6 +896,10 @@ internal sealed class TargetSections
 			return;
 		foreach (KeyData key in section.Keys)
 		{
+			if (sectionName is "callspec" or "declare.callspec" or "typespec" or "declare.typespec"
+				&& !(sectionName == "typespec" && key.KeyName == "default")
+				&& !CompilerDefinedSpecs.IsSpecShaped(key.KeyName))
+				throw new InvalidDataException($"Spec name '{key.KeyName}' in [{section.SectionName}] must match specifier spelling _[a-z][a-z0-9]*(?:_[a-z0-9]+)*.");
 			IEnumerable<string> names = key.KeyName.Split(["->"], StringSplitOptions.TrimEntries);
 			if (sectionName == "typespec" && key.KeyName == "default")
 				names = names.Concat(key.Value.Split('/', StringSplitOptions.TrimEntries));

@@ -296,6 +296,7 @@ public sealed class BindableNodeCodeSerializer
 			writer.Write($"{Lower(definition.Modifier)} ");
 		if (ShouldWriteShadowModifier(definition))
 			writer.Write("shadow ");
+		WriteTypeCallSpec(definition);
 		writer.Write("class ");
 		writer.Write(definition.Name);
 		WriteGenericParameters(definition.GenericParameters);
@@ -317,7 +318,9 @@ public sealed class BindableNodeCodeSerializer
 		WriteRequirementPrefix(definition);
 		WriteAttributes(definition.Attributes);
 		WriteIndent();
-		writer.Write("static class ");
+		writer.Write("static ");
+		WriteTypeCallSpec(definition);
+		writer.Write("class ");
 		writer.Write(definition.Name);
 		WriteLineBlock(() =>
 		{
@@ -357,6 +360,7 @@ public sealed class BindableNodeCodeSerializer
 		WriteDefinitionPrefix(definition);
 		if (definition.Modifier != StructModifier.None)
 			writer.Write($"{Lower(definition.Modifier)} ");
+		WriteTypeCallSpec(definition);
 		writer.Write("struct ");
 		writer.Write(definition.Name);
 		WriteGenericParameters(definition.GenericParameters);
@@ -381,6 +385,7 @@ public sealed class BindableNodeCodeSerializer
 		WriteDefinitionPrefix(definition);
 		if (definition.IsEscaped)
 			writer.Write("escaped ");
+		WriteTypeCallSpec(definition);
 		writer.Write("interface ");
 		writer.Write(definition.Name);
 		WriteGenericParameters(definition.GenericParameters);
@@ -410,6 +415,7 @@ public sealed class BindableNodeCodeSerializer
 		WriteAttributes(definition.Attributes);
 		WriteIndent();
 		WriteDefinitionPrefix(definition);
+		WriteTypeCallSpec(definition);
 		writer.Write("enum ");
 		writer.Write(definition.Name);
 		if (definition.UnderlyingType is not null)
@@ -442,6 +448,7 @@ public sealed class BindableNodeCodeSerializer
 		WriteAttributes(definition.Attributes);
 		WriteIndent();
 		WriteDefinitionPrefix(definition);
+		WriteTypeCallSpec(definition);
 		writer.Write("newtype ");
 		if (definition.IteratorKind != IteratorKind.None)
 			writer.Write($"{Lower(definition.IteratorKind)} ");
@@ -459,7 +466,11 @@ public sealed class BindableNodeCodeSerializer
 		}
 		writer.Write(definition.Name);
 		if (callable)
+		{
 			WriteParameterList(definition.Parameters);
+			if (definition.UnderlyingType is CallableTypeReference { TargetSpec: not null } annotated)
+				writer.Write(" " + annotated.TargetSpec);
+		}
 		else if (definition.UnderlyingType is not null)
 		{
 			writer.Write(" : ");
@@ -487,7 +498,7 @@ public sealed class BindableNodeCodeSerializer
 	void WriteCallableNewtypePrefix(CallableTypeReference callable)
 	{
 		writer.Write(GetCallableKind(callable.Kind));
-		WriteCallableSpecs(callable.TargetSpec, callable.CallSpec);
+		WriteCallableSpecs(callable.CallSpec);
 		WriteType(callable.ReturnType);
 	}
 
@@ -497,6 +508,7 @@ public sealed class BindableNodeCodeSerializer
 		WriteAttributes(definition.Attributes);
 		WriteIndent();
 		WriteDefinitionPrefix(definition);
+		WriteTypeCallSpec(definition);
 		writer.Write("params ");
 		writer.Write(definition.Name);
 		WriteParameterList(definition.Components);
@@ -1550,6 +1562,18 @@ public sealed class BindableNodeCodeSerializer
 			writer.Write("internal ");
 		if (ShouldWriteExternPrefix(definition))
 			writer.Write("extern ");
+
+	}
+
+	void WriteTypeCallSpec(Definition definition)
+	{
+		string? callSpec = definition switch
+		{
+			TypeDefinition type => type.CallSpec,
+			StaticClassDefinition type => type.CallSpec,
+			_ => null
+		};
+		if (callSpec is not null) writer.Write(callSpec + " ");
 	}
 
 	bool IsVisibleInApiSurface(Definition definition)
@@ -1806,6 +1830,23 @@ public sealed class BindableNodeCodeSerializer
 		WriteDelimited("(", ")", apiHeader ? FilterApiParameters(parameters) : parameters, WriteParameter);
 	}
 
+	static bool HasUnfilledParameterTypeSpecSlot(TypeReference? type)
+	{
+		return type switch
+		{
+			ConstTypeReference item => HasUnfilledParameterTypeSpecSlot(item.Type),
+			ConstOfTypeReference item => HasUnfilledParameterTypeSpecSlot(item.Type),
+			VolatileTypeReference item => HasUnfilledParameterTypeSpecSlot(item.Type),
+			EscapedTypeReference item => HasUnfilledParameterTypeSpecSlot(item.Type),
+			ScopedTypeReference item => HasUnfilledParameterTypeSpecSlot(item.Type),
+			UnscopedTypeReference item => HasUnfilledParameterTypeSpecSlot(item.Type),
+			PrimitiveTypeReference { Type: PrimitiveType.NInt or PrimitiveType.NUInt or PrimitiveType.String or PrimitiveType.WString or PrimitiveType.AString }
+				or PointerTypeReference or ArrayTypeReference or OptionalTypeReference or RawFunctionPointerTypeReference
+				or CallableTypeReference { TargetSpec: null } => true,
+			_ => false
+		};
+	}
+
 	static List<ParameterDefinition> FilterApiParameters(List<ParameterDefinition> parameters)
 	{
 		List<ParameterDefinition> result = [];
@@ -1931,6 +1972,8 @@ public sealed class BindableNodeCodeSerializer
 			else
 			{
 				WriteTypeOrResolved(parameter.Type, parameter.ResolvedType);
+				if (CompilerDefinedSpecs.IsSpecShaped(parameter.Name) && HasUnfilledParameterTypeSpecSlot(parameter.Type))
+					writer.Write(" _targettype");
 				writer.Write(" ");
 				writer.Write(parameter.Name);
 			}
@@ -2197,9 +2240,11 @@ public sealed class BindableNodeCodeSerializer
 
 			case CallableTypeReference callable:
 				writer.Write(GetCallableKind(callable.Kind));
-				WriteCallableSpecs(callable.TargetSpec, callable.CallSpec);
+				WriteCallableSpecs(callable.CallSpec);
 				WriteType(callable.ReturnType);
 				WriteParameterList(callable.Parameters);
+				if (callable.TargetSpec is not null)
+					writer.Write(" " + callable.TargetSpec);
 				break;
 
 			case IterTypeReference iter:
@@ -2360,13 +2405,8 @@ public sealed class BindableNodeCodeSerializer
 		writer.Write(" ");
 	}
 
-	void WriteCallableSpecs(string? targetSpec, string? callSpec)
+	void WriteCallableSpecs(string? callSpec)
 	{
-		if (!string.IsNullOrWhiteSpace(targetSpec))
-		{
-			writer.Write(" ");
-			writer.Write(targetSpec);
-		}
 		if (!string.IsNullOrWhiteSpace(callSpec))
 		{
 			writer.Write(" ");

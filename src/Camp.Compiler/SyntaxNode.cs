@@ -127,6 +127,7 @@ public class AliasDeclarationSyntax : SyntaxNode
 
 public class AliasTargetCandidateSyntax : SyntaxNode
 {
+	public SpecifierSyntax? Specifier { get; set; }
 	public ExpressionSyntax? Condition { get; set; }
 	public Token? ColonToken { get; set; }
 	public QualifiedNamespaceSyntax? TargetName { get; set; }
@@ -139,7 +140,8 @@ public class TypeDeclarationSyntax : SyntaxNode
 	public List<TypeDeclarationDeclaratorSyntax>? Declarators { get; set; }
 	public Token? Keyword { get; set; }
 	public TypeSyntax? Type { get; set; }
-	public Token? CallSpec { get; set; }
+	public SpecifierSyntax? CallSpec { get; set; }
+	public List<SpecifierSyntax>? AdditionalCallSpecs { get; set; }
 	public Token? Identifier { get; set; }
 	public GenericParameterListSyntax? GenericParameterList { get; set; }
 	public ParameterListSyntax? ParameterList { get; set; }
@@ -191,7 +193,8 @@ public class MemberDeclarationSyntax : SyntaxNode
 {
 	public List<AttributeSyntax>? Attributes { get; set; }
 	public List<MemberDeclaratorSyntax>? Declarators { get; set; }
-	public Token? CallSpec { get; set; }
+	public SpecifierSyntax? CallSpec { get; set; }
+	public List<SpecifierSyntax>? AdditionalCallSpecs { get; set; }
 	public TypeSyntax? Type { get; set; }
 	public TypeSyntax? OutOfScopeOwnerType { get; set; }
 	public Token? OutOfScopeDotToken { get; set; }
@@ -293,8 +296,10 @@ public class ThisTypeSyntax : TypeSyntax
 public class CallableTypeSyntax : TypeSyntax
 {
 	public Token? CallableKeyword { get; set; }
-	public Token? CallSpec { get; set; }
-	public Token? TargetSpec { get; set; }
+	public SpecifierSyntax? CallSpec { get; set; }
+	public List<SpecifierSyntax>? AdditionalCallSpecs { get; set; }
+	public SpecifierSyntax? TargetSpec { get; set; }
+	public List<SpecifierSyntax>? AdditionalTargetSpecs { get; set; }
 	public TypeSyntax? ReturnType { get; set; }
 	public ParameterListSyntax? ParameterList { get; set; }
 }
@@ -380,9 +385,17 @@ public class DeclaratorTypeSyntax : TypeSyntax
 
 public class TargetTypeSpecTypeSyntax : TypeSyntax
 {
-	public Token? Specifier { get; set; }
+	public SpecifierSyntax? Specifier { get; set; }
 	public TypeSyntax? Type { get; set; }
 	public bool IsPrefix { get; set; }
+}
+
+public class SpecifierSyntax : SyntaxNode
+{
+	public Token? Identifier { get; set; }
+	public bool ParameterNameAmbiguous { get; set; }
+	public string? Value => Identifier?.Value;
+	public TokenRange? Range => Identifier?.Range;
 }
 
 public class QualifiedNameTypeSyntax : TypeSyntax
@@ -486,6 +499,8 @@ public class EmptyStatementSyntax : StatementSyntax
 
 public class DeclarationTargetSyntax : SyntaxNode
 {
+	public SpecifierSyntax? CallSpec { get; set; }
+	public List<SpecifierSyntax>? AdditionalCallSpecs { get; set; }
 	public Token? FixedKeyword { get; set; }
 	public Token? StackAllocKeyword { get; set; }
 	public TypeSyntax? Type { get; set; }

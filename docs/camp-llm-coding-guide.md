@@ -1227,6 +1227,22 @@ extern int nativeRead(
 
 Rules for generated interop code:
 
+- Spec names use lowercase ASCII spelling `_[a-z][a-z0-9]*(?:_[a-z0-9]+)*`.
+  Put callspecs before method/type declarations or immediately after a concrete
+  callable keyword, and typespecs after the written carrier. A callable's typespec
+  follows its parameter list: `fn _pascal nint() _far`. Named callable-newtype
+  references cannot add specs. Never use the old two-prefix form.
+- Typespec carriers are `nint`, `nuint`, strings, pointers, dynamic arrays,
+  optionals, raw `fn*`, and concrete callables. Other primitives, fixed arrays,
+  generic instantiations themselves and plain named types/aliases are ineligible.
+  Each nested carrier has its own slot; identical duplicates are errors.
+- A spec-shaped parameter spelling before `)`, `,` or `=` on an eligible carrier
+  fills its spec slot. For a name, write `int* _targettype _value = null`.
+  Spec-shaped alias names always declare specifier aliases; every alternative,
+  including inactive ones, has the same kind and a single final fallback.
+  Known specifier names cannot be Camp declaration names. `@symbol` strings may
+  use them or Camp reserved words when native identifier/collision rules allow.
+
 - Use `extern` for declarations implemented outside Camp.
 - Use `@symbol` only where the native symbol name is part of the contract. On a
   type declaration it also supplies the default native prefix for generated ABI

@@ -13,18 +13,12 @@ public sealed class CampParserOptions
 
 	public CampParserOptions(IEnumerable<string> typeSpecs, IEnumerable<string> callSpecs)
 	{
-		TypeSpecs = new HashSet<string>(typeSpecs, StringComparer.Ordinal) { CompilerDefinedSpecs.TargetType };
-		CallSpecs = new HashSet<string>(callSpecs, StringComparer.Ordinal) { CompilerDefinedSpecs.TargetCall };
+		// Kept as a source-compatible wrapper; supplied names never influence grammar.
 	}
-
-	public IReadOnlySet<string> TypeSpecs { get; }
-	public IReadOnlySet<string> CallSpecs { get; }
 
 	public static CampParserOptions FromTarget(TargetDefinition? target)
 	{
-		return target is null
-			? Empty
-			: new CampParserOptions(target.SyntaxTypeSpecs.Keys, target.SyntaxCallSpecs.Keys);
+		return Empty;
 	}
 }
 
@@ -38,7 +32,6 @@ public sealed class CampParser
 	static readonly string[] StatementKeywords = ["if", "do", "while", "for", "else", "yield", "return", "continue", "break", "switch", "within", "try", "catch", "finally", "foreach", "delete", "goto", "throw"];
 
 	readonly TokenSequence tokens;
-	readonly CampParserOptions options;
 	readonly List<ParseDiagnostic> diagnostics = [];
 	int index;
 	bool seenNonPreludeCompilationUnitItem;
@@ -47,7 +40,6 @@ public sealed class CampParser
 	public CampParser(TokenSequence tokens, CampParserOptions? options = null)
 	{
 		this.tokens = tokens;
-		this.options = options ?? CampParserOptions.Empty;
 	}
 
 	public IReadOnlyList<ParseDiagnostic> Diagnostics => diagnostics;
@@ -533,15 +525,16 @@ public sealed class CampParser
 			Declarators = declarators.Count == 0 ? null : declarators,
 			AliasKeyword = Expect("alias"),
 			Identifier = ExpectIdentifier(),
-			EqualsToken = Expect("="),
-			TargetCandidates = ParseAliasTargetCandidates(),
-			SemicolonToken = Expect(";")
+			EqualsToken = Expect("=")
 		};
+		// The name chooses the alias category, before any target or name resolution.
+		syntax.TargetCandidates = ParseAliasTargetCandidates(CompilerDefinedSpecs.IsSpecShaped(syntax.Identifier?.Value));
 		syntax.TargetName = syntax.TargetCandidates is [AliasTargetCandidateSyntax candidate] ? candidate.TargetName : null;
+		syntax.SemicolonToken = Expect(";");
 		return syntax;
 	}
 
-	List<AliasTargetCandidateSyntax> ParseAliasTargetCandidates()
+	List<AliasTargetCandidateSyntax> ParseAliasTargetCandidates(bool specifierAlias)
 	{
 		List<AliasTargetCandidateSyntax> candidates = [];
 		do
@@ -552,7 +545,10 @@ public sealed class CampParser
 				candidate.Condition = ParseExpressionItem();
 				candidate.ColonToken = Expect(":");
 			}
-			candidate.TargetName = ParseQualifiedNamespace();
+			if (specifierAlias && IsIdentifier() && OperatorAfterOffset(1, "::") is null)
+				candidate.Specifier = ParseSpecifier();
+			else
+				candidate.TargetName = ParseQualifiedNamespace();
 			if (Is(","))
 				candidate.CommaToken = Take();
 			candidates.Add(candidate);
@@ -614,6 +610,8 @@ public sealed class CampParser
 		while (IsAny(TypeDeclarationDeclarators))
 			declarators.Add(new TypeDeclarationDeclaratorSyntax { Keyword = Take() });
 
+		List<SpecifierSyntax> leadingSpecs = ParseLeadingSpecifiers(() => IsAny(TypeDeclarationKeywords));
+
 		if ((Is("struct") || Is("class")) && PeekValue(1) == "iter" || Is("struct") && PeekValue(1) == "(")
 		{
 			index = start;
@@ -630,23 +628,16 @@ public sealed class CampParser
 		{
 			Attributes = attributes,
 			Declarators = declarators.Count == 0 ? null : declarators,
-			Keyword = Take()
+			Keyword = Take(),
+			CallSpec = leadingSpecs.FirstOrDefault(),
+			AdditionalCallSpecs = leadingSpecs.Count > 1 ? leadingSpecs.Skip(1).ToList() : null
 		};
 
-		if (syntax.Keyword?.Value == "newtype" && IsAny("fn", "delegate"))
+		if (syntax.Keyword?.Value == "newtype" && IsAny("fn", "delegate", "async", "once"))
 		{
-			TypeSyntax? callable = ParseType();
+			TypeSyntax? callable = ParseCallableType(newtype: true);
 			if (callable is CallableTypeSyntax callableType)
 			{
-				while (IsPossibleTrailingCallableSpecIdentifier(requireFollowingIdentifier: true))
-				{
-					if (callableType.CallSpec is null)
-						callableType.CallSpec = Take();
-					else if (syntax.CallSpec is null)
-						syntax.CallSpec = Take();
-					else
-						break;
-				}
 				if (IsIdentifier())
 					syntax.Type = callable;
 				else
@@ -671,6 +662,14 @@ public sealed class CampParser
 
 		if (Is("("))
 			syntax.ParameterList = ParseParameterList();
+		if (syntax.Type is CallableTypeSyntax declaredCallable)
+		{
+			declaredCallable.TargetSpec = IsSpecShapedIdentifier() ? ParseSpecifier() : null;
+			while (IsSpecShapedIdentifier())
+			{
+				(declaredCallable.AdditionalTargetSpecs ??= []).Add(ParseSpecifier());
+			}
+		}
 
 		if (TakeIf(":") is Token colon)
 		{
@@ -774,8 +773,9 @@ public sealed class CampParser
 		if (syntax.Declarators.Count == 0)
 			syntax.Declarators = null;
 
-		if (IsPossibleLeadingCallSpecIdentifier())
-			syntax.CallSpec = Take();
+		List<SpecifierSyntax> leadingSpecs = ParseLeadingSpecifiers(() => ParseDeclarationReturnType() is not null && LooksLikeMemberName());
+		syntax.CallSpec = leadingSpecs.FirstOrDefault();
+		syntax.AdditionalCallSpecs = leadingSpecs.Count > 1 ? leadingSpecs.Skip(1).ToList() : null;
 
 		if (Is("const") && PeekValue(1) == "inline")
 		{
@@ -960,7 +960,7 @@ public sealed class CampParser
 		return syntax;
 	}
 
-	TypeSyntax? ParseType(bool requireIdentifierAfterTerminalTargetSpec = false, bool allowFixedArrayLength = true)
+	TypeSyntax? ParseType(bool requireIdentifierAfterTerminalTargetSpec = false, bool allowFixedArrayLength = true, bool parameter = false)
 	{
 		TypeSyntax? type = ParseTypePrefix();
 		if (type is null)
@@ -996,11 +996,20 @@ public sealed class CampParser
 			{
 				type = new DeclaratorTypeSyntax { Declarator = ParseTypeDeclarator(), Type = type };
 			}
-			else if (IsPossiblePostfixTargetSpecIdentifier())
+			else if (IsSpecShapedIdentifier())
 			{
-				if (requireIdentifierAfterTerminalTargetSpec && !CanTargetSpecBePartOfDeclarationType())
+				bool ambiguousParameter = parameter && HasUnfilledTypeSpecSlot(type) && ValueIsAny(PeekValue(1), ")", ",", "=");
+				if (requireIdentifierAfterTerminalTargetSpec && !CanTargetSpecBePartOfDeclarationType() && !ambiguousParameter)
 					return type;
-				type = new TargetTypeSpecTypeSyntax { Specifier = Take(), Type = type };
+				SpecifierSyntax occurrence = ParseSpecifier();
+				occurrence.ParameterNameAmbiguous = ambiguousParameter;
+				if (type is CallableTypeSyntax callable)
+				{
+					if (callable.TargetSpec is null) callable.TargetSpec = occurrence;
+					else (callable.AdditionalTargetSpecs ??= []).Add(occurrence);
+				}
+				else
+					type = new TargetTypeSpecTypeSyntax { Specifier = occurrence, Type = type };
 			}
 			else
 			{
@@ -1038,19 +1047,7 @@ public sealed class CampParser
 			return new RawFunctionPointerTypeSyntax { FnKeyword = Take(), StarToken = Expect("*") };
 
 		if (IsAny("fn", "delegate", "async", "once"))
-		{
-			CallableTypeSyntax callable = new()
-			{
-				CallableKeyword = Take(),
-			};
-			if (IsPossibleCallableSpecIdentifier())
-				callable.CallSpec = Take();
-			if (IsPossibleCallableSpecIdentifier())
-				callable.TargetSpec = Take();
-			callable.ReturnType = Is("prep") ? ParsePrepReturnType() : ParseType();
-			callable.ParameterList = Is("(") ? ParseParameterList() : null;
-			return callable;
-		}
+			return ParseCallableType();
 
 		if ((Is("struct") || Is("class")) && PeekValue(1) == "iter")
 			return ParseIterType(asyncKeyword: null, storageKeyword: Take());
@@ -1090,9 +1087,6 @@ public sealed class CampParser
 
 		if (Is("this"))
 			return new ThisTypeSyntax { ThisKeyword = Take() };
-
-		if (IsKnownTargetTypeSpecIdentifier())
-			return new TargetTypeSpecTypeSyntax { Specifier = Take(), Type = ParseTypePrefix(), IsPrefix = true };
 
 		return ParseQualifiedNameType();
 	}
@@ -1211,87 +1205,56 @@ public sealed class CampParser
 		return syntax;
 	}
 
-	bool IsKnownTargetTypeSpecIdentifier()
+	bool IsSpecShapedIdentifier() => IsIdentifier() && CompilerDefinedSpecs.IsSpecShaped(Current?.Value);
+
+	SpecifierSyntax ParseSpecifier() => new() { Identifier = Take() };
+
+	// Speculate only over the consecutive spec-shaped prefix, restoring both the
+	// token cursor and diagnostics. Name lookup cannot participate in this choice.
+	List<SpecifierSyntax> ParseLeadingSpecifiers(Func<bool> remainder)
 	{
-		return IsIdentifier() && Current?.Value is string value && options.TypeSpecs.Contains(value);
+		int start = index;
+		int diagnosticStart = diagnostics.Count;
+		List<int> prefixEnds = [];
+		while (IsSpecShapedIdentifier()) { Take(); prefixEnds.Add(index); }
+		int count = prefixEnds.Count;
+		for (; count > 0; count--)
+		{
+			index = prefixEnds[count - 1];
+			bool valid = remainder();
+			index = start;
+			if (diagnostics.Count > diagnosticStart)
+				diagnostics.RemoveRange(diagnosticStart, diagnostics.Count - diagnosticStart);
+			if (!valid) continue;
+			List<SpecifierSyntax> specs = [];
+			for (int i = 0; i < count; i++) specs.Add(ParseSpecifier());
+			return specs;
+		}
+		index = start;
+		return [];
 	}
 
-	bool IsKnownTargetCallSpecIdentifier()
+	CallableTypeSyntax ParseCallableType(bool newtype = false)
 	{
-		return IsIdentifier() && Current?.Value is string value && options.CallSpecs.Contains(value);
+		CallableTypeSyntax callable = new() { CallableKeyword = Take() };
+		List<SpecifierSyntax> specs = ParseLeadingSpecifiers(() =>
+			(Is("prep") ? ParsePrepReturnType() : ParseType(requireIdentifierAfterTerminalTargetSpec: newtype)) is not null
+			&& (newtype ? IsIdentifier() : Is("(")));
+		callable.CallSpec = specs.FirstOrDefault();
+		callable.AdditionalCallSpecs = specs.Count > 1 ? specs.Skip(1).ToList() : null;
+		callable.ReturnType = Is("prep") ? ParsePrepReturnType() : ParseType(requireIdentifierAfterTerminalTargetSpec: newtype);
+		callable.ParameterList = !newtype && Is("(") ? ParseParameterList() : null;
+		return callable;
 	}
 
-	bool IsUnknownUnderscoreIdentifier()
+	static bool HasUnfilledTypeSpecSlot(TypeSyntax type)
 	{
-		return IsIdentifier()
-			&& Current?.Value is string value
-			&& value.StartsWith("_", StringComparison.Ordinal)
-			&& !options.TypeSpecs.Contains(value)
-			&& !options.CallSpecs.Contains(value);
-	}
-
-	bool IsPossiblePostfixTargetSpecIdentifier()
-	{
-		return IsKnownTargetTypeSpecIdentifier() || IsKnownTargetCallSpecIdentifier() || IsUnknownUnderscoreIdentifier();
-	}
-
-	bool IsPossibleCallableSpecIdentifier()
-	{
-		if (IsKnownTargetTypeSpecIdentifier() || IsKnownTargetCallSpecIdentifier())
-			return true;
-		if (IsUnknownUnderscoreIdentifier())
-			return IsObviousTypeStart(PeekValue(1));
-		if (IsReservedLeadingCallSpecToken(Current?.Value))
-			return false;
-		return IsIdentifier() && IsObviousTypeStart(PeekValue(1));
-	}
-
-	bool IsPossibleTrailingCallableSpecIdentifier(bool requireFollowingIdentifier)
-	{
-		if (!IsPossibleCallableSpecIdentifier())
-			return false;
-		return !requireFollowingIdentifier || Peek(1)?.Class == TokenClass.Identifier;
-	}
-
-	bool IsPossibleLeadingCallSpecIdentifier()
-	{
-		if (!IsIdentifier())
-			return false;
-		if (IsKnownTargetCallSpecIdentifier())
-			return true;
-		if (IsUnknownUnderscoreIdentifier())
-			return IsObviousTypeStart(PeekValue(1));
-		if (IsReservedLeadingCallSpecToken(Current?.Value))
-			return false;
-
-		return ValueIsAny(PeekValue(1),
-			"void", "bool", "string", "wstring", "astring", "byte", "sbyte", "ushort", "short",
-			"uint", "int", "ulong", "long", "nuint", "nint", "float", "double", "char",
-			"wchar", "achar", "uchar", "untyped", "fn", "delegate", "once", "async", "iter");
-	}
-
-	static bool IsObviousTypeStart(string? value)
-	{
-		return ValueIsAny(value,
-			"void", "bool", "string", "wstring", "astring", "byte", "sbyte", "ushort", "short",
-			"uint", "int", "ulong", "long", "nuint", "nint", "float", "double", "char",
-			"wchar", "achar", "uchar", "untyped", "fn", "delegate", "once", "async", "iter",
-			"prep", "const", "constof", "volatile", "escaped", "scoped", "unscoped", "this",
-			"struct", "class", "params", "thrown");
-	}
-
-	static bool IsReservedLeadingCallSpecToken(string? value)
-	{
-		return ValueIsAny(value,
-			"abstract", "alias", "any", "as", "astring", "async", "auto", "bool", "break", "byte",
-			"achar", "case", "catch", "char", "class", "classtype", "const", "continue", "copyable", "default", "delegate", "delete",
-			"do", "double", "else", "enum", "escaped", "export", "extern", "false", "finally",
-			"fixed", "float", "fn", "for", "foreach", "if", "implements", "in", "init", "int",
-			"interface", "internal", "iter", "long", "namespace", "new", "newtype", "nint", "null", "nuint", "once", "out",
-			"override", "params", "prep", "public", "return", "sbyte", "scoped", "sealed", "short", "sizeof",
-			"stackalloc", "static", "string", "struct", "switch", "this", "thrown", "true", "try", "uchar", "uint",
-			"ulong", "unscoped", "unsafe", "upon", "ushort", "untyped", "using", "virtual", "void", "volatile",
-			"vtableof", "wchar", "while", "within", "wstring", "yield", "typenameof");
+		if (type is DeclaratorTypeSyntax declarator && declarator.Type is not null)
+			return HasUnfilledTypeSpecSlot(declarator.Type);
+		return type is PointerTypeSyntax or OptionalTypeSyntax or RawFunctionPointerTypeSyntax
+			or ArrayTypeSyntax { Length: null } or CallableTypeSyntax { TargetSpec: null }
+			|| type is QualifiedNameTypeSyntax named && named.Qualifiers is null or { Count: 0 }
+				&& named.Identifier?.Value is "nint" or "nuint" or "string" or "wstring" or "astring";
 	}
 
 	bool CanTargetSpecBePartOfDeclarationType()
@@ -1411,7 +1374,7 @@ public sealed class CampParser
 		if (syntax.Declarators.Count == 0)
 			syntax.Declarators = null;
 
-		syntax.Type = ParseType(requireIdentifierAfterTerminalTargetSpec: true);
+		syntax.Type = ParseType(requireIdentifierAfterTerminalTargetSpec: true, parameter: true);
 		if (syntax.Type is null)
 			return null;
 
@@ -1741,6 +1704,7 @@ public sealed class CampParser
 		}
 
 		int start = index;
+		List<SpecifierSyntax> leadingSpecs = ParseLeadingSpecifiers(() => ParseType(requireIdentifierAfterTerminalTargetSpec: true) is not null && IsIdentifier());
 		TypeSyntax? type = ParseType(requireIdentifierAfterTerminalTargetSpec: true);
 		if (type is null || !IsIdentifier())
 		{
@@ -1752,7 +1716,7 @@ public sealed class CampParser
 			return null;
 		}
 
-		return new DeclarationTargetSyntax { FixedKeyword = fixedKeyword, StackAllocKeyword = stackAllocKeyword, Type = type, Identifier = TakeIdentifier() };
+		return new DeclarationTargetSyntax { FixedKeyword = fixedKeyword, StackAllocKeyword = stackAllocKeyword, Type = type, Identifier = TakeIdentifier(), CallSpec = leadingSpecs.FirstOrDefault(), AdditionalCallSpecs = leadingSpecs.Count > 1 ? leadingSpecs.Skip(1).ToList() : null };
 	}
 
 	ExpressionSyntax? ParseExpression()

@@ -3,11 +3,17 @@
 
 /* Private file declarations. */
 bool SetWindowTextA(int hWnd, const char *text);
+int _targettype(void);
 static int privateImpl(void);
 static int PrivateNumber;
 
 int MyLibSomeValue = 5;
 static int PrivateNumber = 2;
+int readData(Data *data)
+{
+	return (data->class + data->_far);
+}
+
 static int privateImpl(void)
 {
 	return 3;
@@ -65,6 +71,7 @@ int main(void)
 
 #include "symbol_override_private.h"
 
+int readData(Data *data);
 int ControlValue(const NativeControl *this);
 int NativeControl_getSourceValue(const NativeControl *this);
 int ComputeControlDefaultSize(void);
@@ -82,6 +89,7 @@ extern int MyLibSomeValue;
 #include <stdbool.h>
 
 /* Forward declarations. */
+typedef struct Data Data;
 typedef struct NativeControl NativeControl;
 
 /* Enums. */
@@ -89,12 +97,18 @@ typedef struct NativeControl NativeControl;
 /* Newtypes. */
 
 /* Layouts. */
+struct Data
+{
+	int class;
+	int _far;
+};
 struct NativeControl
 {
 	char _camp_empty;
 };
 
 /* Function declarations. */
+int readData(Data *data);
 int ControlValue(const NativeControl *this);
 int NativeControl_getSourceValue(const NativeControl *this);
 int ComputeControlDefaultSize(void);

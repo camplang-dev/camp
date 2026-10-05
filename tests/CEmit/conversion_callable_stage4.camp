@@ -3,8 +3,8 @@
 
 export void targetSpecs(
 	fn* _near nearRaw,
-	fn _near _pascal nint() nearFunction)
+	fn _pascal nint() _near nearFunction)
 {
 	fn* _far farRaw = (fn* _far)nearRaw;
-	fn _near _pascal nint() sameFunction = nearFunction;
+	fn _pascal nint() _near sameFunction = nearFunction;
 }

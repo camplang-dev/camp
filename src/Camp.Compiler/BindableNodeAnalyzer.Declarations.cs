@@ -359,6 +359,14 @@ public sealed partial class BindableNodeAnalyzer
 
 	void AnalyzeDefinitionCore(Definition definition, AnalysisScope parentScope)
 	{
+		if (definition.SourceSyntax is TypeDeclarationSyntax)
+			ValidateLeadingSpecs(definition.SourceSyntax, allowed: true);
+		if (definition is TypeDefinition type)
+		{
+			if (type.CallSpec is not null) type.CallSpec = ResolveCallSpecAlias(type.CallSpec, type.SourceSyntax);
+		}
+		if (definition is StaticClassDefinition { CallSpec: not null } staticClass)
+			staticClass.CallSpec = ResolveCallSpecAlias(staticClass.CallSpec, staticClass.SourceSyntax);
 			AnalyzeAttributes(definition.Attributes);
 			if (definition is not FunctionDefinition)
 				ValidateUnsupportedAttributePlacement(definition);
@@ -438,7 +446,7 @@ public sealed partial class BindableNodeAnalyzer
 	bool ResolveAlias(AliasDefinition alias, Dictionary<AliasDefinition, AliasDefinition> resolving)
 	{
 		if (alias.TargetKind != AliasTargetKind.Unresolved)
-			return true;
+			return alias.ResolvedTargetName != ErrorType;
 		if (resolving.ContainsKey(alias))
 		{
 			Report(GetNameRange(alias), $"Alias '{alias.Name}' cannot reference itself through an alias cycle.");
@@ -455,7 +463,77 @@ public sealed partial class BindableNodeAnalyzer
 
 	bool ResolveAliasTarget(AliasDefinition alias, Dictionary<AliasDefinition, AliasDefinition> resolving)
 	{
-		SelectAliasTarget(alias);
+		bool success = true;
+		AliasTargetKind kind = AliasTargetKind.Unresolved;
+		bool specifier = CompilerDefinedSpecs.IsSpecShaped(alias.Name);
+		List<(AliasTargetCandidate Candidate, AliasTargetKind Kind, string Name)> resolved = [];
+		for (int i = 0; i < alias.TargetCandidates.Count; i++)
+		{
+			AliasTargetCandidate candidate = alias.TargetCandidates[i];
+			if (candidate.Condition is null && i != alias.TargetCandidates.Count - 1)
+			{
+				Report(GetRange(candidate.SourceSyntax), "An alias fallback must be the final alternative.");
+				success = false;
+			}
+			ApplyAliasTargetCandidate(alias, candidate);
+			alias.TargetKind = AliasTargetKind.Unresolved;
+			bool candidateSuccess = ResolveAliasCandidate(alias, resolving);
+			if (candidateSuccess)
+			{
+				bool candidateSpec = alias.TargetKind is AliasTargetKind.CallSpec or AliasTargetKind.TypeSpec;
+				if (specifier != candidateSpec || specifier && (candidate.TargetQualifiers.Count != 0 || !CompilerDefinedSpecs.IsSpecShaped(candidate.TargetName)))
+				{
+					Report(GetRange(candidate.SourceSyntax), specifier
+						? $"Specifier alias '{alias.Name}' must target a callspec or typespec."
+						: $"Ordinary alias '{alias.Name}' cannot target a specifier; use a spec-shaped alias name.");
+					candidateSuccess = false;
+				}
+				if (kind != AliasTargetKind.Unresolved && kind != alias.TargetKind)
+				{
+					Report(GetRange(candidate.SourceSyntax), $"All alternatives of alias '{alias.Name}' must resolve to the same kind.");
+					candidateSuccess = false;
+				}
+				kind = alias.TargetKind;
+			}
+			success &= candidateSuccess;
+			resolved.Add((candidate, alias.TargetKind, alias.ResolvedTargetName));
+		}
+		if (alias.TargetCandidates.Count == 0)
+			return ResolveAliasCandidate(alias, resolving);
+		if (alias.TargetCandidates[^1].Condition is not null)
+		{
+			Report(GetNameRange(alias), $"Alias '{alias.Name}' has no fallback target.");
+			success = false;
+		}
+		AliasTargetCandidate? selected = null;
+		foreach (var alternative in resolved)
+		{
+			AliasTargetCandidate candidate = alternative.Candidate;
+			bool matches = candidate.Condition is null;
+			if (candidate.Condition is not null)
+			{
+				matches = TryBindConfiguredQueryExpression(candidate.Condition, out ConfigurationFlagExpression? condition)
+					&& condition is not null && condition.Evaluate(configurationFlags);
+				candidate.Condition.ResolvedType = "bool";
+			}
+			if (selected is null && matches)
+			{
+				selected = candidate;
+				ApplyAliasTargetCandidate(alias, candidate);
+				alias.TargetKind = alternative.Kind;
+				alias.ResolvedTargetName = alternative.Name;
+			}
+		}
+		if (!success || selected is null)
+		{
+			alias.TargetKind = kind == AliasTargetKind.Unresolved ? AliasTargetKind.Type : kind;
+			alias.ResolvedTargetName = ErrorType;
+		}
+		return success && selected is not null;
+	}
+
+	bool ResolveAliasCandidate(AliasDefinition alias, Dictionary<AliasDefinition, AliasDefinition> resolving)
+	{
 		string target = BuildAliasTargetName(alias);
 		if (target == alias.Name && alias.TargetQualifiers.Count == 0)
 		{
@@ -469,10 +547,10 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			if (!IsDefinitionVisible(targetAlias, alias.SourceSyntax))
 				ReportNotExported(targetAlias, alias.SourceSyntax, "Alias");
-			ResolveAlias(targetAlias, resolving);
+			bool success = ResolveAlias(targetAlias, resolving);
 			alias.TargetKind = targetAlias.TargetKind;
 			alias.ResolvedTargetName = targetAlias.ResolvedTargetName;
-			return true;
+			return success;
 		}
 
 		if (alias.TargetQualifiers.Count == 0 && TryGetPrimitiveType(alias.TargetName, out _))
@@ -491,14 +569,14 @@ public sealed partial class BindableNodeAnalyzer
 			return true;
 		}
 
-		if (alias.TargetQualifiers.Count == 0 && (alias.TargetName == CompilerDefinedSpecs.TargetCall || selectedTarget?.Capabilities.HasCallSpec(alias.TargetName) == true))
+		if (alias.TargetQualifiers.Count == 0 && IsTargetCallSpecKnown(alias.TargetName))
 		{
 			alias.TargetKind = AliasTargetKind.CallSpec;
 			alias.ResolvedTargetName = alias.TargetName;
 			return true;
 		}
 
-		if (alias.TargetQualifiers.Count == 0 && (alias.TargetName == CompilerDefinedSpecs.TargetType || selectedTarget?.Capabilities.HasTypeSpec(alias.TargetName) == true))
+		if (alias.TargetQualifiers.Count == 0 && IsTargetTypeSpecKnown(alias.TargetName))
 		{
 			alias.TargetKind = AliasTargetKind.TypeSpec;
 			alias.ResolvedTargetName = alias.TargetName;
@@ -516,39 +594,6 @@ public sealed partial class BindableNodeAnalyzer
 		alias.TargetKind = AliasTargetKind.Type;
 		alias.ResolvedTargetName = ErrorType;
 		return false;
-	}
-
-	void SelectAliasTarget(AliasDefinition alias)
-	{
-		if (alias.TargetCandidates.Count == 0)
-			return;
-
-		AliasTargetCandidate? fallback = null;
-		foreach (AliasTargetCandidate candidate in alias.TargetCandidates)
-		{
-			if (candidate.Condition is null)
-			{
-				fallback = candidate;
-				continue;
-			}
-
-			if (!TryBindConfiguredQueryExpression(candidate.Condition, out ConfigurationFlagExpression? condition) || condition is null)
-				continue;
-			candidate.Condition.ResolvedType = "bool";
-			if (condition.Evaluate(configurationFlags))
-			{
-				ApplyAliasTargetCandidate(alias, candidate);
-				return;
-			}
-		}
-
-		if (fallback is not null)
-		{
-			ApplyAliasTargetCandidate(alias, fallback);
-			return;
-		}
-
-		Report(GetNameRange(alias), $"Alias '{alias.Name}' has no fallback target.");
 	}
 
 	static void ApplyAliasTargetCandidate(AliasDefinition alias, AliasTargetCandidate candidate)
@@ -1045,9 +1090,13 @@ public sealed partial class BindableNodeAnalyzer
 	void ValidateExpandedFieldNames(List<FieldDefinition> fields)
 	{
 		Dictionary<string, FieldDefinition> symbols = new(StringComparer.Ordinal);
+		Dictionary<string, FieldDefinition> nativeMembers = new(StringComparer.Ordinal);
 		Dictionary<string, string> componentSymbols = new(StringComparer.Ordinal);
 		foreach (FieldDefinition field in fields)
 		{
+			if (field.Modifier != FieldModifier.Static && !string.IsNullOrWhiteSpace(field.Symbol)
+				&& !nativeMembers.TryAdd(field.Symbol, field) && nativeMembers[field.Symbol].Name != field.Name)
+				Report(GetNameRange(field), $"Duplicate native member name '{field.Symbol}'.");
 			string name = field.Name;
 			if (string.IsNullOrWhiteSpace(name))
 				continue;
@@ -1219,6 +1268,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	void AnalyzeVariableDefinition(VariableDefinition definition, AnalysisScope scope, bool allowSymbolAttribute = true)
 	{
+		ValidateLeadingSpecs(definition.SourceSyntax, allowed: false);
 		AnalyzeAttributes(definition.Attributes);
 		ValidateUnsupportedAttributePlacement(definition);
 		SetDefaultTopLevelSymbol(definition, definition.Name);
@@ -1283,6 +1333,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	void AnalyzeFieldDefinition(FieldDefinition definition, AnalysisScope scope, TypeDefinition? containingType)
 	{
+		ValidateLeadingSpecs(definition.SourceSyntax, allowed: false);
 		AnalyzeAttributes(definition.Attributes);
 		ValidateUnsupportedAttributePlacement(definition);
 		if (definition.IsInline)
@@ -1295,7 +1346,7 @@ public sealed partial class BindableNodeAnalyzer
 		else
 		{
 			SetDefaultSymbol(definition, definition.Name);
-			ApplySymbolAttribute(definition, allowed: false, "field");
+			ApplySymbolAttribute(definition, allowed: containingType is StructDefinition, "field");
 		}
 		if ((definition.Export is not null || definition.Public is not null || definition.Internal is not null) && definition.Modifier != FieldModifier.Static)
 			Report(GetNameRange(definition), "Exported or internal fields must be explicitly marked static.");
@@ -1537,7 +1588,10 @@ public sealed partial class BindableNodeAnalyzer
 		ApplyImplicitGetterThisParameter(definition, containingType);
 		if (!string.IsNullOrWhiteSpace(definition.CallSpec))
 			definition.CallSpec = ResolveCallSpecAlias(definition.CallSpec, definition.SourceSyntax);
-		ValidateTargetCallSpec(definition.CallSpec, definition.SourceSyntax);
+		if (definition.SourceSyntax is MemberDeclarationSyntax { CallSpec: not null })
+			ValidateLeadingSpecs(definition.SourceSyntax, allowed: true);
+		else
+			ValidateTargetCallSpec(definition.CallSpec, definition.SourceSyntax);
 		AnalyzeOutOfScopeMemberOwner(definition);
 		if (definition.OutOfScopeOwnerName is not null)
 			ValidateOutOfScopeFunction(definition);

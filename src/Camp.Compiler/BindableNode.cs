@@ -123,6 +123,7 @@ internal sealed record NodeProvenance(
 
 public abstract class TypeDefinition : Definition
 {
+	public string? CallSpec { get; set; }
 	public List<GenericParameter> GenericParameters { get; } = [];
 }
 
@@ -173,6 +174,7 @@ public class ClassDefinition : TypeDefinition
 
 public class StaticClassDefinition : Definition
 {
+	public string? CallSpec { get; set; }
 	public List<FieldDefinition> Fields { get; } = [];
 	public List<FunctionDefinition> Functions { get; } = [];
 }

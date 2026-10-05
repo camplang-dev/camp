@@ -676,7 +676,7 @@ public static class CampLanguageService
 		TokenSequence rawTokens = new(CampTokenizer.Tokenize(text));
 		PreprocessResult preprocess = CampPreprocessor.Process(rawTokens, compilation.PreprocessorSymbols, compilation.TargetOwnedPreprocessorSymbols);
 		TokenSequence tokens = new(preprocess.Tokens);
-		CompilationUnitSyntax syntax = CampParser.Parse(tokens, out IReadOnlyList<ParseDiagnostic> parseDiagnostics, CampParserOptions.FromTarget(compilation.Target));
+		CompilationUnitSyntax syntax = CampParser.Parse(tokens, out IReadOnlyList<ParseDiagnostic> parseDiagnostics);
 		IReadOnlyList<ParseDiagnostic> diagnostics = [.. preprocess.Diagnostics, .. parseDiagnostics];
 		parseCache.Add(fullPath, text, compilation.PreprocessorSymbols, compilation.TargetOwnedPreprocessorSymbols, compilation.Target, tokens, preprocess.Diagnostics, syntax, diagnostics);
 		return new SourceFile
@@ -884,10 +884,6 @@ public static class CampLanguageService
 			builder.Append(Path.GetFullPath(path));
 			builder.Append('\n');
 			builder.Append(target?.Name ?? "");
-			builder.Append('\n');
-			AppendSet(builder, target?.TypeSpecs.Keys ?? []);
-			builder.Append('\n');
-			AppendSet(builder, target?.CallSpecs.Keys ?? []);
 			builder.Append('\n');
 			AppendSet(builder, preprocessorSymbols);
 			builder.Append('\n');

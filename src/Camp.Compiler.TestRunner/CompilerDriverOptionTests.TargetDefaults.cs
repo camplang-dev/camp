@@ -22,20 +22,20 @@ public sealed partial class CompilerDriverOptionTests
 			public _chain int implementation(int value) => value + 2;
 			export implementation as projectedOperation;
 			export _targetcall int ordinary(int value) => value;
-			export newtype fn _targettype _targetcall int Callback(int value);
+			export newtype fn _targetcall int Callback(int value) _targettype;
 			export _targetcall int ascribed(int value): Callback => value;
 			export byte* _someptr pointerIdentity(byte* _someptr value) => value;
 			export fn* _targettype codeIdentity(fn* _targettype value) => value;
 			export nuint _targettype integerIdentity(nuint _targettype value) => value;
 			export string _targettype stringIdentity(string _targettype value) => value;
 			export int[] _targettype arrayIdentity(int[] _targettype value) => value;
-			export int apply(fn _targettype _targetcall int(int) callback, int value) => callback(value);
+			export int apply(fn _targetcall int(int) _targettype callback, int value) => callback(value);
 			""");
 		string consumer = CreateTempCase("target_defaults_consumer.camp", """
 			export int main()
 			{
 				fn int(int) plain = ordinary;
-				fn _targettype _targetcall int(int) explicitDefault = plain;
+				fn _targetcall int(int) _targettype explicitDefault = plain;
 				plain = explicitDefault;
 				byte* plainPointer = null;
 				byte* _targettype explicitPointer = pointerIdentity(plainPointer);
@@ -53,7 +53,7 @@ public sealed partial class CompilerDriverOptionTests
 				int[] values = default;
 				int[] _targettype explicitArray = arrayIdentity(values);
 				values = explicitArray;
-				delegate _targettype _targetcall int(int) closure = value => value + 1;
+				delegate _targetcall int(int) _targettype closure = value => value + 1;
 				delegate int(int) plainClosure = closure;
 				closure = plainClosure;
 				return platformOperation(1) == 2 && projectedOperation(1) == 3
@@ -137,7 +137,7 @@ public sealed partial class CompilerDriverOptionTests
 			alias _type = _targettype;
 			export extern _call int operation(nuint _type count);
 			export extern void carriers(byte* _targettype data, fn* _targettype code,
-				fn _targettype _targetcall int(int) callback, int[] _type values,
+				fn _targetcall int(int) _targettype callback, int[] _type values,
 				string _type text, nint _type number, byte* _type * _type nested,
 				byte* _type const qualified);
 			""";
@@ -262,14 +262,14 @@ public sealed partial class CompilerDriverOptionTests
 		[
 			("interface F { _stdcall int f(); } struct S: F { _targetcall int f(): F => 0; }", "requires callspec '_stdcall'"),
 			("alias _d = _targetcall; interface F { _stdcall int f(); } struct S: F { _d int f(): F => 0; }", "requires callspec '_stdcall'"),
-			("extern void f(fn* _targetcall value);", "cannot be applied to 'fn*'"),
-			("alias _d = _targetcall; extern void f(byte* _d value);", "cannot be applied to data-pointer or integer carrier type"),
-			("extern void f(nint _targetcall value);", "cannot be applied to data-pointer or integer carrier type"),
-			("extern void f(untyped _targettype value);", "cannot have target specifiers"),
+			("extern void f(fn* _targetcall value);", "typespec position"),
+			("alias _d = _targetcall; extern void f(byte* _d value);", "typespec position"),
+			("extern void f(nint _targetcall value);", "typespec position"),
+			("extern void f(untyped _targettype value);", "cannot be applied to type 'untyped'"),
 			("extern void f(int _targettype value);", "cannot be applied to type 'int'"),
-			("extern void f(_targettype byte* value);", "must appear after the type form"),
+			("_targettype byte* value;", "callspec position"),
 			("extern void f(fn _targetcall _stdcall int() value);", "multiple callspecs"),
-			("extern void f(fn _targettype _far int() value);", "multiple target typespecs"),
+			("extern void f(fn int() _targettype _far value);", "multiple target typespecs"),
 			("extern void f(byte* _far _targettype value);", "multiple target typespecs"),
 			("alias _targetcall = _stdcall;", "name '_targetcall' is reserved"),
 			("struct _targettype { int value; }", "name '_targettype' is reserved"),

@@ -870,8 +870,10 @@ public sealed partial class BindableNodeAnalyzer
 		if (string.IsNullOrWhiteSpace(callSpec))
 			return;
 
-		callSpec = ResolveCallSpecAlias(callSpec, syntax);
-		if (!IsTargetCallSpecKnown(callSpec))
+		callSpec = ResolveSpecifierAlias(callSpec, syntax);
+		if (IsTargetTypeSpecKnown(callSpec))
+			Report(GetRange(syntax), $"Typespec '{callSpec}' cannot be used in a callspec position.");
+		else if (!IsTargetCallSpecKnown(callSpec))
 			Report(GetRange(syntax), $"Callspec '{callSpec}' is not defined by target '{selectedTarget?.Name ?? "#NONE"}'.");
 		else if (!IsTargetCallSpecAvailable(callSpec, syntax))
 			Report(GetRange(syntax), FormatRequirementNotProvenDiagnostic("Callspec", callSpec, GetTargetCallSpecRequirementText(callSpec)));
@@ -882,47 +884,81 @@ public sealed partial class BindableNodeAnalyzer
 		if (string.IsNullOrWhiteSpace(callable.CallSpec) && string.IsNullOrWhiteSpace(callable.TargetSpec))
 			return;
 
-		string? normalizedCallSpec = null;
-		string? normalizedTargetSpec = null;
-		ClassifyCallableSpec(callable.CallSpec, callable.SourceSyntax, ref normalizedCallSpec, ref normalizedTargetSpec);
-		ClassifyCallableSpec(callable.TargetSpec, callable.SourceSyntax, ref normalizedCallSpec, ref normalizedTargetSpec);
-
-		callable.CallSpec = normalizedCallSpec;
-		callable.TargetSpec = normalizedTargetSpec;
+		CallableTypeSyntax? syntax = callable.SourceSyntax as CallableTypeSyntax;
+		ValidateTargetCallSpec(callable.CallSpec, syntax?.CallSpec ?? callable.SourceSyntax);
+		foreach (SpecifierSyntax extra in syntax?.AdditionalCallSpecs ?? [])
+		{
+			Report(extra.Range, "Callable type has multiple callspecs.");
+			ValidateTargetCallSpec(extra.Value, extra);
+		}
+		if (callable.CallSpec is not null)
+			callable.CallSpec = ResolveSpecifierAlias(callable.CallSpec, syntax?.CallSpec ?? callable.SourceSyntax);
+		if (callable.TargetSpec is not null)
+		{
+			ValidateTypeSpecName(callable.TargetSpec, syntax?.TargetSpec ?? callable.SourceSyntax);
+			callable.TargetSpec = ResolveSpecifierAlias(callable.TargetSpec, syntax?.TargetSpec ?? callable.SourceSyntax);
+		}
+		foreach (SpecifierSyntax extra in syntax?.AdditionalTargetSpecs ?? [])
+		{
+			Report(extra.Range, "Callable type has multiple target typespecs.");
+			ValidateTypeSpecName(extra.Value ?? "", extra);
+		}
 	}
 
-	void ClassifyCallableSpec(string? spec, SyntaxNode? syntax, ref string? callSpec, ref string? targetSpec)
+	string ResolveSpecifierAlias(string name, SyntaxNode? syntax)
 	{
-		if (string.IsNullOrWhiteSpace(spec))
-			return;
+		return ResolveCallSpecAlias(ResolveTypeSpecAlias(name, syntax), syntax);
+	}
 
-		spec = TryResolveAlias(spec, AliasTargetKind.CallSpec, syntax, out AliasDefinition? callAlias)
-			? callAlias!.ResolvedTargetName
-			: TryResolveAlias(spec, AliasTargetKind.TypeSpec, syntax, out AliasDefinition? typeAlias)
-				? typeAlias!.ResolvedTargetName
-				: spec;
+	readonly HashSet<SyntaxNode> validatedLeadingSpecs = [];
 
-		if (IsTargetCallSpecKnown(spec))
+	void ValidateLeadingSpecs(SyntaxNode? syntax, bool allowed)
+	{
+		if (syntax is null || !validatedLeadingSpecs.Add(syntax)) return;
+		(SpecifierSyntax? first, List<SpecifierSyntax>? extras) = syntax switch
 		{
-			if (callSpec is not null && callSpec != spec)
-				Report(GetRange(syntax), $"Callable type has multiple callspecs: '{callSpec}' and '{spec}'.");
-			if (!IsTargetCallSpecAvailable(spec, syntax))
-				Report(GetRange(syntax), FormatRequirementNotProvenDiagnostic("Callspec", spec, GetTargetCallSpecRequirementText(spec)));
-			callSpec = spec;
-			return;
+			TypeDeclarationSyntax declaration => (declaration.CallSpec, declaration.AdditionalCallSpecs),
+			MemberDeclarationSyntax declaration => (declaration.CallSpec, declaration.AdditionalCallSpecs),
+			DeclarationTargetSyntax declaration => (declaration.CallSpec, declaration.AdditionalCallSpecs),
+			_ => (null, null)
+		};
+		if (first is null) return;
+		ValidateLeadingSpec(first);
+		foreach (SpecifierSyntax extra in extras ?? [])
+		{
+			Report(extra.Range, "Declaration has multiple callspecs.");
+			ValidateLeadingSpec(extra);
 		}
 
-		if (IsTargetTypeSpecKnown(spec))
+		void ValidateLeadingSpec(SpecifierSyntax spec)
 		{
-			if (targetSpec is not null && targetSpec != spec)
-				Report(GetRange(syntax), $"Callable type has multiple target typespecs: '{targetSpec}' and '{spec}'.");
-			if (!IsTargetTypeSpecAvailable(spec, syntax))
-				Report(GetRange(syntax), FormatRequirementNotProvenDiagnostic("Typespec", spec, GetTargetTypeSpecRequirementText(spec)));
-			targetSpec = spec;
-			return;
+			if (!allowed)
+				Report(spec.Range, "Leading specifiers are only allowed on method or type declarations.");
+			ValidateTargetCallSpec(spec.Value, spec);
 		}
+	}
 
-		Report(GetRange(syntax), $"Callspec or typespec '{spec}' is not defined by target '{selectedTarget?.Name ?? "#NONE"}'.");
+	bool ValidateTypeSpecName(string name, SyntaxNode? syntax)
+	{
+		name = ResolveSpecifierAlias(name, syntax);
+		if (IsTargetCallSpecKnown(name))
+		{
+			Report(GetRange(syntax), $"Callspec '{name}' cannot be used in a typespec position.");
+			return false;
+		}
+		if (!IsTargetTypeSpecKnown(name))
+		{
+			string hint = syntax is SpecifierSyntax { ParameterNameAmbiguous: true }
+				? " To name this parameter, fill its typespec slot with '_targettype' first." : "";
+			Report(GetRange(syntax), $"Typespec '{name}' is not defined by target '{selectedTarget?.Name ?? "#NONE"}'.{hint}");
+			return false;
+		}
+		if (!IsTargetTypeSpecAvailable(name, syntax))
+		{
+			Report(GetRange(syntax), FormatRequirementNotProvenDiagnostic("Typespec", name, GetTargetTypeSpecRequirementText(name)));
+			return false;
+		}
+		return true;
 	}
 
 	void ValidateIteratorType(IterTypeReference iter, AnalysisScope scope)
@@ -977,96 +1013,62 @@ public sealed partial class BindableNodeAnalyzer
 
 	bool ValidateTargetTypeSpec(TargetTypeSpecTypeReference typeSpec)
 	{
-		if (string.IsNullOrWhiteSpace(typeSpec.Specifier))
-			return true;
-
-		// Resolve either alias category before validating placement/category.
-		typeSpec.Specifier = ResolveCallSpecAlias(ResolveTypeSpecAlias(typeSpec.Specifier, typeSpec.SourceSyntax), typeSpec.SourceSyntax);
-
-		if (typeSpec.Type is PrimitiveTypeReference { Type: PrimitiveType.Untyped })
-		{
-			Report(GetRange(typeSpec.SourceSyntax), "Raw carrier 'untyped' cannot have target specifiers.");
-			return false;
-		}
-
-		if (IsTargetCallSpecKnown(typeSpec.Specifier))
-		{
-			if (typeSpec.Type is RawFunctionPointerTypeReference)
-			{
-				Report(GetRange(typeSpec.SourceSyntax), $"Callspec '{typeSpec.Specifier}' cannot be applied to 'fn*'; use a concrete fn type.");
-				return false;
-			}
-			Report(GetRange(typeSpec.SourceSyntax), $"Callspec '{typeSpec.Specifier}' cannot be applied to data-pointer or integer carrier type.");
-			return false;
-		}
-
-		if (!IsTargetTypeSpecKnown(typeSpec.Specifier))
-		{
-			Report(GetRange(typeSpec.SourceSyntax), $"Typespec '{typeSpec.Specifier}' is not defined by target '{selectedTarget?.Name ?? "#NONE"}'.");
-			return false;
-		}
-		if (!IsTargetTypeSpecAvailable(typeSpec.Specifier, typeSpec.SourceSyntax))
-		{
-			Report(GetRange(typeSpec.SourceSyntax), FormatRequirementNotProvenDiagnostic("Typespec", typeSpec.Specifier, GetTargetTypeSpecRequirementText(typeSpec.Specifier)));
-			return false;
-		}
-
-		if (typeSpec.IsPrefix)
-		{
-			Report(GetRange(typeSpec.SourceSyntax), $"Typespec '{typeSpec.Specifier}' must appear after the type form it modifies.");
-			return false;
-		}
-
+		if (string.IsNullOrWhiteSpace(typeSpec.Specifier)) return true;
+		SyntaxNode? occurrence = (typeSpec.SourceSyntax as TargetTypeSpecTypeSyntax)?.Specifier ?? typeSpec.SourceSyntax;
+		bool valid = ValidateTypeSpecName(typeSpec.Specifier, occurrence);
+		typeSpec.Specifier = ResolveSpecifierAlias(typeSpec.Specifier, occurrence);
 		TypeReference? inner = typeSpec.Type;
-		// Adjacent wrappers decorate the same carrier, unlike specs separated by '*', '[]', etc.
-		while (inner is TargetTypeSpecTypeReference previous)
-		{
-			if (previous.Specifier != typeSpec.Specifier)
+		while (inner is ConstTypeReference or ConstOfTypeReference or VolatileTypeReference or EscapedTypeReference or ScopedTypeReference or UnscopedTypeReference or AttributedTypeReference)
+			inner = inner switch
 			{
-				Report(GetRange(typeSpec.SourceSyntax), $"Carrier type has multiple target typespecs: '{previous.Specifier}' and '{typeSpec.Specifier}'.");
-				return false;
-			}
-			inner = previous.Type;
-		}
-		if (inner is CallableTypeReference { TargetSpec: not null } callable
-			&& callable.TargetSpec != typeSpec.Specifier)
+				ConstTypeReference item => item.Type,
+				ConstOfTypeReference item => item.Type,
+				VolatileTypeReference item => item.Type,
+				EscapedTypeReference item => item.Type,
+				ScopedTypeReference item => item.Type,
+				UnscopedTypeReference item => item.Type,
+				AttributedTypeReference item => item.Type,
+				_ => inner
+			};
+		if (inner is TargetTypeSpecTypeReference previous)
 		{
-			Report(GetRange(typeSpec.SourceSyntax), $"Callable type has multiple target typespecs: '{callable.TargetSpec}' and '{typeSpec.Specifier}'.");
+			Report(GetRange(occurrence), $"Carrier type has multiple target typespecs: '{previous.Specifier}' and '{typeSpec.Specifier}'.");
 			return false;
 		}
-		if (inner is PrimitiveTypeReference { Type: PrimitiveType.NInt or PrimitiveType.NUInt or PrimitiveType.String or PrimitiveType.WString or PrimitiveType.AString })
-			return true;
-
-		inner = UnwrapTypeDeclarators(inner ?? typeSpec);
-		if (inner is PointerTypeReference or ArrayTypeReference or OptionalTypeReference or CallableTypeReference or RawFunctionPointerTypeReference or GenericTypeReference)
-			return true;
-
-		Report(GetRange(typeSpec.SourceSyntax), $"Typespec '{typeSpec.Specifier}' cannot be applied to type '{FormatTypeReference(typeSpec.Type)}'.");
+		if (inner is CallableTypeReference { TargetSpec: not null } callable)
+		{
+			Report(GetRange(occurrence), $"Callable type has multiple target typespecs: '{callable.TargetSpec}' and '{typeSpec.Specifier}'.");
+			return false;
+		}
+		if (inner is PrimitiveTypeReference { Type: PrimitiveType.NInt or PrimitiveType.NUInt or PrimitiveType.String or PrimitiveType.WString or PrimitiveType.AString }
+			or PointerTypeReference or ArrayTypeReference or OptionalTypeReference or CallableTypeReference or RawFunctionPointerTypeReference)
+			return valid;
+		Report(GetRange(occurrence), $"Typespec '{typeSpec.Specifier}' cannot be applied to type '{FormatTypeReference(typeSpec.Type)}'.");
 		return false;
 	}
 
 	bool IsTargetCallSpecKnown(string spec)
 	{
-		return spec == CompilerDefinedSpecs.TargetCall || selectedTarget?.HasCallSpec(spec) == true || selectedTarget?.HasDeclaredCallSpec(spec) == true;
+		return spec == CompilerDefinedSpecs.TargetCall || selectedTarget?.HasCallSpec(spec) == true || selectedTarget?.HasDeclaredCallSpec(spec) == true || selectedTarget?.Catalog?.HasCallSpec(spec) == true;
 	}
 
 	bool IsTargetTypeSpecKnown(string spec)
 	{
-		return spec == CompilerDefinedSpecs.TargetType || selectedTarget?.HasTypeSpec(spec) == true || selectedTarget?.HasDeclaredTypeSpec(spec) == true;
+		return spec == CompilerDefinedSpecs.TargetType || selectedTarget?.HasTypeSpec(spec) == true || selectedTarget?.HasDeclaredTypeSpec(spec) == true || selectedTarget?.Catalog?.HasTypeSpec(spec) == true;
 	}
 
 	bool IsTargetCallSpecAvailable(string spec, SyntaxNode? syntax)
 	{
 		if (spec == CompilerDefinedSpecs.TargetCall || selectedTarget?.HasCallSpec(spec) == true)
 			return true;
-		return IsDeclaredTargetSpecRequirementSatisfied(selectedTarget?.TryGetDeclaredCallSpecRequirement(spec, out string? requirementText) == true ? requirementText : null, syntax);
+		return IsDeclaredTargetSpecRequirementSatisfied(GetTargetCallSpecRequirementText(spec), syntax);
 	}
 
 	bool IsTargetTypeSpecAvailable(string spec, SyntaxNode? syntax)
 	{
 		if (spec == CompilerDefinedSpecs.TargetType || selectedTarget?.HasTypeSpec(spec) == true)
 			return true;
-		return IsDeclaredTargetSpecRequirementSatisfied(selectedTarget?.TryGetDeclaredTypeSpecRequirement(spec, out string? requirementText) == true ? requirementText : null, syntax);
+		return IsDeclaredTargetSpecRequirementSatisfied(GetTargetTypeSpecRequirementText(spec), syntax);
 	}
 
 	bool IsDeclaredTargetSpecRequirementSatisfied(string? requirementText, SyntaxNode? syntax)
@@ -1082,12 +1084,12 @@ public sealed partial class BindableNodeAnalyzer
 
 	string GetTargetCallSpecRequirementText(string spec)
 	{
-		return selectedTarget?.TryGetDeclaredCallSpecRequirement(spec, out string? requirement) == true ? requirement : "true";
+		return selectedTarget?.TryGetDeclaredCallSpecRequirement(spec, out string? requirement) == true ? requirement : "false";
 	}
 
 	string GetTargetTypeSpecRequirementText(string spec)
 	{
-		return selectedTarget?.TryGetDeclaredTypeSpecRequirement(spec, out string? requirement) == true ? requirement : "true";
+		return selectedTarget?.TryGetDeclaredTypeSpecRequirement(spec, out string? requirement) == true ? requirement : "false";
 	}
 
 	string ResolveNamedType(NamedTypeReference named, AnalysisScope scope)

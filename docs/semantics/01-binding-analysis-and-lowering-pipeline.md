@@ -73,6 +73,28 @@ Syntax nodes are not semantic declarations. They preserve source shape,
 including trivia-sensitive attachment such as doc comments, but do not decide
 overload resolution, generic substitution, lowering, or emitted ABI shape.
 
+Specifier recognition is catalog-independent. A spec-shaped identifier matches
+`_[a-z][a-z0-9]*(?:_[a-z0-9]+)*`: lowercase ASCII, no consecutive or trailing
+underscores. Each occurrence has a syntax node and source range, including
+repeated occurrences. Analysis resolves names, kinds, requirements and carrier
+eligibility; it must not rediscover specifiers by scanning token text.
+
+The four positions are a leading callspec on a method/type declaration, a
+callspec immediately after `fn`/`delegate`/`async`/`once`, a postfix typespec on
+a written carrier (after the parameter list for concrete callables), and a
+specifier-alias RHS. Leading occurrences on variables are retained for placement
+diagnostics. Use grammatical backtracking: `_rect _far _get()` has callspec
+`_rect`, result `_far` and name `_get`; `_rect _get()` has result `_rect` and
+name `_get`. `fn _a()` has result `_a` and no callspec.
+
+On name-required variable declarations, a terminal spec-shaped occurrence
+before `;`, `=` or `,` is the name. On an eligible parameter carrier with an
+unfilled typespec slot, an occurrence before `)`, `,` or `=` is the typespec.
+For a name, fill that slot first: `int* _targettype _value = null`. Named types
+and fixed arrays have no such slot. The same grammar applies to callable
+parameters and callable-newtype declarations. See the complete
+[carrier and resolution rules](12-target-capabilities-and-c-emission.md#type-specs-and-call-specs).
+
 ## Bindable Node Construction
 
 The builder translates syntax nodes into `BindableNode` objects:

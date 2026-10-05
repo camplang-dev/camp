@@ -1,6 +1,20 @@
 @symbol("SetWindowTextA")
 extern bool SetWindowText(int hWnd, astring text);
 
+@symbol("_targettype")
+extern int defaultNamed();
+
+export struct Data
+{
+	@symbol("class") int sourceField;
+	@symbol("_far") int far;
+}
+
+export int readData(Data* data)
+{
+	return data.sourceField + data.far;
+}
+
 @symbol("MyLibSomeValue")
 export int SomeValue = 5;
 

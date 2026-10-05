@@ -2,6 +2,16 @@ namespace MyLib;
 
 @symbol("ExportedC")
 export extern int exportedCampName();
+@symbol("_targetcall")
+export extern int defaultNamed();
+
+export struct Data
+{
+	@symbol("class")
+	int sourceField;
+	@symbol("_far")
+	int far;
+}
 @symbol("ExportedValueC")
 export extern int ExportedValue;
 

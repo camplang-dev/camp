@@ -47,8 +47,8 @@ The recognized sections are:
 | `[target]` | Target name, base, and C include list. |
 | `[declare]` | Target-owned configuration flag declarations and ambient values. |
 | `[configure]` | Target-owned selected configuration flag values. |
-| `[declare.callspec]` | Callspec names accepted by the parser and their requirements. |
-| `[declare.typespec]` | Typespec names accepted by the parser and their requirements. |
+| `[declare.callspec]` | Callspec names known to analysis and their requirements. |
+| `[declare.typespec]` | Typespec names known to analysis and their requirements. |
 | `[define]` | Legacy target-owned C/preprocessor compatibility symbols. |
 | `[capability]` | Boolean or string feature flags used by compiler services. |
 | `[callspec]` | Callable calling-convention spellings. |
@@ -146,6 +146,13 @@ those C spellings, such as `stdint.h` and `stdbool.h`.
 
 ## Call Specs
 
+Names in `[callspec]`, `[typespec]`, `[declare.callspec]` and `[declare.typespec]`,
+including variant sections, must match `_[a-z][a-z0-9]*(?:_[a-z0-9]+)*`.
+Malformed names cause catalog loading to fail. The special `[typespec]` key
+`default` is configuration, not a spec name. Parsing uses spelling and grammar;
+analysis shares the build's complete supplied catalog to resolve names and kinds,
+including unavailable target/variant entries.
+
 `[callspec]` maps Camp callable call-spec names to C spelling:
 
 ```ini
@@ -159,7 +166,11 @@ _stdcall=__stdcall
 _sysv=__attribute__((sysv_abi))
 ```
 
-Calls specs apply only to concrete callable types and function declarations.
+Callspec syntax permits a leading spec on a method or type declaration, or a
+spec immediately after a concrete callable keyword. Leading specs on globals,
+fields and locals are errors. Callable carrier typespecs follow the parameter
+list: `fn _cdecl int(int) _near`. One occurrence fills each slot, even when
+repetitions name the same spec. Call specs do not decorate raw carriers.
 They do not apply to `void*`, `fn*`, `nint`, `nuint`, or `untyped`. See
 [Conversions, Raw Carriers, And Fence Casts](../semantics/03-conversions-raw-carriers-and-fence-casts.md).
 

@@ -1136,12 +1136,6 @@ public sealed partial class BindableNodeAnalyzer
 				continue;
 			}
 
-			if (ReservedWords.Contains(symbol))
-			{
-				Report(GetRange(diagnosticSyntax), $"@symbol value '{symbol}' is a reserved Camp word.");
-				continue;
-			}
-
 			if (CReservedWords.Contains(symbol))
 			{
 				Report(GetRange(diagnosticSyntax), $"@symbol value '{symbol}' is a reserved C word.");
@@ -1253,7 +1247,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (string.IsNullOrWhiteSpace(name))
 			return;
 
-		if (ReservedWords.Contains(name) || CompilerDefinedSpecs.IsReserved(name))
+		if (ReservedWords.Contains(name) || IsTargetCallSpecKnown(name) || IsTargetTypeSpecKnown(name))
 		{
 			Report(range, $"{CultureInfo.InvariantCulture.TextInfo.ToTitleCase(symbolKind)} name '{name}' is reserved.", DiagnosticCodes.ReservedIdentifier);
 			return;

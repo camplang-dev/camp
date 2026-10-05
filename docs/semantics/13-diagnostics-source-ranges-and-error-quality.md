@@ -184,6 +184,21 @@ are parsed and diagnosed as ordinary identifiers or types.
 
 ## Multi-Diagnostic Situations
 
+Specifier diagnostics belong to analysis when the structural grammar accepts
+the occurrence. Point at its own syntax node/range for unknown names, wrong kind,
+unproven requirements, invalid carriers, invalid leading declarations, and
+duplicates (including identical repeats). Preserve every occurrence until these
+checks finish. Check known-specifier restrictions at the Camp declaration name.
+An unknown spec on an eligible anonymous parameter before `)`, `,` or `=` should
+explain that `_targettype` fills the slot when the intended spelling is a name,
+for example `int* _targettype _value = null`.
+
+Alias diagnostics validate inactive alternatives as well as the selected one:
+wrong category, mixed kinds, cycles, missing fallback, and a fallback that is
+not the single final alternative. Requirement proof does not decide alias kind.
+An explicit `@symbol` string is subject to native identifier/collision rules,
+not Camp reserved-word or known-specifier-name diagnostics.
+
 Some source mistakes correctly produce more than one diagnostic. For example,
 an invalid call may have both a conversion error and a `constof` anchor error.
 When multiple diagnostics are emitted:

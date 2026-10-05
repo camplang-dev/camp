@@ -101,6 +101,15 @@ enum FileKind
 inline ByteCount DEFAULT_BUFFER_SIZE = 4096;
 ```
 
+Alias names that match `_[a-z][a-z0-9]*(?:_[a-z0-9]+)*` declare specifier
+aliases, never type aliases. For example,
+`alias _api = configured(OS_WIN32): _stdcall, _targetcall;`. Every alternative
+must resolve to the same spec kind, including inactive alternatives; an ordered
+list has exactly one final unguarded fallback. Other unknown spec-shaped names
+may be ordinary declaration names. Names defined as specs anywhere in the build's
+supplied target catalog, and `_targetcall`/`_targettype`, cannot be declaration
+names. See [specifier rules](../semantics/12-target-capabilities-and-c-emission.md#type-specs-and-call-specs).
+
 `ByteCount` is only another name for `nuint`. `FileKind` is a nominal enum.
 `DEFAULT_BUFFER_SIZE` is a compile-time value that exported callers can see.
 

@@ -79,11 +79,61 @@ errors in Camp source.
 
 ## Type Specs And Call Specs
 
-Type specs apply to target-capable carrier types. Call specs apply to concrete
-callables. In addition to the compiler-defined specs below, the parser accepts every callspec/typespec declared by the target
-chain, not only the specs configured for the selected native target. Semantic
-validation then checks whether the current requirement context proves the spec's
-declared requirement.
+Parsing recognizes spec-shaped spelling and grammatical positions without any
+catalog vocabulary. Analysis knows all callspecs/typespecs declared in the build's
+supplied catalog, including other targets and inactive variants, plus the two
+compiler-defined markers. It checks kind, placement, written carrier, and whether
+the current requirement context proves availability. Unknown specs and known
+but unavailable specs have different diagnostics.
+
+Target declarations and specifier aliases must match
+`_[a-z][a-z0-9]*(?:_[a-z0-9]+)*`. Catalog construction rejects malformed names,
+including `far`, `_Far`, `__far` and `_far_`. Ordinary source declarations may
+use unknown spec-shaped names, but cannot use any known specifier name. The
+catalog is constructed once and shared with analysis; unrelated files on disk
+do not contribute names.
+
+There is one callspec per method/type declaration or concrete callable, and one
+typespec per carrier. Identical duplicates are errors before default normalization.
+Only method/type declarations accept a leading callspec. For example:
+
+```camp
+_stdcall class _rect { }
+_cdecl int f() { return 0; }
+fn _pascal nint() _far callback;
+delegate _stdcall bool(int x) _far handler;
+fn* _near raw;
+```
+
+The old two-prefix callable spelling is invalid. Concrete callable typespecs
+follow the parameter list. A callable newtype fixes its specs at declaration:
+`newtype delegate _stdcall bool Callback(int x) _far;`. References to
+`Callback` cannot add specs; a pointer/array/optional around it has its own slot.
+
+| Written carrier | Typespec allowed |
+| --- | --- |
+| `nint`, `nuint`, `string`, `wstring`, `astring` | Yes |
+| `T*`, including `void*` | Yes, on that pointer layer |
+| `T[]`, `T?` | Yes, on that wrapper |
+| Concrete `fn`, `delegate`, `async`, `once` | Yes, after its parameter list |
+| Raw `fn*` | Yes, after `*`; no callspec |
+| Generic instantiation itself, fixed array itself | No |
+| `untyped`, other primitives | No |
+| Plain named class, struct, enum, newtype, generic parameter or type alias | No |
+
+Eligibility belongs to the written carrier, never a named type's underlying
+representation. Nested carriers may have separate specs: `byte* _far * _near q`.
+No annotation propagates to elements, generic arguments, or callable signatures.
+
+An alias's name selects its category. A spec-shaped name always declares a
+specifier alias; an ordinary name declares an ordinary type/declaration alias.
+Specifier aliases can chain to specs or specifier aliases. Validate cycles,
+exactly one final unguarded fallback, and every alternative's kind, including
+inactive alternatives. All alternatives must have the same kind. Knowing an
+inactive alternative's kind does not require proving its availability. Thus
+`alias _c = configured(OS_WIN32): _stdcall, _targetcall;` is valid;
+mixing `_stdcall` and `_far`, aliasing a type through `_c`, or aliasing a spec
+through an ordinary name is invalid.
 
 Examples of target type spec domains include near/far/huge pointer families or
 memory-space annotations on targets that need them. Examples of call specs
@@ -103,7 +153,7 @@ Rules for compiler writers:
 - include call/type specs in callable compatibility and conversion
   classification where required.
 
-Target files declare the syntactic spec universe separately from selected C
+Target files declare the semantic spec universe separately from selected C
 spellings:
 
 ```ini
@@ -139,7 +189,7 @@ Aliases may resolve to these specs, including as conditional fallbacks:
 Declared specs remain available for API/metadata serialization, but effective
 type identities, signature comparisons, conversions, and width queries treat
 the markers as default. This does not merge any other named ABI domains.
-Conflicting explicit specs on the same carrier or callable are diagnosed before
+Repeated or conflicting explicit specs on the same carrier or callable are diagnosed before
 normalization, even when one of them is a default marker.
 
 Explicit `_targetcall` on an interface implementation is an ABI choice: it must

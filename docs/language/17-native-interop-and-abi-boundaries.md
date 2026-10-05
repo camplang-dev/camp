@@ -331,6 +331,12 @@ symbol and the default prefix for generated ABI helpers and static members.
 Once a declaration has a symbol override, treat the override as the stable ABI
 name and the Camp name as the stable source name.
 
+The `@symbol` string may match a Camp reserved word or known specifier, including
+`_targetcall` and `_targettype`, when it is valid for the native target. It still
+must be a valid C identifier, avoid C reserved words, and avoid native collisions.
+On a struct field, `@symbol("_far") int far;` emits member `_far` while Camp
+lookup uses `far`. Generated Camp APIs retain the source name and attribute.
+
 When a native-facing declaration has no `@symbol`, Camp computes a default ABI
 symbol from the declaration's source namespace and kind. That makes Camp
 libraries safer to link because namespaced source declarations naturally get

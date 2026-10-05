@@ -550,6 +550,15 @@ call-specs, and generic capabilities are part of the callable type. Signature
 compatibility does not insert arbitrary caller-side conversions. If a callback
 needs a different shape, write an adapter.
 
+A callspec follows the callable keyword; a typespec follows the parameter list:
+`fn _pascal nint() _far callback`. A callable newtype fixes these at declaration:
+`newtype delegate _stdcall bool Callback(int x) _far;`. Its named references
+cannot add or change specs. One spec fills each slot; identical repeats are errors.
+On an eligible anonymous parameter carrier, a spec-shaped spelling before `)`,
+`,` or `=` fills its typespec slot. To name it, write
+`int* _targettype _value = null`. These rules also apply inside callable signatures
+and callable-newtype parameter lists.
+
 ## `fn` Values
 
 Use `fn` for direct functions without captured context.

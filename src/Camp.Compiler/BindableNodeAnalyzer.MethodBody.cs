@@ -1318,6 +1318,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	void BodyAnalyzeDeclarationTarget(DeclarationTarget target, BodyScope scope, AnalysisScope typeScope, string targetType, bool allowDiscard = false)
 	{
+		ValidateLeadingSpecs(target.SourceSyntax, allowed: false);
 		AnalyzeOptionalType(target.Type, typeScope);
 
 		if (target.Type is AutoTypeReference)
@@ -1336,6 +1337,7 @@ public sealed partial class BindableNodeAnalyzer
 				continue;
 			}
 
+			CheckName(name, GetDeclarationTargetNameRange(target.SourceSyntax, name), "local");
 			RegisterBodySymbol(scope, name, target.ResolvedType ?? ErrorType, target, target.Type, target.ResolvedType, target.SourceSyntax);
 		}
 	}
@@ -2958,7 +2960,11 @@ public sealed partial class BindableNodeAnalyzer
 
 			string? parameterName = GetLambdaParameterSymbolName(parameter);
 			if (!string.IsNullOrWhiteSpace(parameterName))
+			{
+				if (parameter.Parameter is null)
+					CheckName(parameterName, GetLambdaParameterNameRange(parameter.SourceSyntax), "parameter");
 				RegisterBodySymbol(lambdaScope, parameterName, parameter.ResolvedType, parameter, parameter.Parameter?.Type, parameter.ResolvedType, parameter.SourceSyntax);
+			}
 		}
 
 		string returnType = "void";

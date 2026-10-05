@@ -202,7 +202,7 @@ boundaries because the lowered components are not the same promise.
 Call specifiers are separate. They describe how a concrete callable is invoked:
 
 ```camp
-fn _near _pascal nint() callback;
+fn _pascal nint() _near callback;
 fn* _near rawCallback;
 ```
 

@@ -8,6 +8,68 @@ namespace Camp.Compiler.Tests;
 public sealed class TargetCapabilityTests
 {
 	[Fact]
+	public void Known_specifier_names_include_other_targets_and_inactive_variants_in_the_supplied_catalog()
+	{
+		string root = Path.Combine(Path.GetTempPath(), "camp-specifier-universe-" + Guid.NewGuid().ToString("N"));
+		Directory.CreateDirectory(root);
+		try
+		{
+			File.WriteAllText(Path.Combine(root, "active.ini"), """
+				[target]
+				name=active
+				[declare]
+				MODE=false
+				[variant]
+				memory=small* large
+				[typespec:large]
+				_varianttype=
+				[callspec:large]
+				_variantcall=
+				""");
+			File.WriteAllText(Path.Combine(root, "other.ini"), "[target]\nname=other\n[callspec]\n_elsewherecall=\n[typespec]\n_elsewheretype=\n");
+			Assert.True(TargetCatalog.TryLoad(root, out TargetCatalog? catalog, out string? error), error);
+			Assert.True(catalog!.TryGetTarget("active", out TargetDefinition? target));
+			CompilationUnitSyntax syntax = CampParser.Parse(new TokenSequence(CampTokenizer.Tokenize("""
+				int _elsewherecall;
+				struct _varianttype { }
+				alias _choice = configured(MODE): _elsewherecall, _targetcall;
+				extern _choice void f(nint _elsewheretype value);
+				""")), out var parseDiagnostics);
+			Assert.Empty(parseDiagnostics);
+			Module module = BindableNodeBuilder.Build(syntax, out var bindDiagnostics);
+			Assert.Empty(bindDiagnostics);
+			AnalysisResult result = BindableNodeAnalyzer.Analyze(module, target);
+			Assert.Contains(result.Diagnostics, d => d.Message.Contains("name '_elsewherecall' is reserved", StringComparison.Ordinal));
+			Assert.Contains(result.Diagnostics, d => d.Message.Contains("name '_varianttype' is reserved", StringComparison.Ordinal));
+			Assert.Contains(result.Diagnostics, d => d.Message.Contains("Typespec '_elsewheretype' requires configuration 'false'", StringComparison.Ordinal)
+				&& d.Message.Contains("not proven", StringComparison.Ordinal));
+			Assert.DoesNotContain(result.Diagnostics, d => d.Message.Contains("not defined", StringComparison.Ordinal) || d.Message.Contains("Alias target", StringComparison.Ordinal));
+		}
+		finally { Directory.Delete(root, recursive: true); }
+	}
+
+	[Theory]
+	[InlineData("callspec", "cdecl")]
+	[InlineData("typespec", "_Far")]
+	[InlineData("declare.callspec", "__cdecl")]
+	[InlineData("declare.typespec", "_far_")]
+	[InlineData("callspec", "_1x")]
+	[InlineData("typespec", "_a__b")]
+	[InlineData("callspec:large", "plain")]
+	public void Specifier_catalog_declarations_require_exact_spelling(string section, string name)
+	{
+		string root = Path.Combine(Path.GetTempPath(), "camp-specifier-spelling-" + Guid.NewGuid().ToString("N"));
+		Directory.CreateDirectory(root);
+		try
+		{
+			File.WriteAllText(Path.Combine(root, "invalid.ini"), "[target]\nname=invalid\n[variant]\nmemory=small* large\n[" + section + "]\n" + name + "=\n");
+			Assert.False(TargetCatalog.TryLoad(root, out _, out string? error));
+			Assert.Contains("spelling", error, StringComparison.Ordinal);
+		}
+		finally { Directory.Delete(root, recursive: true); }
+	}
+
+	[Fact]
 	public void Target_capabilities_expose_framework_specs_and_widths()
 	{
 		TargetCatalog catalog = LoadCatalog();
