@@ -394,11 +394,14 @@ native symbol is meaningful. Declaration analysis accepts it on:
 - class, struct, interface, and newtype declarations;
 - global variables, including global inline constants;
 - static fields, including static inline constants;
+- struct instance fields, where the override names the native layout member;
 - functions and methods.
 
-It is rejected on aliases, parameters, generic parameters, and instance fields.
+It is rejected on aliases, parameters, generic parameters, and class instance fields.
 The attribute requires exactly one string literal. The string must be a valid
-identifier and must not be a reserved Camp word or reserved C word.
+native identifier allowed by the target, including its C reserved-word and
+collision rules. It may match a Camp reserved word or known specifier; those
+restrictions apply to the Camp source name rather than the attribute string.
 
 For a type declaration, the override is the type's effective native symbol.
 Default emitted names for ABI-visible generated helpers, interface/vtable

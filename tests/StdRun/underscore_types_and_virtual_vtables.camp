@@ -25,9 +25,9 @@ export int main()
 	_Thing* thingPointer = &thing;
 	const _Thing* constThingPointer = thingPointer;
 	Derived* derived = new Derived() finally delete;
-	Base* base = (Base*)derived;
-	_Base* vt = base._vt;
+	Base* baseValue = (Base*)derived;
+	_Base* vt = baseValue._vt;
 	fn int(Base*) value = vt.value;
-	Console.writeLine(constThingPointer.value + value(base));
+	Console.writeLine(constThingPointer.value + value(baseValue));
 	return 0;
 }

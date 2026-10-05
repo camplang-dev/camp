@@ -31,9 +31,9 @@ int exportedAdd(ExportedValue *value)
 
 int run(void)
 {
-	InternalValue internal = (InternalValue){ .value = 3 };
+	InternalValue internalValue = (InternalValue){ .value = 3 };
 	ExportedValue exported = (ExportedValue){ .value = 5 };
-	return (internalAdd(&internal) + exportedAdd(&exported));
+	return (internalAdd(&internalValue) + exportedAdd(&exported));
 }
 
 // file: public_visibility.h

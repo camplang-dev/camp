@@ -341,10 +341,11 @@ re-evaluating source expressions in C-emission-specific logic.
 `@symbol` overrides apply to every symbol-bearing declaration that declaration
 analysis accepts: ABI-visible type declarations, typedef-like newtypes, enum
 value macros/constants, global inline constants, static inline constants,
-functions, methods, and static fields. For a type declaration, C emission uses
+functions, methods, static fields, and struct instance fields. A struct field's
+override names the native layout member. For a type declaration, C emission uses
 the effective type symbol for the emitted type spelling and as the default
 prefix for generated ABI helpers and static members. C emission must not apply
-`@symbol` to aliases, parameters, generic parameters, or instance fields.
+`@symbol` to aliases, parameters, generic parameters, or class instance fields.
 
 Static class containers have no emitted type spelling and no independent ABI
 symbol. Their static members are emitted like type-scoped static members using
@@ -360,12 +361,16 @@ not possible.
 Reserved identifier validation should include:
 
 - C keywords;
-- Camp reserved words when they become emitted identifiers;
+- Camp source-name restrictions before automatic native-name translation;
 - target-reserved names if defined;
 - generated helper prefixes;
 - expanded component names;
 - header guards and include names;
 - `@symbol` overrides.
+
+Explicit `@symbol` strings may match Camp reserved words or known specifiers.
+Validate them against native identifier and collision rules without applying
+Camp source-name restrictions to the strings.
 
 Generated names should be stable and readable enough for C emission tests, but
 they must not collide with source declarations or target-reserved identifiers.

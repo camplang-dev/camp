@@ -1,3 +1,4 @@
-tests/Diagnostics/raw_function_pointer_stage1_invalid.camp(1,23): error: Callspec '_sysv' cannot be applied to 'fn*'; use a concrete fn type.
-tests/Diagnostics/raw_function_pointer_stage1_invalid.camp(1,42): error: Callspec '_sysv' cannot be applied to data-pointer or integer carrier type.
-tests/Diagnostics/raw_function_pointer_stage1_invalid.camp(1,65): error: Raw carrier 'untyped' cannot have target specifiers.
+tests/Diagnostics/raw_function_pointer_stage1_invalid.camp(1,23): error: Callspec '_sysv' cannot be used in a typespec position.
+tests/Diagnostics/raw_function_pointer_stage1_invalid.camp(1,42): error: Callspec '_sysv' cannot be used in a typespec position.
+tests/Diagnostics/raw_function_pointer_stage1_invalid.camp(1,65): error: Callspec '_sysv' cannot be used in a typespec position.
+tests/Diagnostics/raw_function_pointer_stage1_invalid.camp(1,65): error: Typespec '_sysv' cannot be applied to type 'untyped'.

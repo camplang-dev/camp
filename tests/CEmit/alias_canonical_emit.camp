@@ -1,8 +1,8 @@
 alias Count = int;
-alias SystemCall = _sysv;
+alias _system_call = _sysv;
 alias inc = increment;
 
-SystemCall int increment(Count value)
+_system_call int increment(Count value)
 {
 	return value + 1;
 }

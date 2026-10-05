@@ -38,7 +38,7 @@ export int exportedAdd(ExportedValue* value)
 
 export int run()
 {
-	InternalValue internal = { .value = 3 };
+	InternalValue internalValue = { .value = 3 };
 	ExportedValue exported = { .value = 5 };
-	return internalAdd(&internal) + exportedAdd(&exported);
+	return internalAdd(&internalValue) + exportedAdd(&exported);
 }

@@ -532,8 +532,10 @@ members use the containing type's effective native symbol as their prefix.
 These are ABI names only. Camp source continues to use source names, imports,
 member access, and `Namespace::name` qualification.
 
-Aliases, parameters, generic parameters, and instance fields do not accept
-`@symbol`.
+Struct instance fields accept `@symbol` to select a native layout member name.
+Aliases, parameters, generic parameters, and class instance fields do not accept
+it. The string may match a Camp reserved word or known specifier when the native
+target allows that identifier. Camp lookup still uses the source declaration name.
 
 Once a declaration has a symbol override, the default generated native name is
 not the ABI name to depend on. Treat the override as the stable

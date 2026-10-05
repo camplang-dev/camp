@@ -35,15 +35,15 @@ export int main()
 		return 2;
 	return 0;
 }
-int main_boundReceiver0(void* _context)
+int main_boundReceiver0(void* _targettype _context)
 {
 	return Int_valueOrNegative((*(struct(int?)*)_context).value, (*(struct(int?)*)_context).specified);
 }
-int main_lambda1(void* _context, int value)
+int main_lambda1(void* _targettype _context, int value)
 {
 	return doubleValue(value);
 }
-int main_boundReceiver2(void* _context, int arg0)
+int main_boundReceiver2(void* _targettype _context, int arg0)
 {
 	return delegate_callWith((*(struct(delegate int(int))*)_context).call, (*(struct(delegate int(int))*)_context).context, arg0);
 }
