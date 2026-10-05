@@ -12,6 +12,20 @@ treat them as parser conveniences: most of these forms affect overload
 resolution, lifetime facts, generated temporaries, metadata, or ABI-visible
 calls.
 
+## Local Type Inference
+
+An `auto` local requires an initializer that supplies a concrete static type.
+A missing initializer, bare `null`, or untyped `default` cannot supply that
+type. Body analysis reports `CAMP3202` at the initializer, or at `auto` when
+there is no initializer, and asks the user to specify a type. Parentheses do
+not make an otherwise untyped initializer inferable.
+
+Values read from explicitly typed storage, typed null-producing expressions,
+and ordinary typed values remain valid inference sources. Failed expression
+analysis keeps its original diagnostic; it does not also need an inference
+diagnostic. The existing diagnostics for void initializers and initializer lists
+without a target type remain applicable.
+
 ## Integer Literal Target Ranges
 
 An integer literal used with a primitive integral target must fit that target's

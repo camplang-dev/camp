@@ -41,6 +41,10 @@ auto values = [1, 2, 3];
 `auto` does not make a local dynamic. The inferred type is fixed after the
 initializer is analyzed.
 
+An `auto` declaration needs an initializer with an inferable type. Write an
+explicit type when there is no initializer or the value is bare `null` or
+`default`.
+
 ## Literals
 
 | Literal form | Notes |

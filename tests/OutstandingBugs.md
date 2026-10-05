@@ -44,37 +44,6 @@ Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
 
-## BUG-234: auto with no inferable type has no Camp diagnostic
-
-Date/Time: 2026-10-05 11:21 America/Toronto
-
-Summary:
-`auto` on a local whose initializer gives no type (no initializer, `null`, or
-`default`) is not diagnosed by analysis. The error surfaces later in C emission
-or in clang. The expected diagnostic is a generic one: the type cannot be
-inferred, so a type must be written.
-
-Steps to Reproduce:
-
-1. Compile an exported entry point containing `auto missing;`, or
-   `auto nothing = null;`, or `auto fromDefault = default;` (one per build).
-2. Build it.
-
-Expected:
-A source-located error that the type of the expression cannot be inferred and a
-type must be specified.
-
-Actual:
-`auto missing;` and `auto fromDefault = default;` stop with "C emission aborted
-because DeclarationTarget ... has unresolved type '#ERROR'". `auto nothing = null;`
-emits `_NULL nothing = NULL;` and fails in clang with "use of undeclared
-identifier '_NULL'". (`auto x = { 1, 2 };` is diagnosed: "Initializer expression
-requires a target type.")
-
-Known Impact:
-The error has no Camp source location, and different forms fail at different
-stages.
-
 ## BUG-235: Negative integer literals are rejected for sbyte and short targets
 
 Date/Time: 2026-10-05 11:48 America/Toronto

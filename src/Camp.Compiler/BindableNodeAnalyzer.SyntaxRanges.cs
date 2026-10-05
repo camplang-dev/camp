@@ -111,6 +111,7 @@ public sealed partial class BindableNodeAnalyzer
 			VTableOfParameterSyntax parameter => parameter.VTableOfKeyword?.Range,
 			ParameterDeclaratorSyntax declarator => declarator.Keyword?.Range,
 			TypeSyntax type => GetTypeRange(type),
+			DeclarationTargetSyntax target => target.AutoKeyword?.Range ?? GetRange(target.Type) ?? target.Identifier?.Range,
 			AssignmentSyntax assignment => assignment.EqualsToken?.Range,
 			KeywordStatementSyntax keywordStatement => keywordStatement.Keyword?.Range ?? GetRange(keywordStatement.Condition) ?? GetRange(keywordStatement.Body),
 			BlockMethodBodySyntax body => body.OpenBraceToken?.Range,

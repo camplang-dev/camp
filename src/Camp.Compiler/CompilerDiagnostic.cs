@@ -13,6 +13,7 @@ public static class DiagnosticCodes
 	public const string ReservedIdentifier = "CAMP3001";
 	public const string RangeRequiresRangeParameter = "CAMP3101";
 	public const string AutoCannotInferVoid = "CAMP3201";
+	public const string AutoCannotInferType = "CAMP3202";
 }
 
 public sealed record CompilerDiagnostic(

@@ -1,0 +1,4 @@
+tests/Diagnostics/auto_type_not_inferable.camp(3,2): error: The type of this expression cannot be inferred; specify a type.
+tests/Diagnostics/auto_type_not_inferable.camp(4,17): error: The type of this expression cannot be inferred; specify a type.
+tests/Diagnostics/auto_type_not_inferable.camp(5,21): error: The type of this expression cannot be inferred; specify a type.
+tests/Diagnostics/auto_type_not_inferable.camp(6,17): error: The type of this expression cannot be inferred; specify a type.

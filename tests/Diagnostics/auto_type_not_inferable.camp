@@ -1,0 +1,7 @@
+void test()
+{
+	auto missing;
+	auto nothing = null;
+	auto fromDefault = default;
+	auto wrapped = (null);
+}
