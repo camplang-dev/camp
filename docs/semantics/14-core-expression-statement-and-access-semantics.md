@@ -37,9 +37,12 @@ selected target and type specifier.
 
 Parentheses do not bypass the check. For unary `+` or `-` on a literal, check the
 signed value as a whole rather than the positive magnitude; this preserves
-signed minimum values such as `int value = -2147483648;`. Range checking does
-not relax ordinary conversion rules for promoted unary expressions or explicit
-casts. An out-of-range literal produces a diagnostic at its source expression.
+signed minimum values such as `sbyte value = -128;` and
+`short value = -32768;`. Signed literal expressions retain the supplied primitive
+integral target type, including through parentheses and nested unary signs.
+Unary operations on ordinary values still use integer promotion; explicit casts
+keep their conversion rules. An out-of-range literal produces a diagnostic at
+its source expression.
 
 ## Character Literals
 

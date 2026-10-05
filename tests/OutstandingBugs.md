@@ -44,34 +44,6 @@ Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
 
-## BUG-235: Negative integer literals are rejected for sbyte and short targets
-
-Date/Time: 2026-10-05 11:48 America/Toronto
-
-Summary:
-A negated integer literal whose value is in range is rejected as an `int` that
-does not convert to a narrower signed type. The same value written without the
-minus sign (`sbyte b = 127;`) is accepted, so the literal is target-typed but its
-negation is treated as a general `int` expression.
-
-Steps to Reproduce:
-
-1. Compile an exported entry point containing `sbyte a = -128;`,
-   `short d = -32768;` and `sbyte l = -5;`.
-2. Build it.
-
-Expected:
-Each declaration is accepted, because -128, -32768 and -5 fit the target.
-
-Actual:
-"Declaration initializer cannot convert 'int' to 'sbyte'." (and to 'short').
-`int f = -2147483648;` and `long i = -9223372036854775808;` are accepted.
-
-Known Impact:
-The smallest value of `sbyte` and `short`, and any negative constant, cannot be
-written without a cast. Once BUG-233 is fixed the same minus handling must
-range-check the negated literal. The beta compiler rejects these the same way.
-
 ## BUG-236: Prefix increment and decrement do not check the operand type
 
 Date/Time: 2026-10-05 11:57 America/Toronto

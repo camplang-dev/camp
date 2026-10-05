@@ -58,7 +58,17 @@ public sealed class IntegerLiteralRangeTests
 	[Theory]
 	[InlineData("byte", "255")]
 	[InlineData("sbyte", "127")]
+	[InlineData("sbyte", "-128")]
+	[InlineData("sbyte", "-5")]
+	[InlineData("sbyte", "-(128)")]
+	[InlineData("sbyte", "(-((128)))")]
+	[InlineData("sbyte", "+(-128)")]
+	[InlineData("sbyte", "+127")]
+	[InlineData("const sbyte", "-128")]
 	[InlineData("short", "32767")]
+	[InlineData("short", "-32768")]
+	[InlineData("short", "-0x8000")]
+	[InlineData("short", "-32768L")]
 	[InlineData("ushort", "65535")]
 	[InlineData("int", "2147483647")]
 	[InlineData("uint", "4294967295")]
@@ -73,6 +83,42 @@ public sealed class IntegerLiteralRangeTests
 	public void Valid_integer_boundaries_and_floating_targets_remain_accepted(string type, string literal)
 	{
 		SemanticCompiler.AssertNoDiagnostics(SemanticCompiler.CompileLowered($"void test() {{ {type} value = {literal}; }}"));
+	}
+
+	[Theory]
+	[InlineData("sbyte value = 0; value = -128;")]
+	[InlineData("return -128;")]
+	[InlineData("take(-128);")]
+	[InlineData("fixed sbyte[2] values = [-128, -5];")]
+	[InlineData("Holder value = { .value = -128 };")]
+	[InlineData("sbyte value = true ? -128 : -5;")]
+	public void Signed_literals_retain_the_target_type_in_every_target_typed_use(string body)
+	{
+		SemanticCompiler.AssertNoDiagnostics(SemanticCompiler.CompileLowered($$"""
+			sbyte globalValue = -128;
+			struct Holder { sbyte value; }
+			static class Values { static short value = -32768; }
+			void take(sbyte value = -128) { }
+			sbyte test()
+			{
+				{{body}}
+				return 0;
+			}
+			"""));
+	}
+
+	[Theory]
+	[InlineData("sbyte", "-value")]
+	[InlineData("sbyte", "+value")]
+	[InlineData("short", "-value")]
+	[InlineData("short", "~value")]
+	public void Unary_operations_on_narrow_integer_values_still_promote(string type, string expression)
+	{
+		SemanticCompilation compilation = SemanticCompiler.CompileLowered($"void test() {{ {type} value = 1; {type} result = {expression}; }}");
+		Assert.Empty(compilation.ParseDiagnostics);
+		Assert.Empty(compilation.BindDiagnostics);
+		AnalysisDiagnostic diagnostic = Assert.Single(compilation.AnalysisDiagnostics.Distinct());
+		Assert.Equal($"Declaration initializer cannot convert 'int' to '{type}'.", diagnostic.Message);
 	}
 
 	[Theory]

@@ -1,0 +1,25 @@
+sbyte globalMinimum = -128;
+
+struct Holder
+{
+	short value;
+}
+
+sbyte minimum(sbyte value = -128)
+{
+	return -128;
+}
+
+int main()
+{
+	sbyte small = -128;
+	short medium = -32768;
+	sbyte negative = -5;
+	const sbyte wrapped = +(-((128)));
+	fixed short[2] values = [-32768, -5];
+	Holder holder = { .value = -32768 };
+	small = -128;
+	medium = true ? -32768 : -5;
+	return small == minimum(-128) && negative == -5 && (int)wrapped == -128
+		&& medium == values[0] && holder.value == -32768 && globalMinimum == -128 ? 0 : 1;
+}

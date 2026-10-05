@@ -6217,6 +6217,8 @@ public sealed partial class BindableNodeAnalyzer
 			case UnaryOperator.BitwiseNot:
 				if (!IsNumericType(operandType))
 					Report(GetRange(unary.Operand?.SourceSyntax), $"Unary operator requires a numeric operand, not '{operandType}'.");
+				if (signedLiteral && targetType is not null && TryGetIntegerTypeBounds(targetType, out _, out _))
+					return StripTopLevelValueQualifiers(targetType);
 				return PromoteInteger(operandType);
 
 			case UnaryOperator.Increment:

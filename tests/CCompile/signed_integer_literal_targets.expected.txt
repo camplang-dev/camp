@@ -1,0 +1,56 @@
+// file: signed_integer_literal_targets.c
+#include "signed_integer_literal_targets_private.h"
+
+/* Private file declarations. */
+static int8_t minimum(int8_t value);
+static int main(void);
+static int8_t globalMinimum;
+
+static int8_t globalMinimum = -128;
+static int8_t minimum(int8_t value)
+{
+	return -128;
+}
+
+static int main(void)
+{
+	int8_t small = -128;
+	int16_t medium = -32768;
+	int8_t negative = -5;
+	const int8_t wrapped = +(-((128)));
+	int16_t values[2] = {-32768, -5};
+	Holder holder = (Holder){ .value = -32768 };
+	small = -128;
+	medium = (true ? -32768 : -5);
+	return (((((((small == minimum(-128)) && (negative == -5)) && ((int)(wrapped) == -128)) && (medium == ((int16_t *)(values))[0])) && (holder.value == -32768)) && (globalMinimum == -128)) ? 0 : 1);
+}
+
+// file: signed_integer_literal_targets_private.h
+#ifndef SIGNED_INTEGER_LITERAL_TARGETS_PRIVATE_H_
+#define SIGNED_INTEGER_LITERAL_TARGETS_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+typedef struct Holder Holder;
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Layouts. */
+struct Holder
+{
+	int16_t value;
+};
+
+/* Function declarations. */
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: signed_integer_literal_targets.c
