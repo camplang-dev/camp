@@ -98,10 +98,23 @@ them. `untyped` may not carry a type spec or call spec.
 
 Typespecs follow their carrier; a concrete callable's typespec follows its
 parameter list: `fn _pascal nint() _far`. The callspec follows the callable
-keyword. A fixed array, generic instantiation itself, other primitive, or plain
-named type (including an alias or callable newtype) cannot be annotated. Eligible
-wrappers have independent slots, as in `byte* _far * _near`. Repeating even the
-same spec in one slot is an error. These syntax rules do not change target
+keyword. Eligibility is determined by the written carrier:
+
+| Written carrier | Typespec allowed |
+| --- | --- |
+| `nint`, `nuint`, `string`, `wstring`, `astring` | Yes |
+| `T*`, including `void*` | Yes, on that pointer layer |
+| `T[]`, `T?` | Yes, on that wrapper |
+| Concrete `fn`, `delegate`, `async`, `once` | Yes, after its parameter list |
+| Raw `fn*` | Yes, after `*`; no callspec |
+| Generic instantiation itself, fixed array itself | No |
+| `untyped`, other primitives | No |
+| Plain named class, struct, enum, newtype, generic parameter or type alias | No |
+
+A named type's underlying representation does not grant eligibility. Eligible
+wrappers have independent slots, as in `byte* _far * _near`, including wrappers
+around named types. Repeating even the same spec in one slot is an error.
+These syntax rules do not change target
 conversion ordering, signature invariance, ABI-slot compatibility or cast rules.
 
 ## Raw Carrier Families

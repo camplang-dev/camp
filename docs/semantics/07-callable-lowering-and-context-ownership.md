@@ -41,9 +41,10 @@ type and nested parameters retain their own independent carrier slots.
 
 Each slot accepts one occurrence, including when two occurrences have identical
 spellings or resolve through aliases to the same effective spec. Syntax records
-every occurrence and its range before ABI normalization. The precise spelling,
-carrier table, and parameter-name disambiguation rules are defined in
-[Conversions, Raw Carriers, And Fence Casts](03-conversions-raw-carriers-and-fence-casts.md).
+every occurrence and its range before ABI normalization. The exact carrier table
+is defined in [Conversions, Raw Carriers, And Fence Casts](03-conversions-raw-carriers-and-fence-casts.md).
+Spelling, grammatical recognition and parameter-name disambiguation follow
+[Binding, Analysis, And Lowering Pipeline](01-binding-analysis-and-lowering-pipeline.md#tokenization-and-parsing).
 
 Explicit `_targetcall` selects the target's default convention. Preserve that
 declared intent through specifier aliases and source/API serialization, even
