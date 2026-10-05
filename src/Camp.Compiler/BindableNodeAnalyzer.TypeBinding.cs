@@ -1118,6 +1118,11 @@ public sealed partial class BindableNodeAnalyzer
 
 			if (typeDefinitions.TryGetValue(alias.ResolvedTargetName, out TypeDefinition? aliasType))
 			{
+				if (!IsDefinitionRequirementSatisfied(aliasType))
+				{
+					ReportUnavailableRequirement(aliasType, named.SourceSyntax, "Type");
+					return $"{UnresolvedType}({sourceName})";
+				}
 				string resolvedType = ResolvedNominalTypeName(aliasType);
 				TypeDefinitionReference reference = new()
 				{
@@ -1146,6 +1151,11 @@ public sealed partial class BindableNodeAnalyzer
 
 			if (typeDefinitions.TryGetValue(qualifiedAlias.ResolvedTargetName, out TypeDefinition? aliasType))
 			{
+				if (!IsDefinitionRequirementSatisfied(aliasType))
+				{
+					ReportUnavailableRequirement(aliasType, named.SourceSyntax, "Type");
+					return $"{UnresolvedType}({sourceName})";
+				}
 				string resolvedType = ResolvedNominalTypeName(aliasType);
 				TypeDefinitionReference reference = new()
 				{

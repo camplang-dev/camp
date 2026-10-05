@@ -2161,6 +2161,11 @@ public sealed partial class BindableNodeAnalyzer
 
 			if (typeDefinitions.TryGetValue(alias.ResolvedTargetName, out TypeDefinition? aliasType))
 			{
+				if (!IsDefinitionRequirementSatisfied(aliasType))
+				{
+					ReportUnavailableRequirement(aliasType, named.SourceSyntax, "Type");
+					return ErrorType;
+				}
 			TypeDefinitionReference aliasReference = new()
 			{
 				SourceSyntax = named.SourceSyntax,

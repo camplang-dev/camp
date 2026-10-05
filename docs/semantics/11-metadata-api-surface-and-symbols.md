@@ -442,6 +442,12 @@ current declaration or flow context proves the required condition. Metadata
 should preserve the requirement so tools can explain
 availability without trying the call.
 
+An ordinary type alias preserves the availability requirement of its resolved
+target. Validate that requirement at each use of the alias, including alias
+chains and qualified names, under the current declaration or flow proof. An
+unconditional alias declaration does not make a gated target available; unused
+aliases and inactive alternatives do not themselves require that target's gate.
+
 File-wide `requires (CONDITION);` appears in the source prelude and applies to
 top-level declarations in that file. Block and single-declaration `requires`
 forms apply to enclosed declarations. File-wide, enclosing, and declaration

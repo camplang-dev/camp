@@ -44,33 +44,6 @@ Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
 
-## BUG-242: A type alias hides the unavailability of a gated target
-
-Date/Time: 2026-10-05 15:40 America/Toronto
-
-Summary:
-Using an ordinary alias whose target type is declared under a `requires` condition
-skips the availability check that the target type itself would get. The unproven
-requirement is accepted, and the build then fails during native compilation.
-
-Steps to Reproduce:
-
-1. Declare `requires (FA) struct H { int x; }` and the unconditional `alias HA = H;`.
-2. Add `int f(HA a) { return 0; }` and `export int main() { return 0; }`.
-3. Build with `-d FA=false`.
-
-Expected:
-The use of `HA` in an unconditional declaration is rejected like a use of `H`:
-"Type 'H' requires configuration 'FA', but that requirement is not proven here."
-
-Actual:
-No Camp diagnostic. The C compiler reports "unknown type name 'H'" for the
-generated declaration of `f`.
-
-Known Impact:
-Availability errors surface as native compiler failures when the type is named
-through an alias. Naming `H` directly is rejected correctly.
-
 ## BUG-243: An argument spelled `context` or `otherContext` drops the length of a slice argument
 
 Date/Time: 2026-10-05 15:41 America/Toronto
