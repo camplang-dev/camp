@@ -6225,6 +6225,7 @@ public sealed partial class BindableNodeAnalyzer
 			case UnaryOperator.Decrement:
 				RequireWritablePropertyUpdate(unary.Operand);
 				RequireMutableWriteTarget(unary.Operand, operandType, unary.Operand?.SourceSyntax, "Update target", scope);
+				RequireNumericUpdateOperand(unary.Operand, operandType);
 				return operandType;
 
 			default:
@@ -6544,9 +6545,14 @@ public sealed partial class BindableNodeAnalyzer
 		string operandType = BodyAnalyzeExpression(postfix.Expression, scope, typeScope);
 		RequireWritablePropertyUpdate(postfix.Expression);
 		RequireMutableWriteTarget(postfix.Expression, operandType, postfix.Expression?.SourceSyntax, "Update target", scope);
-		if (!IsNumericType(operandType))
-			Report(GetRange(postfix.Expression?.SourceSyntax), $"Update operator requires a numeric operand, not '{operandType}'.");
+		RequireNumericUpdateOperand(postfix.Expression, operandType);
 		return operandType;
+	}
+
+	void RequireNumericUpdateOperand(Expression? operand, string operandType)
+	{
+		if (!IsNumericType(operandType))
+			Report(GetRange(operand?.SourceSyntax), $"Update operator requires a numeric operand, not '{operandType}'.");
 	}
 
 	string BodyAnalyzeBinaryExpression(BinaryExpression binary, BodyScope scope, AnalysisScope typeScope, string? targetType)

@@ -44,31 +44,6 @@ Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
 
-## BUG-236: Prefix increment and decrement do not check the operand type
-
-Date/Time: 2026-10-05 11:57 America/Toronto
-
-Summary:
-`++target` and `--target` accept a `bool`, a pointer or a struct, while the
-postfix forms are rejected ("Update operator requires a numeric operand").
-
-Steps to Reproduce:
-
-1. Compile an exported entry point with `bool flag = true; ++flag; --flag;`,
-   `int* pointer = &value; ++pointer;` and `Box box = default; ++box;`.
-2. Build it.
-
-Expected:
-Each prefix update is rejected the way `flag++`, `pointer++` and `box++` are.
-
-Actual:
-No diagnostic for the prefix forms. (Together with BUG-229 the prefix forms skip
-both the const check and the operand type check.)
-
-Known Impact:
-A bool, pointer or struct can be incremented with the prefix operator, which the
-language does not allow.
-
 ## BUG-238: Newtypes accept arithmetic, ordering, bitwise, shift, unary and update operators
 
 Date/Time: 2026-10-05 12:37 America/Toronto

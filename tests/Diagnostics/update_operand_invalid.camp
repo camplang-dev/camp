@@ -1,0 +1,15 @@
+struct Box { int value; }
+export int main()
+{
+	bool flag = true;
+	int value = 0;
+	int* pointer = &value;
+	Box box = default;
+	++flag; --flag;
+	++pointer; --pointer;
+	++box; --box;
+	flag++; flag--;
+	pointer++; pointer--;
+	box++; box--;
+	return 0;
+}

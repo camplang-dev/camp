@@ -44,6 +44,13 @@ Unary operations on ordinary values still use integer promotion; explicit casts
 keep their conversion rules. An out-of-range literal produces a diagnostic at
 its source expression.
 
+## Update Operands
+
+Prefix and postfix increment and decrement require numeric operands. Apply the
+same operand-type check to all four forms, including property updates, before
+lowering or C emission. Boolean, pointer, aggregate, array, optional, and callable
+values are not numeric operands. Writable-target and const checks also apply.
+
 ## Bitwise Assignment Operands
 
 Bitwise and shift compound assignments (`&=`, `|=`, `^=`, `<<=`, and `>>=`)

@@ -1,0 +1,12 @@
+tests/Diagnostics/update_operand_invalid.camp(8,4): error: Update operator requires a numeric operand, not 'bool'.
+tests/Diagnostics/update_operand_invalid.camp(8,12): error: Update operator requires a numeric operand, not 'bool'.
+tests/Diagnostics/update_operand_invalid.camp(9,4): error: Update operator requires a numeric operand, not 'int*'.
+tests/Diagnostics/update_operand_invalid.camp(9,15): error: Update operator requires a numeric operand, not 'int*'.
+tests/Diagnostics/update_operand_invalid.camp(10,4): error: Update operator requires a numeric operand, not 'Box'.
+tests/Diagnostics/update_operand_invalid.camp(10,11): error: Update operator requires a numeric operand, not 'Box'.
+tests/Diagnostics/update_operand_invalid.camp(11,2): error: Update operator requires a numeric operand, not 'bool'.
+tests/Diagnostics/update_operand_invalid.camp(11,10): error: Update operator requires a numeric operand, not 'bool'.
+tests/Diagnostics/update_operand_invalid.camp(12,2): error: Update operator requires a numeric operand, not 'int*'.
+tests/Diagnostics/update_operand_invalid.camp(12,13): error: Update operator requires a numeric operand, not 'int*'.
+tests/Diagnostics/update_operand_invalid.camp(13,2): error: Update operator requires a numeric operand, not 'Box'.
+tests/Diagnostics/update_operand_invalid.camp(13,9): error: Update operator requires a numeric operand, not 'Box'.
