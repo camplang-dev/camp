@@ -170,11 +170,12 @@ public sealed partial class BindableNodeAnalyzer
 		if (indexedType == ErrorType || indexedType == TargetType)
 			return;
 
-		if (TryGetArrayElementType(indexedType) is not null)
+		if (TryGetArrayElementType(indexedType) is string elementType)
 		{
 			RequireGenericArrayElementStride(indexedType, scope, syntax, "mutate T[]");
-			RequireGenericArrayMutableElement(indexedType, scope, syntax);
-			if (IsConstQualified(indexedType) || IsConstFixedArrayStorageType(indexedType))
+			if (!RequireGenericArrayMutableElement(indexedType, scope, syntax))
+				return;
+			if (IsConstQualified(indexedType) || IsConstQualified(elementType) || IsConstFixedArrayStorageType(indexedType))
 				Report(GetRange(syntax), $"{context} is const and cannot be assigned.");
 			return;
 		}

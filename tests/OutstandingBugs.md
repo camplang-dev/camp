@@ -44,32 +44,6 @@ Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
 
-## BUG-230: Writes through a const array view are not diagnosed
-
-Date/Time: 2026-10-05 10:53 America/Toronto
-
-Summary:
-Assigning to, or incrementing, an element of a `const` array view is accepted by
-analysis. Writes through a `const` pointer and to a `const` struct are
-diagnosed.
-
-Steps to Reproduce:
-
-1. Compile `void touch(const int[] items) { items[0] = 7; items[1]++; ++items[1]; }`
-   and call it from an exported entry point.
-2. Build it.
-
-Expected:
-Each write is rejected because the elements of a `const` view are read-only.
-
-Actual:
-No diagnostic. The native build fails with "read-only variable is not
-assignable".
-
-Known Impact:
-Same as BUG-229: the error is reported by the C compiler without a Camp source
-location, and a different backend could accept the write.
-
 ## BUG-231: Updating a getter-only property is not diagnosed
 
 Date/Time: 2026-10-05 10:53 America/Toronto

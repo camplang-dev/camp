@@ -46,14 +46,18 @@ public sealed partial class BindableNodeAnalyzer
 		return false;
 	}
 
-	void RequireGenericArrayMutableElement(string arrayType, BodyScope scope, SyntaxNode? syntax)
+	bool RequireGenericArrayMutableElement(string arrayType, BodyScope scope, SyntaxNode? syntax)
 	{
 		if (!TryGetGenericArrayElementCapability(arrayType, scope, out _))
-			return;
+			return true;
 
 		string elementType = TryGetArrayElementType(arrayType) ?? ErrorType;
 		if (IsConstQualified(elementType))
+		{
 			Report(GetRange(syntax), "Cannot mutate an element through const T[].");
+			return false;
+		}
+		return true;
 	}
 
 	GenericConstraintCategory GetGenericConstraintCategory(GenericParameter parameter)

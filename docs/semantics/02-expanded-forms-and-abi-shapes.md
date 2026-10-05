@@ -89,6 +89,13 @@ has ABI components conceptually equivalent to:
 void send(const byte* payload, nuint payload_length);
 ```
 
+The `const` in `const T[]` qualifies the elements. Body analysis must reject
+element assignments, compound assignments, and prefix or postfix updates
+through that view before C emission. Slices and inferred copies of the view
+preserve element constness. Reads remain valid. For an array of pointers such
+as `const int*[]`, const pointees do not make the pointer elements themselves
+read-only.
+
 The source component access remains:
 
 ```camp
