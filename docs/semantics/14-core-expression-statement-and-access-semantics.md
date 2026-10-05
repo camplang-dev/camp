@@ -311,6 +311,12 @@ target; body analysis must report the missing setter at the property access.
 Updating an element through an array view returned by a getter writes the
 backing array, so that operation does not require a setter for the property.
 
+Binding must distinguish an indexed accessor from indexing the value returned
+by a parameterless getter. In `holder.Items[0]`, when `getItems()` returns an
+array view, call the getter without index arguments, materialize its view once,
+then index the returned elements. Preserve this distinction through expanded
+return normalization, slicing, element assignment, and prefix/postfix updates.
+
 Getter candidates are methods named `getX`, where `X` is the property name.
 They must return a non-`void` result. A getter-compatible method that omits an
 explicit receiver uses an implicit `const this` receiver. This is why a `get`

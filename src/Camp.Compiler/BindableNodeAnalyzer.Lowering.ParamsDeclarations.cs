@@ -794,7 +794,7 @@ public sealed partial class BindableNodeAnalyzer
 				return RewritePropertyGetterCall(getter, []);
 
 			case IndexExpression { Target: MemberExpression member } index
-				when TryCreateMaterializedGenericPropertyGetterReference(member, out MemberReferenceExpression? getter):
+				when propertyIndexerExpressions.Contains(index) && TryCreateMaterializedGenericPropertyGetterReference(member, out MemberReferenceExpression? getter):
 			{
 				CallExpression call = RewritePropertyGetterCall(getter, index.Arguments);
 				call.ResolvedType = index.ResolvedType ?? call.ResolvedType;
@@ -802,7 +802,7 @@ public sealed partial class BindableNodeAnalyzer
 			}
 
 			case IndexExpression { Target: MemberExpression member } index
-				when expressionRewrites.TryGetValue(member, out Expression? rewritten)
+				when propertyIndexerExpressions.Contains(index) && expressionRewrites.TryGetValue(member, out Expression? rewritten)
 					&& rewritten is MemberReferenceExpression getter
 					&& IsExpandedReturnPropertyGetter(getter, out _):
 			{
@@ -811,7 +811,7 @@ public sealed partial class BindableNodeAnalyzer
 				return call;
 			}
 
-			case IndexExpression { Target: MemberReferenceExpression getter } index when IsExpandedReturnPropertyGetter(getter, out FunctionDefinition? function):
+			case IndexExpression { Target: MemberReferenceExpression getter } index when propertyIndexerExpressions.Contains(index) && IsExpandedReturnPropertyGetter(getter, out FunctionDefinition? function):
 			{
 				CallExpression call = RewritePropertyGetterCall(getter, index.Arguments);
 				call.ResolvedType = index.ResolvedType ?? call.ResolvedType;
@@ -1033,10 +1033,20 @@ public sealed partial class BindableNodeAnalyzer
 			}
 		}
 
-		if (initialValue is not null && TryCreateParamsComponentExpressions(initialValue, out List<Expression> components) && components.Count == shape.Components.Count)
+		List<Expression> components = [];
+		List<Statement>? previousComponentPrefix = currentStatementPrefix;
+		try
 		{
-			values.AddRange(components);
-			return values;
+			currentStatementPrefix = declarations ?? currentStatementPrefix;
+			if (initialValue is not null && TryCreateParamsComponentExpressions(initialValue, out components) && components.Count == shape.Components.Count)
+			{
+				values.AddRange(components);
+				return values;
+			}
+		}
+		finally
+		{
+			currentStatementPrefix = previousComponentPrefix;
 		}
 		if (TryCreateDirectFunctionDelegateComponents(initialValue, shape, out components))
 		{

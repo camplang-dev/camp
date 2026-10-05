@@ -3015,6 +3015,9 @@ public sealed partial class BindableNodeAnalyzer
 			}
 		}
 
+		if (arguments.Count > 0 && HasIndexableParameterlessGetter(getters, targetType, typeScope))
+			return false;
+
 		if (prepGetter is not null)
 		{
 			Report(GetRange(member.SourceSyntax), $"Property syntax is unavailable for prep method '{GetCallableName(prepGetter)}'; call '{GetCallableName(prepGetter)}()' explicitly.");
@@ -3139,6 +3142,8 @@ public sealed partial class BindableNodeAnalyzer
 		getters.AddRange(LookupExtensionFunctions(targetType, "get" + member.Name, member.SourceSyntax));
 		if (setters.Count == 0 && getters.Count == 0)
 			return false;
+		if (arguments.Count > 0 && HasIndexableParameterlessGetter(getters, targetType, typeScope))
+			return false;
 
 		Report(GetRange(member.SourceSyntax), $"Property '{member.Name}' is not writable on type '{targetType}'.");
 		if (value is not null)
@@ -3146,6 +3151,24 @@ public sealed partial class BindableNodeAnalyzer
 		foreach (ArgumentExpression argument in arguments)
 			BodyAnalyzeArgumentExpression(argument, scope, typeScope);
 		return true;
+	}
+
+	bool HasIndexableParameterlessGetter(List<FunctionDefinition> getters, string targetType, AnalysisScope typeScope)
+	{
+		foreach (FunctionDefinition getter in getters)
+		{
+			EnsureFunctionSignatureAnalyzed(getter, typeScope);
+			if (!ReceiverCanCallFunction(targetType, getter, isPropertyGetterSyntax: true)
+				|| getter.Parameters.Exists(static parameter => parameter.Modifier == ParameterModifier.Prep)
+				|| !CanCallWithArgumentCount(getter.Parameters, 0))
+				continue;
+			Dictionary<string, string> substitutions = [];
+			AddReceiverTypeGenericSubstitutions(targetType, getter, substitutions);
+			string returnType = SubstituteGenericType(getter.ResolvedType ?? ErrorType, substitutions);
+			if (TryGetArrayElementType(returnType) is not null || TryGetPointerElementType(returnType) is not null || IsPrimitiveStringType(returnType))
+				return true;
+		}
+		return false;
 	}
 
 	bool ReceiverCanCallFunction(string targetType, FunctionDefinition function, bool isPropertyGetterSyntax)

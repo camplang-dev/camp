@@ -44,35 +44,6 @@ Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
 
-## BUG-241: Direct indexing of an array returned by a property lowers as an accessor argument
-
-Date/Time: 2026-10-05 15:06 America/Toronto
-
-Summary:
-Directly indexing an array view returned by a parameterless property getter is
-accepted by body analysis, but lowering passes the index to the getter instead
-of indexing its returned array. Reads and updates fail during native compilation.
-
-Steps to Reproduce:
-
-1. Declare `class Holder { int[] items; int[] getItems() => this.items; }`.
-2. In an exported entry point, create `fixed int[1] items = [3];`, a default
-   `Holder` and pointer `h`, and assign `h.items = items[..];`.
-3. Build `return h.Items[0] == 3 ? 0 : 1;`, or an update such as `h.Items[0]++;`.
-
-Expected:
-The getter is called without source arguments, then the returned view is indexed.
-The read returns the stored element, and an update changes the backing storage.
-
-Actual:
-The read emits `Holder_getItems(receiver, 0, &length)`, which Clang rejects as
-having too many arguments. Updates also apply an update operator to the getter
-call rather than an array element and fail with "expression is not assignable".
-
-Known Impact:
-Valid direct array-property indexing fails without a Camp source diagnostic.
-Copying the getter result into a local view and indexing that view works.
-
 ## BUG-242: A type alias hides the unavailability of a gated target
 
 Date/Time: 2026-10-05 15:40 America/Toronto

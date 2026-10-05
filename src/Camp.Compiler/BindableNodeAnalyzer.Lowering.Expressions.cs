@@ -150,7 +150,7 @@ public sealed partial class BindableNodeAnalyzer
 			return MaterializeReceiverCall(LowerUncaughtThrowingCall(call));
 
 			case IndexExpression index:
-				if (index.Target is MemberReferenceExpression getter && IsPropertyGetterReference(getter))
+				if (propertyIndexerExpressions.Contains(index) && index.Target is MemberReferenceExpression getter && IsPropertyGetterReference(getter))
 				{
 					CallExpression call = RewritePropertyGetterCall(getter, index.Arguments);
 					call.ResolvedType = index.ResolvedType ?? call.ResolvedType;
@@ -474,6 +474,8 @@ public sealed partial class BindableNodeAnalyzer
 	bool TryGetMaterializedGenericIndexGetter(IndexExpression index, out MemberReferenceExpression? getter)
 	{
 		getter = null;
+		if (!propertyIndexerExpressions.Contains(index))
+			return false;
 		if (index.Target is MemberExpression propertyMember
 			&& TryCreateMaterializedGenericPropertyGetterReference(propertyMember, out getter))
 			return true;

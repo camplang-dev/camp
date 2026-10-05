@@ -1,0 +1,41 @@
+int getterCalls = 0;
+int receiverCalls = 0;
+int indexCalls = 0;
+
+class Holder
+{
+	int[] items;
+	int[] getItems() { getterCalls++; return this.items; }
+}
+
+Holder* pick(Holder* holder) { receiverCalls++; return holder; }
+nuint index() { indexCalls++; return 0; }
+
+class Indexed
+{
+	int getValue(nuint index) => (int)index + 10;
+}
+
+export int main()
+{
+	fixed int[3] items = [3, 7, 9];
+	Holder holder = default;
+	Holder* h = &holder;
+	h.items = items[..];
+	if (pick(h).Items[index()] != 3) return 1;
+	if (getterCalls != 1 || receiverCalls != 1 || indexCalls != 1) return 2;
+	if (h.Items[0]++ != 3 || ++h.Items[0] != 5) return 3;
+	if (h.Items[0]-- != 5 || --h.Items[0] != 3) return 4;
+	h.Items[0] = 11;
+	h.Items[0] += 2;
+	if (items[0] != 13 || getterCalls != 7) return 5;
+	if (h.Items[^1] != 9 || getterCalls != 8) return 6;
+	int[] tail = h.Items[1..];
+	if (tail.length != 2 || tail[0] != 7 || getterCalls != 9) return 7;
+	tail[0] = 17;
+	if (items[1] != 17 || (h.Items)[1] != 17) return 8;
+	Indexed indexed = default;
+	Indexed* i = &indexed;
+	if (i.Value[2] != 12) return 9;
+	return 0;
+}

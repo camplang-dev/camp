@@ -5690,6 +5690,11 @@ public sealed partial class BindableNodeAnalyzer
 
 	string BodyAnalyzeIndexExpression(IndexExpression index, BodyScope scope, AnalysisScope typeScope)
 	{
+		if (index.Target is MemberExpression member && TryAnalyzePropertyIndexer(member, index.Arguments, scope, typeScope, out string propertyType))
+		{
+			propertyIndexerExpressions.Add(index);
+			return propertyType;
+		}
 		if (index.Arguments.Count == 2 && TryGetArrayElementType(index.ResolvedType) is not null)
 		{
 			string targetType = BodyAnalyzeExpression(index.Target, scope, typeScope);
@@ -5705,8 +5710,6 @@ public sealed partial class BindableNodeAnalyzer
 
 	string BodyAnalyzeIndexExpression(Expression? target, List<ArgumentExpression> arguments, BodyScope scope, AnalysisScope typeScope)
 	{
-		if (target is MemberExpression member && TryAnalyzePropertyIndexer(member, arguments, scope, typeScope, out string propertyType))
-			return propertyType;
 		if (target is NamedExpression { Qualifiers.Count: 0 } namedTarget
 			&& arguments.Count == 1
 			&& (TryGetPrimitiveType(namedTarget.Name, out _) || typeDefinitions.ContainsKey(namedTarget.Name)))

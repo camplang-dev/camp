@@ -1406,6 +1406,13 @@ public sealed partial class BindableNodeAnalyzer
 			case IndexExpression index:
 				return TryCreateIndexedParamsComponentExpressions(index, out components);
 
+			case MemberReferenceExpression getter when IsExpandedReturnPropertyGetter(getter, out _):
+			{
+				CallExpression call = RewritePropertyGetterCall((MemberReferenceExpression)CloneParamsExpansionExpression(getter)!, []);
+				expressionRewrites[getter] = call;
+				return TryCreateParamsComponentExpressions(call, out components);
+			}
+
 			case Expression fixedArray
 				when TryCreateFixedArrayParamsComponentExpressions(fixedArray, out components):
 				return true;
@@ -3059,14 +3066,14 @@ public sealed partial class BindableNodeAnalyzer
 		string resultType = StripTopLevelValueQualifiers(index.ResolvedType ?? "");
 		if (resultType == BaseTypeName(resultType) && IsCurrentGenericParameter(resultType))
 			return false;
-		if (index.Target is MemberExpression propertyMember
+		if (propertyIndexerExpressions.Contains(index) && index.Target is MemberExpression propertyMember
 			&& TryCreateMaterializedGenericPropertyGetterReference(propertyMember, out MemberReferenceExpression? propertyGetter))
 		{
 			CallExpression call = RewritePropertyGetterCall(propertyGetter, index.Arguments);
 			call.ResolvedType = index.ResolvedType ?? call.ResolvedType;
 			return TryCreateParamsComponentExpressions(call, out components);
 		}
-		if (index.Target is MemberExpression member
+		if (propertyIndexerExpressions.Contains(index) && index.Target is MemberExpression member
 			&& expressionRewrites.TryGetValue(member, out Expression? rewritten)
 			&& rewritten is MemberReferenceExpression getter
 			&& IsPropertyGetterReference(getter))
