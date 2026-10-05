@@ -209,3 +209,61 @@ No diagnostic. The native build fails with "expression is not assignable".
 
 Known Impact:
 Same as BUG-229.
+
+## BUG-233: Integer literals outside the range of their target are accepted
+
+Date/Time: 2026-10-05 11:21 America/Toronto
+
+Summary:
+An integer literal that does not fit the primitive type it initializes or is
+assigned to is accepted and silently truncated by the C compiler. Enum values and
+newtype literals are range-checked; ordinary primitive targets are not.
+
+Steps to Reproduce:
+
+1. Compile an exported entry point containing `byte a = 256;`, `short b = 32768;`,
+   `int c = 2147483648;`, `uint d = 4294967296;` and `ulong e = 18446744073709551616;`.
+2. Build it.
+
+Expected:
+Each literal is rejected because its value is outside the target type's range.
+
+Actual:
+No diagnostic for the first four; clang warns that the value changes (256 becomes
+0). The last fails in the C compile ("integer literal is too large to be
+represented in any integer type") because the emitted C literal is invalid.
+
+Known Impact:
+Wrong values are stored silently. A literal wider than 64 bits surfaces as a C
+compiler error with no Camp source location.
+
+## BUG-234: auto with no inferable type has no Camp diagnostic
+
+Date/Time: 2026-10-05 11:21 America/Toronto
+
+Summary:
+`auto` on a local whose initializer gives no type (no initializer, `null`, or
+`default`) is not diagnosed by analysis. The error surfaces later in C emission
+or in clang. The expected diagnostic is a generic one: the type cannot be
+inferred, so a type must be written.
+
+Steps to Reproduce:
+
+1. Compile an exported entry point containing `auto missing;`, or
+   `auto nothing = null;`, or `auto fromDefault = default;` (one per build).
+2. Build it.
+
+Expected:
+A source-located error that the type of the expression cannot be inferred and a
+type must be specified.
+
+Actual:
+`auto missing;` and `auto fromDefault = default;` stop with "C emission aborted
+because DeclarationTarget ... has unresolved type '#ERROR'". `auto nothing = null;`
+emits `_NULL nothing = NULL;` and fails in clang with "use of undeclared
+identifier '_NULL'". (`auto x = { 1, 2 };` is diagnosed: "Initializer expression
+requires a target type.")
+
+Known Impact:
+The error has no Camp source location, and different forms fail at different
+stages.
