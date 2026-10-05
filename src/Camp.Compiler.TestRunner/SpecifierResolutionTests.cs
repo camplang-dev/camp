@@ -129,18 +129,22 @@ public sealed class SpecifierResolutionTests
 	[Fact]
 	public void Source_serialization_preserves_callable_positions_names_defaults_and_native_attributes()
 	{
-		SemanticCompilation compilation = SemanticCompiler.CompileDeclarations("""
+		const string source = """
 			export newtype fn _targetcall int Callback(int* _targettype _p = null) _targettype;
 			export extern void apply(fn _targetcall int(int) _targettype callback, int* value = null);
 			@symbol("_targetcall") export extern int operation();
 			export struct Data { @symbol("class") int field; }
 			export _targetcall class Surface { }
 			static _targetcall class Helpers { export static void f() { } }
-			""");
+			export alias _defaultcall = _targetcall;
+			export virtual class ContractBase { public virtual _defaultcall int value() => 1; }
+			export virtual class ContractDerived: ContractBase { public override _targetcall int value() => 2; }
+			""";
+		SemanticCompilation compilation = SemanticCompiler.CompileDeclarations(source);
 		SemanticCompiler.AssertNoDiagnostics(compilation);
 		SemanticCompiler.Function(compilation, "apply").Parameters[1].Name = "_value";
 		using StringWriter writer = new();
-		BindableNodeCodeSerializer.Serialize(compilation.Module, writer, new BindableNodeCodeSerializerOptions { ApiHeader = true });
+		BindableNodeCodeSerializer.Serialize(compilation.Module, writer, new BindableNodeCodeSerializerOptions { ApiHeader = true, ApiSurface = CampApiSurfaceKind.Public });
 		string api = writer.ToString();
 		Assert.Contains("fn _targetcall int(", api, StringComparison.Ordinal);
 		Assert.Contains(") _targettype callback", api, StringComparison.Ordinal);
@@ -154,8 +158,12 @@ public sealed class SpecifierResolutionTests
 		SemanticCompilation roundTrip = SemanticCompiler.CompileDeclarations(api);
 		SemanticCompiler.AssertNoDiagnostics(roundTrip);
 		Assert.Equal("_value", SemanticCompiler.Function(roundTrip, "apply").Parameters[1].Name);
+		Assert.Equal("_targetcall", SemanticCompiler.Method(SemanticCompiler.Type(compilation, "ContractDerived"), "value").CallSpec);
+		// Public APIs inherit override slots from the base declaration.
+		Assert.Equal("ContractBase", BindableNodeCodeSerializer.SerializeType(Assert.Single(Assert.IsType<ClassDefinition>(SemanticCompiler.Type(roundTrip, "ContractDerived")).BaseTypes)));
 		foreach (SemanticCompilation snapshot in new[] { compilation, roundTrip })
 		{
+			Assert.Equal("_defaultcall", SemanticCompiler.Method(SemanticCompiler.Type(snapshot, "ContractBase"), "value").CallSpec);
 			using JsonDocument metadata = JsonDocument.Parse(MetadataJsonSerializer.Serialize(snapshot.Compilation, MetadataVisibility.All));
 			JsonElement[] declarations = metadata.RootElement.GetProperty("declarations").EnumerateArray().ToArray();
 			JsonElement callback = declarations.Single(d => d.GetProperty("name").GetString() == "Callback");
@@ -166,6 +174,12 @@ public sealed class SpecifierResolutionTests
 			Assert.Equal("null", parameter.GetProperty("defaultValue").GetString());
 			Assert.Equal("_targetcall", declarations.Single(d => d.GetProperty("name").GetString() == "Surface").GetProperty("declarationCallspec").GetString());
 			Assert.Equal("_targetcall", declarations.Single(d => d.GetProperty("name").GetString() == "Helpers").GetProperty("declarationCallspec").GetString());
+		}
+		foreach (string text in new[] { source, api })
+		{
+			SemanticCompilation lowered = SemanticCompiler.CompileLowered(text + "\nextern escaped void* malloc(nuint size); extern void free(void* value);");
+			SemanticCompiler.AssertNoDiagnostics(lowered);
+			Assert.Equal("_targetcall", SemanticCompiler.Method(SemanticCompiler.Type(lowered, "ContractBase"), "value").CallSpec);
 		}
 	}
 

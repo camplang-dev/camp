@@ -44,6 +44,20 @@ The server maintains open-document overlays and sends analysis requests through
 currently edited document, which lets diagnostics and completion update before a
 file is saved.
 
+## Shared Parsing
+
+Editor buffers, files on disk, and imported API headers use the same
+catalog-independent `CampParser` grammar as `campc`. Its public constructor
+accepts a `TokenSequence`; the static entry point is
+`CampParser.Parse(tokens, out diagnostics)`. Callers do not supply target
+specifier name lists or parser options.
+
+Specifier recognition uses written spelling and grammatical position. Each
+occurrence retains its own node and source range, including repeated annotations
+and callable-newtype suffixes. The selected target affects name resolution,
+availability proofs, and ABI validation during analysis. Changing the target
+does not change specifier nodes or parse errors for identical source tokens.
+
 ## Project Discovery
 
 For a source file, the server looks for the nearest `.campbuild` by walking from
