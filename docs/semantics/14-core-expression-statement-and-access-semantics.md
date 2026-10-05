@@ -44,6 +44,14 @@ Unary operations on ordinary values still use integer promotion; explicit casts
 keep their conversion rules. An out-of-range literal produces a diagnostic at
 its source expression.
 
+## Bitwise Assignment Operands
+
+Bitwise and shift compound assignments (`&=`, `|=`, `^=`, `<<=`, and `>>=`)
+require integral operands, just like their plain binary forms. A `bool` is not
+an integral operand. This check applies to ordinary storage and property setter
+assignments, including indexed properties, before lowering or C emission.
+Ordinary assignment to a `bool` remains valid.
+
 ## Character Literals
 
 A character literal denotes exactly one Unicode scalar value. Decoding first

@@ -1,0 +1,9 @@
+tests/Diagnostics/bool_bitwise_assignment.camp(13,2): error: Bitwise operators require integral operands, not 'bool' and 'bool'.
+tests/Diagnostics/bool_bitwise_assignment.camp(14,2): error: Bitwise operators require integral operands, not 'bool' and 'bool'.
+tests/Diagnostics/bool_bitwise_assignment.camp(15,2): error: Bitwise operators require integral operands, not 'bool' and 'bool'.
+tests/Diagnostics/bool_bitwise_assignment.camp(16,2): error: Bitwise operators require integral operands, not 'bool' and 'bool'.
+tests/Diagnostics/bool_bitwise_assignment.camp(17,2): error: Bitwise operators require integral operands, not 'bool' and 'bool'.
+tests/Diagnostics/bool_bitwise_assignment.camp(18,2): error: Bitwise operators require integral operands, not 'bool' and 'bool'.
+tests/Diagnostics/bool_bitwise_assignment.camp(19,2): error: Bitwise operators require integral operands, not 'bool' and 'bool'.
+tests/Diagnostics/bool_bitwise_assignment.camp(20,2): error: Bitwise operators require integral operands, not 'bool' and 'bool'.
+tests/Diagnostics/bool_bitwise_assignment.camp(21,2): error: Bitwise operators require integral operands, not 'bool' and 'bool'.

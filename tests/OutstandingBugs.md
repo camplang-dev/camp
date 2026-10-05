@@ -69,33 +69,6 @@ Known Impact:
 A bool, pointer or struct can be incremented with the prefix operator, which the
 language does not allow.
 
-## BUG-237: Compound bitwise assignment accepts bool operands
-
-Date/Time: 2026-10-05 11:57 America/Toronto
-
-Summary:
-`flag &= other`, `flag |= other` and `flag ^= other` on `bool` operands are
-accepted, while `flag & other`, `flag | other` and `flag ^ other` are rejected
-("Bitwise operators require integral operands, not 'bool' and 'bool'"). Under
-the rule that a bool is not a number, the compound forms should be rejected too.
-
-Steps to Reproduce:
-
-1. Compile an exported entry point with `bool flag = true; bool other = false;
-   flag &= other; flag |= other; flag ^= other;`.
-2. Build it.
-
-Expected:
-Each compound assignment is rejected like the plain bitwise operator.
-
-Actual:
-No diagnostic. (`flag <<= 1` is rejected as an int-to-bool assignment.)
-
-Known Impact:
-The two forms of the same operation disagree. The beta compiler currently
-accepts the compound forms as well, so a golden cannot cover them until the
-bootstrap decides.
-
 ## BUG-238: Newtypes accept arithmetic, ordering, bitwise, shift, unary and update operators
 
 Date/Time: 2026-10-05 12:37 America/Toronto

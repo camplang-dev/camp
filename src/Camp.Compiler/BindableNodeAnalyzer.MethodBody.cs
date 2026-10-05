@@ -6752,7 +6752,10 @@ public sealed partial class BindableNodeAnalyzer
 	string BodyAnalyzeAssignmentExpression(AssignmentExpression assignment, BodyScope scope, AnalysisScope typeScope)
 	{
 		if (TryAnalyzePropertyAssignment(assignment, scope, typeScope, out string propertyType))
+		{
+			RequireIntegralAssignmentOperands(assignment, propertyType, assignment.Value?.ResolvedType ?? ErrorType);
 			return propertyType;
+		}
 
 		bool discardTarget = IsDiscardExpression(assignment.Target);
 		string targetType = discardTarget ? TargetType : BodyAnalyzeExpression(assignment.Target, scope, typeScope);
@@ -6764,6 +6767,8 @@ public sealed partial class BindableNodeAnalyzer
 			return valueType;
 		}
 		RequireMutableWriteTarget(assignment.Target, targetType, assignment.Target?.SourceSyntax, "Assignment target", scope);
+		if (!RequireIntegralAssignmentOperands(assignment, targetType, valueType))
+			return targetType;
 		WarnIfRetainedAllocatorFieldAssignment(assignment);
 		if (assignment.Operator == AssignmentOperator.Add
 			&& (IsTextualCompositionAnchor(assignment.Target, targetType) || IsTextualCompositionAnchor(assignment.Value, valueType)))
@@ -7067,9 +7072,25 @@ public sealed partial class BindableNodeAnalyzer
 
 	string AnalyzeIntegralBinary(BinaryExpression binary, string left, string right)
 	{
-		if (!IsIntegralType(left) || !IsIntegralType(right))
-			Report(GetRange(binary.SourceSyntax), $"Bitwise operators require integral operands, not '{left}' and '{right}'.");
+		RequireIntegralOperands(binary.SourceSyntax, left, right);
 		return UsualArithmeticConversion(left, right);
+	}
+
+	bool RequireIntegralAssignmentOperands(AssignmentExpression assignment, string left, string right)
+	{
+		return assignment.Operator is not (AssignmentOperator.BitwiseAnd or AssignmentOperator.BitwiseOr or AssignmentOperator.BitwiseXor
+			or AssignmentOperator.LeftShift or AssignmentOperator.RightShift)
+			|| RequireIntegralOperands(assignment.SourceSyntax, left, right);
+	}
+
+	bool RequireIntegralOperands(SyntaxNode? syntax, string left, string right)
+	{
+		if (left == ErrorType || right == ErrorType)
+			return false;
+		if (IsIntegralType(left) && IsIntegralType(right))
+			return true;
+		Report(GetRange(syntax), $"Bitwise operators require integral operands, not '{left}' and '{right}'.");
+		return false;
 	}
 
 	string AnalyzeArithmeticBinary(BinaryExpression binary, string left, string right)

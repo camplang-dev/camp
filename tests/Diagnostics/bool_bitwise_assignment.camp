@@ -1,0 +1,22 @@
+class Holder
+{
+	bool getFlag() => true;
+	void setFlag(bool value) { }
+	bool getItem(int index) => false;
+	void setItem(int index, bool value) { }
+}
+
+void test(Holder* holder)
+{
+	bool flag = true;
+	bool other = false;
+	flag &= other;
+	flag |= other;
+	flag ^= other;
+	holder.Flag &= other;
+	holder.Flag |= other;
+	holder.Flag ^= other;
+	holder.Item[0] &= other;
+	holder.Item[0] |= other;
+	holder.Item[0] ^= other;
+}
