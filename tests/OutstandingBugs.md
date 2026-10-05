@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-245.
+Next bug number: BUG-247.
 
 ## Bug Template
 
@@ -215,7 +215,7 @@ of the operation's result. Use an explicit read, binary operation, and ordinary
 property assignment as a workaround, preserving receiver/index evaluation when
 those expressions have side effects.
 
-## BUG-244: Returning a struct payload from an optional-returning function yields an unspecified optional
+## BUG-245: Returning a struct payload from an optional-returning function yields an unspecified optional
 
 Date/Time: 2026-10-05 17:10 America/Toronto
 
@@ -240,7 +240,7 @@ Known Impact:
 Struct-payload optionals returned from a plain payload silently become empty. Assign
 the payload to an optional local and return that local as a workaround.
 
-## BUG-245: An omitted optional parameter with a payload default drops the specified component
+## BUG-246: An omitted optional parameter with a payload default drops the specified component
 
 Date/Time: 2026-10-05 18:40 America/Toronto
 
