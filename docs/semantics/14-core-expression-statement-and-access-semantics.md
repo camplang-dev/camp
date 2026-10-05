@@ -51,6 +51,22 @@ same operand-type check to all four forms, including property updates, before
 lowering or C emission. Boolean, pointer, aggregate, array, optional, and callable
 values are not numeric operands. Writable-target and const checks also apply.
 
+## Newtype Operators
+
+A newtype retains its nominal identity regardless of its carrier. Arithmetic,
+ordering, bitwise, shift, unary numeric, increment/decrement, and compound
+assignment operators are not defined on newtype values. Reject these during
+body analysis, including when either binary operand is a newtype or the target
+is a property. Explicitly cast to the carrier before performing such operations,
+then explicitly cast the result back when a newtype value is needed.
+
+Equality and inequality require two values of the same newtype; top-level value
+qualifiers do not change that identity. An untyped `default` equality operand is
+target-typed from the other newtype operand on either side. Ordinary assignment
+and explicit carrier casts remain valid. Pointers, arrays, and optionals
+containing newtypes retain their own operator rules; they are not newtype values
+themselves.
+
 ## Bitwise Assignment Operands
 
 Bitwise and shift compound assignments (`&=`, `|=`, `^=`, `<<=`, and `>>=`)

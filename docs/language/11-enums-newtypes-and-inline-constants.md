@@ -228,6 +228,12 @@ Use value newtypes for handles, identifiers, flags, native scalar types, and
 pointer-shaped tokens where the representation is already right but the
 meaning needs protection.
 
+Newtype values support `==` and `!=` with another value of the same newtype.
+Arithmetic, ordering, bitwise, shifts, numeric unary operators, and updates
+require an explicit cast to the underlying type. For example, to add two
+`UserId` carriers deliberately, write `(UserId)((uint)left + (uint)right)`.
+Compound assignments such as `id += other` are also rejected.
+
 ## Newtype Methods
 
 A value newtype can have methods, but it is not a small struct in disguise.

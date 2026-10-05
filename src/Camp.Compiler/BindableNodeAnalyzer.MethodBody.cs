@@ -6215,6 +6215,8 @@ public sealed partial class BindableNodeAnalyzer
 			case UnaryOperator.Plus:
 			case UnaryOperator.Minus:
 			case UnaryOperator.BitwiseNot:
+				if (RejectNewtypeOperator(unary.SourceSyntax, operandType))
+					return ErrorType;
 				if (!IsNumericType(operandType))
 					Report(GetRange(unary.Operand?.SourceSyntax), $"Unary operator requires a numeric operand, not '{operandType}'.");
 				if (signedLiteral && targetType is not null && TryGetIntegerTypeBounds(targetType, out _, out _))
@@ -6551,6 +6553,8 @@ public sealed partial class BindableNodeAnalyzer
 
 	void RequireNumericUpdateOperand(Expression? operand, string operandType)
 	{
+		if (RejectNewtypeOperator(operand?.SourceSyntax, operandType))
+			return;
 		if (!IsNumericType(operandType))
 			Report(GetRange(operand?.SourceSyntax), $"Update operator requires a numeric operand, not '{operandType}'.");
 	}
@@ -6582,10 +6586,17 @@ public sealed partial class BindableNodeAnalyzer
 			right = "";
 			WithRequirementProof(leftProof, () =>
 			{
-				right = BodyAnalyzeExpression(binary.Right, scope, typeScope, IsEnumTargetType(left) ? left : null);
+				string? rightTarget = IsEnumTargetType(left) ? left
+					: binary.Operator is BinaryOperator.Equal or BinaryOperator.NotEqual && IsNewtypeOperand(left) ? StripTopLevelValueQualifiers(left) : null;
+				right = BodyAnalyzeExpression(binary.Right, scope, typeScope, rightTarget);
 			});
 		}
+		if (binary.Operator is BinaryOperator.Equal or BinaryOperator.NotEqual && left == TargetType && IsNewtypeOperand(right))
+			left = BodyAnalyzeExpression(binary.Left, scope, typeScope, StripTopLevelValueQualifiers(right));
 		expressionConstants[binary] = IsConstant(binary.Left) && IsConstant(binary.Right);
+		if (binary.Operator is not (BinaryOperator.Equal or BinaryOperator.NotEqual)
+			&& RejectNewtypeOperator(binary.SourceSyntax, left, right))
+			return ErrorType;
 
 		if (binary.Operator == BinaryOperator.Add && IsTextualComposition(binary, left, right))
 		{
@@ -6759,7 +6770,9 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (TryAnalyzePropertyAssignment(assignment, scope, typeScope, out string propertyType))
 		{
-			RequireIntegralAssignmentOperands(assignment, propertyType, assignment.Value?.ResolvedType ?? ErrorType);
+			if (assignment.Operator == AssignmentOperator.Assign
+				|| !RejectNewtypeOperator(assignment.SourceSyntax, propertyType, assignment.Value?.ResolvedType ?? ErrorType))
+				RequireIntegralAssignmentOperands(assignment, propertyType, assignment.Value?.ResolvedType ?? ErrorType);
 			return propertyType;
 		}
 
@@ -6773,6 +6786,8 @@ public sealed partial class BindableNodeAnalyzer
 			return valueType;
 		}
 		RequireMutableWriteTarget(assignment.Target, targetType, assignment.Target?.SourceSyntax, "Assignment target", scope);
+		if (assignment.Operator != AssignmentOperator.Assign && RejectNewtypeOperator(assignment.SourceSyntax, targetType, valueType))
+			return targetType;
 		if (!RequireIntegralAssignmentOperands(assignment, targetType, valueType))
 			return targetType;
 		WarnIfRetainedAllocatorFieldAssignment(assignment);
@@ -7071,9 +7086,34 @@ public sealed partial class BindableNodeAnalyzer
 
 	string AnalyzeComparisonBinary(BinaryExpression binary, string left, string right)
 	{
+		if (left != ErrorType && right != ErrorType && (IsNewtypeOperand(left) || IsNewtypeOperand(right))
+			&& StripTopLevelValueQualifiers(left) != StripTopLevelValueQualifiers(right))
+		{
+			Report(GetRange(binary.SourceSyntax), $"Newtype equality requires operands of the same newtype, not '{left}' and '{right}'.");
+			return "bool";
+		}
 		if (!CanImplicitlyConvert(left, right) && !CanImplicitlyConvert(right, left))
 			Report(GetRange(binary.SourceSyntax), $"Cannot compare '{left}' and '{right}'.");
 		return "bool";
+	}
+
+	bool IsNewtypeOperand(string type)
+	{
+		// A pointer, array or optional containing a newtype is not itself a newtype.
+		return TryParseTypeShape(type, out TypeShape shape) && shape.Kind == TypeShapeKind.Named
+			&& TryGetTypeDefinitionByResolvedName(type, out TypeDefinition? definition) && definition is NewtypeDefinition;
+	}
+
+	bool RejectNewtypeOperator(SyntaxNode? syntax, params string[] operandTypes)
+	{
+		foreach (string type in operandTypes)
+		{
+			if (!IsNewtypeOperand(type))
+				continue;
+			Report(GetRange(syntax), $"Operator requires explicit conversion of newtype '{StripTopLevelValueQualifiers(type)}' to its underlying type.");
+			return true;
+		}
+		return false;
 	}
 
 	string AnalyzeIntegralBinary(BinaryExpression binary, string left, string right)

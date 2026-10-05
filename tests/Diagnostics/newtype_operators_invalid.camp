@@ -1,0 +1,24 @@
+newtype Meters: int;
+void test(Meters a, Meters b)
+{
+	auto add = a + b;
+	auto subtract = a - b;
+	auto multiply = a * b;
+	auto divide = a / b;
+	auto modulo = a % b;
+	auto less = a < b;
+	auto lessEqual = a <= b;
+	auto greater = a > b;
+	auto greaterEqual = a >= b;
+	auto and = a & b;
+	auto or = a | b;
+	auto xor = a ^ b;
+	auto left = a << 1;
+	auto right = a >> 1;
+	auto plus = +a;
+	auto minus = -a;
+	auto complement = ~a;
+	++a; --a; a++; a--;
+	a += b; a -= b; a *= b; a /= b; a %= b;
+	a &= b; a |= b; a ^= b; a <<= 1; a >>= 1;
+}

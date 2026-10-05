@@ -1,0 +1,41 @@
+newtype Meters: int;
+newtype Handle: void*;
+alias Distance = Meters;
+
+class Holder
+{
+	Meters value;
+	Meters getValue() => this.value;
+	void setValue(Meters next) { this.value = next; }
+}
+
+export int main()
+{
+	Meters a = (Meters)3;
+	const Distance b = (Distance)2;
+	Meters same = a;
+	if (a != same || a == b)
+		return 1;
+	if (a == default || default == b)
+		return 7;
+	Meters sum = (Meters)((int)a + (int)b);
+	if ((int)sum != 5)
+		return 2;
+	Meters inverted = (Meters)(~(int)a);
+	if ((int)inverted != -4)
+		return 3;
+	Holder holder = default;
+	holder.Value = sum;
+	if (holder.Value != sum)
+		return 4;
+	int raw = 7;
+	Handle handle = (Handle)(void*)&raw;
+	Handle copy = handle;
+	if (handle != copy)
+		return 5;
+	Meters* first = &a;
+	Meters* second = &a;
+	if (first != second || first == &sum)
+		return 6;
+	return 0;
+}

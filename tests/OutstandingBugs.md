@@ -44,35 +44,6 @@ Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
 
-## BUG-238: Newtypes accept arithmetic, ordering, bitwise, shift, unary and update operators
-
-Date/Time: 2026-10-05 12:37 America/Toronto
-
-Summary:
-A newtype is not a numeric type even when its carrier is numeric. The only
-operators defined on a newtype are `==` and `!=` between two values of the same
-newtype. The compiler accepts every other operator on a newtype whose carrier is
-an integer.
-
-Steps to Reproduce:
-
-1. Declare `newtype Meters: int;` and an exported entry point with `Meters a =
-   (Meters)1; Meters b = (Meters)2;`.
-2. Add `a < b`, `a + b`, `a - b`, `a * b`, `a / b`, `a % b`, `a & b`, `a | b`,
-   `a << 1`, `-a`, `~a`, `+a`, `a++`, `++a`, `a += b` and `a |= b`.
-3. Build it.
-
-Expected:
-Each of these is rejected; only `a == b` and `a != b` are accepted.
-
-Actual:
-No diagnostic for any of them. (Using a newtype as a condition, and converting it
-to a bool, are rejected.)
-
-Known Impact:
-A newtype can be used as a number, which defeats its purpose. Beta rejects all of
-these with SEMANTIC_INVALID_NEWTYPE_OPERATION.
-
 ## BUG-239: Character literal escapes do not follow the C# rules
 
 Date/Time: 2026-10-05 12:37 America/Toronto
