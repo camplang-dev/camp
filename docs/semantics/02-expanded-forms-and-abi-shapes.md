@@ -70,6 +70,10 @@ The first component usually has the source binding name and corresponds to the
 primary carrier. Additional components use suffixes. Use the shared params
 component and callable shape services rather than constructing strings locally.
 
+Recognize supplied ABI components by their component binding or exact component
+name. An ordinary argument whose identifier contains `context` is still a source
+argument; its spelling must not change subsequent expanded argument positions.
+
 ## Arrays
 
 `T[]` is a span-like expanded value:

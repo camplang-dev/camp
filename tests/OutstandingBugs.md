@@ -44,35 +44,6 @@ Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
 
-## BUG-243: An argument spelled `context` or `otherContext` drops the length of a slice argument
-
-Date/Time: 2026-10-05 15:41 America/Toronto
-
-Summary:
-In a call that passes a slice such as `atoms[..]`, an argument identifier spelled
-`context` or `otherContext` makes the emitted C call omit the slice length. Other
-spellings (`first`, `ctx`, `declaration`) emit the call correctly.
-
-Steps to Reproduce:
-
-1. Declare `public struct T { bool pick(uint id, uint[] atoms, uint* count) { *count = (uint)atoms.length; return id != 0; } }`.
-2. Add a method `public bool implies(uint context, uint declaration)` with
-   `fixed uint[16] atoms = default; uint n = 0;` that calls
-   `this.pick(context, atoms[..], &n)` and `this.pick(declaration, atoms[..], &n)`.
-3. Add `export int main() { T t = default; return t.implies(1, 2) ? 1 : 0; }` and build.
-
-Expected:
-Both calls pass `atoms` with its length 16.
-
-Actual:
-The call using `context` is emitted as `T_pick(this, context, atoms[0, 16], &n)`, a
-comma expression with one argument fewer than the function takes, and Clang fails
-with "too few arguments to function call, expected 5, have 4". The call using
-`declaration` is emitted correctly. Renaming the argument fixes it.
-
-Known Impact:
-A valid call fails in native compilation with no Camp source diagnostic.
-
 ## BUG-244: Compound property assignment discards the operator
 
 Date/Time: 2026-10-05 16:30 America/Toronto

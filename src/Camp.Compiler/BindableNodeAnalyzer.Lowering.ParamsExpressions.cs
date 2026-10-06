@@ -555,11 +555,6 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			if (referenceName == componentName)
 				return true;
-			string suffix = componentName.StartsWith("this_", System.StringComparison.Ordinal)
-				? componentName["this_".Length..]
-				: componentName;
-			if (suffix == "context" && referenceName.Contains("context", System.StringComparison.OrdinalIgnoreCase))
-				return true;
 		}
 		if (next is VariableReferenceExpression { Variable: ParameterDefinition parameter } && parameter.Name == componentName)
 			return true;

@@ -1,0 +1,25 @@
+struct Picker
+{
+	bool pick(uint id, uint[] atoms, uint* count)
+	{
+		*count = (uint)atoms.length;
+		return id == 7 && atoms.length == 16 && atoms[0] == 23;
+	}
+
+	bool check(uint context, uint otherContext, uint declaration)
+	{
+		fixed uint[16] atoms = default;
+		atoms[0] = 23;
+		uint count = 0;
+		if (!this.pick(context, atoms[..], &count) || count != 16) return false;
+		if (!this.pick(otherContext, atoms[..], &count) || count != 16) return false;
+		if (!this.pick(declaration, atoms[..], &count) || count != 16) return false;
+		return true;
+	}
+}
+
+export int main()
+{
+	Picker picker = default;
+	return picker.check(7, 7, 7) ? 0 : 1;
+}
