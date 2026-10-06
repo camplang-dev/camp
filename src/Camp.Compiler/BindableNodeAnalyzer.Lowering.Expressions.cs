@@ -1014,7 +1014,7 @@ public sealed partial class BindableNodeAnalyzer
 		return component.SourceKind switch
 		{
 			ParamsComponentShapeKind.Array => IsProvidedLengthComponent(value, next, component.ExpandedName),
-			ParamsComponentShapeKind.Delegate or ParamsComponentShapeKind.Iter => IsProvidedContextComponent(next, component.ExpandedName),
+			ParamsComponentShapeKind.Delegate or ParamsComponentShapeKind.Iter => IsProvidedContextComponent(value, next, component.ExpandedName),
 			ParamsComponentShapeKind.Optional => IsProvidedComponent(next, component.ExpandedName),
 			_ => false
 		};

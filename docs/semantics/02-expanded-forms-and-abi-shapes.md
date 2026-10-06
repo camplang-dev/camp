@@ -73,6 +73,9 @@ component and callable shape services rather than constructing strings locally.
 Recognize supplied ABI components by their component binding or exact component
 name. An ordinary argument whose identifier contains `context` is still a source
 argument; its spelling must not change subsequent expanded argument positions.
+When a callable or iterator receiver has already been expanded, its carrier and
+context remain a bound pair even through carrier casts and when the actual
+component names differ from the callee's receiver parameter names.
 
 ## Arrays
 

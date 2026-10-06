@@ -380,6 +380,9 @@ public sealed partial class BindableNodeAnalyzer
 		Expression? value = arguments[argumentIndex].Value;
 		return IsProvidedLengthComponent(previousValue, value, previousName + "_length")
 			|| IsProvidedComponent(value, previousName + "_context")
+			|| TryGetParamsComponentShape(callableParameters[parameterIndex - 1].Type, callableParameters[parameterIndex - 1].ResolvedType, previousName, out ParamsComponentShape previousShape)
+				&& previousShape.Kind is ParamsComponentShapeKind.Delegate or ParamsComponentShapeKind.Iter
+				&& IsProvidedBoundContextComponent(previousValue, value)
 			|| IsProvidedComponent(value, previousName + "_specified");
 	}
 
@@ -485,15 +488,15 @@ public sealed partial class BindableNodeAnalyzer
 		if (firstName == "this" && secondName == "this_length")
 			return IsProvidedLengthComponent(arguments[argumentIndex].Value, arguments[argumentIndex + 1].Value, secondName);
 		if (firstName == "this" && secondName == "this_context")
-			return IsProvidedContextComponent(arguments[argumentIndex + 1].Value, secondName);
+			return IsProvidedContextComponent(arguments[argumentIndex].Value, arguments[argumentIndex + 1].Value, secondName);
 		if (firstName == "this" && secondName == "this_specified")
 			return IsProvidedComponent(arguments[argumentIndex + 1].Value, secondName);
 		if (firstName == "this_call" && secondName == "this_context")
-			return IsProvidedContextComponent(arguments[argumentIndex + 1].Value, secondName);
+			return IsProvidedContextComponent(arguments[argumentIndex].Value, arguments[argumentIndex + 1].Value, secondName);
 		if (secondName == firstName + "_length")
 			return IsProvidedLengthComponent(arguments[argumentIndex].Value, arguments[argumentIndex + 1].Value, secondName);
 		if (secondName == firstName + "_context")
-			return IsProvidedContextComponent(arguments[argumentIndex + 1].Value, secondName);
+			return IsProvidedContextComponent(arguments[argumentIndex].Value, arguments[argumentIndex + 1].Value, secondName);
 		if (secondName == firstName + "_specified")
 			return IsProvidedComponent(arguments[argumentIndex + 1].Value, secondName);
 
@@ -577,11 +580,23 @@ public sealed partial class BindableNodeAnalyzer
 		return false;
 	}
 
-	static bool IsProvidedContextComponent(Expression? next, string componentName)
+	bool IsProvidedContextComponent(Expression? value, Expression? next, string componentName)
 	{
 		return IsProvidedComponent(next, componentName)
+			|| IsProvidedBoundContextComponent(value, next)
 			|| componentName.EndsWith("_context", System.StringComparison.Ordinal)
 				&& next is LiteralExpression { ResolvedType: "#NULL" };
+	}
+
+	bool IsProvidedBoundContextComponent(Expression? value, Expression? next)
+	{
+		while (value is CastExpression or ParenthesizedExpression)
+			value = value is CastExpression cast ? cast.Expression : ((ParenthesizedExpression)value).Expression;
+		while (next is CastExpression or ParenthesizedExpression)
+			next = next is CastExpression cast ? cast.Expression : ((ParenthesizedExpression)next).Expression;
+		return value is not null
+			&& TryFindParamsExpansionSiblingFromExpansion(value, "context", out Expression? context)
+			&& ExpressionReferencesSameValue(context, next);
 	}
 
 	static bool ExpressionReferencesSameValue(Expression? left, Expression? right)
@@ -1258,7 +1273,7 @@ public sealed partial class BindableNodeAnalyzer
 			{
 				AddImplicitDefaultArguments(call);
 				LowerThrowingArguments(call);
-				ExpandParamsArguments(call.Arguments);
+				ExpandParamsArguments(call);
 				AddImplicitSizeOfArguments(call);
 				AddImplicitNameOfArguments(call);
 				AddImplicitVTableOfArguments(call);
@@ -2823,7 +2838,7 @@ public sealed partial class BindableNodeAnalyzer
 			{
 				AddImplicitDefaultArguments(call);
 				LowerThrowingArguments(call);
-				ExpandParamsArguments(call.Arguments);
+				ExpandParamsArguments(call);
 			AddImplicitSizeOfArguments(call);
 			AddImplicitNameOfArguments(call);
 			AddImplicitVTableOfArguments(call);
@@ -3432,7 +3447,7 @@ public sealed partial class BindableNodeAnalyzer
 
 			AddImplicitDefaultArguments(call);
 		LowerThrowingArguments(call);
-		ExpandParamsArguments(call.Arguments);
+		ExpandParamsArguments(call);
 		AddImplicitSizeOfArguments(call);
 		AddImplicitNameOfArguments(call);
 		AddImplicitVTableOfArguments(call);

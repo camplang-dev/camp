@@ -1,0 +1,24 @@
+newtype iter nuint Sink(char[] buffer);
+int calls = 0;
+nuint size(Sink this, const char[] value) { return value.length; }
+Sink copy(Sink value) { calls++; return value; }
+Sink forward(Sink value) { return copy(value); }
+nuint sizeWithTail(Sink this, const char[] value, nuint tail = 2) { return value.length + tail; }
+
+export int main()
+{
+	Sink sink = default;
+	if (sink.size("abc") != 3) return 1;
+	string text = "hello";
+	if (sink.size(text) != 5) return 2;
+	bool compact = true;
+	if (sink.size(compact ? ":" : ": ") != 1) return 3;
+	compact = false;
+	if (sink.size(compact ? ":" : ": ") != 2) return 4;
+	if (copy(sink).size("xy") != 2 || calls != 1) return 5;
+	if (sink.sizeWithTail("abc") != 5) return 6;
+	Sink copied = copy(sink);
+	if (copied.size("abcd") != 4 || calls != 2) return 7;
+	if (forward(sink).size("abcde") != 5 || calls != 3) return 8;
+	return 0;
+}

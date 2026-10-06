@@ -461,7 +461,7 @@ public sealed partial class BindableNodeAnalyzer
 			{
 				AddImplicitDefaultArguments(call);
 				LowerThrowingArguments(call);
-				ExpandParamsArguments(call.Arguments);
+				ExpandParamsArguments(call);
 				AddImplicitSizeOfArguments(call);
 				AddImplicitNameOfArguments(call);
 				AddImplicitVTableOfArguments(call);
