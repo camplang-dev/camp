@@ -29,7 +29,13 @@ static class TestToolPaths
 
 	public static ProcessStartInfo CreateDapStartInfo(string repositoryRoot)
 	{
-		return CreateStartInfo(Environment.GetEnvironmentVariable("CAMP_TEST_DAP"), Path.Combine(repositoryRoot, "src", "camp-dap", "bin", "Debug", "net10.0", "camp-dap.dll"));
+		ProcessStartInfo info = CreateStartInfo(Environment.GetEnvironmentVariable("CAMP_TEST_DAP"), Path.Combine(repositoryRoot, "src", "camp-dap", "bin", "Debug", "net10.0", "camp-dap.dll"));
+		if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("CAMP_TEST_CAMPC"))
+			&& string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("CAMP_DAP_CAMPC")))
+		{
+			info.Environment["CAMP_DAP_CAMPC"] = GetCampcPath(repositoryRoot);
+		}
+		return info;
 	}
 
 	static ProcessStartInfo CreateStartInfo(string? overridePath, string defaultPath)
