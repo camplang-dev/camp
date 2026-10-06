@@ -1353,6 +1353,7 @@ public sealed partial class BindableNodeAnalyzer
 			CallableTypeReference callable => $"{GetCallableKindName(callable.Kind)}{FormatCallSpec(callable.TargetSpec)}{FormatCallSpec(callable.CallSpec)} {FormatTypeReference(callable.ReturnType)}({string.Join(", ", GetParameterTypeNames(callable.Parameters))})",
 			IterTypeReference iter => FormatIterTypeReference(iter),
 			GroupedParamsTypeReference grouped => $"params({FormatTypeReference(grouped.StructType)})",
+			ErasedTypeReference erased => $"void<{FormatTypeReference(erased.ParamsType)}>",
 			MaterializedStructTypeReference materialized => $"struct({FormatTypeReference(materialized.ParamsType)})",
 			ThrownTypeReference thrown => $"thrown({FormatTypeReference(thrown.Type)})",
 			_ => type.ResolvedType ?? ErrorType

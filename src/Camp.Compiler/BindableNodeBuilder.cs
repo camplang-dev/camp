@@ -496,7 +496,7 @@ public sealed partial class BindableNodeBuilder
 				return BuildNewtypeDefinition(syntax);
 
 			case "params":
-				Report(syntax.Keyword?.Range, "User-defined params declarations are no longer supported; use arrays, optionals, delegates, or struct(T) materialization.");
+				Report(syntax.Keyword?.Range, "User-defined params declarations are no longer supported; use arrays, optionals, delegates, or void<V> storage.");
 				return BuildParamsDefinition(syntax);
 
 			default:
@@ -1873,6 +1873,11 @@ public sealed partial class BindableNodeBuilder
 					ElementType = pointer.ElementType is null ? MissingType(pointer, "Pointer type is missing an element type.") : BuildTypeReference(pointer.ElementType)
 				};
 
+			case ErasedTypeSyntax erased:
+				if (erased.TypeArgumentList is not { Types.Count: 1 })
+					return MissingType(erased, "void<V> requires exactly one storage annotation.");
+				return new ErasedTypeReference { SourceSyntax = erased, ParamsType = BuildTypeReference(erased.TypeArgumentList.Types[0]) };
+
 			case GenericTypeSyntax generic:
 				return BuildGenericTypeReference(generic);
 
@@ -1901,14 +1906,10 @@ public sealed partial class BindableNodeBuilder
 				return iterReference;
 
 			case ParamsTypeSyntax grouped:
-				return MissingType(grouped, "params(T) type syntax is no longer supported; use an expanded built-in form or struct(T).");
+				return MissingType(grouped, "params(T) type syntax is no longer supported; use an expanded built-in form or void<V> storage.");
 
 			case StructTypeSyntax materialized:
-				return new MaterializedStructTypeReference
-				{
-					SourceSyntax = materialized,
-					ParamsType = materialized.Type is null ? MissingType(materialized, "Struct type is missing an inner params type.") : BuildTypeReference(materialized.Type)
-				};
+				return MissingType(materialized, "struct(V) type syntax is no longer supported; use void<V> instead.");
 
 			case ThrownTypeSyntax thrown:
 				return new ThrownTypeReference

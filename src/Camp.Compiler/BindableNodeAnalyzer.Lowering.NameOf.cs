@@ -58,7 +58,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	string BodyAnalyzeNameOfExpression(NameOfExpression expression, BodyScope scope, AnalysisScope typeScope, string? targetType)
 	{
-		if (TryResolveNameOfOperand(expression.Text, scope, typeScope, expression.SourceSyntax, out string name, out BindableNode? reference))
+		if (TryResolveNameOfOperand(expression.Text, scope, typeScope, expression.SourceSyntax, out string name, out BindableNode? reference, out bool isErased))
 		{
 			if (name.Length > 0)
 			{
@@ -66,6 +66,12 @@ public sealed partial class BindableNodeAnalyzer
 				expression.Reference = reference;
 				expressionConstants[expression] = true;
 				return GetStringLiteralType(NameOfStringLiteral(name, expression.SourceSyntax), targetType);
+			}
+			if (isErased)
+			{
+				expression.Value = "";
+				expressionConstants[expression] = true;
+				return GetStringLiteralType(NameOfStringLiteral("", expression.SourceSyntax), targetType);
 			}
 			if (reference is ClassDefinition && expression.Text.Trim() == "classtype" && !scope.AllowClassTypeNameOfDefaultValue)
 			{
@@ -81,15 +87,16 @@ public sealed partial class BindableNodeAnalyzer
 		return ErrorType;
 	}
 
-	bool TryResolveNameOfOperand(string operand, BodyScope scope, AnalysisScope typeScope, SyntaxNode? syntax, out string name, out BindableNode? reference)
+	bool TryResolveNameOfOperand(string operand, BodyScope scope, AnalysisScope typeScope, SyntaxNode? syntax, out string name, out BindableNode? reference, out bool isErased)
 	{
 		name = "";
 		reference = null;
+		isErased = false;
 		operand = operand.Trim();
 		if (operand.Length == 0)
 			return false;
 
-		if (TryResolveNameOfTypeOperand(operand, scope, typeScope, syntax, out name, out reference))
+		if (TryResolveNameOfTypeOperand(operand, scope, typeScope, syntax, out name, out reference, out isErased))
 			return true;
 
 		return false;
@@ -116,7 +123,7 @@ public sealed partial class BindableNodeAnalyzer
 			targetType = BodyAnalyzeThisExpression(new ThisExpression { SourceSyntax = syntax }, scope);
 		else if (scope.TryLookup(targetName, out BodySymbol targetSymbol))
 			targetType = targetSymbol.Type;
-		else if (TryResolveNameOfTypeOperand(targetName, scope, typeScope, syntax, out _, out BindableNode? typeReference) && typeReference is TypeDefinition typeDefinition)
+		else if (TryResolveNameOfTypeOperand(targetName, scope, typeScope, syntax, out _, out BindableNode? typeReference, out _) && typeReference is TypeDefinition typeDefinition)
 			targetType = typeDefinition.Name;
 
 		if (targetType == ErrorType)
@@ -150,14 +157,20 @@ public sealed partial class BindableNodeAnalyzer
 		return true;
 	}
 
-	bool TryResolveNameOfTypeOperand(string operand, BodyScope scope, AnalysisScope typeScope, SyntaxNode? syntax, out string name, out BindableNode? reference)
+	bool TryResolveNameOfTypeOperand(string operand, BodyScope scope, AnalysisScope typeScope, SyntaxNode? syntax, out string name, out BindableNode? reference, out bool isErased)
 	{
 		name = "";
 		reference = null;
+		isErased = false;
 
 		string resolved = ResolveNameOfTypeOperandName(operand, typeScope, syntax, out reference);
 		if (resolved == ErrorType)
 			return false;
+		if (ErasedTypeIdentity.TryGetPayload(resolved, out _))
+		{
+			isErased = true;
+			return true;
+		}
 
 		if (ContainsGenericTypeName(resolved, typeScope))
 		{

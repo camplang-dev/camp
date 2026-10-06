@@ -21,6 +21,15 @@ public sealed partial class BindableNodeAnalyzer
 			AnalyzeType(type, scope);
 	}
 
+	void AnalyzeWrittenTypeArguments(List<TypeReference> arguments, AnalysisScope scope)
+	{
+		foreach (TypeReference argument in arguments)
+		{
+			AnalyzeType(argument, scope);
+			ValidateWrittenErasedType(argument, argument.SourceSyntax, "a by-value generic argument");
+		}
+	}
+
 	void AnalyzeConditionalInterfaceTypeList(List<TypeReference> types, AnalysisScope scope)
 	{
 		WithConditionalInterfaceTypeReferences(() => AnalyzeTypeList(types, scope));
@@ -50,7 +59,7 @@ public sealed partial class BindableNodeAnalyzer
 		switch (type)
 		{
 			case TypeDefinitionReference definition:
-				AnalyzeTypeList(definition.TypeArguments, scope);
+				AnalyzeWrittenTypeArguments(definition.TypeArguments, scope);
 				type.ResolvedType = definition.Definition is not null
 					? AddTypeArguments(ResolvedNominalTypeName(definition.Definition), definition.TypeArguments)
 					: AddTypeArguments(definition.Name, definition.TypeArguments);
@@ -82,8 +91,7 @@ public sealed partial class BindableNodeAnalyzer
 				break;
 
 			case NamedTypeReference named:
-				foreach (TypeReference argument in named.TypeArguments)
-					AnalyzeType(argument, scope);
+				AnalyzeWrittenTypeArguments(named.TypeArguments, scope);
 
 				type.ResolvedType = ResolveNamedType(named, scope);
 				ValidateGenericArgumentUse(named);
@@ -112,7 +120,7 @@ public sealed partial class BindableNodeAnalyzer
 				else
 				{
 					AnalyzeOptionalType(generic.Type, scope);
-					AnalyzeTypeList(generic.TypeArguments, scope);
+					AnalyzeWrittenTypeArguments(generic.TypeArguments, scope);
 					type.ResolvedType = FormatTypeReference(type);
 				}
 				break;
@@ -120,7 +128,7 @@ public sealed partial class BindableNodeAnalyzer
 			case ArrayTypeReference array:
 				AnalyzeOptionalType(array.ElementType, scope);
 				if (IsExpandedFormType(array.ElementType))
-					Report(GetRange(array.SourceSyntax), $"Arrays of expanded values are not supported; use struct({FormatTypeReference(array.ElementType)})[] instead.");
+					Report(GetRange(array.SourceSyntax), $"Arrays of expanded values are not supported; use void<{FormatTypeReference(array.ElementType)}>[] instead.");
 				if (IsDirectFixedArrayType(array.ElementType))
 					Report(GetRange(array.SourceSyntax), "Arrays whose element type is fixed-size array storage are not supported; use a pointer-to-fixed-array element type instead.");
 				type.ResolvedType = FormatTypeReference(type);
@@ -129,7 +137,7 @@ public sealed partial class BindableNodeAnalyzer
 			case FixedArrayTypeReference fixedArray:
 				AnalyzeOptionalType(fixedArray.ElementType, scope);
 				if (IsExpandedFormType(fixedArray.ElementType))
-					Report(GetRange(fixedArray.SourceSyntax), $"Fixed-size arrays of expanded values are not supported; use struct({FormatTypeReference(fixedArray.ElementType)})[{FormatFixedArrayLength(fixedArray)}] instead.");
+					Report(GetRange(fixedArray.SourceSyntax), $"Fixed-size arrays of expanded values are not supported; use void<{FormatTypeReference(fixedArray.ElementType)}>[] with stackalloc instead.");
 				if (TryEvaluateFixedArrayLength(fixedArray.LengthExpression, scope, out long length))
 				{
 					fixedArray.Length = length;
@@ -154,7 +162,7 @@ public sealed partial class BindableNodeAnalyzer
 			case OptionalTypeReference optional:
 				AnalyzeOptionalType(optional.ElementType, scope);
 				if (optional.ElementType is OptionalTypeReference)
-					Report(GetRange(optional.SourceSyntax), "Optional values may not directly contain another optional; use struct(T?)? if materialized nesting is required.");
+					Report(GetRange(optional.SourceSyntax), "Nested optional operations are not yet supported; use void<V> storage behind a pointer or array.");
 				type.ResolvedType = FormatTypeReference(type);
 				break;
 
@@ -230,6 +238,7 @@ public sealed partial class BindableNodeAnalyzer
 				ValidateCallableUponParameters(callable);
 				NormalizeAnonymousCallableParameterNames(callable.Parameters, callable.Kind == CallableKind.Function ? 0 : 1);
 				AnalyzeOptionalType(callable.ReturnType, scope);
+				ValidateWrittenErasedType(callable.ReturnType, callable.ReturnType?.SourceSyntax ?? callable.SourceSyntax, "a callable return type");
 				ValidateNoDirectFixedArrayType(callable.ReturnType, callable.ReturnType?.SourceSyntax ?? callable.SourceSyntax, "a callable return type");
 				foreach (ParameterDefinition parameter in callable.Parameters)
 				{
@@ -252,7 +261,16 @@ public sealed partial class BindableNodeAnalyzer
 
 			case GroupedParamsTypeReference grouped:
 				AnalyzeOptionalType(grouped.StructType, scope);
-				Report(GetRange(grouped.SourceSyntax), "params(T) type syntax is no longer supported; use an expanded built-in form or struct(T).");
+				Report(GetRange(grouped.SourceSyntax), "params(T) type syntax is no longer supported; use an expanded built-in form or void<V> storage.");
+				type.ResolvedType = FormatTypeReference(type);
+				break;
+
+			case ErasedTypeReference erased:
+				AnalyzeOptionalType(erased.ParamsType, scope);
+				if (TryParseTypeShape(erased.ParamsType?.ResolvedType, out TypeShape payloadShape)
+					&& payloadShape.Kind == TypeShapeKind.Named && payloadShape.Name == "void"
+					|| ErasedTypeIdentity.TryGetPayload(erased.ParamsType?.ResolvedType, out _))
+					Report(GetRange(erased.SourceSyntax), "void<V> cannot contain void or another erased type directly.");
 				type.ResolvedType = FormatTypeReference(type);
 				break;
 
@@ -822,12 +840,33 @@ public sealed partial class BindableNodeAnalyzer
 			Report(GetRange(syntax), $"Fixed-size array storage types are not valid as {usage}; use a pointer to the fixed array or a span array instead.");
 	}
 
-	// `struct(T)` is hidden carrier storage for an expanded value. Source code may name it only as the element
-	// or pointee of an array or pointer, never as the type of a field, parameter, return value, local, or cast.
-	void ValidateNoDirectMaterializedStructType(TypeReference? type, SyntaxNode? syntax, string usage)
+	// Validate written positions here, before substitution. Generated carriers have no source syntax.
+	void ValidateWrittenErasedType(TypeReference? type, SyntaxNode? syntax, string usage, bool allowStorage = false)
 	{
-		if (type is not null && type.SourceSyntax is not null && UnwrapTypeDeclarators(type) is MaterializedStructTypeReference)
-			Report(GetRange(syntax), $"struct(T) is hidden storage for an expanded value and is not valid as {usage}.");
+		if (type?.SourceSyntax is null)
+			return;
+		if (TryParseTypeShape(type.ResolvedType, out TypeShape shape))
+			ValidateWrittenErasedShape(shape, syntax, usage, allowStorage,
+				usage.EndsWith("return type", StringComparison.Ordinal) || allowStorage && usage == "a parameter type");
+	}
+
+	void ValidateWrittenErasedShape(TypeShape shape, SyntaxNode? syntax, string usage, bool allowStorage, bool allowOptionalStorage)
+	{
+		if (shape.Kind == TypeShapeKind.Named && ErasedTypeIdentity.TryGetPayload(shape.Name, out _))
+		{
+			if (!allowStorage)
+			{
+				string guidance = usage.EndsWith("return type", StringComparison.Ordinal)
+					? "use a trailing out void<V> parameter (or out V for a non-expandable payload), or an optional void<V>? result."
+					: "use V, void<V>*, or a stackalloc local for single-object storage.";
+				Report(GetRange(syntax), $"void<V> is storage and is not valid as {usage}; {guidance}");
+			}
+			return;
+		}
+		if (shape.Element is not null)
+			ValidateWrittenErasedShape(shape.Element, syntax, usage,
+				shape.Kind is TypeShapeKind.Pointer or TypeShapeKind.Array || shape.Kind == TypeShapeKind.Optional && allowOptionalStorage,
+				allowOptionalStorage: false);
 	}
 
 	void ValidateNoDirectExternClassType(TypeReference? type, SyntaxNode? syntax, string usage)

@@ -1141,12 +1141,11 @@ public sealed class CampParser
 	{
 		int start = index;
 		int diagnosticStart = diagnostics.Count;
-		GenericTypeSyntax syntax = new()
-		{
-			Type = type,
-			LessThanToken = Expect("<"),
-			TypeArgumentList = ParseTypeList(">")
-		};
+		GenericTypeSyntax syntax = type is QualifiedNameTypeSyntax { Identifier.Value: "void", Qualifiers: null }
+			? new ErasedTypeSyntax() : new GenericTypeSyntax();
+		syntax.Type = type;
+		syntax.LessThanToken = Expect("<");
+		syntax.TypeArgumentList = ParseTypeList(">");
 
 		if (!Is(">"))
 		{

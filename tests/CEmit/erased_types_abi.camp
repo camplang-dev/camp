@@ -1,0 +1,11 @@
+alias Integer = int;
+export struct Point { int x; }
+export void<Integer>* identity(void<Integer>* p) => p;
+export const void<Point>* readonlyIdentity(const void<Point>* p) => p;
+export void<int>** deeper(void<int>** p) => p;
+export void array(void<int?>[] values) { }
+export int input(in void<int> value) => value;
+export void output(out void<int> value) { value = 2; }
+export int receiver(void<int>* this) => *this;
+export void callback(fn void(in void<int> input, out void<int> output) action) { }
+void main() { }

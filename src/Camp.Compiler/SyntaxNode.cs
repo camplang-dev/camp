@@ -344,6 +344,9 @@ public class GenericTypeSyntax : TypeSyntax
 	public Token? GreaterThanToken { get; set; }
 }
 
+// Shares angle-bracket token traversal with generic syntax, but is not a generic application.
+public class ErasedTypeSyntax : GenericTypeSyntax { }
+
 public class IterTypeSyntax : TypeSyntax
 {
 	public Token? AsyncKeyword { get; set; }

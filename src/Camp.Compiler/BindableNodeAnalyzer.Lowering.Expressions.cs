@@ -150,6 +150,16 @@ public sealed partial class BindableNodeAnalyzer
 			return MaterializeReceiverCall(LowerUncaughtThrowingCall(call));
 
 			case IndexExpression index:
+				if (TryGetErasedStorageType(index, out _))
+				{
+					if (TryGetArrayElementType(index.Target?.ResolvedType) is not null
+						&& TryCreateParamsComponentExpressions(index.Target, out List<Expression> arrayStorageComponents))
+						index.Target = arrayStorageComponents[0];
+					index.Target = LowerExpression(index.Target);
+					for (int i = 0; i < index.Arguments.Count; i++)
+						index.Arguments[i] = LowerArgument(index.Arguments[i]);
+					return index;
+				}
 				if (propertyIndexerExpressions.Contains(index) && index.Target is MemberReferenceExpression getter && IsPropertyGetterReference(getter))
 				{
 					CallExpression call = RewritePropertyGetterCall(getter, index.Arguments);

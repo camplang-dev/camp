@@ -1,0 +1,10 @@
+tests/Diagnostics/erased_types_invalid.camp(3,2): error: void<V> is storage and is not valid as field storage; use V, void<V>*, or a stackalloc local for single-object storage.
+tests/Diagnostics/erased_types_invalid.camp(4,2): error: void<V> is storage and is not valid as field storage; use V, void<V>*, or a stackalloc local for single-object storage.
+tests/Diagnostics/erased_types_invalid.camp(5,8): error: void<V> is storage and is not valid as field storage; use V, void<V>*, or a stackalloc local for single-object storage.
+tests/Diagnostics/erased_types_invalid.camp(8,1): error: void<V> is storage and is not valid as a function return type; use a trailing out void<V> parameter (or out V for a non-expandable payload), or an optional void<V>? result.
+tests/Diagnostics/erased_types_invalid.camp(9,20): error: void<V> is storage and is not valid as a parameter type; use V, void<V>*, or a stackalloc local for single-object storage.
+tests/Diagnostics/erased_types_invalid.camp(10,27): error: void<V> is storage and is not valid as a callable return type; use a trailing out void<V> parameter (or out V for a non-expandable payload), or an optional void<V>? result.
+tests/Diagnostics/erased_types_invalid.camp(11,24): error: void<V> cannot contain void or another erased type directly.
+tests/Diagnostics/erased_types_invalid.camp(11,39): error: void<V> cannot contain void or another erased type directly.
+tests/Diagnostics/erased_types_invalid.camp(12,40): error: `overload value` is invalid because 'void<int>' does not contribute a method-symbol type fragment.
+tests/Diagnostics/erased_types_invalid.camp(14,26): error: void<V> is storage and is not valid as a by-value generic argument; use V, void<V>*, or a stackalloc local for single-object storage.

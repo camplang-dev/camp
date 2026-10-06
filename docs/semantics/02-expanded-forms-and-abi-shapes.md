@@ -10,7 +10,7 @@ predictable.
 A source value is an expanded form when:
 
 - the source language treats it as one logical value;
-- ordinary storage may need a materialized `struct(T)` form;
+- single-object storage uses the erased annotation `void<V>`;
 - parameter passing and returns may expose multiple ABI components;
 - member access exposes compiler-defined components such as `.length` or
   `.context`;
@@ -287,34 +287,47 @@ Lowering must preserve:
 Do not treat thrown slots as ordinary output values for `constof` variance or
 ordinary return covariance.
 
-## Materialized Storage With `struct(T)`
+## Erased Storage With `void<V>`
 
-`struct(T)` materializes an expanded form into ordinary one-address storage. It
-is hidden compiler storage, not a type that source code declares. It is the
-storage form the compiler uses when code needs:
+`void<V>` annotates one storage object containing `V`. It retains `V` for Camp
+analysis and lowers to `void` at the C boundary. `V` cannot be `void` or another
+erased type directly. The removed `struct(V)` syntax is diagnosed with guidance
+to use `void<V>`.
 
-- a field or local storing an expanded value as one object;
-- an array element type for an expanded form;
-- a pointer to the whole expanded value;
-- erased generic storage for a possibly expanded `T`;
-- `sizeof(T)` of an expanded form.
-
-Source code may name `struct(T)` only behind an array or pointer declarator,
-such as `struct(int?)[]`. Declaring it directly as the type of a field,
-parameter, return value, global or local variable, or as an explicit cast
-target is an error.
-
-The materialized fields match logical component names, not necessarily ABI
-parameter names; lowered output shows them:
+Written erased types are permitted behind pointers (including multiple depths
+and constness), as dynamic array elements, as `in`/`out` parameters, as optional
+results, and as `stackalloc` locals. Optional erased parameters require `in` or
+`out`. A generic argument may contain erased storage behind a pointer. Bare
+results, by-value parameters, ordinary locals, fields, fixed-size array elements
+and by-value generic arguments cannot name erased storage. Validation applies to
+written types before substitution.
 
 ```camp
-struct(byte[]) stored; // lowered form only
-stored.elements;
-stored.length;
+stackalloc void<int?> stored = 3;
+void<int?>* pointer = &stored;
+int? copy = *pointer;
+pointer.value = 4;
+void<int?>[] values = stackalloc void<int?>[4];
+values[0] = copy;
 ```
 
-Lowering may expand materialized storage back into components when passing to a
-source parameter of the expanded form.
+Reads produce `V`; writes store `V`. A stack storage address has type
+`void<V>*`. An ordinary expandable address remains distributive and has one
+pointer per component. It cannot convert to an erased storage pointer.
+Materialized members use logical component names, such as `value` and
+`specified`, `elements` and `length`, or `call` and `context`. Erased arrays
+index by the size of the complete object, including all components.
+
+For non-expandable `P`, `void<P>*` and `P*`, and `void<P>[]` and `P[]`, convert
+implicitly in both directions while preserving constness. Disjoint erased
+pointers follow disjoint pointer conversion rules; other pointer families need
+a `void*` fence. Recovery from `void*` requires an explicit cast.
+
+At the C boundary an erased pointer is `void*`, an erased array is `void*` plus
+length, an `in` erased parameter is `const void*`, and an `out` erased parameter
+is `void*`. Concrete storage remains typed internally. `typenameof(void<V>)`
+is empty, erased receiver types contribute no symbol fragment, and erased
+parameters cannot select an overload.
 
 ## Expanded Returns
 
@@ -383,7 +396,7 @@ Expanded-form changes should normally have tests for:
 - ABI component names and collision diagnostics;
 - named and positional argument behavior;
 - default arguments with expanded parameters;
-- materialized `struct(T)` storage;
+- single-object `void<V>` storage;
 - generic `T` substituted with expanded forms;
 - metadata/API filtering;
 - C emission for at least one native target;

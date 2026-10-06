@@ -1132,6 +1132,7 @@ public sealed partial class BindableNodeAnalyzer
 			TargetTypeSpecTypeReference targetSpec => new TargetTypeSpecTypeReference { Specifier = targetSpec.Specifier, Type = CloneProjectionTypeReference(targetSpec.Type), IsPrefix = targetSpec.IsPrefix },
 			IterTypeReference iter => new IterTypeReference { IsAsync = iter.IsAsync, ElementType = CloneProjectionTypeReference(iter.ElementType) },
 			GroupedParamsTypeReference grouped => new GroupedParamsTypeReference { StructType = CloneProjectionTypeReference(grouped.StructType) },
+			ErasedTypeReference erased => new ErasedTypeReference { ParamsType = CloneProjectionTypeReference(erased.ParamsType) },
 			MaterializedStructTypeReference materialized => new MaterializedStructTypeReference { ParamsType = CloneProjectionTypeReference(materialized.ParamsType) },
 			ThrownTypeReference thrown => new ThrownTypeReference { Type = CloneProjectionTypeReference(thrown.Type) },
 			_ => new NamedTypeReference { Name = source.ResolvedType ?? ErrorType }

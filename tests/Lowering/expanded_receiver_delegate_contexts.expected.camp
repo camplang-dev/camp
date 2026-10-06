@@ -17,7 +17,7 @@ export int main()
 {
 	int maybe = 42;
 	bool maybe_specified = true;
-	struct(int?) __local0;
+	void<int?> __local0;
 	__local0.value = maybe;
 	__local0.specified = maybe_specified;
 	fn int(void*) getter = main_boundReceiver0;
@@ -26,7 +26,7 @@ export int main()
 		return 1;
 	fn int(void*, int) doubler = main_lambda1;
 	void* doubler_context = null;
-	struct(delegate int(int)) __local1;
+	void<delegate int(int)> __local1;
 	__local1.call = doubler;
 	__local1.context = doubler_context;
 	fn int(void*, int) caller = main_boundReceiver2;
@@ -37,7 +37,7 @@ export int main()
 }
 int main_boundReceiver0(void* _targettype _context)
 {
-	return Int_valueOrNegative((*(struct(int?)*)_context).value, (*(struct(int?)*)_context).specified);
+	return Int_valueOrNegative((*(void<int?>*)_context).value, (*(void<int?>*)_context).specified);
 }
 int main_lambda1(void* _targettype _context, int value)
 {
@@ -45,5 +45,5 @@ int main_lambda1(void* _targettype _context, int value)
 }
 int main_boundReceiver2(void* _targettype _context, int arg0)
 {
-	return delegate_callWith((*(struct(delegate int(int))*)_context).call, (*(struct(delegate int(int))*)_context).context, arg0);
+	return delegate_callWith((*(void<delegate int(int)>*)_context).call, (*(void<delegate int(int)>*)_context).context, arg0);
 }

@@ -47,6 +47,36 @@ nuint length = buffer.getLength();
 There is no separate `->` operator. The receiver type and the member
 declaration decide what call or access is valid.
 
+## Erased Storage Pointers
+
+`void<V>*` holds an address whose Camp payload type is `V`. It crosses the C
+boundary as `void*`. For a scalar or struct, member access and dereferencing
+work as they do through the corresponding ordinary pointer:
+
+```camp
+stackalloc void<int> held = 5;
+void<int>* erased = &held;
+int* ordinary = erased;
+*ordinary = 6;
+```
+
+Non-expandable payload pointers and arrays convert implicitly in both
+directions, preserving constness. An expandable payload, such as `int?` or
+`int[]`, needs its own single-object storage. An ordinary expandable address
+contains separate component pointers and cannot convert to `void<V>*`.
+
+```camp
+stackalloc void<int?> slot = 1;
+void<int?>* pointer = &slot;
+pointer.value = 2;
+int? copy = *pointer;
+```
+
+Different erased payload pointers follow the existing disjoint pointer cast
+rules. Crossing another pointer family requires a `void*` fence; recovering an
+erased pointer from `void*` requires an explicit cast. The old `struct(V)` type
+spelling is removed.
+
 ## Pointer Depth
 
 Pointer depth is physical shape. `Document*` and `Document**` are different

@@ -1486,6 +1486,8 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (parameter.Modifier == ParameterModifier.In)
 		{
+			if (UnwrapTypeDeclarators(type) is ErasedTypeReference erased)
+				type = erased.ParamsType ?? type;
 			if (!IsAnyOrAnyConstrainedGeneric(type, scope) && !IsCopyableTypeArgument(type, scope, []))
 				Report(GetNameRange(parameter), $"Parameter '{parameter.Name}' cannot use 'in' with non-copyable type '{parameter.ResolvedType ?? FormatTypeReference(type)}'. Pass it explicitly by pointer instead.");
 			return;

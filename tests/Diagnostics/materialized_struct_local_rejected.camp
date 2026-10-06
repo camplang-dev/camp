@@ -2,7 +2,7 @@ int use(int[] source)
 {
 	struct(int[]) copy = default;
 	auto cast = (struct(int[]))source;
-	struct(int?)[] allowedArrayElement = default;
-	struct(int[])* allowedPointer = default;
+	void<int?>[] allowedArrayElement = default;
+	void<int[]>* allowedPointer = default;
 	return 0;
 }

@@ -39,7 +39,7 @@ code. Ordinary Camp users should start with the language guide.
 - Iterators
 - Grouped Params
 - Thrown Params
-- Materialized Storage With `struct(T)`
+- Erased Storage With `void<V>`
 - Expanded Returns
 - Generic Expanded Forms
 - API, Metadata, And Dumps

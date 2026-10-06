@@ -273,7 +273,7 @@ Inside erased generic code, `T*` is a pointer to the storage form of `T`.
 For a scalar substitution such as `T = int`, that means `int*`. For a
 fixed-size array substitution such as `T = byte[32]`, it means `byte[32]*`.
 For an expanded form such as `T = char[]` or `T = int?`, it means a pointer to
-the materialized storage form, conceptually `struct(T)*`.
+the erased storage form, `void<V>*` for the substituted payload `V`.
 
 That rule lets generic code talk about storage without pretending every source
 value is physically shaped the same way:

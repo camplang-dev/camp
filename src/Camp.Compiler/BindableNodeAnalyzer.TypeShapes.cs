@@ -78,6 +78,10 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (source.Kind == target.Kind)
 		{
+			if (source.Kind is TypeShapeKind.Pointer or TypeShapeKind.Array
+				&& source.Element is not null && target.Element is not null
+				&& TryConvertErasedElement(source.Element, target.Element, protectedByConstTarget || target.Qualifiers.IsConst, pointerDepth))
+				return true;
 			if ((source.Kind == TypeShapeKind.Pointer || source.Kind == TypeShapeKind.Array || source.Kind == TypeShapeKind.FixedArray)
 				&& source.Element is TypeShape sourceElementForVariance
 				&& target.Element is TypeShape targetElementForVariance
@@ -117,6 +121,23 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		return false;
+	}
+
+	bool TryConvertErasedElement(TypeShape source, TypeShape target, bool protectedByConstTarget, int pointerDepth)
+	{
+		bool sourceErased = ErasedTypeIdentity.TryGetPayload(TypeShapeParser.Format(source), out string sourcePayload);
+		bool targetErased = ErasedTypeIdentity.TryGetPayload(TypeShapeParser.Format(target), out string targetPayload);
+		if (sourceErased == targetErased)
+			return false;
+		string payload = sourceErased ? sourcePayload : targetPayload;
+		if (TryGetParamsComponentShape(null, payload, "value", out _))
+			return false;
+		if (!TryParseTypeShape(payload, out TypeShape payloadShape))
+			return false;
+		TypeShape sourceShape = sourceErased ? payloadShape : source;
+		TypeShape targetShape = targetErased ? payloadShape : target;
+		return TypeShapesSameIgnoringLifetime(StripConstQualifiers(sourceShape), StripConstQualifiers(targetShape))
+			&& CanImplicitlyConvertShape(sourceShape, targetShape, protectedByConstTarget, pointerDepth + 1);
 	}
 
 	bool TargetSpecsCanImplicitlyConvert(string? source, string? target, TargetConversionCarrier carrier = TargetConversionCarrier.DataPointer)
@@ -580,6 +601,8 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		string typeName = BaseTypeName(shape.Name);
+		if (ErasedTypeIdentity.TryGetPayload(shape.Name, out _))
+			return "";
 		string receiverName = IsGenericReceiverTypeName(typeName, function)
 			? ""
 			: GetFlattenedSymbolTypeName(typeName);

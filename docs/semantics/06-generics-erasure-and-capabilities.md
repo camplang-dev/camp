@@ -282,7 +282,7 @@ Operations on `T[]` should check the operation precisely:
 
 Inside erased substitution for `T: any` or `T: copyable`, `T*` means a pointer
 to the storage form of `T`. If `T` is an expanded form, that storage form is the
-materialized `struct(T)` representation. A compiler must not treat a pointer to
+single-object `void<V>` representation. A compiler must not treat a pointer to
 one expanded component as a pointer to the whole substituted value.
 
 Iterator generators with `T: any` or `T: copyable` add `sizeof(T)` parameters

@@ -781,6 +781,7 @@ public sealed partial class BindableNodeAnalyzer
 		string targetType = declaration.Target.Type is AutoTypeReference or null
 			? TargetType
 			: declaration.Target.Type.ResolvedType ?? ErrorType;
+		targetType = ErasedTypeIdentity.ReadType(targetType);
 		string initialTargetType = declaration.InitialValue is LambdaExpression && declaration.Target.Type is not null and not AutoTypeReference
 			? FormatLambdaTargetType(declaration.Target.Type)
 			: targetType;
@@ -821,7 +822,7 @@ public sealed partial class BindableNodeAnalyzer
 		declaration.Target.UnboundSlotReceiverType = GetUnboundSlotReceiverType(declaration.InitialValue);
 		ValidateFixedStorageMarker(declaration.Target.Type, declaration.IsFixedStorage, declaration.Target.Type?.SourceSyntax ?? declaration.Target.SourceSyntax ?? declaration.SourceSyntax);
 		ValidateNoDirectExternClassType(declaration.Target.Type, declaration.Target.Type?.SourceSyntax ?? declaration.Target.SourceSyntax ?? declaration.SourceSyntax, "local variable storage");
-		ValidateNoDirectMaterializedStructType(declaration.Target.Type, declaration.Target.Type?.SourceSyntax ?? declaration.Target.SourceSyntax ?? declaration.SourceSyntax, "the type of a local variable");
+		ValidateWrittenErasedType(declaration.Target.Type, declaration.Target.Type?.SourceSyntax ?? declaration.Target.SourceSyntax ?? declaration.SourceSyntax, "the type of a local variable", declaration.IsStackAllocStorage);
 		ValidateNoExternClassArrayElement(declaration.Target.Type, declaration.Target.Type?.SourceSyntax ?? declaration.Target.SourceSyntax ?? declaration.SourceSyntax);
 		ValidateErasedGenericLocalStorage(declaration, initialType, scope);
 		if (declaration.InitialValue is not null)
@@ -835,7 +836,7 @@ public sealed partial class BindableNodeAnalyzer
 			ReportCopyableGenericCopyNeedsSizeOf(declaration.InitialValue.SourceSyntax ?? declaration.SourceSyntax);
 		else if (declaration.InitialValue is not null && !IsValidFixedStorageInitializer(declaration.Target.Type, declaration.InitialValue))
 		{
-			CheckAssignable(declaration.Target.ResolvedType ?? ErrorType, initialType, declaration.InitialValue, declaration.InitialValue.SourceSyntax, "Declaration initializer");
+			CheckAssignable(ErasedTypeIdentity.ReadType(declaration.Target.ResolvedType ?? ErrorType), initialType, declaration.InitialValue, declaration.InitialValue.SourceSyntax, "Declaration initializer");
 			if (ContainsConstOfTypeReference(declaration.Target.Type))
 				CheckConstOfProducedResult(declaration.Target.Type, declaration.InitialValue, declaration.InitialValue.SourceSyntax ?? declaration.SourceSyntax, "Declaration initializer");
 		}
@@ -1595,7 +1596,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	static string BodyAnalyzeVariableReferenceExpression(VariableReferenceExpression variable)
 	{
-		variable.ResolvedType = variable.Variable?.ResolvedType ?? ErrorType;
+		variable.ResolvedType = ErasedTypeIdentity.ReadType(variable.Variable?.ResolvedType ?? ErrorType);
 		variable.SlotLifetimeFact = variable.Variable?.SlotLifetimeFact;
 		variable.ValueLifetimeFact = variable.Variable?.ValueLifetimeFact ?? variable.Variable?.SlotLifetimeFact;
 		return variable.ResolvedType;
@@ -2080,18 +2081,19 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (named.Qualifiers.Count == 0 && scope.TryLookup(named.Name, out BodySymbol symbol))
 		{
-			named.ResolvedType = symbol.Type;
+			string readType = ErasedTypeIdentity.ReadType(symbol.Type);
+			named.ResolvedType = readType;
 			expressionConstants[named] = symbol.IsConstant;
 				expressionRewrites[named] = new VariableReferenceExpression
 				{
 					SourceSyntax = named.SourceSyntax,
 					Variable = symbol.Node,
-					ResolvedType = symbol.Type,
+					ResolvedType = readType,
 					UnboundSlotReceiverType = symbol.Node.UnboundSlotReceiverType,
 				SlotLifetimeFact = symbol.Node.SlotLifetimeFact,
 				ValueLifetimeFact = symbol.Node.ValueLifetimeFact ?? symbol.Node.SlotLifetimeFact
 			};
-			return symbol.Type;
+			return readType;
 		}
 
 		if (LookupGlobalStorageSymbol(named, named.SourceSyntax) is BodySymbol globalSymbol)
@@ -2352,11 +2354,11 @@ public sealed partial class BindableNodeAnalyzer
 		if (scope.ContainingType is null)
 		{
 			if (GetExplicitThisParameter(scope.CurrentFunction) is ThisParameterDefinition thisParameter)
-				return IsValidResolvedTypeName(thisParameter.ResolvedType)
+				return ErasedTypeIdentity.ReadType(IsValidResolvedTypeName(thisParameter.ResolvedType)
 					? thisParameter.ResolvedType!
 					: IsValidResolvedTypeName(thisParameter.Type?.ResolvedType)
 						? thisParameter.Type!.ResolvedType!
-						: FormatTypeReference(thisParameter.Type);
+						: FormatTypeReference(thisParameter.Type));
 
 			Report(GetRange(expression.SourceSyntax), "'this' is not available in this context.");
 			return ErrorType;
@@ -2680,7 +2682,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (cast.Type is not null)
 			AnalyzeType(cast.Type, typeScope);
 		string targetType = cast.Type?.ResolvedType ?? ErrorType;
-		ValidateNoDirectMaterializedStructType(cast.Type, cast.Type?.SourceSyntax ?? cast.SourceSyntax, "an explicit cast target");
+		ValidateWrittenErasedType(cast.Type, cast.Type?.SourceSyntax ?? cast.SourceSyntax, "an explicit cast target");
 		string structuralTargetType = ContainsLifetimeAnnotation(cast.Type) && !TryGetCallableShape(targetType, out _)
 			? StripLifetimeQualifiers(targetType)
 			: targetType;
@@ -3393,8 +3395,7 @@ public sealed partial class BindableNodeAnalyzer
 			return configuredType;
 
 		NormalizeGenericCallSyntax(call);
-		foreach (TypeReference argument in call.TypeArguments)
-			AnalyzeType(argument, typeScope);
+		AnalyzeWrittenTypeArguments(call.TypeArguments, typeScope);
 
 		if (TryCreateSelectedConstructionExpression(call, scope, typeScope, targetType, out string constructionType))
 			return constructionType;
@@ -4405,6 +4406,8 @@ public sealed partial class BindableNodeAnalyzer
 			}
 
 			string expected = SubstituteGenericType(analysisParameter?.ResolvedType ?? ErrorType, genericSubstitutions);
+			if (analysisParameter?.Modifier is ParameterModifier.In or ParameterModifier.Out)
+				expected = ErasedTypeIdentity.ReadType(expected);
 			string analysisTarget = ContainsUnboundGenericParameter(expected, genericSubstitutions, genericParameterNames) ? TargetType : expected;
 			string actual = arguments[i].ResolvedType == ErrorType && arguments[i].Modifier is not (ArgumentModifier.Out or ArgumentModifier.Catch)
 				? ErrorType
@@ -4416,6 +4419,8 @@ public sealed partial class BindableNodeAnalyzer
 				if (TryGetConstOfActualSlot(analysisParameter, arguments[i], out bool anchorIsConst) && !string.IsNullOrWhiteSpace(analysisParameter.Name))
 					constOfAnchorsInProgress[analysisParameter.Name] = anchorIsConst;
 				expected = SubstituteConstOfResolvedType(analysisParameter.Type, expected, constOfAnchorsInProgress, genericSubstitutions);
+				if (analysisParameter.Modifier is ParameterModifier.In or ParameterModifier.Out)
+					expected = ErasedTypeIdentity.ReadType(expected);
 			}
 			if (analysisParameter is not null)
 				{
@@ -5757,11 +5762,11 @@ public sealed partial class BindableNodeAnalyzer
 		if (TryGetArrayElementType(targetType) is string elementType)
 		{
 			RequireGenericArrayElementStride(targetType, scope, target?.SourceSyntax, "index T[]");
-			return elementType;
+			return ErasedTypeIdentity.ReadType(elementType);
 		}
 
 		if (TryGetPointerElementType(targetType) is string pointerElementType)
-			return pointerElementType;
+			return ErasedTypeIdentity.ReadType(pointerElementType);
 
 		if (GetPrimitiveStringElementType(targetType) is string stringElementType)
 			return stringElementType;
@@ -5825,6 +5830,13 @@ public sealed partial class BindableNodeAnalyzer
 		string lookupTargetType = TryGetImplicitIteratorProtocolType(member.Target, targetType, out string iteratorProtocolType)
 			? iteratorProtocolType
 			: targetType;
+		if (TryGetPointerElementType(targetType) is string erasedPointee && ErasedTypeIdentity.TryGetPayload(erasedPointee, out string storagePayload))
+		{
+			lookupTargetType = storagePayload + "*";
+			if (TryGetParamsComponentShape(null, storagePayload, "value", out ParamsComponentShape storageShape)
+				&& FindParamsComponent(storageShape, member.Name) is ParamsComponent storageComponent)
+				return storageComponent.Type;
+		}
 		if (member.Name == "length"
 			&& member.Target is not null
 			&& expressionRewrites.TryGetValue(member.Target, out Expression? preparedRewrite)
@@ -6207,6 +6219,11 @@ public sealed partial class BindableNodeAnalyzer
 				return unary.ResolvedType ?? ErrorType;
 
 			case UnaryOperator.AddressOf:
+				if (unary.Operand is ThisExpression && GetExplicitThisParameter(scope.CurrentFunction) is ThisParameterDefinition erasedThis
+					&& ErasedTypeIdentity.TryGetPayload(erasedThis.ResolvedType, out _))
+					return erasedThis.ResolvedType + "*";
+				if (TryGetErasedStorageType(unary.Operand, out string erasedStorage))
+					return erasedStorage + "*";
 				if (unary.Operand is IndexExpression index && TryGetIndexedAddressType(index.Target?.ResolvedType, out string indexedAddressType))
 				{
 					if (index.Target?.ResolvedType is string indexedType && TryGetArrayElementType(indexedType) is not null)
@@ -6218,7 +6235,7 @@ public sealed partial class BindableNodeAnalyzer
 				return $"{operandType}*";
 
 			case UnaryOperator.PointerDereference:
-				return TryGetPointerElementType(operandType) ?? ErrorType;
+				return ErasedTypeIdentity.ReadType(TryGetPointerElementType(operandType) ?? ErrorType);
 
 			case UnaryOperator.Plus:
 			case UnaryOperator.Minus:
@@ -6257,8 +6274,7 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		NormalizeGenericCallSyntax(call);
-		foreach (TypeReference argument in call.TypeArguments)
-			AnalyzeType(argument, typeScope);
+		AnalyzeWrittenTypeArguments(call.TypeArguments, typeScope);
 
 		FunctionDefinition? function = callTargets.TryGetValue(call, out FunctionDefinition? existingTarget)
 			? existingTarget
@@ -6439,8 +6455,7 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		NormalizeGenericCallSyntax(call);
-		foreach (TypeReference argument in call.TypeArguments)
-			AnalyzeType(argument, typeScope);
+		AnalyzeWrittenTypeArguments(call.TypeArguments, typeScope);
 
 		FunctionDefinition? function = callTargets.TryGetValue(call, out FunctionDefinition? existingTarget)
 			? existingTarget
@@ -6998,8 +7013,7 @@ public sealed partial class BindableNodeAnalyzer
 			ReportNotExported(typeDefinition, named.SourceSyntax, "Type");
 			return true;
 		}
-		foreach (TypeReference argument in typeArguments)
-			AnalyzeType(argument, typeScope);
+		AnalyzeWrittenTypeArguments(typeArguments, typeScope);
 
 		TypeDefinitionReference typeReference = new()
 		{

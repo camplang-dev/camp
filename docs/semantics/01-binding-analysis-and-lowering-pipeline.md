@@ -448,7 +448,7 @@ Expansion creates compiler-visible declarations and components while preserving
 the source-facing API. Expansion covers:
 
 - expanded array/optional/delegate/once/async/iterator component shapes;
-- params component declarations and materialized `struct(T)` forms;
+- params component declarations and single-object `void<V>` storage;
 - generated vtables, interface indirect types, interface fixup thunks, and
   virtual class tables;
 - lifecycle helpers for constructors, destructors, `new`, and `delete`;

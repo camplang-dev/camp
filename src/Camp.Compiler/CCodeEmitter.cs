@@ -4,6 +4,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Numerics;
+using System.Security.Cryptography;
 using System.Text;
 
 namespace Camp.Compiler;
@@ -802,6 +803,7 @@ public static class CCodeEmitter
         readonly Dictionary<DelegateThunkKey, DelegateThunk> delegateThunksByKey = [];
         readonly Dictionary<SourceFile, List<DelegateThunk>> delegateThunksByFile = [];
         readonly HashSet<string> reservedCNames = [];
+        readonly Dictionary<string, string> erasedStorageNames = new(StringComparer.Ordinal);
         readonly Dictionary<BindableNode, string> currentAsyncFrameReplacements = [];
         readonly Dictionary<string, string> currentAsyncFrameNameReplacements = new(StringComparer.Ordinal);
         readonly Dictionary<string, string> currentWideStringLiteralNames = new(StringComparer.Ordinal);
@@ -869,6 +871,7 @@ public static class CCodeEmitter
 
         public void WritePrivateHeaderDeclarations(TextWriter writer)
         {
+            CollectErasedStorageTypes();
             EnsureDelegateThunksCollected();
             emittedNames.Clear();
             List<Definition> definitions = GetProjectDefinitions().ToList();
@@ -917,6 +920,13 @@ public static class CCodeEmitter
                 foreach (TypeDefinition type in definitions.OfType<TypeDefinition>().Where(static type => type is not StructDefinition))
                     WriteLayoutDefinition(writer, type);
             });
+
+            if (erasedStorageNames.Count > 0)
+                WriteSection(writer, "Erased storage layouts", () =>
+                {
+                    foreach ((string payload, string name) in erasedStorageNames)
+                        writer.WriteLine("typedef " + FormatStorageResolvedTypeBody(payload, name).Declaration + ";");
+                });
 
             WriteSection(writer, "Function declarations", () =>
             {
@@ -2393,6 +2403,8 @@ public static class CCodeEmitter
 
         string FormatResolvedParameter(string parameterType, string declarator)
         {
+            if (parameterType.StartsWith("in ", StringComparison.Ordinal) && ErasedTypeIdentity.TryGetPayload(parameterType[3..], out _))
+                return "const void *" + declarator;
             if (parameterType.StartsWith("in ", StringComparison.Ordinal))
                 return FormatResolvedType(parameterType[3..].TrimStart() + "*", declarator).Declaration;
             if (parameterType.StartsWith("out ", StringComparison.Ordinal))
@@ -4578,6 +4590,15 @@ public static class CCodeEmitter
         void WriteDeclarationStatement(TextWriter writer, DeclarationStatement declaration, int indent)
         {
             string name = CName(declaration.Target);
+            if (ErasedTypeIdentity.TryGetPayload(declaration.Target.ResolvedType, out string payload))
+            {
+                WriteIndent(writer, indent);
+                writer.Write(FormatStorageResolvedType(payload, name).Declaration);
+                if (declaration.InitialValue is not null)
+                    writer.Write(" = " + FormatDeclarationInitializer(payload, declaration.InitialValue));
+                writer.WriteLine(";");
+                return;
+            }
             if (IsAnyGenericParameterType(declaration.Target.ResolvedType))
             {
                 string size = FormatGenericSizeExpression(declaration.Target.ResolvedType);
@@ -4960,6 +4981,8 @@ public static class CCodeEmitter
         string FormatSizeOfExpression(SizeOfExpression sizeOf)
         {
             string? resolvedType = sizeOf.Type?.ResolvedType;
+            if (ErasedTypeIdentity.TryGetPayload(resolvedType, out string payload))
+                return "sizeof(" + FormatStorageResolvedType(payload, "").Declaration.Trim() + ")";
             if (IsAnyGenericParameterType(resolvedType))
                 return FormatGenericSizeExpression(resolvedType);
             if (IsExpandedStorageResolvedType(resolvedType))
@@ -5003,6 +5026,12 @@ public static class CCodeEmitter
                     specs += " " + callableCallSpec;
                 components.Add(("call", "fn" + specs + " " + callableReturnType + "(" + string.Join(", ", ["void*", .. callableParameterTypes]) + ")"));
                 components.Add(("context", "void*"));
+                return true;
+            }
+            if (TryGetPointerElementType(type, out string pointedType) && !ErasedTypeIdentity.TryGetPayload(pointedType, out _)
+                && TryGetExpandedStorageComponentsForC(pointedType, out List<(string Name, string Type)> pointedComponents))
+            {
+                components.AddRange(pointedComponents.Select(component => (component.Name, component.Type + "*")));
                 return true;
             }
             if (TryGetCallableNewtypeStorageComponentsForC(type, out components))
@@ -5204,6 +5233,43 @@ public static class CCodeEmitter
 
         CType FormatStorageResolvedType(string resolvedType, string declarator)
         {
+            string bare = StripTypeQualifiers(StripLifetimeOnly(resolvedType.Trim()));
+            if (erasedStorageNames.TryGetValue(bare, out string? name))
+                return new CType((HasTopLevelConstForC(resolvedType) ? "const " : "")
+                    + (resolvedType.StartsWith("volatile ", StringComparison.Ordinal) || resolvedType.StartsWith("const volatile ", StringComparison.Ordinal) || resolvedType.EndsWith(" volatile", StringComparison.Ordinal) ? "volatile " : "")
+                    + name + " " + declarator);
+            return FormatStorageResolvedTypeBody(resolvedType, declarator);
+        }
+
+        void CollectErasedStorageTypes()
+        {
+            if (compilation.SharedModule is not Module module)
+                return;
+            foreach (BindableNode node in BindableNodeTraversal.Enumerate(module, []))
+            {
+                string type = node.ResolvedType ?? "";
+                for (int start = type.IndexOf("void<", StringComparison.Ordinal); start >= 0; start = type.IndexOf("void<", start + 5, StringComparison.Ordinal))
+                {
+                    int depth = 1;
+                    int end = start + 5;
+                    for (; end < type.Length && depth > 0; end++)
+                    {
+                        if (type[end] == '<') depth++;
+                        if (type[end] == '>') depth--;
+                    }
+                    if (depth != 0) continue;
+                    string payload = StripTypeQualifiers(type[(start + 5)..(end - 1)]);
+                    if (IsExpandedStorageResolvedType(payload) && !erasedStorageNames.ContainsKey(payload))
+                    {
+                        string hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(payload)))[..16].ToLowerInvariant();
+                        erasedStorageNames.Add(payload, "__camp_erased_storage_" + hash);
+                    }
+                }
+            }
+        }
+
+        CType FormatStorageResolvedTypeBody(string resolvedType, string declarator)
+        {
             string type = StripLifetimeOnly(resolvedType.Trim());
             if (TryGetArrayElementOnly(type, out string elementType))
                 return new CType(FormatMaterializedArrayStructType(elementType) + " " + declarator);
@@ -5211,6 +5277,8 @@ public static class CCodeEmitter
                 return new CType("struct { " + FormatResolvedType(optionalElementType, "value").Declaration + "; bool specified; } " + declarator);
             if (TryParseExpandedCallableStorageType(type, out string returnType, out List<string> parameterTypes, out string? targetSpec, out string? callSpec))
                 return new CType("struct { " + FormatInlineResolvedFunctionPointer(returnType, ["void*", .. parameterTypes], "call", targetSpec, callSpec) + "; void* context; } " + declarator);
+            if (TryGetExpandedStorageComponentsForC(type, out List<(string Name, string Type)> components) && components.Count > 1)
+                return new CType("struct { " + string.Join(" ", components.Select(component => FormatResolvedType(component.Type, component.Name).Declaration + ";")) + " } " + declarator);
             return FormatResolvedType(resolvedType, declarator);
         }
 
@@ -6094,6 +6162,11 @@ public static class CCodeEmitter
 
         string FormatIndexExpression(IndexExpression index)
         {
+            string? storage = null;
+            if (TryGetArrayElementType(index.Target?.ResolvedType, out string arrayElement)) storage = arrayElement;
+            else if (TryGetPointerElementType(index.Target?.ResolvedType, out string pointerElement)) storage = pointerElement;
+            if (ErasedTypeIdentity.TryGetPayload(storage, out string payload))
+                return "((" + FormatStorageResolvedType(payload, "*").Declaration.Trim() + ")(" + FormatExpression(index.Target) + "))[" + string.Join(", ", index.Arguments.Select(FormatArgumentValue)) + "]";
             string target = FormatExpression(index.Target);
             if (index.Target is CastExpression)
                 target = "(" + target + ")";
@@ -6108,6 +6181,10 @@ public static class CCodeEmitter
         string FormatAssignmentValueForTarget(string? targetType, Expression value, IReadOnlyCollection<string>? erasedGenericNames)
         {
             string formatted = FormatExpression(value);
+            if (targetType is not null && value.ResolvedType is string sourceType && sourceType != targetType
+                && (sourceType.Contains("void<", StringComparison.Ordinal) || targetType.Contains("void<", StringComparison.Ordinal))
+                && IsPointerLike(sourceType) && IsPointerLike(targetType))
+                return "(" + FormatResolvedType(targetType, "").Declaration.Trim() + ")(" + formatted + ")";
             if (targetType is not null
                 && !delegateThunksByExpression.ContainsKey(value)
                 && TryFormatCallableAssignmentCast(targetType, value, erasedGenericNames, out string callableCast)
@@ -7439,6 +7516,8 @@ public static class CCodeEmitter
         string FormatMemberTarget(Expression? target)
         {
             string formatted = FormatExpression(target);
+            if (TryGetPointerElementType(target?.ResolvedType, out string pointee) && ErasedTypeIdentity.TryGetPayload(pointee, out string payload))
+                formatted = "((" + FormatStorageResolvedType(payload, "*").Declaration.Trim() + ")(" + formatted + "))";
             if (TryFormatSubstitutedGenericFieldPointerTarget(target, formatted, out string casted))
                 formatted = casted;
             return target switch
@@ -7653,6 +7732,15 @@ public static class CCodeEmitter
 
         bool IsPointerMemberTarget(Expression? target)
         {
+            string? storage = target switch
+            {
+                VariableReferenceExpression variable => variable.Variable?.ResolvedType,
+                UnaryExpression { Operator: UnaryOperator.PointerDereference } unary when TryGetPointerElementType(unary.Operand?.ResolvedType, out string element) => element,
+                IndexExpression { Arguments.Count: 1 } index when TryGetPointerElementType(index.Target?.ResolvedType, out string element) => element,
+                _ => null
+            };
+            if (ErasedTypeIdentity.TryGetPayload(storage, out string payload) && IsExpandedStorageResolvedType(payload))
+                return false;
             if (target is ThisExpression)
             {
                 if (currentAsyncFrameNameReplacements.ContainsKey("this"))
@@ -7681,6 +7769,8 @@ public static class CCodeEmitter
 
             return variable switch
             {
+                ParameterDefinition { Modifier: ParameterModifier.In or ParameterModifier.Out } parameter when ErasedTypeIdentity.TryGetPayload(parameter.ResolvedType, out string payload)
+                    => "(*(" + FormatStorageResolvedType((parameter.Modifier == ParameterModifier.In ? "const " : "") + payload, "*").Declaration.Trim() + ")" + CName(parameter) + ")",
                 FunctionDefinition function => CName(function),
                 VariableDefinition definition => CName(definition),
                 ParameterDefinition { Modifier: ParameterModifier.Thrown } parameter when currentFunction?.IsAsync == true => CName(parameter),
@@ -7710,6 +7800,8 @@ public static class CCodeEmitter
         {
             if (currentAsyncFrameNameReplacements.TryGetValue("this", out string? replacement))
                 return replacement;
+            if (TryGetCurrentInThisParameter(out ParameterDefinition? inThis) && ErasedTypeIdentity.TryGetPayload(inThis.ResolvedType, out _))
+                return FormatVariableReference(inThis);
             return TryGetCurrentInThisParameter(out _) ? "(*this)" : "this";
         }
 
@@ -7871,6 +7963,10 @@ public static class CCodeEmitter
             string right = FormatExpression(binary.Right);
             string op = FormatBinaryOperator(binary.Operator);
             if (binary.Operator is BinaryOperator.Add or BinaryOperator.Subtract
+                && TryGetPointerElementType(binary.Left?.ResolvedType, out string erasedElement)
+                && ErasedTypeIdentity.TryGetPayload(erasedElement, out string payload))
+                left = "((" + FormatStorageResolvedType(payload, "*").Declaration.Trim() + ")(" + left + "))";
+            else if (binary.Operator is BinaryOperator.Add or BinaryOperator.Subtract
                 && TryFormatGenericArrayBytePointer(binary.Left, out string bytePointer))
                 left = bytePointer;
             else if (binary.Operator is BinaryOperator.Add
@@ -7904,6 +8000,9 @@ public static class CCodeEmitter
 
         string FormatUnaryExpression(UnaryExpression unary)
         {
+            if (unary.Operator == UnaryOperator.PointerDereference && TryGetPointerElementType(unary.Operand?.ResolvedType, out string erasedElement)
+                && ErasedTypeIdentity.TryGetPayload(erasedElement, out string payload))
+                return "(*(" + FormatStorageResolvedType(payload, "*").Declaration.Trim() + ")(" + FormatExpression(unary.Operand) + "))";
             if (unary.Operator == UnaryOperator.AddressOf
                 && unary.Operand is VariableReferenceExpression { Variable: ParameterDefinition { Modifier: ParameterModifier.In } parameter }
                 && IsGenericParameterType(parameter.ResolvedType))
@@ -8782,6 +8881,7 @@ public static class CCodeEmitter
                 AnyTypeReference => new CType("void* " + declarator),
                 AutoTypeReference => new CType("void* " + declarator),
                 AllocatorTypeReference => FormatResolvedType("Allocator*", declarator),
+                ErasedTypeReference => new CType("void " + declarator),
                 MaterializedStructTypeReference materialized => FormatMaterializedStructType(materialized, declarator),
                 GroupedParamsTypeReference => new CType("void* " + declarator),
                 ThrownTypeReference thrown => FormatType(thrown.Type, declarator),
@@ -8893,6 +8993,8 @@ public static class CCodeEmitter
 
         CType FormatInParameterType(TypeReference? type, string? resolvedType, string declarator)
         {
+            if (ErasedTypeIdentity.TryGetPayload(resolvedType, out _))
+                return new CType("const void *" + declarator);
             if (!string.IsNullOrWhiteSpace(resolvedType))
                 return FormatResolvedType(resolvedType + "*", declarator);
             if (type is not null)
@@ -8903,6 +9005,22 @@ public static class CCodeEmitter
         CType FormatResolvedType(string resolvedType, string declarator, bool normalizeInterfacePointer = true)
         {
             string type = resolvedType.Trim();
+            if (type.Contains("void<", StringComparison.Ordinal)
+                && TryParseResolvedCallableType(type, out string annotatedReturnType, out List<string> annotatedParameters, out string? annotatedTargetSpec, out string? annotatedCallSpec))
+                return new CType(FormatInlineResolvedFunctionPointer(annotatedReturnType, annotatedParameters, declarator, annotatedTargetSpec, annotatedCallSpec));
+            int erasedStart = type.IndexOf("void<", StringComparison.Ordinal);
+            if (erasedStart >= 0)
+            {
+                int depth = 1;
+                int end = erasedStart + 5;
+                for (; end < type.Length && depth > 0; end++)
+                {
+                    if (type[end] == '<') depth++;
+                    if (type[end] == '>') depth--;
+                }
+                if (depth == 0)
+                    return FormatResolvedType(type[..erasedStart] + "void" + type[end..], declarator, normalizeInterfacePointer);
+            }
             if (WitnessTypeIdentity.TryParse(type, out WitnessTypeIdentity witness))
                 return FormatResolvedType(witness.CStorageType, declarator, normalizeInterfacePointer: false);
             int witnessPointerCount = 0;

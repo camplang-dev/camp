@@ -751,6 +751,7 @@ public sealed partial class BindableNodeAnalyzer
 			CallableTypeReference callable => CloneCallableWithConstOf(callable, anchors),
 			IterTypeReference iter => CloneIterWithConstOf(iter, anchors),
 			GroupedParamsTypeReference grouped => new GroupedParamsTypeReference { StructType = grouped.StructType is null ? null : SubstituteConstOfTypeReference(grouped.StructType, anchors) },
+			ErasedTypeReference erased => new ErasedTypeReference { ParamsType = erased.ParamsType is null ? null : SubstituteConstOfTypeReference(erased.ParamsType, anchors) },
 			MaterializedStructTypeReference materialized => new MaterializedStructTypeReference { ParamsType = materialized.ParamsType is null ? null : SubstituteConstOfTypeReference(materialized.ParamsType, anchors) },
 			ThrownTypeReference thrown => new ThrownTypeReference { Type = thrown.Type is null ? null : SubstituteConstOfTypeReference(thrown.Type, anchors) },
 			TypeDefinitionReference definition => CloneTypeDefinitionWithConstOf(definition, anchors),

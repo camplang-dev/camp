@@ -360,6 +360,18 @@ public sealed partial class BindableNodeAnalyzer
 			return false;
 
 		string name = declaration.Target.Names[0];
+		if (ErasedTypeIdentity.TryGetPayload(declaration.Target.ResolvedType, out string payload)
+			&& TryGetParamsComponentShape(null, payload, "value", out ParamsComponentShape storageShape))
+		{
+			List<Expression?> values = GetParamsComponentInitialValues(declaration.InitialValue, storageShape, deferCurrentAllocator: false, declarations);
+			declaration.InitialValue = null;
+			declarations.Add(declaration);
+			List<Expression> storageComponents = CreateMaterializedComponentExpressions(declaration.Target, storageShape);
+			for (int i = 0; i < storageComponents.Count; i++)
+				if (values[i] is Expression value)
+					declarations.Add(new ExpressionStatement { ResolvedType = "void", Expression = new AssignmentExpression { Target = storageComponents[i], Value = value, ResolvedType = storageComponents[i].ResolvedType } });
+			return true;
+		}
 		if (!TryGetParamsComponentShape(declaration.Target.Type, declaration.Target.ResolvedType, name, out ParamsComponentShape shape))
 			return false;
 

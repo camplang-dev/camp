@@ -481,6 +481,13 @@ public sealed partial class BindableNodeAnalyzer
 
 	string BuildOverloadSelectorTypeFragment(string type, FunctionDefinition? function = null)
 	{
+		if (new TypeShapeParser(type).TryParse(out TypeShape selectorShape))
+		{
+			while (selectorShape.Element is not null)
+				selectorShape = selectorShape.Element;
+			if (ErasedTypeIdentity.TryGetPayload(selectorShape.Name, out _))
+				return "";
+		}
 		string normalized = NormalizeOverloadSelectorTypeName(type);
 		return BuildFlattenedTypeFragment(normalized, function);
 	}

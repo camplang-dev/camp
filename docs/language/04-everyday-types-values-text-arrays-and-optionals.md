@@ -264,6 +264,30 @@ int[] tail = values[1..];
 Slices are also views. They do not allocate new storage unless a library helper
 explicitly copies.
 
+## Arrays Of Expandable Values
+
+An expandable value needs one storage object when used as an array element.
+Write that element type as `void<V>`, which retains the payload annotation for
+Camp while erasing it at the C boundary:
+
+```camp
+void<int?>[] items = stackalloc void<int?>[4];
+items[0] = 3;
+int? first = items[0];
+void<int?>* address = &items[0];
+```
+
+Indexing reads the payload `V`; assignment stores it. The stride includes all
+of its components. A declared fixed-size array field or local cannot have a
+bare erased element; use a dynamic array with stack allocation as above.
+`stackalloc void<V> slot = value;` also creates a single local storage object.
+Its read type is `V`, and its address type is `void<V>*`.
+
+Erased types cannot be ordinary by-value locals or fields. They may be written
+behind pointers, as array elements, as `in`/`out` parameters (including optional
+forms), as optional results, and in generic arguments behind pointers. `V`
+cannot be `void` or another erased type directly.
+
 ## Custom Indexing And Slicing
 
 The array syntax you just saw is the built-in surface for counted views, but

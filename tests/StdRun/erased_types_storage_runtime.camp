@@ -1,0 +1,90 @@
+using Std;
+alias Integer = int;
+
+struct Point { int x; int y; }
+newtype delegate int Predicate(int n);
+int plusOne(int n) => n + 1;
+int read(in void<int> value) => value;
+int readThis(in void<int> this) => this;
+void write(out void<int> value) { value = 23; }
+int evaluations;
+nuint nextIndex() { evaluations++; return 1; }
+
+export int main()
+{
+	stackalloc void<int> scalar = 7;
+	void<int>* scalarPtr = &scalar;
+	int* ordinary = scalarPtr;
+	void<int>* roundtrip = ordinary;
+	*roundtrip = 11;
+	if (scalar != 11 || read(scalar) != 11) return 1;
+	write(out scalar);
+	if (scalar != 23) return 2;
+	if (scalar.readThis() != 23) return 17;
+	int** ordinaryAddress = &ordinary;
+	void<int>** erasedAddress = ordinaryAddress;
+	int** recoveredAddress = erasedAddress;
+	if (**recoveredAddress != 23) return 18;
+	void* raw = scalarPtr;
+	void<int>* recoveredRaw = (void<int>*)raw;
+	if (*recoveredRaw != 23) return 19;
+
+	stackalloc void<Point> point = { 3, 4 };
+	void<Point>* pointPtr = &point;
+	pointPtr.x = 8;
+	Point wholePoint = *pointPtr;
+	if (wholePoint.x != 8 || wholePoint.y != 4) return 3;
+
+	stackalloc void<int?> optional = 5;
+	void<int?>* optionalPtr = &optional;
+	if (!optionalPtr.specified || optionalPtr.value != 5) return 4;
+	*optionalPtr = 9;
+	int? wholeOptional = *optionalPtr;
+	if (!wholeOptional.specified || wholeOptional.value != 9) return 5;
+
+	int[] original = stackalloc int[3];
+	original[0] = 31;
+	original[1] = 41;
+	original[2] = 59;
+	stackalloc void<int[]> arraySlot = original;
+	void<int[]>* arrayPtr = &arraySlot;
+	int[] wholeArray = *arrayPtr;
+	if (wholeArray.length != 3 || wholeArray[1] != 41 || arrayPtr.length != 3) return 6;
+	void<int>[] erasedInts = original;
+	int[] recoveredInts = erasedInts;
+	erasedInts[2] = 60;
+	if (recoveredInts[2] != 60) return 7;
+
+	void<int?>[] items = stackalloc void<int?>[4];
+	items[0] = 13;
+	items[1] = 17;
+	items[2] = default;
+	items[3] = 19;
+	void<int?>* last = &items[3];
+	if (!last.specified || last.value != 19) return 8;
+	int? second = items[1];
+	if (!second.specified || second.value != 17 || items[2].specified) return 9;
+	evaluations = 0;
+	items[nextIndex()] = 29;
+	if (evaluations != 1) return 11;
+	int? evaluated = items[nextIndex()];
+	if (evaluations != 2 || !evaluated.specified || evaluated.value != 29) return 12;
+	stackalloc void<int?> copied = items[nextIndex()];
+	if (evaluations != 3 || !copied.specified || copied.value != 29) return 20;
+	stackalloc void<int?*> distributiveSlot = &wholeOptional;
+	void<int?*>* distributiveHolder = &distributiveSlot;
+	int?* recoveredDistributive = *distributiveHolder;
+	(*recoveredDistributive).value = 37;
+	if (wholeOptional.value != 37) return 14;
+	void<int?>[] slice = items[1..3];
+	if (slice.length != 2 || slice[0].value != 29 || slice[1].specified) return 16;
+
+	stackalloc void<Predicate> callable = plusOne;
+	void<Predicate>* callablePtr = &callable;
+	Predicate wholeCallable = *callablePtr;
+	if (wholeCallable(71) != 72 || callable(81) != 82) return 10;
+	Console.writeLine("erased storage passed");
+	if (typenameof(void<int?>).Length != 0) return 13;
+	if (typenameof(void<Integer>).Length != 0) return 21;
+	return 0;
+}

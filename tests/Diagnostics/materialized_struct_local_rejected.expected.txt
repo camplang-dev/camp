@@ -1,3 +1,2 @@
-tests/Diagnostics/materialized_struct_local_rejected.camp(3,2): error: struct(T) is hidden storage for an expanded value and is not valid as the type of a local variable.
-tests/Diagnostics/materialized_struct_local_rejected.camp(4,15): error: struct(T) is hidden storage for an expanded value and is not valid as an explicit cast target.
-tests/Diagnostics/materialized_struct_local_rejected.camp(4,14): error: Invalid cast from 'int[]' to 'struct(int[])'.
+tests/Diagnostics/materialized_struct_local_rejected.camp(3,2): error: struct(V) type syntax is no longer supported; use void<V> instead.
+tests/Diagnostics/materialized_struct_local_rejected.camp(4,15): error: struct(V) type syntax is no longer supported; use void<V> instead.

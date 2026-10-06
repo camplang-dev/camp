@@ -63,7 +63,8 @@ High-impact distinctions:
   (no constructor runs if the struct declares none) or `Value value = default;`.
   Pass `&value` where a pointer is needed. `stackalloc` is
   for storage whose size is not known at the declaration, such as `stackalloc T[count]`,
-  `stackalloc $"..."` or an erased generic `T`; do not use it for a `struct` of
+  `stackalloc $"..."`, an erased generic `T`, or explicitly annotated
+  `stackalloc void<V> slot = value;`; do not use it directly for a `struct` of
   known type.
 - Use `stackalloc T[count]` for short-lived dynamic scratch arrays that do not
   escape and do not cross `await` or `yield`. Use `fixed T[N]` for small inline
@@ -442,7 +443,7 @@ full details.
 | `delegate R(...)` | Callable with context | Use for captures and stored callbacks. |
 | `once R(...)` | Callable consumed at most once | Common for continuations and async completion. |
 | `escaped`, `scoped`, `within` | Lifetime and allocation controls | State them when values cross storage or async boundaries. |
-| `struct(T)` | Materialized storage for expanded `T` | Needed for arrays or storage of expanded values. |
+| `void<V>` | One storage object annotated with payload `V`; C form is `void` | Use behind pointers, in dynamic arrays, in/out parameters, optional results, or stackalloc locals. |
 | `void*`, `fn*`, `nint`, `nuint`, `untyped` | Raw carriers | Keep raw spans short and reconstruct typed values explicitly. |
 
 ## Variables And Assignment
@@ -521,8 +522,8 @@ Expanded values need materialized storage when one addressable storage object is
 required:
 
 ```camp
-struct(char[]) storedText;
-struct(delegate void()) storedCallback;
+stackalloc void<char[]> storedText = default;
+stackalloc void<delegate void()> storedCallback = default;
 ```
 
 Do not guess standard-library string helpers. Use metadata for operations such as
@@ -993,7 +994,7 @@ export T choose<T: copyable>(T left, T right, bool useLeft, sizeof(T))
 ```
 
 Arrays, optionals, delegates, interfaces, and other expanded values may need
-materialized storage in generic contexts. Reach for `struct(T)` when the
+erased storage in generic contexts. Reach for `void<V>` when the
 language docs say the expanded value needs an addressable representation.
 
 `classtype` and `this` return types are specialized tools. Use them only when the
@@ -1301,7 +1302,7 @@ Stable agent habits:
 | Treating `T[]` as owned storage | Track backing storage and lifetime explicitly |
 | Returning an array view over local fixed storage | Allocate or store backing data in a valid owner |
 | Passing or returning fixed-size arrays by value | Use a pointer to the fixed array or a `T[]` span view |
-| Arrays of expanded values such as direct optional or delegate arrays | Use materialized `struct(T)` storage where required |
+| Arrays of expanded values such as direct optional or delegate arrays | Use erased elements, for example `void<int?>[]`, allocated with `stackalloc void<int?>[count]` |
 | Copying `T: any` | Add `T: copyable` and any required `sizeof(T)` |
 | Casting a delegate to another delegate signature | Write an adapter with the correct signature |
 | Passing expanded values through raw carriers | Convert the carrier intentionally and reconstruct the typed value |

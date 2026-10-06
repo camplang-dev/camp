@@ -2257,10 +2257,16 @@ public sealed class BindableNodeCodeSerializer
 				writer.Write(")");
 				break;
 
+			case ErasedTypeReference erased:
+				writer.Write("void<");
+				WriteType(erased.ParamsType);
+				writer.Write(">");
+				break;
+
 			case MaterializedStructTypeReference materialized:
-				writer.Write("struct(");
+				writer.Write("void<");
 				WriteType(materialized.ParamsType);
-				writer.Write(")");
+				writer.Write(">");
 				break;
 
 			case ThrownTypeReference thrown:

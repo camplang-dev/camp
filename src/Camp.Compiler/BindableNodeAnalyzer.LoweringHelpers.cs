@@ -505,6 +505,7 @@ public sealed partial class BindableNodeAnalyzer
 			CallableTypeReference callable => CloneCallable(callable),
 			IterTypeReference iter => CloneIter(iter),
 			GroupedParamsTypeReference grouped => new GroupedParamsTypeReference { StructType = CloneType(grouped.StructType) },
+			ErasedTypeReference erased => new ErasedTypeReference { ParamsType = CloneType(erased.ParamsType) },
 			MaterializedStructTypeReference materialized => new MaterializedStructTypeReference { ParamsType = CloneType(materialized.ParamsType) },
 			ThrownTypeReference thrown => new ThrownTypeReference { Type = CloneType(thrown.Type) },
 			_ => new NamedTypeReference { Name = type.ResolvedType ?? ErrorType }

@@ -55,7 +55,7 @@ public sealed partial class BindableNodeAnalyzer
 			return;
 
 		if (!CanAssignToType(expected, actual))
-			Report(GetRange(syntax), $"{context} cannot convert '{WitnessTypeIdentity.Display(actual)}' to '{WitnessTypeIdentity.Display(expected)}'.");
+			Report(GetRange(syntax), AssignmentConversionMessage(expected, actual, context));
 	}
 
 	void CheckAssignable(string expected, string actual, Expression? value, SyntaxNode? syntax, string context)
@@ -79,7 +79,18 @@ public sealed partial class BindableNodeAnalyzer
 			return;
 
 		if (!CanAssignToType(expected, actual))
-			Report(GetRange(syntax), $"{context} cannot convert '{WitnessTypeIdentity.Display(actual)}' to '{WitnessTypeIdentity.Display(expected)}'.");
+			Report(GetRange(syntax), AssignmentConversionMessage(expected, actual, context));
+	}
+
+	string AssignmentConversionMessage(string expected, string actual, string context)
+	{
+		string message = $"{context} cannot convert '{WitnessTypeIdentity.Display(actual)}' to '{WitnessTypeIdentity.Display(expected)}'.";
+		if (TryGetPointerElementType(expected) is string erasedElement
+			&& ErasedTypeIdentity.TryGetPayload(erasedElement, out string payload)
+			&& TryGetPointerElementType(actual) is string actualElement
+			&& TryGetParamsComponentShape(null, actualElement, "value", out _))
+			message += $" Use a stackalloc void<{payload}> local and take its address for single-object storage.";
+		return message;
 	}
 
 	bool TryReportInvalidCharacterLiteralTarget(string expected, Expression? value, SyntaxNode? syntax, string context)
@@ -248,6 +259,11 @@ public sealed partial class BindableNodeAnalyzer
 
 	ConversionClassification ClassifyConversion(string source, string target)
 	{
+		if ((source.Contains("void<", StringComparison.Ordinal) || target.Contains("void<", StringComparison.Ordinal))
+			&& TryParseTypeShape(source, out TypeShape erasedSource) && TryParseTypeShape(target, out TypeShape erasedTarget)
+			&& erasedSource.Kind is TypeShapeKind.Pointer or TypeShapeKind.Array
+			&& erasedTarget.Kind == erasedSource.Kind && CanImplicitlyConvertShape(erasedSource, erasedTarget))
+			return new ConversionClassification(ConversionLevel.Implicit, ConversionReason.None);
 		if (WitnessTypeIdentity.TryParse(source, out _)
 			|| WitnessTypeIdentity.TryParse(target, out _))
 			return new ConversionClassification(source == target ? ConversionLevel.Implicit : ConversionLevel.Forbidden,
@@ -1054,7 +1070,7 @@ public sealed partial class BindableNodeAnalyzer
 				"Typespec value conversions do not apply to generic arguments; reconstruct the value.");
 			return true;
 		}
-		if (sourceFamily == targetFamily && sourceFamily is PointerFamily.Primitive or PointerFamily.Struct or PointerFamily.Interface or PointerFamily.Unknown)
+		if (sourceFamily == targetFamily && sourceFamily is PointerFamily.Primitive or PointerFamily.Struct or PointerFamily.Interface or PointerFamily.Erased or PointerFamily.Unknown)
 		{
 			classification = new ConversionClassification(ConversionLevel.Explicit, ConversionReason.None);
 			return true;
@@ -1139,6 +1155,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	enum PointerFamily
 	{
+		Erased,
 		Primitive,
 		Struct,
 		Class,
@@ -1503,6 +1520,8 @@ public sealed partial class BindableNodeAnalyzer
 
 	PointerFamily GetPointerFamily(TypeShape shape)
 	{
+		if (ErasedTypeIdentity.TryGetPayload(shape.Name, out _))
+			return PointerFamily.Erased;
 		if (IsVoidShape(shape))
 			return PointerFamily.Void;
 		if (shape.Kind != TypeShapeKind.Named)
@@ -3174,6 +3193,8 @@ public sealed partial class BindableNodeAnalyzer
 	bool ReceiverCanCallFunction(string targetType, FunctionDefinition function, bool isPropertyGetterSyntax)
 	{
 		string receiverType = BuildEffectiveReceiverType(targetType, function, isPropertyGetterSyntax);
+		if (GetExplicitThisParameter(function)?.Modifier == ParameterModifier.In)
+			receiverType = ErasedTypeIdentity.ReadType(receiverType);
 		string actualType = StripLifetimeQualifiers(StripTopLevelConstForReceiver(targetType));
 		receiverType = StripLifetimeQualifiers(receiverType);
 		if (WouldDecayFixedArrayStorageToPointerReceiver(actualType, receiverType))

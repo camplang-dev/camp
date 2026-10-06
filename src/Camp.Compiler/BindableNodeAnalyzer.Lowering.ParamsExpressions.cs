@@ -1344,6 +1344,9 @@ public sealed partial class BindableNodeAnalyzer
 	bool TryCreateParamsComponentExpressions(Expression? expression, out List<Expression> components)
 	{
 		components = [];
+		if (expression is UnaryExpression { Operator: UnaryOperator.AddressOf } erasedAddress
+			&& TryGetErasedStorageType(erasedAddress.Operand, out _))
+			return false;
 		if (expression is MemberExpression preparedLengthMember && TryRegisterPreparedLengthMember(preparedLengthMember, out _))
 			return false;
 		if (expression is not null
@@ -1351,6 +1354,13 @@ public sealed partial class BindableNodeAnalyzer
 			&& !ReferenceEquals(rewritten, expression))
 		{
 			return TryCreateParamsComponentExpressions(rewritten, out components);
+		}
+		if (TryGetErasedStorageType(expression, out string erasedStorage)
+			&& ErasedTypeIdentity.TryGetPayload(erasedStorage, out string payload)
+			&& TryGetParamsComponentShape(null, payload, "value", out ParamsComponentShape storageShape))
+		{
+			components = CreateMaterializedComponentExpressions(CaptureErasedStorageAccess(expression!), storageShape, expression!.SourceSyntax);
+			return true;
 		}
 		switch (expression)
 		{
@@ -3361,6 +3371,8 @@ public sealed partial class BindableNodeAnalyzer
 	bool TryCreateParamsMemberComponentExpression(Expression? target, string name, out Expression componentExpression)
 	{
 		componentExpression = target ?? new MemberExpression { Name = name };
+		if (TryGetErasedStorageType(target, out _))
+			return false;
 		if (target is IndexExpression { Arguments.Count: 2 } slice
 			&& TryGetFixedArrayShape(slice.Target?.ResolvedType, out _, out _)
 			&& TryGetParamsComponentShape(null, slice.ResolvedType, "value", out ParamsComponentShape sliceShape)

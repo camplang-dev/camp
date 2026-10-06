@@ -513,6 +513,10 @@ public class MaterializedStructTypeReference : TypeReference
 	public TypeReference? ParamsType { get; set; }
 }
 
+// Source identity retains the payload. The inherited carrier describes one storage object;
+// it must never be flattened like an ordinary expandable value or emitted by value at the ABI.
+public class ErasedTypeReference : MaterializedStructTypeReference { }
+
 public class ThrownTypeReference : TypeReference
 {
 	public TypeReference? Type { get; set; }

@@ -58,7 +58,7 @@ public sealed partial class BindableNodeAnalyzer
 		kind = ParamsComponentShapeKind.Structural;
 		typeName = resolvedType ?? "";
 
-		if (type is MaterializedStructTypeReference || resolvedType?.StartsWith("struct(", StringComparison.Ordinal) == true)
+		if (type is MaterializedStructTypeReference || ErasedTypeIdentity.TryGetPayload(resolvedType, out _) || resolvedType?.StartsWith("struct(", StringComparison.Ordinal) == true)
 			return false;
 
 		type = type is null ? null : UnwrapTypeDeclarators(type);
