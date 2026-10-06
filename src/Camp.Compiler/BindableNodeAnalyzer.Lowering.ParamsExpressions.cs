@@ -1058,6 +1058,8 @@ public sealed partial class BindableNodeAnalyzer
 			return false;
 		if (callableParameters[index + 1].Name != callableParameters[index].Name + "_context")
 			return false;
+		source = ExpandCallableShapeWithReturn(source);
+		target = ExpandCallableShapeWithReturn(target);
 		if (target.ReturnType != source.ReturnType || target.Parameters.Count != source.Parameters.Count + 1 || target.Parameters[0] != "void*")
 			return false;
 		for (int i = 0; i < source.Parameters.Count; i++)
@@ -1067,6 +1069,19 @@ public sealed partial class BindableNodeAnalyzer
 		components.Add(argument.Value);
 		components.Add(NullLiteral(argument.SourceSyntax));
 		return true;
+	}
+
+	CallableShape ExpandCallableShapeWithReturn(CallableShape shape)
+	{
+		List<string> parameters = GetExpandedCallableParameterTypes(shape.Parameters);
+		string returnType = shape.ReturnType;
+		if (TryGetParamsComponentShape(null, returnType, "result", out ParamsComponentShape returnShape) && returnShape.Components.Count > 1)
+		{
+			returnType = returnShape.Components[0].Type;
+			for (int i = 1; i < returnShape.Components.Count; i++)
+				parameters.Add("out " + returnShape.Components[i].Type);
+		}
+		return shape with { ReturnType = returnType, Parameters = parameters };
 	}
 
 	bool TryCreateDirectFunctionDelegateComponents(Expression? expression, ParamsComponentShape shape, out List<Expression> components)

@@ -318,6 +318,11 @@ source parameter of the expanded form.
 
 ## Expanded Returns
 
+Callables may return other callables. The returned callable's signature and
+expanded context are distinct from the outer callable's parameters and context.
+A plain `fn` result is one carrier; matching the signature of a delegate's
+primary carrier does not add a context result to that function pointer.
+
 An expanded return is represented by multiple ABI result paths. Depending on the
 shape, lowering may rewrite the return into `out` components, prepared
 temporaries, completion callbacks, or protocol state writes.

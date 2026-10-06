@@ -1,0 +1,36 @@
+newtype delegate int Handler(int value);
+int calls = 0;
+fixed int[2] numbers = [4, 9];
+int add(int value) { return value + 5; }
+Handler make() { calls++; return add; }
+int use(delegate Handler() choose)
+{
+	Handler handler = choose();
+	return handler(3);
+}
+int? optional() { return 7; }
+int[] array() { return numbers[..]; }
+int useOptional(delegate int?() choose)
+{
+	int? result = choose();
+	return result.specified ? result.value : -1;
+}
+int useArray(delegate int[]() choose)
+{
+	int[] result = choose();
+	return result.length == 2 ? result[0] + result[1] : -1;
+}
+
+export int main()
+{
+	if (use(make) != 8 || calls != 1) return 1;
+	int invoked = 0;
+	delegate Handler() choose = () => { invoked++; return make(); };
+	if (use(choose) != 8 || calls != 2 || invoked != 1) return 2;
+	delegate fn int(int)() chooseFunction = () => add;
+	fn int(int) selected = chooseFunction();
+	if (selected(4) != 9) return 3;
+	if (useOptional(optional) != 7) return 4;
+	if (useArray(array) != 13) return 5;
+	return 0;
+}

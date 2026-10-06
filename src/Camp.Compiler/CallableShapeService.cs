@@ -57,9 +57,7 @@ internal static class CallableShapeService
 			return false;
 		}
 
-		int open = remainder.IndexOf('(', StringComparison.Ordinal);
-		int close = remainder.LastIndexOf(')');
-		if (open < 0 || close < open)
+		if (!TryGetParameterListRange(remainder, out int open, out int close))
 			return false;
 
 		string signaturePrefix = remainder[..open].Trim();
@@ -69,6 +67,24 @@ internal static class CallableShapeService
 		string parametersText = remainder[(open + 1)..close].Trim();
 		shape = new CallableShape(kind, specs.Count > 0 ? specs[0] : null, specs.Count > 1 ? specs[1] : null, returnType, SplitCallableParameterTypes(parametersText));
 		return true;
+	}
+
+	public static bool TryGetParameterListRange(string type, out int open, out int close)
+	{
+		open = -1;
+		close = type.LastIndexOf(')');
+		int depth = 0;
+		for (int i = close; i >= 0; i--)
+		{
+			if (type[i] == ')')
+				depth++;
+			else if (type[i] == '(' && --depth == 0)
+			{
+				open = i;
+				return true;
+			}
+		}
+		return false;
 	}
 
 	public static List<string> SplitCallableSpecs(ref string text)

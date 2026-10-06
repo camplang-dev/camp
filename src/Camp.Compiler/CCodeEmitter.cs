@@ -1837,7 +1837,7 @@ public static class CCodeEmitter
         {
             string callSpec = FormatCallSpec(thunk.CallSpec);
             string name = callSpec.Length == 0 ? thunk.Name : callSpec + " " + thunk.Name;
-            return FormatResolvedType(thunk.ReturnType, name).Declaration + "(" + FormatResolvedParameterList(thunk.ParameterTypes) + ")";
+            return FormatResolvedType(thunk.ReturnType, name + "(" + FormatResolvedParameterList(thunk.ParameterTypes) + ")").Declaration;
         }
 
         static bool IsIntReturn(FunctionDefinition function)
@@ -5217,23 +5217,25 @@ public static class CCodeEmitter
         string FormatInlineResolvedFunctionPointer(string returnType, List<string> parameterTypes, string declarator, string? targetSpec = null, string? callSpec = null)
         {
             ExpandResolvedCallableReturnForC(ref returnType, parameterTypes);
-            return FormatResolvedType(returnType, FormatFunctionPointerDeclarator(declarator, targetSpec, callSpec)).Declaration + "(" + FormatResolvedParameterList(parameterTypes) + ")";
+            return FormatResolvedType(returnType, FormatFunctionPointerDeclarator(declarator, targetSpec, callSpec) + "(" + FormatResolvedParameterList(parameterTypes) + ")").Declaration;
         }
 
         string FormatInlineResolvedFunctionPointer(string returnType, List<(string Type, string Name)> parameters, string declarator, string? targetSpec = null, string? callSpec = null)
         {
             ExpandResolvedCallableReturnForC(ref returnType, parameters);
-            return FormatResolvedType(returnType, FormatFunctionPointerDeclarator(declarator, targetSpec, callSpec)).Declaration + "(" + FormatResolvedNamedParameterList(parameters) + ")";
+            return FormatResolvedType(returnType, FormatFunctionPointerDeclarator(declarator, targetSpec, callSpec) + "(" + FormatResolvedNamedParameterList(parameters) + ")").Declaration;
         }
 
         string FormatInlineResolvedFunctionPointerFromDeclarations(string returnType, List<string> parameterDeclarations, string declarator, string? targetSpec = null, string? callSpec = null)
         {
             string parameterList = parameterDeclarations.Count == 0 ? "void" : string.Join(", ", parameterDeclarations);
-            return FormatResolvedType(returnType, FormatFunctionPointerDeclarator(declarator, targetSpec, callSpec)).Declaration + "(" + parameterList + ")";
+            return FormatResolvedType(returnType, FormatFunctionPointerDeclarator(declarator, targetSpec, callSpec) + "(" + parameterList + ")").Declaration;
         }
 
         bool ExpandResolvedCallableReturnForC(ref string returnType, List<string> parameterTypes)
         {
+            if (IsResolvedCallableType(StripTypeQualifiers(returnType)))
+                return false;
             if (!TryGetExpandedStorageComponentsForC(returnType, out List<(string Name, string Type)> components) || components.Count <= 1)
                 return false;
 
@@ -5245,6 +5247,8 @@ public static class CCodeEmitter
 
         bool ExpandResolvedCallableReturnForC(ref string returnType, List<(string Type, string Name)> parameters)
         {
+            if (IsResolvedCallableType(StripTypeQualifiers(returnType)))
+                return false;
             if (!TryGetExpandedStorageComponentsForC(returnType, out List<(string Name, string Type)> components) || components.Count <= 1)
                 return false;
 
@@ -5502,9 +5506,7 @@ public static class CCodeEmitter
                 return parameterTypes.Count > 0;
             }
 
-            int open = type.IndexOf('(', StringComparison.Ordinal);
-            int close = type.LastIndexOf(')');
-            if (open < 0 || close < open)
+            if (!CallableShapeService.TryGetParameterListRange(type, out int open, out int close))
                 return false;
             string prefix = type[kind.Length..open].Trim();
             if (prefix.Length == 0)
@@ -8464,8 +8466,8 @@ public static class CCodeEmitter
             string returnType = callable.ReturnType?.ResolvedType ?? ResolvedTypeForC(callable.ReturnType, callable.ReturnType?.ResolvedType);
             List<string> parameterTypes = GetExpandedCallableParameterTypesForC(parameters);
             if (!ExpandResolvedCallableReturnForC(ref returnType, parameterTypes))
-                return "typedef " + FormatType(callable.ReturnType, declarator).Declaration + FormatParameters(parameters);
-            return "typedef " + FormatResolvedType(returnType, declarator).Declaration + "(" + FormatResolvedParameterList(parameterTypes) + ")";
+                return "typedef " + FormatType(callable.ReturnType, declarator + FormatParameters(parameters)).Declaration;
+            return "typedef " + FormatResolvedType(returnType, declarator + "(" + FormatResolvedParameterList(parameterTypes) + ")").Declaration;
         }
 
         string FormatCallableNewtypeTypedef(CallableTypeReference callable, List<ParameterDefinition> parameters, string name)
@@ -8741,11 +8743,11 @@ public static class CCodeEmitter
             {
                 List<string> anonymousParameterTypes = GetExpandedCallableParameterTypesForC(callable.Parameters);
                 ExpandResolvedCallableReturnForC(ref returnType, anonymousParameterTypes);
-                return FormatResolvedType(returnType, declarator).Declaration + "(" + FormatResolvedParameterList(anonymousParameterTypes) + ")";
+                return FormatResolvedType(returnType, declarator + "(" + FormatResolvedParameterList(anonymousParameterTypes) + ")").Declaration;
             }
             List<(string Type, string Name)> parameterTypes = GetNamedCallableNewtypeParameterTypesForC(callable, callable.Parameters);
             ExpandResolvedCallableReturnForC(ref returnType, parameterTypes);
-            return FormatResolvedType(returnType, declarator).Declaration + "(" + FormatResolvedNamedParameterList(parameterTypes) + ")";
+            return FormatResolvedType(returnType, declarator + "(" + FormatResolvedNamedParameterList(parameterTypes) + ")").Declaration;
         }
 
         CType FormatType(TypeReference? type, string declarator)
@@ -9341,6 +9343,8 @@ public static class CCodeEmitter
             if (string.IsNullOrWhiteSpace(resolvedType))
                 return false;
             string type = StripTypeDecorators(resolvedType);
+            if (IsResolvedCallableType(type))
+                return true;
             if (type.Contains('*', StringComparison.Ordinal) || type.Contains("[]", StringComparison.Ordinal) || type.Contains('?', StringComparison.Ordinal))
                 return true;
             if (type.StartsWith("const ", StringComparison.Ordinal) || type.StartsWith("volatile ", StringComparison.Ordinal))
@@ -9383,9 +9387,7 @@ public static class CCodeEmitter
                 callableParseCache[resolvedType] = null;
                 return false;
             }
-            int open = type.IndexOf('(', StringComparison.Ordinal);
-            int close = type.LastIndexOf(')');
-            if (open < 0 || close < open || close != type.Length - 1)
+            if (!CallableShapeService.TryGetParameterListRange(type, out int open, out int close) || close != type.Length - 1)
             {
                 callableParseCache[resolvedType] = null;
                 return false;
