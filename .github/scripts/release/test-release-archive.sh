@@ -108,9 +108,10 @@ CAMP_HOME="$install_root" "$campc" dump tokens "$tiny" --nostdlib >/dev/null
 
 native_status="skipped"
 if command -v cc >/dev/null 2>&1 || command -v clang >/dev/null 2>&1 || command -v gcc >/dev/null 2>&1 || command -v cl.exe >/dev/null 2>&1; then
-    if CAMP_HOME="$install_root" "$campc" run "$tiny" --out-dir "$temp_root/native-out" >/dev/null 2>&1; then
-        native_status="passed"
-    fi
+    CAMP_HOME="$install_root" "$campc" run "$tiny" --out-dir "$temp_root/native-out" >/dev/null
+    # Repeat the request so an AOT archive exercises cache reads as well as writes.
+    CAMP_HOME="$install_root" "$campc" run "$tiny" --out-dir "$temp_root/native-out" >/dev/null
+    native_status="passed"
 fi
 
 echo "archive smoke passed: $archive"

@@ -99,11 +99,26 @@ export int main()
 
     $nativeStatus = "skipped"
     $hasNativeCompiler = [bool](Get-Command cl.exe -ErrorAction SilentlyContinue)
+    # campc can discover MSVC without a preloaded Developer Command Prompt.
+    $programFilesX86 = ${env:ProgramFiles(x86)}
+    if (-not $hasNativeCompiler -and -not [string]::IsNullOrWhiteSpace($programFilesX86)) {
+        $vswhere = Join-Path $programFilesX86 "Microsoft Visual Studio\Installer\vswhere.exe"
+        if (Test-Path $vswhere) {
+            $installation = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+            $hasNativeCompiler = -not [string]::IsNullOrWhiteSpace(($installation | Out-String))
+        }
+    }
     if ($hasNativeCompiler) {
         & $campc run $tiny --out-dir (Join-Path $tempRoot "native-out") | Out-Null
-        if ($LASTEXITCODE -eq 0) {
-            $nativeStatus = "passed"
+        if ($LASTEXITCODE -ne 0) {
+            throw "Native archive smoke failed with exit code $LASTEXITCODE."
         }
+        # Exercise cached requests with the published compiler as well.
+        & $campc run $tiny --out-dir (Join-Path $tempRoot "native-out") | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            throw "Cached native archive smoke failed with exit code $LASTEXITCODE."
+        }
+        $nativeStatus = "passed"
     }
 
     Write-Host "archive smoke passed: $Archive"

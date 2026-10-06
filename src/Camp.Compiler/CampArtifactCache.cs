@@ -5,6 +5,7 @@ using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Camp.Compiler;
 
@@ -21,6 +22,14 @@ internal sealed record CampArtifactCacheRecord(
 internal sealed record CampArtifactCacheOutput(string Name, string Path);
 
 internal sealed record CampArtifactCacheInput(string Path, string Fingerprint);
+
+// Release compilers disable JSON reflection. Keep the cache schema available
+// to both managed and Native AOT builds through generated serialization metadata.
+[JsonSourceGenerationOptions(WriteIndented = true)]
+[JsonSerializable(typeof(CampArtifactCacheRecord))]
+internal partial class CampArtifactCacheJsonContext : JsonSerializerContext
+{
+}
 
 internal static class CampArtifactCache
 {
@@ -57,7 +66,7 @@ internal static class CampArtifactCache
 		try
 		{
 			Directory.CreateDirectory(Path.GetDirectoryName(path) ?? ".");
-			string text = JsonSerializer.Serialize(record, new JsonSerializerOptions { WriteIndented = true }) + "\n";
+			string text = JsonSerializer.Serialize(record, CampArtifactCacheJsonContext.Default.CampArtifactCacheRecord) + "\n";
 			BuildFileIO.WriteTextIfChanged(path, text, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
 			return true;
 		}
@@ -79,7 +88,7 @@ internal static class CampArtifactCache
 				reason = "no artifact cache record was found";
 				return false;
 			}
-			record = JsonSerializer.Deserialize<CampArtifactCacheRecord>(File.ReadAllText(path));
+			record = JsonSerializer.Deserialize(File.ReadAllText(path), CampArtifactCacheJsonContext.Default.CampArtifactCacheRecord);
 			if (record is null || record.SchemaVersion != SchemaVersion)
 			{
 				reason = "the artifact cache record is incompatible";
