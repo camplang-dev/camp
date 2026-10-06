@@ -1,0 +1,14 @@
+class Resource { }
+fixed struct Fixed { int value; }
+void badClass(Resource? value) { }
+void badFixed(Fixed? value) { }
+void badFixedArray(int[4]? value) { }
+void badOptionalArray(int?[] values) { }
+void badNestedArray(char[][] values) { }
+newtype delegate int Predicate(int n);
+void badDelegateArray(Predicate[] values) { }
+void badDistributedArray(int?*[] values) { }
+struct Holder { fixed int?*[4] values; }
+void badNames(int?? b, bool b_value_specified) { }
+void badDeepNames(int??? c, bool c_value_value_specified) { }
+void badArrayNames(int[]?? b, nuint b_value_length) { }

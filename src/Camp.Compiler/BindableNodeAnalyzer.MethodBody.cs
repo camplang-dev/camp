@@ -3454,6 +3454,11 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			Report(GetRange(call.Target?.SourceSyntax ?? call.SourceSyntax), "Raw function pointer 'fn*' is not callable; cast it to a concrete fn type first.");
 		}
+		else if (TryGetOptionalPayloadType(call.Target?.ResolvedType, out string optionalPayload)
+			&& TryGetOptionalPayloadType(optionalPayload, out _))
+		{
+			Report(GetRange(call.Target?.SourceSyntax ?? call.SourceSyntax), $"Type '{call.Target?.ResolvedType}' is not callable; reach the inner optional through .value first.");
+		}
 		bool includeExplicitThisArgument = IncludeExplicitThisArgument(call.Target, function);
 		if (function is not null)
 			ValidateExplicitAsyncCallShape(function, call, includeExplicitThisArgument);
@@ -3848,7 +3853,7 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		returnType = ErrorType;
 		string callableType = call.Target?.ResolvedType ?? ErrorType;
-		if (!TryGetCallableShape(callableType, out CallableShape callable))
+		if (!TryGetCallableInvocationShape(callableType, out CallableShape callable))
 			return false;
 
 		List<ParameterDefinition> parameters = TryGetCallableNewtypeParameters(callableType, call.Arguments, out List<ParameterDefinition>? newtypeParameters)
@@ -4301,7 +4306,7 @@ public sealed partial class BindableNodeAnalyzer
 				else if (GetTypeDefinition(lookupTargetType) is TypeDefinition receiverType && HasMemberFunctionWithIncompatibleReceiver(receiverType, lookupTargetType, member.Name, member.SourceSyntax))
 					Report(GetRange(member.SourceSyntax), ReceiverIncompatibilityMessage("Member", member.Name, lookupTargetType));
 				else
-					BodyAnalyzeMemberExpression(member, scope, typeScope);
+					member.ResolvedType = BodyAnalyzeMemberExpression(member, scope, typeScope);
 				return null;
 			}
 
@@ -5714,11 +5719,11 @@ public sealed partial class BindableNodeAnalyzer
 				BodyAnalyzeArgumentExpression(argument, scope, typeScope, "nuint");
 			return index.ResolvedType ?? ErrorType;
 		}
-		return BodyAnalyzeIndexExpression(index.Target, index.Arguments, scope, typeScope);
+		return BodyAnalyzeIndexExpression(index.Target, index.Arguments, scope, typeScope, index);
 	}
 
 
-	string BodyAnalyzeIndexExpression(Expression? target, List<ArgumentExpression> arguments, BodyScope scope, AnalysisScope typeScope)
+	string BodyAnalyzeIndexExpression(Expression? target, List<ArgumentExpression> arguments, BodyScope scope, AnalysisScope typeScope, IndexExpression index)
 	{
 		if (target is NamedExpression { Qualifiers.Count: 0 } namedTarget
 			&& arguments.Count == 1
@@ -5731,6 +5736,12 @@ public sealed partial class BindableNodeAnalyzer
 		string targetType = BodyAnalyzeExpression(target, scope, typeScope);
 		if (targetType == ErrorType)
 			return ErrorType;
+		if (TryGetOptionalPayloadType(targetType, out string payload) && TryGetArrayElementType(payload) is not null)
+		{
+			target = new MemberExpression { SourceSyntax = target?.SourceSyntax, Target = target, Name = "value", ResolvedType = payload };
+			index.Target = target;
+			targetType = payload;
+		}
 
 		if (arguments is [{ Value: RangeExpression range }])
 			return BodyAnalyzeArrayRangeIndexExpression(target, targetType, arguments, range, scope, typeScope);
@@ -5833,9 +5844,6 @@ public sealed partial class BindableNodeAnalyzer
 		if (TryGetPointerElementType(targetType) is string erasedPointee && ErasedTypeIdentity.TryGetPayload(erasedPointee, out string storagePayload))
 		{
 			lookupTargetType = storagePayload + "*";
-			if (TryGetParamsComponentShape(null, storagePayload, "value", out ParamsComponentShape storageShape)
-				&& FindParamsComponent(storageShape, member.Name) is ParamsComponent storageComponent)
-				return storageComponent.Type;
 		}
 		if (member.Name == "length"
 			&& member.Target is not null
@@ -5846,7 +5854,7 @@ public sealed partial class BindableNodeAnalyzer
 			return ErrorType;
 		if (TryAnalyzeFixedArrayComponentMember(member, targetType, out string fixedComponentType))
 			return fixedComponentType;
-		if (TryAnalyzeParamsPointerComponentMember(member, targetType, out string componentType))
+		if (TryAnalyzeParamsPointerComponentMember(member, lookupTargetType, out string componentType))
 			return componentType;
 		if (TryAnalyzeParamsComponentMember(member, targetType, out string valueComponentType))
 			return valueComponentType;
@@ -6080,18 +6088,15 @@ public sealed partial class BindableNodeAnalyzer
 			return false;
 		}
 
-		bool TryAnalyzeParamsPointerComponentMember(MemberExpression member, string targetType, out string componentType)
+	bool TryAnalyzeParamsPointerComponentMember(MemberExpression member, string targetType, out string componentType)
 	{
 		componentType = ErrorType;
 		if (TryGetPointerElementType(targetType) is not string pointedType
 			|| !TryGetParamsComponentShape(null, pointedType, "value", out ParamsComponentShape shape))
 			return false;
 
-		ParamsComponent? component = FindParamsComponent(shape, member.Name);
-		if (component is null)
+		if (!TryGetExpandedMemberType(pointedType, member.Name, out componentType))
 			return false;
-
-		componentType = component.Type;
 		UnaryExpression dereferencedTarget = new()
 		{
 			SourceSyntax = member.Target?.SourceSyntax ?? member.SourceSyntax,
@@ -6119,12 +6124,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (!TryGetParamsComponentShape(null, targetType, "value", out ParamsComponentShape shape))
 			return false;
 
-		ParamsComponent? component = FindParamsComponent(shape, member.Name);
-		if (component is null)
-			return false;
-
-		componentType = component.Type;
-		return true;
+		return TryGetExpandedMemberType(targetType, member.Name, out componentType);
 	}
 
 	bool BoundMethodReferenceCanSatisfyThisContract(Expression? receiver, string receiverType, FunctionDefinition function, ThisContract contract, SyntaxNode? syntax)
@@ -6372,7 +6372,7 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		returnType = ErrorType;
 		string callableType = BodyAnalyzeExpression(call.Target, scope, typeScope);
-		if (!TryGetCallableShape(callableType, out CallableShape callable))
+		if (!TryGetCallableInvocationShape(callableType, out CallableShape callable))
 			return false;
 
 		List<ParameterDefinition> parameters = TryGetCallableNewtypeParameters(callableType, call.Arguments, out List<ParameterDefinition>? newtypeParameters)

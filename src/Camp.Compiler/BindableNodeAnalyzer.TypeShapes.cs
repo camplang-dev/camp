@@ -601,6 +601,8 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		string typeName = BaseTypeName(shape.Name);
+		if (CallableShapeService.TryParseCallableShape(shape.Name, out CallableShape callable))
+			typeName = callable.Kind;
 		if (ErasedTypeIdentity.TryGetPayload(shape.Name, out _))
 			return "";
 		string receiverName = IsGenericReceiverTypeName(typeName, function)
@@ -745,7 +747,18 @@ public sealed partial class BindableNodeAnalyzer
 				return true;
 			}
 
-			string name = ReadTypeName();
+			string remaining = text[index..];
+			string name;
+			if ((remaining.StartsWith("fn ", StringComparison.Ordinal) || remaining.StartsWith("delegate ", StringComparison.Ordinal)
+				|| remaining.StartsWith("once ", StringComparison.Ordinal) || remaining.StartsWith("async ", StringComparison.Ordinal)
+				|| remaining.StartsWith("iter(", StringComparison.Ordinal))
+				&& CallableShapeService.TryGetParameterListRange(remaining, out _, out int callableClose))
+			{
+				name = remaining[..(callableClose + 1)];
+				index += name.Length;
+			}
+			else
+				name = ReadTypeName();
 			if (name.Length == 0)
 			{
 				shape = new TypeShape(TypeShapeKind.Named, ErrorType, null, prefix);

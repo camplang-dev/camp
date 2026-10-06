@@ -109,7 +109,8 @@ public sealed partial class BindableNodeAnalyzer
 				return true;
 			}
 
-			if (typeDefinitions.TryGetValue(BaseTypeName(resolvedType), out TypeDefinition? nominalDefinition)
+			if (TryParseTypeShape(resolvedType, out TypeShape nominalShape) && nominalShape.Kind == TypeShapeKind.Named
+				&& typeDefinitions.TryGetValue(BaseTypeName(resolvedType), out TypeDefinition? nominalDefinition)
 				&& nominalDefinition is NewtypeDefinition { UnderlyingType: not null } newtypeDefinition
 				&& TryBuildPendingParamsComponents(newtypeDefinition.UnderlyingType, newtypeDefinition.UnderlyingType.ResolvedType, prefix, out components, out kind, out _)
 				&& kind is ParamsComponentShapeKind.Delegate or ParamsComponentShapeKind.Iter)
@@ -320,8 +321,18 @@ public sealed partial class BindableNodeAnalyzer
 	void AddOptionalPendingComponents(TypeReference? valueType, string? valueResolvedType, List<ParamsNamePart> prefix, List<PendingParamsComponent> components)
 	{
 		List<ParamsNamePart> valuePrefix = [.. prefix, new ParamsNamePart("value", true)];
-		if (TryBuildPendingParamsComponents(valueType, valueResolvedType, valuePrefix, out List<PendingParamsComponent> valueComponents, out _, out _))
-			components.AddRange(valueComponents);
+		if (TryBuildPendingParamsComponents(valueType, valueResolvedType, valuePrefix, out List<PendingParamsComponent> valueComponents, out ParamsComponentShapeKind payloadKind, out _))
+		{
+			// A pointer payload is reached through .value even when its pointee is
+			// an array/callable; only the payload itself forwards those members.
+			bool pointerPayload = TryGetPointerElementType(valueResolvedType) is not null;
+			foreach (PendingParamsComponent component in valueComponents)
+			{
+				string path = ExpandedFormService.OptionalPayloadPath(pointerPayload ? ParamsComponentShapeKind.Structural : payloadKind, component.Name);
+				components.Add(component with { Name = path,
+					NameParts = [.. prefix, .. path.Split('.').Select(part => new ParamsNamePart(part, false))] });
+			}
+		}
 		else
 			components.Add(new PendingParamsComponent("value", valueResolvedType ?? valueType?.ResolvedType ?? ErrorType, valuePrefix, null, ParamsComponentShapeKind.Optional));
 
@@ -469,7 +480,9 @@ public sealed partial class BindableNodeAnalyzer
 		for (int i = pending.Count - 1; i >= 0; i--)
 		{
 			PendingParamsComponent pendingComponent = pending[i];
-			string expandedName = ChooseParamsComponentName(pendingComponent.NameParts, usedNames);
+			string expandedName = i == 0 && pending.All(component => component.SourceParameter is null)
+				? pendingComponent.NameParts[0].Name
+				: ChooseParamsComponentName(pendingComponent.NameParts, usedNames);
 			usedNames.Add(expandedName);
 			components.Insert(0, new ParamsComponent(
 				pendingComponent.Name,

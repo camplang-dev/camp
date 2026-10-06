@@ -52,6 +52,14 @@ internal static class ExpandedFormService
 		return null;
 	}
 
+	// Optional arrays/callables forward payload members; other expanded payloads
+	// retain the value path. The same paths drive source projection and ABI names.
+	public static string OptionalPayloadPath(ParamsComponentShapeKind kind, string member)
+		=> kind is ParamsComponentShapeKind.Array or ParamsComponentShapeKind.Delegate or ParamsComponentShapeKind.Iter
+			? member : "value." + member;
+
+	public static string StorageMemberName(string path) => path.Replace('.', '_');
+
 	public static List<string> GetExpandedCallableParameterTypes(IEnumerable<ParameterDefinition> parameters, TryGetExpandedFormShape tryGetShape)
 	{
 		List<string> types = [];

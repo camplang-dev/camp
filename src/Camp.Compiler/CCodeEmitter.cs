@@ -3760,7 +3760,7 @@ public static class CCodeEmitter
             List<string> parameters = FormatFunctionParameterParts(function);
             for (int i = 1; i < components.Count; i++)
             {
-                string resultName = "result_" + components[i].Name;
+                string resultName = "result_" + ExpandedFormService.StorageMemberName(components[i].Name);
                 if (function.Parameters.Any(parameter => CName(parameter) == resultName))
                     continue;
                 parameters.Add(FormatResolvedType(components[i].Type + "*", resultName).Declaration);
@@ -3812,7 +3812,7 @@ public static class CCodeEmitter
                 if (TryGetTypeReferenceStorageComponentsForC(returnType, out List<(string Name, string Type)> components) && components.Count > 0)
                 {
                     for (int i = 0; i < components.Count; i++)
-                        completionParameters.Add((components[i].Type, i == 0 ? "result" : "result_" + components[i].Name));
+                        completionParameters.Add((components[i].Type, i == 0 ? "result" : "result_" + ExpandedFormService.StorageMemberName(components[i].Name)));
                 }
                 else
                 {
@@ -5013,7 +5013,15 @@ public static class CCodeEmitter
             }
             if (TryGetOptionalElementOnly(type, out string optionalElementType))
             {
-                components.Add(("value", optionalElementType));
+                if (TryGetExpandedStorageComponentsForC(optionalElementType, out List<(string Name, string Type)> payloadComponents))
+                {
+                    ParamsComponentShapeKind payloadKind = TryGetArrayElementOnly(optionalElementType, out _) ? ParamsComponentShapeKind.Array
+                        : TryGetPointerElementType(optionalElementType, out _) || TryGetOptionalElementOnly(optionalElementType, out _) ? ParamsComponentShapeKind.Structural
+                        : ParamsComponentShapeKind.Delegate;
+                    components.AddRange(payloadComponents.Select(component => (ExpandedFormService.OptionalPayloadPath(payloadKind, component.Name), component.Type)));
+                }
+                else
+                    components.Add(("value", optionalElementType));
                 components.Add(("specified", "bool"));
                 return true;
             }
@@ -5273,12 +5281,10 @@ public static class CCodeEmitter
             string type = StripLifetimeOnly(resolvedType.Trim());
             if (TryGetArrayElementOnly(type, out string elementType))
                 return new CType(FormatMaterializedArrayStructType(elementType) + " " + declarator);
-            if (TryGetOptionalElementOnly(type, out string optionalElementType))
-                return new CType("struct { " + FormatResolvedType(optionalElementType, "value").Declaration + "; bool specified; } " + declarator);
             if (TryParseExpandedCallableStorageType(type, out string returnType, out List<string> parameterTypes, out string? targetSpec, out string? callSpec))
                 return new CType("struct { " + FormatInlineResolvedFunctionPointer(returnType, ["void*", .. parameterTypes], "call", targetSpec, callSpec) + "; void* context; } " + declarator);
             if (TryGetExpandedStorageComponentsForC(type, out List<(string Name, string Type)> components) && components.Count > 1)
-                return new CType("struct { " + string.Join(" ", components.Select(component => FormatResolvedType(component.Type, component.Name).Declaration + ";")) + " } " + declarator);
+                return new CType("struct { " + string.Join(" ", components.Select(component => FormatResolvedType(component.Type, ExpandedFormService.StorageMemberName(component.Name)).Declaration + ";")) + " } " + declarator);
             return FormatResolvedType(resolvedType, declarator);
         }
 
@@ -5322,7 +5328,7 @@ public static class CCodeEmitter
 
             returnType = components[0].Type;
             for (int i = 1; i < components.Count; i++)
-                parameters.Add(("out " + components[i].Type, components[i].Name));
+                parameters.Add(("out " + components[i].Type, ExpandedFormService.StorageMemberName(components[i].Name)));
             return true;
         }
 

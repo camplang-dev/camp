@@ -62,6 +62,11 @@ Component names must be stable. For a binding named `items`, examples include:
 |---|---|
 | `T[] items` | `items`, `items_length` |
 | `T? maybe` | `maybe`, `maybe_specified` |
+| `int?? b` | `b`, `b_value_specified`, `b_specified` |
+| `int??? c` | `c`, `c_value_value_specified`, `c_value_specified`, `c_specified` |
+| `int[]? a` | `a`, `a_length`, `a_specified` |
+| `int[]?? b` | `b`, `b_value_length`, `b_value_specified`, `b_specified` |
+| `Predicate? d` (delegate newtype) | `d`, `d_context`, `d_specified` |
 | `delegate R(...) action` | `action`, `action_context` |
 | `once R(...) action` | `action`, `action_context` |
 | `async R(...) action` | `action`, `action_context` |
@@ -162,10 +167,26 @@ apply.
 - payload component;
 - specified component.
 
-The payload uses the payload type's source semantics. If the payload type is
-itself an expanded form, compiler writers must avoid recursive ad hoc expansion
-and use the materialized storage representation when one storage object is
-required.
+The payload uses the payload type's source semantics and expands recursively.
+Every layer exposes `.value` and `.specified`: an `int??? c` has
+`c.value.value.value`, `c.value.value.specified`, `c.value.specified`, and
+`c.specified`. Optional arrays also forward `.elements`, `.length`, indexing,
+and slicing; optional delegate shapes forward `.call`, `.context`, and
+invocation. An optional whose payload is another optional requires `.value`
+before accessing that payload's forwarded members.
+
+The same logical component paths determine local, field, parameter, and return
+component names. Reserve all expanded names against user bindings. A pointer to
+an expanded value distributes recursively over its components; those components
+need not be adjacent. `void<V>` instead provides one storage object when required,
+and `void<V>[]` stores one complete `V` per element.
+
+Optional payloads must be copyable. Direct classes, fixed structs, and fixed-size
+arrays require a pointer payload. Copying an optional delegate copies its target
+and context, not the referenced object. A copied `once` value has its own duty of
+one invocation. Arrays and fixed-size arrays cannot directly contain expanded
+values, including distributive pointers to expanded values; use `void<V>[]`
+storage instead.
 
 Optional conversion must preserve optional shape. A conversion that reinterprets
 the payload without respecting the optional's specified bit is invalid. The
@@ -175,7 +196,10 @@ detail.
 Returning a plain payload from an optional-returning function lifts that payload
 to a present optional. Lowering writes `true` to the specified result component
 for struct payloads as well as scalar payloads. Returning an existing optional
-carries its specified component instead.
+carries its specified component instead. Wrapping adds one layer at a time:
+`int?? both = 5;` has both flags set, while `int? empty = default;
+int?? inner = empty;` has an outer presence flag and an absent inner payload.
+`int?? none = default;` defaults the payload and every flag.
 
 `T?` converts to `U?` exactly when `T` converts to `U`, with the same
 classification (implicit, explicit, or unsafe): the payload component converts as

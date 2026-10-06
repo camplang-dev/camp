@@ -193,7 +193,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	List<ParameterDefinition>? GetCallableParametersForExpression(Expression? expression, bool sourceLevel = false)
 	{
-		if (!TryGetCallableShape(expression?.ResolvedType, out CallableShape shape))
+		if (!TryGetCallableInvocationShape(expression?.ResolvedType, out CallableShape shape))
 			return null;
 
 		List<ParameterDefinition> parameters = [];
@@ -324,7 +324,9 @@ public sealed partial class BindableNodeAnalyzer
 				i += iteratorProtocolComponents.Count - 1;
 				continue;
 			}
-			if ((!expectsExpandedComponents || !TryCreateParamsComponentExpressions(argument.Value, out List<Expression> components))
+			List<Expression> components;
+			if ((!expectsExpandedComponents || !TryCreateLiftedOptionalArgumentComponents(argument, out components)
+				&& !TryCreateParamsComponentExpressions(argument.Value, out components))
 				&& (!expectsExpandedComponents || !TryCreateTargetTypedExpandedReturnArgumentComponents(argument, callableParameters, parameterIndex, out components)))
 			{
 				if (PrimitiveStringArrayLengthAlreadyProvided(arguments, callableParameters, i, parameterIndex)
@@ -390,6 +392,9 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (index <= 0 || index >= callableParameters.Count)
 			return false;
+		if (callableParameters[index].ExpandedSourceParameter is ParameterDefinition source
+			&& ReferenceEquals(source, callableParameters[index - 1].ExpandedSourceParameter))
+			return true;
 		string previousName = callableParameters[index - 1].Name;
 		string name = callableParameters[index].Name;
 		return name == previousName + "_length"
@@ -401,6 +406,9 @@ public sealed partial class BindableNodeAnalyzer
 	bool ExpectsExpandedArgumentComponents(List<ParameterDefinition>? callableParameters, int index)
 	{
 		if (callableParameters is null)
+			return true;
+		if (index + 1 < callableParameters.Count && callableParameters[index].ExpandedSourceParameter is ParameterDefinition source
+			&& ReferenceEquals(source, callableParameters[index + 1].ExpandedSourceParameter))
 			return true;
 		if (index < callableParameters.Count
 			&& TryGetParamsComponentShape(callableParameters[index].Type, callableParameters[index].ResolvedType, callableParameters[index].Name, out ParamsComponentShape parameterShape)
@@ -1028,21 +1036,10 @@ public sealed partial class BindableNodeAnalyzer
 		components = [];
 		if (argument.Value is null || !TryGetParamsComponentShape(null, argument.ResolvedType, "value", out ParamsComponentShape shape))
 			return false;
-		if (shape.Kind != ParamsComponentShapeKind.Optional || shape.Components.Count != 2)
+		if (shape.Kind != ParamsComponentShapeKind.Optional || argument.Value is DefaultExpression
+			|| !CanLiftToOptional(argument.Value.ResolvedType ?? ErrorType, shape.TypeName))
 			return false;
-		if (TryGetParamsComponentShape(null, argument.Value.ResolvedType, "value", out _))
-			return false;
-
-		components.Add(argument.Value);
-		components.Add(new LiteralExpression
-		{
-			SourceSyntax = argument.SourceSyntax,
-			Kind = LiteralKind.True,
-			Text = "true",
-			Value = true,
-			ResolvedType = "bool"
-		});
-		return true;
+		return TryCreateValueParamsComponents(argument.Value, shape, out components);
 	}
 
 	bool TryCreateFunctionToDelegateArgumentComponents(ArgumentExpression argument, List<ParameterDefinition>? callableParameters, int index, out List<Expression> components)
@@ -1226,7 +1223,9 @@ public sealed partial class BindableNodeAnalyzer
 			return false;
 		if (TryRewriteExpandedReturnAssignment(assignment, targets, out statements))
 			return true;
-		if (!TryCreateParamsComponentExpressions(assignment.Value, out List<Expression> values))
+		List<Expression> values;
+		if (assignment.Value is null || !TryGetParamsComponentShape(null, assignment.Target?.ResolvedType, "value", out ParamsComponentShape assignmentShape)
+			|| !TryCreateValueParamsComponents(assignment.Value, assignmentShape, out values))
 		{
 			if (!TryGetParamsComponentShape(null, assignment.Target?.ResolvedType, "value", out ParamsComponentShape targetShape)
 				|| targetShape.Components.Count != targets.Count)
@@ -1362,6 +1361,8 @@ public sealed partial class BindableNodeAnalyzer
 			components = CreateMaterializedComponentExpressions(CaptureErasedStorageAccess(expression!), storageShape, expression!.SourceSyntax);
 			return true;
 		}
+		if (expression is MemberExpression projected && TryCreateProjectedMemberComponents(projected.Target, projected.Name, out components))
+			return true;
 		switch (expression)
 		{
 			case null:
@@ -1454,12 +1455,14 @@ public sealed partial class BindableNodeAnalyzer
 
 			case MemberReferenceExpression { Member: not null } member
 				when paramsExpansions.TryGetValue(member.Member, out List<ParamsExpansionComponent>? expansion):
+				Expression? receiver = member.Target is CallExpression receiverCall
+					? CaptureRepeatedParamsSourceExpression(receiverCall, "paramsReceiver") : member.Target;
 				foreach (ParamsExpansionComponent component in expansion)
 				{
 					components.Add(new MemberReferenceExpression
 					{
 						SourceSyntax = member.SourceSyntax,
-						Target = CloneParamsExpansionExpression(member.Target),
+						Target = CloneParamsExpansionExpression(receiver),
 						Name = component.Name,
 						Member = component.Node,
 						ResolvedType = component.Type
@@ -2709,11 +2712,8 @@ public sealed partial class BindableNodeAnalyzer
 		try
 		{
 			currentStatementPrefix = statements;
-			if (expression is not null && shape.Kind == ParamsComponentShapeKind.Optional && shape.Components.Count == 2
-				&& !TryGetParamsComponentShape(null, expression.ResolvedType, "value", out _))
+			if (expression is not null && TryCreateValueParamsComponents(expression, shape, out components))
 			{
-				// A plain payload returned as an optional must initialize the presence result.
-				components = [expression, BoolLiteral(true)];
 			}
 			else if (expression is not null
 				&& TryCreatePrimitiveStringArrayInitialValues(expression, shape, statements, out List<Expression?> primitiveStringComponents)
@@ -3371,7 +3371,15 @@ public sealed partial class BindableNodeAnalyzer
 	bool TryCreateParamsMemberComponentExpression(Expression? target, string name, out Expression componentExpression)
 	{
 		componentExpression = target ?? new MemberExpression { Name = name };
+		if (TryCreateProjectedMemberComponents(target, name, out List<Expression> projected) && projected.Count == 1)
+		{
+			componentExpression = projected[0];
+			return true;
+		}
 		if (TryGetErasedStorageType(target, out _))
+			return false;
+		if (!TryGetParamsComponentShape(null, target?.ResolvedType, "value", out ParamsComponentShape targetShape)
+			|| FindParamsComponent(targetShape, name) is null)
 			return false;
 		if (target is IndexExpression { Arguments.Count: 2 } slice
 			&& TryGetFixedArrayShape(slice.Target?.ResolvedType, out _, out _)
@@ -3428,7 +3436,7 @@ public sealed partial class BindableNodeAnalyzer
 		shape = targetShape ?? new ParamsComponentShape(ParamsComponentShapeKind.Structural, "", []);
 		if (callTargets.ContainsKey(call) || CallTargetsFunctionDefinition(call))
 			return false;
-		if (!TryGetCallableShape(call.Target?.ResolvedType, out CallableShape callable))
+		if (!TryGetCallableInvocationShape(call.Target?.ResolvedType, out CallableShape callable))
 			return false;
 		string returnType = callable.ReturnType;
 		if (string.IsNullOrWhiteSpace(returnType) || returnType == "void")
@@ -3584,7 +3592,7 @@ public sealed partial class BindableNodeAnalyzer
 			{
 				SourceSyntax = sourceSyntax,
 				Target = CloneParamsExpansionExpression(target) ?? target,
-				Name = component.Name,
+				Name = ExpandedFormService.StorageMemberName(component.Name),
 				ResolvedType = component.Type
 			});
 		}

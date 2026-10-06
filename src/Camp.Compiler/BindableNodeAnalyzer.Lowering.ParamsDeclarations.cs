@@ -928,7 +928,7 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		string symbol = component.ExpandedName;
 		if (!string.IsNullOrWhiteSpace(source.Symbol) && source.Symbol != source.Name)
-			symbol = component.ExpandedName == source.Name ? source.Symbol : source.Symbol + "_" + component.Name;
+			symbol = component.ExpandedName == source.Name ? source.Symbol : source.Symbol + "_" + ExpandedFormService.StorageMemberName(component.Name);
 
 		return new FieldDefinition
 		{
@@ -1054,7 +1054,7 @@ public sealed partial class BindableNodeAnalyzer
 		try
 		{
 			currentStatementPrefix = declarations ?? currentStatementPrefix;
-			if (initialValue is not null && TryCreateParamsComponentExpressions(initialValue, out components) && components.Count == shape.Components.Count)
+			if (initialValue is not null && TryCreateValueParamsComponents(initialValue, shape, out components))
 			{
 				values.AddRange(components);
 				return values;

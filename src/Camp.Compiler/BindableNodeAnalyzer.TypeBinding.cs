@@ -161,8 +161,9 @@ public sealed partial class BindableNodeAnalyzer
 
 			case OptionalTypeReference optional:
 				AnalyzeOptionalType(optional.ElementType, scope);
-				if (optional.ElementType is OptionalTypeReference)
-					Report(GetRange(optional.SourceSyntax), "Nested optional operations are not yet supported; use void<V> storage behind a pointer or array.");
+				if (optional.ElementType is not null && !ContainsGenericTypeName(optional.ElementType.ResolvedType ?? "", scope)
+					&& !IsCopyableTypeArgument(optional.ElementType, scope, []))
+					Report(GetRange(optional.SourceSyntax), "Optional payloads must be copyable; use a pointer to a non-copyable value instead.");
 				type.ResolvedType = FormatTypeReference(type);
 				break;
 
@@ -751,16 +752,13 @@ public sealed partial class BindableNodeAnalyzer
 		return true;
 	}
 
-	static bool IsExpandedFormType(TypeReference? type)
+	bool IsExpandedFormType(TypeReference? type)
 	{
 		if (type is null)
 			return false;
 
 		type = UnwrapTypeDeclarators(type);
-		return type is ArrayTypeReference
-			or OptionalTypeReference
-			or CallableTypeReference { Kind: CallableKind.Delegate or CallableKind.Once or CallableKind.Async }
-			or IterTypeReference;
+		return TryGetParamsComponentShape(type, type.ResolvedType, "value", out _);
 	}
 
 	bool IsPointerBearingType(TypeReference? type, AnalysisScope scope)
@@ -1313,9 +1311,11 @@ public sealed partial class BindableNodeAnalyzer
 			case ArrayTypeReference:
 			case CallableTypeReference:
 			case IterTypeReference:
-			case OptionalTypeReference:
 			case MaterializedStructTypeReference:
 				return true;
+
+			case OptionalTypeReference { ElementType: not null } optional:
+				return IsCopyableTypeArgument(optional.ElementType, scope, visitedTypes);
 
 			case NamedTypeReference named when scope.TryGetGenericParameter(named.Name, out GenericParameter? parameter) && parameter is not null:
 				return parameter.Constraint is CopyableTypeReference;

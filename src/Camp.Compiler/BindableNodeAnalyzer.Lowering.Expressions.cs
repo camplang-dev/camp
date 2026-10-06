@@ -630,6 +630,10 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (callTargets.ContainsKey(call))
 			return false;
+		if (call.Target is not null && TryGetOptionalPayloadType(call.Target.ResolvedType, out string payload)
+			&& TryGetCallableShape(payload, out CallableShape optionalCallable) && optionalCallable.Kind is "delegate" or "once" or "async" or "iter")
+			call.Target = new MemberExpression { SourceSyntax = call.Target.SourceSyntax,
+				Target = call.Target, Name = "value", ResolvedType = payload };
 
 		if (!TryCreateParamsComponentExpressions(call.Target, out List<Expression> components) || components.Count != 2)
 		{

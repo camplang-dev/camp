@@ -23,7 +23,8 @@ public sealed partial class BindableNodeAnalyzer
 		shape = default;
 		if (type is null)
 			return false;
-
+		if (TryParseTypeShape(type, out TypeShape valueShape) && valueShape.Kind != TypeShapeKind.Named)
+			return false;
 		if (TryGetIteratorProtocolParameterTypes(type, out List<string>? iteratorParameters) && iteratorParameters is not null)
 		{
 			shape = new CallableShape("iter", null, null, "bool", iteratorParameters);
@@ -33,7 +34,8 @@ public sealed partial class BindableNodeAnalyzer
 		if (TryParseCallableShape(type, out shape))
 			return true;
 
-		if (typeDefinitions.TryGetValue(BaseTypeName(type), out TypeDefinition? definition)
+		if (TryParseTypeShape(type, out TypeShape nominalShape) && nominalShape.Kind == TypeShapeKind.Named
+			&& typeDefinitions.TryGetValue(BaseTypeName(type), out TypeDefinition? definition)
 			&& definition is NewtypeDefinition { UnderlyingType: not null } newtypeDefinition)
 		{
 			Dictionary<string, string> substitutions = [];

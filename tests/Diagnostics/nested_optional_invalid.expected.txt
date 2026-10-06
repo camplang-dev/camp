@@ -1,0 +1,11 @@
+tests/Diagnostics/nested_optional_invalid.camp(3,15): error: Optional payloads must be copyable; use a pointer to a non-copyable value instead.
+tests/Diagnostics/nested_optional_invalid.camp(4,15): error: Optional payloads must be copyable; use a pointer to a non-copyable value instead.
+tests/Diagnostics/nested_optional_invalid.camp(5,20): error: Optional payloads must be copyable; use a pointer to a non-copyable value instead.
+tests/Diagnostics/nested_optional_invalid.camp(6,23): error: Arrays of expanded values are not supported; use void<int?>[] instead.
+tests/Diagnostics/nested_optional_invalid.camp(7,21): error: Arrays of expanded values are not supported; use void<char[]>[] instead.
+tests/Diagnostics/nested_optional_invalid.camp(9,23): error: Arrays of expanded values are not supported; use void<Predicate>[] instead.
+tests/Diagnostics/nested_optional_invalid.camp(10,26): error: Arrays of expanded values are not supported; use void<int?*>[] instead.
+tests/Diagnostics/nested_optional_invalid.camp(11,23): error: Fixed-size arrays of expanded values are not supported; use void<int?*>[] with stackalloc instead.
+tests/Diagnostics/nested_optional_invalid.camp(12,29): error: Symbol 'b_value_specified' is already declared in this scope as a component of 'b'.
+tests/Diagnostics/nested_optional_invalid.camp(13,34): error: Symbol 'c_value_value_specified' is already declared in this scope as a component of 'c'.
+tests/Diagnostics/nested_optional_invalid.camp(14,37): error: Symbol 'b_value_length' is already declared in this scope as a component of 'b'.

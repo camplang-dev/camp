@@ -549,9 +549,18 @@ Optional payload conversions are not raw reinterpretations. Casts do not tunnel
 through optional payloads unless the language defines that conversion. The
 language defines one: `T?` converts to `U?` exactly when `T` converts to `U`,
 implicitly or by the same cast, converting `.value` and carrying `.specified`
-unchanged. Nothing converts deeper than that payload conversion. If nested
-optional storage is required, materialize the inner optional shape rather than
-assuming direct `T??` spelling is valid in every context.
+unchanged. Nothing converts deeper than that payload conversion.
+
+Nested optionals are recursive expanded values. `int??? value` exposes
+`value.value.value.value` and a `.specified` flag at each layer. Plain payloads
+wrap one layer at a time; `int?? both = 5;` sets both flags, `int?? none = default;`
+clears both, and wrapping an empty `int?` produces an outer-present,
+inner-absent `int??`. Optional arrays forward array members, indexing and slicing;
+optional delegates forward callable members and invocation. Reach a nested
+optional's payload with `.value` before using its forwarded operations.
+Optional payloads must be copyable; use pointer payloads for classes, fixed
+structs, or fixed-size arrays. Arrays of expanded values, including distributive
+pointers, require erased element storage such as `void<int??>[]`.
 
 ## Pointers And Qualifiers
 
