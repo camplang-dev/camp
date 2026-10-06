@@ -324,6 +324,8 @@ Compiler writers must keep result semantics source-level:
 - `return values;` returns one logical value;
 - `constof` and lifetime checks apply to the logical result;
 - generated component assignments preserve all component facts;
+- a local initialized by an expanded-return call through a callable value invokes
+  that callable once and initializes all components from that invocation;
 - a conditional selecting expanded-return calls evaluates its condition once and
   only the selected call, then takes every result component from that call;
 - metadata and API headers expose the source return type.

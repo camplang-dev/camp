@@ -1,0 +1,33 @@
+newtype delegate int Handler(int value);
+int handlerCalls = 0;
+int optionalCalls = 0;
+int arrayCalls = 0;
+fixed int[2] numbers = [4, 9];
+int add(int value) { return value + 5; }
+Handler makeHandler() { handlerCalls++; return add; }
+int? makeOptional() { optionalCalls++; return 7; }
+int[] makeArray() { arrayCalls++; return numbers[..]; }
+
+int checkHandler(fn Handler() choose)
+{
+	Handler handler = choose();
+	return handler(3);
+}
+int checkOptional(fn int?() choose)
+{
+	int? value = choose();
+	return value.specified ? value.value : -1;
+}
+int checkArray(fn int[]() choose)
+{
+	int[] values = choose();
+	return values.length == 2 ? values[0] + values[1] : -1;
+}
+
+export int main()
+{
+	if (checkHandler(makeHandler) != 8 || handlerCalls != 1) return 1;
+	if (checkOptional(makeOptional) != 7 || optionalCalls != 1) return 2;
+	if (checkArray(makeArray) != 13 || arrayCalls != 1) return 3;
+	return 0;
+}

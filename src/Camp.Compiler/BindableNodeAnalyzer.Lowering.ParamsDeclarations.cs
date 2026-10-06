@@ -380,6 +380,9 @@ public sealed partial class BindableNodeAnalyzer
 			&& (TryGetExpandedReturnShape(expandedReturnCall, expandedReturnFunction, out ParamsComponentShape? expandedReturnShape)
 				|| TryUseTargetShapeForGenericExpandedReturn(expandedReturnFunction, shape, out expandedReturnShape))
 			&& expandedReturnShape.Components.Count == shape.Components.Count;
+		bool callableExpandedReturnInitializer = initialValue is CallExpression callableInitializer
+			&& TryGetCallableExpandedReturnShape(callableInitializer, shape, out ParamsComponentShape callableInitializerShape)
+			&& callableInitializerShape.Components.Count == shape.Components.Count;
 		if (!materializedGenericReturnInitializer)
 			CaptureParamsArrayConstructionLength(initialValue, shape, declarations);
 		if (initialValue is LambdaExpression lambda)
@@ -412,7 +415,7 @@ public sealed partial class BindableNodeAnalyzer
 		}
 		List<Expression?> initialValues = TryCreateIteratorFactoryProtocolInitialValues(initialValue, shape, declarations, declaration.SourceSyntax, out List<Expression?>? iteratorProtocolInitialValues)
 			? iteratorProtocolInitialValues!
-			: materializedGenericReturnInitializer || expandedReturnInitializer
+			: materializedGenericReturnInitializer || expandedReturnInitializer || callableExpandedReturnInitializer
 			? CreateNullInitialValues(shape)
 			: TryCreateTargetTypedExpandedReceiverInitialValues(initialValue, shape, declarations, out List<Expression?>? expandedReceiverInitialValues)
 			? expandedReceiverInitialValues!
@@ -518,6 +521,7 @@ public sealed partial class BindableNodeAnalyzer
 			currentStatementSuffix = [];
 			try
 			{
+				TryRewriteDelegateInvocation(callableCall);
 				ExpandParamsArguments(callableCall);
 			}
 			finally
