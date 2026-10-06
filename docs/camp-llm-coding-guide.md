@@ -991,7 +991,7 @@ Common capability patterns:
   type `T` are allowed inside functions with the needed runtime size capability.
 
 ```camp
-export T choose<T: copyable>(T left, T right, bool useLeft, sizeof(T))
+export T choose<T: copyable>(in T left, in T right, bool useLeft, sizeof(T))
 {
     if (useLeft)
     {

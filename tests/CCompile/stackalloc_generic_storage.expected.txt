@@ -3,7 +3,7 @@
 
 /* Private file declarations. */
 static void __camp_delegate_add(void *arg0, int *arg1);
-static void assignGeneric(void *source, void *destination, uintptr_t sizeof_T);
+static void assignGeneric(const void *source, void *destination, uintptr_t sizeof_T);
 static void defaultGeneric(void *destination, uintptr_t sizeof_T);
 static void forEachGeneric(const void *values, uintptr_t values_length, void (* visit)(void *arg0, void *arg1), void *visit_context, uintptr_t sizeof_T);
 static void add(int *item);
@@ -16,7 +16,7 @@ static void __camp_delegate_add(void *arg0, int *arg1)
 }
 
 static int sum = 0;
-static void assignGeneric(void *source, void *destination, uintptr_t sizeof_T)
+static void assignGeneric(const void *source, void *destination, uintptr_t sizeof_T)
 {
 	uint8_t *scratch = __builtin_alloca(sizeof_T);
 	__builtin_memcpy(scratch, source, sizeof_T);

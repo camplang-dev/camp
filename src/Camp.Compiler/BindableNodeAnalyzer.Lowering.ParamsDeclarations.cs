@@ -137,6 +137,16 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (function.ReturnType is null || !IsErasedGenericReturn(function))
 			return false;
+		TypeReference resultType = function.ReturnType;
+		string resultName = function.ResolvedType ?? ErrorType;
+		bool optional = TryGetOptionalPayloadType(resultName, out string payload);
+		if (optional)
+		{
+			optionalErasedReturnFunctions.Add(function);
+			resultName = payload;
+			resultType = TypeReferenceForResolvedName(payload);
+		}
+		function.ExpandedSourceReturnType = function.ReturnType;
 
 		ParameterDefinition result = new()
 		{
@@ -146,13 +156,14 @@ public sealed partial class BindableNodeAnalyzer
 			Public = function.Public,
 			Internal = function.Internal,
 			Modifier = ParameterModifier.Out,
-			Type = function.ReturnType,
-			ResolvedType = function.ResolvedType
+			Type = resultType,
+			ResolvedType = resultName
 		};
 		materializedGenericReturnParameters[function] = result;
-		function.Parameters.Add(result);
-		function.ReturnType = new PrimitiveTypeReference { Type = PrimitiveType.Void, ResolvedType = "void" };
-		function.ResolvedType = "void";
+		int hidden = function.Parameters.FindIndex(parameter => parameter is WithinParameterDefinition or SizeOfParameterDefinition or NameOfParameterDefinition or VTableOfParameterDefinition || parameter.Modifier is ParameterModifier.Within or ParameterModifier.Thrown);
+		function.Parameters.Insert(hidden < 0 ? function.Parameters.Count : hidden, result);
+		function.ReturnType = new PrimitiveTypeReference { Type = optional ? PrimitiveType.Bool : PrimitiveType.Void, ResolvedType = optional ? "bool" : "void" };
+		function.ResolvedType = optional ? "bool" : "void";
 		return true;
 	}
 
@@ -161,13 +172,17 @@ public sealed partial class BindableNodeAnalyzer
 		string returnType = StripTopLevelValueQualifiers(function.ResolvedType ?? function.ReturnType?.ResolvedType ?? "");
 		if (string.IsNullOrWhiteSpace(returnType))
 			return false;
+		if (TryGetOptionalPayloadType(returnType, out string payload))
+			returnType = payload;
+		if (ErasedTypeIdentity.TryGetPayload(returnType, out _))
+			return true;
 
 		foreach (GenericParameter parameter in function.GenericParameters)
-			if (parameter.Name == returnType && parameter.Constraint is AnyTypeReference or CopyableTypeReference)
+			if (parameter.Name == returnType && IsErasedGenericParameter(parameter))
 				return true;
 		if (FindContainingType(function) is TypeDefinition containingType)
 			foreach (GenericParameter parameter in containingType.GenericParameters)
-				if (parameter.Name == returnType && parameter.Constraint is AnyTypeReference or CopyableTypeReference)
+				if (parameter.Name == returnType && IsErasedGenericParameter(parameter))
 					return true;
 		return false;
 	}
@@ -755,22 +770,10 @@ public sealed partial class BindableNodeAnalyzer
 
 	void AppendMaterializedGenericReturnAssignments(CallExpression call, ParamsComponentShape shape, List<DeclarationTarget> targets, List<Statement> statements, SyntaxNode? sourceSyntax)
 	{
-		DeclarationStatement storage = CreateMaterializedGenericReturnStorage(call.ResolvedType ?? shape.TypeName, call.SourceSyntax);
-		statements.Add(storage);
-		call.Arguments.Add(new ArgumentExpression
-		{
-			SourceSyntax = sourceSyntax,
-			Modifier = ArgumentModifier.Out,
-			Value = CreateVariableReference(storage.Target, storage.Target.ResolvedType ?? ErrorType),
-			ResolvedType = storage.Target.ResolvedType ?? ErrorType
-		});
-		statements.Add(new ExpressionStatement
-		{
-			SourceSyntax = sourceSyntax,
-			ResolvedType = "void",
-			Expression = LowerExpression(call)
-		});
-		List<Expression> components = CreateMaterializedComponentExpressions(storage.Target, shape);
+		string sourceType = call.ResolvedType ?? ErrorType;
+		List<Expression> components = CaptureErasedResultComponents(call, shape, statements);
+		if (CanLiftToOptional(sourceType, shape.TypeName))
+			while (components.Count < shape.Components.Count) components.Add(BoolLiteral(true));
 		for (int i = 0; i < targets.Count && i < components.Count; i++)
 		{
 			statements.Add(new ExpressionStatement
@@ -890,6 +893,10 @@ public sealed partial class BindableNodeAnalyzer
 
 	bool TryGetExpandedReturnShape(CallExpression call, FunctionDefinition function, out ParamsComponentShape shape)
 	{
+		if (callGenericSubstitutions.TryGetValue(call, out Dictionary<string, string>? sourceSubstitutions)
+			&& TryGetParamsComponentShape(null, ReadErasedValueType(SubstituteStorageType(
+				function.ExpandedSourceReturnType?.ResolvedType ?? function.ResolvedType ?? ErrorType, sourceSubstitutions)), "result", out shape))
+			return true;
 		if (TryGetExpandedReturnShape(function, out shape))
 		{
 			string functionReturnType = StripTopLevelValueQualifiers(function.ResolvedType ?? function.ReturnType?.ResolvedType ?? "");
@@ -898,7 +905,7 @@ public sealed partial class BindableNodeAnalyzer
 		}
 		if (callGenericSubstitutions.TryGetValue(call, out Dictionary<string, string>? substitutions)
 			&& !string.IsNullOrWhiteSpace(function.ResolvedType)
-			&& TryGetParamsComponentShape(null, SubstituteGenericType(function.ResolvedType, substitutions), "result", out shape))
+			&& TryGetParamsComponentShape(null, SubstituteStorageType(function.ResolvedType, substitutions), "result", out shape))
 			return true;
 		return !string.IsNullOrWhiteSpace(call.ResolvedType)
 			&& TryGetParamsComponentShape(null, call.ResolvedType, "result", out shape);

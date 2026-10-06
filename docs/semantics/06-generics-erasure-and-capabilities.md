@@ -121,6 +121,31 @@ a default-construction or destruction capability.
 
 ## Erased Versus Materialized Values
 
+Only erased parameters (`any`, `copyable`, or interface constraints) accept
+expandable type arguments. Representation parameters, including unconstrained
+parameters, reject them. A direct erased `T` input must use `in`, `out`,
+`thrown`, or a pointer; `sizeof(T)` never permits a by-value input.
+
+Substitution preserves a single declaration ABI. An expandable argument `A`
+uses `void<A>` at storage positions: `T*` becomes `void<A>*`, `T[]` becomes
+`void<A>[]`, and `in T` takes one storage reference. Non-expandable `T[]`
+substitutes to an ordinary array. Generic argument identities remain distinct:
+`List<int[]*>` and `List<void<int[]>*>` do not name the same type.
+
+An erased `T` result uses caller-provided storage for every argument, including
+scalars and ordinary structs. `T?` returns a boolean presence bit and writes
+the payload to the same storage; absence default-fills that payload. The result
+pointer follows source parameters and precedes compiler-supplied allocator,
+error, size, name, and witness slots. Calls read as `A` or `A?`; their ordinary
+inferred locals never acquire a top-level erased storage type. Written bare
+`void<A>` results remain invalid.
+
+Erased `in`/`out` arguments pass existing erased storage and non-expandable
+values directly. Ordinary expandable values are packed into temporary storage;
+outputs copy back immediately after the call, before the enclosing expression
+continues. Component addresses need not be adjacent. Optional erased references
+retain their separate outer presence component.
+
 Some generic values are erased at source analysis boundaries. Operations that
 need layout, size, vtable, type name, construction, destruction, or copy
 capability must request the corresponding capability explicitly.

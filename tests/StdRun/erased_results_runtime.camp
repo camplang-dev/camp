@@ -1,0 +1,118 @@
+struct Point { int x; int y; }
+int order;
+int cleanups;
+class Cleanup { ~Cleanup() { cleanups++; } }
+int tick(int step) { order = order * 10 + step; return step; }
+int? makeValue(int step) { tick(step); return step; }
+int ordered(int first, in void<int?> middle, int last) => first + middle.value + last;
+T identity<T: copyable>(in T value, sizeof(T)) => value;
+T namedIdentity<T: copyable>(in T value, sizeof(T), typenameof(T)) => value;
+T forward<T: copyable>(in T value, sizeof(T)) => identity<T>(value);
+T cleaned<T: copyable>(in T value, sizeof(T))
+{
+	auto cleanup = new Cleanup() finally delete;
+	return value;
+}
+void<int?>? absentWithPayload() { int?? value = 99; value.specified = false; return value; }
+T[] view<T: any>(T[] values) => values;
+T* pointer<T: any>(T* value) => value;
+void replace<T: copyable>(in T? value, out T? result, sizeof(T)) { result = value; }
+T? maybe<T: copyable>(bool present, in T value, sizeof(T))
+{
+	if (present) return value;
+	return default;
+}
+void<int?>? find(bool present)
+{
+	if (present) return 7;
+	return default;
+}
+void copy(in void<int??> source, out void<int??> target) { target = source; }
+void copyOptional(in void<int?>? source, out void<int?>? target) { target = source; }
+void relayOptional(in void<int?>? source, out void<int?>? target) { copyOptional(source, out target); }
+int observe(out void<int?> target, void<int?>* direct, int?* ordinary)
+{
+	target = 9;
+	return direct != null ? direct.value : ordinary.value;
+}
+int observeScalar(out void<int> target, int* source) { target = 41; return *source; }
+int observeInput(in void<int?> source, int?* ordinary) { ordinary.value = 31; return source.value; }
+int observeStoredInput(in void<int?> source, void<int?>* stored) { stored.value = 37; return source.value; }
+export int main()
+{
+	int n = identity<int>(4);
+	Point p = { 3, 4 };
+	Point q = identity<Point>(p);
+	if (n != 4 || q.x != 3 || q.y != 4) return 1;
+	int?? deep = 5;
+	int?? copied = identity<int??>(deep);
+	if (!copied.specified || !copied.value.specified || copied.value.value != 5) return 2;
+	int??? nested = maybe<int??>(true, copied);
+	if (!nested.specified || !nested.value.specified || !nested.value.value.specified || nested.value.value.value != 5) return 3;
+	int??? absent = maybe<int??>(false, copied);
+	if (absent.specified || absent.value.specified || absent.value.value.specified || absent.value.value.value != 0) return 4;
+	int?? found = find(true);
+	int?? missing = find(false);
+	if (!found.specified || !found.value.specified || found.value.value != 7 || missing.specified || missing.value.specified || missing.value.value != 0) return 5;
+	int?? destination = default;
+	copy(deep, out destination);
+	if (!destination.specified || !destination.value.specified || destination.value.value != 5) return 6;
+	stackalloc void<int?> held = 1;
+	int? ordinary = 2;
+	if (observe(out held, &held, null) != 9 || held.value != 9) return 7;
+	if (observe(out ordinary, null, &ordinary) != 2 || ordinary.value != 9 || !ordinary.specified) return 8;
+	int?? optionalCopy = default;
+	copyOptional(found, out optionalCopy);
+	if (!optionalCopy.specified || !optionalCopy.value.specified || optionalCopy.value.value != 7) return 9;
+	copyOptional(missing, out optionalCopy);
+	if (optionalCopy.specified || optionalCopy.value.specified || optionalCopy.value.value != 0) return 10;
+	int??? chained = maybe<int??>(true, identity<int??>(deep));
+	if (!chained.specified || !chained.value.specified || !chained.value.value.specified || chained.value.value.value != 5) return 11;
+	void<int??>[] slots = stackalloc void<int??>[2];
+	slots[0] = deep;
+	auto slice = view<int??>(slots);
+	auto address = pointer<int??>(&slots[0]);
+	if (slice.length != 2 || slice[0].value.value != 5 || address.value.value != 5) return 12;
+	int[] scalars = stackalloc int[2];
+	scalars[0] = 8;
+	int[] scalarView = view<int>(scalars);
+	if (scalarView[0] != 8) return 13;
+	replace<int?>(found, out optionalCopy);
+	if (!optionalCopy.specified || !optionalCopy.value.specified || optionalCopy.value.value != 7) return 14;
+	auto list = new List<int?>() finally delete;
+	list.add(4);
+	list.add(default);
+	auto first = list.Item[0];
+	auto second = list.Item[1];
+	if (!first.specified || first.value != 4 || second.specified || second.value != 0) return 15;
+	int named = namedIdentity<int>(17);
+	if (named != 17) return 16;
+	int[]? optionalArray = identity<int[]>(scalars);
+	if (!optionalArray.specified || optionalArray.length != 2 || optionalArray[0] != 8) return 17;
+	delegate int() callback = () => 21;
+	auto copiedCallback = identity<delegate int()>(callback);
+	if (copiedCallback() != 21) return 18;
+	order = 0;
+	if (ordered(tick(1), makeValue(2), tick(3)) != 6 || order != 123) return 19;
+	order = 0;
+	if (ordered(last: tick(3), middle: makeValue(2), first: tick(1)) != 6 || order != 123) return 20;
+	int?? forwarded = forward<int??>(deep);
+	if (!forwarded.specified || !forwarded.value.specified || forwarded.value.value != 5) return 21;
+	int?? cleared = absentWithPayload();
+	if (cleared.specified || cleared.value.specified || cleared.value.value != 0) return 22;
+	int??* distributed = &deep;
+	auto pointerCopy = identity<int??*>(distributed);
+	if ((*pointerCopy).value.value != 5 || !(*pointerCopy).specified) return 23;
+	if (observeScalar(out n, &n) != 41 || n != 41) return 24;
+	ordinary = 2;
+	if (observeInput(ordinary, &ordinary) != 2 || ordinary.value != 31) return 25;
+	if (observeStoredInput(held, &held) != 37 || held.value != 37) return 26;
+	void<int?>[] singles = stackalloc void<int?>[1];
+	order = 0;
+	if (observe(out singles[tick(1) - 1], &singles[0], null) != 9 || order != 1 || singles[0].value != 9) return 27;
+	int?? cleanCopy = cleaned<int??>(deep);
+	if (cleanCopy.value.value != 5 || cleanups != 1) return 28;
+	relayOptional(found, out optionalCopy);
+	if (!optionalCopy.specified || optionalCopy.value.value != 7) return 29;
+	return 0;
+}

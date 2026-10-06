@@ -2474,7 +2474,7 @@ public sealed partial class BindableNodeAnalyzer
 					foreach (FieldDefinition field in candidateClass.Fields)
 					{
 						if (field.Name == name && IsMemberVisible(field, candidateClass, referenceSyntax))
-							members.Add(new BodySymbol(name, SubstituteGenericType(field.ResolvedType ?? ErrorType, classSubstitutions), field));
+							members.Add(new BodySymbol(name, SubstituteStorageType(field.ResolvedType ?? ErrorType, classSubstitutions), field));
 						AddExpandedFieldMemberSymbol(members, field, name, candidateClass, referenceSyntax, classSubstitutions);
 					}
 					if (members.Count > 0)
@@ -2504,7 +2504,7 @@ public sealed partial class BindableNodeAnalyzer
 				foreach (FieldDefinition field in structDefinition.Fields)
 				{
 					if (field.Name == name && IsMemberVisible(field, structDefinition, referenceSyntax))
-						members.Add(new BodySymbol(name, SubstituteGenericType(field.ResolvedType ?? ErrorType, structSubstitutions), field));
+							members.Add(new BodySymbol(name, SubstituteStorageType(field.ResolvedType ?? ErrorType, structSubstitutions), field));
 					AddExpandedFieldMemberSymbol(members, field, name, structDefinition, referenceSyntax, structSubstitutions);
 				}
 				break;
@@ -2654,7 +2654,7 @@ public sealed partial class BindableNodeAnalyzer
 				{
 					Dictionary<string, string> substitutions = [];
 					AddConstructedTypeGenericSubstitutions(targetType, substitutions);
-					members.Add(new BodySymbol(name, SubstituteGenericType(field.ResolvedType ?? ErrorType, substitutions), field, IsConstantField(field)));
+					members.Add(new BodySymbol(name, SubstituteStorageType(field.ResolvedType ?? ErrorType, substitutions), field, IsConstantField(field)));
 				}
 			}
 
@@ -2803,7 +2803,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (!IsMemberVisible(field, owner, referenceSyntax))
 			return;
 		string resolvedType = substitutions is { Count: > 0 }
-			? SubstituteGenericType(field.ResolvedType ?? ErrorType, substitutions)
+			? SubstituteStorageType(field.ResolvedType ?? ErrorType, substitutions)
 			: field.ResolvedType ?? ErrorType;
 		if (!TryGetParamsComponentShape(field.Type, resolvedType, field.Name, out ParamsComponentShape shape))
 			return;
@@ -3026,7 +3026,7 @@ public sealed partial class BindableNodeAnalyzer
 				AddReceiverTypeGenericSubstitutions(targetType, getter, genericSubstitutions);
 				Dictionary<string, bool> constOfAnchors = AnalyzeCallArguments(arguments, getter.Parameters, scope, typeScope, member.SourceSyntax, genericSubstitutions: genericSubstitutions, genericParameterNames: GetFunctionGenericParameterNames(getter), callTarget: member);
 				AddReceiverConstOfAnchorFact(targetType, getter, constOfAnchors, member.Target?.SourceSyntax);
-				member.ResolvedType = SubstituteGenericType(getter.ResolvedType ?? ErrorType, genericSubstitutions);
+				member.ResolvedType = ReadErasedValueType(SubstituteStorageType(getter.ResolvedType ?? ErrorType, genericSubstitutions));
 				member.ResolvedType = SubstituteConstOfResolvedType(getter.ReturnType, member.ResolvedType, constOfAnchors, genericSubstitutions);
 				expressionRewrites[member] = CreateMemberReference(member, member.Target, member.ResolvedType, getter);
 				propertyType = member.ResolvedType;

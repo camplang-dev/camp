@@ -7,6 +7,84 @@ namespace Camp.Compiler.Tests;
 
 public sealed class ErasedTypeTests
 {
+	[Theory]
+	[InlineData("copyable", "")]
+	[InlineData("copyable", ", sizeof(T)")]
+	[InlineData("any", "")]
+	[InlineData("any", ", sizeof(T)")]
+	public void Erased_generic_inputs_require_references(string constraint, string capabilities)
+	{
+		SemanticCompilation compilation = SemanticCompiler.CompileLowered($"void take<T: {constraint}>(T value{capabilities}) {{ }}");
+		Assert.Contains(compilation.Diagnostics, diagnostic => diagnostic.Contains("use 'in T'"));
+	}
+
+	[Theory]
+	[InlineData("int?")]
+	[InlineData("int[]")]
+	[InlineData("int[]*")]
+	[InlineData("delegate int()")]
+	public void Representation_generics_reject_expandable_arguments(string type)
+	{
+		SemanticCompilation compilation = SemanticCompiler.CompileLowered($"class Box<T> {{ }} void take(Box<{type}>* p) {{ }}");
+		Assert.Contains(compilation.Diagnostics, diagnostic => diagnostic.Contains("requires an erased generic parameter"));
+	}
+
+	[Fact]
+	public void Erased_results_precede_capability_slots_and_return_presence()
+	{
+		SemanticCompilation compilation = SemanticCompiler.CompileLowered("""
+			export struct Point { int x; int y; }
+			export void getPoint(out void<Point> result) { Point p = { 3, 4 }; result = p; }
+			export void<int?>? find(int index) { if (index == 0) return 7; return default; }
+			export void<Point>* getOpaquePoint(void<Point>* p) => p;
+			export T identity<T: copyable>(in T value, sizeof(T), typenameof(T)) => value;
+			export T? maybe<T: copyable>(in T value, sizeof(T)) => value;
+			""");
+		SemanticCompiler.AssertNoDiagnostics(compilation);
+		DirectoryInfo directory = Directory.CreateTempSubdirectory("camp-erased-results-");
+		try
+		{
+			CEmissionResult emission = CCodeEmitter.Emit(compilation.Compilation,
+				new CEmissionOptions { OutputDirectory = directory.FullName, ProjectName = "erased_results" });
+			Assert.True(emission.Success, string.Join("\n", emission.Diagnostics));
+			string code = string.Join("\n", emission.GeneratedFiles.Where(path => Path.GetExtension(path) is ".c" or ".h").Select(File.ReadAllText));
+			Assert.Contains("void getPoint(void *result)", code);
+			Assert.Contains("bool find(int index, void *__result)", code);
+			Assert.Contains("void *getOpaquePoint(void *p)", code);
+			Assert.Contains("void identity(const void *value, void *__result, uintptr_t sizeof_T, const char *typenameof_T)", code);
+			Assert.Contains("bool maybe(const void *value, void *__result, uintptr_t sizeof_T)", code);
+		}
+		finally { directory.Delete(recursive: true); }
+	}
+
+	[Fact]
+	public void Result_slot_precedes_allocator_error_and_witness_capabilities()
+	{
+		SemanticCompilation compilation = SemanticCompiler.CompileLowered("""
+			interface Reader { int read(); }
+			T mixed<T: copyable>(in T value, within void* allocator, thrown int error, sizeof(T), typenameof(T)) => value;
+			T witnessed<T: implements Reader>(T* value, sizeof(T), vtableof(T: Reader)) => default;
+			""");
+		SemanticCompiler.AssertNoDiagnostics(compilation);
+		foreach (string name in new[] { "mixed", "witnessed" })
+		{
+			FunctionDefinition function = SemanticCompiler.Function(compilation, name);
+			Assert.Equal("__result", function.Parameters[1].Name);
+			Assert.Equal(ParameterModifier.Out, function.Parameters[1].Modifier);
+		}
+	}
+
+	[Theory]
+	[InlineData("T? missing<T: copyable>(in T value) => value;", "requires sizeof(T)")]
+	[InlineData("T? missing<T: copyable>() => default;", "requires sizeof(T)")]
+	[InlineData("T? missing<T: any>(in T value, sizeof(T)) => value;", "non-copying")]
+	[InlineData("interface I { } void bad<T: implements I>(T value, sizeof(T)) { }", "use 'in T'")]
+	public void Erased_operations_keep_capability_requirements(string source, string message)
+	{
+		SemanticCompilation compilation = SemanticCompiler.CompileLowered(source);
+		Assert.Contains(compilation.Diagnostics, diagnostic => diagnostic.Contains(message));
+	}
+
 	[Fact]
 	public void Native_boundary_erases_annotations_and_preserves_input_constness()
 	{

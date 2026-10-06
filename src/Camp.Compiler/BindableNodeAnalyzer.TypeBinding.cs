@@ -1293,6 +1293,7 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			GenericParameter parameter = definition.GenericParameters[i];
 			TypeReference argument = named.TypeArguments[i];
+			ValidateRepresentationArgument(parameter, argument.ResolvedType ?? FormatTypeReference(argument), argument.SourceSyntax ?? named.SourceSyntax);
 			if (parameter.Constraint is CopyableTypeReference && !IsCopyableTypeArgument(argument, scope, []))
 				Report(GetRange(argument.SourceSyntax ?? named.SourceSyntax), $"Type argument '{argument.ResolvedType ?? FormatTypeReference(argument)}' does not satisfy copyable constraint '{parameter.Name}: copyable'.");
 		}

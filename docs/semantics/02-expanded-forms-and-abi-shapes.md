@@ -355,6 +355,16 @@ parameters cannot select an overload.
 
 ## Expanded Returns
 
+Erased results are a separate transport form. A substituted `void<V>` result
+returns `void` and takes a writable result pointer. `void<V>?` returns `bool`
+and takes the same pointer. The pointer comes after source parameters and before
+compiler-supplied slots. Absence clears every payload component. At the call
+site these results read as `V` and `V?`, preserving all nested optional layers.
+
+An `in void<V>?` or `out void<V>?` parameter keeps the ordinary outer optional
+expansion: one reference to erased payload storage and one to its presence bit.
+The payload itself is not distributed across ABI parameters.
+
 Callables may return other callables. The returned callable's signature and
 expanded context are distinct from the outer callable's parameters and context.
 A plain `fn` result is one carrier; matching the signature of a delegate's

@@ -98,6 +98,7 @@ public sealed partial class BindableNodeAnalyzer
 				return LowerArgument(argument);
 
 			case CallExpression call:
+				int callSuffixStart = currentStatementSuffix?.Count ?? 0;
 				if (TryGetImplicitPreparedCallForLowering(call, out PreparedBufferExpression implicitPrepared))
 					return LowerPreparedBufferExpressionWithMemo(implicitPrepared);
 				if (call.Target is CurrentAllocatorExpression currentAllocatorTarget && call.TypeArguments.Count == 1 && call.Arguments.Count == 1)
@@ -126,8 +127,12 @@ public sealed partial class BindableNodeAnalyzer
 					AddImplicitVTableOfArguments(call);
 					NormalizeWithinArgumentOrder(call);
 				}
-				for (int i = 0; i < call.Arguments.Count; i++)
-					call.Arguments[i] = LowerArgument(call.Arguments[i]);
+				bool erasedArguments = !preparedExpandedReturnCall && NeedsErasedArgumentPacking(call);
+				if (erasedArguments)
+					ExpandParamsArguments(call, lowerArguments: true);
+				else
+					for (int i = 0; i < call.Arguments.Count; i++)
+						call.Arguments[i] = LowerArgument(call.Arguments[i]);
 				bool loweredInterfaceCall = LowerInterfaceCall(call);
 				bool flattenedInstanceCall = loweredInterfaceCall || TryRewriteInstanceInvocation(call);
 				if (preparedExpandedReturnCall
@@ -141,13 +146,13 @@ public sealed partial class BindableNodeAnalyzer
 					TryRewriteIteratorProtocolInvocation(call);
 				TryRewriteDelegateInvocation(call);
 			}
-			if (!preparedExpandedReturnCall)
+			if (!preparedExpandedReturnCall && !erasedArguments)
 				ExpandParamsArguments(call);
 			LowerCallArgumentConversions(call);
 			RefreshLoweredCallArgumentTypes(call);
 			if (TryRewriteScalarMaterializedGenericReturnCall(call, out Expression? materialized))
-				return materialized;
-			return MaterializeReceiverCall(LowerUncaughtThrowingCall(call));
+				return CompleteErasedArgumentCopyBack(materialized, callSuffixStart);
+			return CompleteErasedArgumentCopyBack(MaterializeReceiverCall(LowerUncaughtThrowingCall(call)), callSuffixStart);
 
 			case IndexExpression index:
 				if (TryGetErasedStorageType(index, out _))
@@ -557,14 +562,7 @@ public sealed partial class BindableNodeAnalyzer
 
 		DeclarationStatement storage = CreateGeneratedLocal(NewGeneratedLocalName("value"), resultType, TypeReferenceForResolvedName(resultType), null);
 		currentStatementPrefix.Add(storage);
-		call.Arguments.Add(new ArgumentExpression
-		{
-			SourceSyntax = call.SourceSyntax,
-			Modifier = ArgumentModifier.Out,
-			Value = CreateVariableReference(storage.Target, resultType),
-			ResolvedType = resultType
-		});
-		materializedGenericReturnCalls.Add(call);
+		AddErasedResultArgument(call, storage.Target);
 		currentStatementPrefix.Add(new ExpressionStatement
 		{
 			SourceSyntax = call.SourceSyntax,

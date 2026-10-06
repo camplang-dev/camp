@@ -28,7 +28,7 @@ honest about what the compiled ABI must carry.
 A generic declaration introduces type parameters in angle brackets:
 
 ```camp
-T choose<T: copyable>(T left, T right, bool useLeft, sizeof(T))
+T choose<T: copyable>(in T left, in T right, bool useLeft, sizeof(T))
 {
 	return useLeft ? left : right;
 }
@@ -77,6 +77,22 @@ This class can use `T: any` because it stores a pointer to `T` storage, not a
 operations the body actually performs.
 
 ## Checked Once, Not Per Instantiation
+
+Expandable arguments such as `int?`, `int[]`, and delegate values require an
+erased parameter (`any`, `copyable`, or an interface constraint). A representation
+generic rejects them. Erased input values use `in T`; adding `sizeof(T)` does
+not permit a by-value `T` parameter.
+
+The erased declaration has one ABI. With an expandable argument `A`, pointers
+and arrays of `T` become `void<A>*` and `void<A>[]`. With a non-expandable
+argument, arrays remain ordinary arrays. Generic results always use caller
+storage, including scalar results, and an optional result retains a separate
+outer presence bit. Source calls still produce ordinary values: `T = int?`
+gives an `int?` result for `T` and an `int??` result for `T?`.
+
+An ordinary expandable `in` or `out` argument uses temporary packed storage.
+An `out` value is copied back as the call returns. Explicit `void<V>` storage
+is passed directly, so writes through it are visible during the call.
 
 Camp validates generic definitions eagerly. A generic function must be valid
 under its own constraint even if every current caller passes a type that would
@@ -342,7 +358,7 @@ generic storage is explicit. Use `stackalloc T` when the function needs a
 short-lived local slot for an erased value:
 
 ```camp
-T choose<T: copyable>(T left, T right, bool useLeft, sizeof(T))
+T choose<T: copyable>(in T left, in T right, bool useLeft, sizeof(T))
 {
 	stackalloc T selected = useLeft ? left : right;
 	return selected;

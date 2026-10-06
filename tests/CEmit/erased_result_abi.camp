@@ -1,0 +1,9 @@
+export struct Point { int x; int y; }
+export void getPoint(out void<Point> result) { Point p = { 3, 4 }; result = p; }
+export void<int?>? find(int index) { if (index == 0) return 7; return default; }
+export void<Point>* getOpaquePoint(void<Point>* value) => value;
+export T identity<T: copyable>(in T value, sizeof(T), typenameof(T)) => value;
+export T? maybe<T: copyable>(in T value, sizeof(T)) => value;
+export void optional(in void<int?>? source, out void<int?>? target) { target = source; }
+extern T external<T: copyable>(in T value, sizeof(T));
+export int externalCall() => external<int>(3);

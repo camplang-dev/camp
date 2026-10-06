@@ -196,6 +196,8 @@ public sealed partial class BindableNodeAnalyzer
 				if (expression.Expression is AssignmentExpression assignment && TryRewriteParamsAssignment(assignment, out List<Statement>? assignmentStatements))
 					return CreateBlock(assignmentStatements);
 				expression.Expression = LowerExpression(expression.Expression);
+				if (expression.Expression is DefaultExpression { ResolvedType: "void" })
+					return new EmptyStatement { SourceSyntax = expression.SourceSyntax, ResolvedType = "void" };
 				if (expression.Expression is UnaryExpression { Operator: UnaryOperator.Throw } throwExpression)
 					return CreateBlock(CreateThrowTransfer(throwExpression.Operand, throwExpression.SourceSyntax));
 				break;

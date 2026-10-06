@@ -1076,6 +1076,18 @@ ignores `--sourcefile-root`.
 
 ## Omitted Trailing `out` Result Binding
 
+Erased results use caller storage independently of omitted source `out`
+binding. A substituted erased result reads as its annotated value, and an
+optional erased result reads as that value plus an outer presence bit. The
+callee clears the entire payload when that outer result is absent.
+
+For erased reference arguments, pass existing single-object storage directly.
+Pack ordinary expandable arguments into a temporary and copy `out` components
+back immediately after the call, before evaluating the rest of its enclosing
+expression. Capture destination addresses once before the call. Packing and
+copy-back preserve the existing argument/default binding order, branch
+selection, and cleanup paths.
+
 Camp allows certain calls with trailing `out` parameters to bind as values at
 the call site. This is not tuple return. It is caller-storage synthesis for
 trailing `out` slots whose values are immediately consumed by a supported

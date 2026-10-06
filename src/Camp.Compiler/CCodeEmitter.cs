@@ -6666,6 +6666,8 @@ public static class CCodeEmitter
             return argument.Modifier switch
             {
                 ArgumentModifier.Out or ArgumentModifier.Catch when TryFormatForwardedOutArgument(argument.Value, out string forwarded) => forwarded,
+                ArgumentModifier.Out when ErasedTypeIdentity.TryGetPayload(rawExpectedParameterType, out _)
+                    || TryGetConcreteGenericType(rawExpectedParameterType, genericSubstitutions, out _) => "&" + value,
                 ArgumentModifier.Out or ArgumentModifier.Catch => FormatOutArgument(value, GetOutArgumentStorageType(argument.Value) ?? argument.Value?.ResolvedType, expectedParameterType),
                 _ => value
             };
@@ -8999,7 +9001,7 @@ public static class CCodeEmitter
 
         CType FormatInParameterType(TypeReference? type, string? resolvedType, string declarator)
         {
-            if (ErasedTypeIdentity.TryGetPayload(resolvedType, out _))
+            if (ErasedTypeIdentity.TryGetPayload(resolvedType, out _) || IsAnyGenericParameterType(resolvedType))
                 return new CType("const void *" + declarator);
             if (!string.IsNullOrWhiteSpace(resolvedType))
                 return FormatResolvedType(resolvedType + "*", declarator);

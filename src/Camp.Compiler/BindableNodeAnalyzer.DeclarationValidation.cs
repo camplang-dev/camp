@@ -1496,8 +1496,8 @@ public sealed partial class BindableNodeAnalyzer
 		if (parameter.Modifier is ParameterModifier.Out or ParameterModifier.Thrown or ParameterModifier.Within)
 			return;
 
-		if (IsAnyOrAnyConstrainedGeneric(type, scope))
-			Report(GetNameRange(parameter), "Generic values constrained to any must be passed by reference.");
+		if (IsErasedGenericValueParameter(type, scope))
+			Report(GetNameRange(parameter), "Erased generic values cannot be passed by value; use 'in T', 'out T', or a pointer, even when sizeof(T) is available.");
 
 		if (!IsDirectExternClassType(type) && IsFixedOrClassLikeType(type))
 			Report(GetNameRange(parameter), "Fixed structs and classes must be passed by reference.");
@@ -1523,7 +1523,7 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		return type switch
 		{
-			NamedTypeReference named when scope.TryGetGenericParameter(named.Name, out GenericParameter? parameter) && parameter is { Constraint: AnyTypeReference or CopyableTypeReference } => true,
+			NamedTypeReference named when scope.TryGetGenericParameter(named.Name, out GenericParameter? parameter) && parameter is not null && IsErasedGenericParameter(parameter) => true,
 			ConstTypeReference { Type: not null } constType => IsErasedGenericValueParameter(constType.Type, scope),
 			ConstOfTypeReference { Type: not null } constOf => IsErasedGenericValueParameter(constOf.Type, scope),
 			VolatileTypeReference { Type: not null } volatileType => IsErasedGenericValueParameter(volatileType.Type, scope),

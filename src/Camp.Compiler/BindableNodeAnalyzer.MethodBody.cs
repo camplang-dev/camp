@@ -415,6 +415,7 @@ public sealed partial class BindableNodeAnalyzer
 				}
 				bool returnsThis = scope.CurrentFunction.ReturnType is ThisTypeReference;
 				string returnTargetSourceType = returnsThis ? scope.CurrentFunctionReturnType : scope.CurrentFunctionSourceReturnType ?? scope.CurrentFunctionReturnType;
+				returnTargetSourceType = ReadErasedValueType(returnTargetSourceType);
 				string returnType = returnStatement.Expression is null ? "void" : BodyAnalyzeExpression(returnStatement.Expression, scope, typeScope, returnTargetSourceType);
 				if (returnsThis && !IsValidThisReturnExpression(returnStatement.Expression))
 					Report(GetRange(returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax), "A method returning 'this' must return 'this' or a chain of 'this'-returning instance calls on 'this'.");
@@ -426,6 +427,8 @@ public sealed partial class BindableNodeAnalyzer
 					ReportAnyGenericCopy(returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax);
 				else if (RequiresCopyableGenericCopySizeOf(scope.CurrentFunctionReturnType, returnStatement.Expression, scope))
 					ReportCopyableGenericCopyNeedsSizeOf(returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax);
+				else if (RequiresErasedGenericDefaultFillSizeOf(scope.CurrentFunctionReturnType, returnStatement.Expression, scope))
+					ReportAnyGenericDefaultFillNeedsSizeOf(returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax);
 				bool fixedArraySpanEscape = EscapesLocalFixedArraySpan(scope.CurrentFunctionReturnType, returnStatement.Expression);
 				if (fixedArraySpanEscape)
 					Report(GetRange(returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax), "Cannot return a span view to local fixed-size array storage.");
@@ -849,6 +852,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (value is null or DefaultExpression)
 			return false;
 		string type = StripTopLevelValueQualifiers(targetType);
+		while (TryGetOptionalPayloadType(type, out string payload)) type = payload;
 		return FindBodyGenericParameter(scope, type) is GenericParameter { Constraint: AnyTypeReference };
 	}
 
@@ -857,6 +861,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (value is null or DefaultExpression)
 			return false;
 		string type = StripTopLevelValueQualifiers(targetType);
+		while (TryGetOptionalPayloadType(type, out string payload)) type = payload;
 		return FindBodyGenericParameter(scope, type) is GenericParameter { Constraint: CopyableTypeReference }
 			&& !HasSizeOfCapability(scope, type);
 	}
@@ -865,7 +870,8 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (value is not DefaultExpression)
 			return false;
-		string type = BaseTypeName(StripTopLevelValueQualifiers(targetType));
+		string type = StripTopLevelValueQualifiers(targetType);
+		while (TryGetOptionalPayloadType(type, out string payload)) type = payload;
 		return FindBodyGenericParameter(scope, type) is GenericParameter { Constraint: AnyTypeReference or CopyableTypeReference }
 			&& !HasSizeOfCapability(scope, type);
 	}
@@ -1596,7 +1602,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	static string BodyAnalyzeVariableReferenceExpression(VariableReferenceExpression variable)
 	{
-		variable.ResolvedType = ErasedTypeIdentity.ReadType(variable.Variable?.ResolvedType ?? ErrorType);
+		variable.ResolvedType = ReadErasedValueType(variable.Variable?.ResolvedType ?? ErrorType);
 		variable.SlotLifetimeFact = variable.Variable?.SlotLifetimeFact;
 		variable.ValueLifetimeFact = variable.Variable?.ValueLifetimeFact ?? variable.Variable?.SlotLifetimeFact;
 		return variable.ResolvedType;
@@ -2081,7 +2087,7 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (named.Qualifiers.Count == 0 && scope.TryLookup(named.Name, out BodySymbol symbol))
 		{
-			string readType = ErasedTypeIdentity.ReadType(symbol.Type);
+			string readType = ReadErasedValueType(symbol.Type);
 			named.ResolvedType = readType;
 			expressionConstants[named] = symbol.IsConstant;
 				expressionRewrites[named] = new VariableReferenceExpression
@@ -2495,7 +2501,7 @@ public sealed partial class BindableNodeAnalyzer
 			string storageType = field.ResolvedType ?? ErrorType;
 			string fieldType = field.ResolvedType ?? ErrorType;
 			if (substitutions.Count > 0)
-				fieldType = SubstituteGenericType(fieldType, substitutions);
+				fieldType = SubstituteStorageType(fieldType, substitutions);
 			fields.Add(new AggregateInitializerField(field.Name, fieldType, storageType, storageGenericNames, field));
 		}
 		return fields.Count > 0;
@@ -3495,6 +3501,8 @@ public sealed partial class BindableNodeAnalyzer
 
 		string returnType = SubstituteGenericReturnType(function?.ResolvedType, call.TypeArguments, genericSubstitutions);
 		if (function is not null)
+			returnType = ReadErasedValueType(SubstituteStorageType(function.ResolvedType ?? ErrorType, genericSubstitutions));
+		if (function is not null)
 			returnType = SubstituteConstOfResolvedType(function.ReturnType, returnType, constOfAnchors, genericSubstitutions);
 		if (function is not null)
 			returnType = RefineClassTypeCallReturn(function, call.Target, returnType);
@@ -3831,9 +3839,12 @@ public sealed partial class BindableNodeAnalyzer
 
 	void ValidateGenericCallSubstitutionConstraint(FunctionDefinition function, GenericParameter parameter, Dictionary<string, string> substitutions, BodyScope scope, SyntaxNode? syntax, HashSet<string> checkedNames)
 	{
-		if (!checkedNames.Add(parameter.Name) || parameter.Constraint is not CopyableTypeReference)
+		if (!checkedNames.Add(parameter.Name))
 			return;
 		if (!substitutions.TryGetValue(parameter.Name, out string? substitutedType) || string.IsNullOrWhiteSpace(substitutedType))
+			return;
+		ValidateRepresentationArgument(parameter, substitutedType, syntax);
+		if (parameter.Constraint is not CopyableTypeReference)
 			return;
 		if (!IsCopyableResolvedType(substitutedType, scope, []))
 			Report(GetRange(syntax), $"Type argument '{substitutedType}' does not satisfy copyable constraint '{parameter.Name}: copyable' for call to '{function.Name}'.");
@@ -4037,12 +4048,12 @@ public sealed partial class BindableNodeAnalyzer
 		return parameters;
 	}
 
-	static string SubstituteGenericReturnType(string? returnType, List<TypeReference> typeArguments, Dictionary<string, string>? substitutions = null)
+	string SubstituteGenericReturnType(string? returnType, List<TypeReference> typeArguments, Dictionary<string, string>? substitutions = null)
 	{
 		if (returnType is null)
 			return ErrorType;
 		if (substitutions is { Count: > 0 })
-			return SubstituteGenericType(returnType, substitutions);
+			return ReadErasedValueType(SubstituteStorageType(returnType, substitutions));
 		if (typeArguments.Count == 0)
 			return returnType;
 
@@ -4410,9 +4421,9 @@ public sealed partial class BindableNodeAnalyzer
 				consumedExpandedComponents = componentCount - 1;
 			}
 
-			string expected = SubstituteGenericType(analysisParameter?.ResolvedType ?? ErrorType, genericSubstitutions);
+			string expected = SubstituteStorageType(analysisParameter?.ResolvedType ?? ErrorType, genericSubstitutions);
 			if (analysisParameter?.Modifier is ParameterModifier.In or ParameterModifier.Out)
-				expected = ErasedTypeIdentity.ReadType(expected);
+				expected = ReadErasedValueType(expected);
 			string analysisTarget = ContainsUnboundGenericParameter(expected, genericSubstitutions, genericParameterNames) ? TargetType : expected;
 			string actual = arguments[i].ResolvedType == ErrorType && arguments[i].Modifier is not (ArgumentModifier.Out or ArgumentModifier.Catch)
 				? ErrorType
@@ -4420,12 +4431,12 @@ public sealed partial class BindableNodeAnalyzer
 			if (analysisParameter is not null)
 			{
 				InferGenericSubstitutions(analysisParameter.ResolvedType ?? ErrorType, actual, genericSubstitutions, genericParameterNames);
-				expected = SubstituteGenericType(analysisParameter.ResolvedType ?? ErrorType, genericSubstitutions);
+				expected = SubstituteStorageType(analysisParameter.ResolvedType ?? ErrorType, genericSubstitutions);
 				if (TryGetConstOfActualSlot(analysisParameter, arguments[i], out bool anchorIsConst) && !string.IsNullOrWhiteSpace(analysisParameter.Name))
 					constOfAnchorsInProgress[analysisParameter.Name] = anchorIsConst;
 				expected = SubstituteConstOfResolvedType(analysisParameter.Type, expected, constOfAnchorsInProgress, genericSubstitutions);
 				if (analysisParameter.Modifier is ParameterModifier.In or ParameterModifier.Out)
-					expected = ErasedTypeIdentity.ReadType(expected);
+					expected = ReadErasedValueType(expected);
 			}
 			if (analysisParameter is not null)
 				{

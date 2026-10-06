@@ -308,7 +308,10 @@ chosen by analysis/lowering:
   have been checked before C emission;
 - params/grouped values as their component layout;
 - async functions as completion-callback ABI functions;
-- materialized generic returns as explicit storage where lowering requires it.
+- erased generic returns as caller-provided storage: `void` plus `void*` for
+  `T`, and `bool` plus `void*` for `T?`. The result pointer precedes compiler
+  capability/allocator/error slots and follows source parameters. Explicit
+  `void<V>?` results use the same optional ABI and default-fill absent payloads.
 
 The emitter should not rediscover expansion rules independently. Use the same
 expanded-form services as the analyzer/lowerer.
