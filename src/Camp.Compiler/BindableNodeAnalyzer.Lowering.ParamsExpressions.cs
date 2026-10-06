@@ -2669,7 +2669,13 @@ public sealed partial class BindableNodeAnalyzer
 		try
 		{
 			currentStatementPrefix = statements;
-			if (expression is not null
+			if (expression is not null && shape.Kind == ParamsComponentShapeKind.Optional && shape.Components.Count == 2
+				&& !TryGetParamsComponentShape(null, expression.ResolvedType, "value", out _))
+			{
+				// A plain payload returned as an optional must initialize the presence result.
+				components = [expression, BoolLiteral(true)];
+			}
+			else if (expression is not null
 				&& TryCreatePrimitiveStringArrayInitialValues(expression, shape, statements, out List<Expression?> primitiveStringComponents)
 				&& primitiveStringComponents.All(static component => component is not null))
 			{

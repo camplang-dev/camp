@@ -1,0 +1,25 @@
+struct Payload { int value; }
+int calls = 0;
+Payload payload() { calls++; Payload p = { 23 }; return p; }
+Payload? fromLocal() { Payload p = { 7 }; return p; }
+Payload? fromCall() { return payload(); }
+Payload? fromDefaultPayload() { Payload p = default; return p; }
+Payload? empty() { return default; }
+Payload? copy(Payload? p) { return p; }
+int? scalar() { int value = 11; return value; }
+
+export int main()
+{
+	Payload? local = fromLocal();
+	if (!local.specified || local.value.value != 7) return 1;
+	Payload? called = fromCall();
+	if (!called.specified || called.value.value != 23 || calls != 1) return 2;
+	Payload? zero = fromDefaultPayload();
+	if (!zero.specified || zero.value.value != 0) return 3;
+	Payload? absent = empty();
+	if (absent.specified || copy(absent).specified) return 4;
+	Payload? copied = copy(local);
+	if (!copied.specified || copied.value.value != 7) return 5;
+	int? number = scalar();
+	return number.specified && number.value == 11 ? 0 : 6;
+}

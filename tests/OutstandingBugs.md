@@ -44,31 +44,6 @@ Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
 
-## BUG-245: Returning a struct payload from an optional-returning function yields an unspecified optional
-
-Date/Time: 2026-10-05 17:10 America/Toronto
-
-Summary:
-In a function whose result is `P?` for a struct `P`, `return b;` with a `P` local
-returns an optional whose specified bit is false. The same return works for `int?`,
-and copying the struct into a `P?` local first works.
-
-Steps to Reproduce:
-
-1. Declare `struct P { int x; }` and `P? make() { P b = { 1 }; return b; }`.
-2. In `main`, call `P? c = make();` and log `c.specified ? 1 : 0`.
-
-Expected:
-The returned optional is present, so the log prints 1.
-
-Actual:
-The log prints 0. `P? make() { P b = { 1 }; P? r = b; return r; }` prints 1, and so does
-`int? make() { int b = 1; return b; }`.
-
-Known Impact:
-Struct-payload optionals returned from a plain payload silently become empty. Assign
-the payload to an optional local and return that local as a workaround.
-
 ## BUG-246: An omitted optional parameter with a payload default drops the specified component
 
 Date/Time: 2026-10-05 18:40 America/Toronto

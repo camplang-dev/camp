@@ -169,6 +169,11 @@ the payload without respecting the optional's specified bit is invalid. The
 specified component is part of the value contract, not a spare implementation
 detail.
 
+Returning a plain payload from an optional-returning function lifts that payload
+to a present optional. Lowering writes `true` to the specified result component
+for struct payloads as well as scalar payloads. Returning an existing optional
+carries its specified component instead.
+
 `T?` converts to `U?` exactly when `T` converts to `U`, with the same
 classification (implicit, explicit, or unsafe): the payload component converts as
 `T` to `U` and the specified component is carried unchanged, whether or not it is
