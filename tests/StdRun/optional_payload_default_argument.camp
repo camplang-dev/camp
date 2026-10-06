@@ -1,0 +1,16 @@
+int opt(int? value = 7) { return value.specified ? value.value : -1; }
+int empty(int? value = default) { return value.specified ? value.value : -1; }
+int middle(int prefix = 1, int? value = 7, int tail = 5) { return prefix + (value.specified ? value.value : -1) + tail; }
+bool truth(bool? value = true) { return value.specified && value.value; }
+class Holder { int apply(int? value = 7) { return value.specified ? value.value : -1; } }
+
+export int main()
+{
+	if (opt() != 7 || opt(3) != 3 || opt(default) != -1) return 1;
+	if (empty() != -1 || empty(9) != 9) return 2;
+	if (middle() != 13 || middle(2) != 14) return 3;
+	if (middle(tail: 9) != 17 || middle(prefix: 4, tail: 9) != 20) return 4;
+	if (!truth() || truth(false) || truth(default)) return 5;
+	Holder holder = default;
+	return holder.apply() == 7 && holder.apply(12) == 12 ? 0 : 6;
+}

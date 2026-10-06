@@ -43,28 +43,3 @@ Actual:
 Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
-
-## BUG-246: An omitted optional parameter with a payload default drops the specified component
-
-Date/Time: 2026-10-05 18:40 America/Toronto
-
-Summary:
-A call that omits a parameter declared `int? o = 7` emits the C call with only the
-payload, so the specified component is missing and the native build fails. The
-default `= default` expands both components correctly.
-
-Steps to Reproduce:
-
-1. Declare `int opt(int? o = 7) { return o.specified ? o.value : -1; }`.
-2. Call `opt()` from `main` and log the result.
-
-Expected:
-The omitted argument expands to a present optional carrying 7, so the call logs 7.
-
-Actual:
-No Camp diagnostic. The C compiler reports "too few arguments to function call,
-expected 2, have 1" for `opt(7)`.
-
-Known Impact:
-Optional parameters cannot default to a present payload. Pass the optional
-explicitly or default to `default` and test `.specified` in the callee.

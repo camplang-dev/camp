@@ -785,6 +785,10 @@ public sealed partial class BindableNodeAnalyzer
 			if (!TryCreateDefaultArgumentExpression(parameter.DefaultValue, parameter, call, suppliedSourceText, out Expression? defaultValue))
 				continue;
 			string? defaultType = defaultValue?.ResolvedType;
+			ParameterDefinition sourceParameter = parameter.ExpandedSourceParameter ?? parameter;
+			if (TryGetParamsComponentShape(sourceParameter.Type, sourceParameter.ResolvedType, sourceParameter.Name, out ParamsComponentShape defaultShape)
+				&& defaultShape.Kind == ParamsComponentShapeKind.Optional)
+				defaultType = defaultShape.TypeName;
 			orderedArguments.Add(new ArgumentExpression
 			{
 				SourceSyntax = call.SourceSyntax ?? parameter.SourceSyntax,

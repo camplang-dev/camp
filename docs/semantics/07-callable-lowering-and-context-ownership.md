@@ -141,6 +141,11 @@ values into ABI components, delegate context calls, interface vtable calls,
 expanded receiver calls, generated `out` storage, `sizeof`, `typenameof`,
 `vtableof`, or `within` arguments.
 
+An inserted optional default retains its source parameter's optional type even
+when the default expression is a plain payload. Expand that payload together
+with a `true` specified component; an optional `default` value supplies an
+unspecified component instead.
+
 An override's default values must be omitted or textually identical to the
 inherited declaration's defaults, because a call through a virtual method binds
 to the base declaration. Declaration validation reports any other default on an
