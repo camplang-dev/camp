@@ -230,10 +230,7 @@ public sealed partial class BindableNodeAnalyzer
 				break;
 
 			case ConditionalExpression conditional:
-				conditional.Condition = LowerExpression(conditional.Condition);
-				conditional.WhenTrue = LowerExpression(conditional.WhenTrue);
-				conditional.WhenFalse = LowerExpression(conditional.WhenFalse);
-				break;
+				return LowerConditionalExpression(conditional);
 
 			case RangeExpression range:
 				range.Start = LowerExpression(range.Start);
@@ -307,6 +304,51 @@ public sealed partial class BindableNodeAnalyzer
 			&& components.Count > 1)
 			return LowerExpression(components[0]);
 		return lowered;
+	}
+
+	Expression LowerConditionalExpression(ConditionalExpression conditional)
+	{
+		conditional.Condition = LowerExpression(conditional.Condition);
+		if (currentStatementPrefix is null || currentStatementSuffix is null)
+		{
+			conditional.WhenTrue = LowerExpression(conditional.WhenTrue);
+			conditional.WhenFalse = LowerExpression(conditional.WhenFalse);
+			return conditional;
+		}
+
+		List<Statement> outerPrefix = currentStatementPrefix;
+		List<Statement> outerSuffix = currentStatementSuffix;
+		List<Statement> trueStatements = [];
+		List<Statement> falseStatements = [];
+		List<Statement> trueSuffix = [];
+		List<Statement> falseSuffix = [];
+		try
+		{
+			currentStatementPrefix = trueStatements;
+			currentStatementSuffix = trueSuffix;
+			conditional.WhenTrue = LowerExpression(conditional.WhenTrue);
+			currentStatementPrefix = falseStatements;
+			currentStatementSuffix = falseSuffix;
+			conditional.WhenFalse = LowerExpression(conditional.WhenFalse);
+		}
+		finally
+		{
+			currentStatementPrefix = outerPrefix;
+			currentStatementSuffix = outerSuffix;
+		}
+		if (trueStatements.Count == 0 && falseStatements.Count == 0 && trueSuffix.Count == 0 && falseSuffix.Count == 0)
+			return conditional;
+
+		// Accessor evaluation temporaries belong to the selected arm.
+		string type = conditional.ResolvedType ?? ErrorType;
+		DeclarationStatement result = CreateGeneratedLocal(NewGeneratedLocalName("conditionalValue"), type, TypeReferenceForResolvedName(type), null);
+		outerPrefix.Add(result);
+		trueStatements.Add(CreateAssignmentStatement(CreateVariableReference(result.Target, type), conditional.WhenTrue!, type, conditional.SourceSyntax));
+		trueStatements.AddRange(trueSuffix);
+		falseStatements.Add(CreateAssignmentStatement(CreateVariableReference(result.Target, type), conditional.WhenFalse!, type, conditional.SourceSyntax));
+		falseStatements.AddRange(falseSuffix);
+		outerPrefix.Add(new IfStatement { SourceSyntax = conditional.SourceSyntax, ResolvedType = "void", Condition = conditional.Condition, Body = CreateBlock(trueStatements), ElseBody = CreateBlock(falseStatements) });
+		return CreateVariableReference(result.Target, type, conditional.SourceSyntax);
 	}
 
 	Expression? LowerShortCircuitExpression(BinaryExpression binary)
@@ -1164,6 +1206,8 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		rewritten = null;
 		Expression? target = assignment.Target is null ? null : RewriteExpression(assignment.Target);
+		while (target is ParenthesizedExpression parenthesized)
+			target = parenthesized.Expression is null ? null : RewriteExpression(parenthesized.Expression);
 		switch (target)
 		{
 			case MemberReferenceExpression setter when IsPropertySetterReference(setter):
@@ -1185,6 +1229,8 @@ public sealed partial class BindableNodeAnalyzer
 
 	bool TryRewritePropertySetterAssignmentStatement(AssignmentExpression assignment, out Expression? rewritten)
 	{
+		if (assignment.Operator != AssignmentOperator.Assign)
+			return TryRewritePropertySetterAssignment(assignment, out rewritten);
 		rewritten = null;
 		Expression? target = assignment.Target is null ? null : RewriteExpression(assignment.Target);
 		switch (target)
@@ -1218,6 +1264,8 @@ public sealed partial class BindableNodeAnalyzer
 
 	Expression RewritePropertySetterAssignment(MemberReferenceExpression setter, List<ArgumentExpression> arguments, AssignmentExpression assignment)
 	{
+		if (assignment.Operator != AssignmentOperator.Assign)
+			return RewriteCompoundPropertyAssignment(setter, arguments, assignment);
 		if (currentStatementPrefix is null || assignment.Value is null)
 			return RewritePropertySetterCall(setter, arguments, assignment.Value);
 
@@ -1244,6 +1292,91 @@ public sealed partial class BindableNodeAnalyzer
 			ResolvedType = valueType
 		});
 		return grouped;
+	}
+
+	Expression RewriteCompoundPropertyAssignment(MemberReferenceExpression setter, List<ArgumentExpression> arguments, AssignmentExpression assignment)
+	{
+		if (currentStatementPrefix is null || assignment.Value is null || !compoundPropertyGetters.TryGetValue(assignment, out MemberReferenceExpression? boundGetter))
+		{
+			Report(GetRange(assignment.SourceSyntax), "Compound property assignment requires a readable property and local evaluation storage.");
+			return assignment;
+		}
+
+		setter = (MemberReferenceExpression)CloneParamsExpansionExpression(setter)!;
+		MemberReferenceExpression getter = (MemberReferenceExpression)CloneParamsExpansionExpression(boundGetter)!;
+		FunctionDefinition setterFunction = (FunctionDefinition)setter.Member!;
+		if (IsInstanceInvocationFunction(setterFunction) && setter.Target is Expression sourceReceiver)
+		{
+			Expression receiver = LowerReceiverExpression(sourceReceiver) ?? sourceReceiver;
+			// Capture the receiver's storage address, rather than copying the instance.
+			Expression receiverValue = TryGetParamsComponentShape(null, receiver.ResolvedType, "receiver", out ParamsComponentShape receiverShape) && receiverShape.Components.Count > 1
+				? receiver
+				: CreateReceiverArgument(receiver, setterFunction).Value!;
+			Expression capturedReceiver = CaptureCompoundPropertyValue(receiverValue, "propertyReceiver");
+			setter.Target = CloneParamsExpansionExpression(capturedReceiver);
+			getter.Target = CloneParamsExpansionExpression(capturedReceiver);
+		}
+
+		List<ArgumentExpression> capturedArguments = [];
+		foreach (ArgumentExpression argument in arguments)
+		{
+			Expression value = LowerExpression(argument.Value) ?? argument.Value!;
+			Expression captured = CaptureCompoundPropertyValue(value, "propertyIndex");
+			capturedArguments.Add(new ArgumentExpression { SourceSyntax = argument.SourceSyntax, Modifier = argument.Modifier, Value = captured, ResolvedType = captured.ResolvedType });
+		}
+
+		Expression read = LowerExpression(RewritePropertyGetterCall(getter, capturedArguments))!;
+		Expression oldValue = CaptureCompoundPropertyValue(read, "propertyOldValue");
+		Expression right = LowerExpression(assignment.Value) ?? assignment.Value;
+		string valueType = assignment.ResolvedType ?? setter.ResolvedType ?? ErrorType;
+		BinaryExpression operation = new()
+		{
+			SourceSyntax = assignment.SourceSyntax,
+			Left = oldValue,
+			Right = right,
+			ResolvedType = valueType,
+			Operator = assignment.Operator switch
+			{
+				AssignmentOperator.Add => BinaryOperator.Add,
+				AssignmentOperator.Subtract => BinaryOperator.Subtract,
+				AssignmentOperator.Multiply => BinaryOperator.Multiply,
+				AssignmentOperator.Divide => BinaryOperator.Divide,
+				AssignmentOperator.Modulo => BinaryOperator.Modulo,
+				AssignmentOperator.BitwiseAnd => BinaryOperator.BitwiseAnd,
+				AssignmentOperator.BitwiseOr => BinaryOperator.BitwiseOr,
+				AssignmentOperator.BitwiseXor => BinaryOperator.BitwiseXor,
+				AssignmentOperator.LeftShift => BinaryOperator.LeftShift,
+				AssignmentOperator.RightShift => BinaryOperator.RightShift,
+				_ => throw new InvalidOperationException("Expected a compound assignment operator.")
+			}
+		};
+		Expression newValue = CaptureCompoundPropertyValue(operation, "propertyValue");
+		Expression call = RewritePropertySetterCall(setter, capturedArguments, CloneParamsExpansionExpression(newValue));
+		currentStatementPrefix.Add(new ExpressionStatement { SourceSyntax = assignment.SourceSyntax, Expression = call, ResolvedType = "void" });
+		return CloneParamsExpansionExpression(newValue)!;
+	}
+
+	Expression CaptureCompoundPropertyValue(Expression value, string prefix)
+	{
+		string type = value.ResolvedType ?? ErrorType;
+		if (TryGetParamsComponentShape(null, type, prefix, out ParamsComponentShape shape) && shape.Components.Count > 1
+			&& TryCreateParamsComponentExpressions(value, out List<Expression> components) && components.Count == shape.Components.Count)
+		{
+			DeclarationTarget source = new() { ResolvedType = type, Type = TypeReferenceForResolvedName(type) };
+			source.Names.Add(NewGeneratedLocalName(prefix));
+			List<DeclarationTarget> targets = [];
+			for (int i = 0; i < components.Count; i++)
+			{
+				DeclarationStatement component = CreateGeneratedLocal(NewGeneratedLocalName(prefix), shape.Components[i].Type, TypeReferenceForResolvedName(shape.Components[i].Type), LowerExpression(components[i]));
+				currentStatementPrefix!.Add(component);
+				targets.Add(component.Target);
+			}
+			RegisterParamsExpansion(source, shape, targets);
+			return CreateVariableReference(source, type, value.SourceSyntax);
+		}
+		DeclarationStatement local = CreateGeneratedLocal(NewGeneratedLocalName(prefix), type, TypeReferenceForResolvedName(type), value);
+		currentStatementPrefix!.Add(local);
+		return CreateVariableReference(local.Target, type, value.SourceSyntax);
 	}
 
 }

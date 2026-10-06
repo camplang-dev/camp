@@ -77,6 +77,7 @@ public sealed partial class BindableNodeAnalyzer
 	readonly Dictionary<TypeDefinition, TypeAnalysisInfo> typeInfos = [];
 	readonly Dictionary<Expression, Expression> expressionRewrites = [];
 	readonly HashSet<IndexExpression> propertyIndexerExpressions = [];
+	readonly Dictionary<AssignmentExpression, MemberReferenceExpression> compoundPropertyGetters = [];
 	readonly HashSet<AssignmentExpression> generatedRetainedAllocatorAssignments = [];
 	readonly Dictionary<TypeReference, TypeReference> typeRewrites = [];
 	readonly Dictionary<FunctionDefinition, ParameterDefinition> materializedGenericReturnParameters = [];

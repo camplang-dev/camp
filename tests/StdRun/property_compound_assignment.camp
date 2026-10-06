@@ -1,0 +1,81 @@
+int trace = 0;
+bool recordTrace = false;
+int receiverCalls = 0;
+int indexCalls = 0;
+int valueCalls = 0;
+int reads = 0;
+int writes = 0;
+
+class Holder
+{
+	int value;
+	int getMask(const this) { reads++; if (recordTrace) trace = trace * 10 + 3; return this.value; }
+	void setMask(int value) { writes++; if (recordTrace) trace = trace * 10 + 5; this.value = value; }
+	int getSlot(const this, int index) { reads++; if (recordTrace) trace = trace * 10 + 3; return this.value + index; }
+	void setSlot(int index, int value) { writes++; if (recordTrace) trace = trace * 10 + 5; this.value = value - index; }
+	int getSelection(int[] indices) => this.value + indices[0] + (int)indices.length;
+	void setSelection(int[] indices, int value) { this.value = value - indices[0] - (int)indices.length; }
+}
+
+Holder* receiver(Holder* holder) { receiverCalls++; trace = trace * 10 + 1; return holder; }
+int index() { indexCalls++; trace = trace * 10 + 2; return 0; }
+int operand(Holder* holder) { valueCalls++; trace = trace * 10 + 4; holder.value = 100; return 1; }
+int conditional(Holder* holder, bool change) => change ? (holder.Mask ^= 1) : 23;
+bool guarded(Holder* holder, bool change) => change && (holder.Mask ^= 1) == 6;
+int getFirst(const int[] this) => this[0];
+void setFirst(int[] this, int value) { this[0] = value; }
+
+export int main()
+{
+	Holder holder = default;
+	holder.Mask = 7;
+	holder.Mask ^= 1;
+	if (holder.value != 6) return 1;
+	holder.Mask |= 1;
+	if (holder.value != 7) return 2;
+	holder.Mask &= 6;
+	if (holder.value != 6) return 3;
+	holder.Mask <<= 1;
+	if (holder.value != 12) return 4;
+	holder.Mask >>= 2;
+	if (holder.value != 3) return 5;
+	holder.Mask += 5;
+	if (holder.value != 8) return 6;
+	holder.Mask -= 2;
+	if (holder.value != 6) return 7;
+	holder.Mask *= 3;
+	if (holder.value != 18) return 8;
+	holder.Mask /= 2;
+	if (holder.value != 9) return 9;
+	holder.Mask %= 4;
+	if (holder.value != 1) return 10;
+
+	holder.value = 7;
+	recordTrace = true;
+	trace = 0; reads = 0; writes = 0;
+	int result = receiver(&holder).Slot[index()] ^= operand(&holder);
+	if (result != 6 || holder.value != 6) return 11;
+	if (trace != 12345 || receiverCalls != 1 || indexCalls != 1 || valueCalls != 1 || reads != 1 || writes != 1) return 12;
+
+	holder.value = 7;
+	trace = 0; reads = 0; writes = 0;
+	result = (holder.Mask ^= 1);
+	if (result != 6 || holder.value != 6 || reads != 1 || writes != 1 || trace != 35) return 13;
+	holder.value = 7;
+	reads = 0; writes = 0;
+	if (conditional(&holder, false) != 23 || holder.value != 7 || reads != 0 || writes != 0) return 14;
+	if (conditional(&holder, true) != 6 || holder.value != 6 || reads != 1 || writes != 1) return 15;
+	holder.value = 7;
+	reads = 0; writes = 0;
+	if (guarded(&holder, false) || holder.value != 7 || reads != 0 || writes != 0) return 16;
+	if (!guarded(&holder, true) || holder.value != 6 || reads != 1 || writes != 1) return 17;
+	fixed int[2] indices = [3, 0];
+	holder.value = 7;
+	result = holder.Selection[indices[..]] ^= 1;
+	if (result != 13 || holder.value != 8) return 18;
+	indices[0] = 7;
+	int[] values = indices[..];
+	values.First ^= 1;
+	if (indices[0] != 6) return 19;
+	return 0;
+}

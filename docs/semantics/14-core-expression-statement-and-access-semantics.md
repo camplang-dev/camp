@@ -371,6 +371,16 @@ If preserving the assignment value would duplicate a side effect, lowering must
 materialize the assigned value in a generated temporary, pass that temporary to
 the setter, and use the same temporary as the expression result.
 
+A compound property assignment requires both a getter and a setter. Capture the
+receiver's storage and index arguments once, read the current value once, apply
+the compound operator to that value and the right operand, and pass the result
+to the setter. An expression-form compound assignment produces the value passed
+to the setter. Capture the read before evaluating the right operand so its side
+effects cannot change the value used by the operation.
+Conditional or short-circuit expressions evaluate accessor captures and calls
+only on the selected path. Captured expanded index arguments preserve all their
+ABI components.
+
 Property access does not make a member field visible. If a real field/member
 access is chosen, it remains field/member access. If a property accessor is
 chosen, all source behavior follows the accessor function.

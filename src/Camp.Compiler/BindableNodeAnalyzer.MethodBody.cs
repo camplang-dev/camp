@@ -7039,18 +7039,39 @@ public sealed partial class BindableNodeAnalyzer
 	bool TryAnalyzePropertyAssignment(AssignmentExpression assignment, BodyScope scope, AnalysisScope typeScope, out string propertyType)
 	{
 		propertyType = ErrorType;
-
-		switch (assignment.Target)
+		Expression? target = assignment.Target;
+		while (target is ParenthesizedExpression parenthesized)
+			target = parenthesized.Expression;
+		MemberExpression? property = target switch
 		{
-			case MemberExpression member:
-				return TryAnalyzePropertySetter(member, [], assignment.Value, scope, typeScope, out propertyType);
-
-			case IndexExpression { Target: MemberExpression member } index:
-				return TryAnalyzePropertySetter(member, index.Arguments, assignment.Value, scope, typeScope, out propertyType);
-
-			default:
-				return false;
+			MemberExpression member => member,
+			IndexExpression { Target: MemberExpression member } => member,
+			_ => null
+		};
+		if (property is null)
+			return false;
+		List<ArgumentExpression> arguments = target is IndexExpression index ? index.Arguments : [];
+		if (!TryAnalyzePropertySetter(property, arguments, assignment.Value, scope, typeScope, out propertyType))
+			return false;
+		if (assignment.Operator != AssignmentOperator.Assign && propertyType != ErrorType)
+		{
+			// Bind the read independently: the write target must keep its setter binding.
+			MemberExpression read = new() { SourceSyntax = property.SourceSyntax, Target = property.Target, Name = property.Name };
+			List<ArgumentExpression> readArguments = [];
+			foreach (ArgumentExpression argument in arguments)
+				readArguments.Add(new ArgumentExpression { SourceSyntax = argument.SourceSyntax, Modifier = argument.Modifier, Value = CloneParamsExpansionExpression(argument.Value) });
+			bool readable = TryAnalyzePropertyIndexer(read, readArguments, scope, typeScope, out string readType);
+			if (readable
+				&& expressionRewrites.TryGetValue(read, out Expression? rewritten)
+				&& rewritten is MemberReferenceExpression getter && IsPropertyGetterReference(getter))
+			{
+				CheckAssignable(propertyType, readType, read.SourceSyntax, "Compound property assignment");
+				compoundPropertyGetters[assignment] = getter;
+			}
+			else if (!readable)
+				Report(GetRange(property.SourceSyntax), $"Property '{property.Name}' is not readable on type '{property.Target?.ResolvedType}'.");
 		}
+		return true;
 	}
 
 	string BodyAnalyzeConditionalExpression(ConditionalExpression conditional, BodyScope scope, AnalysisScope typeScope, string? targetType)

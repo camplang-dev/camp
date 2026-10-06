@@ -44,37 +44,6 @@ Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
 
-## BUG-244: Compound property assignment discards the operator
-
-Date/Time: 2026-10-05 16:30 America/Toronto
-
-Summary:
-Compound assignment to a writable property lowers to an ordinary setter call
-with the right-hand operand. It does not read the current property value or
-apply the compound operator, so valid source silently produces the wrong value.
-
-Steps to Reproduce:
-
-1. Declare `class Holder { int value; int getMask() => this.value; void setMask(int value) { this.value = value; } }`.
-2. In an exported entry point, create `Holder holder = default;`, then execute
-   `holder.Mask = 7; holder.Mask ^= 1;`.
-3. Return `holder.Mask == 6 ? 0 : 1;` and build/run with `--nostdlib`.
-
-Expected:
-The compound assignment reads 7, computes `7 ^ 1`, and writes 6. The program
-exits with code 0.
-
-Actual:
-The emitted C calls `Holder_setMask(&holder, 1)` without reading the getter or
-applying XOR. The program exits with code 1. Integer `&=` and `|=` property
-assignments also lower to plain setter calls.
-
-Known Impact:
-Valid compound property writes silently assign the right-hand operand instead
-of the operation's result. Use an explicit read, binary operation, and ordinary
-property assignment as a workaround, preserving receiver/index evaluation when
-those expressions have side effects.
-
 ## BUG-245: Returning a struct payload from an optional-returning function yields an unspecified optional
 
 Date/Time: 2026-10-05 17:10 America/Toronto
