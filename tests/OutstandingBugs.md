@@ -44,49 +44,6 @@ Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
 
-## BUG-252: Returning an array member of a call result drops the call's expanded argument length
-
-Date/Time: 2026-10-06 23:36 EDT
-
-Summary:
-When a function returns an array-typed member of a call result, for example
-`return make(r).span;`, and the call passes an array or view argument, the generated
-C call omits the argument's length component. The native compiler then rejects the
-generated C with "too few arguments to function call". Reading a scalar member of the
-same call result is generated correctly, as is first storing the call result in a local.
-Compilers before the erased-type callable matching and inference change generate the
-correct call.
-
-Steps to Reproduce:
-
-1. Compile this source with `campc build repro.camp --nostdlib --out-dir out`:
-
-```camp
-extern void __intrinsic_log_i32(int value);
-struct Scan { const char[] span; nuint consumed; }
-Scan scanOf(const char[] t) { Scan s = { t, 3 }; return s; }
-const char[] fromParam(const char[] r) { return scanOf(r).span; }
-export int main()
-{
-	const char[] text = "abcdef";
-	__intrinsic_log_i32((int)fromParam(text).length);
-	return 0;
-}
-```
-
-Expected:
-The source builds and logs 6. The generated call is `scanOf(r, r_length)`.
-
-Actual:
-The generated C declares `Scan _paramsReceiver0 = scanOf(r);`, passing only the
-elements pointer, and the C compiler fails with "too few arguments to function call,
-expected 2, have 1".
-
-Known Impact:
-Any function returning an array member of a call result whose arguments include an
-array or view fails to compile natively. Store the call result in a local, then return
-its member.
-
 ## BUG-253: Nested conditional of a const array value emits an assignment to a const temporary
 
 Date/Time: 2026-10-06 23:39 EDT

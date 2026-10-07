@@ -1,0 +1,36 @@
+int calls = 0;
+struct Scan { const char[] span; nuint consumed; }
+Scan scanOf(const char[] text)
+{
+	calls++;
+	Scan result = { text, 3 };
+	return result;
+}
+const char[] fromParam(const char[] text) { return scanOf(text).span; }
+const char[] fromSlice(const char[] text) { return scanOf(text[1..]).span; }
+nuint count(const char[] text) { return text.length; }
+nuint asArgument(const char[] text) { return count(scanOf(text).span); }
+const char[] fromFunction(fn Scan(const char[]) factory, const char[] text) { return factory(text).span; }
+const char[] fromDelegate(delegate Scan(const char[]) factory, const char[] text) { return factory(text).span; }
+struct Scanner { int offset; }
+Scan scan(Scanner* this, const char[] text) { return scanOf(text[this.offset..]); }
+const char[] fromMethod(Scanner* scanner, const char[] text) { return scanner.scan(text).span; }
+export int main()
+{
+	const char[] text = "abcdef";
+	const char[] direct = fromParam(text);
+	if (direct.length != 6 || direct[5] != 'f' || calls != 1) return 1;
+	const char[] sliced = fromSlice(text);
+	if (sliced.length != 5 || sliced[0] != 'b' || calls != 2) return 2;
+	if (asArgument(text) != 6 || calls != 3) return 3;
+	const char[] function = fromFunction(scanOf, text);
+	if (function.length != 6 || calls != 4) return 4;
+	int captured = 0;
+	delegate Scan(const char[]) factory = (const char[] value) => { captured++; return scanOf(value); };
+	const char[] delegated = fromDelegate(factory, text);
+	if (delegated.length != 6 || captured != 1 || calls != 5) return 5;
+	Scanner scanner = { 2 };
+	const char[] method = fromMethod(&scanner, text);
+	if (method.length != 4 || method[0] != 'c' || calls != 6) return 6;
+	return 0;
+}

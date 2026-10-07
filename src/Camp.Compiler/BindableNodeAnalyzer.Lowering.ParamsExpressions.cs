@@ -1498,7 +1498,7 @@ public sealed partial class BindableNodeAnalyzer
 			case MemberReferenceExpression { Member: not null } member
 				when paramsExpansions.TryGetValue(member.Member, out List<ParamsExpansionComponent>? expansion):
 				Expression? receiver = member.Target is CallExpression receiverCall
-					? CaptureRepeatedParamsSourceExpression(receiverCall, "paramsReceiver") : member.Target;
+					? CaptureRepeatedParamsSourceExpression(LowerExpression(receiverCall) ?? receiverCall, "paramsReceiver") : member.Target;
 				foreach (ParamsExpansionComponent component in expansion)
 				{
 					components.Add(new MemberReferenceExpression
