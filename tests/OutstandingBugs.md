@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-262.
+Next bug number: BUG-263.
 
 ## Bug Template
 
@@ -159,3 +159,38 @@ Known Impact:
 Array-return initializers can be rejected despite an enclosing explicit
 allocator context. Repeating `within (default)` directly on the initializer
 call compiles and avoids the missing-context diagnostic.
+
+## BUG-262: `typenameof` of an erased type fails C emission
+
+Date/Time: 2026-10-07 02:40 EDT
+
+Summary:
+`typenameof` applied to a `void<V>` type, or to a type built on one such as
+`void<V>*`, is accepted by semantic analysis but native emission rejects the
+expression. Accepted proposal 024 defines `typenameof(void<V>)` as the empty
+string, so the expression has a value and should compile.
+
+Steps to Reproduce:
+
+1. Compile this source with `campc run repro.camp --nostdlib` and an intrinsic
+   logging shim:
+
+   ```camp
+   extern void __intrinsic_log_string(string value);
+   export int main()
+   {
+       __intrinsic_log_string(typenameof(void<int>*));
+       return 0;
+   }
+   ```
+
+Expected:
+The program builds and logs an empty line.
+
+Actual:
+The build fails with `C emission does not yet support expression node
+NameOfExpression.`
+
+Known Impact:
+The empty erased type name cannot be observed directly. `typenameof` of
+ordinary concrete types is unaffected.
