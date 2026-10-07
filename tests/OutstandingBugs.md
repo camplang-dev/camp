@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-261.
+Next bug number: BUG-262.
 
 ## Bug Template
 
@@ -159,3 +159,35 @@ Known Impact:
 Array-return initializers can be rejected despite an enclosing explicit
 allocator context. Repeating `within (default)` directly on the initializer
 call compiles and avoids the missing-context diagnostic.
+
+## BUG-261: Native artifact reuse can override a changed dependency's content fingerprint
+
+Date/Time: 2026-10-07 02:15 EDT
+
+Summary:
+When a linked library changes, the content-based artifact cache correctly
+invalidates the consumer. The native build then independently compares
+timestamps and can reuse the old executable if its timestamp is newer than
+the updated library and objects. The stale executable is subsequently recorded
+as current despite containing the old library code.
+
+Steps to Reproduce:
+
+1. Build an executable that calls an exported function through a transitive
+   static project reference. Record the returned value.
+2. Set the executable's modification time two minutes into the future.
+3. Change the upstream function's returned value, then rebuild the executable
+   using the same build arguments and output directory.
+4. Run the executable again.
+
+Expected:
+The changed content invalidates the artifact regardless of timestamp ordering.
+The executable relinks and returns the updated value.
+
+Actual:
+The compiler reports the changed library but reuses the executable, which
+continues to return the old value.
+
+Known Impact:
+Clock skew or unreliable timestamp ordering can leave executables linked to
+outdated libraries. Deleting the consumer executable forces a correct relink.
