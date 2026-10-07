@@ -2,7 +2,7 @@
 
 ## Status
 
-Pending implementation (DEV-017; implementation proceeds in reviewed phases).
+Accepted and implemented (DEV-017).
 
 ## Proposal Date
 
