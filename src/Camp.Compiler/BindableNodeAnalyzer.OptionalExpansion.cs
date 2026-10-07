@@ -86,8 +86,7 @@ public sealed partial class BindableNodeAnalyzer
 	bool TryCreateValueParamsComponents(Expression expression, ParamsComponentShape target, out List<Expression> components)
 	{
 		components = [];
-		if (TryGetOptionalPayloadType(target.TypeName, out _)
-			&& expression is WithinExpression { Expression: CallExpression call } within
+		if (expression is WithinExpression { Expression: CallExpression call } within
 			&& IsErasedResultCall(call)
 			&& currentStatementPrefix is not null)
 			return TryCreateWithinErasedResultComponents(within, call, target, out components);

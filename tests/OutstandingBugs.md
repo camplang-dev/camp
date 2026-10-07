@@ -44,56 +44,6 @@ Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
 
-## BUG-268: `within` call to an erased generic with an array result is dropped
-
-Date/Time: 2026-10-07 11:55 EDT
-
-Summary:
-A call made under `within (allocator)` to an erased generic whose result is `T`, with an
-array type argument, is not emitted at all. The variable that receives the result is
-declared but never assigned, so the program reads uninitialized memory. The same call
-with a scalar or struct type argument, or without `within`, is emitted correctly.
-
-Steps to Reproduce:
-
-1. Create `repro.camp`:
-
-```camp
-interface Allocator
-{
-	escaped void* alloc(nuint size);
-	void* realloc(void* ptr, nuint newSize);
-	void free(void* ptr);
-}
-class NullAllocator: Allocator
-{
-	escaped void* alloc(nuint size): Allocator { return null; }
-	void* realloc(void* ptr, nuint newSize): Allocator { return null; }
-	void free(void* ptr): Allocator {}
-}
-T keep<T: copyable>(in T value, within allocator, sizeof(T)) => value;
-export int main()
-{
-	NullAllocator* nothing = stackalloc NullAllocator();
-	Allocator* allocator = nothing;
-	int[] source = [5, 6, 7];
-	int[] kept = within (allocator) keep<int[]>(source);
-	return (int)kept.length;
-}
-```
-
-2. Run `campc run repro.camp --nostdlib --show-errorlevel`.
-
-Expected:
-The program exits with 3.
-
-Actual:
-The program exits with an arbitrary value. The generated C declares `kept` and
-`kept_length` but contains no call to `keep`.
-
-Known Impact:
-An erased generic that takes an allocator cannot return an array value.
-
 ## BUG-269: An allocator selector inherits the result type of a `within` expression
 
 Date/Time: 2026-10-07 13:33 EDT

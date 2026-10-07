@@ -1,0 +1,31 @@
+#within explicit
+int calls = 0;
+T keep<T: copyable>(in T value, int check = 7, within allocator, sizeof(T))
+{
+	calls++;
+	return value;
+}
+int[] forward(int[] source, Allocator* allocator)
+{
+	return within (allocator) keep<int[]>(source);
+}
+export int main()
+{
+	Allocator* allocator = null;
+	int[] source = [5, 6, 7];
+	int[] kept = within (allocator) keep<int[]>(source);
+	if (kept.length != 3 || kept[2] != 7 || calls != 1) return 1;
+	int[] slice = within (default) keep<int[]>(source[1..]);
+	if (slice.length != 2 || slice[0] != 6 || calls != 2) return 2;
+	kept = within (allocator) keep<int[]>(source[..2]);
+	if (kept.length != 2 || kept[1] != 6 || calls != 3) return 3;
+	int[] returned = forward(source, allocator);
+	if (returned.length != 3 || returned[0] != 5 || calls != 4) return 4;
+	int? optional = 11;
+	int? optionalKept = within (allocator) keep<int?>(optional);
+	if (!optionalKept.specified || optionalKept.value != 11 || calls != 5) return 5;
+	delegate int() callable = () => 13;
+	delegate int() callableKept = within (allocator) keep<delegate int()>(callable);
+	if (callableKept() != 13 || calls != 6) return 6;
+	return 0;
+}
