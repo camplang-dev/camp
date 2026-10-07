@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-253.
+Next bug number: BUG-254.
 
 ## Bug Template
 
@@ -129,3 +129,45 @@ Known Impact:
 Any function returning an array member of a call result whose arguments include an
 array or view fails to compile natively. Store the call result in a local, then return
 its member.
+
+## BUG-253: Nested conditional of a const array value emits an assignment to a const temporary
+
+Date/Time: 2026-10-06 23:39 EDT
+
+Summary:
+A conditional expression whose arms are const array or view values, such as string
+literals, and whose condition is not a plain local comparison, is emitted with
+separate branch assignments to temporaries. The temporary that holds the view's length
+is declared `const uintptr_t` and then assigned in both branches, so the native C
+compiler rejects the generated code. A single conditional, and a nested conditional
+whose conditions only compare locals, are emitted as ternary expressions and are
+unaffected.
+
+Steps to Reproduce:
+
+1. Compile this source with `campc build repro.camp --nostdlib --out-dir out`:
+
+```camp
+extern void __intrinsic_log_i32(int value);
+struct Param { int kind; }
+int pick(Param p)
+{
+	const char[] s = p.kind == 1 ? "aa" : p.kind == 2 ? "bbb" : "c";
+	return (int)s.length;
+}
+export int main() { __intrinsic_log_i32(pick({ 2 })); return 0; }
+```
+
+Expected:
+The source builds and logs 3.
+
+Actual:
+The generated C contains `const uintptr_t _conditionalValue3;` followed by
+`_conditionalValue3 = 2;` and the C compiler fails with "cannot assign to variable
+'_conditionalValue3' with const-qualified type 'const uintptr_t'". The same happens when
+the conditions call a function instead of reading a struct member.
+
+Known Impact:
+Any nested conditional producing a const view whose conditions read a member or call a
+function fails to compile natively. Compute the value with an `if` chain or a helper
+function that returns it.
