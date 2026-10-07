@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-259.
+Next bug number: BUG-260.
 
 ## Bug Template
 
@@ -153,3 +153,47 @@ Known Impact:
 Returning an array field from a struct value receiver can prevent native
 compilation. Passing the struct as an ordinary named parameter avoids the
 receiver-specific emission path.
+
+## BUG-259: Array-return initializer loses the enclosing within statement's allocator context
+
+Date/Time: 2026-10-07 01:43 EDT
+
+Summary:
+Under explicit allocation policy, initializing an array local from an allocating
+array-return call inside a `within (default)` statement incorrectly reports that
+the call lacks an allocator context. The enclosing statement supplies that
+context, but expansion of the array declaration does not preserve it.
+
+Steps to Reproduce:
+
+1. Compile this source with `campc build repro.camp --artifact none`:
+
+```camp
+#within explicit
+escaped char[] join(const char[] first, const char[] second, within allocator)
+{
+	return new char[first.length + second.length];
+}
+export int main()
+{
+	within (default)
+	{
+		char[] joined = join("a", "bb") finally delete;
+		return (int)joined.length - 3;
+	}
+}
+```
+
+Expected:
+The source compiles. The call uses the explicitly selected default allocator
+from its enclosing `within` statement.
+
+Actual:
+The initializer reports "Call requires a within context for parameter
+'allocator'; prefix the call with a `within (allocator)` expression or place it
+inside a `within (allocator)` statement."
+
+Known Impact:
+Array-return initializers can be rejected despite an enclosing explicit
+allocator context. Repeating `within (default)` directly on the initializer
+call compiles and avoids the missing-context diagnostic.
