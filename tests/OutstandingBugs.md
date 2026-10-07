@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-256.
+Next bug number: BUG-257.
 
 ## Bug Template
 
@@ -271,3 +271,41 @@ Known Impact:
 Consumers of exported methods or functions that return an array and take two or more
 array parameters cannot build. A workaround is to pass one array parameter and the
 other as a pointer and length, or to return the result through an `out` parameter.
+
+## BUG-256: Indexing a dereferenced pointer to an array emits C with the wrong precedence
+
+Date/Time: 2026-10-06 23:54 EDT
+
+Summary:
+Indexing the dereference of a pointer to an array, `(*pointer)[i]`, is emitted as
+`*pointer[i]`, which the C compiler reads as `*(pointer[i])`. The index is applied to
+the pointer to the elements component instead of to the elements, so the program reads
+the wrong memory or crashes. Dereferencing into a local first and indexing the local is
+emitted correctly, and `(*pointer).length` is correct.
+
+Steps to Reproduce:
+
+1. Compile and run this source with `campc run repro.camp`:
+
+```camp
+extern void __intrinsic_log_i32(int value);
+export int main()
+{
+	int[] values = [10, 20, 30];
+	int[]* pointer = &values;
+	__intrinsic_log_i32((*pointer)[1]);
+	return 0;
+}
+```
+
+Expected:
+The program logs 20.
+
+Actual:
+The generated C is `__intrinsic_log_i32(*pointer[1]);`. The program logs an
+unrelated value or crashes. The forms `(*pointer).elements[2]` and
+`pointer.elements[2]` are emitted the same way.
+
+Known Impact:
+Any index or slice of a dereferenced array pointer reads the wrong element. Copy the
+dereferenced array to a local (`int[] view = *pointer;`) and index the local.
