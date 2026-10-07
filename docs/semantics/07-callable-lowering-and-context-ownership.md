@@ -30,6 +30,11 @@ Any compiler path that compares callables should use the shared callable-shape
 service or an equivalent centralized helper. Do not compare callable strings by
 ad hoc splitting in a feature-specific pass.
 
+Callable parameter ABI types recursively expand optional payloads. For example,
+`int??` carries an integer and two presence flags, and `int[]?` carries elements,
+length, and presence. Anonymous callables and callable newtypes use the same
+component order as a direct function with that signature.
+
 ### Source Specifier Slots And Contract Intent
 
 For each concrete callable family (`fn`, `delegate`, `async`, and `once`), a

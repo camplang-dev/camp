@@ -1,0 +1,42 @@
+int describe(int?? value)
+{
+	return value.specified ? (value.value.specified ? value.value.value : 2) : 1;
+}
+int arraySize(int[]? value) { return value.specified ? (int)value.length : -1; }
+int invoke(delegate int()? value) { return value.specified ? value.value() : -1; }
+int seven() => 7;
+int deep(int[]?? value) { return value.specified && value.value.specified ? (int)value.value.length : -1; }
+newtype fn int Nested(int?? value);
+newtype delegate int ArraySize(int[]? value);
+export int main()
+{
+	fn int(int??) measure = describe;
+	int?? both = 5;
+	int?? absent = default;
+	int? innerAbsent = default;
+	int?? outerPresent = innerAbsent;
+	if (measure(both) != 5 || measure(absent) != 1 || measure(outerPresent) != 2) return 1;
+	Nested named = describe;
+	if (named(both) != 5) return 2;
+	delegate int(int??) delegated = describe;
+	if (delegated(both) != 5 || delegated(outerPresent) != 2) return 6;
+	once int(int??) onceMeasure = (int?? value) => describe(value);
+	if (onceMeasure(both) != 5) return 7;
+	fn int(int[]?) size = arraySize;
+	int[] data = [1, 2, 3];
+	int[]? present = data;
+	int[]? missing = default;
+	if (size(present) != 3 || size(missing) != -1) return 3;
+	ArraySize namedSize = arraySize;
+	if (namedSize(present) != 3 || namedSize(missing) != -1) return 4;
+	fn int(int[]??) deepSize = deep;
+	int[]?? nestedArray = present;
+	int[]?? nestedMissing = missing;
+	if (deepSize(nestedArray) != 3 || deepSize(nestedMissing) != -1) return 8;
+	fn int(delegate int()?) call = invoke;
+	delegate int() action = seven;
+	delegate int()? optionalAction = action;
+	delegate int()? noAction = default;
+	if (call(optionalAction) != 7 || call(noAction) != -1) return 5;
+	return 0;
+}

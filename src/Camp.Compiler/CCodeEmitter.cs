@@ -8782,7 +8782,7 @@ public static class CCodeEmitter
                 }
                 if (TryGetOptionalElementOnly(parameterType, out string optionalElementType))
                 {
-                    types.Add(optionalElementType);
+                    types.AddRange(GetExpandedResolvedCallableParameterTypesForC([optionalElementType]));
                     types.Add("bool");
                     continue;
                 }
@@ -8839,8 +8839,12 @@ public static class CCodeEmitter
                 }
                 if (TryGetOptionalElementOnly(parameterType, out string optionalElementType))
                 {
-                    types.Add((optionalElementType, name));
-                    types.Add(("bool", name + "_specified"));
+                    TryGetExpandedStorageComponentsForC(parameterType, out List<(string Name, string Type)> optionalComponents);
+                    for (int i = 0; i < optionalComponents.Count; i++)
+                    {
+                        string componentName = i == 0 ? name : name + "_" + ExpandedFormService.StorageMemberName(optionalComponents[i].Name);
+                        types.Add((optionalComponents[i].Type, componentName));
+                    }
                     continue;
                 }
                 if (TryGetCallableNewtypeStorageComponentsByPrimaryTypeForC(parameterType, out List<(string Name, string Type)> callableNewtypeComponents))
@@ -9621,7 +9625,7 @@ public static class CCodeEmitter
                 }
                 if (TryGetOptionalElementOnly(type, out string optionalElementType))
                 {
-                    expanded.Add(optionalElementType);
+                    expanded.AddRange(GetExpandedResolvedCallableParameterTypesForC([optionalElementType]));
                     expanded.Add("bool");
                     continue;
                 }

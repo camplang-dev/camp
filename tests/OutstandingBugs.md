@@ -45,52 +45,6 @@ Known Impact:
 ```
 
 
-## BUG-265: Function-pointer type with an optional of an expandable payload drops a component
-
-Date/Time: 2026-10-07 08:30 EDT
-
-Summary:
-A function-pointer or callable type whose parameter is an optional of an expandable
-payload, such as `fn int(int??)` or `fn int(int[]?)`, is emitted with only two C
-parameters for that optional: the payload and one specified flag. A function of the
-same Camp signature takes every component (`int`, `bool`, `bool` for `int??`, and
-elements, length and specified flag for `int[]?`), so assigning the function to the
-callable value and calling through it do not compile. The nested type is also spelled
-with an undeclared C name.
-
-Steps to Reproduce:
-
-1. Create `repro.camp`:
-
-```camp
-extern void __intrinsic_log_i32(int value);
-int describe(int?? value) { return value.specified ? 1 : 0; }
-export int main()
-{
-	fn int(int??) measure = describe;
-	int?? both = 5;
-	__intrinsic_log_i32(measure(both));
-	return 0;
-}
-```
-
-2. Run `campc run repro.camp --nostdlib` with a shim providing `__intrinsic_log_i32`.
-
-Expected:
-The callable type carries every component of the optional, the program builds and it
-prints `1`. The same holds for `fn int(int[]?)` assigned a function taking `int[]?`.
-
-Actual:
-The C compiler reports "unknown type name 'intOptional'", "incompatible function pointer
-types initializing 'int (*)(int, bool)' with an expression of type 'int (int, bool, bool)'"
-and "too many arguments to function call, expected 2, have 3". With `fn int(int[]?)` the
-pointer is declared `int (*)(int *, bool)` for a function of type
-`int (int *, uintptr_t, bool)`.
-
-Known Impact:
-Callable values cannot carry a nested optional or an optional array, delegate or other
-expandable payload. Calling the function directly works.
-
 ## BUG-266: Erased `in` array argument is misplaced when the call also passes an `out`
 
 Date/Time: 2026-10-07 09:05 EDT

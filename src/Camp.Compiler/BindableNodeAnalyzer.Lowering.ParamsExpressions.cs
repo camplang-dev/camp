@@ -60,7 +60,6 @@ public sealed partial class BindableNodeAnalyzer
 	bool IsSourceLevelFunctionPointerCall(CallExpression call)
 	{
 		if (call.Target?.ResolvedType is not string type
-			|| !StripTopLevelValueQualifiers(type).StartsWith("fn ", System.StringComparison.Ordinal)
 			|| !TryGetCallableShape(type, out CallableShape shape)
 			|| shape.Kind != "fn")
 			return false;
@@ -329,7 +328,8 @@ public sealed partial class BindableNodeAnalyzer
 				continue;
 			}
 
-			bool expectsExpandedComponents = ExpectsExpandedArgumentComponents(callableParameters, parameterIndex);
+			bool expectsExpandedComponents = ExpectsExpandedArgumentComponents(callableParameters, parameterIndex)
+				|| ArgumentMatchesExpandedParameterTypes(argument, callableParameters, parameterIndex);
 			if (expectsExpandedComponents && TryCreateIteratorToProtocolArgumentComponents(argument, callableParameters, parameterIndex, out List<Expression> iteratorProtocolComponents))
 			{
 				arguments.RemoveAt(i);
@@ -403,7 +403,10 @@ public sealed partial class BindableNodeAnalyzer
 		if (parameterIndex < callableParameters.Count && (IsHiddenParameterComponentOfPrevious(callableParameters, parameterIndex)
 			|| IsExpandedArrayComponentPair(callableParameters, parameterIndex - 1)))
 			return false;
-		if (generatedParamsComponentArguments.Contains(arguments[argumentIndex]))
+		if (generatedParamsComponentArguments.Contains(arguments[argumentIndex])
+			&& TryGetParamsComponentShape(callableParameters[parameterIndex - 1].Type,
+				callableParameters[parameterIndex - 1].ResolvedType, "value", out ParamsComponentShape sourceShape)
+			&& sourceShape.Components.Count > 1)
 			return true;
 
 		string previousName = callableParameters[parameterIndex - 1].Name;
@@ -464,6 +467,23 @@ public sealed partial class BindableNodeAnalyzer
 		if (IsExpandedArrayComponentPair(callableParameters, index))
 			return true;
 		return IsPointerToExpandedComponentPair(callableParameters, index);
+	}
+
+	bool ArgumentMatchesExpandedParameterTypes(ArgumentExpression argument, List<ParameterDefinition>? parameters, int index)
+	{
+		// Anonymous callable carriers have positional ABI names rather than source
+		// component names. Match the complete recursive shape against those slots.
+		if (parameters is null
+			|| !TryGetParamsComponentShape(null, argument.Value?.ResolvedType ?? argument.ResolvedType, "value", out ParamsComponentShape shape)
+			|| shape.Components.Count <= 1 || index + shape.Components.Count > parameters.Count)
+			return false;
+		for (int i = 0; i < shape.Components.Count; i++)
+		{
+			if (StripTopLevelValueQualifiers(shape.Components[i].Type)
+				!= StripTopLevelValueQualifiers(parameters[index + i].ResolvedType ?? ""))
+				return false;
+		}
+		return true;
 	}
 
 	bool TryCreateParamsPointerArgumentComponents(ArgumentExpression argument, List<ParameterDefinition>? callableParameters, int index, out List<Expression> components)
