@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-267.
+Next bug number: BUG-268.
 
 ## Bug Template
 
@@ -44,3 +44,53 @@ Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
 
+## BUG-267: `within` call to an erased generic with an optional result omits the result storage
+
+Date/Time: 2026-10-07 11:40 EDT
+
+Summary:
+A call made under `within (allocator)` to an erased generic whose result is `T?` passes
+no result storage. The function is declared with its trailing result pointer, but the
+call site passes the allocator in that position, drops one argument and assigns the
+returned specified flag to the payload. The same call without `within`, or to a function
+whose result is `T`, is correct.
+
+Steps to Reproduce:
+
+1. Create `repro.camp`:
+
+```camp
+interface Allocator
+{
+	escaped void* alloc(nuint size);
+	void* realloc(void* ptr, nuint newSize);
+	void free(void* ptr);
+}
+class NullAllocator: Allocator
+{
+	escaped void* alloc(nuint size): Allocator { return null; }
+	void* realloc(void* ptr, nuint newSize): Allocator { return null; }
+	void free(void* ptr): Allocator {}
+}
+T? keep<T: copyable>(in T value, within allocator, sizeof(T)) => value;
+export int main()
+{
+	NullAllocator* nothing = stackalloc NullAllocator();
+	Allocator* allocator = nothing;
+	int? kept = within (allocator) keep<int>(5);
+	return kept.value;
+}
+```
+
+2. Run `campc run repro.camp --nostdlib`.
+
+Expected:
+The program builds and exits with 5.
+
+Actual:
+The C compiler reports "too few arguments to function call, expected 4, have 3". The
+call is emitted as `int kept = keep(&(int){5}, (void *)(intptr_t)(_allocator1),
+sizeof(int));` with the specified flag set to `true` unconditionally.
+
+Known Impact:
+An erased generic that takes an allocator cannot return an optional of its type parameter.
