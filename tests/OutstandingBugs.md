@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-272.
+Next bug number: BUG-273.
 
 ## Bug Template
 
@@ -123,3 +123,41 @@ plain `int` gives the same error.
 Known Impact:
 A generic cannot call an interface method that takes a scalar `in` parameter. Workaround:
 declare the interface parameter without `in`.
+
+## BUG-272: a narrower local passed to an `in` parameter is read at the wider type
+
+Date/Time: 2026-10-07 13:55 EDT
+
+Summary:
+Passing a local of a narrower integer type to a scalar `in` parameter of a wider type,
+through an implicit widening conversion, passes the address of the local itself instead of
+the address of a widened temporary. The callee reads bytes beyond the local. A field or
+other non-local argument is widened into a temporary correctly.
+
+Steps to Reproduce:
+
+1. Create `repro.camp`:
+
+```camp
+extern void __intrinsic_log_i32(int value);
+int twice(in int x) => x * 2;
+export int main()
+{
+	short narrow = -1;
+	__intrinsic_log_i32(twice(narrow));
+	return 0;
+}
+```
+
+2. Run `campc run repro.camp --nostdlib --show-errorlevel`.
+
+Expected:
+The program prints `-2`.
+
+Actual:
+The program prints an arbitrary value (for example `-331218946`); the C compiler warns
+about passing `int16_t *` to a parameter of type `int *`.
+
+Known Impact:
+Any implicitly widened local passed to an `in` parameter reads undefined memory.
+Workaround: cast the argument explicitly, as in `twice((int)narrow)`.
