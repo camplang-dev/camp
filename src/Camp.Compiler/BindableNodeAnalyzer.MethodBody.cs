@@ -1286,10 +1286,20 @@ public sealed partial class BindableNodeAnalyzer
 
 	FunctionDefinition? ResolveCallTargetAllowingOmittedOut(CallExpression call, int resultCount, BodyScope scope, AnalysisScope typeScope, bool singleVoidResult = false)
 	{
-		List<FunctionDefinition> candidates = call.Target switch
+		List<FunctionDefinition> candidates;
+		if (call.Target is MemberExpression member)
+		{
+			string receiverType = TryAnalyzeMemberTypeTarget(member.Target, scope, typeScope, out string typeTarget)
+				? typeTarget
+				: BodyAnalyzeExpression(member.Target, scope, typeScope);
+			candidates = IsTypeReferenceExpression(member.Target)
+				? LookupStaticMemberFunctions(receiverType, member.Name, member.SourceSyntax)
+				: LookupMemberFunctions(receiverType, member.Name, member.SourceSyntax);
+		}
+		else
+			candidates = call.Target switch
 		{
 			NamedExpression named => LookupFunctions(named, scope),
-			MemberExpression member => LookupMemberFunctions(BodyAnalyzeExpression(member.Target, scope, typeScope), member.Name, member.SourceSyntax),
 			MemberReferenceExpression { Member: FunctionDefinition function } => [function],
 			MethodReferenceExpression method => method.Candidates,
 			_ => []

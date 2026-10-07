@@ -44,45 +44,6 @@ Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
 
-## BUG-254: Type name shadowed by a same-named property in a static method
-
-Date/Time: 2026-10-06 23:45 EDT
-
-Summary:
-Inside a static method of a class, a qualified call on a type whose name matches a
-property of that class (an accessor `getCatalog` declares the property `Catalog`) is
-rejected with a message saying the property requires explicit `this.` qualification.
-A static method has no `this`, and the name is used as the qualifier of a static call,
-so it must resolve to the type. Earlier compilers resolve it to the type.
-
-Steps to Reproduce:
-
-1. Compile this source with `campc build repro.camp --artifact none`:
-
-```camp
-public class Catalog { public static int begin() { return 1; } }
-public class Holder
-{
-	Catalog* catalog;
-	public Catalog* getCatalog() => this.catalog;
-	public static int make() { return Catalog.begin(); }
-}
-export int main() { return Holder.make() - 1; }
-```
-
-Expected:
-The source compiles. `Catalog.begin()` in the static method calls the static method of
-the type `Catalog`.
-
-Actual:
-`error: Member property 'Catalog' requires explicit 'this.' qualification.` at the use
-of `Catalog` in the static method.
-
-Known Impact:
-Any static method that calls a static member through a type name equal to a property
-name of its own class fails to compile. Qualify the type with its namespace as a
-workaround.
-
 ## BUG-255: Imported method returning an array drops the last array parameter's length
 
 Date/Time: 2026-10-06 23:51 EDT

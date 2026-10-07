@@ -1,0 +1,29 @@
+public class Catalog
+{
+	public static int begin() { return 1; }
+	public static void read(out int value) { value = 7; }
+}
+public class Holder
+{
+	Catalog* catalog;
+	public Catalog* getCatalog() => this.catalog;
+	public static int make() { return Catalog.begin(); }
+	public static int read() { return Catalog.read(); }
+}
+static class Service { public static int begin() => 3; }
+public class ServiceHolder
+{
+	int getService() => 0;
+	public static int make() { int value = Service.begin(); return value; }
+}
+public class Receiver { public int begin() => 5; }
+int shadow(Receiver* Catalog) { return Catalog.begin(); }
+export int main()
+{
+	if (Holder.make() != 1) return 1;
+	if (Holder.read() != 7) return 2;
+	if (ServiceHolder.make() != 3) return 3;
+	Receiver* receiver = new Receiver() finally delete;
+	if (shadow(receiver) != 5) return 4;
+	return 0;
+}
