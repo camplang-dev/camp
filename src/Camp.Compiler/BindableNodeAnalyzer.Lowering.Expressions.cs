@@ -1071,6 +1071,13 @@ public sealed partial class BindableNodeAnalyzer
 
 	int CountCallableParametersSatisfiedByArgument(ArgumentExpression argument, List<ParameterDefinition> callableParameters, int parameterIndex)
 	{
+		// Materialized inputs and outputs occupy one storage slot. A following
+		// size capability is not the length component of an array argument.
+		if (parameterIndex < callableParameters.Count
+			&& !IsExpandedParameterComponentStart(callableParameters, parameterIndex)
+			&& (IsMaterializedExpandedStorageParameter(callableParameters[parameterIndex])
+				|| IsMaterializedGenericOutStorageParameter(callableParameters[parameterIndex])))
+			return 1;
 		if (!TryGetArgumentParamsComponentShape(argument, out ParamsComponentShape shape) || shape.Components.Count <= 1)
 		{
 			if (parameterIndex + 1 < callableParameters.Count

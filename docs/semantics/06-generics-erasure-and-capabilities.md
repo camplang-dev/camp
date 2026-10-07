@@ -146,6 +146,10 @@ outputs copy back immediately after the call, before the enclosing expression
 continues. Component addresses need not be adjacent. Optional erased references
 retain their separate outer presence component.
 
+Each materialized input or output occupies one argument slot, regardless of
+the substituted value's component count. A following `sizeof(T)` capability
+remains a separate slot even when the value is an array.
+
 Some generic values are erased at source analysis boundaries. Operations that
 need layout, size, vtable, type name, construction, destruction, or copy
 capability must request the corresponding capability explicitly.

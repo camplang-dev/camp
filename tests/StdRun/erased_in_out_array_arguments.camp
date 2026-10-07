@@ -1,0 +1,30 @@
+void store<T: copyable>(out T target, in T value, sizeof(T)) { target = value; }
+void storeReversed<T: copyable>(in T value, out T target, sizeof(T)) { target = value; }
+T identity<T: copyable>(in T value, sizeof(T)) => value;
+void storeWithTail<T: copyable>(out T target, in T value, int check = 7, sizeof(T))
+{
+	if (check == 7) target = value;
+	else target = default;
+}
+export int main()
+{
+	int[] source = [1, 2, 3];
+	int[] destination = [9];
+	store<int[]>(out destination, source);
+	if (destination.length != 3 || destination[2] != 3) return 1;
+	int[] second = [9];
+	storeReversed<int[]>(source[1..], out second);
+	if (second.length != 2 || second[0] != 2) return 2;
+	storeWithTail<int[]>(out second, source);
+	if (second.length != 3 || second[2] != 3) return 3;
+	int[] result = identity<int[]>(source);
+	if (result.length != 3 || result[1] != 2) return 4;
+	int? optional = 5;
+	int? copied = default;
+	store<int?>(out copied, optional);
+	if (!copied.specified || copied.value != 5) return 5;
+	int scalar = 0;
+	store<int>(out scalar, 13);
+	if (scalar != 13) return 6;
+	return 0;
+}
