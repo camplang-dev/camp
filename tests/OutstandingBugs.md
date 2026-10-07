@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-269.
+Next bug number: BUG-270.
 
 ## Bug Template
 
@@ -144,3 +144,42 @@ The program exits with an arbitrary value. The generated C declares `kept` and
 
 Known Impact:
 An erased generic that takes an allocator cannot return an array value.
+
+## BUG-269: An allocator selector inherits the result type of a `within` expression
+
+Date/Time: 2026-10-07 13:33 EDT
+
+Summary:
+An allocator-returning call used as the context of a `within` expression is
+checked against the destination type of the wrapped expression. Allocator
+selection and the wrapped call have independent result types.
+
+Steps to Reproduce:
+
+1. Create `repro.camp`:
+
+```camp
+struct Allocator {}
+Allocator* select(Allocator* allocator) => allocator;
+T? keep<T: copyable>(in T value, within allocator, sizeof(T)) => value;
+export int main()
+{
+	Allocator* allocator = null;
+	int? result = within (select(allocator)) keep<int>(5);
+	return result.value;
+}
+```
+
+2. Run `campc build repro.camp --nostdlib --artifact none`.
+
+Expected:
+The program compiles. The allocator expression has type `Allocator*` and the
+wrapped result has type `int?`.
+
+Actual:
+The compiler reports "Call result cannot convert 'Allocator*' to 'int?'."
+
+Known Impact:
+Allocator selector calls are rejected when their enclosing expression has a
+different destination type. Evaluate the selector into a local first as a
+workaround.
