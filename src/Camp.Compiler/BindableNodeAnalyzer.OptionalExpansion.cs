@@ -86,6 +86,11 @@ public sealed partial class BindableNodeAnalyzer
 	bool TryCreateValueParamsComponents(Expression expression, ParamsComponentShape target, out List<Expression> components)
 	{
 		components = [];
+		if (TryGetOptionalPayloadType(target.TypeName, out _)
+			&& expression is WithinExpression { Expression: CallExpression call } within
+			&& IsErasedResultCall(call)
+			&& currentStatementPrefix is not null)
+			return TryCreateWithinErasedResultComponents(within, call, target, out components);
 		if (expression is not DefaultExpression && TryGetOptionalPayloadType(target.TypeName, out string payload)
 			&& CanLiftToOptional(expression.ResolvedType ?? ErrorType, target.TypeName))
 		{
@@ -102,5 +107,29 @@ public sealed partial class BindableNodeAnalyzer
 		return (TryCreateParamsComponentExpressions(expression, out components)
 			|| TryCreateDirectFunctionDelegateComponents(expression, target, out components))
 			&& components.Count == target.Components.Count;
+	}
+
+	bool TryCreateWithinErasedResultComponents(WithinExpression within, CallExpression call, ParamsComponentShape target, out List<Expression> components)
+	{
+		bool defaultWithin = within.Context is DefaultWithinContextExpression;
+		Expression? context = defaultWithin ? null : LowerExpression(within.Context);
+		Expression? previousWithinContext = currentWithinContext;
+		int previousDefaultWithinContextDepth = currentDefaultWithinContextDepth;
+		currentWithinContext = defaultWithin ? null : CaptureWithinContext(context, within.SourceSyntax);
+		if (defaultWithin)
+			currentDefaultWithinContextDepth++;
+		try
+		{
+			AddImplicitDefaultArguments(call);
+			bool expanded = TryCreateValueParamsComponents(call, target, out components);
+			if (expanded)
+				preparedExpandedReturnCalls.Add(call);
+			return expanded;
+		}
+		finally
+		{
+			currentWithinContext = previousWithinContext;
+			currentDefaultWithinContextDepth = previousDefaultWithinContextDepth;
+		}
 	}
 }

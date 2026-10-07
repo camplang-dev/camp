@@ -394,7 +394,8 @@ public sealed partial class BindableNodeAnalyzer
 
 	int CountTrailingExpandedReturnArguments(CallExpression call, FunctionDefinition? function)
 	{
-		if (function is null
+		if (IsErasedResultCall(call)
+			|| function is null
 			|| !TryGetExpandedReturnShape(call, function, out ParamsComponentShape shape)
 			|| shape.Components.Count <= 1)
 			return 0;

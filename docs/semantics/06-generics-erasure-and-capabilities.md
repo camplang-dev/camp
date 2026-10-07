@@ -140,6 +140,10 @@ error, size, name, and witness slots. Calls read as `A` or `A?`; their ordinary
 inferred locals never acquire a top-level erased storage type. Written bare
 `void<A>` results remain invalid.
 
+An optional erased result under a `within` expression retains both its payload
+storage and presence bit. Evaluate the allocator expression once before the
+call, and restore the enclosing allocator context after expanding the result.
+
 Erased `in`/`out` arguments pass existing erased storage and non-expandable
 values directly. Ordinary expandable values are packed into temporary storage;
 outputs copy back immediately after the call, before the enclosing expression

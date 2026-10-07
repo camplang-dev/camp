@@ -1,0 +1,26 @@
+#within explicit
+int selections = 0;
+int calls = 0;
+Allocator* selectAllocator(Allocator* allocator) { selections++; return allocator; }
+T? keep<T: copyable>(in T value, bool present = true, within allocator, sizeof(T))
+{
+	calls++;
+	if (present) return value;
+	return default;
+}
+export int main()
+{
+	Allocator* allocator = null;
+	allocator = selectAllocator(allocator);
+	int? kept = within (allocator) keep<int>(5);
+	if (!kept.specified || kept.value != 5 || selections != 1 || calls != 1) return 1;
+	allocator = selectAllocator(allocator);
+	int? absent = within (allocator) keep<int>(9, false);
+	if (absent.specified || absent.value != 0 || selections != 2 || calls != 2) return 2;
+	int? defaultKept = within (default) keep<int>(7);
+	if (!defaultKept.specified || defaultKept.value != 7 || calls != 3) return 3;
+	int? assigned = default;
+	assigned = within (allocator) keep<int>(11);
+	if (!assigned.specified || assigned.value != 11 || calls != 4) return 4;
+	return 0;
+}
