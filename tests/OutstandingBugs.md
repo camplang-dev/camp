@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-260.
+Next bug number: BUG-261.
 
 ## Bug Template
 
@@ -159,3 +159,32 @@ Known Impact:
 Array-return initializers can be rejected despite an enclosing explicit
 allocator context. Repeating `within (default)` directly on the initializer
 call compiles and avoids the missing-context diagnostic.
+
+## BUG-260: Generic static call probing drops type argument constraint diagnostics
+
+Date/Time: 2026-10-07 02:08 EDT
+
+Summary:
+Checking a static call for an omitted `out` result treats a generic type
+qualifier as a bare type reference and bypasses its type argument constraint
+checks. The compiler still rejects the constructed static qualifier, but loses
+the independent diagnostic for an incompatible type argument.
+
+Steps to Reproduce:
+
+1. Compile this source with `campc build repro.camp --artifact none --nostdlib`:
+
+```camp
+class Generic<T: copyable> { static int value() => 1; }
+void use<V: any>() { int value = Generic<V>.value(); }
+```
+
+Expected:
+The diagnostics include both the invalid constructed static qualifier and
+`V` failing the `T: copyable` constraint.
+
+Actual:
+Only the invalid constructed static qualifier is diagnosed.
+
+Known Impact:
+Invalid generic static calls can omit useful type constraint diagnostics.
