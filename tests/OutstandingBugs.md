@@ -79,38 +79,3 @@ NameOfExpression.`
 Known Impact:
 The empty erased type name cannot be observed directly. `typenameof` of
 ordinary concrete types is unaffected.
-
-## BUG-263: Contextual receiver qualifiers lose pointer member access during C emission
-
-Date/Time: 2026-10-07 03:11 EDT
-
-Summary:
-A class method with a contextual receiver such as `escaped this` emits value
-member access even though its C receiver parameter is a pointer. Receiver
-classification reads the contextual parameter marker instead of its concrete
-bound type. This also affects generated virtual forwarding functions.
-
-Steps to Reproduce:
-
-1. Compile this source with `campc build repro.camp --nostdlib`:
-
-```camp
-class Box
-{
-	int value;
-	int read(escaped this) { return this.value; }
-}
-export int main() { return 0; }
-```
-
-Expected:
-The source compiles. The class receiver's member access uses `this->value` in C.
-
-Actual:
-The emitted function receives `Box* this` but returns `this.value`; native
-compilation fails because the receiver is a pointer.
-
-Known Impact:
-Contextual class receivers and virtual forwarding functions can fail native
-compilation. Removing a required receiver lifetime qualifier is not a general
-workaround.

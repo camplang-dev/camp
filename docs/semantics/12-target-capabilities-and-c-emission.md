@@ -301,6 +301,12 @@ indexing a dereferenced array's elements emits `(*elementsPointer)[index]`;
 the index applies to the elements rather than to the pointer to that component.
 The same grouping applies to reads, writes, and explicit `.elements` access.
 
+Member access through `this` follows the concrete receiver storage type.
+Lifetime qualifiers on a resolved receiver type, including trailing qualifiers
+such as `View* escaped`, do not change its pointer shape. Strip those qualifiers
+before choosing C member access, including in generated virtual forwarding
+functions.
+
 C emission receives lowered expanded forms. It must emit the component layout
 chosen by analysis/lowering:
 
