@@ -275,6 +275,10 @@ enum values, member accesses, and expanded components are invalid operands.
 generated receiver and overload symbols. It ignores `@symbol`; backend symbol
 overrides and metadata `symbolof(...)` are separate concepts.
 
+An erased `void<V>` type contributes an empty name, including storage wrappers
+such as pointers and array views. These are concrete empty strings and do not
+require a runtime name capability for `V`.
+
 `typenameof(T)` names exactly the type expression it is written for. It does
 not recursively grant name capabilities for related expressions such as `T[]`,
 `T*`, or `const T`; those require their own source capability where the

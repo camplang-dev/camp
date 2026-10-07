@@ -1,0 +1,8 @@
+export int main()
+{
+	if (typenameof(void<int>)[0] != 0) return 1;
+	if (typenameof(void<int>*)[0] != 0) return 2;
+	if (typenameof(const void<int[]>**)[0] != 0) return 3;
+	if (typenameof(void<int?>[])[0] != 0) return 4;
+	return 0;
+}

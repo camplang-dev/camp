@@ -8,6 +8,27 @@ namespace Camp.Compiler.Tests;
 public sealed class ErasedTypeTests
 {
 	[Theory]
+	[InlineData("void<int>")]
+	[InlineData("void<int>*")]
+	[InlineData("const void<int[]>**")]
+	[InlineData("void<int?>[]")]
+	public void Erased_type_names_emit_concrete_empty_strings(string type)
+	{
+		SemanticCompilation compilation = SemanticCompiler.CompileLowered($"export string name() => typenameof({type});");
+		SemanticCompiler.AssertNoDiagnostics(compilation);
+		DirectoryInfo directory = Directory.CreateTempSubdirectory("camp-erased-name-");
+		try
+		{
+			CEmissionResult emission = CCodeEmitter.Emit(compilation.Compilation,
+				new CEmissionOptions { OutputDirectory = directory.FullName, ProjectName = "erased_name" });
+			Assert.True(emission.Success, string.Join("\n", emission.Diagnostics));
+			string code = string.Join("\n", emission.GeneratedSourceFiles.Select(File.ReadAllText));
+			Assert.Contains("return \"\";", code);
+		}
+		finally { directory.Delete(recursive: true); }
+	}
+
+	[Theory]
 	[InlineData("copyable", "")]
 	[InlineData("copyable", ", sizeof(T)")]
 	[InlineData("any", "")]

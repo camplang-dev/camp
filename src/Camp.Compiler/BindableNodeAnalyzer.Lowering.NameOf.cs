@@ -185,7 +185,11 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		if (resolved != "classtype")
+		{
 			name = BuildNameOfTypeValue(resolved);
+			// Erased storage wrappers also have a concrete empty type fragment.
+			isErased = name.Length == 0;
+		}
 		return true;
 	}
 
