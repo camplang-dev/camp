@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-274.
+Next bug number: BUG-275.
 
 ## Bug Template
 
@@ -79,4 +79,46 @@ of `maybe`; the result storage pointer is missing.
 
 Known Impact:
 A generic that returns `T?` cannot take a delegate. Workaround: take an `fn` value instead.
+
+## BUG-274: an `fn T?` parameter of an erased generic has the wrong C function type
+
+Date/Time: 2026-10-07 16:50 EDT
+
+Summary:
+In an erased generic, an `fn` parameter whose result is `T?` is given the C type
+`void *(*)(..., bool *specified)` instead of the erased optional result shape, a `bool`
+result with a trailing `void *` result storage. A function with a `bool` result and a
+trailing `out` parameter, which the callback rules accept for it, then has an incompatible
+C type and the generated C does not compile.
+
+Steps to Reproduce:
+
+1. Create `repro.camp`:
+
+```camp
+T? maybe<T: copyable>(fn T?(int) look, int index, sizeof(T)) => look(index);
+bool intOut(int index, out int result)
+{
+	result = index;
+	return index > 0;
+}
+export int main()
+{
+	int? hit = maybe<int>(intOut, 6);
+	return hit.specified ? hit.value : 99;
+}
+```
+
+2. Run `campc run repro.camp --nostdlib --show-errorlevel`.
+
+Expected:
+The program runs and exits with 6.
+
+Actual:
+The C compiler reports `incompatible function pointer types passing 'bool (*)(int, void *)'
+to parameter of type 'void *(*)(int, bool *)'` at the call of `maybe`.
+
+Known Impact:
+An erased generic cannot take an `fn` callback with an optional erased result. A delegate
+callback hits BUG-273 instead.
 
