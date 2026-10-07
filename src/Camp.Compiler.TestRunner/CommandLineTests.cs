@@ -1753,6 +1753,70 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Imported_array_returns_preserve_multiple_array_arguments()
+	{
+		string root = TempPath("imported-array-return-arguments");
+		string library = Path.Combine(root, "library");
+		Directory.CreateDirectory(library);
+		File.WriteAllText(Path.Combine(library, "library.campbuild"), "--name imported_arrays\n--artifact static\nlibrary.camp\n");
+		File.WriteAllText(Path.Combine(library, "library.camp"), """
+			#within explicit
+			namespace ImportedArrays;
+			export escaped class Formatter
+			{
+				export Formatter() { }
+				export escaped char[] join(const char[] first, const char[] second, within allocator)
+				{
+					char[] joined = new char[first.length + second.length];
+					for (nuint i = 0; i < first.length; i++) joined[i] = first[i];
+					for (nuint j = 0; j < second.length; j++) joined[first.length + j] = second[j];
+					return joined;
+				}
+			}
+			export const char[] choose(const char[] first, const char[] second, const char[] third, int choice)
+			{
+				return choice == 0 ? first : choice == 1 ? second : third;
+			}
+			export int libraryControl(within allocator)
+			{
+				Formatter* formatter = new Formatter() finally delete;
+				char[] joined = formatter.join("a", "bb") finally delete;
+				return (int)joined.length;
+			}
+			""");
+		string app = Path.Combine(root, "app.camp");
+		File.WriteAllText(app, """
+			#within explicit
+			using ImportedArrays;
+			int run(Formatter* formatter, const char[] left, const char[] right, within Allocator* allocator)
+			{
+				char[] joined = formatter.join(left, right) finally delete;
+				if (joined.length != 5 || joined[0] != 'a' || joined[4] != 'e') return 1;
+				const char[] chosen = choose(left, right, "fghi", 1);
+				if (chosen.length != 3 || chosen[2] != 'e') return 2;
+				const char[] third = choose(left, right, "fghi", 2);
+				if (third.length != 4 || third[3] != 'i') return 3;
+				return 0;
+			}
+			export int main()
+			{
+				within (default)
+				{
+					Formatter* formatter = new Formatter() finally delete;
+					if (libraryControl() != 3) return 4;
+					return run(formatter, "ab", "cde");
+				}
+			}
+			""");
+		string output = Path.Combine(root, "out");
+		AssertCommandSucceeded(RunCampc("build", app, "--name", "consumer", "--project-reference", library + ":static", "--out-dir", output));
+		AssertCommandSucceeded(RunExecutable(Path.Combine(output, ArtifactDirectoryForHost(NativeBuildKind.Exec), "consumer" + ExecutableExtensionForHost())));
+		string api = File.ReadAllText(Path.Combine(library, "bin", ArtifactDirectoryForHost(NativeBuildKind.Static), "imported_arrays_api.camp"));
+		Assert.Contains("const char[] first, const char[] second", api, StringComparison.Ordinal);
+		Assert.DoesNotContain("second_length", api, StringComparison.Ordinal);
+	}
+
+	[Fact]
 	public void Static_project_api_array_return_can_be_indexed_by_consumer()
 	{
 		string libraryRoot = TempPath("static-api-array-return-index-library");

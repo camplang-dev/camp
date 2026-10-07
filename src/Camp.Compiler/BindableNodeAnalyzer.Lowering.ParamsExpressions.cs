@@ -395,7 +395,8 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (argumentIndex == 0 || parameterIndex == 0 || argumentIndex >= arguments.Count || parameterIndex > callableParameters.Count)
 			return false;
-		if (parameterIndex < callableParameters.Count && IsHiddenParameterComponentOfPrevious(callableParameters, parameterIndex))
+		if (parameterIndex < callableParameters.Count && (IsHiddenParameterComponentOfPrevious(callableParameters, parameterIndex)
+			|| IsExpandedArrayComponentPair(callableParameters, parameterIndex - 1)))
 			return false;
 
 		string previousName = callableParameters[parameterIndex - 1].Name;
@@ -578,7 +579,7 @@ public sealed partial class BindableNodeAnalyzer
 		return true;
 	}
 
-	static bool IsProvidedLengthComponent(Expression? value, Expression? next, string componentName)
+	bool IsProvidedLengthComponent(Expression? value, Expression? next, string componentName)
 	{
 		if (next is VariableReferenceExpression { Variable: ParameterDefinition parameter } && parameter.Name == componentName)
 			return true;
@@ -586,7 +587,9 @@ public sealed partial class BindableNodeAnalyzer
 			return true;
 		if (next is MemberExpression { Name: "length" } member && ExpressionReferencesSameValue(value, member.Target))
 			return true;
-		return false;
+		return value is not null
+			&& TryFindParamsExpansionSiblingFromExpansion(value, "length", out Expression? length)
+			&& ExpressionReferencesSameValue(length, next);
 	}
 
 	static bool IsProvidedComponent(Expression? next, string componentName)

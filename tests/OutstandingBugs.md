@@ -44,67 +44,6 @@ Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
 
-## BUG-255: Imported method returning an array drops the last array parameter's length
-
-Date/Time: 2026-10-06 23:51 EDT
-
-Summary:
-When a project consumes another project's generated API, a call to an exported method
-that returns an array and takes two or more array or view parameters is emitted without
-the length argument of the last array parameter, and the following arguments shift into
-the wrong slots. The same method called from within the library that declares it is
-emitted correctly. A method with one array parameter, or one that returns a scalar, is
-unaffected.
-
-Steps to Reproduce:
-
-1. Create `lib.campbuild` (`--name lib`, `--artifact static`, source `lib.camp`):
-
-```camp
-#within explicit
-namespace Lib;
-
-export escaped class Fmt
-{
-	export Fmt() { }
-	export escaped char[] join(const char[] first, const char[] second, within allocator)
-	{
-		return new char[first.length + second.length];
-	}
-}
-```
-
-2. Create `app.campbuild` (`--name app`, `--artifact static`,
-   `--project-reference lib.campbuild:static`, source `app.camp`):
-
-```camp
-#within explicit
-namespace App;
-
-int run(Lib::Fmt* f, const char[] left, const char[] right, within Allocator* allocator)
-{
-	char[] joined = f.join(left, right) finally delete;
-	return (int)joined.length;
-}
-export int entry(Lib::Fmt* f) { return within (default) run(f, "a", "b"); }
-```
-
-3. Run `campc build app.campbuild`.
-
-Expected:
-The call is emitted as `LibFmt_join(f, left, left_length, right, right_length,
-allocator, &joined_length)` and the project builds.
-
-Actual:
-The call is emitted as `LibFmt_join(f, left, left_length, right, allocator,
-(StdAllocator ***)&joined_length)`, omitting `right_length`, and the C compiler
-fails with "too few arguments to function call, expected 8, have 7".
-
-Known Impact:
-Consumers of exported methods or functions that return an array and take two or more
-array parameters cannot build. A workaround is to pass one array parameter and the
-other as a pointer and length, or to return the result through an `out` parameter.
-
 ## BUG-256: Indexing a dereferenced pointer to an array emits C with the wrong precedence
 
 Date/Time: 2026-10-06 23:54 EDT
