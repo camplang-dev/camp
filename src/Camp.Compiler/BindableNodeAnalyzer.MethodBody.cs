@@ -5199,7 +5199,7 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			if (currentParameter >= parameterIndex)
 				return argumentIndex;
-			int consumed = CountCallableParametersSatisfiedByArgument(arguments[argumentIndex], callableParameters, currentParameter);
+			int consumed = CountCallableParametersSatisfiedByArgument(arguments, arguments[argumentIndex], callableParameters, currentParameter);
 			if (parameterIndex < currentParameter + consumed)
 				return argumentIndex;
 			currentParameter += consumed;

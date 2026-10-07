@@ -216,6 +216,8 @@ public sealed partial class BindableNodeAnalyzer
 		DeclarationStatement storage = expanded ? CreateMaterializedGenericReturnStorage(valueType, call.SourceSyntax)
 			: CreateGeneratedLocal(NewGeneratedLocalName("result"), valueType, TypeReferenceForResolvedName(valueType), null);
 		statements.Add(storage);
+		// Bind omitted source inputs before introducing a positional output slot.
+		if (!preparedExpandedReturnCalls.Contains(call)) AddImplicitDefaultArguments(call);
 		AddErasedResultArgument(call, storage.Target);
 		List<Expression> components = expanded ? CreateMaterializedComponentExpressions(storage.Target, payloadShape)
 			: [CreateVariableReference(storage.Target, valueType)];

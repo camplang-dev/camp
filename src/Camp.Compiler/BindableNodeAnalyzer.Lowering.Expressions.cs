@@ -723,7 +723,7 @@ public sealed partial class BindableNodeAnalyzer
 			if (parameterIndex >= 0 && parameterIndex < argumentsByParameter.Length)
 			{
 				argumentsByParameter[parameterIndex] = argument;
-				int consumedParameters = CountCallableParametersSatisfiedByArgument(argument, callableParameters, parameterIndex);
+				int consumedParameters = CountCallableParametersSatisfiedByArgument(call.Arguments, argument, callableParameters, parameterIndex);
 				for (int componentIndex = 1; componentIndex < consumedParameters; componentIndex++)
 					MarkSuppliedParameter(suppliedParameters, parameterIndex + componentIndex);
 			}
@@ -740,7 +740,7 @@ public sealed partial class BindableNodeAnalyzer
 				&& !(IsExplicitHiddenArgument(supplied) && IsImplicitOnlyCallParameter(parameter)))
 			{
 				orderedArguments.Add(supplied);
-				int consumedParameters = CountCallableParametersSatisfiedByArgument(supplied, callableParameters, parameterIndex);
+				int consumedParameters = CountCallableParametersSatisfiedByArgument(call.Arguments, supplied, callableParameters, parameterIndex);
 				parameterIndex += consumedParameters - 1;
 				continue;
 			}
@@ -1069,8 +1069,16 @@ public sealed partial class BindableNodeAnalyzer
 		return null;
 	}
 
-	int CountCallableParametersSatisfiedByArgument(ArgumentExpression argument, List<ParameterDefinition> callableParameters, int parameterIndex)
+	int CountCallableParametersSatisfiedByArgument(List<ArgumentExpression> arguments, ArgumentExpression argument, List<ParameterDefinition> callableParameters, int parameterIndex)
 	{
+		int argumentIndex = arguments.IndexOf(argument);
+		// Rebinding an expanded call must count the call and context separately.
+		// Consuming both slots again shifts subsequent inputs and result storage.
+		if (ExpandedArgumentComponentAlreadyProvided(arguments, callableParameters, argumentIndex, parameterIndex)
+			|| argumentIndex + 1 < arguments.Count && parameterIndex + 1 < callableParameters.Count
+				&& generatedParamsComponentArguments.Contains(arguments[argumentIndex + 1])
+				&& IsHiddenParameterComponentOfPrevious(callableParameters, parameterIndex + 1))
+			return 1;
 		// Materialized inputs and outputs occupy one storage slot. A following
 		// size capability is not the length component of an array argument.
 		if (parameterIndex < callableParameters.Count

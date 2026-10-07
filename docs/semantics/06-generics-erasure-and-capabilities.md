@@ -140,6 +140,10 @@ error, size, name, and witness slots. Calls read as `A` or `A?`; their ordinary
 inferred locals never acquire a top-level erased storage type. Written bare
 `void<A>` results remain invalid.
 
+An expanded delegate argument contributes both its call and context slots before
+the erased result pointer. Adding defaults or capabilities to an already
+expanded call preserves those components and the result storage argument.
+
 An erased result under a `within` expression retains its whole result storage
 and any optional presence bit. Expanded payloads, including arrays and
 callables, are read from that storage after the call. Evaluate the allocator
