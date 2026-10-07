@@ -1373,6 +1373,8 @@ public static class CompilerDriver
                 ProjectName = projectName,
                 Kind = request.BuildKind.Value,
                 SourceFiles = [.. result.GeneratedSourceFiles, .. coverageRuntimeSources, .. ResolveInputPaths(request.NativeSourceFiles)],
+                // A failed content-cache check must not be overridden by native timestamps.
+                ForceRelink = request.BuildKind != NativeBuildKind.Static,
                 SourceFileStatuses = BuildSourceStatuses(result),
                 HeaderFiles = BuildHeaderFiles(result),
                 HeaderFileStatuses = BuildHeaderStatuses(result),

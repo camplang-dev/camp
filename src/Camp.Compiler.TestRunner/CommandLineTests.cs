@@ -1992,7 +1992,18 @@ public sealed class CommandLineTests
 	[Fact]
 	public void Static_project_reference_graph_links_transitives_without_embedding_archives()
 	{
-		string root = TempPath("static-project-reference-graph");
+		AssertStaticProjectReferenceGraph(futureOutputTimestamp: false);
+	}
+
+	[Fact]
+	public void Static_project_reference_graph_relinks_when_output_timestamp_is_in_the_future()
+	{
+		AssertStaticProjectReferenceGraph(futureOutputTimestamp: true);
+	}
+
+	void AssertStaticProjectReferenceGraph(bool futureOutputTimestamp)
+	{
+		string root = TempPath(futureOutputTimestamp ? "static-project-reference-graph-future-output" : "static-project-reference-graph");
 		string aRoot = Path.Combine(root, "a");
 		string bRoot = Path.Combine(root, "b");
 		string cRoot = Path.Combine(root, "c");
@@ -2095,6 +2106,8 @@ public sealed class CommandLineTests
 		DateTime oldAArchiveTime = File.GetLastWriteTimeUtc(aArchive);
 		DateTime oldBArchiveTime = File.GetLastWriteTimeUtc(bArchive);
 		DateTime oldAppTime = File.GetLastWriteTimeUtc(appExecutable);
+		if (futureOutputTimestamp)
+			File.SetLastWriteTimeUtc(appExecutable, DateTime.UtcNow.AddMinutes(2));
 		Thread.Sleep(1200);
 		File.WriteAllText(aSource, """
 			namespace AlphaStaticA;
@@ -2111,14 +2124,17 @@ public sealed class CommandLineTests
 		Assert.Contains("project reference alpha_static_a: reused", rebuild.StdOut, StringComparison.Ordinal);
 		Assert.True(File.GetLastWriteTimeUtc(aArchive) > oldAArchiveTime, "Expected changed upstream project A to rebuild its archive.");
 		Assert.Equal(oldBArchiveTime, File.GetLastWriteTimeUtc(bArchive));
-		Assert.True(File.GetLastWriteTimeUtc(appExecutable) > oldAppTime, "Expected final executable to relink when upstream project A changes.");
+		if (!futureOutputTimestamp)
+			Assert.True(File.GetLastWriteTimeUtc(appExecutable) > oldAppTime, "Expected final executable to relink when upstream project A changes.");
 		ProcessResult rerun = RunExecutable(appExecutable);
 		Assert.Equal(56, rerun.ExitCode);
 
+		DateTime rebuiltAppTime = File.GetLastWriteTimeUtc(appExecutable);
 		Thread.Sleep(1200);
 		ProcessResult current = RunCampcIn(appRoot, "build", "app.campbuild", "--nostdlib", "--target", target, "--verbose");
 		AssertCommandSucceeded(current);
 		Assert.DoesNotContain("rebuilding", current.StdOut, StringComparison.Ordinal);
+		Assert.Equal(rebuiltAppTime, File.GetLastWriteTimeUtc(appExecutable));
 	}
 
 	[Fact]

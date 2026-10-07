@@ -25,6 +25,7 @@ public sealed class NativeBuildOptions
 	public required string OutputDirectory { get; init; }
 	public required string ProjectName { get; init; }
 	public required NativeBuildKind Kind { get; init; }
+	public bool ForceRelink { get; init; }
 	public required IReadOnlyList<string> SourceFiles { get; init; }
 	public IReadOnlyDictionary<string, BuildFileWriteStatus> SourceFileStatuses { get; init; } = new Dictionary<string, BuildFileWriteStatus>(StringComparer.OrdinalIgnoreCase);
 	public IReadOnlyList<string> HeaderFiles { get; init; } = [];
@@ -159,7 +160,7 @@ public static class NativeBuildDriver
 
 	static bool CanReuseNativeArtifact(NativeBuildOptions options, string output, string? sharedImportLibrary, IReadOnlyList<string> objects, IReadOnlyDictionary<string, string>? toolchainEnvironment)
 	{
-		if (!File.Exists(output))
+		if (options.ForceRelink || !File.Exists(output))
 			return false;
 		if (options.Kind == NativeBuildKind.Shared && !string.IsNullOrWhiteSpace(sharedImportLibrary) && !File.Exists(sharedImportLibrary))
 			return false;

@@ -270,6 +270,12 @@ referenced project before compiling the consumer.
 
 ## Project Reference Freshness Inputs
 
+The consumer's artifact cache also fingerprints linked library content. If that
+cache invalidates an executable or shared library, the native build relinks it
+even when its existing output has a later timestamp than the changed inputs.
+Unchanged native objects remain reusable, and an unchanged consumer still uses
+the validated artifact cache without relinking.
+
 Project-reference cache checks consider:
 
 - the referenced `.campbuild` file;
