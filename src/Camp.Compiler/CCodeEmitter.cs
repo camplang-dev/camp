@@ -1629,6 +1629,11 @@ public static class CCodeEmitter
             if (targetParameterTypes.Count == 0 || !IsVoidPointerType(targetParameterTypes[0]))
                 return false;
 
+            // Prep is a source contract; its flattened buffer slots have the
+            // ordinary array ABI, just like GetCallableParameterTypeText below.
+            targetParameterTypes = targetParameterTypes.Select(type =>
+                CallableShapeService.ParseCallableSlot(type) is { Modifier: "prep" } slot ? slot.Type : type).ToList();
+
             List<ParameterDefinition> sourceParameters = GetCallableParametersForCall(sourceFunction);
             bool forwardsContext = sourceParameters.Count == targetParameterTypes.Count
                 && sourceParameters.Count > 0

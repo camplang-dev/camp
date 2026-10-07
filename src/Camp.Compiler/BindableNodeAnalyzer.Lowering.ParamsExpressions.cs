@@ -819,7 +819,7 @@ public sealed partial class BindableNodeAnalyzer
 		List<Expression> storageComponents = CreateMaterializedComponentExpressions(storage.Target, shape);
 		for (int componentIndex = 0; componentIndex < shape.Components.Count; componentIndex++)
 		{
-			currentStatementSuffix.Add(new ExpressionStatement
+			QueueErasedArgumentCopyBack(new ExpressionStatement
 			{
 				SourceSyntax = argument.SourceSyntax,
 				ResolvedType = "void",

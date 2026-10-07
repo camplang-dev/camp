@@ -8,27 +8,40 @@ public sealed partial class BindableNodeAnalyzer
 	readonly HashSet<FunctionDefinition> optionalErasedReturnFunctions = [];
 	readonly Dictionary<CallExpression, string> erasedCallableResults = [];
 	readonly Dictionary<CallExpression, ParameterDefinition> trailingOutResults = [];
+	readonly HashSet<Statement> erasedArgumentCopyBackStatements = [];
+
+	// TypeShape is a comparison view: it omits explicit scoped annotations and
+	// their anchors. Rewrite only the named core, retaining the source declarators.
+	string RewriteStorageTypeName(string type, System.Func<TypeShape, string> rewrite)
+	{
+		TypeShapeParser parser = new(type);
+		if (!parser.TryParse(out TypeShape shape) || !parser.IsEnd) return type;
+		TypeShape named = shape;
+		while (named.Element is not null) named = named.Element;
+		if (named.Kind != TypeShapeKind.Named) return type;
+		string name = rewrite(shape);
+		return type[..parser.NamedTypeStart] + name + type[(parser.NamedTypeStart + named.Name.Length)..];
+	}
 
 	string ErasedCallableSignatureType(string type, System.Func<string, bool> erased, bool storage = false, bool result = false)
 	{
-		if (!TryParseTypeShape(type, out TypeShape shape)) return type;
-		TypeShape Rewrite(TypeShape node, bool reference, bool returned)
+		return RewriteStorageTypeName(type, shape => Rewrite(shape, storage, result));
+		string Rewrite(TypeShape node, bool reference, bool returned)
 		{
 			if (node.Element is not null)
-				return node with { Element = Rewrite(node.Element, reference && node.Kind == TypeShapeKind.Optional,
-					returned && node.Kind == TypeShapeKind.Optional) };
-			if ((reference || returned) && erased(node.Name)) return node with { Name = $"void<{node.Name}>" };
+				return Rewrite(node.Element, reference && node.Kind == TypeShapeKind.Optional,
+					returned && node.Kind == TypeShapeKind.Optional);
+			if ((reference || returned) && erased(node.Name)) return $"void<{node.Name}>";
 			if (TryParseCallableShape(node.Name, out CallableShape callable))
 			{
 				string returnType = ErasedCallableSignatureType(callable.ReturnType, erased, result: true);
 				List<string> parameters = callable.Parameters.Select(text => { CallableSlot slot = ParseCallableSlot(text);
 					string parameterType = ErasedCallableSignatureType(slot.Type, erased, slot.Modifier is "in" or "out");
 					return slot.Modifier.Length == 0 ? parameterType : slot.Modifier + " " + parameterType; }).ToList();
-				return node with { Name = BuildCallableType(callable.Kind, returnType, parameters, callable.Spec, callable.CallSpec) };
+				return BuildCallableType(callable.Kind, returnType, parameters, callable.Spec, callable.CallSpec);
 			}
-			return node;
+			return node.Name;
 		}
-		return TypeShapeParser.Format(Rewrite(shape, storage, result));
 	}
 
 	bool IsFunctionErasedParameter(FunctionDefinition function, string name) =>
@@ -108,27 +121,39 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			Expression target = output ? CaptureCopyBackTarget(components[i]) : slots[i];
 			Expression initial = output ? slots[i] : components[i];
-			(output ? currentStatementSuffix : currentStatementPrefix).Add(new ExpressionStatement
+			ExpressionStatement assignment = new()
 			{
 				SourceSyntax = value.SourceSyntax, ResolvedType = "void", Expression = new AssignmentExpression
 				{ Target = LowerExpression(target), Value = LowerExpression(initial), Operator = AssignmentOperator.Assign, ResolvedType = target.ResolvedType }
-			});
+			};
+			if (output) QueueErasedArgumentCopyBack(assignment);
+			else currentStatementPrefix.Add(assignment);
 		}
 		argument.Value = CreateVariableReference(storage.Target, storage.Target.ResolvedType ?? ErrorType);
 		argument.ResolvedType = argument.Value.ResolvedType;
 		DeclarationStatement flag = CreateGeneratedLocal(NewGeneratedLocalName("specified"), "bool", TypeReferenceForResolvedName("bool"), output ? null : LowerExpression(components[^1]));
 		currentStatementPrefix.Add(flag);
 		if (output)
-			currentStatementSuffix.Add(new ExpressionStatement { ResolvedType = "void", Expression = new AssignmentExpression
+			QueueErasedArgumentCopyBack(new ExpressionStatement { ResolvedType = "void", Expression = new AssignmentExpression
 			{ Target = CaptureCopyBackTarget(components[^1]), Value = CreateVariableReference(flag.Target, "bool"), Operator = AssignmentOperator.Assign, ResolvedType = "bool" } });
 		arguments.Insert(argumentIndex + 1, new ArgumentExpression { SourceSyntax = argument.SourceSyntax, Modifier = argument.Modifier,
 			Value = CreateVariableReference(flag.Target, "bool"), ResolvedType = "bool" });
 		return true;
 	}
 
+	void QueueErasedArgumentCopyBack(Statement statement)
+	{
+		currentStatementSuffix!.Add(statement);
+		erasedArgumentCopyBackStatements.Add(statement);
+	}
+
 	Expression CompleteErasedArgumentCopyBack(Expression expression, int suffixStart)
 	{
-		if (currentStatementPrefix is null || currentStatementSuffix is null || currentStatementSuffix.Count <= suffixStart)
+		// Ordinary throwing calls also append suffix checks. Those must stay after
+		// the source expression, especially after await completion, without hoisting
+		// the awaited call into an ordinary result temporary.
+		if (currentStatementPrefix is null || currentStatementSuffix is null
+			|| !currentStatementSuffix.Skip(suffixStart).Any(erasedArgumentCopyBackStatements.Contains))
 			return expression;
 		string type = expression.ResolvedType ?? "void";
 		if (expression is CallExpression call && materializedGenericReturnCalls.Contains(call) && callTargets.TryGetValue(call, out FunctionDefinition? function))
@@ -148,6 +173,8 @@ public sealed partial class BindableNodeAnalyzer
 			result = CreateVariableReference(value.Target, type);
 		}
 		currentStatementPrefix.AddRange(currentStatementSuffix.Skip(suffixStart));
+		foreach (Statement statement in currentStatementSuffix.Skip(suffixStart))
+			erasedArgumentCopyBackStatements.Remove(statement);
 		currentStatementSuffix.RemoveRange(suffixStart, currentStatementSuffix.Count - suffixStart);
 		return result;
 	}
@@ -222,31 +249,27 @@ public sealed partial class BindableNodeAnalyzer
 	// the declaration's single-object ABI for an expanded argument.
 	string SubstituteStorageType(string type, Dictionary<string, string> substitutions)
 	{
-		if (!TryParseTypeShape(type, out TypeShape shape))
-			return SubstituteGenericType(type, substitutions);
-		return TypeShapeParser.Format(SubstituteStorageShape(shape, substitutions, storage: false));
+		if (substitutions.Count == 0) return type;
+		return SubstituteGenericType(RewriteStorageTypeName(type, shape => SubstituteStorageShapeName(shape, substitutions, storage: false)), substitutions);
 	}
 
-	TypeShape SubstituteStorageShape(TypeShape shape, Dictionary<string, string> substitutions, bool storage)
+	string SubstituteStorageShapeName(TypeShape shape, Dictionary<string, string> substitutions, bool storage)
 	{
 		if (shape.Element is not null)
-			return shape with { Element = SubstituteStorageShape(shape.Element, substitutions, storage: true) };
+			return SubstituteStorageShapeName(shape.Element, substitutions, storage: true);
 		if (TryParseCallableShape(shape.Name, out CallableShape callable))
 		{
 			List<string> parameters = callable.Parameters.Select(text => { CallableSlot slot = ParseCallableSlot(text);
-				string type = TryParseTypeShape(slot.Type, out TypeShape parameterShape)
-					? TypeShapeParser.Format(SubstituteStorageShape(parameterShape, substitutions, slot.Modifier is "in" or "out"))
-					: SubstituteGenericType(slot.Type, substitutions);
+				string type = RewriteStorageTypeName(slot.Type, parameterShape => SubstituteStorageShapeName(parameterShape, substitutions, slot.Modifier is "in" or "out"));
 				return slot.Modifier.Length == 0 ? type : slot.Modifier + " " + type; }).ToList();
-			return shape with { Name = BuildCallableType(callable.Kind, SubstituteStorageType(callable.ReturnType, substitutions), parameters, callable.Spec, callable.CallSpec) };
+			return BuildCallableType(callable.Kind, SubstituteStorageType(callable.ReturnType, substitutions), parameters, callable.Spec, callable.CallSpec);
 		}
 		if (substitutions.TryGetValue(shape.Name, out string? value))
 		{
 			if (storage && TryGetParamsComponentShape(null, value, "value", out _)) value = $"void<{value}>";
-			if (TryParseTypeShape(value, out TypeShape replacement))
-				return replacement with { Qualifiers = replacement.Qualifiers with { IsConst = replacement.Qualifiers.IsConst || shape.Qualifiers.IsConst, IsVolatile = replacement.Qualifiers.IsVolatile || shape.Qualifiers.IsVolatile } };
+			return value;
 		}
-		return shape with { Name = SubstituteGenericType(shape.Name, substitutions) };
+		return SubstituteGenericType(shape.Name, substitutions);
 	}
 
 	static string ReadErasedValueType(string type)

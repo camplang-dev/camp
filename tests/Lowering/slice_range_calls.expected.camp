@@ -2,7 +2,7 @@ scoped const int[] slice(const int[] this, @range nuint index = 0, nuint count =
 {
 	const int* sliceResult;
 	nuint sliceResult_length;
-	sliceResult = this.elements;
+	sliceResult = this;
 	sliceResult_length = count;
 	{
 		result_length = sliceResult_length;

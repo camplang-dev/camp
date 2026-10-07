@@ -215,27 +215,21 @@ public sealed partial class BindableNodeAnalyzer
 
 	string NormalizeErasedCallableSlot(string type, bool reference)
 	{
-		if (!TryParseTypeShape(type, out TypeShape shape)) return type;
-		TypeShape Normalize(TypeShape node, bool storage)
+		return RewriteStorageTypeName(type, shape => Normalize(shape, reference));
+		string Normalize(TypeShape node, bool storage)
 		{
 			if (node.Element is not null)
-				return node with { Element = Normalize(node.Element, node.Kind is TypeShapeKind.Pointer or TypeShapeKind.Array) };
+				return Normalize(node.Element, node.Kind is TypeShapeKind.Pointer or TypeShapeKind.Array);
 			if (storage && ErasedTypeIdentity.TryGetPayload(node.Name, out string payload)
-				&& !TryGetParamsComponentShape(null, payload, "value", out _)
-				&& TryParseTypeShape(payload, out TypeShape plain))
-				return plain with { Qualifiers = new TypeQualifiers(
-					plain.Qualifiers.IsConst || node.Qualifiers.IsConst,
-					plain.Qualifiers.IsVolatile || node.Qualifiers.IsVolatile,
-					(LifetimeKind)Math.Max((int)plain.Qualifiers.Lifetime, (int)node.Qualifiers.Lifetime)),
-					TargetSpec = node.TargetSpec ?? plain.TargetSpec };
+				&& !TryGetParamsComponentShape(null, payload, "value", out _))
+				return payload;
 			if (TryParseCallableShape(node.Name, out CallableShape nested))
 			{
 				nested = NormalizeErasedCallableShape(nested);
-				return node with { Name = BuildCallableType(nested.Kind, nested.ReturnType, nested.Parameters, nested.Spec, nested.CallSpec) };
+				return BuildCallableType(nested.Kind, nested.ReturnType, nested.Parameters, nested.Spec, nested.CallSpec);
 			}
-			return node;
+			return node.Name;
 		}
-		return TypeShapeParser.Format(Normalize(shape, reference));
 	}
 
 	CallableShape BuildFunctionSourceCallableShape(FunctionDefinition function, bool isInstance, string? kindOverride = null)

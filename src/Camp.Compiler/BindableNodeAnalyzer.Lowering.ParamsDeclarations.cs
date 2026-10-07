@@ -894,6 +894,7 @@ public sealed partial class BindableNodeAnalyzer
 	bool TryGetExpandedReturnShape(CallExpression call, FunctionDefinition function, out ParamsComponentShape shape)
 	{
 		if (callGenericSubstitutions.TryGetValue(call, out Dictionary<string, string>? sourceSubstitutions)
+			&& sourceSubstitutions.Count > 0
 			&& TryGetParamsComponentShape(null, ReadErasedValueType(SubstituteStorageType(
 				function.ExpandedSourceReturnType?.ResolvedType ?? function.ResolvedType ?? ErrorType, sourceSubstitutions)), "result", out shape))
 			return true;

@@ -662,6 +662,7 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		readonly string text;
 		int index;
+		public int NamedTypeStart { get; private set; }
 
 		public TypeShapeParser(string text)
 		{
@@ -748,6 +749,7 @@ public sealed partial class BindableNodeAnalyzer
 			}
 
 			string remaining = text[index..];
+			NamedTypeStart = index;
 			string name;
 			if ((remaining.StartsWith("fn ", StringComparison.Ordinal) || remaining.StartsWith("delegate ", StringComparison.Ordinal)
 				|| remaining.StartsWith("once ", StringComparison.Ordinal) || remaining.StartsWith("async ", StringComparison.Ordinal)

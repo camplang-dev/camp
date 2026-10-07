@@ -1,10 +1,44 @@
 using Camp.Compiler;
+using System.Linq;
 using Xunit;
 
 namespace Camp.Compiler.Tests;
 
 public sealed class ErasedCallableTests
 {
+	[Theory]
+	[InlineData("scoped")]
+	[InlineData("scoped(owner)")]
+	[InlineData("unscoped(owner)")]
+	public void Storage_substitution_preserves_written_result_lifetime(string lifetime)
+	{
+		SemanticCompilation compilation = SemanticCompiler.CompileLowered($$"""
+			extern {{lifetime}} T* identity<T: any>(T* owner);
+			void test(int* pointer) { auto result = identity(pointer); }
+			""");
+		SemanticCompiler.AssertNoDiagnostics(compilation);
+		CallExpression call = Assert.Single(SemanticCompiler.Descendants<CallExpression>(SemanticCompiler.Function(compilation, "test")));
+		Assert.Equal(lifetime + " int*", call.ResolvedType);
+		Assert.Contains(lifetime + " T*", call.Target!.ResolvedType);
+	}
+
+	[Fact]
+	public void Async_rethrow_keeps_the_call_inside_await_until_completion()
+	{
+		SemanticCompilation compilation = SemanticCompiler.CompileLowered("""
+			class Resumer { void resumeAsync(escaped once void() continuation) { continuation(); } }
+			async int fail(@awaitwith Resumer* resumer, thrown int error) { throw 9; }
+			async int parent(@awaitwith Resumer* resumer, thrown int error) {
+				int value = await fail(resumer);
+				return value;
+			}
+			""");
+		SemanticCompiler.AssertNoDiagnostics(compilation);
+		UnaryExpression awaitExpression = Assert.Single(SemanticCompiler.Descendants<UnaryExpression>(SemanticCompiler.Function(compilation, "parent"))
+			.Where(expression => expression.Operator == UnaryOperator.Await));
+		Assert.IsType<CallExpression>(awaitExpression.Operand);
+	}
+
 	[Theory]
 	[InlineData("int peek(in int? value) => value.specified ? value.value : -1; int read<T: copyable>(in T value, delegate int(in T) f, sizeof(T)) => f(value); void test() { int? value = 4; read<int?>(value, peek); }")]
 	[InlineData("int seven() => 7; T produce<T: copyable>(delegate T() make, sizeof(T)) => make(); void test() { produce<int>(seven); }")]
