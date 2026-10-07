@@ -1,6 +1,6 @@
 tests/Diagnostics/late_overload_selectors_invalid.camp(1,58): error: A declaration may contain only one overload selector.
 tests/Diagnostics/late_overload_selectors_invalid.camp(45,29): error: An overload selector may not declare a default value.
-tests/Diagnostics/late_overload_selectors_invalid.camp(49,36): error: Generic values constrained to any must be passed by reference.
+tests/Diagnostics/late_overload_selectors_invalid.camp(49,36): error: Erased generic values cannot be passed by value; use 'in T', 'out T', or a pointer, even when sizeof(T) is available.
 tests/Diagnostics/late_overload_selectors_invalid.camp(49,36): error: `overload value` is invalid because 'T' does not contribute a method-symbol type fragment.
 tests/Diagnostics/late_overload_selectors_invalid.camp(55,27): error: `overload` may not be used on constructors or destructors.
 tests/Diagnostics/late_overload_selectors_invalid.camp(9,53): error: Overload family `selectorName` must use the same selector parameter name.

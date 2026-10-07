@@ -1,4 +1,4 @@
-T copyReturn<T: copyable>(T value)
+T copyReturn<T: copyable>(in T value)
 {
 	return value;
 }

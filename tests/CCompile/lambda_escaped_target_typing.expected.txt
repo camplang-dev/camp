@@ -28,7 +28,7 @@ static void use(Worker *worker)
 	int offset = 2;
 	use_lambdaContext0 *_lambdaContext0 = (use_lambdaContext0 *)(malloc(sizeof(use_lambdaContext0)));
 	_lambdaContext0->capture0_offset = offset;
-	acceptMapper((Mapper)use_lambda0, _lambdaContext0);
+	acceptMapper((int (*)(void *arg0, int arg1))use_lambda0, _lambdaContext0);
 	acceptWorker((int (*)(void *arg0, int arg1))Worker_adjust, (Worker *)(worker));
 }
 

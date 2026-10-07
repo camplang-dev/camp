@@ -25,7 +25,7 @@ int main(void)
 	bool (* positive)(void *arg0, int arg1) = main_lambda1;
 	void *positive_context = NULL;
 	int direct = apply((int (*)(void *arg0, int arg1))main_lambda2, NULL, 21);
-	return ((((apply((int (*)(void *arg0, int arg1))increment, increment_context, 4) == 5) && check((Predicate)positive, positive_context, 2)) && (direct == 42)) ? 0 : 1);
+	return ((((apply((int (*)(void *arg0, int arg1))increment, increment_context, 4) == 5) && check((bool (*)(void *arg0, int arg1))positive, positive_context, 2)) && (direct == 42)) ? 0 : 1);
 }
 
 static int main_lambda0(void *_context, int value)

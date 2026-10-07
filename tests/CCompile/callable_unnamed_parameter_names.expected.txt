@@ -28,7 +28,7 @@ int main(void)
 	Second second = (Second){ 0 };
 	bool (* predicate)(void *arg0, First *arg1, Second *arg2) = main_lambda0;
 	void *predicate_context = NULL;
-	return ((invokeFunction((bool (*)(First *arg0, Second *arg1))bothPresent, &first, &second) && invokeDelegate((PairPredicate)predicate, predicate_context, &first, &second)) ? 0 : 1);
+	return ((invokeFunction((bool (*)(First *arg0, Second *arg1))bothPresent, &first, &second) && invokeDelegate((bool (*)(void *arg0, First *arg1, Second *arg2))predicate, predicate_context, &first, &second)) ? 0 : 1);
 }
 
 static bool main_lambda0(void *_context, First *firstValue, Second *secondValue)

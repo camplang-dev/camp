@@ -47,7 +47,7 @@ virtual class Form: Control
 class PropertyBag
 {
 	escaped PropertyEntry[] entries;
-	fn void(RefCounted*)[] releaseFunctions;
+	escaped fn void(RefCounted*)[] releaseFunctions;
 
 	void ensureEntryCapacity(nuint newLength)
 	{

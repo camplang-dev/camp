@@ -38,7 +38,7 @@ static int main(void)
 	int (* formatter)(void *arg0, int arg1) = (int (*)(void *arg0, int arg1))Date_format;
 	void *formatter_context = (void *)(date);
 	int dateValue = formatter(formatter_context, 4);
-	int extra = DateFormatter_plusOne((DateFormatter)formatter, formatter_context);
+	int extra = DateFormatter_plusOne((int (*)(void *arg0, int arg1))formatter, formatter_context);
 	Point *point = NULL;
 	uintptr_t (* charFormatter)(void *arg0, char *arg1, uintptr_t arg2) = (uintptr_t (*)(void *arg0, char *arg1, uintptr_t arg2))Point_formatCharArray;
 	void *charFormatter_context = (void *)(point);

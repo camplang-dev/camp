@@ -30,7 +30,7 @@ static WriterHolder *WriterHolder_create(BoolWriter writer, void *writer_context
 	WriterHolder *_created0 = (WriterHolder *)(malloc(sizeof(WriterHolder)));
 	if ((_created0 != NULL))
 	{
-		WriterHolder_op_initnew(_created0, (BoolWriter)writer, writer_context, format);
+		WriterHolder_op_initnew(_created0, (bool (*)(void *arg0, char arg1))writer, writer_context, format);
 	}
 	return _created0;
 }

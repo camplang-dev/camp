@@ -2,13 +2,14 @@
 #include "lambda_escaped_hardening_matrix_private.h"
 
 /* Private file declarations. */
+static bool __camp_delegate_main_lambda2(void *arg0, const void *arg1);
 void *malloc(uintptr_t size);
 void free(void *ptr);
 static void fail(Err *error);
 static int (* makeBlockAdder(int offset, void **result_context))(void *arg0, int arg1);
 static uintptr_t (* makeSpanLength(const char *span, uintptr_t span_length, void **result_context))(void *arg0);
 static int Box_add(Box *this, int amount);
-static uintptr_t Array_countWhere(void *this, uintptr_t this_length, bool (* predicate)(void *arg0, void *arg1), void *predicate_context, uintptr_t sizeof_T);
+static uintptr_t Array_countWhere(void *this, uintptr_t this_length, bool (* predicate)(void *arg0, const void *arg1), void *predicate_context, uintptr_t sizeof_T);
 static filterIter IntArray_filter(int *this, uintptr_t this_length, bool (* predicate)(void *arg0, int *arg1), void *predicate_context);
 static int invoke(int (* callback)(void *arg0, int arg1), void *callback_context, int value);
 static int invoke0(int (* callback)(void *arg0), void *callback_context);
@@ -20,6 +21,11 @@ static uintptr_t makeSpanLength_lambda1(void *_context);
 static bool main_lambda2(void *_context, int *item);
 static bool main_lambda3(void *_context, int *item);
 static int main_lambda4(void *_context);
+
+static bool __camp_delegate_main_lambda2(void *arg0, const void *arg1)
+{
+	return main_lambda2(arg0, (int *)arg1);
+}
 
 static void fail(Err *error)
 {
@@ -56,7 +62,7 @@ static int Box_add(Box *this, int amount)
 	return (this->value + amount);
 }
 
-static uintptr_t Array_countWhere(void *this, uintptr_t this_length, bool (* predicate)(void *arg0, void *arg1), void *predicate_context, uintptr_t sizeof_T)
+static uintptr_t Array_countWhere(void *this, uintptr_t this_length, bool (* predicate)(void *arg0, const void *arg1), void *predicate_context, uintptr_t sizeof_T)
 {
 	uintptr_t count = 0;
 	{
@@ -125,7 +131,7 @@ int main(void)
 	uintptr_t values_length = 4;
 	main_lambdaContext2 *_lambdaContext10 = (main_lambdaContext2 *)(malloc(sizeof(main_lambdaContext2)));
 	_lambdaContext10->capture0_threshold = threshold;
-	total = (total + (int)(Array_countWhere(values, values_length, (bool (*)(void *arg0, void *arg1))main_lambda2, _lambdaContext10, sizeof(int))));
+	total = (total + (int)(Array_countWhere(values, values_length, (bool (*)(void *arg0, const void *arg1))__camp_delegate_main_lambda2, _lambdaContext10, sizeof(int))));
 	main_lambdaContext3 *_lambdaContext11 = (main_lambdaContext3 *)(malloc(sizeof(main_lambdaContext3)));
 	_lambdaContext11->capture0_threshold = threshold;
 	{

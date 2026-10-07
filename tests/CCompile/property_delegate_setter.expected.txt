@@ -8,7 +8,7 @@ static void App_handle(App *this, Button *sender);
 
 static void App_wire(App *this, Button *button)
 {
-	Button_setClick(button, (ClickHandler)App_handle, this);
+	Button_setClick(button, (void (*)(void *arg0, Button *arg1))App_handle, this);
 }
 
 static void App_handle(App *this, Button *sender)

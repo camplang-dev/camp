@@ -49,8 +49,9 @@ public sealed partial class BindableNodeAnalyzer
 					string signature = BuildCallableType(shape.Kind, shape.ReturnType,
 						GetParameterTypeNames(newtypeDefinition.Parameters.Where(parameter => parameter is not ThisParameterDefinition)).ToList(), shape.Spec, shape.CallSpec);
 					signature = ErasedCallableSignatureType(signature, name => newtypeDefinition.GenericParameters.Any(parameter => parameter.Name == name && IsErasedGenericParameter(parameter)));
+					CallableShape declaredShape = shape;
 					TryParseCallableShape(SubstituteStorageType(signature, substitutions), out shape);
-					shape = shape with { This = thisContract };
+					shape = shape with { Spec = declaredShape.Spec, CallSpec = declaredShape.CallSpec, This = thisContract };
 				}
 				else
 					shape = shape with { ReturnType = SubstituteGenericType(shape.ReturnType, substitutions), This = thisContract };
@@ -263,8 +264,11 @@ public sealed partial class BindableNodeAnalyzer
 			shape = new CallableShape(GetCallableKindName(callable.Kind), CompilerDefinedSpecs.EffectiveType(callable.TargetSpec), CompilerDefinedSpecs.EffectiveCall(callable.CallSpec), FormatSignatureTypeReference(callable.ReturnType, anchors), [.. definition.Parameters.Where(parameter => parameter is not ThisParameterDefinition).Select(parameter => FormatSignatureParameter(parameter, anchors))], thisContract);
 			string signature = ErasedCallableSignatureType(BuildCallableType(shape.Kind, shape.ReturnType, shape.Parameters, shape.Spec, shape.CallSpec),
 				name => definition.GenericParameters.Any(parameter => parameter.Name == name && IsErasedGenericParameter(parameter)));
+			CallableShape declaredShape = shape;
 			TryParseCallableShape(signature, out shape);
-			shape = shape with { This = thisContract };
+			// The textual parser cannot distinguish a lone target spec from a call
+			// spec. Keep the declaration's resolved convention after slot rewriting.
+			shape = shape with { Spec = declaredShape.Spec, CallSpec = declaredShape.CallSpec, This = thisContract };
 			return true;
 		}
 

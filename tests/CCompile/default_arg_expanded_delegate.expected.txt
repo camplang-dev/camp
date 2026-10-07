@@ -2,27 +2,27 @@
 #include "default_arg_expanded_delegate_private.h"
 
 /* Private file declarations. */
-static int __camp_delegate_compareInt(void *arg0, int *arg1, int *arg2);
-static void __camp_delegate_noop(void *arg0, int *arg1);
+static int __camp_delegate_compareInt(void *arg0, const void *arg1, const void *arg2);
+static void __camp_delegate_noop(void *arg0, const void *arg1);
 void *malloc(uintptr_t size);
 void free(void *ptr);
 static int compareInt(int *left, int *right);
-static intptr_t Array_findInArray(const void *this, uintptr_t this_length, void *item, int (* comparer)(void *arg0, void *arg1, void *arg2), void *comparer_context, uintptr_t startAt, uintptr_t sizeof_T);
-static void Array_forEachFrom(void *this, uintptr_t this_length, void (* body)(void *arg0, void *arg1), void *body_context, uintptr_t startAt, uintptr_t sizeof_T);
+static intptr_t Array_findInArray(const void *this, uintptr_t this_length, const void *item, int (* comparer)(void *arg0, const void *arg1, const void *arg2), void *comparer_context, uintptr_t startAt, uintptr_t sizeof_T);
+static void Array_forEachFrom(void *this, uintptr_t this_length, void (* body)(void *arg0, const void *arg1), void *body_context, uintptr_t startAt, uintptr_t sizeof_T);
 static void noop(int *value);
 static uintptr_t IntArray_len(const int *this, uintptr_t this_length);
 static int main(void);
 
-static int __camp_delegate_compareInt(void *arg0, int *arg1, int *arg2)
+static int __camp_delegate_compareInt(void *arg0, const void *arg1, const void *arg2)
 {
 	(void)arg0;
-	return compareInt(arg1, arg2);
+	return compareInt((int *)arg1, (int *)arg2);
 }
 
-static void __camp_delegate_noop(void *arg0, int *arg1)
+static void __camp_delegate_noop(void *arg0, const void *arg1)
 {
 	(void)arg0;
-	noop(arg1);
+	noop((int *)arg1);
 }
 
 static int compareInt(int *left, int *right)
@@ -38,7 +38,7 @@ static int compareInt(int *left, int *right)
 	return 0;
 }
 
-static intptr_t Array_findInArray(const void *this, uintptr_t this_length, void *item, int (* comparer)(void *arg0, void *arg1, void *arg2), void *comparer_context, uintptr_t startAt, uintptr_t sizeof_T)
+static intptr_t Array_findInArray(const void *this, uintptr_t this_length, const void *item, int (* comparer)(void *arg0, const void *arg1, const void *arg2), void *comparer_context, uintptr_t startAt, uintptr_t sizeof_T)
 {
 	uintptr_t i = startAt;
 	{
@@ -56,7 +56,7 @@ __while_break1: ;
 	return -1;
 }
 
-static void Array_forEachFrom(void *this, uintptr_t this_length, void (* body)(void *arg0, void *arg1), void *body_context, uintptr_t startAt, uintptr_t sizeof_T)
+static void Array_forEachFrom(void *this, uintptr_t this_length, void (* body)(void *arg0, const void *arg1), void *body_context, uintptr_t startAt, uintptr_t sizeof_T)
 {
 	{
 		for (uintptr_t i = startAt; (i < this_length); i++)
@@ -81,10 +81,10 @@ static int main(void)
 {
 	int *values = (int []){10, 20, 30, 40, 50};
 	uintptr_t values_length = 5;
-	intptr_t found1 = Array_findInArray(values, values_length, &(int){30}, (int (*)(void *arg0, void *arg1, void *arg2))__camp_delegate_compareInt, NULL, 1, sizeof(int));
-	intptr_t found2 = Array_findInArray(values, values_length, &(int){30}, (int (*)(void *arg0, void *arg1, void *arg2))__camp_delegate_compareInt, NULL, 0, sizeof(int));
-	Array_forEachFrom(values, values_length, (void (*)(void *arg0, void *arg1))__camp_delegate_noop, NULL, 1, sizeof(int));
-	Array_forEachFrom(values, values_length, (void (*)(void *arg0, void *arg1))__camp_delegate_noop, NULL, 0, sizeof(int));
+	intptr_t found1 = Array_findInArray(values, values_length, &(int){30}, (int (*)(void *arg0, const void *arg1, const void *arg2))__camp_delegate_compareInt, NULL, 1, sizeof(int));
+	intptr_t found2 = Array_findInArray(values, values_length, &(int){30}, (int (*)(void *arg0, const void *arg1, const void *arg2))__camp_delegate_compareInt, NULL, 0, sizeof(int));
+	Array_forEachFrom(values, values_length, (void (*)(void *arg0, const void *arg1))__camp_delegate_noop, NULL, 1, sizeof(int));
+	Array_forEachFrom(values, values_length, (void (*)(void *arg0, const void *arg1))__camp_delegate_noop, NULL, 0, sizeof(int));
 	uintptr_t n = IntArray_len(values, values_length);
 	return (((int)(found1) + (int)(found2)) + (int)(n));
 }

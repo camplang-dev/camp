@@ -5,9 +5,9 @@
 static void accept(void *value);
 static bool Aggregate_isZero(Aggregate *this);
 static Aggregate makeAggregate(void);
-static void acceptValue(void *value);
-static void identity(void *value, uintptr_t sizeof_T, void *__result);
-static void getAt(void *value, uint32_t index, uintptr_t sizeof_T, void *__result);
+static void acceptValue(const void *value);
+static void identity(const void *value, void *__result, uintptr_t sizeof_T);
+static void getAt(const void *value, uint32_t index, void *__result, uintptr_t sizeof_T);
 static int main(void);
 
 static void accept(void *value)
@@ -24,11 +24,11 @@ static Aggregate makeAggregate(void)
 	return (Aggregate){ 1 };
 }
 
-static void acceptValue(void *value)
+static void acceptValue(const void *value)
 {
 }
 
-static void identity(void *value, uintptr_t sizeof_T, void *__result)
+static void identity(const void *value, void *__result, uintptr_t sizeof_T)
 {
 	{
 		__builtin_memcpy(__result, value, sizeof_T);
@@ -36,7 +36,7 @@ static void identity(void *value, uintptr_t sizeof_T, void *__result)
 	}
 }
 
-static void getAt(void *value, uint32_t index, uintptr_t sizeof_T, void *__result)
+static void getAt(const void *value, uint32_t index, void *__result, uintptr_t sizeof_T)
 {
 	{
 		__builtin_memcpy(__result, value, sizeof_T);
@@ -48,15 +48,15 @@ static int main(void)
 {
 	int value = 0;
 	accept(&value);
-	Aggregate _value0 = makeAggregate();
-	acceptValue(&_value0);
+	Aggregate _argument0 = makeAggregate();
+	acceptValue(&_argument0);
 	Aggregate aggregate = (Aggregate){0};
 	uint32_t count = 0;
 	{
 		while (true)
 		{
 			Aggregate _value1;
-			identity(&aggregate, sizeof(Aggregate), &_value1);
+			identity(&aggregate, &_value1, sizeof(Aggregate));
 			if (!Aggregate_isZero(&_value1))
 			{
 				goto __while_break3;
@@ -74,7 +74,7 @@ __while_break3: ;
 		while (true)
 		{
 			Aggregate _value4;
-			getAt(&aggregate, index, sizeof(Aggregate), &_value4);
+			getAt(&aggregate, index, &_value4, sizeof(Aggregate));
 			if (!Aggregate_isZero(&_value4))
 			{
 				goto __for_break6;

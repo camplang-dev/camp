@@ -2,16 +2,16 @@
 #include "generic_array_receiver_foreach_private.h"
 
 /* Private file declarations. */
-static int __camp_delegate_valueOfInt(void *arg0, int *arg1);
+static int __camp_delegate_valueOfInt(void *arg0, const void *arg1);
 static int valueOfInt(int *item);
 
-static int __camp_delegate_valueOfInt(void *arg0, int *arg1)
+static int __camp_delegate_valueOfInt(void *arg0, const void *arg1)
 {
 	(void)arg0;
-	return valueOfInt(arg1);
+	return valueOfInt((int *)arg1);
 }
 
-int Array_sumGeneric(void *this, uintptr_t this_length, int (* valueOf)(void *arg0, void *arg1), void *valueOf_context, uintptr_t sizeof_T)
+int Array_sumGeneric(void *this, uintptr_t this_length, int (* valueOf)(void *arg0, const void *arg1), void *valueOf_context, uintptr_t sizeof_T)
 {
 	int total = 0;
 	{
@@ -41,7 +41,7 @@ int main(void)
 {
 	int *values = (int []){1, 2, 3};
 	uintptr_t values_length = 3;
-	return ((Array_sumGeneric(values, values_length, (int (*)(void *arg0, void *arg1))__camp_delegate_valueOfInt, NULL, sizeof(int)) == 6) ? 0 : 1);
+	return ((Array_sumGeneric(values, values_length, (int (*)(void *arg0, const void *arg1))__camp_delegate_valueOfInt, NULL, sizeof(int)) == 6) ? 0 : 1);
 }
 
 // file: generic_array_receiver_foreach.h
@@ -50,7 +50,7 @@ int main(void)
 
 #include "generic_array_receiver_foreach_private.h"
 
-int Array_sumGeneric(void *this, uintptr_t this_length, int (* valueOf)(void *arg0, void *arg1), void *valueOf_context, uintptr_t sizeof_T);
+int Array_sumGeneric(void *this, uintptr_t this_length, int (* valueOf)(void *arg0, const void *arg1), void *valueOf_context, uintptr_t sizeof_T);
 int main(void);
 
 #endif
@@ -71,7 +71,7 @@ int main(void);
 /* Layouts. */
 
 /* Function declarations. */
-int Array_sumGeneric(void *this, uintptr_t this_length, int (* valueOf)(void *arg0, void *arg1), void *valueOf_context, uintptr_t sizeof_T);
+int Array_sumGeneric(void *this, uintptr_t this_length, int (* valueOf)(void *arg0, const void *arg1), void *valueOf_context, uintptr_t sizeof_T);
 int main(void);
 
 /* Object declarations. */

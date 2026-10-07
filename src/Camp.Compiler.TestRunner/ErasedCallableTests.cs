@@ -34,8 +34,8 @@ public sealed class ErasedCallableTests
 			}
 			""");
 		SemanticCompiler.AssertNoDiagnostics(compilation);
-		UnaryExpression awaitExpression = Assert.Single(SemanticCompiler.Descendants<UnaryExpression>(SemanticCompiler.Function(compilation, "parent"))
-			.Where(expression => expression.Operator == UnaryOperator.Await));
+		UnaryExpression awaitExpression = Assert.Single(SemanticCompiler.Descendants<UnaryExpression>(SemanticCompiler.Function(compilation, "parent")),
+			expression => expression.Operator == UnaryOperator.Await);
 		Assert.IsType<CallExpression>(awaitExpression.Operand);
 	}
 

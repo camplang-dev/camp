@@ -1,4 +1,4 @@
-tests/Diagnostics/vtableof_raw_slot_interface_receiver.camp(36,64): error: Declaration initializer cannot convert 'fn int(ClassReader*, int)' to 'fn int(Readable*, int)'.
+tests/Diagnostics/vtableof_raw_slot_interface_receiver.camp(36,64): error: Declaration initializer cannot convert 'fn int(ClassReader*, int)' to 'fn int(Readable*, int)'. Use a lambda, a trailing out parameter, or a void<V> parameter to match the erased calling shape.
 tests/Diagnostics/vtableof_raw_slot_interface_receiver.camp(39,39): error: Unbound slot receiver requires 'ClassReader*', not 'Readable*'.
 tests/Diagnostics/vtableof_raw_slot_interface_receiver.camp(41,19): error: Unbound slot receiver requires 'ClassReader*', not 'Readable*'.
 tests/Diagnostics/vtableof_raw_slot_interface_receiver.camp(44,18): error: Unbound slot receiver requires 'Readable*', not 'ClassReader*'.

@@ -6,9 +6,9 @@ void *malloc(uintptr_t size);
 void free(void *ptr);
 static void *getAddressOf(void *items, uintptr_t items_length, uintptr_t index, uintptr_t sizeof_T);
 static const void *getAddressOfConst(const void *items, uintptr_t items_length, uintptr_t index, uintptr_t sizeof_T);
-static void acceptIn(void *value, uintptr_t sizeof_T);
+static void acceptIn(const void *value, uintptr_t sizeof_T);
 static void passInArg(void *items, uintptr_t items_length, uintptr_t index, uintptr_t sizeof_T);
-static void writeTo(void *items, uintptr_t items_length, uintptr_t index, void *value, uintptr_t sizeof_T);
+static void writeTo(void *items, uintptr_t items_length, uintptr_t index, const void *value, uintptr_t sizeof_T);
 static int main(void);
 
 static void *getAddressOf(void *items, uintptr_t items_length, uintptr_t index, uintptr_t sizeof_T)
@@ -21,7 +21,7 @@ static const void *getAddressOfConst(const void *items, uintptr_t items_length, 
 	return ((const uint8_t*)items) + (index * sizeof_T);
 }
 
-static void acceptIn(void *value, uintptr_t sizeof_T)
+static void acceptIn(const void *value, uintptr_t sizeof_T)
 {
 }
 
@@ -30,7 +30,7 @@ static void passInArg(void *items, uintptr_t items_length, uintptr_t index, uint
 	acceptIn((void*)(((uint8_t*)items) + (index * sizeof_T)), sizeof_T);
 }
 
-static void writeTo(void *items, uintptr_t items_length, uintptr_t index, void *value, uintptr_t sizeof_T)
+static void writeTo(void *items, uintptr_t items_length, uintptr_t index, const void *value, uintptr_t sizeof_T)
 {
 	__builtin_memmove((void*)(((uint8_t*)items) + (index * sizeof_T)), value, sizeof_T);
 }

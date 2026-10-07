@@ -57,7 +57,7 @@
       "symbol": "IteratorDocs_getRange",
       "visibility": "export",
       "extern": true,
-      "returnType": "iter(int, thrown RangeError)",
+      "returnType": "iter(int arg1, thrown RangeError arg2)",
       "parameters": [
         {
           "id": "function:IteratorDocs::getRange/parameter:result_context",

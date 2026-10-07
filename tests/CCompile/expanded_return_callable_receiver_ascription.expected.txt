@@ -15,9 +15,7 @@ static uintptr_t CharArray_unescapedFormatCharArray(const char *this, uintptr_t 
 		{
 			for (uintptr_t i = 0; (i < this_length); i++)
 			{
-				{
-					buffer[i] = this[i];
-				}
+				buffer[i] = this[i];
 __for_continue0: ;
 			}
 __for_break1: ;
@@ -45,7 +43,7 @@ int main(void)
 	struct { const char *elements; uintptr_t length; } _receiverContext4;
 	_receiverContext4.elements = _elements2;
 	_receiverContext4.length = _length3;
-	return (consume((TextFormatter)main_boundReceiver0, (const void *)(&_receiverContext4)) - 244);
+	return (consume((uintptr_t (*)(const void *arg0, char *arg1, uintptr_t arg2))main_boundReceiver0, (const void *)(&_receiverContext4)) - 244);
 }
 
 static uintptr_t main_boundReceiver0(const void *_context, char *arg0, uintptr_t arg1)
