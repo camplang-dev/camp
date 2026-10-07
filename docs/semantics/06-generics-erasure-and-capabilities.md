@@ -160,6 +160,10 @@ Only a bare generic parameter is a placeholder for whole erased storage.
 Derived forms such as `T*` and `T[]` keep their pointer and array calling forms;
 a `T[]` passed to a callable retains separate elements and length arguments.
 
+Interface calls, including witness dispatch, use the lowered entry signature and leading
+dispatch context. Source `in` parameters retain their storage-reference calling
+form after that context, including when the receiver is an erased generic.
+
 Some generic values are erased at source analysis boundaries. Operations that
 need layout, size, vtable, type name, construction, destruction, or copy
 capability must request the corresponding capability explicitly.

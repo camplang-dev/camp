@@ -44,49 +44,6 @@ Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
 
-## BUG-271: generic interface dispatch passes an `in` scalar argument by value
-
-Date/Time: 2026-10-07 13:50 EDT
-
-Summary:
-Inside a generic constrained by an interface, calling an interface method through the
-`vtableof` capability passes a scalar `in` argument by value, although the method's C
-function takes a pointer for that parameter. The generated C does not compile. Calling the
-same method directly on the concrete type works.
-
-Steps to Reproduce:
-
-1. Create `repro.camp`:
-
-```camp
-interface IScale { int scale(in int x); }
-struct Doubler: IScale
-{
-	int factor;
-	int scale(in int x): IScale => x * this.factor;
-}
-int viaGeneric<T: implements IScale>(T* s, in int x, vtableof(T: IScale)) => s.scale(x);
-export int main()
-{
-	Doubler d = { 3 };
-	return viaGeneric<Doubler>(&d, 5);
-}
-```
-
-2. Run `campc run repro.camp --nostdlib --show-errorlevel`.
-
-Expected:
-The program runs and exits with 15.
-
-Actual:
-The C compiler reports `incompatible integer to pointer conversion passing 'int' to
-parameter of type 'int *'` at the vtable call. Declaring the generic's own parameter as a
-plain `int` gives the same error.
-
-Known Impact:
-A generic cannot call an interface method that takes a scalar `in` parameter. Workaround:
-declare the interface parameter without `in`.
-
 ## BUG-272: a narrower local passed to an `in` parameter is read at the wider type
 
 Date/Time: 2026-10-07 13:55 EDT

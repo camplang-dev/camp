@@ -4586,9 +4586,7 @@ public static class CCodeEmitter
                 target = interfaceSlotTarget;
 
             Dictionary<string, string> genericSubstitutions = function is null ? [] : GetCallGenericSubstitutions(call, function);
-            List<ParameterDefinition> parameters = function is not null
-                ? GetCallableParametersForCall(function)
-                : GetCallableParametersForExpression(call.Target);
+            List<ParameterDefinition> parameters = GetCallAbiParameters(call, function);
             List<string> arguments = [];
             int parameterIndex = 0;
             if (call.Target is MemberReferenceExpression { Target: Expression receiver, Member: FunctionDefinition memberFunction }
@@ -5807,9 +5805,7 @@ public static class CCodeEmitter
             else if (TryFormatLoweredInterfaceSlotTarget(call, out string interfaceSlotTarget))
                 target = interfaceSlotTarget;
             Dictionary<string, string> genericSubstitutions = function is null ? [] : GetCallGenericSubstitutions(call, function);
-            List<ParameterDefinition> parameters = function is not null
-                ? GetCallableParametersForCall(function)
-                : GetCallableParametersForExpression(call.Target);
+            List<ParameterDefinition> parameters = GetCallAbiParameters(call, function);
             List<string> arguments = [];
             int parameterIndex = 0;
             List<ArgumentExpression> orderedCallArguments = GetCallArgumentsInAbiOrder(call, function);
@@ -6256,6 +6252,20 @@ public static class CCodeEmitter
                 return "(" + callableCast + ")" + formatted;
             }
             return formatted;
+        }
+
+        List<ParameterDefinition> GetCallAbiParameters(CallExpression call, FunctionDefinition? function)
+        {
+            List<ParameterDefinition> parameters = function is not null
+                ? GetCallableParametersForCall(function)
+                : GetCallableParametersForExpression(call.Target);
+            // Interface slots receive a dispatch context before the source method's
+            // parameters. Retain those parameter names and modifiers for arguments.
+            if (function is not null
+                && TryFormatInterfaceSlotExpression(call.Target, out _)
+                && (parameters.Count == 0 || parameters[0] is not ThisParameterDefinition))
+                parameters.Insert(0, CreateCallableParameterFromResolvedType("any"));
+            return parameters;
         }
 
         List<ParameterDefinition> GetCallableParametersForExpression(Expression? expression)

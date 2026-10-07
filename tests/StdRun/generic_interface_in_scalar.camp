@@ -1,0 +1,20 @@
+interface IScale { int scale(in int x); }
+struct Doubler: IScale
+{
+	int factor;
+	int scale(in int x): IScale => x * this.factor;
+}
+int viaGeneric<T: implements IScale>(T* s, in int x, vtableof(T: IScale)) => s.scale(x);
+int viaValue<T: implements IScale>(T* s, int x, vtableof(T: IScale)) => s.scale(x);
+int viaLiteral<T: implements IScale>(T* s, vtableof(T: IScale)) => s.scale(5);
+export int main()
+{
+	Doubler d = { 3 };
+	if (viaGeneric<Doubler>(&d, 5) != 15) return 1;
+	if (viaValue<Doubler>(&d, 7) != 21) return 2;
+	if (viaLiteral<Doubler>(&d) != 15) return 3;
+	IScale* interfaceValue = &d;
+	int input = 9;
+	if (interfaceValue.scale(input) != 27 || d.scale(input) != 27) return 4;
+	return 0;
+}

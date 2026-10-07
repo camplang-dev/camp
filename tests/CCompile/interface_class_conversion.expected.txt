@@ -58,7 +58,7 @@ static int readValue(IValue **counter)
 
 static int readTransformed(IValue **counter)
 {
-	return (*counter)->transform(counter, 5, readTransformed_lambda0, NULL);
+	return (*counter)->transform(counter, 5, (int (*)(void *arg0, int arg1))readTransformed_lambda0, NULL);
 }
 
 static IValue **asValue(Counter *counter)
