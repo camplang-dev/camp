@@ -1752,8 +1752,12 @@ public sealed class CommandLineTests
 		AssertCommandSucceeded(consumerResult);
 	}
 
-	[Fact]
-	public void Imported_array_returns_preserve_multiple_array_arguments()
+	[Theory]
+	[InlineData("left", "right", 5, "a", "e")]
+	[InlineData("left[1..]", "right", 4, "b", "e")]
+	[InlineData("left", "right[..2]", 4, "a", "d")]
+	[InlineData("left[1..]", "right[..2]", 3, "b", "d")]
+	public void Imported_array_returns_preserve_multiple_array_arguments(string first, string second, int length, string start, string end)
 	{
 		string root = TempPath("imported-array-return-arguments");
 		string library = Path.Combine(root, "library");
@@ -1785,13 +1789,13 @@ public sealed class CommandLineTests
 			}
 			""");
 		string app = Path.Combine(root, "app.camp");
-		File.WriteAllText(app, """
+		File.WriteAllText(app, $$"""
 			#within explicit
 			using ImportedArrays;
 			int run(Formatter* formatter, const char[] left, const char[] right, within Allocator* allocator)
 			{
-				char[] joined = formatter.join(left, right) finally delete;
-				if (joined.length != 5 || joined[0] != 'a' || joined[4] != 'e') return 1;
+				char[] joined = formatter.join({{first}}, {{second}}) finally delete;
+				if (joined.length != {{length}} || joined[0] != '{{start}}' || joined[{{length - 1}}] != '{{end}}') return 1;
 				const char[] chosen = choose(left, right, "fghi", 1);
 				if (chosen.length != 3 || chosen[2] != 'e') return 2;
 				const char[] third = choose(left, right, "fghi", 2);

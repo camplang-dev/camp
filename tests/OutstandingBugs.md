@@ -45,67 +45,6 @@ Known Impact:
 ```
 
 
-## BUG-264: Imported array-returning method drops the last array length after a slice argument
-
-Date/Time: 2026-10-07 03:40 EDT
-
-Summary:
-A call to another project's exported method that returns an array and takes two
-array or view parameters is emitted without the length of the last array argument
-when an earlier array argument is a range slice such as `left[1..]`. Passing the
-same arguments without the slice is emitted correctly, as is the sliced call made
-inside the declaring project. This is a remaining form of the imported
-array-argument component positions fixed under BUG-255.
-
-Steps to Reproduce:
-
-1. Create `lib.campbuild` (`--name lib`, `--artifact static`, source `lib.camp`):
-
-```camp
-#within explicit
-namespace Lib;
-
-export escaped class Fmt
-{
-	export Fmt() { }
-	export escaped char[] join(const char[] first, const char[] second, within allocator)
-	{
-		return new char[first.length + second.length];
-	}
-}
-```
-
-2. Create `app.campbuild` (`--name app`, `--artifact static`,
-   `--project-reference lib.campbuild:static`, source `app.camp`):
-
-```camp
-#within explicit
-namespace App;
-
-int run(Lib::Fmt* f, const char[] left, const char[] right, within Allocator* allocator)
-{
-	char[] joined = f.join(left[1..], right) finally delete;
-	return (int)joined.length;
-}
-export int entry(Lib::Fmt* f) { return within (default) run(f, "ab", "c"); }
-```
-
-3. Run `campc build app.campbuild`.
-
-Expected:
-The call passes the slice's elements and length, then `right` and `right_length`,
-then the allocator and result length, and the project builds.
-
-Actual:
-The call is emitted as `LibFmt_join(f, <slice>, <slice length>, right, allocator,
-(StdAllocator ***)&joined_length)`, omitting `right_length`, and the C compiler fails
-with "too few arguments to function call, expected 7, have 6".
-
-Known Impact:
-Consumers of a generated API cannot pass a range slice before another array argument
-to an imported array-returning method. Binding the slice to a local first avoids the
-failure.
-
 ## BUG-265: Function-pointer type with an optional of an expandable payload drops a component
 
 Date/Time: 2026-10-07 08:30 EDT

@@ -5,6 +5,8 @@ namespace Camp.Compiler;
 
 public sealed partial class BindableNodeAnalyzer
 {
+	readonly HashSet<ArgumentExpression> generatedParamsComponentArguments = [];
+
 	void ExpandParamsArguments(CallExpression call, bool lowerArguments = false)
 	{
 		List<ParameterDefinition>? callableParameters;
@@ -363,13 +365,16 @@ public sealed partial class BindableNodeAnalyzer
 			for (int componentIndex = 0; componentIndex < components.Count; componentIndex++)
 			{
 				Expression component = components[componentIndex];
-				arguments.Insert(i + componentIndex, new ArgumentExpression
+				ArgumentExpression componentArgument = new()
 				{
 					SourceSyntax = argument.SourceSyntax,
 					Modifier = argument.Modifier,
 					Value = component,
 					ResolvedType = component.ResolvedType
-				});
+				};
+				arguments.Insert(i + componentIndex, componentArgument);
+				if (componentIndex > 0)
+					generatedParamsComponentArguments.Add(componentArgument);
 			}
 			i += components.Count - 1;
 		}
@@ -398,6 +403,8 @@ public sealed partial class BindableNodeAnalyzer
 		if (parameterIndex < callableParameters.Count && (IsHiddenParameterComponentOfPrevious(callableParameters, parameterIndex)
 			|| IsExpandedArrayComponentPair(callableParameters, parameterIndex - 1)))
 			return false;
+		if (generatedParamsComponentArguments.Contains(arguments[argumentIndex]))
+			return true;
 
 		string previousName = callableParameters[parameterIndex - 1].Name;
 		Expression? previousValue = arguments[argumentIndex - 1].Value;

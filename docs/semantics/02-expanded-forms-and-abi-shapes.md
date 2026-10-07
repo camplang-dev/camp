@@ -82,6 +82,8 @@ When an argument has already expanded, its length component is recognized by
 the argument's binding, even when the caller and callee use different parameter
 names. Imported source signatures preserve every component of each argument,
 including arguments before hidden allocator and expanded-return result slots.
+Components generated from expressions such as slices retain their association
+with the source argument even when the length is a computed expression.
 When a callable or iterator receiver has already been expanded, its carrier and
 context remain a bound pair even through carrier casts and when the actual
 component names differ from the callee's receiver parameter names.
