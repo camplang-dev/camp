@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-273.
+Next bug number: BUG-274.
 
 ## Bug Template
 
@@ -43,3 +43,40 @@ Actual:
 Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
+
+## BUG-273: a generic `T?` result call omits its result storage when a delegate is passed
+
+Date/Time: 2026-10-07 16:40 EDT
+
+Summary:
+Calling an erased generic whose result is `T?` and which takes a delegate parameter emits
+the call without the trailing result storage argument that the callee's C function takes.
+The generated C does not compile. The same generic with an `fn` parameter instead of a
+delegate, or with no callable parameter, is called correctly.
+
+Steps to Reproduce:
+
+1. Create `repro.camp`:
+
+```camp
+T? maybe<T: copyable>(delegate bool(int) look, int index, sizeof(T)) => default;
+bool yes(int index) => true;
+export int main()
+{
+	int? hit = maybe<int>(yes, 6);
+	return hit.specified ? 1 : 2;
+}
+```
+
+2. Run `campc run repro.camp --nostdlib --show-errorlevel`.
+
+Expected:
+The program runs and exits with 2.
+
+Actual:
+The C compiler reports `too few arguments to function call, expected 5, have 4` at the call
+of `maybe`; the result storage pointer is missing.
+
+Known Impact:
+A generic that returns `T?` cannot take a delegate. Workaround: take an `fn` value instead.
+
