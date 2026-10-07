@@ -1,0 +1,20 @@
+int twice(in int value) => value * 2;
+int fromParameter(short value) => twice(value);
+int fromInput(in short value) => twice(value);
+long asLong(in long value) => value;
+float asFloat(in float value) => value;
+double asDouble(in double value) => value;
+export int main()
+{
+	short narrow = -1;
+	if (twice(narrow) != -2) return 1;
+	if (fromParameter(narrow) != -2) return 2;
+	if (fromInput(narrow) != -2) return 3;
+	int integer = -123;
+	if (asLong(integer) != -123) return 4;
+	if (asFloat(integer) != -123) return 5;
+	float fraction = 1.5;
+	if (asDouble(fraction) != 1.5) return 6;
+	if (twice(integer) != -246) return 7;
+	return 0;
+}

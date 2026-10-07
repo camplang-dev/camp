@@ -6835,6 +6835,21 @@ public static class CCodeEmitter
         bool TryFormatForwardedInArgument(Expression? expression, string? parameterType, out string value)
         {
             value = "";
+            string? sourceType = expression switch
+            {
+                VariableReferenceExpression { Variable: ParameterDefinition parameter } => parameter.ResolvedType,
+                VariableReferenceExpression { Variable: DeclarationTarget target } => target.ResolvedType,
+                _ => expression?.ResolvedType
+            };
+            if (sourceType is not null && parameterType is not null)
+            {
+                sourceType = StripTypeQualifiers(ErasedTypeIdentity.ReadType(sourceType));
+                string destinationType = StripTypeQualifiers(parameterType);
+                // A scalar conversion needs destination-typed storage, even when
+                // the argument already has an addressable local or input slot.
+                if (sourceType != destinationType && IsPrimitiveScalarType(sourceType) && IsPrimitiveScalarType(destinationType))
+                    return false;
+            }
             switch (expression)
             {
                 case IndexExpression index when TryFormatGenericArrayElementAddress(index, out string address):

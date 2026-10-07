@@ -56,6 +56,11 @@ the lifetime-analysis path recording that change.
 
 ## Value Conversion Versus Type Rewrite
 
+Implicit scalar conversions also apply to `in` arguments. When the source and
+parameter scalar types differ, the call supplies a converted temporary with the
+parameter's storage type. Forwarding the original storage is valid only when
+it already has the required scalar type.
+
 A target may define a value conversion such as `_near` data pointer to `_far`
 data pointer. That conversion applies at a value boundary:
 
