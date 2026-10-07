@@ -391,6 +391,9 @@ Compiler writers must keep result semantics source-level:
   that callable once and initializes all components from that invocation;
 - selecting an expanded member of a call result evaluates the receiver call
   once, with its full argument ABI, before extracting the member's components;
+- extracting expanded fields through `this` follows the receiver's storage
+  type: a struct value receiver uses value member access, while a pointer
+  receiver uses pointer member access;
 - compiler-generated storage assigned by conditional branches is writable;
   constness of referenced array elements is preserved;
 - a conditional selecting expanded-return calls evaluates its condition once and

@@ -7812,9 +7812,12 @@ public static class CCodeEmitter
                 return false;
             if (target is ThisExpression)
             {
-                if (currentAsyncFrameNameReplacements.ContainsKey("this"))
-                    return true;
-                return !TryGetCurrentInThisParameter(out _);
+                if (TryGetCurrentInThisParameter(out _))
+                    return currentAsyncFrameNameReplacements.ContainsKey("this");
+                if (currentFunction?.Parameters.FirstOrDefault(static parameter => parameter.Symbol == "this") is { } receiver)
+                    return IsPointerLike(receiver.ResolvedType);
+                if (currentFunction is not null && containingTypes.TryGetValue(currentFunction, out TypeDefinition? owner))
+                    return IsPointerLike(GetImplicitThisResolvedType(owner));
             }
             return IsPointerLike(target?.ResolvedType);
         }

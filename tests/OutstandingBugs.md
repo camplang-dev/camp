@@ -44,42 +44,6 @@ Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
 
-## BUG-258: Returning an array member through a struct value receiver emits pointer member access
-
-Date/Time: 2026-10-07 00:46 EDT
-
-Summary:
-An extension function with a struct value receiver can bind and return its
-array member, but native emission accesses the receiver as a pointer. The C
-function receives the struct by value, so those member accesses are invalid.
-
-Steps to Reproduce:
-
-1. Compile this source with `campc build repro.camp --nostdlib`:
-
-   ```camp
-   struct View { const char[] text; }
-   const char[] span(View this) { return this.text; }
-   export int main()
-   {
-       View view = { "abc" };
-       return view.span().length == 3 ? 0 : 1;
-   }
-   ```
-
-Expected:
-The source builds and exits successfully. The value receiver's members use
-value member access in C.
-
-Actual:
-The generated function receives `View this` but uses `this->text_length` and
-`this->text`. Native compilation fails because `View` is not a pointer.
-
-Known Impact:
-Returning an array field from a struct value receiver can prevent native
-compilation. Passing the struct as an ordinary named parameter avoids the
-receiver-specific emission path.
-
 ## BUG-259: Array-return initializer loses the enclosing within statement's allocator context
 
 Date/Time: 2026-10-07 01:43 EDT

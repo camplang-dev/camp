@@ -1,0 +1,15 @@
+struct View { const char[] text; int marker; }
+const char[] span(View this) { return this.text; }
+const char[] pointerSpan(View* this) { return this.text; }
+const char[] inSpan(in View this) { return this.text; }
+int readMarker(View this) { return this.marker; }
+export int main()
+{
+	View view = { "abc", 7 };
+	if (view.span().length != 3 || view.span()[1] != 'b') return 1;
+	const char[] saved = view.span();
+	if (saved.length != 3 || saved[2] != 'c') return 2;
+	if ((&view).pointerSpan().length != 3) return 3;
+	if (view.inSpan().length != 3 || view.inSpan()[0] != 'a') return 4;
+	return view.readMarker() == 7 ? 0 : 5;
+}
