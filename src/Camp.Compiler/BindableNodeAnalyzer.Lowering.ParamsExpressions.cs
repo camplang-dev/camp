@@ -1708,7 +1708,7 @@ public sealed partial class BindableNodeAnalyzer
 		List<string> types = [];
 		for (int i = 0; i < trueComponents.Count; i++)
 		{
-			string type = trueComponents[i].ResolvedType ?? falseComponents[i].ResolvedType ?? ErrorType;
+			string type = StripTopLevelValueQualifiers(trueComponents[i].ResolvedType ?? falseComponents[i].ResolvedType ?? ErrorType);
 			DeclarationStatement local = CreateGeneratedLocal(NewGeneratedLocalName("conditionalValue"), type, TypeReferenceForResolvedName(type), null);
 			currentStatementPrefix.Add(local);
 			targets.Add(local.Target);

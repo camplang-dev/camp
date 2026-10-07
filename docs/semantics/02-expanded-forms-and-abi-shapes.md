@@ -383,6 +383,8 @@ Compiler writers must keep result semantics source-level:
   that callable once and initializes all components from that invocation;
 - selecting an expanded member of a call result evaluates the receiver call
   once, with its full argument ABI, before extracting the member's components;
+- compiler-generated storage assigned by conditional branches is writable;
+  constness of referenced array elements is preserved;
 - a conditional selecting expanded-return calls evaluates its condition once and
   only the selected call, then takes every result component from that call;
 - metadata and API headers expose the source return type.

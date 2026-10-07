@@ -1,0 +1,42 @@
+struct Param { int kind; }
+int calls = 0;
+bool isKind(Param p, int kind) { calls++; return p.kind == kind; }
+const char[] fromMember(Param p)
+{
+	const char[] text = p.kind == 1 ? "aa" : p.kind == 2 ? "bbb" : "c";
+	return text;
+}
+const char[] fromCalls(Param p)
+{
+	return isKind(p, 1) ? "aa" : isKind(p, 2) ? "bbb" : "c";
+}
+const char[] nestedTrue(Param p)
+{
+	return isKind(p, 3) ? (isKind(p, 2) ? "bbb" : "c") : "aa";
+}
+const char[] deeper(Param p)
+{
+	return p.kind == 1 ? "aa" : p.kind == 2 ? "bbb" : p.kind == 3 ? "c" : "dddd";
+}
+export int main()
+{
+	const char[] first = fromMember({ 1 });
+	const char[] second = fromMember({ 2 });
+	const char[] third = fromMember({ 3 });
+	if (first.length != 2 || first[1] != 'a') return 1;
+	if (second.length != 3 || second[2] != 'b') return 2;
+	if (third.length != 1 || third[0] != 'c') return 3;
+	first = fromCalls({ 1 });
+	if (first.length != 2 || first[0] != 'a' || calls != 1) return 4;
+	second = fromCalls({ 2 });
+	if (second.length != 3 || second[0] != 'b' || calls != 3) return 5;
+	third = fromCalls({ 3 });
+	if (third.length != 1 || third[0] != 'c' || calls != 5) return 6;
+	first = nestedTrue({ 1 });
+	if (first.length != 2 || first[0] != 'a' || calls != 6) return 7;
+	third = nestedTrue({ 3 });
+	if (third.length != 1 || third[0] != 'c' || calls != 8) return 8;
+	const char[] fourth = deeper({ 4 });
+	if (fourth.length != 4 || fourth[3] != 'd') return 9;
+	return 0;
+}
