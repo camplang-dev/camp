@@ -1,0 +1,32 @@
+T? maybe<T: copyable>(fn T?(int) look, int index, sizeof(T)) => look(index);
+T produce<T: copyable>(fn T(int) look, int index, sizeof(T)) => look(index);
+bool intOut(int index, out int result) { result = index; return index > 0; }
+void scalarOut(int index, out int result) { result = index + 1; }
+struct Point { int x; int y; }
+bool pointOut(int index, out Point result)
+{
+	Point value = { index, index + 1 };
+	result = value;
+	return index > 0;
+}
+bool optionalOut(int index, out void<int?> result)
+{
+	if (index <= 0) { result = default; return false; }
+	result = index;
+	return true;
+}
+export int main()
+{
+	int? present = maybe<int>(intOut, 6);
+	int? absent = maybe<int>(intOut, -1);
+	if (!present.specified || present.value != 6) return 1;
+	if (absent.specified || absent.value != 0) return 2;
+	Point? point = maybe<Point>(pointOut, 4);
+	if (!point.specified || point.value.x != 4 || point.value.y != 5) return 3;
+	int?? nested = maybe<int?>(optionalOut, 9);
+	if (!nested.specified || !nested.value.specified || nested.value.value != 9) return 4;
+	nested = maybe<int?>(optionalOut, -1);
+	if (nested.specified || nested.value.specified || nested.value.value != 0) return 5;
+	if (produce<int>(scalarOut, 6) != 7) return 6;
+	return 0;
+}

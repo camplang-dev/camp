@@ -8939,6 +8939,13 @@ public static class CCodeEmitter
         {
             string declarator = FormatFunctionPointerDeclarator(name, callable.TargetSpec ?? GetDefaultTargetTypeSpec(functionPointer: true), callable.CallSpec);
             string returnType = callable.ReturnType?.ResolvedType ?? ResolvedTypeForC(callable.ReturnType, callable.ReturnType?.ResolvedType);
+            // Binding marks erased result storage in the complete callable type.
+            // The source return node still spells T or T?, so use the bound result.
+            // Preserve bool/void declarations whose output slot is already lowered.
+            if (returnType is not ("bool" or "void")
+                && callable.ResolvedType is string resolvedCallable
+                && CallableShapeService.TryParseCallableShape(resolvedCallable, out CallableShape shape))
+                returnType = shape.ReturnType;
             if (string.IsNullOrWhiteSpace(name))
             {
                 List<string> anonymousParameterTypes = GetExpandedCallableParameterTypesForC(callable.Parameters);

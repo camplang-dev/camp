@@ -105,6 +105,10 @@ A `void<V>` result matches a trailing `out void<V>` with a `void` result;
 `void<V>?` matches the same trailing output with a `bool` result. The output
 precedes hidden allocator, error and capability slots. These rules apply to
 callable values, newtype ascription, lambdas and interface implementations.
+An `fn T?` slot in an erased generic therefore emits a boolean-returning
+function pointer with payload storage, including when declared directly as a
+parameter or field. Its resolved erased signature governs emission; the source
+`T?` spelling does not select an ordinary optional payload-return ABI.
 Virtual overrides still require exact signatures. Receiver, constness, lifetime,
 target and calling-convention contracts remain part of matching.
 
