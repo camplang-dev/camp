@@ -260,7 +260,7 @@ public sealed partial class BindableNodeAnalyzer
 		};
 	}
 
-	static TypeReference TypeReferenceForResolvedName(string typeName, SyntaxNode? sourceSyntax = null)
+	internal static TypeReference TypeReferenceForResolvedName(string typeName, SyntaxNode? sourceSyntax = null)
 	{
 		if (WitnessTypeIdentity.TryParse(typeName, out WitnessTypeIdentity witness))
 			return new WitnessTypeReference

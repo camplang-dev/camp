@@ -300,6 +300,7 @@ public class ParameterDefinition : Definition
 	public Expression? DefaultValue { get; set; }
 	internal ParameterDefinition? ExpandedSourceParameter { get; set; }
 	internal bool IsExpandedReturnComponent { get; set; }
+	internal bool IsErasedResultStorage { get; set; }
 }
 
 public class ThisParameterDefinition : ParameterDefinition

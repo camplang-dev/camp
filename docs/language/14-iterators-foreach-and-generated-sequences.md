@@ -22,6 +22,13 @@ boundaries.
 
 ## The Everyday Shape
 
+An exported struct iterator may retain a `void<PrivateType>*` allocated on the
+heap. Its implementation keeps typed access and cleanup; external consumers see
+an opaque pointer in the state. A `stackalloc void<V>` local instead belongs to
+one resume call. After a `yield`, assign it again before reading it. See
+[lifetime semantics](../semantics/05-lifetime-analysis-and-flow-facts.md) and
+[API projection](../semantics/11-metadata-api-surface-and-symbols.md).
+
 Most iterator code looks like this:
 
 ```camp

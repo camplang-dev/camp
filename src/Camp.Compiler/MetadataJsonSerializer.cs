@@ -38,6 +38,7 @@ public static class MetadataJsonSerializer
 		readonly HashSet<BindableNode> stubbed = new(ReferenceEqualityComparer.Instance);
 		readonly Dictionary<string, TypeDefinition> typeDefinitions = new(StringComparer.Ordinal);
 		readonly Dictionary<string, Definition> symbols = new(StringComparer.Ordinal);
+		readonly ErasedApiProjection? erasedProjection;
 		SourcefilePathMapper? sourcefilePathMapper;
 		string? currentStaticClassName;
 
@@ -48,6 +49,9 @@ public static class MetadataJsonSerializer
 			this.compilation = compilation;
 			this.module = module;
 			this.visibility = visibility;
+			if (visibility != MetadataVisibility.All)
+				erasedProjection = new ErasedApiProjection(module.Definitions, type => type.Export is not null
+					|| visibility == MetadataVisibility.Public && type.Public is not null);
 			IndexModule();
 		}
 
@@ -387,7 +391,13 @@ public static class MetadataJsonSerializer
 						WriteCallableNewtype(json, newtypeDefinition);
 					else
 						WriteTypeProperty(json, "underlyingType", newtypeDefinition.UnderlyingType, newtypeDefinition.ResolvedType);
-					WriteDefinitionArray(json, "parameters", newtypeDefinition.Parameters, includeKind: false, includeVisibility: false);
+					if (erasedProjection is not null && newtypeDefinition.UnderlyingType is CallableTypeReference signature)
+					{
+						FunctionDefinition function = new() { ReturnType = signature.ReturnType };
+						function.Parameters.AddRange(newtypeDefinition.Parameters);
+						WriteParameterArray(json, "parameters", erasedProjection.FunctionParameters(function));
+					}
+					else WriteDefinitionArray(json, "parameters", newtypeDefinition.Parameters, includeKind: false, includeVisibility: false);
 					WriteDefinitionArray(json, "fields", newtypeDefinition.Fields, includeKind: false, includeVisibility: false);
 					WriteFunctionArray(json, "functions", newtypeDefinition.Functions);
 					break;
@@ -433,7 +443,9 @@ public static class MetadataJsonSerializer
 						json.WriteString("callspec", callable.CallSpec);
 					if (!string.IsNullOrWhiteSpace(callable.TargetSpec))
 						json.WriteString("targetspec", callable.TargetSpec);
-					WriteTypeProperty(json, "returnType", callable.ReturnType, callable.ReturnType?.ResolvedType);
+					if (erasedProjection?.HiddenResult(new FunctionDefinition { ReturnType = callable.ReturnType }) == true)
+						json.WriteString("returnType", BindableNodeCodeSerializer.SerializeType(callable.ReturnType).EndsWith('?') ? "bool" : "void");
+					else WriteTypeProperty(json, "returnType", callable.ReturnType, callable.ReturnType?.ResolvedType);
 					break;
 				case IterTypeReference iter:
 					json.WriteString("callableType", iter.IsAsync ? "async iter" : "iter");
@@ -462,7 +474,9 @@ public static class MetadataJsonSerializer
 				json.WriteString("modifier", function.Modifier.ToString().ToLowerInvariant());
 			if (!string.IsNullOrWhiteSpace(function.CallSpec))
 				json.WriteString("callspec", function.CallSpec);
-			WriteTypeProperty(json, "returnType", function.ReturnType, function.ResolvedType);
+			if (erasedProjection?.HiddenResult(function) == true)
+				json.WriteString("returnType", BindableNodeCodeSerializer.SerializeType(function.ExpandedSourceReturnType ?? function.ReturnType).EndsWith('?') ? "bool" : "void");
+			else WriteTypeProperty(json, "returnType", erasedProjection is not null ? function.ExpandedSourceReturnType ?? function.ReturnType : function.ReturnType, function.ResolvedType);
 			if (function.InterfaceImplementationInterface is not null)
 			{
 				json.WriteStartObject("interfaceImplementation");
@@ -490,7 +504,7 @@ public static class MetadataJsonSerializer
 					WriteGenericParameter(json, parameter);
 				json.WriteEndArray();
 			}
-			WriteParameterArray(json, "parameters", function.Parameters);
+			WriteParameterArray(json, "parameters", erasedProjection?.FunctionParameters(function) ?? function.Parameters);
 		}
 
 		void WriteAvailability(Utf8JsonWriter json, FunctionDefinition function)
@@ -740,12 +754,19 @@ public static class MetadataJsonSerializer
 		void WriteParameterArray(Utf8JsonWriter json, string propertyName, IReadOnlyList<ParameterDefinition> parameters)
 		{
 			List<ParameterDefinition> filtered = FilterApiParameters(parameters);
+			if (erasedProjection is not null) filtered = erasedProjection.Parameters(filtered).ToList();
 			if (filtered.Count == 0)
 				return;
 
 			json.WriteStartArray(propertyName);
 			foreach (ParameterDefinition parameter in filtered)
 			{
+				if (!ids.ContainsKey(parameter))
+				{
+					ParameterDefinition? source = parameters.FirstOrDefault(item => item.Name == parameter.Name
+						|| parameter.Name == item.Name + "_length" || parameter.Name == item.Name + "_specified");
+					if (source is not null) ids[parameter] = GetId(source) + (source.Name == parameter.Name ? "" : "/" + parameter.Name);
+				}
 				WriteDefinition(json, parameter, includeKind: false, includeVisibility: false);
 				emitted.Add(parameter);
 			}
@@ -912,6 +933,7 @@ public static class MetadataJsonSerializer
 			List<FieldDefinition> filtered = FilterExpandedApiFields(fields
 				.Where(field => !IsGeneratedDefinition(field) && ShouldEmitFieldMember(field, classFields))
 				.ToList());
+			if (erasedProjection is not null) filtered = filtered.SelectMany(erasedProjection.Fields).ToList();
 			if (filtered.Count == 0)
 				return;
 
@@ -1064,11 +1086,11 @@ public static class MetadataJsonSerializer
 		string FormatType(TypeReference? type, string? resolvedType)
 		{
 			string formatted = type is not null
-				? BindableNodeCodeSerializer.SerializeType(type)
+				? erasedProjection is null ? BindableNodeCodeSerializer.SerializeType(type) : BindableNodeCodeSerializer.SerializeProjectedType(type, erasedProjection)
 				: string.IsNullOrWhiteSpace(resolvedType)
 					? BindableNodeAnalyzer.FormatTypeReference(type)
 					: resolvedType!;
-			return FormatSourceMetadataType(formatted);
+			return FormatSourceMetadataType(erasedProjection?.Type(formatted) ?? formatted);
 		}
 
 			string FormatSourceMetadataType(string type)

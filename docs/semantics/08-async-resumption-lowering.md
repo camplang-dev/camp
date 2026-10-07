@@ -1,5 +1,12 @@
 # Async Resumption Lowering
 
+Named `stackalloc void<V>` storage is local to a resume activation. Suspension
+invalidates its assignment state; a later assignment is required before reading
+it. Allocate the storage before resume dispatch on every invocation, and keep it
+out of the heap frame. A heap-backed `void<V>*` can instead survive suspension
+under the ordinary lifetime and cleanup rules. See
+[Lifetime Analysis](05-lifetime-analysis-and-flow-facts.md).
+
 This supplement describes Camp async lowering for compiler writers. Camp async
 is callback-shaped, not task-object-shaped: an `async` callable has a
 source-level async surface, but its ABI surface is an ordinary `void` callable

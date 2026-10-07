@@ -36,6 +36,7 @@ public sealed class BindableNodeCodeSerializer
 	readonly WithinAllocationPolicy? apiWithinAllocationPolicy;
 	readonly Dictionary<BindableNode, string> generatedNames = new();
 	Module? currentModule;
+	ErasedApiProjection? erasedProjection;
 	string? currentOutputNamespace;
 	int indent;
 	int generatedLocalIndex;
@@ -72,6 +73,15 @@ public sealed class BindableNodeCodeSerializer
 		return writer.ToString();
 	}
 
+	internal static string SerializeProjectedType(TypeReference? type, ErasedApiProjection projection)
+	{
+		using StringWriter writer = new();
+		BindableNodeCodeSerializer serializer = new(writer, null);
+		serializer.erasedProjection = projection;
+		serializer.WriteType(type);
+		return writer.ToString();
+	}
+
 	void WriteNode(BindableNode node)
 	{
 		switch (node)
@@ -101,6 +111,9 @@ public sealed class BindableNodeCodeSerializer
 	void WriteModule(Module module)
 	{
 		currentModule = module;
+		if (apiHeader)
+			erasedProjection = new ErasedApiProjection(module.Definitions.Concat(apiReferenceDefinitions),
+				type => IsVisibleInApiSurface(type));
 		currentOutputNamespace = module.Namespace;
 		if (apiHeader && apiWithinAllocationPolicy is WithinAllocationPolicy withinPolicy)
 		{
@@ -467,7 +480,8 @@ public sealed class BindableNodeCodeSerializer
 		writer.Write(definition.Name);
 		if (callable)
 		{
-			WriteParameterList(definition.Parameters);
+			WriteParameterList(definition.UnderlyingType is CallableTypeReference callableSignature
+				? ProjectCallableParameters(callableSignature, definition.Parameters) : definition.Parameters);
 			if (definition.UnderlyingType is CallableTypeReference { TargetSpec: not null } annotated)
 				writer.Write(" " + annotated.TargetSpec);
 		}
@@ -499,7 +513,15 @@ public sealed class BindableNodeCodeSerializer
 	{
 		writer.Write(GetCallableKind(callable.Kind));
 		WriteCallableSpecs(callable.CallSpec);
-		WriteType(callable.ReturnType);
+		WriteFunctionReturnType(new FunctionDefinition { ReturnType = callable.ReturnType });
+	}
+
+	List<ParameterDefinition> ProjectCallableParameters(CallableTypeReference callable, List<ParameterDefinition> parameters)
+	{
+		if (erasedProjection is null) return parameters;
+		FunctionDefinition signature = new() { ReturnType = callable.ReturnType };
+		signature.Parameters.AddRange(parameters);
+		return erasedProjection.FunctionParameters(signature);
 	}
 
 	void WriteParamsDefinition(ParamsDefinition definition)
@@ -841,6 +863,15 @@ public sealed class BindableNodeCodeSerializer
 
 	void WriteFieldDefinition(FieldDefinition definition)
 	{
+		if (erasedProjection is not null)
+		{
+			List<FieldDefinition> projected = erasedProjection.Fields(definition).ToList();
+			if (projected.Count != 1 || !ReferenceEquals(projected[0], definition))
+			{
+				foreach (FieldDefinition field in projected) WriteFieldDefinition(field);
+				return;
+			}
+		}
 		WriteRequirementPrefix(definition);
 		WriteAttributes(definition.Attributes);
 		WriteIndent();
@@ -893,7 +924,7 @@ public sealed class BindableNodeCodeSerializer
 		}
 
 		WriteGenericParameters(definition.GenericParameters);
-		WriteParameterList(definition.Parameters);
+		WriteParameterList(erasedProjection?.FunctionParameters(definition) ?? definition.Parameters);
 		if (definition.CallableAscriptionType is not null)
 		{
 			writer.Write(" : ");
@@ -1758,8 +1789,19 @@ public sealed class BindableNodeCodeSerializer
 
 	void WriteFunctionReturnType(FunctionDefinition definition)
 	{
+		if (erasedProjection?.HiddenResult(definition) == true)
+		{
+			string source = SerializeType(definition.ExpandedSourceReturnType ?? definition.ReturnType);
+			writer.Write(source.EndsWith('?') ? "bool" : "void");
+			return;
+		}
 		if (apiHeader && definition.ExpandedSourceReturnType is TypeReference sourceReturnType)
 		{
+			if (erasedProjection?.Hidden(sourceReturnType) == true)
+			{
+				WriteTypeOrResolved(definition.ReturnType, definition.ResolvedType);
+				return;
+			}
 			WriteType(sourceReturnType);
 			return;
 		}
@@ -1827,7 +1869,9 @@ public sealed class BindableNodeCodeSerializer
 
 	void WriteParameterList(List<ParameterDefinition> parameters)
 	{
-		WriteDelimited("(", ")", apiHeader ? FilterApiParameters(parameters) : parameters, WriteParameter);
+		List<ParameterDefinition> output = apiHeader ? FilterApiParameters(parameters) : parameters;
+		if (erasedProjection is not null) output = erasedProjection.Parameters(output).ToList();
+		WriteDelimited("(", ")", output, WriteParameter);
 	}
 
 	static bool HasUnfilledParameterTypeSpecSlot(TypeReference? type)
@@ -2107,6 +2151,16 @@ public sealed class BindableNodeCodeSerializer
 
 	void WriteType(TypeReference? type)
 	{
+		if (erasedProjection is not null && type is not null)
+		{
+			string original = SerializeType(type);
+			string projected = erasedProjection.Type(original);
+			if (projected != original && ErasedTypeIdentity.TryGetPayload(original, out _))
+			{
+				writer.Write(projected);
+				return;
+			}
+		}
 		if (type is null)
 		{
 			writer.Write("auto");
@@ -2241,8 +2295,8 @@ public sealed class BindableNodeCodeSerializer
 			case CallableTypeReference callable:
 				writer.Write(GetCallableKind(callable.Kind));
 				WriteCallableSpecs(callable.CallSpec);
-				WriteType(callable.ReturnType);
-				WriteParameterList(callable.Parameters);
+				WriteFunctionReturnType(new FunctionDefinition { ReturnType = callable.ReturnType });
+				WriteParameterList(ProjectCallableParameters(callable, callable.Parameters));
 				if (callable.TargetSpec is not null)
 					writer.Write(" " + callable.TargetSpec);
 				break;

@@ -305,6 +305,7 @@ public sealed partial class BindableNodeAnalyzer
 			UnaryExpression unary => GetUnaryLifetimeFact(unary, resolvedType, scope),
 			IndexExpression index => GetIndexLifetimeFact(index, resolvedType),
 			MemberExpression member => GetMemberLifetimeFact(member, resolvedType, scope),
+			MemberReferenceExpression { Member: FieldDefinition field } member => GetFieldReferenceLifetimeFact(member, field, resolvedType, scope),
 			CallExpression call => GetCallLifetimeFact(call, resolvedType, scope),
 			LambdaExpression lambda when !LambdaHasCaptures(lambda, scope.CurrentFunction, scope.ContainingType) => MakeLifetimeFact("escaped", null, "lambda"),
 			LambdaExpression lambda => TryGetResolvedTypeLifetime(lambda.ResolvedType, out string lambdaLifetime)

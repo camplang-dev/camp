@@ -1059,6 +1059,13 @@ return an `iter T` value produced elsewhere.
 
 ## Async And Postponed Work
 
+`stackalloc void<V>` is activation-local storage: after `yield` or `await`,
+assign it again before reading it. Use a heap-backed `void<V>*` for hidden state
+that must survive suspension. The annotation may name a private implementation
+type even in an exported signature or struct iterator. Generated APIs hide an
+inaccessible annotation and expose the opaque C contract; publish an explicit
+storage-size or allocation API for callers that must provide result storage.
+
 Write async code at the source level and let the compiler lower it. Do not
 generate callback state machines manually unless you are writing compiler tests
 for async lowering.

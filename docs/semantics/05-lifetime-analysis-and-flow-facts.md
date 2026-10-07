@@ -374,6 +374,14 @@ Important restrictions include:
 
 ## Generic Boundaries
 
+Named `stackalloc` storage, including `stackalloc void<V>`, is unassigned after
+each `yield` or `await`. Assigning it again permits subsequent reads. Its storage
+is recreated in each resume activation and must not become a retained pointer
+field. Dynamic stackalloc array views remain subject to the existing suspension
+restrictions. Heap-backed annotated pointers may be retained; their allocation
+lifetime and destructor contract survive lifting and apply to cleanup on both
+normal exhaustion and early iterator destruction.
+
 Generic `T: any` values are treated conservatively because they may be
 pointer-bearing. Returning, storing, copying, or capturing them can require
 capabilities described in

@@ -45,6 +45,8 @@ public class DeclarationStatement : Statement
 {
 	public bool IsFixedStorage { get; set; }
 	public bool IsStackAllocStorage { get; set; }
+	internal bool HoldsStackAddress { get; set; }
+	internal bool IsActivationLocal => IsStackAllocStorage || HoldsStackAddress;
 	public DeclarationTarget Target { get; } = new();
 	public Expression? InitialValue { get; set; }
 }

@@ -13,7 +13,9 @@ internal static class ErasedTypeIdentity
 			return false;
 		type = type.Trim();
 		string qualifiers = "";
-		while (type.StartsWith("const ", StringComparison.Ordinal) || type.StartsWith("volatile ", StringComparison.Ordinal))
+		while (type.StartsWith("const ", StringComparison.Ordinal) || type.StartsWith("volatile ", StringComparison.Ordinal)
+			|| type.StartsWith("escaped ", StringComparison.Ordinal) || type.StartsWith("scoped ", StringComparison.Ordinal)
+			|| type.StartsWith("unscoped ", StringComparison.Ordinal))
 		{
 			int space = type.IndexOf(' ') + 1;
 			qualifiers += type[..space];

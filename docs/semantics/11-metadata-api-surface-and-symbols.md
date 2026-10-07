@@ -133,6 +133,27 @@ unnameable internal source types.
 
 ## Generated Versus Source Declarations
 
+An annotation inside `void<V>` is not a visibility dependency. Ordinary private
+types still cannot appear in a public or exported signature. API and metadata
+views retain `void<V>` when that view includes `V`; otherwise they expose the
+opaque ABI: `void*`, `const void*`, or pointer plus `nuint` length for an array.
+Hidden `in` and `out` slots become ordinary const/writable pointer parameters.
+A hidden optional erased result becomes `bool` plus a writable result pointer,
+before allocator, error and capability slots. The producer retains the annotation
+for analysis and member access. Private annotations must not pull private layout
+declarations into the public API dependency closure.
+
+Erased annotations remain part of generic identity in an authorized source view.
+For an inaccessible annotation, `Box<void<Private>*>*` projects to
+`Box<void*>*` in Camp and the ordinary opaque `Box*` in C. No private layout is
+needed by either consumer. An API that requires caller-owned result storage must
+publish an explicit size/allocation contract; hidden metadata supplies no size.
+
+Exported struct iterator fields follow the same projection. A retained
+`void<Private>*` field is `void*` externally, while its producer can still use
+private members and destruction. Stackalloc locals belong to each resume
+activation, not the exported state layout.
+
 Metadata is source-level by default. Generated declarations should be omitted
 unless they represent exported source API or are necessary stubs.
 

@@ -1,0 +1,58 @@
+int live;
+int observed;
+
+class PrivateValue
+{
+	int value;
+	PrivateValue(int value) { this.value = value; live++; }
+	~PrivateValue() { live--; }
+}
+
+export struct iter int values()
+{
+	void<PrivateValue>* held = new PrivateValue(7);
+	finally { delete held; }
+	stackalloc void<int?> scratch = 3;
+	yield scratch.value;
+	scratch = held.value;
+	yield scratch.value;
+}
+
+export struct iter int ownedValues()
+{
+	void<PrivateValue>* held = new PrivateValue(5) finally delete;
+	yield held.value;
+	held = null;
+	yield 1;
+}
+
+class Resumer
+{
+	void resumeAsync(escaped once void() continuation) { continuation(); }
+}
+Resumer resumer;
+async int tick(int value, @awaitwith Resumer* resumer) { return value; }
+async int run(@awaitwith Resumer* resumer)
+{
+	void<PrivateValue>* held = new PrivateValue(9);
+	stackalloc void<int?> scratch = 2;
+	int before = scratch.value;
+	int result = await tick(before, resumer);
+	scratch = held.value;
+	result += scratch.value;
+	delete held;
+	return result;
+}
+void complete(void* context, int value) { observed = value; }
+export int main()
+{
+	int sum = 0;
+	foreach (int value in values()) { sum += value; }
+	if (sum != 10 || live != 0) return 1;
+	foreach (int owned in ownedValues()) { sum += owned; }
+	if (sum != 16 || live != 0) return 3;
+	foreach (int first in ownedValues()) { break; }
+	if (live != 0) return 4;
+	run(&resumer, complete, null);
+	return observed == 11 && live == 0 ? 0 : 2;
+}

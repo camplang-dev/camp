@@ -46,6 +46,11 @@ file is saved.
 
 ## Shared Parsing
 
+Imported APIs use the producer's visibility projection. Tooling in the producing
+module can show `void<V>` and its payload members; an external consumer of an
+opaque projection sees raw pointers and explicit ABI parameters. Do not recover
+hidden payload names or offer their members from cached implementation metadata.
+
 Editor buffers, files on disk, and imported API headers use the same
 catalog-independent `CampParser` grammar as `campc`. Its public constructor
 accepts a `TokenSequence`; the static entry point is

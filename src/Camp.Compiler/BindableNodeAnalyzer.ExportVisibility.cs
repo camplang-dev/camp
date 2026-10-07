@@ -351,8 +351,12 @@ public sealed partial class BindableNodeAnalyzer
 
 	static IEnumerable<TypeDefinition> GetDefinitionTypes(TypeReference type)
 	{
+		if (ErasedTypeIdentity.TryGetPayload(type.ResolvedType, out _)) yield break;
 		switch (type)
 		{
+			// The annotation describes private storage, not a visible dependency.
+			case MaterializedStructTypeReference:
+				yield break;
 			case TypeDefinitionReference { Definition: TypeDefinition definition }:
 				yield return definition;
 				foreach (TypeReference argument in ((TypeDefinitionReference)type).TypeArguments)
@@ -455,11 +459,6 @@ public sealed partial class BindableNodeAnalyzer
 					yield return child;
 				break;
 
-			case MaterializedStructTypeReference { ParamsType: not null } materialized:
-				foreach (TypeDefinition child in GetDefinitionTypes(materialized.ParamsType))
-					yield return child;
-				break;
-
 			case ThrownTypeReference { Type: not null } thrown:
 				foreach (TypeDefinition child in GetDefinitionTypes(thrown.Type))
 					yield return child;
@@ -469,8 +468,11 @@ public sealed partial class BindableNodeAnalyzer
 
 	static IEnumerable<NamedTypeReference> GetNamedTypes(TypeReference type)
 	{
+		if (ErasedTypeIdentity.TryGetPayload(type.ResolvedType, out _)) yield break;
 		switch (type)
 		{
+			case MaterializedStructTypeReference:
+				yield break;
 			case NamedTypeReference named:
 				yield return named;
 				foreach (TypeReference argument in named.TypeArguments)
@@ -580,11 +582,6 @@ public sealed partial class BindableNodeAnalyzer
 
 			case GroupedParamsTypeReference { StructType: not null } grouped:
 				foreach (NamedTypeReference child in GetNamedTypes(grouped.StructType))
-					yield return child;
-				break;
-
-			case MaterializedStructTypeReference { ParamsType: not null } materialized:
-				foreach (NamedTypeReference child in GetNamedTypes(materialized.ParamsType))
 					yield return child;
 				break;
 

@@ -67,6 +67,13 @@ public sealed partial class BindableNodeAnalyzer
 			BodyAnalyzeBlock(function.Body.Statements, scope, typeAndMethodScope);
 			WarnIfPrepBuffersAreNotWritten(function);
 			CollectAsyncAwaitSites(function);
+			if (function.IsAsync || function.AwaitSites.Count > 0)
+			{
+				bool ignoredYield = false;
+				IteratorStackAllocAssignmentState stackState = new();
+				foreach (Statement statement in function.Body.Statements)
+					ValidateIteratorGeneratorSourceStatement(function, statement, ref ignoredYield, stackState);
+			}
 			ValidateNoAwaitBody(function);
 			BindFunctionLabels(function);
 			ValidateBaseConstructorInvocation(function, containingType);
@@ -776,8 +783,9 @@ public sealed partial class BindableNodeAnalyzer
 
 	void BodyAnalyzeDeclarationStatement(DeclarationStatement declaration, BodyScope scope, AnalysisScope typeScope)
 	{
-		if (declaration.IsStackAllocStorage)
-			ValidateStackAllocAllowed(declaration.SourceSyntax ?? declaration.Target.SourceSyntax, scope);
+		// Named stack storage is recreated in each resume activation and is checked
+		// for definite assignment after suspension. Dynamic stack views still use
+		// ValidateStackAllocAllowed and cannot survive in retained state.
 		AnalyzeOptionalType(declaration.Target.Type, typeScope);
 		ValidateNoLifetimeAnnotation(declaration.Target.Type, declaration.Target.Type?.SourceSyntax ?? declaration.Target.SourceSyntax ?? declaration.SourceSyntax, "local variable types");
 		TryRewriteOmittedOutDeconstruction(declaration, scope, typeScope);

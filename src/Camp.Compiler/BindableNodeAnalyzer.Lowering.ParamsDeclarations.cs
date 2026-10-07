@@ -150,6 +150,7 @@ public sealed partial class BindableNodeAnalyzer
 
 		ParameterDefinition result = new()
 		{
+			IsErasedResultStorage = true,
 			SourceSyntax = function.SourceSyntax,
 			Name = "__result",
 			Symbol = "__result",

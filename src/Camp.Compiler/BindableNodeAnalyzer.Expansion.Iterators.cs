@@ -161,14 +161,16 @@ public sealed partial class BindableNodeAnalyzer
 				IteratorStackAllocAssignmentState blockState = stackAllocState.Clone();
 				foreach (Statement child in block.Statements)
 					ValidateIteratorGeneratorSourceStatement(function, child, ref hasYield, blockState);
+				stackAllocState.MergeConditional(blockState, blockState);
 				break;
 			}
 			case DeclarationStatement declaration:
 				ValidateIteratorGeneratorSourceExpression(declaration.InitialValue, stackAllocState);
-				if (declaration.IsStackAllocStorage)
+				declaration.HoldsStackAddress = stackAllocState.IsStackAddress(declaration.InitialValue);
+				if (declaration.IsActivationLocal)
 				{
 					foreach (string name in declaration.Target.Names)
-						stackAllocState.TrackAssigned(name);
+						stackAllocState.TrackAssigned(name, declaration.HoldsStackAddress);
 				}
 				break;
 			case ExpressionStatement expressionStatement:
@@ -190,6 +192,8 @@ public sealed partial class BindableNodeAnalyzer
 				IteratorStackAllocAssignmentState bodyState = stackAllocState.Clone();
 				ValidateIteratorGeneratorSourceStatement(function, whileStatement.Body, ref hasYield, bodyState);
 				stackAllocState.MergePossibleLoopBody(bodyState);
+				ValidateIteratorGeneratorSourceExpression(whileStatement.Condition, bodyState);
+				ValidateIteratorGeneratorSourceStatement(function, whileStatement.Body, ref hasYield, bodyState.Clone());
 				break;
 			}
 			case DoWhileStatement doWhile:
@@ -198,6 +202,7 @@ public sealed partial class BindableNodeAnalyzer
 				ValidateIteratorGeneratorSourceStatement(function, doWhile.Body, ref hasYield, bodyState);
 				ValidateIteratorGeneratorSourceExpression(doWhile.Condition, bodyState);
 				stackAllocState.MergePossibleLoopBody(bodyState);
+				ValidateIteratorGeneratorSourceStatement(function, doWhile.Body, ref hasYield, bodyState.Clone());
 				break;
 			}
 			case ForStatement forStatement:
@@ -210,6 +215,9 @@ public sealed partial class BindableNodeAnalyzer
 				IteratorStackAllocAssignmentState bodyState = forState.Clone();
 				ValidateIteratorGeneratorSourceStatement(function, forStatement.Body, ref hasYield, bodyState);
 				stackAllocState.MergePossibleLoopBody(bodyState);
+				foreach (Expression? clause in forStatement.Condition.Clauses)
+					ValidateIteratorGeneratorSourceExpression(clause, bodyState);
+				ValidateIteratorGeneratorSourceStatement(function, forStatement.Body, ref hasYield, bodyState.Clone());
 				break;
 			}
 			case ForeachStatement foreachStatement:
@@ -233,7 +241,9 @@ public sealed partial class BindableNodeAnalyzer
 				ValidateIteratorGeneratorSourceExpression(caseStatement.Expression, stackAllocState);
 				break;
 			case ReturnStatement returnStatement:
-				Report(GetRange(returnStatement.SourceSyntax), "Return statements are not valid in iterator generators; use 'yield break;' to end the iterator.");
+				if (function.IteratorKind != IteratorKind.None)
+					Report(GetRange(returnStatement.SourceSyntax), "Return statements are not valid in iterator generators; use 'yield break;' to end the iterator.");
+				else ValidateIteratorGeneratorSourceExpression(returnStatement.Expression, stackAllocState);
 				break;
 			case DeleteStatement deleteStatement:
 				ValidateIteratorGeneratorSourceExpression(deleteStatement.Expression, stackAllocState);
@@ -286,6 +296,9 @@ public sealed partial class BindableNodeAnalyzer
 	void ValidateIteratorGeneratorSourceExpression(Expression? expression, IteratorStackAllocAssignmentState stackAllocState)
 	{
 		stackAllocState.ReportIfUnassigned(this, expression);
+		List<UnaryExpression> awaits = [];
+		CollectAsyncAwaitSites(expression, awaits);
+		if (awaits.Count > 0) stackAllocState.MarkSuspended();
 	}
 
 	static bool TryGetSimpleAssignedName(Expression? expression, out string? name)
@@ -304,28 +317,46 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		readonly HashSet<string> tracked = new(StringComparer.Ordinal);
 		readonly HashSet<string> unassigned = new(StringComparer.Ordinal);
+		readonly HashSet<string> addresses = new(StringComparer.Ordinal);
 
 		public IteratorStackAllocAssignmentState()
 		{
 		}
 
-		IteratorStackAllocAssignmentState(HashSet<string> tracked, HashSet<string> unassigned)
+		IteratorStackAllocAssignmentState(HashSet<string> tracked, HashSet<string> unassigned, HashSet<string> addresses)
 		{
 			this.tracked.UnionWith(tracked);
 			this.unassigned.UnionWith(unassigned);
+			this.addresses.UnionWith(addresses);
 		}
 
 		public IteratorStackAllocAssignmentState Clone()
 		{
-			return new IteratorStackAllocAssignmentState(tracked, unassigned);
+			return new IteratorStackAllocAssignmentState(tracked, unassigned, addresses);
 		}
 
-		public void TrackAssigned(string name)
+		public void TrackAssigned(string name, bool address = false)
 		{
 			if (name == "_")
 				return;
 			tracked.Add(name);
+			if (address) addresses.Add(name);
 			unassigned.Remove(name);
+		}
+
+		public bool IsStackAddress(Expression? expression)
+		{
+			if (expression is null || expression is LambdaExpression) return false;
+			if (expression is UnaryExpression { Operator: UnaryOperator.AddressOf } address)
+				return ReferencesAnyName(address.Operand, tracked);
+			if (TryGetSimpleAssignedName(expression, out string? name) && name is not null && addresses.Contains(name)) return true;
+			return expression switch
+			{
+				ParenthesizedExpression value => IsStackAddress(value.Expression),
+				CastExpression value => IsStackAddress(value.Expression),
+				ConditionalExpression value => IsStackAddress(value.WhenTrue) || IsStackAddress(value.WhenFalse),
+				_ => false
+			};
 		}
 
 		public void MarkAssigned(string name)
@@ -341,8 +372,11 @@ public sealed partial class BindableNodeAnalyzer
 
 		public void MergeConditional(IteratorStackAllocAssignmentState thenState, IteratorStackAllocAssignmentState elseState)
 		{
+			unassigned.Clear();
 			tracked.UnionWith(thenState.tracked);
 			tracked.UnionWith(elseState.tracked);
+			addresses.UnionWith(thenState.addresses);
+			addresses.UnionWith(elseState.addresses);
 			unassigned.UnionWith(thenState.unassigned);
 			unassigned.UnionWith(elseState.unassigned);
 		}
@@ -350,6 +384,7 @@ public sealed partial class BindableNodeAnalyzer
 		public void MergePossibleLoopBody(IteratorStackAllocAssignmentState bodyState)
 		{
 			tracked.UnionWith(bodyState.tracked);
+			addresses.UnionWith(bodyState.addresses);
 			unassigned.UnionWith(bodyState.unassigned);
 		}
 
@@ -446,10 +481,43 @@ public sealed partial class BindableNodeAnalyzer
 	void AddIteratorStateMembers(TypeDefinition state, FunctionDefinition function, IterTypeReference iterType, TypeDefinition? containingType)
 	{
 		AddIteratorStateFields(state, function, containingType);
+		RetainIteratorInitializerCleanup(state, function);
 		AddIteratorLiftedLocalFields(state, function);
 		AddIteratorNextMethod(state, function, iterType);
 		AddIteratorDestructor(state, function);
 		AddIteratorProtocolAdapter(state, iterType);
+	}
+
+	void RetainIteratorInitializerCleanup(TypeDefinition state, FunctionDefinition function)
+	{
+		if (function.Body is null) return;
+		AnalysisScope typeScope = CreateIteratorExpansionTypeScope(function, state);
+		for (int index = 0; index < function.Body.Statements.Count; index++)
+		{
+			if (function.Body.Statements[index] is not DeclarationStatement declaration
+				|| declaration.InitialValue is not FinallyCleanupExpression { Kind: FinallyCleanupKind.Delete, Expression: not null } cleanup
+				|| declaration.Target.Names.Count != 1) continue;
+			if (declaration.Target.Type is AutoTypeReference)
+			{
+				if (!TryInferIteratorLiftedLocalType(declaration, typeScope, out TypeReference? inferred, out string? resolved)) continue;
+				declaration.Target.Type = inferred;
+				declaration.Target.ResolvedType = resolved;
+			}
+			// Capture the allocated value separately: later assignment to the source
+			// local must not change which allocation its cleanup owns.
+			string name = NewGeneratedLocalName("iteratorCleanup");
+			DeclarationStatement capture = new() { SourceSyntax = declaration.SourceSyntax, InitialValue = cleanup.Expression };
+			capture.Target.Type = CloneType(declaration.Target.Type);
+			capture.Target.ResolvedType = declaration.Target.ResolvedType;
+			capture.Target.Names.Add(name);
+			declaration.InitialValue = new NamedExpression { Name = name, SourceSyntax = cleanup.SourceSyntax };
+			function.Body.Statements.Insert(index++, capture);
+			function.Body.Statements.Insert(++index, new FinallyStatement
+			{
+				SourceSyntax = cleanup.SourceSyntax,
+				Body = new DeleteStatement { SourceSyntax = cleanup.SourceSyntax, Expression = new NamedExpression { Name = name } }
+			});
+		}
 	}
 
 	void AddIteratorStateFields(TypeDefinition state, FunctionDefinition function, TypeDefinition? containingType)
@@ -632,6 +700,7 @@ public sealed partial class BindableNodeAnalyzer
 
 		foreach (DeclarationStatement declaration in EnumerateIteratorLocalDeclarations(function.Body))
 		{
+			if (declaration.IsActivationLocal) continue;
 			if (declaration.InitialValue is ConstructionExpression { Kind: ConstructionKind.Init, ElementCount: not null } initArray)
 				Report(GetRange(initArray.SourceSyntax ?? declaration.InitialValue.SourceSyntax ?? declaration.SourceSyntax), "Iterator generator bodies cannot use init array construction; use fixed storage or new instead.");
 			foreach (string name in declaration.Target.Names)
@@ -661,6 +730,12 @@ public sealed partial class BindableNodeAnalyzer
 					Type = CloneType(declaration.Target.Type),
 					ResolvedType = declaration.Target.ResolvedType ?? declaration.Target.Type?.ResolvedType ?? FormatTypeReference(declaration.Target.Type)
 				};
+				if (TryUnwrapIteratorLiftedLocalConstruction(declaration.InitialValue, out ConstructionExpression? allocated)
+					&& allocated?.Kind == ConstructionKind.New)
+				{
+					field.Type = new EscapedTypeReference { Type = field.Type, SourceSyntax = field.Type?.SourceSyntax };
+					field.ResolvedType = "escaped " + field.ResolvedType;
+				}
 				AddIteratorField(state, field, name);
 				AddIteratorDeclarationField(declaration.Target, name, field);
 			}
@@ -1483,6 +1558,7 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			List<Statement> rewrittenStatements = RewriteIteratorBodyStatements(function.Body, lowering);
 			BlockStatement body = new() { ResolvedType = "void" };
+			body.Statements.AddRange(lowering.StackLocals);
 			body.Statements.AddRange(CreateIteratorProtocolForeachCurrentStorage(function));
 			body.Statements.AddRange(lowering.CreateResumeDispatch());
 			foreach (Statement statement in rewrittenStatements)
@@ -1798,6 +1874,18 @@ public sealed partial class BindableNodeAnalyzer
 
 	List<Statement> RewriteIteratorDeclaration(DeclarationStatement declaration, IteratorBodyLowering lowering)
 	{
+		if (declaration.IsActivationLocal)
+		{
+			Expression? value = RewriteIteratorExpression(declaration.InitialValue, lowering);
+			declaration.InitialValue = null;
+			lowering.StackLocals.Add(declaration);
+			return value is null ? [] : [new ExpressionStatement
+			{
+				SourceSyntax = declaration.SourceSyntax,
+				Expression = new AssignmentExpression { Operator = AssignmentOperator.Assign,
+					Target = new NamedExpression { Name = declaration.Target.Names[0], SourceSyntax = declaration.Target.SourceSyntax }, Value = value }
+			}];
+		}
 		List<Statement> statements = [];
 		foreach (string name in declaration.Target.Names)
 		{
@@ -2465,6 +2553,7 @@ public sealed partial class BindableNodeAnalyzer
 		int nextState = 1;
 
 		public FunctionDefinition Function { get; }
+		public List<DeclarationStatement> StackLocals { get; } = [];
 
 		public IteratorBodyLowering(BindableNodeAnalyzer analyzer, FunctionDefinition function, ParameterDefinition current, string yieldedType, ParameterDefinition? thrownParameter)
 		{
@@ -2481,6 +2570,7 @@ public sealed partial class BindableNodeAnalyzer
 			}
 			foreach (DeclarationStatement declaration in analyzer.EnumerateIteratorLocalDeclarations(function.Body))
 			{
+				if (declaration.IsActivationLocal) continue;
 				foreach (string name in declaration.Target.Names)
 					if (name != "_")
 						liftedTypes[name] = declaration.Target.ResolvedType ?? declaration.Target.Type?.ResolvedType ?? FormatTypeReference(declaration.Target.Type);

@@ -1046,6 +1046,13 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		string targetType = target?.ResolvedType ?? ErrorType;
 		string? elementType = TryGetPointerElementType(targetType);
+		if (ErasedTypeIdentity.TryGetPayload(elementType, out string erasedPayload)
+			&& !TryGetParamsComponentShape(null, erasedPayload, "value", out _))
+		{
+			elementType = erasedPayload;
+			targetType = AddPointer(erasedPayload);
+			target = new CastExpression { Expression = target, Type = TypeReferenceForResolvedName(targetType), ResolvedType = targetType };
+		}
 		string? primitiveStringElementType = GetPrimitiveStringElementType(targetType);
 		bool isPrimitiveStringPointer = primitiveStringElementType is not null;
 		bool isPointer = elementType is not null || isPrimitiveStringPointer;

@@ -10,6 +10,15 @@ types, local declarations, function bodies, and inactive conditional branches.
 
 ## Emitting Metadata
 
+An erased annotation follows the selected visibility view. `--metadata all`
+retains private `void<V>` annotations; public/export views retain only annotations
+whose payload types are visible in that view. Hidden annotations use the opaque
+ABI contract: pointers, pointer plus length for arrays, and a boolean plus an
+output pointer for optional erased results. Generated Camp APIs use the same
+projection. Tools must not infer private payload size from these records; that
+size must come from an explicit library contract. See
+[API surface semantics](../semantics/11-metadata-api-surface-and-symbols.md).
+
 Metadata is selected with `--metadata`:
 
 ```sh

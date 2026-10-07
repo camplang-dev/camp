@@ -3102,6 +3102,7 @@ public static class CCodeEmitter
                         CollectAsyncFrameLocals(child, fields);
                     return;
                 case DeclarationStatement declaration:
+                    if (declaration.IsActivationLocal) return;
                     fields.Add(new(declaration.Target, CName(declaration.Target), declaration.Target.ResolvedType ?? "#ERROR", declaration.Target.Type));
                     return;
                 case IfStatement ifStatement:
@@ -3129,6 +3130,18 @@ public static class CCodeEmitter
                     CollectAsyncFrameLocals(withinStatement.Body, fields);
                     return;
             }
+        }
+
+        static IEnumerable<DeclarationStatement> AsyncStackLocals(BindableNode? node)
+        {
+            if (node is null || node is LambdaExpression) yield break;
+            if (node is DeclarationStatement { IsActivationLocal: true } declaration)
+            {
+                yield return declaration;
+                yield break;
+            }
+            foreach (BindableNode child in BindableNodeTraversal.Children(node))
+                foreach (DeclarationStatement local in AsyncStackLocals(child)) yield return local;
         }
 
         string? GetAwaitedThrownType(CallExpression call)
@@ -3239,17 +3252,6 @@ public static class CCodeEmitter
             writer.WriteLine("{");
             WriteIndent(writer, 1);
             writer.WriteLine(frame.FrameType + " *frame = (" + frame.FrameType + " *)context;");
-            WriteIndent(writer, 1);
-            writer.WriteLine("switch (frame->state)");
-            WriteIndent(writer, 1);
-            writer.WriteLine("{");
-            for (int i = 0; i <= frame.Awaits.Count; i++)
-            {
-                WriteIndent(writer, 2);
-                writer.WriteLine("case " + i.ToString(CultureInfo.InvariantCulture) + ": goto __async_state" + i.ToString(CultureInfo.InvariantCulture) + ";");
-            }
-            WriteIndent(writer, 1);
-            writer.WriteLine("}");
             Dictionary<BindableNode, string> savedReplacements = new(currentAsyncFrameReplacements);
             Dictionary<string, string> savedNameReplacements = new(currentAsyncFrameNameReplacements, StringComparer.Ordinal);
             string? savedFrameName = currentAsyncFrameName;
@@ -3265,6 +3267,25 @@ public static class CCodeEmitter
             currentAsyncFrameName = "frame";
             currentFunction = frame.Function;
             currentAsyncLoopLabelIndex = 0;
+            foreach (DeclarationStatement local in AsyncStackLocals(frame.Function.Body))
+            {
+                DeclarationStatement storage = new() { IsStackAllocStorage = true };
+                storage.Target.Type = local.Target.Type;
+                storage.Target.ResolvedType = local.Target.ResolvedType;
+                storage.Target.Names.AddRange(local.Target.Names);
+                WriteDeclarationStatement(writer, storage, 1);
+            }
+            WriteIndent(writer, 1);
+            writer.WriteLine("switch (frame->state)");
+            WriteIndent(writer, 1);
+            writer.WriteLine("{");
+            for (int i = 0; i <= frame.Awaits.Count; i++)
+            {
+                WriteIndent(writer, 2);
+                writer.WriteLine("case " + i.ToString(CultureInfo.InvariantCulture) + ": goto __async_state" + i.ToString(CultureInfo.InvariantCulture) + ";");
+            }
+            WriteIndent(writer, 1);
+            writer.WriteLine("}");
             int awaitCursor = 0;
             WriteIndent(writer, 0);
             writer.WriteLine("__async_state0: ;");
@@ -3511,6 +3532,15 @@ public static class CCodeEmitter
 
         void WriteAsyncFrameDeclarationStatement(TextWriter writer, AsyncFrameInfo frame, DeclarationStatement declaration, int indent, ref int awaitCursor)
         {
+            if (declaration.IsActivationLocal)
+            {
+                if (declaration.InitialValue is not null)
+                {
+                    WriteIndent(writer, indent);
+                    writer.WriteLine(FormatVariableReference(declaration.Target) + " = " + FormatDeclarationInitializer(ErasedTypeIdentity.ReadType(declaration.Target.ResolvedType ?? "void"), declaration.InitialValue) + ";");
+                }
+                return;
+            }
             string target = FormatVariableReference(declaration.Target);
             if (declaration.InitialValue is UnaryExpression { Operator: UnaryOperator.Await, Operand: CallExpression call } awaitExpression)
             {
@@ -6797,7 +6827,7 @@ public static class CCodeEmitter
                     return true;
                 // Forward an existing value's storage, not a pointer-valued &expression passed to in T*.
                 case UnaryExpression { Operator: UnaryOperator.AddressOf, Operand.ResolvedType: string operandType } addressOf
-                    when parameterType is not null && StripTypeQualifiers(operandType) == StripTypeQualifiers(parameterType):
+                    when parameterType is not null && StripTypeQualifiers(ErasedTypeIdentity.ReadType(operandType)) == StripTypeQualifiers(parameterType):
                     value = FormatExpression(addressOf);
                     return true;
                 case VariableReferenceExpression { Variable: ParameterDefinition { Modifier: ParameterModifier.In } parameter }:

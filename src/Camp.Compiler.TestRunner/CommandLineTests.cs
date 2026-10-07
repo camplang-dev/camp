@@ -22,6 +22,84 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Erased_private_types_support_separate_camp_and_native_consumers()
+	{
+		string root = TempPath("erased-private-consumers");
+		string library = Path.Combine(root, "library");
+		Directory.CreateDirectory(library);
+		File.WriteAllText(Path.Combine(library, "opaque.campbuild"), "--nostdlib\n--name opaque\nopaque.camp\n");
+		File.WriteAllText(Path.Combine(library, "opaque.camp"), """
+			#within implicit
+			extern escaped void* malloc(nuint size);
+			extern void free(void* pointer);
+			struct PrivateValue { int value; }
+			int live;
+			export nuint storageSize() => sizeof(PrivateValue);
+			export void fill(out void<PrivateValue> value) { PrivateValue p = { 7 }; value = p; }
+			export int read(in void<PrivateValue> value) => value.value;
+			export void<PrivateValue>? find(int index) { if (index != 0) return default; PrivateValue p = { 9 }; return p; }
+			export void<PrivateValue>* identity(void<PrivateValue>* value) => value;
+			export const void<PrivateValue>* readOnly(const void<PrivateValue>* value) => value;
+			export int sum(void<PrivateValue>[] values) { int result = 0; foreach (PrivateValue value in values) result += value.value; return result; }
+			export int liveCount() => live;
+			export struct iter int values() {
+			void<PrivateValue>* held = (void<PrivateValue>*)malloc(sizeof(PrivateValue));
+			live++;
+			fill(out *held);
+			finally { free(held); live--; }
+			yield held.value;
+			held.value++;
+			yield held.value;
+			}
+			""");
+		string app = Path.Combine(root, "app.camp");
+		File.WriteAllText(app, """
+			#build --nostdlib
+			extern escaped void* malloc(nuint size);
+			extern void free(void* value);
+			export int main() {
+			void* storage = malloc(storageSize());
+			fill(storage);
+			if (read(readOnly(identity(storage))) != 7 || sum(storage, 1) != 7) return 1;
+			if (!find(0, storage) || read(storage) != 9) return 2;
+			if (find(1, storage) || read(storage) != 0) return 3;
+			free(storage);
+			int total = 0;
+			foreach (int value in values()) total += value;
+			if (total != 15 || liveCount() != 0) return 4;
+			foreach (int first in values()) { break; }
+			return liveCount();
+			}
+			""");
+		string output = Path.Combine(root, "bin");
+		AssertCommandSucceeded(RunCampc("build", app, "--name", "consumer", "--project-reference", library + ":static", "--out-dir", output));
+		AssertCommandSucceeded(RunExecutable(Path.Combine(output, ArtifactDirectoryForHost(NativeBuildKind.Exec), "consumer" + ExecutableExtensionForHost())));
+		string artifact = Path.Combine(library, "bin", ArtifactDirectoryForHost(NativeBuildKind.Static));
+		foreach (string extension in new[] { "camp", "json", "h" })
+			Assert.DoesNotContain("PrivateValue", File.ReadAllText(Path.Combine(artifact, "opaque_api." + extension)));
+		string source = Path.Combine(root, "consumer.c");
+		File.WriteAllText(source, """
+			#include "opaque_api.h"
+			#include <stdlib.h>
+			int main(void) {
+			void *storage = malloc(storageSize());
+			fill(storage);
+			if (read(readOnly(identity(storage))) != 7 || sum(storage, 1) != 7) return 1;
+			if (!find(0, storage) || read(storage) != 9) return 2;
+			if (find(1, storage) || read(storage) != 0) return 3;
+			free(storage);
+			return 0;
+			}
+			""");
+		string executable = Path.Combine(root, "native-consumer" + ExecutableExtensionForHost());
+		string archive = Directory.GetFiles(artifact, OperatingSystem.IsWindows() ? "*.lib" : "*.a").Single();
+		AssertCommandSucceeded(OperatingSystem.IsWindows()
+			? RunProcess("cl", ["/nologo", "/I" + artifact, source, archive, "/Fe" + executable], root)
+			: RunProcess(OperatingSystem.IsMacOS() ? "clang" : "gcc", ["-std=c11", "-I", artifact, source, archive, "-o", executable], root));
+		AssertCommandSucceeded(RunExecutable(executable));
+	}
+
+	[Fact]
 	public void Root_command_requires_subcommand()
 	{
 		ProcessResult result = RunCampc();

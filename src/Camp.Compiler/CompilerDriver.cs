@@ -2481,6 +2481,7 @@ public static class CompilerDriver
 
         static void CollectApiDependencyTypes(TypeReference? type, Queue<TypeDefinition> pending, HashSet<Definition> selected)
         {
+            if (ErasedTypeIdentity.TryGetPayload(type?.ResolvedType, out _)) return;
             switch (type)
             {
                 case null:
@@ -2574,7 +2575,8 @@ public static class CompilerDriver
                     break;
 
                 case MaterializedStructTypeReference materialized:
-                    CollectApiDependencyTypes(materialized.ParamsType, pending, selected);
+                    // An opaque annotation must not pull a private declaration
+                    // into a public dependency closure.
                     break;
 
                 case ThrownTypeReference thrown:

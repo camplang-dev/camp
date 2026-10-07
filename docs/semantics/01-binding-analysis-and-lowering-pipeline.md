@@ -7,6 +7,13 @@ earlier stage owns.
 
 ## Source Files And Compilation
 
+Keep the source identity of `void<V>` through binding, member lookup, callable
+matching and lifetime analysis. API projection erases an inaccessible annotation
+only in the selected output view; C emission erases it at the ABI boundary.
+Neither operation may discard the producer's type or turn ordinary distributive
+components into a single storage object. Generated suspension state retains
+heap-backed pointers and recreates named stack storage in each activation.
+
 A `Compilation` contains source files, target selection, profile, configuration
 flags, default `within` allocation policy, parsed trees, bindable trees,
 declaration expansion results, lowering results, and owner maps from definitions
