@@ -1194,6 +1194,23 @@ public sealed partial class BindableNodeAnalyzer
 
 	BlockStatement CreateInterfaceThunkBody(FunctionDefinition thunk, InterfaceThunkLowering lowering)
 	{
+		// Signatures are bound now. Forward erased result storage directly instead of
+		// interpreting the implementation's bool/void result as a source payload.
+		string resultType = thunk.ResolvedType ?? "void";
+		bool optional = resultType.EndsWith('?');
+		if (ErasedTypeIdentity.TryGetPayload(optional ? resultType[..^1] : resultType, out _))
+		{
+			string payload = optional ? resultType[..^1] : resultType;
+			int hidden = thunk.Parameters.FindIndex(parameter => parameter.Modifier is ParameterModifier.Within or ParameterModifier.Thrown
+				|| parameter is WithinParameterDefinition or SizeOfParameterDefinition or NameOfParameterDefinition or VTableOfParameterDefinition);
+			thunk.Parameters.Insert(hidden < 0 ? thunk.Parameters.Count : hidden, new ParameterDefinition
+			{
+				Name = "__result", Symbol = "__result", Modifier = ParameterModifier.Out,
+				Type = TypeReferenceForResolvedName(payload), ResolvedType = payload
+			});
+			thunk.ResolvedType = optional ? "bool" : "void";
+			thunk.ReturnType = TypeReferenceForResolvedName(thunk.ResolvedType);
+		}
 		BlockStatement body = new()
 		{
 			ResolvedType = "void"
@@ -1283,7 +1300,7 @@ public sealed partial class BindableNodeAnalyzer
 
 		CallExpression call = new()
 		{
-			ResolvedType = GetInterfaceEntryReturnType(lowering.Member, lowering.Implementation.Type),
+			ResolvedType = thunk.ResolvedType ?? GetInterfaceEntryReturnType(lowering.Member, lowering.Implementation.Type),
 			Target = IsDestructorFunction(lowering.Member)
 				? new MethodReferenceExpression
 				{
@@ -1316,6 +1333,7 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			EnsureImplementationMethodSymbol(lowering.Implementation.Type, implementation);
 			callTargets[call] = implementation;
+			if (thunk.Parameters.Any(parameter => parameter.Name == "__result")) materializedGenericReturnCalls.Add(call);
 			ExpandParamsArguments(call);
 			LowerCallArgumentConversions(call);
 		}

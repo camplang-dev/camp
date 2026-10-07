@@ -1,6 +1,25 @@
 namespace Std;
 
 @test
+void listOptionalLookupAndBorrowedRange(within Allocator* allocator, thrown Assertion* assertion)
+{
+	auto values = within (allocator) new List<int?>() finally delete;
+	values.add(5);
+	values.add(default);
+	int?? present = values.getItemOrDefault(0);
+	int?? innerMissing = values.getItemOrDefault(1);
+	int?? missing = values.getItemOrDefault(2);
+	assert(present.specified && present.value.specified && present.value.value == 5, "Lookup should preserve both presence layers");
+	assert(innerMissing.specified && !innerMissing.value.specified, "An unspecified item is still an item");
+	assert(!missing.specified && !missing.value.specified && missing.value.value == 0, "Missing lookup should default its payload");
+	assert(!values.getItemOrDefault(-1).specified, "Negative lookup should be unspecified");
+	void<int?>[] range = values.take(0, 2);
+	assert(range.length == 2 && range[0].value == 5 && !range[1].specified, "Borrowed ranges should retain erased element storage");
+	range[0] = 9;
+	assert(values.Item[0].value == 9, "Borrowed ranges should refer to the list storage");
+}
+
+@test
 void hashMapSetAndListCollectionsBehaveAcrossGrowthCopyAndRemoval(within Allocator* allocator, thrown Assertion* assertion)
 {
 	auto map = within (allocator) new HashMap<string, int>(string.HASH_POLICY) finally delete;

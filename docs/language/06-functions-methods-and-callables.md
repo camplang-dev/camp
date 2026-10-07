@@ -746,6 +746,25 @@ detail.
 
 ## Method References
 
+References to erased generic methods expose their substituted calling shape.
+For a `List<int> numbers`, `auto get = numbers.getItem` has the shape
+`delegate void<int>(nuint)`. It can fill
+`delegate void(nuint, out int)`; calling `get(0)` produces an `int`. A lambda
+such as `index => numbers.getItem(index)` can fill a plain `delegate int(nuint)`.
+
+Callable matching permits `P` against `void<P>` in reference, pointer and array
+slots when `P` is not expandable. An erased result also matches a trailing
+output: `void<V>` matches `void(..., out void<V>)`, and `void<V>?` matches
+`bool(..., out void<V>)`. Callable newtype ascription and interface implementation
+matching use these rules; virtual overrides remain exact.
+
+For an erased `delegate T()` callback, a plain `int seven()` cannot fill the
+slot when `T = int`. Use `() => seven()` or
+`void sevenOut(out int result) { result = 7; }`. Both produce `7`, and
+`int value = sevenOut()` also binds its single trailing output. Likewise,
+`in int?` cannot fill an `in void<int?>` callback slot: use an implicit-parameter
+lambda or declare the callback with `in void<int?>`.
+
 A method reference can become a callable value. If the receiver is known, the
 callable captures the receiver as context. If the receiver is not known, the
 callable may expect a receiver parameter.

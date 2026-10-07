@@ -1276,7 +1276,7 @@ public sealed partial class BindableNodeAnalyzer
 		return false;
 	}
 
-	FunctionDefinition? ResolveCallTargetAllowingOmittedOut(CallExpression call, int resultCount, BodyScope scope, AnalysisScope typeScope)
+	FunctionDefinition? ResolveCallTargetAllowingOmittedOut(CallExpression call, int resultCount, BodyScope scope, AnalysisScope typeScope, bool singleVoidResult = false)
 	{
 		List<FunctionDefinition> candidates = call.Target switch
 		{
@@ -1291,6 +1291,8 @@ public sealed partial class BindableNodeAnalyzer
 		foreach (FunctionDefinition function in candidates)
 		{
 			EnsureFunctionSignatureAnalyzed(function, typeScope);
+			if (singleVoidResult && (function.ResolvedType != "void" || GetCallableParameters(function.Parameters).LastOrDefault()?.Modifier != ParameterModifier.Out))
+				continue;
 			if (CanBindOmittedOutDeconstruction(function, call.Arguments.Count, resultCount))
 				matches.Add(function);
 		}
@@ -3027,7 +3029,8 @@ public sealed partial class BindableNodeAnalyzer
 			&& expectedShape.Kind is "fn" or "delegate" or "once" or "async"
 			&& (expectedShape.Kind == "async"
 				? lambda.IsNewDelegate && expectedEscaped && CallableShapesCompatibleWithConstOfVariance(new CallableShape("delegate", expectedShape.Spec, expectedShape.CallSpec, returnType, parameterTypes, expectedShape.This), CreateAsyncLambdaSourceShape(expectedShape))
-				: CallableShapesCompatibleWithConstOfVariance(new CallableShape(expectedShape.Kind, expectedShape.Spec, expectedShape.CallSpec, returnType, parameterTypes, expectedShape.This), expectedShape)))
+				: CallableShapesCompatibleWithConstOfVariance(new CallableShape(expectedShape.Kind, expectedShape.Spec, expectedShape.CallSpec, returnType, parameterTypes, expectedShape.This),
+					expectedShape with { ReturnType = ReadErasedValueType(expectedShape.ReturnType) })))
 			return targetType;
 
 		return inferredType;
@@ -3244,7 +3247,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	static string LambdaSourceReturnType(string returnType, LambdaExpression lambda)
 	{
-		string result = returnType;
+		string result = ReadErasedValueType(returnType);
 		for (int i = 0; i < lambda.Parameters.Count; i++)
 		{
 			string? name = GetLambdaParameterSymbolName(lambda.Parameters[i]);
@@ -3409,9 +3412,15 @@ public sealed partial class BindableNodeAnalyzer
 		if (call.Initializer is not null)
 			Report(GetRange(call.Initializer.SourceSyntax ?? call.SourceSyntax), "Initializer lists can only follow type construction.");
 
+		FunctionDefinition? trailing = targetType is not null ? ResolveCallTargetAllowingOmittedOut(call, 1, scope, typeScope, singleVoidResult: true) : null;
+		if (trailing is not null && trailing.ResolvedType == "void")
+		{
+			trailingOutResults[call] = GetCallableParameters(trailing.Parameters)[^1];
+			BodyAnalyzeExpression(call.Target, scope, typeScope);
+		}
 		FunctionDefinition? function = callTargets.TryGetValue(call, out FunctionDefinition? existingTarget)
 			? existingTarget
-			: ResolveCallTarget(call.Target, scope, typeScope, call.Arguments);
+			: trailingOutResults.ContainsKey(call) ? trailing : ResolveCallTarget(call.Target, scope, typeScope, call.Arguments);
 		if (function is not null && DeclarationParticipation.IsTest(function))
 			Report(GetRange(GetCallTargetNameDiagnosticSyntax(call.Target) ?? call.SourceSyntax), "@test functions are invoked only by the built-in test runner and may not be called explicitly.");
 		Dictionary<string, string> genericSubstitutions = [];
@@ -3469,6 +3478,8 @@ public sealed partial class BindableNodeAnalyzer
 		if (function is not null)
 			ValidateExplicitAsyncCallShape(function, call, includeExplicitThisArgument);
 		List<ParameterDefinition> analysisParameters = function is null ? [] : GetAsyncAwareCallParameters(function, call, includeExplicitThisArgument);
+		if (trailingOutResults.TryGetValue(call, out ParameterDefinition? trailingResult))
+			analysisParameters.Remove(trailingResult);
 		CallArgumentBinding binding = new();
 		Dictionary<string, bool> constOfAnchors = AnalyzeCallArguments(
 			call.Arguments,
@@ -3500,8 +3511,10 @@ public sealed partial class BindableNodeAnalyzer
 			callGenericSubstitutions[call] = new Dictionary<string, string>(genericSubstitutions, StringComparer.Ordinal);
 
 		string returnType = SubstituteGenericReturnType(function?.ResolvedType, call.TypeArguments, genericSubstitutions);
+		if (trailingResult is not null)
+			returnType = ReadErasedValueType(SubstituteStorageType(trailingResult.ResolvedType ?? ErrorType, genericSubstitutions));
 		if (function is not null)
-			returnType = ReadErasedValueType(SubstituteStorageType(function.ResolvedType ?? ErrorType, genericSubstitutions));
+			returnType = trailingResult is not null ? returnType : ReadErasedValueType(SubstituteStorageType(function.ResolvedType ?? ErrorType, genericSubstitutions));
 		if (function is not null)
 			returnType = SubstituteConstOfResolvedType(function.ReturnType, returnType, constOfAnchors, genericSubstitutions);
 		if (function is not null)
@@ -3866,6 +3879,8 @@ public sealed partial class BindableNodeAnalyzer
 		string callableType = call.Target?.ResolvedType ?? ErrorType;
 		if (!TryGetCallableInvocationShape(callableType, out CallableShape callable))
 			return false;
+		if (ErasedTypeIdentity.TryGetPayload(callable.ReturnType.EndsWith('?') ? callable.ReturnType[..^1] : callable.ReturnType, out _))
+			erasedCallableResults[call] = callable.ReturnType;
 
 		List<ParameterDefinition> parameters = TryGetCallableNewtypeParameters(callableType, call.Arguments, out List<ParameterDefinition>? newtypeParameters)
 			? newtypeParameters!
@@ -3884,7 +3899,7 @@ public sealed partial class BindableNodeAnalyzer
 			allowOmittedPrepParameter: true,
 			callTarget: call.Target,
 			binding: binding);
-		returnType = SubstituteCallableConstOfReturnType(callableType, callable.ReturnType, constOfAnchors);
+		returnType = ReadErasedValueType(SubstituteCallableConstOfReturnType(callableType, callable.ReturnType, constOfAnchors));
 		PreparedBufferExpression? preparedResult = null;
 		if (TryGetOmittedPrepParameter(binding, out ParameterDefinition? prepParameter))
 		{
@@ -4886,6 +4901,9 @@ public sealed partial class BindableNodeAnalyzer
 
 		ConversionClassification conversion = ClassifyConversion(actual, expected);
 		string? reconstructHint = conversion.Level == ConversionLevel.ReconstructRequired ? conversion.Diagnostic : null;
+		if (TryGetCallableShape(actual, out CallableShape sourceCallable) && TryGetCallableShape(expected, out CallableShape targetCallable)
+			&& !CallableShapesCompatibleWithConstOfVariance(sourceCallable, targetCallable))
+			reconstructHint = AssignmentConversionMessage(expected, actual, context);
 		Report(GetRange(syntax), reconstructHint ?? $"{context} cannot convert '{WitnessTypeIdentity.Display(actual)}' to '{WitnessTypeIdentity.Display(expected)}'.");
 	}
 
@@ -4894,6 +4912,10 @@ public sealed partial class BindableNodeAnalyzer
 		Expression? direct = value is NamedExpression named && expressionRewrites.TryGetValue(named, out Expression? rewrite)
 			? rewrite
 			: value;
+		// Generated ABI types can refine interface-valued hidden parameters after
+		// source matching. Compare both sides at the same lowering stage.
+		if (allocatorSurfaceValidationEnabled && direct is MethodReferenceExpression { Candidates.Count: 1 } loweredMethod)
+			actual = BuildFunctionValueType(loweredMethod.Candidates[0], isInstance: false);
 		if (direct is not MethodReferenceExpression { Candidates.Count: 1 }
 			|| !TryGetCallableShape(actual, out CallableShape source)
 			|| source.Kind != "fn"

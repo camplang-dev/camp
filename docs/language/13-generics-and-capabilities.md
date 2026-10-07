@@ -307,6 +307,29 @@ This swaps pointers to `T` storage. It does not copy the `T` values.
 
 ## Copyable Erased Values
 
+Erased signatures keep the same storage shape for every instantiation, including
+callback signatures nested inside parameters. A substituted `T` result uses
+`void<A>` caller storage, while the call expression produces `A`. A substituted
+`T?` result produces `A?`; optional layers never collapse.
+
+For example, `List<int?>` stores optional values in erased elements:
+
+```camp
+auto items = new List<int?>() finally delete;
+items.add(1);
+items.add(default);
+auto first = items.Item[0];                // int?
+auto section = items.take(0, 2);           // void<int?>[]; borrowed storage
+auto maybe = items.getItemOrDefault(300);  // int??; outer layer absent
+auto lookup = items.getItemOrDefault;      // delegate void<int?>?(int)
+int?? result = lookup(0);                  // outer and inner present
+```
+
+The range returned by `take` borrows list storage; growth and deletion can
+invalidate it, and mutations through the range affect the list. An existing
+but unspecified item yields a present outer optional containing an unspecified
+inner optional.
+
 Use `T: copyable` when a generic function copies, assigns, returns, yields, or
 uses local `T` storage.
 

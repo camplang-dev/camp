@@ -1,0 +1,67 @@
+struct Point { int x; int y; }
+int peek(in int? value) => value.specified ? value.value : -1;
+int peekErased(in void<int?> value) => value.specified ? value.value : -1;
+int read<T: copyable>(in T value, delegate int(in T) f, sizeof(T)) => f(value);
+int seven() => 7;
+void sevenOut(out int result) { result = 7; }
+void pointOut(out Point result) { Point value = { 3, 4 }; result = value; }
+Point makePoint() { Point value = { 5, 6 }; return value; }
+T produce<T: copyable>(delegate T() make, sizeof(T)) => make();
+int compare(in int left, in int right) => left - right;
+newtype delegate T Factory<T: copyable>();
+newtype delegate T AllocatingFactory<T: copyable>(within Allocator* allocator);
+void sevenWithin(out int result, within Allocator* allocator) { result = 7; }
+newtype delegate void<int?>? Lookup(int index);
+bool optionalOut(int index, out void<int?> result)
+{
+	if (index < 0) { result = default; return false; }
+	result = index;
+	return true;
+}
+interface Reader { int read(in void<int> value); void<int?>? find(int index); }
+struct Stored: Reader
+{
+	int read(in int value): Reader => value;
+	bool find(int index, out void<int?> value): Reader { value = index; return true; }
+}
+sealed class ClassStored: Reader
+{
+	int read(in int value): Reader => value;
+	bool find(int index, out void<int?> value): Reader { value = index + 1; return true; }
+}
+export int main()
+{
+	int? value = 4;
+	if (read<int?>(value, peekErased) != 4 || read<int?>(value, x => peek(x)) != 4) return 1;
+	if (produce<int>(sevenOut) != 7 || produce<int>(() => seven()) != 7) return 2;
+	int bound = sevenOut();
+	if (bound != 7) return 5;
+	Point point = produce<Point>(pointOut);
+	if (point.x != 3 || point.y != 4) return 3;
+	Point lambdaPoint = produce<Point>(() => makePoint());
+	if (lambdaPoint.x != 5 || lambdaPoint.y != 6) return 12;
+	auto numbers = new List<int>() finally delete;
+	numbers.add(4);
+	numbers.add(1);
+	numbers.sort(compare);
+	if (numbers.Item[0] != 1 || numbers.Item[1] != 4) return 4;
+	Factory<int> factory = sevenOut;
+	if (factory() != 7) return 6;
+	AllocatingFactory<int> allocatingFactory = sevenWithin;
+	if (allocatingFactory() != 7) return 11;
+	Lookup lookup = optionalOut;
+	int?? optional = lookup(3);
+	if (!optional.specified || optional.value.value != 3) return 9;
+	optional = lookup(-1);
+	if (optional.specified || optional.value.specified || optional.value.value != 0) return 10;
+	Stored stored = default;
+	Reader* reader = &stored;
+	int scalar = 12;
+	int?? found = reader.find(8);
+	if (reader.read(scalar) != 12 || !found.specified || !found.value.specified || found.value.value != 8) return 7;
+	ClassStored* object = stackalloc ClassStored();
+	Reader* classReader = object;
+	found = classReader.find(8);
+	if (classReader.read(scalar) != 12 || found.value.value != 9) return 8;
+	return 0;
+}

@@ -45,7 +45,13 @@ public sealed partial class BindableNodeAnalyzer
 			{
 				ThisContract thisContract = GetCallableNewtypeThisContract(newtypeDefinition);
 				if (newtypeDefinition.Parameters.Count > 0)
-					shape = new CallableShape(shape.Kind, shape.Spec, shape.CallSpec, SubstituteGenericType(shape.ReturnType, substitutions), [.. GetCallableParameterTypeNames(newtypeDefinition.Parameters).Select(parameter => SubstituteGenericType(parameter, substitutions))], thisContract);
+				{
+					string signature = BuildCallableType(shape.Kind, shape.ReturnType,
+						GetParameterTypeNames(newtypeDefinition.Parameters.Where(parameter => parameter is not ThisParameterDefinition)).ToList(), shape.Spec, shape.CallSpec);
+					signature = ErasedCallableSignatureType(signature, name => newtypeDefinition.GenericParameters.Any(parameter => parameter.Name == name && IsErasedGenericParameter(parameter)));
+					TryParseCallableShape(SubstituteStorageType(signature, substitutions), out shape);
+					shape = shape with { This = thisContract };
+				}
 				else
 					shape = shape with { ReturnType = SubstituteGenericType(shape.ReturnType, substitutions), This = thisContract };
 				return true;
@@ -163,6 +169,11 @@ public sealed partial class BindableNodeAnalyzer
 			source = ExpandCallableShape(source);
 			target = ExpandCallableShape(target);
 		}
+		else
+		{
+			source = NormalizeErasedCallableShape(source);
+			target = NormalizeErasedCallableShape(target);
+		}
 
 		return CallableShapeService.CompatibleWithConstOfVariance(source, target, compareThis, EraseConstOfQualifiers);
 	}
@@ -187,7 +198,44 @@ public sealed partial class BindableNodeAnalyzer
 
 	CallableShape ExpandCallableShape(CallableShape shape)
 	{
+		shape = NormalizeErasedCallableShape(shape);
 		return new CallableShape(shape.Kind, shape.Spec, shape.CallSpec, shape.ReturnType, GetExpandedCallableParameterTypes(shape.Parameters), shape.This);
+	}
+
+	CallableShape NormalizeErasedCallableShape(CallableShape shape)
+	{
+		shape = CallableShapeService.LowerErasedResult(shape);
+		return shape with { ReturnType = NormalizeErasedCallableSlot(shape.ReturnType, false), Parameters = shape.Parameters.Select(text =>
+		{
+			CallableSlot slot = ParseCallableSlot(text);
+			string type = NormalizeErasedCallableSlot(slot.Type, slot.Modifier is "in" or "out");
+			return slot.Modifier.Length == 0 ? type : slot.Modifier + " " + type;
+		}).ToList() };
+	}
+
+	string NormalizeErasedCallableSlot(string type, bool reference)
+	{
+		if (!TryParseTypeShape(type, out TypeShape shape)) return type;
+		TypeShape Normalize(TypeShape node, bool storage)
+		{
+			if (node.Element is not null)
+				return node with { Element = Normalize(node.Element, node.Kind is TypeShapeKind.Pointer or TypeShapeKind.Array) };
+			if (storage && ErasedTypeIdentity.TryGetPayload(node.Name, out string payload)
+				&& !TryGetParamsComponentShape(null, payload, "value", out _)
+				&& TryParseTypeShape(payload, out TypeShape plain))
+				return plain with { Qualifiers = new TypeQualifiers(
+					plain.Qualifiers.IsConst || node.Qualifiers.IsConst,
+					plain.Qualifiers.IsVolatile || node.Qualifiers.IsVolatile,
+					(LifetimeKind)Math.Max((int)plain.Qualifiers.Lifetime, (int)node.Qualifiers.Lifetime)),
+					TargetSpec = node.TargetSpec ?? plain.TargetSpec };
+			if (TryParseCallableShape(node.Name, out CallableShape nested))
+			{
+				nested = NormalizeErasedCallableShape(nested);
+				return node with { Name = BuildCallableType(nested.Kind, nested.ReturnType, nested.Parameters, nested.Spec, nested.CallSpec) };
+			}
+			return node;
+		}
+		return TypeShapeParser.Format(Normalize(shape, reference));
 	}
 
 	CallableShape BuildFunctionSourceCallableShape(FunctionDefinition function, bool isInstance, string? kindOverride = null)
@@ -219,6 +267,10 @@ public sealed partial class BindableNodeAnalyzer
 		if (definition.UnderlyingType is CallableTypeReference callable)
 		{
 			shape = new CallableShape(GetCallableKindName(callable.Kind), CompilerDefinedSpecs.EffectiveType(callable.TargetSpec), CompilerDefinedSpecs.EffectiveCall(callable.CallSpec), FormatSignatureTypeReference(callable.ReturnType, anchors), [.. definition.Parameters.Where(parameter => parameter is not ThisParameterDefinition).Select(parameter => FormatSignatureParameter(parameter, anchors))], thisContract);
+			string signature = ErasedCallableSignatureType(BuildCallableType(shape.Kind, shape.ReturnType, shape.Parameters, shape.Spec, shape.CallSpec),
+				name => definition.GenericParameters.Any(parameter => parameter.Name == name && IsErasedGenericParameter(parameter)));
+			TryParseCallableShape(signature, out shape);
+			shape = shape with { This = thisContract };
 			return true;
 		}
 

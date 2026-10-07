@@ -479,9 +479,20 @@ The compiler must preserve a distinction between:
 
 ## Generic Callable Policy
 
+Substitution inside nested callable signatures is storage-aware. An erased `T`
+result becomes `void<A>` for every argument `A`; a `T?` result becomes
+`void<A>?`. Reference, pointer and array slots retain `void<A>` when `A` is
+expandable. Ordinary nominal generic identities remain intact.
+
+Inference reads an erased result as its payload and preserves each optional
+layer. For `List<int?>`, `Item[0]` infers `int?`, `take(0, 2)` infers
+`void<int?>[]`, and `getItemOrDefault(300)` infers `int??`. A bound reference to
+`getItemOrDefault` retains `delegate void<int?>?(int)`; invoking it produces
+`int??`. Arrays and pointers retain their erased element annotations.
+
 Callable types can contain generic parameters in return, parameter, receiver,
 context, thrown, and `within` positions. Compatibility must use the same
-expanded callable shape logic as non-generic callables, then apply generic
+expanded callable shape logic as non-generic callables after applying generic
 substitutions.
 
 Callables involving erased generic values must not bypass capability checks.

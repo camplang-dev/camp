@@ -83,7 +83,8 @@ public sealed partial class BindableNodeAnalyzer
 			case CallableTypeReference { Kind: CallableKind.Delegate or CallableKind.Once } callable:
 				kind = ParamsComponentShapeKind.Delegate;
 				typeName = type.ResolvedType ?? resolvedType ?? ErrorType;
-				AddDelegatePendingComponents(callable.ReturnType?.ResolvedType ?? ErrorType, GetExpandedDeclaredCallableParameterTypes(callable.Parameters), prefix, components, GetCallableContextType(callable.Parameters), callable.TargetSpec, callable.CallSpec);
+				if (TryGetCallableShape(typeName, out CallableShape sourceCallable))
+					AddDelegatePendingComponents(sourceCallable.ReturnType, GetExpandedCallableParameterTypes(sourceCallable.Parameters), prefix, components, GetCallableContextType(callable.Parameters), callable.TargetSpec, callable.CallSpec);
 				return true;
 
 			case CallableTypeReference { Kind: CallableKind.Async } callable:
@@ -118,7 +119,8 @@ public sealed partial class BindableNodeAnalyzer
 				if (kind == ParamsComponentShapeKind.Delegate && newtypeDefinition.UnderlyingType is CallableTypeReference { Kind: CallableKind.Delegate or CallableKind.Once } delegateType)
 				{
 					components = [];
-					AddDelegatePendingComponents(delegateType.ReturnType?.ResolvedType ?? ErrorType, GetExpandedDeclaredCallableParameterTypes(newtypeDefinition.Parameters), prefix, components, GetCallableContextType(GetCallableNewtypeThisContract(newtypeDefinition)), delegateType.TargetSpec, delegateType.CallSpec);
+					if (TryGetCallableShape(resolvedType, out CallableShape nominalCallable))
+						AddDelegatePendingComponents(nominalCallable.ReturnType, GetExpandedCallableParameterTypes(nominalCallable.Parameters), prefix, components, GetCallableContextType(GetCallableNewtypeThisContract(newtypeDefinition)), delegateType.TargetSpec, delegateType.CallSpec);
 				}
 				else if (kind == ParamsComponentShapeKind.Delegate && newtypeDefinition.UnderlyingType is CallableTypeReference { Kind: CallableKind.Async } asyncType)
 				{
@@ -341,6 +343,9 @@ public sealed partial class BindableNodeAnalyzer
 
 	void AddDelegatePendingComponents(string returnType, List<string> parameterTypes, List<ParamsNamePart> prefix, List<PendingParamsComponent> components, string contextType = "void*", string? targetSpec = null, string? callSpec = null)
 	{
+		CallableShape erased = CallableShapeService.LowerErasedResult(new CallableShape("delegate", targetSpec, callSpec, returnType, parameterTypes));
+		returnType = erased.ReturnType;
+		parameterTypes = erased.Parameters;
 		string callReturnType = returnType;
 		List<string> callParameterTypes = [contextType, .. parameterTypes];
 		if (TryGetParamsComponentShape(null, returnType, "result", out ParamsComponentShape returnShape) && returnShape.Components.Count > 1)

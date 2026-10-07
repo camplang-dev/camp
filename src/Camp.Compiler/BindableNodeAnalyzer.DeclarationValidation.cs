@@ -1271,7 +1271,7 @@ public sealed partial class BindableNodeAnalyzer
 		return signatures;
 	}
 
-	static bool ContainsSignature(List<MethodSignature> signatures, MethodSignature required)
+	bool ContainsSignature(List<MethodSignature> signatures, MethodSignature required)
 	{
 		foreach (MethodSignature signature in signatures)
 		{
@@ -1282,37 +1282,15 @@ public sealed partial class BindableNodeAnalyzer
 		return false;
 	}
 
-	static bool MethodSignatureCompatibleWithConstOfVariance(MethodSignature candidate, MethodSignature target, bool compareName = true)
+	bool MethodSignatureCompatibleWithConstOfVariance(MethodSignature candidate, MethodSignature target, bool compareName = true)
 	{
 		if ((compareName && candidate.Name != target.Name)
-			|| candidate.ReceiverContract != target.ReceiverContract
-			|| candidate.ParameterTypes.Count != target.ParameterTypes.Count
-			|| !CallableSlotTypesCompatible(candidate.ReturnType, target.ReturnType, outputPosition: true))
+			|| candidate.ReceiverContract != target.ReceiverContract)
 			return false;
-
-		for (int i = 0; i < candidate.ParameterTypes.Count; i++)
-		{
-			CallableSlot candidateSlot = ParseMethodSignatureSlot(candidate.ParameterTypes[i]);
-			CallableSlot targetSlot = ParseMethodSignatureSlot(target.ParameterTypes[i]);
-			if (!MethodSignatureSlotModifiersCompatible(candidateSlot.Modifier, targetSlot.Modifier))
-				return false;
-			if (candidateSlot.Modifier == "Thrown")
-			{
-				if (candidateSlot.Type != targetSlot.Type)
-					return false;
-				continue;
-			}
-			bool outputPosition = candidateSlot.Modifier is "Out" or "Prep";
-			if (!CallableSlotTypesCompatible(candidateSlot.Type, targetSlot.Type, outputPosition))
-				return false;
-		}
-		return true;
-	}
-
-	static bool MethodSignatureSlotModifiersCompatible(string candidate, string target)
-	{
-		return candidate == target
-			|| candidate == "Prep" && target.Length == 0;
+		CallableShape Shape(MethodSignature signature) => new("fn", null, null, signature.ReturnType,
+			signature.ParameterTypes.Select(text => { CallableSlot slot = ParseMethodSignatureSlot(text);
+				return slot.Modifier is "" or "None" ? slot.Type : slot.Modifier.ToLowerInvariant() + " " + slot.Type; }).ToList());
+		return CallableShapesCompatibleWithConstOfVariance(Shape(candidate), Shape(target));
 	}
 
 	static CallableSlot ParseMethodSignatureSlot(string text)

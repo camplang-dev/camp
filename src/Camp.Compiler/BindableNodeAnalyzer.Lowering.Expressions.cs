@@ -552,11 +552,10 @@ public sealed partial class BindableNodeAnalyzer
 		expression = call;
 		if (currentStatementPrefix is null
 			|| materializedGenericReturnCalls.Contains(call)
-			|| !callTargets.TryGetValue(call, out FunctionDefinition? function)
-			|| !IsMaterializedGenericReturnFunction(function))
+			|| !IsErasedResultCall(call))
 			return false;
 
-		string resultType = call.ResolvedType ?? function.ReturnType?.ResolvedType ?? ErrorType;
+		string resultType = call.ResolvedType ?? ErrorType;
 		if (TryGetParamsComponentShape(null, resultType, "value", out ParamsComponentShape shape) && shape.Components.Count > 1)
 			return false;
 
@@ -652,7 +651,7 @@ public sealed partial class BindableNodeAnalyzer
 			Value = components[1],
 			ResolvedType = components[1].ResolvedType
 		});
-		call.ResolvedType = callable.ReturnType;
+		if (!erasedCallableResults.ContainsKey(call)) call.ResolvedType = callable.ReturnType;
 		// Subsequent lowering passes must bind the lowered call, including its context,
 		// rather than rebinding it against the delegate's source-level parameter list.
 		if (GetCallableParametersForExpression(call.Target) is List<ParameterDefinition> loweredParameters)

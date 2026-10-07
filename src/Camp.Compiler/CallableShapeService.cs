@@ -15,6 +15,25 @@ internal readonly record struct CallableSlot(string Modifier, string Type);
 
 internal static class CallableShapeService
 {
+	// The source result stays visible for inference; comparison and ABI emission
+	// use the same caller-storage slot as an explicitly trailing out parameter.
+	public static CallableShape LowerErasedResult(CallableShape shape)
+	{
+		string result = shape.ReturnType;
+		bool optional = result.EndsWith('?');
+		if (!ErasedTypeIdentity.TryGetPayload(optional ? result[..^1] : result, out _)) return shape;
+		List<string> parameters = [.. shape.Parameters];
+		parameters.Insert(ResultStorageIndex(parameters), "out " + (optional ? result[..^1] : result));
+		return shape with { ReturnType = optional ? "bool" : "void", Parameters = parameters };
+	}
+
+	public static int ResultStorageIndex(List<string> parameters)
+	{
+		int hidden = parameters.FindIndex(text => ParseCallableSlot(text).Modifier is "within" or "thrown"
+			|| text.StartsWith("sizeof(", StringComparison.Ordinal) || text.StartsWith("typenameof(", StringComparison.Ordinal)
+			|| text.StartsWith("vtableof(", StringComparison.Ordinal));
+		return hidden < 0 ? parameters.Count : hidden;
+	}
 	public static string BuildCallableType(string kind, string returnType, List<string> parameters, string? targetSpec = null, string? callSpec = null)
 	{
 		targetSpec = CompilerDefinedSpecs.EffectiveType(targetSpec);

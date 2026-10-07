@@ -85,6 +85,9 @@ public sealed partial class BindableNodeAnalyzer
 	string AssignmentConversionMessage(string expected, string actual, string context)
 	{
 		string message = $"{context} cannot convert '{WitnessTypeIdentity.Display(actual)}' to '{WitnessTypeIdentity.Display(expected)}'.";
+		if (TryGetCallableShape(actual, out CallableShape sourceCallable) && TryGetCallableShape(expected, out CallableShape targetCallable)
+			&& !CallableShapesCompatibleWithConstOfVariance(sourceCallable, targetCallable))
+			message += " Use a lambda, a trailing out parameter, or a void<V> parameter to match the erased calling shape.";
 		if (TryGetPointerElementType(expected) is string erasedElement
 			&& ErasedTypeIdentity.TryGetPayload(erasedElement, out string payload)
 			&& TryGetPointerElementType(actual) is string actualElement
@@ -2454,7 +2457,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (!typeDefinitions.TryGetValue(BaseTypeName(targetType), out TypeDefinition? type))
 		{
 			foreach (FunctionDefinition function in LookupExtensionFunctions(targetType, name, referenceSyntax))
-				members.Add(new BodySymbol(name, BuildFunctionValueType(function, isInstance: true, allowCallableAscription: true), function));
+				members.Add(new BodySymbol(name, BuildBoundFunctionValueType(function, targetType), function));
 			foreach (FunctionDefinition getter in LookupExtensionFunctions(targetType, "get" + name, referenceSyntax))
 			{
 				if (CanCallWithArgumentCount(getter.Parameters, 0))
@@ -2529,10 +2532,10 @@ public sealed partial class BindableNodeAnalyzer
 		foreach (FunctionDefinition function in LookupTypeFunctions(type, name, referenceSyntax))
 		{
 			if (ReceiverCanCallFunction(targetType, function, IsPropertyGetterFunction(function)))
-				members.Add(new BodySymbol(name, BuildFunctionValueType(function, isInstance: true, allowCallableAscription: true), function));
+				members.Add(new BodySymbol(name, BuildBoundFunctionValueType(function, targetType), function));
 		}
 		foreach (FunctionDefinition function in LookupExtensionFunctions(targetType, name, referenceSyntax))
-			members.Add(new BodySymbol(name, BuildFunctionValueType(function, isInstance: true, allowCallableAscription: true), function));
+			members.Add(new BodySymbol(name, BuildBoundFunctionValueType(function, targetType), function));
 
 		foreach (FunctionDefinition getter in LookupTypeFunctions(type, "get" + name, referenceSyntax))
 		{
@@ -4204,7 +4207,15 @@ public sealed partial class BindableNodeAnalyzer
 			});
 		}
 
-		return $"{kind}{FormatCallSpec(function.CallSpec)} {function.ResolvedType ?? ErrorType}({string.Join(", ", parameters)})";
+		return ErasedCallableSignatureType($"{kind}{FormatCallSpec(function.CallSpec)} {function.ResolvedType ?? ErrorType}({string.Join(", ", parameters)})",
+			name => IsFunctionErasedParameter(function, name));
+	}
+
+	string BuildBoundFunctionValueType(FunctionDefinition function, string receiverType)
+	{
+		Dictionary<string, string> substitutions = [];
+		AddReceiverTypeGenericSubstitutions(receiverType, function, substitutions);
+		return SubstituteStorageType(BuildFunctionValueType(function, isInstance: true, allowCallableAscription: true), substitutions);
 	}
 
 	bool TryGetCallableAscriptionReferenceType(FunctionDefinition function, bool isInstanceReference, out string ascribedType)

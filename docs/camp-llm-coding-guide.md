@@ -969,6 +969,23 @@ export inline uint MaxPacketSize = 4096;
 
 ## Generics
 
+Erased generic callbacks must match their substituted storage signatures.
+`in int?` cannot fill `in void<int?>`; use a lambda with implicit parameters or
+an explicitly erased parameter. A plain result such as `int seven()` cannot
+fill an erased `delegate T()` with `T = int`: use `() => seven()` or a function
+with a trailing `out int`. Ordinary function-to-delegate context adaptation
+still applies once the signature matches.
+
+For non-expandable `P`, `P` and `void<P>` are compatible in `in`, `out`, pointer
+and array slots. Erased results match trailing outputs; optional erased results
+match `bool` plus a trailing output. These rules apply to newtype ascription and
+interface implementations, while virtual overrides remain exact.
+
+Bound generic method references keep their substituted erased result shape;
+invoking them produces the plain payload. `List<int?>.getItemOrDefault` returns
+`int??` at a call site, preserving both presence layers. Its `take` result is a
+borrowed `void<int?>[]`, and its `Item` getter produces `int?`.
+
 Generic Camp code must declare what it does with `T`. Do not assume every generic
 type can be copied, compared, default-constructed, sized, or placed into an array.
 

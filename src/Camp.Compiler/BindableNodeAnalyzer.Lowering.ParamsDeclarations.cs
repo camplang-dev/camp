@@ -399,8 +399,7 @@ public sealed partial class BindableNodeAnalyzer
 			initialValue = NormalizeExpandedReturnPropertyGetter(finallyCleanupExpression.Expression);
 		}
 		bool materializedGenericReturnInitializer = initialValue is CallExpression initialCall
-			&& callTargets.TryGetValue(initialCall, out FunctionDefinition? initialFunction)
-			&& IsMaterializedGenericReturnFunction(initialFunction);
+			&& IsErasedResultCall(initialCall);
 		bool expandedReturnInitializer = !materializedGenericReturnInitializer
 			&& initialValue is CallExpression expandedReturnCall
 			&& callTargets.TryGetValue(expandedReturnCall, out FunctionDefinition? expandedReturnFunction)

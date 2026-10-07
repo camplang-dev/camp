@@ -248,7 +248,8 @@ public sealed partial class BindableNodeAnalyzer
 				}
 				ValidateAnonymousCallableParameterNames(callable.Parameters, callable.Kind != CallableKind.Function);
 				ValidatePrepParameterList(callable.Parameters, callable.ReturnType, callable.SourceSyntax, "callable signature", callable.Kind == CallableKind.Once);
-				type.ResolvedType = FormatTypeReference(type);
+				type.ResolvedType = ErasedCallableSignatureType(FormatTypeReference(type),
+					name => scope.TryGetGenericParameter(name, out GenericParameter? generic) && generic is not null && IsErasedGenericParameter(generic));
 				break;
 
 			case IterTypeReference iter:

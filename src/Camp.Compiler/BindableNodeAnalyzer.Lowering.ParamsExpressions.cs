@@ -712,8 +712,12 @@ public sealed partial class BindableNodeAnalyzer
 		string resultType = call.ResolvedType ?? argument.ResolvedType ?? expectedType;
 		if (string.IsNullOrWhiteSpace(resultType) || resultType == "void")
 			resultType = expectedType;
-		bool materializedGenericReturn = callTargets.TryGetValue(call, out FunctionDefinition? function)
-			&& IsMaterializedGenericReturnFunction(function);
+		bool materializedGenericReturn = IsErasedResultCall(call);
+		// An optional erased call transports payload and presence separately. Pack
+		// its complete source value below rather than writing only the payload into
+		// storage for the whole optional and discarding the presence result.
+		if (materializedGenericReturn && IsOptionalErasedResultCall(call))
+			return false;
 		bool concreteAggregateReturn = GetTypeDefinition(resultType) is StructDefinition;
 		if (!materializedGenericReturn && !concreteAggregateReturn)
 			return false;
@@ -1101,6 +1105,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	CallableShape ExpandCallableShapeWithReturn(CallableShape shape)
 	{
+		shape = NormalizeErasedCallableShape(shape);
 		List<string> parameters = GetExpandedCallableParameterTypes(shape.Parameters);
 		string returnType = shape.ReturnType;
 		if (TryGetParamsComponentShape(null, returnType, "result", out ParamsComponentShape returnShape) && returnShape.Components.Count > 1)
@@ -3507,7 +3512,7 @@ public sealed partial class BindableNodeAnalyzer
 			return false;
 		if (!TryGetCallableInvocationShape(call.Target?.ResolvedType, out CallableShape callable))
 			return false;
-		string returnType = callable.ReturnType;
+		string returnType = ReadErasedValueType(callable.ReturnType);
 		if (string.IsNullOrWhiteSpace(returnType) || returnType == "void")
 			return false;
 		if (targetShape is not null && targetShape.TypeName == returnType && targetShape.Components.Count > 1)
@@ -3602,12 +3607,12 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		components = [];
 		if (currentStatementPrefix is null
-			|| !callTargets.TryGetValue(call, out FunctionDefinition? function)
-			|| !IsMaterializedGenericReturnFunction(function))
+			|| !IsErasedResultCall(call))
 			return false;
+		callTargets.TryGetValue(call, out FunctionDefinition? function);
 
 		if (call.Target is MemberReferenceExpression { Target: Expression receiver } member
-			&& IsInstanceInvocationFunction(function)
+			&& function is not null && IsInstanceInvocationFunction(function)
 			&& !IsPropertyGetterReference(member)
 			&& !IsPropertySetterReference(member)
 			&& FindContainingType(function) is not InterfaceDefinition)

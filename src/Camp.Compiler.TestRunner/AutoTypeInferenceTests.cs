@@ -6,6 +6,48 @@ namespace Camp.Compiler.Tests;
 
 public sealed class AutoTypeInferenceTests
 {
+	[Fact]
+	public void Erased_generic_inference_preserves_source_types_and_nested_optional_layers()
+	{
+		SemanticCompilation compilation = SemanticCompiler.CompileDeclarations("""
+			extern escaped void* malloc(nuint size);
+			extern void free(void* value);
+			T? makeOptional<T>(T value) => value;
+			T? makeInnerOptional<T: copyable>(in T value, sizeof(T)) => value;
+			class Items<T: copyable> {
+				T[] items;
+				Items(sizeof(T)) { }
+				T getItem(nuint index) => this.items[index];
+				T[] take(nuint start, nuint count) => this.items[start..start + count];
+				T? getItemOrDefault(int index) => this.items[(nuint)index];
+			}
+			void test(Items<int?>* items) {
+				auto result = makeInnerOptional(makeInnerOptional(makeOptional(5)));
+				auto first = items.Item[0];
+				auto section = items.take(0, 2);
+				auto maybe = items.getItemOrDefault(300);
+				auto get = items.getItem;
+				auto lookup = items.getItemOrDefault;
+			}
+			""");
+		SemanticCompiler.AssertNoDiagnostics(compilation);
+		System.Collections.Generic.Dictionary<string, string?> inferred = [];
+		LoweringResult lowered = BindableNodeLowerer.Lower(compilation.Compilation.DeclarationExpansion!, (phase, action) =>
+		{
+			action();
+			if (phase == "method body analysis")
+				foreach (DeclarationStatement declaration in SemanticCompiler.Descendants<DeclarationStatement>(SemanticCompiler.Function(compilation, "test")))
+					inferred[declaration.Target.Names.Single()] = declaration.Target.ResolvedType;
+		});
+		Assert.Empty(lowered.Diagnostics);
+		Assert.Equal("int???", inferred["result"]);
+		Assert.Equal("int?", inferred["first"]);
+		Assert.Equal("void<int?>[]", inferred["section"]);
+		Assert.Equal("int??", inferred["maybe"]);
+		Assert.Equal("delegate void<int?>(nuint)", inferred["get"]);
+		Assert.Equal("delegate void<int?>?(int)", inferred["lookup"]);
+	}
+
 	[Theory]
 	[InlineData("auto value;", "auto")]
 	[InlineData("auto value = null;", "null")]

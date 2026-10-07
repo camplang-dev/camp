@@ -91,6 +91,24 @@ argument syntax.
 
 ## Shape Expansion
 
+Erased generic callback signatures are substituted before matching. For a
+non-expandable payload `P`, `void<P>` and `P` are compatible in `in`, `out`,
+pointer and array slots. Expanded payloads retain their one-object storage:
+`in int?` does not match `in void<int?>`.
+
+A `void<V>` result matches a trailing `out void<V>` with a `void` result;
+`void<V>?` matches the same trailing output with a `bool` result. The output
+precedes hidden allocator, error and capability slots. These rules apply to
+callable values, newtype ascription, lambdas and interface implementations.
+Virtual overrides still require exact signatures. Receiver, constness, lifetime,
+target and calling-convention contracts remain part of matching.
+
+An ordinary function may acquire the existing delegate context adapter only
+after its calling shape matches. A mismatch requires a source lambda or an
+explicit erased/trailing-output declaration; lowering must not create an ABI
+adapter to conceal it. Bound method references preserve the substituted erased
+signature, while calls read its result as `V` or `V?`.
+
 Callable comparison must account for expanded forms. A source parameter such as
 `byte[] data` may lower to multiple ABI parameters, and a `delegate` value is a
 pair of components. Callable shape comparison should expand parameter shapes

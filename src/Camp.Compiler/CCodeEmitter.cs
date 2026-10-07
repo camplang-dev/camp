@@ -1732,6 +1732,11 @@ public static class CCodeEmitter
 
         bool CanThunkArgumentConvert(ParameterDefinition sourceParameter, string targetType)
         {
+            CallableSlot targetSlot = CallableShapeService.ParseCallableSlot(targetType);
+            if (targetSlot.Modifier == sourceParameter.Modifier.ToString().ToLowerInvariant()
+                && ErasedTypeIdentity.TryGetPayload(targetSlot.Type, out string payload)
+                && payload == sourceParameter.ResolvedType)
+                return true;
             if (SameCallableTypeSlot(GetCallableParameterTypeText(sourceParameter), targetType))
                 return true;
             if (!IsVoidPointerType(targetType))
@@ -1815,7 +1820,7 @@ public static class CCodeEmitter
                     if (!SameCallableTypeSlot(sourceType, targetType))
                     {
                         string sourceResolvedType = sourceParameters[sourceIndex].ResolvedType ?? sourceParameters[sourceIndex].Type?.ResolvedType ?? "void";
-                        if (sourceParameters[sourceIndex].Modifier == ParameterModifier.In)
+                        if (sourceParameters[sourceIndex].Modifier is ParameterModifier.In or ParameterModifier.Out)
                         {
                             string cType = FormatResolvedType(sourceResolvedType + "*", "").Declaration.Trim();
                             argument = "(" + cType + ")" + argument;
@@ -2403,7 +2408,7 @@ public static class CCodeEmitter
 
         string FormatResolvedParameter(string parameterType, string declarator)
         {
-            if (parameterType.StartsWith("in ", StringComparison.Ordinal) && ErasedTypeIdentity.TryGetPayload(parameterType[3..], out _))
+            if (parameterType.StartsWith("in ", StringComparison.Ordinal) && (ErasedTypeIdentity.TryGetPayload(parameterType[3..], out _) || IsAnyGenericParameterType(parameterType[3..])))
                 return "const void *" + declarator;
             if (parameterType.StartsWith("in ", StringComparison.Ordinal))
                 return FormatResolvedType(parameterType[3..].TrimStart() + "*", declarator).Declaration;
@@ -5308,6 +5313,14 @@ public static class CCodeEmitter
 
         bool ExpandResolvedCallableReturnForC(ref string returnType, List<string> parameterTypes)
         {
+            CallableShape erased = CallableShapeService.LowerErasedResult(new CallableShape("fn", null, null, returnType, parameterTypes));
+            if (erased.ReturnType != returnType)
+            {
+                returnType = erased.ReturnType;
+                parameterTypes.Clear();
+                parameterTypes.AddRange(erased.Parameters);
+                return true;
+            }
             if (IsResolvedCallableType(StripTypeQualifiers(returnType)))
                 return false;
             if (!TryGetExpandedStorageComponentsForC(returnType, out List<(string Name, string Type)> components) || components.Count <= 1)
@@ -5321,6 +5334,14 @@ public static class CCodeEmitter
 
         bool ExpandResolvedCallableReturnForC(ref string returnType, List<(string Type, string Name)> parameters)
         {
+            CallableShape erased = CallableShapeService.LowerErasedResult(new CallableShape("fn", null, null, returnType, parameters.Select(parameter => parameter.Type).ToList()));
+            if (erased.ReturnType != returnType)
+            {
+                returnType = erased.ReturnType;
+                int index = CallableShapeService.ResultStorageIndex(parameters.Select(parameter => parameter.Type).ToList());
+                parameters.Insert(index, (erased.Parameters[index], "__result"));
+                return true;
+            }
             if (IsResolvedCallableType(StripTypeQualifiers(returnType)))
                 return false;
             if (!TryGetExpandedStorageComponentsForC(returnType, out List<(string Name, string Type)> components) || components.Count <= 1)
@@ -6645,9 +6666,7 @@ public static class CCodeEmitter
                     && ContainsGenericParameterTypeName(rawExpectedParameterType)
                     ? rawExpectedParameterType
                     : expectedParameterType;
-                string castDeclaration = parameter?.Type is not null
-                    ? FormatTypeOrResolved(parameter.Type, castType, "").Declaration.Trim()
-                    : FormatResolvedType(castType, "").Declaration.Trim();
+                string castDeclaration = FormatResolvedType(castType, "").Declaration.Trim();
                 value = "(" + castDeclaration + ")" + value;
             }
             if (argument.Modifier == ArgumentModifier.None
@@ -6756,6 +6775,7 @@ public static class CCodeEmitter
 
         string FormatInArgument(Expression? expression, string value, string? concreteType)
         {
+            if (ErasedTypeIdentity.TryGetPayload(concreteType, out string payload)) concreteType = payload;
             if (TryFormatForwardedInArgument(expression, concreteType, out string forwarded))
                 return forwarded;
 
@@ -6782,6 +6802,12 @@ public static class CCodeEmitter
                     return true;
                 case VariableReferenceExpression { Variable: ParameterDefinition { Modifier: ParameterModifier.In } parameter }:
                     value = CName(parameter);
+                    // Camp keeps this input read-only; the concrete C input slot
+                    // uses its existing pointer spelling rather than const void*.
+                    if (ErasedTypeIdentity.TryGetPayload(parameter.ResolvedType, out string inputPayload)
+                        && inputPayload == parameterType && !IsAnyGenericParameterType(parameterType)
+                        && !IsExpandedStorageResolvedType(parameterType))
+                        value = "(" + FormatResolvedType(parameterType + "*", "").Declaration.Trim() + ")" + value;
                     return true;
                 case VariableReferenceExpression { Variable: ParameterDefinition parameter }:
                     value = "&" + CName(parameter);

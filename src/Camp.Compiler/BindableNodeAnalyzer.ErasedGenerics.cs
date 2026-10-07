@@ -6,11 +6,60 @@ namespace Camp.Compiler;
 public sealed partial class BindableNodeAnalyzer
 {
 	readonly HashSet<FunctionDefinition> optionalErasedReturnFunctions = [];
+	readonly Dictionary<CallExpression, string> erasedCallableResults = [];
+	readonly Dictionary<CallExpression, ParameterDefinition> trailingOutResults = [];
+
+	string ErasedCallableSignatureType(string type, System.Func<string, bool> erased, bool storage = false, bool result = false)
+	{
+		if (!TryParseTypeShape(type, out TypeShape shape)) return type;
+		TypeShape Rewrite(TypeShape node, bool reference, bool returned)
+		{
+			if (node.Element is not null)
+				return node with { Element = Rewrite(node.Element, reference && node.Kind == TypeShapeKind.Optional,
+					returned && node.Kind == TypeShapeKind.Optional) };
+			if ((reference || returned) && erased(node.Name)) return node with { Name = $"void<{node.Name}>" };
+			if (TryParseCallableShape(node.Name, out CallableShape callable))
+			{
+				string returnType = ErasedCallableSignatureType(callable.ReturnType, erased, result: true);
+				List<string> parameters = callable.Parameters.Select(text => { CallableSlot slot = ParseCallableSlot(text);
+					string parameterType = ErasedCallableSignatureType(slot.Type, erased, slot.Modifier is "in" or "out");
+					return slot.Modifier.Length == 0 ? parameterType : slot.Modifier + " " + parameterType; }).ToList();
+				return node with { Name = BuildCallableType(callable.Kind, returnType, parameters, callable.Spec, callable.CallSpec) };
+			}
+			return node;
+		}
+		return TypeShapeParser.Format(Rewrite(shape, storage, result));
+	}
+
+	bool IsFunctionErasedParameter(FunctionDefinition function, string name) =>
+		function.GenericParameters.FirstOrDefault(parameter => parameter.Name == name) is GenericParameter parameter
+			? IsErasedGenericParameter(parameter)
+			: FindContainingType(function)?.GenericParameters.FirstOrDefault(parameter => parameter.Name == name) is GenericParameter owner && IsErasedGenericParameter(owner);
 
 	bool NeedsErasedArgumentPacking(CallExpression call) => callTargets.TryGetValue(call, out FunctionDefinition? function)
 		&& function.Parameters.Any(parameter => parameter.Modifier is ParameterModifier.In or ParameterModifier.Out
 			&& (ErasedTypeIdentity.TryGetPayload(parameter.ResolvedType, out _)
 				|| IsGenericPlaceholderParameter(parameter.ResolvedType ?? "")));
+
+	bool IsErasedResultCall(CallExpression call)
+	{
+		if (trailingOutResults.ContainsKey(call)) return true;
+		if (erasedCallableResults.ContainsKey(call)) return true;
+		if (callTargets.TryGetValue(call, out FunctionDefinition? function)) return IsMaterializedGenericReturnFunction(function);
+		if (!TryGetCallableInvocationShape(call.Target?.ResolvedType, out CallableShape shape)) return false;
+		string result = shape.ReturnType;
+		return ErasedTypeIdentity.TryGetPayload(result.EndsWith('?') ? result[..^1] : result, out _);
+	}
+
+	bool IsOptionalErasedResultCall(CallExpression call)
+	{
+		if (callTargets.TryGetValue(call, out FunctionDefinition? function))
+			return optionalErasedReturnFunctions.Contains(function)
+				|| IsErasedGenericReturn(function) && TryGetOptionalPayloadType(function.ResolvedType, out _);
+		if (erasedCallableResults.TryGetValue(call, out string? result)) return result.EndsWith('?');
+		return TryGetCallableInvocationShape(call.Target?.ResolvedType, out CallableShape shape)
+			&& shape.ReturnType.EndsWith('?') && ErasedTypeIdentity.TryGetPayload(shape.ReturnType[..^1], out _);
+	}
 
 	Expression CaptureCopyBackTarget(Expression target)
 	{
@@ -84,6 +133,8 @@ public sealed partial class BindableNodeAnalyzer
 		string type = expression.ResolvedType ?? "void";
 		if (expression is CallExpression call && materializedGenericReturnCalls.Contains(call) && callTargets.TryGetValue(call, out FunctionDefinition? function))
 			type = function.ResolvedType ?? "void";
+		else if (expression is CallExpression indirect && materializedGenericReturnCalls.Contains(indirect) && erasedCallableResults.TryGetValue(indirect, out string? resultType))
+			type = resultType.EndsWith('?') ? "bool" : "void";
 		Expression result;
 		if (type == "void")
 		{
@@ -104,13 +155,22 @@ public sealed partial class BindableNodeAnalyzer
 	void AddErasedResultArgument(CallExpression call, DeclarationTarget target)
 	{
 		int index = call.Arguments.Count;
-		if (callTargets.TryGetValue(call, out FunctionDefinition? pending) && !materializedGenericReturnParameters.ContainsKey(pending))
+		if (callTargets.TryGetValue(call, out FunctionDefinition? pending) && !trailingOutResults.ContainsKey(call) && !materializedGenericReturnParameters.ContainsKey(pending))
 			TryExpandMaterializedGenericReturn(pending);
-		if (callTargets.TryGetValue(call, out FunctionDefinition? function) && materializedGenericReturnParameters.TryGetValue(function, out ParameterDefinition? result))
+		if (callTargets.TryGetValue(call, out FunctionDefinition? function)
+			&& (trailingOutResults.TryGetValue(call, out ParameterDefinition? result) || materializedGenericReturnParameters.TryGetValue(function, out result)))
 		{
 			List<ParameterDefinition> parameters = GetCallableParametersForCall(function, IncludeExplicitThisArgument(call.Target, function));
 			int position = parameters.IndexOf(result);
 			if (position >= 0) index = System.Math.Min(index, position);
+		}
+		else if (erasedCallableResults.ContainsKey(call) && TryGetCallableInvocationShape(call.Target?.ResolvedType, out CallableShape callable))
+		{
+			List<string> parameters = GetExpandedCallableParameterTypes(callable.Parameters);
+			int position = CallableShapeService.ResultStorageIndex(parameters);
+			// Delegate rewriting may already expose the lowered output slot.
+			if (callable.ReturnType is "void" or "bool") position--;
+			index = System.Math.Min(index, System.Math.Max(0, position));
 		}
 		call.Arguments.Insert(index, new ArgumentExpression
 		{
@@ -122,9 +182,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	List<Expression> CaptureErasedResultComponents(CallExpression call, ParamsComponentShape shape, List<Statement> statements)
 	{
-		FunctionDefinition function = callTargets[call];
-		bool optional = optionalErasedReturnFunctions.Contains(function)
-			|| IsErasedGenericReturn(function) && TryGetOptionalPayloadType(function.ResolvedType, out _);
+		bool optional = IsOptionalErasedResultCall(call);
 		string valueType = call.ResolvedType ?? shape.TypeName;
 		if (optional && TryGetOptionalPayloadType(valueType, out string payload)) valueType = payload;
 		bool expanded = TryGetParamsComponentShape(null, valueType, "value", out ParamsComponentShape payloadShape);
@@ -173,6 +231,15 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (shape.Element is not null)
 			return shape with { Element = SubstituteStorageShape(shape.Element, substitutions, storage: true) };
+		if (TryParseCallableShape(shape.Name, out CallableShape callable))
+		{
+			List<string> parameters = callable.Parameters.Select(text => { CallableSlot slot = ParseCallableSlot(text);
+				string type = TryParseTypeShape(slot.Type, out TypeShape parameterShape)
+					? TypeShapeParser.Format(SubstituteStorageShape(parameterShape, substitutions, slot.Modifier is "in" or "out"))
+					: SubstituteGenericType(slot.Type, substitutions);
+				return slot.Modifier.Length == 0 ? type : slot.Modifier + " " + type; }).ToList();
+			return shape with { Name = BuildCallableType(callable.Kind, SubstituteStorageType(callable.ReturnType, substitutions), parameters, callable.Spec, callable.CallSpec) };
+		}
 		if (substitutions.TryGetValue(shape.Name, out string? value))
 		{
 			if (storage && TryGetParamsComponentShape(null, value, "value", out _)) value = $"void<{value}>";

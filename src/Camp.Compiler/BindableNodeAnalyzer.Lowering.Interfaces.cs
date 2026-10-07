@@ -139,13 +139,15 @@ public sealed partial class BindableNodeAnalyzer
 			};
 		}
 
+		bool erasedAbi = materializedGenericReturnParameters.ContainsKey(function)
+			|| function.Parameters.Exists(parameter => ErasedTypeIdentity.TryGetPayload(parameter.ResolvedType ?? "", out _));
 		call.Target = new MemberReferenceExpression
 		{
 			SourceSyntax = member.SourceSyntax,
 			Target = slotTarget,
 			Name = GetCallableName(function),
-			Member = function,
-			ResolvedType = member.ResolvedType
+			Member = erasedAbi ? null : function,
+			ResolvedType = erasedAbi ? BuildInterfaceEntryCallableType(interfaceDefinition, function) : member.ResolvedType
 		};
 		call.Arguments.Insert(0, new ArgumentExpression
 		{
