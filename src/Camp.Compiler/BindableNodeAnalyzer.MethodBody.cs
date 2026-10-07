@@ -2872,7 +2872,7 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		string contextType = within.Context is DefaultWithinContextExpression
 			? "#NULL"
-			: BodyAnalyzeExpression(within.Context, scope, typeScope, targetType);
+			: BodyAnalyzeExpression(within.Context, scope, typeScope, within.Expression is null ? targetType : null);
 		if (within.Expression is null)
 			return contextType;
 		if (scope.CurrentFunction.Modifier == FunctionModifier.Constructor

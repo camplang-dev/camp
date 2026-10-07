@@ -327,6 +327,11 @@ current allocation policy. `within` is not a call-argument modifier; write
 allocation, calls that need a within argument must diagnose instead of silently
 inserting fallback.
 
+In `within (context) expression`, analyze the allocator context independently
+of the destination type of `expression`. The destination type applies only to
+the wrapped expression, so an allocator selector call is not required to return
+the wrapped result's type.
+
 Expanded local initializers inherit the enclosing `within` statement during
 declaration expansion, including `within (default)` under explicit policy.
 Non-default contexts use a deferred current-allocator reference until statement
