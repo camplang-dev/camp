@@ -1205,6 +1205,8 @@ public sealed partial class BindableNodeAnalyzer
 			return true;
 		if (string.IsNullOrWhiteSpace(name))
 			return false;
+		if (TryParseTypeShape(name, out TypeShape shape) && shape.Kind != TypeShapeKind.Named)
+			return false;
 		if (TryGetPrimitiveType(name, out _) || typeDefinitions.ContainsKey(BaseTypeName(name)))
 			return false;
 		return char.IsUpper(name[0]);

@@ -156,6 +156,10 @@ Each materialized input or output occupies one argument slot, regardless of
 the substituted value's component count. A following `sizeof(T)` capability
 remains a separate slot even when the value is an array.
 
+Only a bare generic parameter is a placeholder for whole erased storage.
+Derived forms such as `T*` and `T[]` keep their pointer and array calling forms;
+a `T[]` passed to a callable retains separate elements and length arguments.
+
 Some generic values are erased at source analysis boundaries. Operations that
 need layout, size, vtable, type name, construction, destruction, or copy
 capability must request the corresponding capability explicitly.

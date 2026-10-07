@@ -1,0 +1,18 @@
+int countOf(int[] values) => (int)values.length;
+int across<T: copyable>(T[] values, delegate int(T[]) look) => look(values);
+int acrossFn<T: copyable>(T[] values, fn int(T[]) look) => look(values);
+int acrossOnce<T: copyable>(T[] values, once int(T[]) look) => look(values);
+int acrossSlice<T: copyable>(T[] values, delegate int(T[]) look, sizeof(T)) => look(values[1..]);
+T identity<T: copyable>(in T value, sizeof(T)) => value;
+export int main()
+{
+	int[] numbers = [6, 7, 8];
+	if (across<int>(numbers, countOf) != 3) return 1;
+	if (acrossFn<int>(numbers[1..], countOf) != 2) return 2;
+	once int(int[]) reader = (int[] values) => (int)values.length;
+	if (acrossOnce<int>(numbers, reader) != 3) return 3;
+	if (acrossSlice<int>(numbers, countOf) != 2) return 4;
+	int[] copied = identity<int[]>(numbers);
+	if (copied.length != 3 || copied[2] != 8) return 5;
+	return 0;
+}

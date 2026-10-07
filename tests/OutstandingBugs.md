@@ -44,43 +44,6 @@ Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
 
-## BUG-270: delegate call with a generic array argument passes one packed value
-
-Date/Time: 2026-10-07 15:10 EDT
-
-Summary:
-Inside a generic function, calling a delegate whose parameter is `T[]` with a `T[]`
-argument emits one packed struct holding the elements and the length, instead of the two
-separate components the delegate's C function type takes. The generated C does not compile.
-Calling a delegate with a `T*` argument, or a non-generic `int[]` delegate, works.
-
-Steps to Reproduce:
-
-1. Create `repro.camp`:
-
-```camp
-int countOf(int[] values) => (int)values.length;
-int across<T: copyable>(T[] values, delegate int(T[]) look) => look(values);
-export int main()
-{
-	int[] numbers = [6, 7];
-	return across<int>(numbers, countOf);
-}
-```
-
-2. Run `campc run repro.camp --nostdlib --show-errorlevel`.
-
-Expected:
-The program runs and exits with 2.
-
-Actual:
-The C compiler reports `too few arguments to function call, expected 3, have 2` at the
-delegate call, which passes the context and a struct `{ elements, length }`.
-
-Known Impact:
-A generic cannot pass its array parameter to a delegate. Workaround: pass the elements
-pointer and the length separately.
-
 ## BUG-271: generic interface dispatch passes an `in` scalar argument by value
 
 Date/Time: 2026-10-07 13:50 EDT
