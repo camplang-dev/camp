@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-257.
+Next bug number: BUG-258.
 
 ## Bug Template
 
@@ -309,3 +309,39 @@ unrelated value or crashes. The forms `(*pointer).elements[2]` and
 Known Impact:
 Any index or slice of a dereferenced array pointer reads the wrong element. Copy the
 dereferenced array to a local (`int[] view = *pointer;`) and index the local.
+
+## BUG-257: Passing the address of an array to a pointer-to-const-array parameter emits a double address
+
+Date/Time: 2026-10-06 23:54 EDT
+
+Summary:
+Passing `&array` directly as an argument for a `const T[]*` parameter is emitted as
+`&&array`, which is not valid C. Storing the address in a `const T[]*` local first and
+passing the local is emitted correctly, apart from a C warning that the initialization
+discards a qualifier in a nested pointer type.
+
+Steps to Reproduce:
+
+1. Compile this source with `campc build repro.camp`:
+
+```camp
+extern void __intrinsic_log_i32(int value);
+int lengthThrough(const int[]* source) { return (int)(*source).length; }
+export int main()
+{
+	int[] numbers = [10, 20, 30];
+	__intrinsic_log_i32(lengthThrough(&numbers));
+	return 0;
+}
+```
+
+Expected:
+The program builds and logs 3; `&numbers` converts implicitly to `const int[]*`.
+
+Actual:
+The C compiler fails with "use of undeclared label 'numbers'" for
+`lengthThrough(&&numbers, &numbers_length)`.
+
+Known Impact:
+Calls that pass an array address to a pointer-to-const-array parameter do not build.
+Bind the address to a `const T[]*` local and pass the local.
