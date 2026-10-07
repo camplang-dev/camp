@@ -1,0 +1,49 @@
+#within explicit
+using Std;
+
+int selections = 0;
+int allocations = 0;
+int frees = 0;
+escaped void* trackingAlloc(Allocator* allocator, nuint size)
+{
+	allocations++;
+	return malloc(size);
+}
+void trackingFree(Allocator* allocator, void* pointer)
+{
+	frees++;
+	free(pointer);
+}
+Allocator TrackingAllocator = { .alloc = trackingAlloc, .realloc = null, .free = trackingFree };
+Allocator* selectAllocator() { selections++; return &TrackingAllocator; }
+escaped char[] join(const char[] first, const char[] second, within allocator)
+{
+	return new char[first.length + second.length];
+}
+export int main()
+{
+	within (default)
+	{
+		char[] joined = join("a", "bb") finally delete;
+		if (joined.length != 3) return 1;
+	}
+	within (selectAllocator())
+	{
+		char[] first = join("a", "b") finally delete;
+		if (first.length != 2) return 2;
+		within (default)
+		{
+			char[] nested = join("abc", "d") finally delete;
+			if (nested.length != 4 || allocations != 1) return 3;
+		}
+		char[] second = join("abc", "de") finally delete;
+		if (second.length != 5 || selections != 1 || allocations != 2) return 4;
+	}
+	if (frees != 2) return 5;
+	within (default)
+	{
+		char[] final = join("a", "b") finally delete;
+		if (final.length != 2 || allocations != 2) return 6;
+	}
+	return selections == 1 && frees == 2 ? 0 : 7;
+}

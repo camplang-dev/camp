@@ -327,6 +327,12 @@ current allocation policy. `within` is not a call-argument modifier; write
 allocation, calls that need a within argument must diagnose instead of silently
 inserting fallback.
 
+Expanded local initializers inherit the enclosing `within` statement during
+declaration expansion, including `within (default)` under explicit policy.
+Non-default contexts use a deferred current-allocator reference until statement
+lowering captures the selected allocator. This keeps allocator expressions
+evaluated once and restores the outer context after each nested scope.
+
 Hidden within arguments must be ordered consistently with ordinary, `out`,
 thrown, expanded-return, `sizeof`, and `vtableof` arguments. The lowering code
 normalizes duplicates and moves supplied within arguments into the expected

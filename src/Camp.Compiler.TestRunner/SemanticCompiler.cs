@@ -40,6 +40,11 @@ public static class SemanticCompiler
 		return Compile(sources, CompilationPipeline.Lower, compilation => compilation.ConfigurationFlags = configurationFlags);
 	}
 
+	public static SemanticCompilation CompileLowered(WithinAllocationPolicy withinPolicy, params (string Path, string Text)[] sources)
+	{
+		return Compile(sources, CompilationPipeline.Lower, compilation => compilation.DefaultWithinAllocationPolicy = withinPolicy);
+	}
+
 	public static SemanticCompilation CompileLoweredTestModule(params (string Path, string Text)[] sources)
 	{
 		return Compile(sources, CompilationPipeline.Lower, compilation =>

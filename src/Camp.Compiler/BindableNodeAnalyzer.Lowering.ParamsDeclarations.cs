@@ -311,8 +311,30 @@ public sealed partial class BindableNodeAnalyzer
 					break;
 
 				case WithinStatement withinStatement:
-					ExpandParamsNestedStatement(withinStatement.Body);
+				{
+					Expression? previousWithinContext = currentWithinContext;
+					int previousDefaultWithinContextDepth = currentDefaultWithinContextDepth;
+					bool defaultWithin = withinStatement.Allocator is DefaultWithinContextExpression;
+					// Statement lowering captures the allocator once. Resolve early-expanded
+					// arguments against that captured context when their statements are lowered.
+					currentWithinContext = defaultWithin ? null : new CurrentAllocatorExpression
+					{
+						SourceSyntax = withinStatement.SourceSyntax,
+						ResolvedType = withinStatement.Allocator?.ResolvedType ?? "Allocator*"
+					};
+					if (defaultWithin)
+						currentDefaultWithinContextDepth++;
+					try
+					{
+						ExpandParamsNestedStatement(withinStatement.Body);
+					}
+					finally
+					{
+						currentWithinContext = previousWithinContext;
+						currentDefaultWithinContextDepth = previousDefaultWithinContextDepth;
+					}
 					break;
+				}
 			}
 		}
 	}
