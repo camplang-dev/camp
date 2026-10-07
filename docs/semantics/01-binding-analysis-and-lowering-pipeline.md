@@ -146,6 +146,8 @@ An unqualified type name used as a static member qualifier is not an implicit
 instance-member access, even when the containing class has a field or property
 with that name. Locals and parameters still take precedence as member receivers.
 This lookup also applies when checking calls for omitted `out` results.
+Generic qualifiers represented as call expressions retain full expression
+analysis during that check so written type argument constraints are validated.
 
 For an ordinary instance field, visibility of a non-extern class definition
 grants access to its layout, including unmodified fields. This applies in other

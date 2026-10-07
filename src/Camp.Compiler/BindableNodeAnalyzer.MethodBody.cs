@@ -1289,7 +1289,9 @@ public sealed partial class BindableNodeAnalyzer
 		List<FunctionDefinition> candidates;
 		if (call.Target is MemberExpression member)
 		{
-			string receiverType = TryAnalyzeMemberTypeTarget(member.Target, scope, typeScope, out string typeTarget)
+			// Generic call-shaped qualifiers need expression analysis to validate their type arguments.
+			string receiverType = member.Target is not CallExpression
+				&& TryAnalyzeMemberTypeTarget(member.Target, scope, typeScope, out string typeTarget)
 				? typeTarget
 				: BodyAnalyzeExpression(member.Target, scope, typeScope);
 			candidates = IsTypeReferenceExpression(member.Target)
