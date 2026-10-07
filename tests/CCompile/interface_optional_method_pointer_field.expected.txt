@@ -52,7 +52,7 @@ int Widget_transform(Widget *this, int value)
 	{
 		Widget_transform_lambdaContext0 _lambdaContext1;
 		_lambdaContext1.capture0_this = &this;
-		return (*this->host)->onTransform(this->host, value, Widget_transform_lambda0, &_lambdaContext1);
+		return (*this->host)->onTransform(this->host, value, (int (*)(void *arg0, int arg1))Widget_transform_lambda0, &_lambdaContext1);
 	}
 	return value;
 }
