@@ -565,7 +565,7 @@ public sealed partial class BindableNodeAnalyzer
 		return targetFact is not null ? targetFact + ":element" : null;
 	}
 
-	// A rewritten field read has no MemberExpression of its own, so the field's slot fact supplies the value fact.
+	// Prebound field reads still need the receiver's lifetime, including generated iterator state reads.
 	string? GetFieldReferenceLifetimeFact(MemberReferenceExpression reference, FieldDefinition field, string resolvedType, BodyScope scope)
 	{
 		if (!IsLifetimePointerBearingResolvedType(resolvedType, scope))
@@ -574,6 +574,9 @@ public sealed partial class BindableNodeAnalyzer
 			return MakeLifetimeFact("escaped", field.Name, "field");
 
 		string? targetFact = GetExpressionLifetimeFact(reference.Target);
+		if (targetFact is null && reference.Target is ThisExpression
+			&& scope.ContainingType?.GeneratedInfo is { Category: GeneratedDeclarationCategory.Iterator })
+			targetFact = MakeLifetimeFact("scoped", "this", "iterator state");
 		return targetFact is not null ? targetFact + ":member" : MakeLifetimeFact("scoped", null, "member");
 	}
 
@@ -1165,6 +1168,15 @@ public sealed partial class BindableNodeAnalyzer
 		if (TryGetReceiverAnchoredStorageTarget(target, out string? anchor))
 		{
 			if (IsLocalLifetimeAnchor(anchor, scope))
+				return;
+			// A lifted local can retain a value already tied to the same iterator
+			// state. Activation-local stack storage still cannot enter that state.
+			if (target is MemberReferenceExpression { Target: ThisExpression, Member: FieldDefinition field }
+				&& scope.ContainingType?.GeneratedInfo is { Category: GeneratedDeclarationCategory.Iterator }
+				&& iteratorLiftedLocalFields.Contains(field)
+				&& valueFact.Kind is "scoped" or "unscoped"
+				&& valueFact.Anchors.Count > 0 && valueFact.Anchors.All(valueAnchor => valueAnchor == anchor)
+				&& !IsStackAllocLifetimeFact(valueFact))
 				return;
 			if (!ValueOutlivesAnchor(valueFact, anchor) && !IsExplicitScopedWithinAllocatorFact(valueFact))
 				Report(GetRange(syntax), $"{context} cannot store a scoped pointer-bearing value in storage tied to '{anchor}'.");

@@ -44,49 +44,6 @@ Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
 
-## BUG-251: Iterator locals reject scoped pointer-bearing initializers
-
-Date/Time: 2026-10-06 23:33 EDT
-
-Summary:
-Inside a `struct iter` generator, declaring a local of a pointer-bearing type
-(a view, array or pointer) and initializing it from a scoped value reports that
-the assignment cannot store a scoped value in storage tied to `this`. The scoped
-value is the iterator's own parameter, or a value derived from it, so the local
-has the same lifetime as the parameter that the generated iterator state already
-retains. Earlier compilers accepted these declarations, and nothing in the
-lifetime semantics forbids them. The rejection began with the change that
-introduced named stack-storage handling for generated iterator and async state.
-
-Steps to Reproduce:
-
-1. Compile this source with `campc build repro.camp --nostdlib --artifact none`:
-
-```camp
-struct View { const char[] text; }
-const char[] span(View this) { return this.text; }
-
-struct iter int a(View this) { const char[] value = this.span(); yield (int)value.length; }
-struct iter int b(const char[] text) { const char[] value = text; yield (int)value.length; }
-struct iter int c(const int* p) { const int* q = p; yield *q; }
-
-export int main() { return 0; }
-```
-
-Expected:
-The source compiles. A local copied from a parameter, or from a value derived
-from a parameter, is no shorter-lived than the iterator state that holds both.
-
-Actual:
-Each local declaration is rejected with `error: Assignment cannot store a scoped
-pointer-bearing value in storage tied to 'this'.` Compilers before the stack-storage
-suspension change accept the same source.
-
-Known Impact:
-Any generator that keeps a view, array or pointer derived from a parameter in a
-local no longer compiles. The only workaround is to avoid such locals and use the
-parameter expression at every use.
-
 ## BUG-252: Returning an array member of a call result drops the call's expanded argument length
 
 Date/Time: 2026-10-06 23:36 EDT

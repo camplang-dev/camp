@@ -362,6 +362,12 @@ Those frames can outlive the source statement, so lifetime analysis must run on
 the source semantics before lowering and must preserve enough facts for
 generated fields and cleanup code.
 
+A pointer-bearing local may copy a retained iterator parameter or a value
+derived from it, including after a yield. Lifting the local into the same
+iterator state must preserve that lifetime relation; it does not make the
+value escaped. This permission does not extend to activation-local stack
+storage or temporary arrays.
+
 Important restrictions include:
 
 - async bodies that can suspend must not retain stackalloc-backed or otherwise

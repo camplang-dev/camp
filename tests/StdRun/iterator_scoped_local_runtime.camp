@@ -1,0 +1,32 @@
+struct View { const char[] text; }
+const char[] span(View view) { return view.text; }
+struct iter int lengths(View this)
+{
+	const char[] value = span(this);
+	yield (int)value.length;
+	value = this.text[..2];
+	yield (int)value.length;
+}
+struct iter int copied(const char[] text)
+{
+	const char[] value = text;
+	yield (int)value.length;
+	yield (int)value.length;
+}
+class iter int pointed(const int* pointer)
+{
+	const int* value = pointer;
+	yield *value;
+	value = pointer;
+	yield *value;
+}
+export int main()
+{
+	View view = { "abcdef" };
+	int number = 7;
+	int total = 0;
+	foreach (int viewLength in view.lengths()) total += viewLength;
+	foreach (int copiedLength in copied(view.text)) total += copiedLength;
+	foreach (int pointedValue in pointed(&number)) total += pointedValue;
+	return total == 34 ? 0 : 1;
+}

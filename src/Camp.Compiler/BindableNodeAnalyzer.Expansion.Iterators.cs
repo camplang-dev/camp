@@ -14,6 +14,7 @@ public sealed partial class BindableNodeAnalyzer
 	readonly Dictionary<string, Dictionary<string, FieldDefinition>> iteratorStateFields = new(StringComparer.Ordinal);
 	readonly Dictionary<string, Dictionary<string, FieldDefinition>> iteratorStateFieldsBySourceName = new(StringComparer.Ordinal);
 	readonly Dictionary<DeclarationTarget, Dictionary<string, FieldDefinition>> iteratorStateFieldsByDeclaration = [];
+	readonly HashSet<FieldDefinition> iteratorLiftedLocalFields = [];
 	Dictionary<string, FieldDefinition>? currentIteratorRewriteFields;
 
 	void GenerateIteratorDeclarations(Module module)
@@ -738,6 +739,7 @@ public sealed partial class BindableNodeAnalyzer
 				}
 				AddIteratorField(state, field, name);
 				AddIteratorDeclarationField(declaration.Target, name, field);
+				iteratorLiftedLocalFields.Add(field);
 			}
 		}
 
