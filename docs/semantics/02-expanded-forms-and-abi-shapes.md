@@ -124,6 +124,10 @@ conversion from `byte* _near` to `byte* _far` does not make
 `(byte* _near)[]` convertible to `(byte* _far)[]`. Reconstruct or materialize
 as required.
 
+An address of an expanded array carries addresses of both its elements slot and
+its length slot. When a call adds element constness to an array pointer, retain
+those component addresses; qualification does not add another pointer level.
+
 Indexing, slicing, from-end syntax, and custom `@index`/`@range` parameters
 are source access rules over array-like values. Their validation and argument
 rewrites are described in

@@ -487,7 +487,7 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			Expression valueComponent = valueComponents[i];
 			string parameterType = i == 0 ? firstParameterType : secondParameterType;
-			if (valueComponent.ResolvedType == parameterType)
+			if (ShapeUsesPointerComponents(shape) || valueComponent.ResolvedType == parameterType)
 			{
 				components.Add(valueComponent);
 				continue;
