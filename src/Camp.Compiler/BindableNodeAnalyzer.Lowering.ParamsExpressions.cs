@@ -403,6 +403,11 @@ public sealed partial class BindableNodeAnalyzer
 		Expression? previousValue = arguments[argumentIndex - 1].Value;
 		Expression? value = arguments[argumentIndex].Value;
 		return IsProvidedLengthComponent(previousValue, value, previousName + "_length")
+			|| previousValue is not null
+				&& TryGetParamsComponentShape(callableParameters[parameterIndex - 1].Type, callableParameters[parameterIndex - 1].ResolvedType, previousName, out ParamsComponentShape arrayShape)
+				&& arrayShape.Kind == ParamsComponentShapeKind.Array
+				&& TryFindParamsExpansionSiblingFromExpansion(previousValue, "length", out Expression? length)
+				&& ExpressionReferencesSameValue(length, value)
 			|| IsProvidedComponent(value, previousName + "_context")
 			|| TryGetParamsComponentShape(callableParameters[parameterIndex - 1].Type, callableParameters[parameterIndex - 1].ResolvedType, previousName, out ParamsComponentShape previousShape)
 				&& previousShape.Kind is ParamsComponentShapeKind.Delegate or ParamsComponentShapeKind.Iter
@@ -579,7 +584,7 @@ public sealed partial class BindableNodeAnalyzer
 		return true;
 	}
 
-	bool IsProvidedLengthComponent(Expression? value, Expression? next, string componentName)
+	static bool IsProvidedLengthComponent(Expression? value, Expression? next, string componentName)
 	{
 		if (next is VariableReferenceExpression { Variable: ParameterDefinition parameter } && parameter.Name == componentName)
 			return true;
@@ -587,9 +592,7 @@ public sealed partial class BindableNodeAnalyzer
 			return true;
 		if (next is MemberExpression { Name: "length" } member && ExpressionReferencesSameValue(value, member.Target))
 			return true;
-		return value is not null
-			&& TryFindParamsExpansionSiblingFromExpansion(value, "length", out Expression? length)
-			&& ExpressionReferencesSameValue(length, next);
+		return false;
 	}
 
 	static bool IsProvidedComponent(Expression? next, string componentName)
