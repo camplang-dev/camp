@@ -296,6 +296,11 @@ views, or production shared-library exports.
 
 ## Expanded Forms In C
 
+Indexing must preserve the grouping of its lowered target. In particular,
+indexing a dereferenced array's elements emits `(*elementsPointer)[index]`;
+the index applies to the elements rather than to the pointer to that component.
+The same grouping applies to reads, writes, and explicit `.elements` access.
+
 C emission receives lowered expanded forms. It must emit the component layout
 chosen by analysis/lowering:
 

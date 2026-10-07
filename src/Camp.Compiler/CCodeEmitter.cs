@@ -6230,7 +6230,7 @@ public static class CCodeEmitter
             if (ErasedTypeIdentity.TryGetPayload(storage, out string payload))
                 return "((" + FormatStorageResolvedType(payload, "*").Declaration.Trim() + ")(" + FormatExpression(index.Target) + "))[" + string.Join(", ", index.Arguments.Select(FormatArgumentValue)) + "]";
             string target = FormatExpression(index.Target);
-            if (index.Target is CastExpression)
+            if (index.Target is CastExpression or UnaryExpression)
                 target = "(" + target + ")";
             return target + "[" + string.Join(", ", index.Arguments.Select(FormatArgumentValue)) + "]";
         }

@@ -1,0 +1,5 @@
+int read(int[]* source, nuint index) { return (*source)[index]; }
+int readElements(int[]* source, nuint index) { return (*source).elements[index]; }
+int readImplicitElements(int[]* source, nuint index) { return source.elements[index]; }
+void write(int[]* source, int value) { (*source)[1] = value; }
+int readConst(const int[]* source) { return (*source)[2]; }

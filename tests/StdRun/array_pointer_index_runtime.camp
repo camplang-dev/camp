@@ -1,0 +1,35 @@
+int reads = 0;
+nuint nextIndex() { reads++; return 1; }
+int read(int[]* pointer, nuint index) { return (*pointer)[index]; }
+int readElements(int[]* pointer, nuint index) { return (*pointer).elements[index]; }
+int readImplicitElements(int[]* pointer, nuint index) { return pointer.elements[index]; }
+void write(int[]* pointer)
+{
+	(*pointer)[1] = 21;
+	(*pointer).elements[2] += 2;
+	pointer.elements[3] = 41;
+}
+export int main()
+{
+	int[] values = [10, 20, 30, 40];
+	int[]* pointer = &values;
+	int[] copied = *pointer;
+	if (copied[1] != 20 || (*pointer).length != 4) return 1;
+	if ((*pointer)[1] != 20 || read(pointer, 2) != 30) return 2;
+	if ((*pointer).elements[2] != 30 || pointer.elements[3] != 40) return 3;
+	if (readElements(pointer, 1) != 20 || readImplicitElements(pointer, 2) != 30) return 4;
+	if ((*pointer)[nextIndex()] != 20 || reads != 1) return 5;
+	if ((*pointer)[^1] != 40) return 6;
+	write(pointer);
+	if (values[1] != 21 || values[2] != 32 || values[3] != 41) return 7;
+	int[] slice = (*pointer)[1..3];
+	if (slice.length != 2 || slice[0] != 21 || slice[1] != 32) return 8;
+	const int[] immutable = values;
+	const int[]* immutablePointer = &immutable;
+	if ((*immutablePointer)[2] != 32) return 9;
+	fixed int[4] storage = [1, 2, 3, 4];
+	int[4]* fixedPointer = &storage;
+	(*fixedPointer)[2] = 13;
+	if ((*fixedPointer)[2] != 13 || storage[2] != 13) return 10;
+	return 0;
+}
