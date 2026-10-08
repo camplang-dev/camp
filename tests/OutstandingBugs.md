@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-278.
+Next bug number: BUG-279.
 
 ## Bug Template
 
@@ -88,7 +88,7 @@ exercise opaque array transport while this result-specific defect is fixed.
 
 ## BUG-276: A within expression drops an ordinary generic array-result call
 
-Date/Time: 2026-10-08 14:20 America/Toronto
+Date/Time: 2026-10-08 09:32 America/Toronto
 
 Summary:
 A generic call returning an ordinary dynamic array `T[]` is omitted when used
@@ -138,7 +138,7 @@ contract but does not prove this ordinary array-result path.
 
 ## BUG-277: Relaxed callable-newtype initialization emits an incompatible C pointer
 
-Date/Time: 2026-10-08 14:25 America/Toronto
+Date/Time: 2026-10-08 09:32 America/Toronto
 
 Summary:
 A named function ascribed to a callable newtype may use the non-expandable
@@ -175,3 +175,37 @@ Implicit initialization from a compatible ascribed function fails when erased
 and concrete parameter spellings differ. An explicit cast to the already
 ascribed callable newtype compiles and preserves the intended ascription check;
 it is a safe workaround for testing this compatibility rule.
+
+## BUG-278: An optional cast argument loses its specified component at an erased reference
+
+Date/Time: 2026-10-08 09:43 America/Toronto
+
+Summary:
+A cast that creates an optional value is accepted as an `in void<P>?` argument,
+but the generated call omits the optional's specified component. Other optional
+rvalues, including a function result, are expanded correctly at this boundary.
+
+Steps to Reproduce:
+
+1. Run `campc run repro.camp --nostdlib --show-errorlevel` with compiler
+   `c6825ae6` on the following source:
+   ```camp
+   int read(in void<int>? value) => value.specified ? value.value : -1;
+   export int main() => read((int?)7) == 7 ? 0 : 1;
+   ```
+2. Inspect the generated C call and compare passing a function result
+   from `int? make() => 7;` instead of the cast expression.
+
+Expected:
+The optional cast creates a specified value containing seven. The caller supplies
+addresses for both its payload and specified components, and the program exits
+with zero. Proposal 024 sections 3 and 7 preserve those optional components.
+
+Actual:
+C declares `read(const void *value, bool *value_specified)` but calls
+`read(&(int){(int)(7)})`. Clang rejects the call for having too few arguments.
+
+Known Impact:
+Optional cast rvalues cannot be passed to these erased reference parameters.
+A function returning the same optional value passes both components correctly
+and safely preserves an rvalue-reference test's purpose.
