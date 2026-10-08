@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-276.
+Next bug number: BUG-277.
 
 ## Bug Template
 
@@ -85,3 +85,53 @@ Known Impact:
 Source-project references cannot import a producer exposing this result shape.
 An array parameter projects to a pointer and length successfully, so it can
 exercise opaque array transport while this result-specific defect is fixed.
+
+## BUG-276: A within expression drops an ordinary generic array-result call
+
+Date/Time: 2026-10-08 14:20 America/Toronto
+
+Summary:
+A generic call returning an ordinary dynamic array `T[]` is omitted when used
+as a local initializer inside a `within` expression. The omitted call can have
+observable side effects. This differs from an erased generic `T` result whose
+argument happens to be an array; that result-storage path works.
+
+Steps to Reproduce:
+
+1. Compile and run the following with `campc run repro.camp --nostdlib
+   --show-errorlevel`, using compiler `c6825ae6`:
+   ```camp
+   interface Allocator {
+       escaped void* alloc(nuint size);
+       void* realloc(void* memory, nuint size);
+       void free(void* memory);
+   }
+   int calls = 0;
+   T[] echo<T: copyable>(T[] values, within allocator, sizeof(T)) {
+       calls++;
+       return values;
+   }
+   export int main() {
+       Allocator* allocator = null;
+       int[] values = [9];
+       int[] returned = within (allocator) echo<int>(values);
+       return calls == 1 ? 0 : 1;
+   }
+   ```
+2. Inspect the emitted C initializer and the exit code.
+
+Expected:
+The initializer invokes `echo`, passes the array components and supplied
+capabilities, and assigns both result components. `within` supplies an allocator
+without suppressing evaluation, so the program exits with zero.
+
+Actual:
+The C declares `returned` and `returned_length` without any initializer or call.
+The program exits with one because `calls` is still zero. This repro never reads
+the uninitialized result.
+
+Known Impact:
+Ordinary generic array-result calls inside `within` cannot safely prove execution
+or result transport. Tests of erased generic result transport can instead use a
+`T` result with an array argument; that preserves the erased result-storage
+contract but does not prove this ordinary array-result path.
