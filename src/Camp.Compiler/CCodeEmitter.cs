@@ -5520,6 +5520,14 @@ public static class CCodeEmitter
                 || ascription.UnderlyingType is not CallableTypeReference { Kind: CallableKind.Function } callable
                 || (BaseResolvedTypeName(targetType) != ascription.Name && BaseResolvedTypeName(targetType) != CName(ascription)))
                 return false;
+            // Expanded arrays and constof anchors can differ as source types while
+            // retaining identical C signatures. This cast handles erased storage
+            // compatibility, whose concrete and opaque pointer spellings differ.
+            if (!(callable.ResolvedType ?? "").Contains("void<", StringComparison.Ordinal)
+                && !(function.ExpandedSourceReturnType?.ResolvedType ?? function.ResolvedType ?? "").Contains("void<", StringComparison.Ordinal)
+                && !function.Parameters.Concat(ascription.Parameters).Any(parameter =>
+                    (parameter.ExpandedSourceParameter?.ResolvedType ?? parameter.ResolvedType ?? "").Contains("void<", StringComparison.Ordinal)))
+                return false;
             // Semantic ascription has checked compatibility. The symbol still uses
             // its declared C signature, even when its value type is already nominal.
             return function.ResolvedType != callable.ReturnType?.ResolvedType
