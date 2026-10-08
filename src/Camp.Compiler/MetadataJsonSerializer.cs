@@ -443,8 +443,8 @@ public static class MetadataJsonSerializer
 						json.WriteString("callspec", callable.CallSpec);
 					if (!string.IsNullOrWhiteSpace(callable.TargetSpec))
 						json.WriteString("targetspec", callable.TargetSpec);
-					if (erasedProjection?.HiddenResult(new FunctionDefinition { ReturnType = callable.ReturnType }) == true)
-						json.WriteString("returnType", BindableNodeCodeSerializer.SerializeType(callable.ReturnType).EndsWith('?') ? "bool" : "void");
+					if (erasedProjection?.ProjectedResultType(new FunctionDefinition { ReturnType = callable.ReturnType }) is string projected)
+						json.WriteString("returnType", projected);
 					else WriteTypeProperty(json, "returnType", callable.ReturnType, callable.ReturnType?.ResolvedType);
 					break;
 				case IterTypeReference iter:
@@ -474,8 +474,8 @@ public static class MetadataJsonSerializer
 				json.WriteString("modifier", function.Modifier.ToString().ToLowerInvariant());
 			if (!string.IsNullOrWhiteSpace(function.CallSpec))
 				json.WriteString("callspec", function.CallSpec);
-			if (erasedProjection?.HiddenResult(function) == true)
-				json.WriteString("returnType", BindableNodeCodeSerializer.SerializeType(function.ExpandedSourceReturnType ?? function.ReturnType).EndsWith('?') ? "bool" : "void");
+			if (erasedProjection?.ProjectedResultType(function) is string projected)
+				json.WriteString("returnType", projected);
 			else WriteTypeProperty(json, "returnType", erasedProjection is not null ? function.ExpandedSourceReturnType ?? function.ReturnType : function.ReturnType, function.ResolvedType);
 			if (function.InterfaceImplementationInterface is not null)
 			{

@@ -138,6 +138,8 @@ types still cannot appear in a public or exported signature. API and metadata
 views retain `void<V>` when that view includes `V`; otherwise they expose the
 opaque ABI: `void*`, `const void*`, or pointer plus `nuint` length for an array.
 Hidden `in` and `out` slots become ordinary const/writable pointer parameters.
+A hidden erased-array result becomes an opaque pointer result with a trailing
+`out nuint result_length` parameter, in both declaration and lowered API views.
 A hidden optional erased result becomes `bool` plus a writable result pointer,
 before allocator, error and capability slots. The producer retains the annotation
 for analysis and member access. Private annotations must not pull private layout

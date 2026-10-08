@@ -8,6 +8,33 @@ namespace Camp.Compiler.Tests;
 public sealed class ErasedBoundaryTests
 {
 	[Theory]
+	[InlineData(false, "")]
+	[InlineData(true, "")]
+	[InlineData(false, "const ")]
+	[InlineData(true, "const ")]
+	public void Hidden_array_results_publish_opaque_pointer_and_length(bool lower, string qualifier)
+	{
+		string source = $$"""
+			struct Secret { int value; }
+			export {{qualifier}}void<Secret>[] items() => default;
+			export newtype fn {{qualifier}}void<Secret>[] Items();
+			""";
+		SemanticCompilation compilation = lower ? SemanticCompiler.CompileLowered(source) : SemanticCompiler.CompileDeclarations(source);
+		SemanticCompiler.AssertNoDiagnostics(compilation);
+		using StringWriter writer = new();
+		BindableNodeCodeSerializer.Serialize(compilation.Module, writer, new BindableNodeCodeSerializerOptions { ApiHeader = true });
+		string api = writer.ToString();
+		Assert.DoesNotContain("Secret", api);
+		Assert.Contains(qualifier + "void* items(out nuint result_length)", api);
+		Assert.Contains(qualifier + "void* Items(out nuint result_length)", api);
+		SemanticCompiler.AssertNoDiagnostics(SemanticCompiler.CompileLowered(api));
+		string metadata = MetadataJsonSerializer.Serialize(compilation.Compilation, MetadataVisibility.Export);
+		Assert.DoesNotContain("Secret", metadata);
+		Assert.Contains("result_length", metadata);
+		Assert.Contains("void<Secret>[]", MetadataJsonSerializer.Serialize(compilation.Compilation, MetadataVisibility.All).Replace("\\u003C", "<").Replace("\\u003E", ">"));
+	}
+
+	[Theory]
 	[InlineData(false, false)]
 	[InlineData(false, true)]
 	[InlineData(true, false)]

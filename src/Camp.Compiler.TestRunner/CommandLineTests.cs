@@ -5772,6 +5772,34 @@ public sealed class CommandLineTests
 	}
 
 	[Fact]
+	public void Project_reference_consumes_private_erased_array_result()
+	{
+		string root = TempPath("project-reference-erased-array-result");
+		Directory.CreateDirectory(root);
+		File.WriteAllText(Path.Combine(root, "producer.camp"), """
+			struct Hidden { int value; }
+			export void<Hidden>[] getItems() => default;
+			""");
+		File.WriteAllText(Path.Combine(root, "producer.campbuild"), "producer.camp");
+		File.WriteAllText(Path.Combine(root, "consumer.camp"), """
+			export int main() {
+				nuint length = 99;
+				void* items = getItems(out length);
+				return items == null && length == 0 ? 0 : 1;
+			}
+			""");
+		File.WriteAllText(Path.Combine(root, "consumer.campbuild"), """
+			--project-reference producer.campbuild:static
+			consumer.camp
+			""");
+		ProcessResult result = RunCampc("run", Path.Combine(root, "consumer.campbuild"), "--nostdlib", "--target", NativeTargetForHost());
+		AssertCommandSucceeded(result);
+		string api = File.ReadAllText(Path.Combine(root, "bin", ArtifactDirectoryForHost(NativeBuildKind.Static), "producer_api.camp"));
+		Assert.DoesNotContain("Hidden", api);
+		Assert.Contains("void* getItems(out nuint result_length)", api);
+	}
+
+	[Fact]
 	public void Project_reference_builds_static_library_and_includes_api()
 	{
 		string root = TempPath("project-reference");

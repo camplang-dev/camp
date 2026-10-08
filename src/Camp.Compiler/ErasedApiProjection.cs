@@ -58,9 +58,27 @@ internal sealed class ErasedApiProjection
 		return Hidden(text) && ErasedTypeIdentity.TryGetPayload(text.EndsWith('?') ? text[..^1] : text, out _);
 	}
 
+	public string? ProjectedResultType(FunctionDefinition function)
+	{
+		string source = BindableNodeCodeSerializer.SerializeType(function.ExpandedSourceReturnType ?? function.ReturnType);
+		if (HiddenResult(function)) return source.EndsWith('?') ? "bool" : "void";
+		string projected = Type(source);
+		return projected != source && projected is "void[]" or "const void[]" ? projected[..^2] + "*" : null;
+	}
+
 	public List<ParameterDefinition> FunctionParameters(FunctionDefinition function)
 	{
 		List<ParameterDefinition> parameters = [.. function.Parameters];
+		if (ProjectedResultType(function) is "void*" or "const void*")
+		{
+			// The opaque result must expose the length slot instead of restoring
+			// an array spelling whose element annotation the consumer cannot name.
+			if (function.ExpandedSourceReturnType is null)
+				parameters.Add(Slot(new ParameterDefinition(), "result_length", "nuint", ParameterModifier.Out));
+			else
+				parameters = parameters.Select(parameter => parameter.IsExpandedReturnComponent
+					? Slot(parameter, parameter.Name, parameter.ResolvedType!, parameter.Modifier) : parameter).ToList();
+		}
 		if (function.ExpandedSourceReturnType is not null && !HiddenResult(function))
 			parameters.RemoveAll(parameter => parameter.IsErasedResultStorage);
 		if (HiddenResult(function) && function.ExpandedSourceReturnType is null)

@@ -1789,10 +1789,9 @@ public sealed class BindableNodeCodeSerializer
 
 	void WriteFunctionReturnType(FunctionDefinition definition)
 	{
-		if (erasedProjection?.HiddenResult(definition) == true)
+		if (erasedProjection?.ProjectedResultType(definition) is string projected)
 		{
-			string source = SerializeType(definition.ExpandedSourceReturnType ?? definition.ReturnType);
-			writer.Write(source.EndsWith('?') ? "bool" : "void");
+			writer.Write(projected);
 			return;
 		}
 		if (apiHeader && definition.ExpandedSourceReturnType is TypeReference sourceReturnType)
