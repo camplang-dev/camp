@@ -1,0 +1,22 @@
+#within explicit
+int calls = 0;
+int selections = 0;
+Allocator* selectAllocator(Allocator* allocator) { selections++; return allocator; }
+T[] echo<T: copyable>(T[] values, within allocator, sizeof(T)) { calls++; return values; }
+int[] ordinary(int[] values, within allocator) { calls++; return values; }
+export int main()
+{
+	Allocator* allocator = null;
+	int[] values = [9, 11];
+	int[] returned = within (selectAllocator(allocator)) echo<int>(values);
+	if (calls != 1 || selections != 1) return 1;
+	if (returned.length != 2 || returned[0] != 9 || returned[1] != 11) return 2;
+	int[] fallback = within (default) echo<int>(values);
+	if (calls != 2 || fallback.length != 2 || fallback[1] != 11) return 3;
+	int[] assigned = default;
+	assigned = within (allocator) echo<int>(values);
+	if (calls != 3 || assigned.length != 2 || assigned[0] != 9) return 4;
+	int[] plain = within (selectAllocator(allocator)) ordinary(values);
+	if (calls != 4 || selections != 2 || plain.length != 2 || plain[1] != 11) return 5;
+	return 0;
+}

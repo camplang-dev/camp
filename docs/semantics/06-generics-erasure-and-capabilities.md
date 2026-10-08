@@ -150,6 +150,10 @@ callables, are read from that storage after the call. Evaluate the allocator
 expression once before the call, and restore the enclosing allocator context
 after expanding the result.
 
+An ordinary generic `T[]` result under `within` also evaluates its call once
+and retains both the elements result and output length. Supplying an allocator
+does not change that array result into whole erased-value storage.
+
 Erased `in`/`out` arguments pass existing erased storage and non-expandable
 values directly. Ordinary expandable values are packed into temporary storage;
 outputs copy back immediately after the call, before the enclosing expression

@@ -7,6 +7,29 @@ namespace Camp.Compiler.Tests;
 public sealed class WithinArrayInitializerTests
 {
 	[Theory]
+	[InlineData("allocator", true)]
+	[InlineData("default", true)]
+	[InlineData("select(allocator)", true)]
+	[InlineData("allocator", false)]
+	public void Within_array_result_initializers_keep_call_and_length_output(string context, bool generic)
+	{
+		string function = generic ? "T[] echo<T: copyable>(T[] values, within allocator, sizeof(T)) => values;"
+			: "int[] echo(int[] values, within allocator) => values;";
+		string invocation = generic ? "echo<int>(values)" : "echo(values)";
+		SemanticCompilation compilation = SemanticCompiler.CompileLowered(WithinAllocationPolicy.Explicit, ("within_array.camp", $$"""
+			struct Allocator {}
+			Allocator* select(Allocator* allocator) => allocator;
+			{{function}}
+			void use(Allocator* allocator, int[] values) { int[] result = within ({{context}}) {{invocation}}; }
+			"""));
+		SemanticCompiler.AssertNoDiagnostics(compilation);
+		CallExpression call = Assert.Single(SemanticCompiler.Descendants<CallExpression>(SemanticCompiler.Function(compilation, "use")),
+			call => call.Arguments.Count == (generic ? 5 : 4));
+		Assert.Equal(ArgumentModifier.Out, call.Arguments[^1].Modifier);
+		if (generic) Assert.IsType<SizeOfExpression>(call.Arguments[2].Value);
+	}
+
+	[Theory]
 	[InlineData("within (default) { char[] text = create(); }")]
 	[InlineData("within (default) { if (true) { char[] text = create(); } }")]
 	[InlineData("within (allocator) { char[] text = create(); }")]

@@ -87,9 +87,9 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		components = [];
 		if (expression is WithinExpression { Expression: CallExpression call } within
-			&& IsErasedResultCall(call)
+			&& (IsErasedResultCall(call) || TryGetParamsComponentShape(null, call.ResolvedType, "result", out _))
 			&& currentStatementPrefix is not null)
-			return TryCreateWithinErasedResultComponents(within, call, target, out components);
+			return TryCreateWithinResultComponents(within, call, target, out components);
 		if (expression is not DefaultExpression && TryGetOptionalPayloadType(target.TypeName, out string payload)
 			&& CanLiftToOptional(expression.ResolvedType ?? ErrorType, target.TypeName))
 		{
@@ -108,7 +108,7 @@ public sealed partial class BindableNodeAnalyzer
 			&& components.Count == target.Components.Count;
 	}
 
-	bool TryCreateWithinErasedResultComponents(WithinExpression within, CallExpression call, ParamsComponentShape target, out List<Expression> components)
+	bool TryCreateWithinResultComponents(WithinExpression within, CallExpression call, ParamsComponentShape target, out List<Expression> components)
 	{
 		bool defaultWithin = within.Context is DefaultWithinContextExpression;
 		Expression? context = defaultWithin ? null : LowerExpression(within.Context);
