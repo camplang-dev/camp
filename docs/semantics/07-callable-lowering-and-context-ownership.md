@@ -330,6 +330,11 @@ slot. The validator must ensure:
 - parameter and return shapes match after source-level `constof` rules;
 - unsupported ascription cases diagnose before lowering.
 
+A named function accepted through erased/concrete storage compatibility keeps
+its declared C signature. Using that symbol to initialize, assign, pass, or
+return its ascribed `fn` newtype casts it to the checked nominal carrier when
+the declared parameter or result spellings differ; no adapter is introduced.
+
 Metadata should expose the source callable newtype relationship, not the
 generated helper functions used to implement it.
 

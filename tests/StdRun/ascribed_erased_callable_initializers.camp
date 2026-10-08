@@ -1,0 +1,35 @@
+newtype fn int Reader(in void<int> value);
+int read(in int value): Reader => value;
+Reader savedReader = read;
+newtype fn int ConcreteReader(in int value);
+int readErased(in void<int> value): ConcreteReader => value;
+newtype fn int PointerReader(void<int>* value);
+int readPointer(int* value): PointerReader => *value;
+newtype fn int ArrayReader(void<int>[] values);
+int readArray(int[] values): ArrayReader => values[0] + values[1];
+newtype fn void Writer(out void<int> value);
+void write(out int value): Writer { value = 17; }
+int invoke(Reader callback) => callback(11);
+Reader makeReader() => read;
+export int main()
+{
+	Reader callback = read;
+	if (callback(7) != 7) return 1;
+	if (savedReader(21) != 21) return 8;
+	callback = read;
+	if (callback(9) != 9 || invoke(read) != 11) return 2;
+	Reader returned = makeReader();
+	if (returned(13) != 13) return 3;
+	ConcreteReader concrete = readErased;
+	if (concrete(15) != 15) return 4;
+	int value = 19;
+	PointerReader pointer = readPointer;
+	if (pointer(&value) != 19) return 5;
+	ArrayReader array = readArray;
+	int[] values = [3, 5];
+	if (array(values) != 8) return 6;
+	Writer writer = write;
+	writer(out value);
+	if (value != 17) return 7;
+	return 0;
+}

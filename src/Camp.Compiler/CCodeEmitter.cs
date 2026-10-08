@@ -4286,7 +4286,8 @@ public static class CCodeEmitter
                     WriteIndent(writer, indent);
                     writer.Write("return");
                     if (ret.Expression is not null)
-                        writer.Write(" " + FormatExpression(ret.Expression));
+                        writer.Write(" " + (currentFunction?.ResolvedType is string resultType && RequiresAscribedCallableCast(ret.Expression, resultType)
+                            ? FormatAssignmentValueForTarget(resultType, ret.Expression) : FormatExpression(ret.Expression)));
                     writer.WriteLine(";");
                     break;
                 case IfStatement ifStatement:
@@ -5414,7 +5415,8 @@ public static class CCodeEmitter
             cast = "";
             if (!IsCallableSymbolExpression(value))
                 return false;
-            if (TryFormatCallableNewtypeCast(targetType, requireGenericErasure: erasedGenericNames is null || erasedGenericNames.Count == 0, out cast))
+            if (TryFormatCallableNewtypeCast(targetType, requireGenericErasure: !RequiresAscribedCallableCast(value, targetType)
+                && (erasedGenericNames is null || erasedGenericNames.Count == 0), out cast))
                 return true;
             (string Cast, bool Success) result = WithErasedGenericNames(erasedGenericNames, () =>
             {
@@ -5486,6 +5488,8 @@ public static class CCodeEmitter
 
         bool ShouldCastCallableAssignment(Expression value, string targetType)
         {
+            if (RequiresAscribedCallableCast(value, targetType))
+                return true;
             if (TryFormatCallableNewtypeCast(targetType, requireGenericErasure: true, out _))
                 return TryGetCallableShapeForEmitter(value.ResolvedType, out _);
             if (!TryParseResolvedCallableType(targetType, out string targetReturn, out List<string> targetParameters, out string? targetTargetSpec, out string? targetCallSpec))
@@ -5501,6 +5505,27 @@ public static class CCodeEmitter
                 if (targetParameters[i] != sourceParameters[i])
                     return true;
             return false;
+        }
+
+        bool RequiresAscribedCallableCast(Expression value, string targetType)
+        {
+            FunctionDefinition? function = value switch
+            {
+                VariableReferenceExpression { Variable: FunctionDefinition symbol } => symbol,
+                MemberReferenceExpression { Member: FunctionDefinition symbol } => symbol,
+                MethodReferenceExpression { Candidates.Count: 1 } method => method.Candidates[0],
+                _ => null
+            };
+            if (function?.CallableAscriptionNewtype is not NewtypeDefinition ascription
+                || ascription.UnderlyingType is not CallableTypeReference { Kind: CallableKind.Function } callable
+                || (BaseResolvedTypeName(targetType) != ascription.Name && BaseResolvedTypeName(targetType) != CName(ascription)))
+                return false;
+            // Semantic ascription has checked compatibility. The symbol still uses
+            // its declared C signature, even when its value type is already nominal.
+            return function.ResolvedType != callable.ReturnType?.ResolvedType
+                || function.Parameters.Count != ascription.Parameters.Count
+                || function.Parameters.Zip(ascription.Parameters).Any(pair => pair.First.ResolvedType != pair.Second.ResolvedType
+                    || pair.First.Modifier != pair.Second.Modifier);
         }
 
         bool TryGetCallableShapeForEmitter(string? type, out CallableShape shape)
@@ -6669,6 +6694,9 @@ public static class CCodeEmitter
             string value = FormatExpression(argument.Value);
             string? rawExpectedParameterType = parameter?.ResolvedType ?? parameter?.Type?.ResolvedType;
             string? expectedParameterType = SubstituteGenericTypeTokens(rawExpectedParameterType, genericSubstitutions);
+            if (argument.Modifier == ArgumentModifier.None && argument.Value is not null
+                && expectedParameterType is not null && RequiresAscribedCallableCast(argument.Value, expectedParameterType))
+                value = FormatAssignmentValueForTarget(expectedParameterType, argument.Value);
             if (argument.Modifier == ArgumentModifier.None
                 && expectedParameterType is not null
                 && IsVoidPointerType(expectedParameterType)
@@ -7939,6 +7967,8 @@ public static class CCodeEmitter
                 return FormatFixedArrayInitializer(expression);
             if (expression is InitializerExpression initializer)
                 return FormatInitializer(initializer, includeType: false);
+            if (targetType is not null && RequiresAscribedCallableCast(expression, targetType))
+                return FormatAssignmentValueForTarget(targetType, expression);
             return FormatFileScopeConstantExpression(expression) ?? FormatExpression(expression);
         }
 
