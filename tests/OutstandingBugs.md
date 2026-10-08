@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-277.
+Next bug number: BUG-278.
 
 ## Bug Template
 
@@ -135,3 +135,43 @@ Ordinary generic array-result calls inside `within` cannot safely prove executio
 or result transport. Tests of erased generic result transport can instead use a
 `T` result with an array argument; that preserves the erased result-storage
 contract but does not prove this ordinary array-result path.
+
+## BUG-277: Relaxed callable-newtype initialization emits an incompatible C pointer
+
+Date/Time: 2026-10-08 14:25 America/Toronto
+
+Summary:
+A named function ascribed to a callable newtype may use the non-expandable
+`in P` versus `in void<P>` compatibility rule. Initializing that newtype from the
+ascribed name succeeds in semantic analysis but emits a C assignment between
+incompatible pointer signatures.
+
+Steps to Reproduce:
+
+1. Compile the following with `campc run repro.camp --nostdlib
+   --show-errorlevel`, using compiler `c6825ae6`:
+   ```camp
+   newtype fn int Reader(in void<int> value);
+   int read(in int value): Reader => value;
+   export int main() {
+       Reader callback = read;
+       return callback(0);
+   }
+   ```
+2. Compare an explicitly cast initializer: `Reader callback = (Reader)read;`.
+
+Expected:
+Proposal 024 section 5 applies this relaxation to callable-newtype ascription.
+The compatible named function initializes the nominal callable carrier and the
+program returns zero.
+
+Actual:
+Clang rejects assigning `int (*)(int*)` to the `Reader` carrier
+`int (*)(const void*)`. Semantic analysis accepts the ascription; the failure
+occurs during native compilation.
+
+Known Impact:
+Implicit initialization from a compatible ascribed function fails when erased
+and concrete parameter spellings differ. An explicit cast to the already
+ascribed callable newtype compiles and preserves the intended ascription check;
+it is a safe workaround for testing this compatibility rule.
