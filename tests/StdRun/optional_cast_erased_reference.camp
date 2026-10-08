@@ -1,0 +1,20 @@
+int calls = 0;
+int make() { calls++; return 7; }
+int? makeOptional() => 9;
+int read(in void<int>? value) => value.specified ? value.value : -1;
+long readLong(in void<long>? value) => value.specified ? value.value : -1;
+int readNested(in void<int?>? value) => value.specified && value.value.specified ? value.value.value : -1;
+export int main()
+{
+	if (read((int?)7) != 7) return 1;
+	if (read((int?)make()) != 7 || calls != 1) return 2;
+	int? empty = default;
+	if (read((int?)empty) != -1) return 3;
+	int? present = 11;
+	if (read((int?)present) != 11) return 4;
+	if (readLong((long?)7) != 7) return 5;
+	if (readNested((int??)13) != 13) return 6;
+	if (readNested((int??)empty) != -1) return 7;
+	if (read(makeOptional()) != 9) return 8;
+	return 0;
+}

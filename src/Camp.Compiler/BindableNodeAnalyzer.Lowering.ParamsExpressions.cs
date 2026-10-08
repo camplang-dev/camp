@@ -1881,7 +1881,8 @@ public sealed partial class BindableNodeAnalyzer
 		components = [];
 		if (!TryGetParamsComponentShape(cast.Type, cast.ResolvedType, "value", out ParamsComponentShape targetShape)
 			|| targetShape.Components.Count <= 1
-			|| !TryCreateParamsComponentExpressions(cast.Expression, out List<Expression> sourceComponents)
+			|| cast.Expression is null
+			|| !TryCreateValueParamsComponents(cast.Expression, targetShape, out List<Expression> sourceComponents)
 			|| sourceComponents.Count != targetShape.Components.Count)
 			return false;
 

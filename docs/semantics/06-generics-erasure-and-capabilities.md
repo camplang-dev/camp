@@ -159,6 +159,8 @@ values directly. Ordinary expandable values are packed into temporary storage;
 outputs copy back immediately after the call, before the enclosing expression
 continues. Component addresses need not be adjacent. Optional erased references
 retain their separate outer presence component.
+Optional cast rvalues follow the same rule: lifting a payload creates a true
+presence component, while a cast of an existing optional preserves its flag.
 
 Each materialized input or output occupies one argument slot, regardless of
 the substituted value's component count. A following `sizeof(T)` capability
