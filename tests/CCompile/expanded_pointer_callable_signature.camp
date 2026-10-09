@@ -1,0 +1,17 @@
+int??* identity(int??* value) => value;
+int[]* arrId(int[]* value) => value;
+export int main()
+{
+    int?? value = 7;
+    fn int??*(int??*) callback = identity;
+    int??* a = callback(&value);
+    int??* b = identity(&value);
+    int[] items = [1, 2, 3];
+    fn int[]*(int[]*) arrCb = arrId;
+    int[]* c = arrCb(&items);
+    int[]* d = arrId(&items);
+    if (!(*a).specified || !(*b).specified) return 1;
+    if ((*a).value.value != 7 || (*b).value.value != 7) return 2;
+    if ((*c).length != 3 || (*d)[2] != 3) return 3;
+    return 0;
+}

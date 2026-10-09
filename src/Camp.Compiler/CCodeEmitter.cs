@@ -5089,6 +5089,26 @@ public static class CCodeEmitter
             return false;
         }
 
+        // A pointer distributes over its element's expanded components, so a
+        // callable slot of type T* carries one pointer per component of T.
+        bool TryGetPointerExpandedComponentsForC(string? resolvedType, out List<(string Name, string Type)> components)
+        {
+            components = [];
+            if (string.IsNullOrWhiteSpace(resolvedType))
+                return false;
+            string type = StripLifetimeOnly(resolvedType.Trim());
+            if (!type.EndsWith("*", StringComparison.Ordinal))
+                return false;
+            // Fixed-size arrays are plain storage, not expanded components.
+            string pointee = type;
+            while (pointee.EndsWith("*", StringComparison.Ordinal))
+                pointee = pointee[..^1].TrimEnd();
+            if (TryGetFixedArrayElementType(pointee, out _))
+                return false;
+            return TryGetExpandedStorageComponentsForC(type, out components)
+                && components.Count > 1;
+        }
+
         bool TryGetCallableNewtypeStorageComponentsByPrimaryTypeForC(string resolvedType, out List<(string Name, string Type)> components)
         {
             components = [];
@@ -6128,6 +6148,17 @@ public static class CCodeEmitter
                 return lifetimePrefix + structural[..^2].TrimEnd() + "*";
             if (structural.EndsWith("?", StringComparison.Ordinal))
                 return lifetimePrefix + structural[..^1].TrimEnd();
+            if (structural.EndsWith("*", StringComparison.Ordinal))
+            {
+                // Pointers distribute over expanded components; the primary carrier
+                // points at the innermost first component.
+                string element = structural[..^1].TrimEnd();
+                string primary = element;
+                for (string next = FirstReturnComponentType(primary); next != primary; next = FirstReturnComponentType(primary))
+                    primary = next;
+                if (primary != element)
+                    return lifetimePrefix + primary + "*";
+            }
             return type;
         }
 
@@ -8849,6 +8880,12 @@ public static class CCodeEmitter
                     types.Add("bool");
                     continue;
                 }
+                if (TryGetPointerExpandedComponentsForC(parameterType, out List<(string Name, string Type)> pointerComponents))
+                {
+                    foreach ((_, string componentType) in pointerComponents)
+                        types.Add(componentType);
+                    continue;
+                }
                 if (TryGetCallableNewtypeStorageComponentsByPrimaryTypeForC(parameterType, out List<(string Name, string Type)> callableNewtypeComponents))
                 {
                     foreach ((_, string componentType) in callableNewtypeComponents)
@@ -8898,6 +8935,12 @@ public static class CCodeEmitter
                 {
                     types.Add((arrayElementType + "*", name));
                     types.Add(("nuint", name + "_length"));
+                    continue;
+                }
+                if (TryGetPointerExpandedComponentsForC(parameterType, out List<(string Name, string Type)> pointerComponents))
+                {
+                    for (int i = 0; i < pointerComponents.Count; i++)
+                        types.Add((pointerComponents[i].Type, i == 0 ? name : name + "_" + ExpandedFormService.StorageMemberName(pointerComponents[i].Name)));
                     continue;
                 }
                 if (TryGetOptionalElementOnly(parameterType, out string optionalElementType))
@@ -9697,6 +9740,12 @@ public static class CCodeEmitter
                 {
                     expanded.AddRange(GetExpandedResolvedCallableParameterTypesForC([optionalElementType]));
                     expanded.Add("bool");
+                    continue;
+                }
+                if (TryGetPointerExpandedComponentsForC(type, out List<(string Name, string Type)> pointerComponents))
+                {
+                    foreach ((_, string componentType) in pointerComponents)
+                        expanded.Add(componentType);
                     continue;
                 }
                 if (TryGetCallableNewtypeStorageComponentsByPrimaryTypeForC(type, out List<(string Name, string Type)> callableNewtypeComponents))

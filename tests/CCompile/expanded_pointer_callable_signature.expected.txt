@@ -1,0 +1,96 @@
+// file: expanded_pointer_callable_signature.c
+#include "expanded_pointer_callable_signature_private.h"
+
+/* Private file declarations. */
+static int *identity(int *value, bool *value_value_specified, bool *value_specified, bool **result_value_specified, bool **result_specified);
+static int **arrId(int **value, uintptr_t *value_length, uintptr_t **result_length);
+
+static int *identity(int *value, bool *value_value_specified, bool *value_specified, bool **result_value_specified, bool **result_specified)
+{
+	{
+		(*result_value_specified) = value_value_specified;
+		(*result_specified) = value_specified;
+		return value;
+	}
+}
+
+static int **arrId(int **value, uintptr_t *value_length, uintptr_t **result_length)
+{
+	{
+		(*result_length) = value_length;
+		return value;
+	}
+}
+
+int main(void)
+{
+	int value = 7;
+	bool value_value_specified = true;
+	bool value_specified = true;
+	int *(* callback)(int *arg0, bool *arg0_value_specified, bool *arg0_specified, bool **value_specified, bool **specified) = identity;
+	int *a;
+	bool *a_value_specified;
+	bool *a_specified;
+	a = callback(&value, &value_value_specified, &value_specified, &a_value_specified, &a_specified);
+	int *b;
+	bool *b_value_specified;
+	bool *b_specified;
+	b = identity(&value, &value_value_specified, &value_specified, &b_value_specified, &b_specified);
+	int *items = (int []){1, 2, 3};
+	uintptr_t items_length = 3;
+	int **(* arrCb)(int **arg0, uintptr_t *arg0_length, uintptr_t **length) = arrId;
+	int **c;
+	uintptr_t *c_length;
+	c = arrCb(&items, &items_length, &c_length);
+	int **d;
+	uintptr_t *d_length;
+	d = arrId(&items, &items_length, &d_length);
+	if ((!*a_specified || !*b_specified))
+	{
+		return 1;
+	}
+	if (((*a != 7) || (*b != 7)))
+	{
+		return 2;
+	}
+	if (((*c_length != 3) || ((*d)[2] != 3)))
+	{
+		return 3;
+	}
+	return 0;
+}
+
+// file: expanded_pointer_callable_signature.h
+#ifndef EXPANDED_POINTER_CALLABLE_SIGNATURE_H_
+#define EXPANDED_POINTER_CALLABLE_SIGNATURE_H_
+
+#include "expanded_pointer_callable_signature_private.h"
+
+int main(void);
+
+#endif
+// file: expanded_pointer_callable_signature_private.h
+#ifndef EXPANDED_POINTER_CALLABLE_SIGNATURE_PRIVATE_H_
+#define EXPANDED_POINTER_CALLABLE_SIGNATURE_PRIVATE_H_
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+/* Forward declarations. */
+
+/* Enums. */
+
+/* Newtypes. */
+
+/* Layouts. */
+
+/* Function declarations. */
+int main(void);
+
+/* Object declarations. */
+
+
+#endif
+// compile
+compiled: expanded_pointer_callable_signature.c
