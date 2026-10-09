@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-279.
+Next bug number: BUG-280.
 
 ## Bug Template
 
@@ -43,3 +43,51 @@ Actual:
 Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
+
+## BUG-279: Nested distributive pointer callable types emit inconsistent C signatures
+
+Date/Time: 2026-10-08 20:47 EDT
+
+Summary:
+A callable type containing a distributive pointer to a nested optional does not
+emit the same flattened C signature as its matching named function. The source
+passes semantic checking, but native compilation fails because the function
+pointer parameter retains an undeclared optional aggregate name and omits
+component parameters. The indirect call supplies those components nevertheless.
+
+Steps to Reproduce:
+
+1. Save the following as `repro.camp`:
+
+   ```camp
+   int??* identity(int??* value) => value;
+   export int main()
+   {
+       int?? value = default;
+       fn int??*(int??*) callback = identity;
+       int??* pointer = callback(&value);
+       return (*pointer).specified ? 1 : 0;
+   }
+   ```
+
+2. Run `campc run repro.camp` with compiler commit
+   `36207137e4b5f58b7097bbba69aab678905e02ed` on macOS.
+
+Expected:
+The program compiles and exits zero. Per semantics 02, pointers distribute
+recursively over expanded components and an indirect expanded-return call must
+initialize every component from one invocation. Here the input has three
+pointer components; the result has one return carrier and two result addresses.
+The matching declaration, callable type and invocation must use that same shape.
+
+Actual:
+Clang rejects an unknown `intOptionalOptional` parameter type, incompatible
+function pointer initialization and a five-argument call through a three-argument
+function pointer. The declaration has the expected five physical arguments, but
+the callable type omits the two input flag-pointer components.
+
+Known Impact:
+Indirect calls transporting nested distributive pointers cannot be compiled.
+A direct call to the named function compiles, but does not preserve the callable
+value/invocation contract and is not an equivalent workaround for that surface.
+No bootstrap source or test files were changed while confirming this defect.
