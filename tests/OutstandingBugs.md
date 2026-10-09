@@ -44,7 +44,7 @@ Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
 
-## BUG-279: Nested distributive pointer callable types emit inconsistent C signatures
+## BUG-279: Nested distributive pointer callable and result carriers emit invalid C
 
 Date/Time: 2026-10-08 20:47 EDT
 
@@ -54,6 +54,8 @@ emit the same flattened C signature as its matching named function. The source
 passes semantic checking, but native compilation fails because the function
 pointer parameter retains an undeclared optional aggregate name and omits
 component parameters. The indirect call supplies those components nevertheless.
+A direct call returning the same pointer also emits a cast to that undeclared
+optional aggregate pointer rather than the flattened primary carrier.
 
 Steps to Reproduce:
 
@@ -73,6 +75,9 @@ Steps to Reproduce:
 2. Run `campc run repro.camp` with compiler commit
    `36207137e4b5f58b7097bbba69aab678905e02ed` on macOS.
 
+3. To isolate the direct result path, replace the callback declaration and call
+   with `int??* pointer = identity(&value);`, then run the same command.
+
 Expected:
 The program compiles and exits zero. Per semantics 02, pointers distribute
 recursively over expanded components and an indirect expanded-return call must
@@ -85,9 +90,12 @@ Clang rejects an unknown `intOptionalOptional` parameter type, incompatible
 function pointer initialization and a five-argument call through a three-argument
 function pointer. The declaration has the expected five physical arguments, but
 the callable type omits the two input flag-pointer components.
+The direct variant also fails: its result is cast to the undeclared
+`intOptionalOptional*` type.
 
 Known Impact:
-Indirect calls transporting nested distributive pointers cannot be compiled.
-A direct call to the named function compiles, but does not preserve the callable
-value/invocation contract and is not an equivalent workaround for that surface.
+Indirect calls transporting nested distributive pointers and direct calls
+returning those pointers cannot be compiled. Direct calls accepting such a
+pointer and returning a scalar compile, but do not preserve the pointer-result
+or callable-value contract and are not an equivalent workaround for that surface.
 No bootstrap source or test files were changed while confirming this defect.
