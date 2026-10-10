@@ -30,6 +30,11 @@ public static class SemanticCompiler
 		return Compile(source, CompilationPipeline.Lower);
 	}
 
+	public static SemanticCompilation CompileLoweredForTarget(string targetName, string source)
+	{
+		return Compile([("semantic_test.camp", source)], CompilationPipeline.Lower, compilation => compilation.Target = LoadTarget(FindRepositoryRoot(), targetName));
+	}
+
 	public static SemanticCompilation CompileLowered(params (string Path, string Text)[] sources)
 	{
 		return Compile(sources, CompilationPipeline.Lower);
@@ -164,13 +169,13 @@ public static class SemanticCompiler
 		return diagnostics;
 	}
 
-	static TargetDefinition LoadTarget(string repositoryRoot)
+	static TargetDefinition LoadTarget(string repositoryRoot, string targetName = "clang-macos-x64")
 	{
 		string targetsDirectory = Path.Combine(repositoryRoot, "targets");
 		if (!TargetCatalog.TryLoadCached(targetsDirectory, out TargetCatalog? catalog, out string? error))
 			throw new InvalidOperationException(error ?? "Target catalog could not be loaded.");
-		if (!catalog!.TryGetTarget("clang-macos-x64", out TargetDefinition? target))
-			throw new InvalidOperationException("Target 'clang-macos-x64' could not be loaded.");
+		if (!catalog!.TryGetTarget(targetName, out TargetDefinition? target))
+			throw new InvalidOperationException($"Target '{targetName}' could not be loaded.");
 		return target!;
 	}
 

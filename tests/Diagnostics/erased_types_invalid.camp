@@ -12,3 +12,8 @@ void invalidAnnotation(void<void>* a, void<void<int>>* b) { }
 void badSelector(overload in void<int> value) { }
 class Box<T: any> { }
 void invalidArgument(Box<void<int>>* value) { }
+enum Kind: int { A }
+void invalidCarriers(int<long> wide, int<int?> optional, nint<float> real, int<void<int>> erased, byte<Kind> narrow, int<byte, byte> pair) { }
+void badCarrierSelector(overload long<Kind> value) { }
+void badCarrierReceiver(int<Kind> this) { }
+void badErasedReceiver(void<int>* this) { }

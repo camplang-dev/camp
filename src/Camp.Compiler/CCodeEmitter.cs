@@ -4286,7 +4286,7 @@ public static class CCodeEmitter
                     WriteIndent(writer, indent);
                     writer.Write("return");
                     if (ret.Expression is not null)
-                        writer.Write(" " + (currentFunction?.ResolvedType is string resultType && RequiresAscribedCallableCast(ret.Expression, resultType)
+                        writer.Write(" " + (currentFunction?.ResolvedType is string resultType && (RequiresAscribedCallableCast(ret.Expression, resultType) || TryGetPointerCarrierStorage(resultType, out _, out _))
                             ? FormatAssignmentValueForTarget(resultType, ret.Expression) : FormatExpression(ret.Expression)));
                     writer.WriteLine(";");
                     break;
@@ -4865,7 +4865,59 @@ public static class CCodeEmitter
             writer.WriteLine("}");
         }
 
+        // A pointer carrier (`nint<P*>`, `nuint<P*>`) stores its pointer as a C integer. Reads convert
+        // back to the carried pointer; the root of a storage target is formatted without that read.
+        Expression? carrierStorageRoot;
+
+        bool TryGetPointerCarrierStorage(string? storageType, out string carrierC, out string payloadC)
+        {
+            carrierC = payloadC = "";
+            if (!CarrierTypeIdentity.TryGetCarrier(storageType, out string carrier, out string payload))
+                return false;
+            payload = StripTypeQualifiers(payload);
+            if (carrier is not ("nint" or "nuint") || !payload.EndsWith('*'))
+                return false;
+            carrierC = FormatResolvedType(carrier, "").Declaration.Trim();
+            payloadC = FormatResolvedType(payload, "").Declaration.Trim();
+            return true;
+        }
+
+        string? GetCarrierStorageTypeOf(Expression? expression)
+        {
+            return expression switch
+            {
+                VariableReferenceExpression variable => variable.Variable?.ResolvedType,
+                MemberReferenceExpression { Member: FieldDefinition field } => field.ResolvedType,
+                UnaryExpression { Operator: UnaryOperator.PointerDereference } unary => TryGetPointerElementType(unary.Operand?.ResolvedType, out string pointee) ? pointee : null,
+                IndexExpression index => TryGetArrayElementType(index.Target?.ResolvedType, out string element) ? element
+                    : TryGetPointerElementType(index.Target?.ResolvedType, out string indexedPointee) ? indexedPointee : null,
+                ParenthesizedExpression parenthesized => GetCarrierStorageTypeOf(parenthesized.Expression),
+                _ => null
+            };
+        }
+
+        string FormatStorageTarget(Expression? expression)
+        {
+            Expression? previous = carrierStorageRoot;
+            carrierStorageRoot = expression;
+            try { return FormatExpression(expression); }
+            finally { carrierStorageRoot = previous; }
+        }
+
         string FormatExpression(Expression? expression)
+        {
+            string text = FormatExpressionCore(expression);
+            if (expression is VariableReferenceExpression or MemberReferenceExpression or UnaryExpression { Operator: UnaryOperator.PointerDereference } or IndexExpression
+                && !ReferenceEquals(expression, carrierStorageRoot)
+                && TryGetPointerCarrierStorage(GetCarrierStorageTypeOf(expression), out _, out string payloadC))
+                return "((" + payloadC + ")" + text + ")";
+            if (expression is CallExpression call && TryGetCallFunction(call) is FunctionDefinition callee
+                && TryGetPointerCarrierStorage(callee.ResolvedType, out _, out string resultC))
+                return "((" + resultC + ")" + text + ")";
+            return text;
+        }
+
+        string FormatExpressionCore(Expression? expression)
         {
             if (expression is null)
                 return "0";
@@ -6240,7 +6292,7 @@ public static class CCodeEmitter
             string value = FormatExpression(assignment.Value);
             if (assignment.Operator == AssignmentOperator.Assign
                 && assignment.Target?.ResolvedType is string targetType)
-                value = FormatAssignmentValueForTarget(targetType, assignment.Value!);
+                value = FormatAssignmentValueForTarget(GetCarrierStorageTypeOf(assignment.Target) is string carrierStorage && CarrierTypeIdentity.TryGetPayload(carrierStorage, out _) ? carrierStorage : targetType, assignment.Value!);
             if (assignment.Target is MemberReferenceExpression { Member: FieldDefinition erasedField } erasedMember
                 && TryGetErasedScalarFieldType(erasedMember, erasedField, out string erasedType))
             {
@@ -6250,7 +6302,7 @@ public static class CCodeEmitter
                 string compoundOperator = FormatAssignmentOperator(assignment.Operator);
                 return rawTarget + " = " + CastToErasedGeneric("(" + CastFromErasedGeneric(rawTarget, erasedType) + " " + compoundOperator[..^1] + " " + value + ")", erasedType);
             }
-            return FormatExpression(assignment.Target) + " " + FormatAssignmentOperator(assignment.Operator) + " " + value;
+            return FormatStorageTarget(assignment.Target) + " " + FormatAssignmentOperator(assignment.Operator) + " " + value;
         }
 
         string FormatFixedArrayAssignment(AssignmentExpression assignment)
@@ -6303,6 +6355,8 @@ public static class CCodeEmitter
         string FormatAssignmentValueForTarget(string? targetType, Expression value, IReadOnlyCollection<string>? erasedGenericNames)
         {
             string formatted = FormatExpression(value);
+            if (TryGetPointerCarrierStorage(targetType, out string pointerCarrierC, out _))
+                return "(" + pointerCarrierC + ")(" + formatted + ")";
             if (targetType is not null && value.ResolvedType is string sourceType && sourceType != targetType
                 && (sourceType.Contains("void<", StringComparison.Ordinal) || targetType.Contains("void<", StringComparison.Ordinal))
                 && IsPointerLike(sourceType) && IsPointerLike(targetType))
@@ -6733,6 +6787,9 @@ public static class CCodeEmitter
             string value = FormatExpression(argument.Value);
             string? rawExpectedParameterType = parameter?.ResolvedType ?? parameter?.Type?.ResolvedType;
             string? expectedParameterType = SubstituteGenericTypeTokens(rawExpectedParameterType, genericSubstitutions);
+            if (argument.Modifier == ArgumentModifier.None && argument.Value is not null && parameter?.Modifier is not (ParameterModifier.In or ParameterModifier.Out)
+                && TryGetPointerCarrierStorage(expectedParameterType, out string argumentCarrierC, out _))
+                value = "(" + argumentCarrierC + ")(" + value + ")";
             if (argument.Modifier == ArgumentModifier.None && argument.Value is not null
                 && expectedParameterType is not null && RequiresAscribedCallableCast(argument.Value, expectedParameterType))
                 value = FormatAssignmentValueForTarget(expectedParameterType, argument.Value);
@@ -7365,7 +7422,7 @@ public static class CCodeEmitter
 
         bool NeedsGenericScalarCast(string concreteType)
         {
-            string type = StripTypeDecorators(concreteType);
+            string type = StripTypeDecorators(CarrierTypeIdentity.TryGetPayload(concreteType, out string carriedType) ? carriedType : concreteType);
             if (type.EndsWith("*", StringComparison.Ordinal) || type.EndsWith("[]", StringComparison.Ordinal) || type.EndsWith("?", StringComparison.Ordinal))
                 return false;
             if (type is "string" or "wstring" or "astring" or "void" or "untyped" or "any" or "copyable" or "auto")
@@ -7480,7 +7537,7 @@ public static class CCodeEmitter
 
         string CastFromErasedGeneric(string value, string concreteType)
         {
-            string cType = FormatResolvedType(concreteType, "").Declaration.Trim();
+            string cType = FormatResolvedType(CarrierTypeIdentity.TryGetPayload(concreteType, out string carriedType) ? carriedType : concreteType, "").Declaration.Trim();
             return "(" + cType + ")(intptr_t)(" + value + ")";
         }
 
@@ -8192,7 +8249,7 @@ public static class CCodeEmitter
                 return FormatGenericArrayElementBytePointer(addressIndex, elementType);
             }
 
-            string operand = FormatExpression(unary.Operand);
+            string operand = unary.Operator == UnaryOperator.AddressOf ? FormatStorageTarget(unary.Operand) : FormatExpression(unary.Operand);
             if (unary.Operator == UnaryOperator.PointerDereference
                 && TryFormatSubstitutedGenericFieldPointerTarget(unary.Operand, operand, out string castedOperand))
                 operand = castedOperand;
@@ -9193,7 +9250,7 @@ public static class CCodeEmitter
 
         CType FormatResolvedType(string resolvedType, string declarator, bool normalizeInterfacePointer = true)
         {
-            string type = resolvedType.Trim();
+            string type = CarrierTypeIdentity.StripAnnotations(resolvedType.Trim());
             if (type.Contains("void<", StringComparison.Ordinal)
                 && TryParseResolvedCallableType(type, out string annotatedReturnType, out List<string> annotatedParameters, out string? annotatedTargetSpec, out string? annotatedCallSpec))
                 return new CType(FormatInlineResolvedFunctionPointer(annotatedReturnType, annotatedParameters, declarator, annotatedTargetSpec, annotatedCallSpec));
@@ -9650,6 +9707,8 @@ public static class CCodeEmitter
             if (string.IsNullOrWhiteSpace(resolvedType))
                 return false;
             string type = StripTypeDecorators(resolvedType);
+            if (CarrierTypeIdentity.StripAnnotations(type) != type)
+                return true;
             if (IsResolvedCallableType(type))
                 return true;
             if (type.Contains('*', StringComparison.Ordinal) || type.Contains("[]", StringComparison.Ordinal) || type.Contains('?', StringComparison.Ordinal))

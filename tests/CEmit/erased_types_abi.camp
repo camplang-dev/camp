@@ -6,6 +6,5 @@ export void<int>** deeper(void<int>** p) => p;
 export void array(void<int?>[] values) { }
 export int input(in void<int> value) => value;
 export void output(out void<int> value) { value = 2; }
-export int receiver(void<int>* this) => *this;
 export void callback(fn void(in void<int> input, out void<int> output) action) { }
 void main() { }

@@ -77,6 +77,34 @@ rules. Crossing another pointer family requires a `void*` fence; recovering an
 erased pointer from `void*` requires an explicit cast. The old `struct(V)` type
 spelling is removed.
 
+## Conversions Through Annotated Storage
+
+`void<V>` and the integer carriers (`long<Color>`, `nint<Widget*>`) keep their
+written type, but conversions are classified on a rewritten view. A carrier
+value converts as its `V` does, and a `void<V>` of a non-expandable `V`
+converts as `V` everywhere except in a callable result. A carrier behind a
+pointer or array, as a generic argument, or in a callable signature converts as
+a value newtype whose underlying type is the carrier integer:
+
+```camp
+enum Color: int { RED }
+enum Background: int { BLACK }
+
+void convert(long<Color> kind, long<Color>* address, nint<Widget*> handle, void<Button>* storage)
+{
+	Color color = kind;                    // a carrier value reads as Color
+	Background wrong = kind;               // error: no implicit Color to Background
+	Background fine = (Background)kind;    // explicit, as Color to Background
+	Color* viewed = (Color*)address;       // explicit, as other value-newtype pointers
+	Button* button = (unsafe Button*)handle; // unsafe, as Widget* to Button*
+	Button* same = storage;                // implicit, as Button* to Button*
+}
+```
+
+`List<void<int>*>*` and `List<int*>*` convert implicitly, but `List<long<Color>>`
+and `List<Color>` are different types. Initializers are checked against the
+carried type.
+
 ## Pointer Depth
 
 Pointer depth is physical shape. `Document*` and `Document**` are different

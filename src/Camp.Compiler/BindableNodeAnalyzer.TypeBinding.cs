@@ -110,6 +110,10 @@ public sealed partial class BindableNodeAnalyzer
 				type.ResolvedType = attributed.Type?.ResolvedType ?? ErrorType;
 				break;
 
+			case GenericTypeReference carrierGeneric when IsCarrierGeneric(carrierGeneric, out string carrierName):
+				AnalyzeCarrierType(carrierGeneric, carrierName, scope);
+				break;
+
 			case GenericTypeReference generic:
 				if (TryApplyGenericTypeArguments(generic.Type, generic.TypeArguments, out TypeReference? appliedGenericType) && appliedGenericType is not null)
 				{
@@ -1314,6 +1318,9 @@ public sealed partial class BindableNodeAnalyzer
 			case CallableTypeReference:
 			case IterTypeReference:
 			case MaterializedStructTypeReference:
+				return true;
+
+			case GenericTypeReference carrier when IsCarrierGeneric(carrier, out _):
 				return true;
 
 			case OptionalTypeReference { ElementType: not null } optional:

@@ -51,7 +51,7 @@ public sealed partial class BindableNodeAnalyzer
 		return CanImplicitlyConvertShape(source, target, protectedByConstTarget: false, pointerDepth: 0);
 	}
 
-	bool CanImplicitlyConvertShape(TypeShape source, TypeShape target, bool protectedByConstTarget, int pointerDepth)
+	bool CanImplicitlyConvertShape(TypeShape source, TypeShape target, bool protectedByConstTarget, int pointerDepth, bool elementPosition = false)
 	{
 		if (source.Kind == TypeShapeKind.Named && target.Kind == TypeShapeKind.Named)
 		{
@@ -63,7 +63,7 @@ public sealed partial class BindableNodeAnalyzer
 			if (!QualifiersCanConvert(source.Qualifiers, target.Qualifiers, protectedByConstTarget, pointerDepth))
 				return false;
 			return source.Name == target.Name
-				|| IsNumericType(source.Name) && IsNumericType(target.Name) && NumericRank(source.Name) <= NumericRank(target.Name);
+				|| !elementPosition && IsNumericType(source.Name) && IsNumericType(target.Name) && NumericRank(source.Name) <= NumericRank(target.Name);
 		}
 
 		if (!QualifiersCanConvert(source.Qualifiers, target.Qualifiers, protectedByConstTarget, pointerDepth))
@@ -99,7 +99,7 @@ public sealed partial class BindableNodeAnalyzer
 			int childPointerDepth = source.Kind == TypeShapeKind.Pointer ? pointerDepth + 1 : pointerDepth;
 			return source.Element is not null
 				&& target.Element is not null
-				&& CanImplicitlyConvertShape(source.Element, target.Element, childProtected, childPointerDepth);
+				&& CanImplicitlyConvertShape(source.Element, target.Element, childProtected, childPointerDepth, elementPosition: true);
 		}
 
 		if (source.Kind == TypeShapeKind.FixedArray && target.Kind == TypeShapeKind.Array && source.Element is not null && target.Element is not null)
@@ -603,7 +603,7 @@ public sealed partial class BindableNodeAnalyzer
 		string typeName = BaseTypeName(shape.Name);
 		if (CallableShapeService.TryParseCallableShape(shape.Name, out CallableShape callable))
 			typeName = callable.Kind;
-		if (ErasedTypeIdentity.TryGetPayload(shape.Name, out _))
+		if (ErasedTypeIdentity.TryGetPayload(shape.Name, out _) || CarrierTypeIdentity.TryGetPayload(shape.Name, out _))
 			return "";
 		string receiverName = IsGenericReceiverTypeName(typeName, function)
 			? ""

@@ -276,7 +276,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	static string ReadErasedValueType(string type)
 	{
-		if (ErasedTypeIdentity.TryGetPayload(type, out string payload))
+		if (ErasedTypeIdentity.TryGetPayload(type, out string payload) || CarrierTypeIdentity.TryGetPayload(type, out payload))
 			return payload;
 		if (type.EndsWith('?') && ErasedTypeIdentity.TryGetPayload(type[..^1], out payload))
 			return payload + "?";

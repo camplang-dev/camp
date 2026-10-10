@@ -2126,7 +2126,7 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (LookupGlobalStorageSymbol(named, named.SourceSyntax) is BodySymbol globalSymbol)
 		{
-			string type = globalSymbol.Type;
+			string type = ReadErasedValueType(globalSymbol.Type);
 			named.ResolvedType = type;
 			expressionConstants[named] = globalSymbol.IsConstant;
 			expressionRewrites[named] = new VariableReferenceExpression
@@ -4457,7 +4457,7 @@ public sealed partial class BindableNodeAnalyzer
 			}
 
 			string expected = SubstituteStorageType(analysisParameter?.ResolvedType ?? ErrorType, genericSubstitutions);
-			if (analysisParameter?.Modifier is ParameterModifier.In or ParameterModifier.Out)
+			if (analysisParameter?.Modifier is ParameterModifier.In or ParameterModifier.Out || CarrierTypeIdentity.TryGetPayload(expected, out _))
 				expected = ReadErasedValueType(expected);
 			string analysisTarget = ContainsUnboundGenericParameter(expected, genericSubstitutions, genericParameterNames) ? TargetType : expected;
 			string actual = arguments[i].ResolvedType == ErrorType && arguments[i].Modifier is not (ArgumentModifier.Out or ArgumentModifier.Catch)
@@ -4470,7 +4470,7 @@ public sealed partial class BindableNodeAnalyzer
 				if (TryGetConstOfActualSlot(analysisParameter, arguments[i], out bool anchorIsConst) && !string.IsNullOrWhiteSpace(analysisParameter.Name))
 					constOfAnchorsInProgress[analysisParameter.Name] = anchorIsConst;
 				expected = SubstituteConstOfResolvedType(analysisParameter.Type, expected, constOfAnchorsInProgress, genericSubstitutions);
-				if (analysisParameter.Modifier is ParameterModifier.In or ParameterModifier.Out)
+				if (analysisParameter.Modifier is ParameterModifier.In or ParameterModifier.Out || CarrierTypeIdentity.TryGetPayload(expected, out _))
 					expected = ReadErasedValueType(expected);
 			}
 			if (analysisParameter is not null)
@@ -5975,7 +5975,7 @@ public sealed partial class BindableNodeAnalyzer
 			Report(GetRange(member.SourceSyntax), $"Property syntax is unavailable for prep method '{GetCallableName(prepPropertyGetter)}'; call '{GetCallableName(prepPropertyGetter)}()' explicitly.");
 			return ErrorType;
 		}
-			string memberType = selected.Type;
+			string memberType = selected.Node is FieldDefinition ? ReadErasedValueType(selected.Type) : selected.Type;
 			bool retypedVTableSlot = !isTypeTarget
 				&& selected.Node is FieldDefinition
 				&& (WitnessTypeIdentity.TryParse(lookupTargetType, out _)
@@ -6277,6 +6277,8 @@ public sealed partial class BindableNodeAnalyzer
 					return erasedThis.ResolvedType + "*";
 				if (TryGetErasedStorageType(unary.Operand, out string erasedStorage))
 					return erasedStorage + "*";
+				if (TryGetCarrierStorageType(unary.Operand, out string carrierStorage))
+					return carrierStorage + "*";
 				if (unary.Operand is IndexExpression index && TryGetIndexedAddressType(index.Target?.ResolvedType, out string indexedAddressType))
 				{
 					if (index.Target?.ResolvedType is string indexedType && TryGetArrayElementType(indexedType) is not null)

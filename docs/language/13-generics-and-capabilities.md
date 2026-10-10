@@ -219,6 +219,45 @@ Use representation constraints when the body is really about the carrier. Do
 not use them as a substitute for `T: any` or `T: copyable` in ordinary erased
 generic code.
 
+### Integer Carriers
+
+Each integer constraint also names a carrier type outside any generic. `C<V>`,
+for example `long<Color>` or `nint<Widget*>`, is a value of type `V` stored and
+passed as the integer `C`. It is to `T: C` what `void<V>` is to `T: any`: the
+same erasure, written without a type parameter. `V` must be a valid type
+argument for `T: C`, and cannot be expandable, `void`, `void<W>` or another
+carrier:
+
+```camp
+enum Color: int
+{
+	RED,
+	GREEN
+}
+
+struct Handle
+{
+	long<Color> kind;       // a long in C
+	nint<byte*> address;    // an intptr_t in C
+}
+
+long<Color> kind = GREEN;   // enum members resolve through Color
+Color color = kind;         // a carrier value reads as its V
+int<byte> small = 300;      // error: 300 is outside the range of byte
+// int<long> wide;          // error: long does not satisfy T: int
+```
+
+A carrier has a specified size. It may be a local, global, field, by-value
+parameter, result, array element, pointer target or generic argument, and
+`List<long<Color>>`, `List<Color>` and `List<long>` are three different types.
+Inference never produces a top-level carrier: `auto c = kind;` is a `Color`.
+Calling a method declared on `V` through a carrier value works as it does for
+`V`. The address of carrier storage is a pointer to the carrier, and a pointer
+to a carrier converts to a pointer to `V` or to `C` only by an explicit cast.
+
+`typenameof(long<Color>)` is the name of `V`, `"Color"`. A carrier or `void<V>`
+can never be an `overload` selector or the type of a method's `this` parameter.
+
 ## Type Erasure With `T: any`
 
 `T: any` is the broadest erased value constraint. It can stand for scalars,

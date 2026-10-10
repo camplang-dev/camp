@@ -303,9 +303,19 @@ enum values, member accesses, and expanded components are invalid operands.
 generated receiver and overload symbols. It ignores `@symbol`; backend symbol
 overrides and metadata `symbolof(...)` are separate concepts.
 
-An erased `void<V>` type contributes an empty name, including storage wrappers
-such as pointers and array views. These are concrete empty strings and do not
-require a runtime name capability for `V`.
+`typenameof` of an annotated type (`void<V>` or an integer carrier `C<V>`) is
+the name of the annotated type `V`, with outer pointer, array and optional forms
+applied as they are to `V`. `typenameof(void<User>*)` is `"User"`,
+`typenameof(nint<ColorType>)` is `"ColorType"` and `typenameof(void<int[]>)` is
+`"IntArray"`. The name needs no runtime capability for `V` because the
+annotation names it. The receiver of a `typenameof` capability already knows the
+carrier from its constraint; the annotation is the part it cannot know.
+
+An annotated type has a name but no symbol. A `void<V>` or carrier type,
+including one behind pointers or arrays, can never be an `overload` selector or
+the type of a method's `this` parameter, because no method-symbol fragment
+would be correct. Write such a function as an ordinary function or method.
+Calling the methods of `V` through a `void<V>*` is unaffected.
 
 `typenameof(T)` names exactly the type expression it is written for. It does
 not recursively grant name capabilities for related expressions such as `T[]`,

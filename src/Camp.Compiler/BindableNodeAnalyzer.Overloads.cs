@@ -134,7 +134,9 @@ public sealed partial class BindableNodeAnalyzer
 			Report(GetNameRange(selector), "An overload selector may not declare a default value.");
 
 		string fragment = BuildOverloadSelectorTypeFragment(selector, function);
-		if (string.IsNullOrWhiteSpace(fragment))
+		if (IsAnnotatedErasedBase(selector.ResolvedType))
+			Report(GetNameRange(selector), $"`overload {selector.Name}` is invalid because annotated erased types cannot select an overload; '{selector.ResolvedType}' names no method-symbol type fragment.");
+		else if (string.IsNullOrWhiteSpace(fragment))
 			Report(GetNameRange(selector), $"`overload {selector.Name}` is invalid because '{selector.ResolvedType ?? ErrorType}' does not contribute a method-symbol type fragment.");
 
 		function.FullCallableName = function.Name + fragment;

@@ -262,11 +262,10 @@ public sealed partial class BindableNodeAnalyzer
 
 	ConversionClassification ClassifyConversion(string source, string target)
 	{
-		if ((source.Contains("void<", StringComparison.Ordinal) || target.Contains("void<", StringComparison.Ordinal))
-			&& TryParseTypeShape(source, out TypeShape erasedSource) && TryParseTypeShape(target, out TypeShape erasedTarget)
-			&& erasedSource.Kind is TypeShapeKind.Pointer or TypeShapeKind.Array
-			&& erasedTarget.Kind == erasedSource.Kind && CanImplicitlyConvertShape(erasedSource, erasedTarget))
-			return new ConversionClassification(ConversionLevel.Implicit, ConversionReason.None);
+		string viewedSource = ConversionView(source);
+		string viewedTarget = ConversionView(target);
+		if (viewedSource != source || viewedTarget != target)
+			return ClassifyConversion(viewedSource, viewedTarget);
 		if (WitnessTypeIdentity.TryParse(source, out _)
 			|| WitnessTypeIdentity.TryParse(target, out _))
 			return new ConversionClassification(source == target ? ConversionLevel.Implicit : ConversionLevel.Forbidden,

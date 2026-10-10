@@ -33,11 +33,6 @@ void output(void *value)
 	(*(int *)value) = 2;
 }
 
-int receiver(void *this)
-{
-	return (*(int *)(this));
-}
-
 void callback(void (* action)(const void *input, void *output))
 {
 }
@@ -58,7 +53,6 @@ void **deeper(void **p);
 void array(void *values, uintptr_t values_length);
 int input(const void *value);
 void output(void *value);
-int receiver(void *this);
 void callback(void (* action)(const void *input, void *output));
 
 #endif
@@ -93,7 +87,6 @@ void **deeper(void **p);
 void array(void *values, uintptr_t values_length);
 int input(const void *value);
 void output(void *value);
-int receiver(void *this);
 void callback(void (* action)(const void *input, void *output));
 
 /* Object declarations. */

@@ -1,8 +1,20 @@
+using Std;
+
+class User { }
+enum ColorType: int { RED }
+alias Integer = int;
+
 export int main()
 {
-	if (typenameof(void<int>)[0] != 0) return 1;
-	if (typenameof(void<int>*)[0] != 0) return 2;
-	if (typenameof(const void<int[]>**)[0] != 0) return 3;
-	if (typenameof(void<int?>[])[0] != 0) return 4;
+	Console.writeLine(typenameof(void<User>*));
+	Console.writeLine(typenameof(nint<ColorType>));
+	Console.writeLine(typenameof(int));
+	Console.writeLine(typenameof(List<int[]>));
+	Console.writeLine(typenameof(void));
+	Console.writeLine(typenameof(void<int>));
+	Console.writeLine(typenameof(const void<int[]>**));
+	Console.writeLine(typenameof(void<int?>[]));
+	Console.writeLine(typenameof(void<Integer>));
+	Console.writeLine(typenameof(long<ColorType>*));
 	return 0;
 }

@@ -1652,6 +1652,8 @@ public sealed partial class BindableNodeAnalyzer
 		if (containingType is null && GetExplicitThisParameter(definition) is ThisParameterDefinition thisParameter)
 		{
 			string receiverType = thisParameter.ResolvedType ?? ErrorType;
+			if (IsAnnotatedErasedBase(receiverType))
+				Report(GetRange(thisParameter.Type?.SourceSyntax ?? thisParameter.SourceSyntax), $"Annotated erased types cannot be a receiver type; '{receiverType}' would name no method symbol. Write an ordinary function or method.");
 			string ownerSymbol = TryGetTypeDefinitionByResolvedName(receiverType, out TypeDefinition? receiverDefinition) && receiverDefinition is not null
 				? receiverDefinition.Name
 				: BuildExtensionFunctionOwnerSymbol(receiverType, definition);

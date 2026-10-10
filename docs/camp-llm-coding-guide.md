@@ -444,6 +444,7 @@ full details.
 | `once R(...)` | Callable consumed at most once | Common for continuations and async completion. |
 | `escaped`, `scoped`, `within` | Lifetime and allocation controls | State them when values cross storage or async boundaries. |
 | `void<V>` | One storage object annotated with payload `V`; C form is `void` | Use behind pointers, in dynamic arrays, in/out parameters, optional results, or stackalloc locals. |
+| `C<V>` for `byte`, `ushort`, `short`, `uint`, `int`, `ulong`, `long`, `nuint`, `nint` | Integer carrier: a value of type `V` stored and passed as the integer `C` | Use when an enum, newtype, narrower integer or (for `nint`/`nuint`) pointer must cross the ABI at a fixed integer width. It has a specified size, so it can be a field, local, parameter or result. It reads as `V`; `V` must satisfy `T: C`. See [Generics And Capabilities](language/13-generics-and-capabilities.md). |
 | `void*`, `fn*`, `nint`, `nuint`, `untyped` | Raw carriers | Keep raw spans short and reconstruct typed values explicitly. |
 
 ## Variables And Assignment
@@ -966,6 +967,20 @@ as mutable storage.
 ```camp
 export inline uint MaxPacketSize = 4096;
 ```
+
+## Annotated Types: Names, Receivers, And Conversions
+
+`typenameof(void<V>)` and `typenameof(C<V>)` are the name of `V`, with outer
+pointer and array forms applied: `typenameof(void<User>*)` is `"User"`. A
+`void<V>` or carrier can never be an `overload` selector or the type of a
+`this` parameter, even behind a pointer; write an ordinary function or method
+instead. Conversions are classified on the conversion view: a carrier value
+converts as its `V`, a non-expandable `void<V>` converts as `V` except in a
+callable result, and a carrier behind a pointer or array, as a generic argument
+or in a callable signature is a value newtype over its integer. So
+`long<Color>` converts to `Color` implicitly but `long<Color>*` converts to
+`Color*` only by a cast. See
+[Conversion View](semantics/03-conversions-raw-carriers-and-fence-casts.md).
 
 ## Generics
 

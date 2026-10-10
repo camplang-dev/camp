@@ -54,6 +54,54 @@ The conversion classifier handles type conversion. Lifetime analysis handles the
 lifetime assertion. Do not let a type cast silently change lifetime facts without
 the lifetime-analysis path recording that change.
 
+## Conversion View
+
+Annotated storage types (`void<V>` and the integer carriers `C<V>`) keep their
+written identity in symbols, metadata, generic type identity and `typenameof`.
+Conversion classification does not use that identity directly. Both types are
+first rewritten into their **conversion view**, and the existing rules then
+classify the rewritten types. There is one view operation. Conversion
+classification, callable compatibility, receiver eligibility, overload
+selection and initializer or literal checking all use it; none has a separate
+rewrite. Never overwrite a canonical type with its view.
+
+The view is context aware. *Stripping* an annotation erases it and leaves the
+annotated type.
+
+1. A type that is itself a non-void carrier, not behind `*` or `[]`, is
+   stripped: `long<Color>` becomes `Color`. This applies only at the top of the
+   type and never to a by-value position inside a callable signature.
+2. The remaining type is rewritten recursively, including generic arguments,
+   pointer and array elements, and callable signatures. A `void<V>` whose `V`
+   is not expandable is stripped, except when it is the result type of a
+   callable, at any nesting depth.
+3. A carrier that survives (behind a pointer or array, as a generic argument,
+   or in a callable signature) is classified as a value newtype whose
+   underlying type is the carrier integer, as if declared
+   `newtype LongCarrierOfColor: long`.
+
+Because the view follows ordinary newtype rules, a pointer to a carrier
+converts to a pointer to its carried type or to its carrier integer only by an
+explicit cast, and `W<long<Color>>` remains a different type from `W<Color>`.
+`void<Button>*`, `Button*` and `void<Button*>` classify the same way.
+
+| Conversion | View | Result |
+|---|---|---|
+| `void<Button>*` to `void<Widget*>` | `Button*` to `Widget*` | implicit |
+| `void<Button>*` to `Button*` | `Button*` to `Button*` | implicit |
+| `long<ColorEnum>` to `BackgroundEnum` | `ColorEnum` to `BackgroundEnum` | explicit |
+| `nint<Widget*>` to `Button*` | `Widget*` to `Button*` | unsafe explicit |
+| `long<Color>*` to `Color*` or `long*` | `LongCarrierOfColor*` to `Color*` or `long*` | explicit, as other value-newtype pointers |
+| `fn void(long<Color>)` to `fn void(Color)` | `LongCarrierOfColor` against `Color` | `fn*` fence |
+
+Initializers and literals are checked against the carried type, so
+`int<byte> b = 300;` is out of range for `byte` and `long<Color> c = RED;` finds
+`RED` through `Color`. Overload selection uses the view: a `long<Color>`
+argument selects the `Color` member of an overload family.
+
+An expandable `void<V>` is not stripped; it converts with `V` by reading and
+writing its single storage object.
+
 ## Value Conversion Versus Type Rewrite
 
 Implicit scalar conversions also apply to `in` arguments. When the source and

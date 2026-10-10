@@ -8,13 +8,19 @@ namespace Camp.Compiler.Tests;
 public sealed class ErasedTypeTests
 {
 	[Theory]
-	[InlineData("void<int>")]
-	[InlineData("void<int>*")]
-	[InlineData("const void<int[]>**")]
-	[InlineData("void<int?>[]")]
-	public void Erased_type_names_emit_concrete_empty_strings(string type)
+	[InlineData("void<int>", "Int")]
+	[InlineData("void<int>*", "Int")]
+	[InlineData("const void<int[]>**", "IntArray")]
+	[InlineData("void<int?>[]", "IntArray")]
+	[InlineData("void<Widget*>", "Widget")]
+	[InlineData("nint<Widget*>", "Widget")]
+	[InlineData("long<Kind>*", "Kind")]
+	[InlineData("byte<Kind>[]", "KindArray")]
+	[InlineData("Bag<int[]>", "Bag")]
+	[InlineData("void", "Void")]
+	public void Annotated_types_name_the_annotated_type(string type, string expected)
 	{
-		SemanticCompilation compilation = SemanticCompiler.CompileLowered($"export string name() => typenameof({type});");
+		SemanticCompilation compilation = SemanticCompiler.CompileLowered($"class Widget {{ }} class Bag<T: any> {{ }} enum Kind: byte {{ A }} export string name() => typenameof({type});");
 		SemanticCompiler.AssertNoDiagnostics(compilation);
 		DirectoryInfo directory = Directory.CreateTempSubdirectory("camp-erased-name-");
 		try
@@ -23,7 +29,7 @@ public sealed class ErasedTypeTests
 				new CEmissionOptions { OutputDirectory = directory.FullName, ProjectName = "erased_name" });
 			Assert.True(emission.Success, string.Join("\n", emission.Diagnostics));
 			string code = string.Join("\n", emission.GeneratedSourceFiles.Select(File.ReadAllText));
-			Assert.Contains("return \"\";", code);
+			Assert.Contains($"return \"{expected}\";", code);
 		}
 		finally { directory.Delete(recursive: true); }
 	}
@@ -118,7 +124,6 @@ public sealed class ErasedTypeTests
 			export void array(void<int?>[] values) { }
 			export int input(in void<int> value) => value;
 			export void output(out void<int> value) { value = 2; }
-			export int receiver(void<int>* this) => *this;
 			export void callback(fn void(in void<int> input, out void<int> output) action) { }
 			""");
 		SemanticCompiler.AssertNoDiagnostics(compilation);
@@ -136,8 +141,6 @@ public sealed class ErasedTypeTests
 			Assert.Contains("void array(void *values, uintptr_t values_length)", code);
 			Assert.Contains("int input(const void *value)", code);
 			Assert.Contains("void output(void *value)", code);
-			Assert.Contains("int receiver(void *this)", code);
-			Assert.DoesNotContain("Void_receiver", code);
 			Assert.Contains("void callback(void (* action)(const void *input, void *output))", code);
 		}
 		finally { directory.Delete(recursive: true); }
@@ -209,14 +212,17 @@ public sealed class ErasedTypeTests
 		SemanticCompiler.AssertNoDiagnostics(compilation);
 	}
 
-	[Fact]
-	public void Erased_receivers_keep_normal_symbol_collision_checks()
+	[Theory]
+	[InlineData("void add(overload void<User>* item) { }", "annotated erased types cannot select an overload")]
+	[InlineData("void add(overload int<Kind> item) { }", "annotated erased types cannot select an overload")]
+	[InlineData("void add(overload long<Kind>* item) { }", "annotated erased types cannot select an overload")]
+	[InlineData("void initialize(void<User>* this) { }", "cannot be a receiver type")]
+	[InlineData("void invert(int<Kind> this) { }", "cannot be a receiver type")]
+	[InlineData("void invert(long<Kind>* this) { }", "cannot be a receiver type")]
+	public void Annotated_types_cannot_select_overloads_or_receive(string declaration, string message)
 	{
-		SemanticCompilation compilation = SemanticCompiler.CompileLowered("""
-			int same(void<int>* this) => *this;
-			int same(void<long>* this) => 0;
-			""");
-		Assert.Contains(compilation.Diagnostics, diagnostic => diagnostic.Contains("symbol", System.StringComparison.OrdinalIgnoreCase));
+		SemanticCompilation compilation = SemanticCompiler.CompileLowered($"class User {{ }} enum Kind: int {{ A }} {declaration}");
+		Assert.Contains(compilation.Diagnostics, diagnostic => diagnostic.Contains(message));
 	}
 
 	[Fact]
@@ -240,5 +246,175 @@ public sealed class ErasedTypeTests
 			void test<T: any>(T* source) { void<int>* target = (void<int>*)source; }
 			""");
 		Assert.Contains(forbidden.Diagnostics, diagnostic => diagnostic.Contains("cast through 'void*'"));
+	}
+
+	const string CarrierPreamble = """
+		enum SmallKind: byte { A }
+		enum Kind: int { A }
+		enum WideKind: long { A }
+		newtype Small: ushort;
+		newtype Wide: ulong;
+		struct Point { int x; }
+		class Widget { }
+		""";
+
+	[Theory]
+	[InlineData("byte", "byte")]
+	[InlineData("byte", "sbyte")]
+	[InlineData("byte", "SmallKind")]
+	[InlineData("ushort", "byte")]
+	[InlineData("ushort", "short")]
+	[InlineData("ushort", "SmallKind")]
+	[InlineData("ushort", "Small")]
+	[InlineData("short", "ushort")]
+	[InlineData("uint", "ushort")]
+	[InlineData("uint", "int")]
+	[InlineData("uint", "Kind")]
+	[InlineData("uint", "Small")]
+	[InlineData("int", "uint")]
+	[InlineData("int", "Kind")]
+	[InlineData("ulong", "long")]
+	[InlineData("ulong", "WideKind")]
+	[InlineData("ulong", "Wide")]
+	[InlineData("long", "ulong")]
+	[InlineData("long", "Kind")]
+	[InlineData("long", "Small")]
+	[InlineData("nuint", "uint")]
+	[InlineData("nuint", "byte*")]
+	[InlineData("nuint", "Widget*")]
+	[InlineData("nuint", "void<int>*")]
+	[InlineData("nint", "int")]
+	[InlineData("nint", "Kind")]
+	[InlineData("nint", "Point*")]
+	[InlineData("nint", "nuint")]
+	public void Carriers_accept_the_arguments_of_their_representation_constraint(string carrier, string operand)
+	{
+		SemanticCompilation compilation = SemanticCompiler.CompileLowered($"{CarrierPreamble} void take({carrier}<{operand}> value, {carrier}<{operand}>* pointer, {carrier}<{operand}>[] array) {{ }}");
+		SemanticCompiler.AssertNoDiagnostics(compilation);
+	}
+
+	[Theory]
+	[InlineData("byte", "short", "wider than 'byte'")]
+	[InlineData("byte", "Kind", "wider than 'byte'")]
+	[InlineData("byte", "Small", "wider than 'byte'")]
+	[InlineData("ushort", "int", "wider than 'ushort'")]
+	[InlineData("short", "uint", "wider than 'short'")]
+	[InlineData("uint", "long", "wider than 'uint'")]
+	[InlineData("uint", "WideKind", "wider than 'uint'")]
+	[InlineData("int", "ulong", "wider than 'int'")]
+	[InlineData("int", "Wide", "wider than 'int'")]
+	[InlineData("ulong", "float", "does not satisfy 'T: ulong'")]
+	[InlineData("long", "double", "does not satisfy 'T: long'")]
+	[InlineData("long", "bool", "does not satisfy 'T: long'")]
+	[InlineData("long", "char", "does not satisfy 'T: long'")]
+	[InlineData("long", "Point", "does not satisfy 'T: long'")]
+	[InlineData("long", "Widget*", "pointer types satisfy only 'T: nint' and 'T: nuint'")]
+	[InlineData("int", "byte*", "pointer types satisfy only 'T: nint' and 'T: nuint'")]
+	[InlineData("int", "int?", "does not satisfy 'T: int'")]
+	[InlineData("int", "int[]", "does not satisfy 'T: int'")]
+	[InlineData("nint", "float", "does not satisfy 'T: nint'")]
+	[InlineData("nint", "int[]?", "does not satisfy 'T: nint'")]
+	[InlineData("nint", "int[]*", "distributive")]
+	[InlineData("nint", "delegate int()", "does not satisfy 'T: nint'")]
+	[InlineData("int", "void", "cannot be void")]
+	[InlineData("int", "void<int>", "cannot be void<V> or another carrier")]
+	[InlineData("nint", "void<int[]>", "cannot be void<V> or another carrier")]
+	[InlineData("int", "byte<byte>", "cannot be void<V> or another carrier")]
+	[InlineData("long", "long<int>", "cannot be void<V> or another carrier")]
+	public void Carriers_reject_arguments_their_constraint_rejects(string carrier, string operand, string reason)
+	{
+		SemanticCompilation compilation = SemanticCompiler.CompileLowered($"{CarrierPreamble} void take({carrier}<{operand}> value) {{ }}");
+		Assert.Contains(compilation.Diagnostics, diagnostic => diagnostic.Contains("is not a valid carried type") && diagnostic.Contains(reason));
+	}
+
+	[Theory]
+	[InlineData("int<byte, byte> value;", "requires exactly one carried type")]
+	[InlineData("long<> value;", "requires exactly one carried type")]
+	public void Carriers_require_exactly_one_operand(string declaration, string message)
+	{
+		SemanticCompilation compilation = SemanticCompiler.CompileLowered($"void take() {{ {declaration} }}");
+		Assert.Contains(compilation.Diagnostics, diagnostic => diagnostic.Contains(message));
+	}
+
+	[Theory]
+	[InlineData("gcc-linux-x64", "nint<long>", true)]
+	[InlineData("gcc-linux-x64", "nuint<ulong>", true)]
+	[InlineData("gcc-linux-x64", "nint<byte*>", true)]
+	[InlineData("gcc-linux-x86", "nint<long>", false)]
+	[InlineData("gcc-linux-x86", "nuint<ulong>", false)]
+	[InlineData("gcc-linux-x86", "nint<int>", true)]
+	[InlineData("gcc-linux-x86", "nuint<byte*>", true)]
+	[InlineData("gcc-linux-x86", "int<nint>", true)]
+	[InlineData("gcc-linux-x86", "short<nint>", false)]
+	[InlineData("gcc-linux-x64", "int<nint>", false)]
+	[InlineData("gcc-linux-x64", "long<nuint>", true)]
+	public void Natural_integer_carriers_follow_the_selected_target(string target, string carrier, bool valid)
+	{
+		SemanticCompilation compilation = SemanticCompiler.CompileLoweredForTarget(target, $"void take({carrier} value) {{ }}");
+		if (valid)
+			SemanticCompiler.AssertNoDiagnostics(compilation);
+		else
+			Assert.Contains(compilation.Diagnostics, diagnostic => diagnostic.Contains("is not a valid carried type"));
+	}
+
+	[Theory]
+	[InlineData("int<byte> b = 300;", "outside the range of type 'byte'")]
+	[InlineData("short<byte> b = -1;", "outside the range of type 'byte'")]
+	[InlineData("long<Kind> c = A;", null)]
+	[InlineData("long<Kind> c = Kind.A;", null)]
+	[InlineData("int<byte> b = 255;", null)]
+	public void Carrier_initializers_are_checked_against_the_carried_type(string statement, string? message)
+	{
+		SemanticCompilation compilation = SemanticCompiler.CompileLowered($"{CarrierPreamble} void test() {{ {statement} }}");
+		if (message is null)
+			SemanticCompiler.AssertNoDiagnostics(compilation);
+		else
+			Assert.Contains(compilation.Diagnostics, diagnostic => diagnostic.Contains(message));
+	}
+
+	[Theory]
+	// Accepted: the view classifies these exactly as the carried or stripped types.
+	[InlineData("Button* b = vb;", null)]
+	[InlineData("take(vb);", null)]
+	[InlineData("Kind k = lc; long<Kind> back = k;", null)]
+	[InlineData("Other o = (Other)lc;", null)]
+	[InlineData("Kind* c = (Kind*)plc; long* l = (long*)plc;", null)]
+	[InlineData("Button* b = (unsafe Button*)nw;", null)]
+	[InlineData("fn void(long<Kind>) f = takeKind;", null)]
+	[InlineData("Bag<int*>* a = lv; Bag<void<int>*>* b = li;", null)]
+	// Rejected: carriers behind pointers and in callable signatures stay nominal newtypes.
+	[InlineData("Other o = lc;", "cannot convert 'Kind' to 'Other'")]
+	[InlineData("Button* b = (Button*)nw;", "requires unsafe")]
+	[InlineData("Button* b = nw;", "cannot convert 'Widget*' to 'Button*'")]
+	[InlineData("Kind* c = plc;", "cannot convert 'long<Kind>*' to")]
+	[InlineData("long* l = plc;", "cannot convert 'long<Kind>*' to 'long*'")]
+	[InlineData("fn void(Kind) f = takeKind;", "cannot convert 'fn void(long<Kind>)' to 'fn void(Kind)'")]
+	[InlineData("fn void(long<Kind>) f = takePlain;", "cannot convert 'fn void(Kind)' to 'fn void(long<Kind>)'")]
+	[InlineData("W<Kind> w = wc;", "cannot convert 'W<long<Kind>>' to 'W<Kind>'")]
+	[InlineData("void<Button>* p = vwp;", "cannot convert")]
+	public void Conversion_view_classifies_carriers_and_stripped_storage(string statement, string? message)
+	{
+		const string declarations = """
+			enum Kind: int { A }
+			enum Other: int { B }
+			class Widget { }
+			class Button: Widget { }
+			struct W<T: long> { T v; }
+			class Bag<T: any> { }
+			void takeKind(long<Kind> value) { }
+			void takePlain(Kind value) { }
+			void take(in void<Widget*> w) { }
+			""";
+		SemanticCompilation compilation = SemanticCompiler.CompileLowered($$"""
+			{{declarations}}
+			void test(void<Button>* vb, long<Kind> lc, long<Kind>* plc, nint<Widget*> nw, Bag<void<int>*>* lv, Bag<int*>* li, W<long<Kind>> wc, void<Widget>* vwp)
+			{
+				{{statement}}
+			}
+			""");
+		if (message is null)
+			SemanticCompiler.AssertNoDiagnostics(compilation);
+		else
+			Assert.Contains(compilation.Diagnostics, diagnostic => diagnostic.Contains(message));
 	}
 }

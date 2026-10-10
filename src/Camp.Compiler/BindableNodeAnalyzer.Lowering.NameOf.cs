@@ -163,6 +163,7 @@ public sealed partial class BindableNodeAnalyzer
 		reference = null;
 		isErased = false;
 
+		operand = CarrierTypeIdentity.UnwrapAnnotations(operand);
 		string resolved = ResolveNameOfTypeOperandName(operand, typeScope, syntax, out reference);
 		if (resolved == ErrorType)
 			return false;
@@ -284,7 +285,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	string BuildNameOfTypeValue(string resolvedType)
 	{
-		return BuildFlattenedTypeFragment(resolvedType);
+		return BuildFlattenedTypeFragment(CarrierTypeIdentity.UnwrapAnnotations(resolvedType));
 	}
 
 	bool HasNameOfCapability(BodyScope scope, string typeName)

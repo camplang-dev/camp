@@ -5,10 +5,70 @@ struct Point { int x; int y; }
 newtype delegate int Predicate(int n);
 int plusOne(int n) => n + 1;
 int read(in void<int> value) => value;
-int readThis(in void<int> this) => this;
 void write(out void<int> value) { value = 23; }
 int evaluations;
 nuint nextIndex() { evaluations++; return 1; }
+
+enum Kind: int { RED, GREEN, BLUE }
+enum SmallKind: byte { LOW, HIGH }
+newtype Idx: ushort;
+struct CarrierHolder
+{
+	long<Kind> kind;
+	byte<SmallKind> small;
+	uint<Idx> index;
+	nint<byte*> address;
+}
+struct CarrierSlot<T: long> { T value; T get() => this.value; }
+long<Kind> carrierGlobal;
+int pickKind(overload Kind value) => 1;
+int pickKind(overload int value) => 2;
+int nextKind(Kind this) => 7;
+long<Kind> echoKind(long<Kind> value) => value;
+
+int carrierStorage()
+{
+	long<Kind> local = GREEN;
+	Kind read = local;
+	if (read != GREEN) return 101;
+	int<byte> narrow = 200;
+	byte narrowRead = narrow;
+	if (narrowRead != 200) return 102;
+	long<Kind>* address = &local;
+	*address = BLUE;
+	if (local != BLUE) return 103;
+	CarrierHolder holder = default;
+	holder.kind = GREEN;
+	holder.small = HIGH;
+	holder.index = (Idx)9;
+	byte* bytes = default;
+	holder.address = bytes;
+	Kind heldKind = holder.kind;
+	if (heldKind != GREEN || holder.small != HIGH || (ushort)holder.index != 9) return 104;
+	long<Kind>* fieldAddress = &holder.kind;
+	if (*fieldAddress != GREEN) return 105;
+	carrierGlobal = RED;
+	Kind globalKind = carrierGlobal;
+	if (globalKind != RED) return 106;
+	long<Kind>[] kinds = stackalloc long<Kind>[3];
+	kinds[0] = BLUE;
+	kinds[1] = local;
+	Kind first = kinds[0];
+	if (first != BLUE || kinds.length != 3) return 107;
+	if (sizeof(long<Kind>) != sizeof(long) || sizeof(int<byte>) != sizeof(int) || sizeof(byte<SmallKind>) != 1) return 108;
+	if (sizeof(nint<byte*>) != sizeof(nint)) return 109;
+	if (pickKind(local) != 1 || local.nextKind() != 7) return 110;
+	if (echoKind(GREEN) != GREEN) return 111;
+	CarrierSlot<long<Kind>> slot = default;
+	slot.value = BLUE;
+	Kind slotKind = slot.get();
+	if (slotKind != BLUE) return 112;
+	auto inferred = local;
+	Kind inferredKind = inferred;
+	if (inferredKind != BLUE) return 113;
+	if (typenameof(long<Kind>*).Length != typenameof(Kind).Length || typenameof(long<Kind>*)[0] != 'K') return 114;
+	return 0;
+}
 
 export int main()
 {
@@ -20,7 +80,6 @@ export int main()
 	if (scalar != 11 || read(scalar) != 11) return 1;
 	write(out scalar);
 	if (scalar != 23) return 2;
-	if (scalar.readThis() != 23) return 17;
 	int** ordinaryAddress = &ordinary;
 	void<int>** erasedAddress = ordinaryAddress;
 	int** recoveredAddress = erasedAddress;
@@ -83,8 +142,10 @@ export int main()
 	void<Predicate>* callablePtr = &callable;
 	Predicate wholeCallable = *callablePtr;
 	if (wholeCallable(71) != 72 || callable(81) != 82) return 10;
+	int carrierResult = carrierStorage();
+	if (carrierResult != 0) return carrierResult;
 	Console.writeLine("erased storage passed");
-	if (typenameof(void<int?>).Length != 0) return 13;
-	if (typenameof(void<Integer>).Length != 0) return 21;
+	if (typenameof(void<int?>).Length != typenameof(int).Length || typenameof(void<int?>)[0] != 'I') return 13;
+	if (typenameof(void<Integer>).Length != typenameof(int).Length || typenameof(void<Integer>)[0] != 'I') return 21;
 	return 0;
 }

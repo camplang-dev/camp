@@ -360,8 +360,28 @@ a `void*` fence. Recovery from `void*` requires an explicit cast.
 At the C boundary an erased pointer is `void*`, an erased array is `void*` plus
 length, an `in` erased parameter is `const void*`, and an `out` erased parameter
 is `void*`. Concrete storage remains typed internally. `typenameof(void<V>)`
-is empty, erased receiver types contribute no symbol fragment, and erased
-parameters cannot select an overload.
+is the name of `V`; an annotated type can be neither an overload selector nor a
+method's receiver type.
+
+## Integer Carriers
+
+For each integer representation constraint `C` (`byte`, `ushort`, `short`,
+`uint`, `int`, `ulong`, `long`, `nuint`, `nint`), `C<V>` is a carrier type: a
+value of type `V` carried as a `C`. It has the layout of `C` and the semantics a
+value of a type parameter `T: C` bound to `V` has. `V` must be a valid
+argument for `T: C` on the selected target: an integer type of equal or smaller
+width, an enum or value newtype with an integer underlying type of equal or
+smaller width, or, for `nint` and `nuint`, an object pointer that fits the
+natural integer. `V` cannot be expandable, `void`, `void<W>` or another carrier.
+
+Unlike `void<V>`, a carrier has a specified size. It is stored by value and may
+be a local, global, field, by-value parameter, result, array element, pointer
+target or generic argument. A carrier value reads as `V`; the address of carrier
+storage has the written carrier pointer type. At the C boundary `C<V>` is `C`,
+`C<V>*` is `C*`, and `C<V>[]` is `C*` and a `nuint` length. A pointer `V`
+stored in an `nint` or `nuint` carrier is converted to and from the C integer at
+each store and load. A carrier is never an `overload` selector or a receiver
+type.
 
 ## Expanded Returns
 
