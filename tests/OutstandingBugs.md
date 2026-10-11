@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-281.
+Next bug number: BUG-282.
 
 ## Bug Template
 
@@ -69,4 +69,30 @@ The local comparison compiles. The global comparison reports
 
 Known Impact:
 Programs must copy the global to a local or qualify the member (`Color.RED`).
+
+## BUG-281: Representation-constraint type arguments are not checked for width or kind
+
+Date/Time: 2026-10-10 21:00 EDT
+
+Summary:
+The language documents that a type argument for a representation constraint
+`T: C` must be an integer of equal or smaller width, a compatible enum or value
+newtype, or (for `nint` and `nuint`) a pointer. The compiler checks only that the
+argument is not expandable; any other argument is accepted.
+
+Steps to Reproduce:
+
+1. Declare `struct Slot<T: int> { T value; }`.
+2. Declare locals `Slot<ulong> a;`, `Slot<float> b;` and `Slot<int*> c;`.
+3. Build the file.
+
+Expected:
+Each declaration is rejected, naming the constraint the argument fails.
+
+Actual:
+No diagnostic is reported.
+
+Known Impact:
+A wider or non-integer argument silently receives a representation of the wrong
+size or kind.
 
