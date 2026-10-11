@@ -66,6 +66,26 @@ public sealed class ErasedBoundaryTests
 	[Theory]
 	[InlineData(false)]
 	[InlineData(true)]
+	public void Erased_type_parameter_storage_must_be_reassigned_after_await(bool reassign)
+	{
+		SemanticCompilation compilation = SemanticCompiler.CompileLowered($$"""
+			class Resumer { void resumeAsync(escaped once void() continuation) { continuation(); } }
+			async int tick(@awaitwith Resumer* resumer) { return 1; }
+			async int run<T: copyable>(@awaitwith Resumer* resumer, in T source, sizeof(T)) {
+			stackalloc T scratch = source;
+			int ignored = await tick(resumer);
+			{{(reassign ? "scratch = source;" : "")}}
+			T* address = &scratch;
+			return ignored;
+			}
+			""");
+		if (reassign) SemanticCompiler.AssertNoDiagnostics(compilation);
+		else Assert.Contains(compilation.Diagnostics, diagnostic => diagnostic.Contains("unassigned after suspension"));
+	}
+
+	[Theory]
+	[InlineData(false)]
+	[InlineData(true)]
 	public void Stack_address_cannot_be_reused_from_retained_state(bool async)
 	{
 		string source = async ? """

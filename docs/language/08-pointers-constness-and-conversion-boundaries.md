@@ -72,6 +72,21 @@ pointer.value = 2;
 int? copy = *pointer;
 ```
 
+A `void<V>*` of an expandable `V` converts implicitly to the distributive `V*`:
+one pointer per component, each addressing that component inside the one
+storage object. The source pointer is evaluated once, and writes through the
+component pointers are visible in the storage. The reverse never converts,
+because the components of an ordinary expandable value are separate locations.
+
+```camp
+void fill(int?* target) { *target = 5; }
+
+stackalloc void<int?> slot = default;
+fill(&slot);                      // components alias slot
+int?* components = &slot;         // implicit expansion
+void<int?>* single = components;  // error: components are separate storage
+```
+
 Different erased payload pointers follow the existing disjoint pointer cast
 rules. Crossing another pointer family requires a `void*` fence; recovering an
 erased pointer from `void*` requires an explicit cast. The old `struct(V)` type

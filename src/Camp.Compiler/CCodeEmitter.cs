@@ -4069,7 +4069,7 @@ public static class CCodeEmitter
             foreach (GenericParameter parameter in function.GenericParameters)
             {
                 currentGenericTypeNames.Add(parameter.Name);
-                if (parameter.Constraint is AnyTypeReference or CopyableTypeReference)
+                if (parameter.Constraint is AnyTypeReference or CopyableTypeReference || parameter.RequiresImplementation)
                     currentAnyGenericTypeNames.Add(parameter.Name);
                 AddRepresentationGeneric(parameter);
             }
@@ -4077,7 +4077,7 @@ public static class CCodeEmitter
                 foreach (GenericParameter parameter in containingType.GenericParameters)
                 {
                     currentGenericTypeNames.Add(parameter.Name);
-                    if (parameter.Constraint is AnyTypeReference or CopyableTypeReference)
+                    if (parameter.Constraint is AnyTypeReference or CopyableTypeReference || parameter.RequiresImplementation)
                         currentAnyGenericTypeNames.Add(parameter.Name);
                     AddRepresentationGeneric(parameter);
                 }
@@ -4142,7 +4142,7 @@ public static class CCodeEmitter
             foreach (GenericParameter parameter in type.GenericParameters)
             {
                 currentGenericTypeNames.Add(parameter.Name);
-                if (parameter.Constraint is AnyTypeReference or CopyableTypeReference)
+                if (parameter.Constraint is AnyTypeReference or CopyableTypeReference || parameter.RequiresImplementation)
                     currentAnyGenericTypeNames.Add(parameter.Name);
                 AddRepresentationGeneric(parameter);
             }
@@ -4243,13 +4243,53 @@ public static class CCodeEmitter
                 writer.WriteLine(FormatTypeOrResolved(asyncThrown.Type, asyncThrown.ResolvedType, CName(asyncThrown)).Declaration + " = 0;");
             }
             WriteCoverageFunctionEntry(writer, function, 1);
+            Dictionary<DeclarationStatement, string> previousHoistedStackAllocs = hoistedStackAllocs;
+            hoistedStackAllocs = new(ReferenceEqualityComparer.Instance);
+            WriteHoistedStackAllocs(writer, function.Body!, 1);
             foreach (Statement statement in function.Body!.Statements)
                 WriteStatement(writer, statement, 1);
             if (function.IsAsync && (function.ResolvedType ?? "void") == "void" && !EndsWithExplicitReturn(function.Body))
                 WriteAsyncReturnStatement(writer, new ReturnStatement { ResolvedType = "void" }, 1);
+            hoistedStackAllocs = previousHoistedStackAllocs;
             writer.WriteLine("}");
             currentFunction = previousFunction;
             currentFunctionHasLabels = previousFunctionHasLabels;
+        }
+
+        // 025 §5: erased stackalloc storage is allocated once per function entry. A declaration that can run
+        // again within one entry (a loop body or a statement after a source label) takes its storage from the entry
+        // allocation; initialization still happens at the declaration.
+        Dictionary<DeclarationStatement, string> hoistedStackAllocs = new(ReferenceEqualityComparer.Instance);
+
+        void WriteHoistedStackAllocs(TextWriter writer, BlockStatement body, int indent)
+        {
+            foreach ((DeclarationStatement declaration, bool repeatable) in EnumerateStackAllocDeclarations(body, repeatable: false))
+            {
+                if (!repeatable || !declaration.IsStackAllocStorage || !IsAnyGenericParameterType(declaration.Target.ResolvedType))
+                    continue;
+                string slot = "__stack" + hoistedStackAllocs.Count.ToString(CultureInfo.InvariantCulture);
+                hoistedStackAllocs[declaration] = slot;
+                WriteIndent(writer, indent);
+                writer.WriteLine("uint8_t *" + slot + " = " + FormatAlloca(FormatGenericSizeExpression(declaration.Target.ResolvedType)) + ";");
+            }
+        }
+
+        static IEnumerable<(DeclarationStatement Declaration, bool Repeatable)> EnumerateStackAllocDeclarations(BindableNode? node, bool repeatable)
+        {
+            if (node is null or LambdaExpression)
+                yield break;
+            if (node is DeclarationStatement declaration)
+                yield return (declaration, repeatable);
+            bool childRepeatable = repeatable || node is ForStatement or WhileStatement or DoWhileStatement or ForeachStatement;
+            // A source label can be a backward goto target, so every later statement of its block can repeat.
+            bool afterSourceLabel = false;
+            foreach (BindableNode child in BindableNodeTraversal.Children(node))
+            {
+                if (child is LabelStatement { Name: string label } && !label.StartsWith("__", StringComparison.Ordinal))
+                    afterSourceLabel = true;
+                foreach ((DeclarationStatement Declaration, bool Repeatable) nested in EnumerateStackAllocDeclarations(child, childRepeatable || afterSourceLabel))
+                    yield return nested;
+            }
         }
 
         static bool EndsWithExplicitReturn(BlockStatement? body)
@@ -4695,7 +4735,7 @@ public static class CCodeEmitter
             {
                 string size = FormatGenericSizeExpression(declaration.Target.ResolvedType);
                 WriteIndent(writer, indent);
-                writer.WriteLine("uint8_t *" + name + " = " + FormatAlloca(size) + ";");
+                writer.WriteLine("uint8_t *" + name + " = " + (hoistedStackAllocs.TryGetValue(declaration, out string? slot) ? slot : FormatAlloca(size)) + ";");
                 if (declaration.InitialValue is DefaultExpression)
                 {
                     WriteIndent(writer, indent);

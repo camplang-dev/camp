@@ -2,7 +2,8 @@
 
 Named `stackalloc void<V>` storage is local to a resume activation. Suspension
 invalidates its assignment state; a later assignment is required before reading
-it. Allocate the storage before resume dispatch on every invocation, and keep it
+it. Allocate the storage once, before resume dispatch, on every invocation or
+resumption, and keep it
 out of the heap frame. A heap-backed `void<V>*` can instead survive suspension
 under the ordinary lifetime and cleanup rules. See
 [Lifetime Analysis](05-lifetime-analysis-and-flow-facts.md).

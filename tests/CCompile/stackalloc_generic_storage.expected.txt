@@ -6,8 +6,15 @@ static void __camp_delegate_add(void *arg0, const void *arg1);
 static void assignGeneric(const void *source, void *destination, uintptr_t sizeof_T);
 static void defaultGeneric(void *destination, uintptr_t sizeof_T);
 static void forEachGeneric(const void *values, uintptr_t values_length, void (* visit)(void *arg0, const void *arg1), void *visit_context, uintptr_t sizeof_T);
+static int Counter_read(Counter *this);
+static int readInterface(void *source, uintptr_t sizeof_T, const Reader *vtableof_T_Reader);
+static void fillOptional(int *target, bool *target_specified, int value);
+static int fillStorage(void);
 static void add(int *item);
+static int Counter_Reader_read(Reader **ctx);
 static int sum;
+static const Reader Counter_Reader__storage;
+static const Reader *Counter_Reader;
 
 static void __camp_delegate_add(void *arg0, const void *arg1)
 {
@@ -16,6 +23,8 @@ static void __camp_delegate_add(void *arg0, const void *arg1)
 }
 
 static int sum = 0;
+static const Reader Counter_Reader__storage = { .read = (int (*)(void* arg0))Counter_read };
+static const Reader *Counter_Reader = &Counter_Reader__storage;
 static void assignGeneric(const void *source, void *destination, uintptr_t sizeof_T)
 {
 	uint8_t *scratch = __builtin_alloca(sizeof_T);
@@ -32,13 +41,14 @@ static void defaultGeneric(void *destination, uintptr_t sizeof_T)
 
 static void forEachGeneric(const void *values, uintptr_t values_length, void (* visit)(void *arg0, const void *arg1), void *visit_context, uintptr_t sizeof_T)
 {
+	uint8_t *__stack0 = __builtin_alloca(sizeof_T);
 	{
 		const void *_foreachElements0 = values;
 		uintptr_t _foreachLength1 = values_length;
 		uintptr_t _foreachIndex2 = 0;
 		while ((_foreachIndex2 < _foreachLength1))
 		{
-			uint8_t *value = __builtin_alloca(sizeof_T);
+			uint8_t *value = __stack0;
 			__builtin_memset(value, 0, sizeof_T);
 			__builtin_memmove(value, (void*)(((const uint8_t*)_foreachElements0) + (_foreachIndex2 * sizeof_T)), sizeof_T);
 			{
@@ -49,6 +59,38 @@ __foreach_continue3: ;
 		}
 __foreach_break4: ;
 	}
+}
+
+static int Counter_read(Counter *this)
+{
+	return this->count;
+}
+
+static int readInterface(void *source, uintptr_t sizeof_T, const Reader *vtableof_T_Reader)
+{
+	uint8_t *copy = __builtin_alloca(sizeof_T);
+	__builtin_memcpy(copy, source, sizeof_T);
+	void *address = copy;
+	return vtableof_T_Reader->read(address);
+}
+
+static void fillOptional(int *target, bool *target_specified, int value)
+{
+	{
+		*target = value;
+		*target_specified = true;
+	}
+}
+
+static int fillStorage(void)
+{
+	__camp_erased_storage_117913a4a09d6895 slot;
+	slot.value = 1;
+	slot.specified = true;
+	fillOptional(&((*(__camp_erased_storage_117913a4a09d6895 *)(&slot))).value, &((*(__camp_erased_storage_117913a4a09d6895 *)(&slot))).specified, 9);
+	int read = slot.value;
+	bool read_specified = slot.specified;
+	return (read_specified ? read : -1);
 }
 
 static void add(int *item)
@@ -65,7 +107,15 @@ int main(void)
 	int *values = (int []){1, 2, 3};
 	uintptr_t values_length = 3;
 	forEachGeneric(values, values_length, (void (*)(void *arg0, const void *arg1))__camp_delegate_add, NULL, sizeof(int));
-	return ((((value == 42) && (cleared == 0)) && (sum == 6)) ? 0 : 1);
+	Counter counter = (Counter){ 4 };
+	return ((((((value == 42) && (cleared == 0)) && (sum == 6)) && (readInterface(&counter, sizeof(Counter), Counter_Reader) == 4)) && (fillStorage() == 9)) ? 0 : 1);
+}
+
+static int Counter_Reader_read(Reader **ctx)
+{
+	Reader_Indirect *indirect = (Reader_Indirect *)(ctx);
+	Counter *instance = indirect->ctx;
+	return Counter_read(instance);
 }
 
 // file: stackalloc_generic_storage.h
@@ -86,12 +136,31 @@ int main(void);
 #include <stdbool.h>
 
 /* Forward declarations. */
+typedef struct Reader Reader;
+typedef struct Counter Counter;
+typedef struct Reader_Indirect Reader_Indirect;
 
 /* Enums. */
 
 /* Newtypes. */
 
 /* Layouts. */
+struct Reader
+{
+	int (* read)(void* ctx);
+};
+struct Counter
+{
+	int count;
+};
+struct Reader_Indirect
+{
+	const Reader *_vt;
+	void *ctx;
+};
+
+/* Erased storage layouts. */
+typedef struct { int value; bool specified; } __camp_erased_storage_117913a4a09d6895;
 
 /* Function declarations. */
 int main(void);

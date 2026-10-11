@@ -64,6 +64,7 @@ __for_break5: ;
 
 static void reverse(void *values, uintptr_t values_length, uintptr_t sizeof_T)
 {
+	uint8_t *__stack0 = __builtin_alloca(sizeof_T);
 	if ((values_length < 2))
 	{
 		return;
@@ -73,7 +74,7 @@ static void reverse(void *values, uintptr_t values_length, uintptr_t sizeof_T)
 	{
 		while ((left < right))
 		{
-			uint8_t *temp = __builtin_alloca(sizeof_T);
+			uint8_t *temp = __stack0;
 			__builtin_memcpy(temp, (void*)(((uint8_t*)values) + (left * sizeof_T)), sizeof_T);
 			__builtin_memmove((void*)(((uint8_t*)values) + (left * sizeof_T)), (void*)(((uint8_t*)values) + (right * sizeof_T)), sizeof_T);
 			__builtin_memmove((void*)(((uint8_t*)values) + (right * sizeof_T)), temp, sizeof_T);
@@ -87,6 +88,7 @@ __while_break7: ;
 
 static void sort(void *values, uintptr_t values_length, int (* compare)(void *arg0, const void *arg1, const void *arg2), void *compare_context, uintptr_t sizeof_T)
 {
+	uint8_t *__stack0 = __builtin_alloca(sizeof_T);
 	if ((values_length < 2))
 	{
 		return;
@@ -98,7 +100,7 @@ static void sort(void *values, uintptr_t values_length, int (* compare)(void *ar
 			{
 				while (((j > 0) && (compare(compare_context, (void*)(((uint8_t*)values) + ((j - 1) * sizeof_T)), (void*)(((uint8_t*)values) + (j * sizeof_T))) > 0)))
 				{
-					uint8_t *temp = __builtin_alloca(sizeof_T);
+					uint8_t *temp = __stack0;
 					__builtin_memcpy(temp, (void*)(((uint8_t*)values) + ((j - 1) * sizeof_T)), sizeof_T);
 					__builtin_memmove((void*)(((uint8_t*)values) + ((j - 1) * sizeof_T)), (void*)(((uint8_t*)values) + (j * sizeof_T)), sizeof_T);
 					__builtin_memmove((void*)(((uint8_t*)values) + (j * sizeof_T)), temp, sizeof_T);

@@ -442,7 +442,9 @@ void swapFirst<T: copyable>(T[] values, sizeof(T))
 
 The compiler rejects ordinary `T` locals and `auto` locals that would need to
 infer stackalloc storage for an erased generic value. `stackalloc T` requires
-`sizeof(T)` in scope. Array views, pointers, and other non-exact shapes do not
+`sizeof(T)` in scope and is accepted for `any`, `copyable` and `implements I`
+parameters only. A `stackalloc` local of a specified-size type, including a
+representation `T`, is an error that suggests an ordinary local. Array views, pointers, and other non-exact shapes do not
 trigger this exact-value rule.
 
 Foreach over erased generic array values follows the same rule:
@@ -454,11 +456,11 @@ foreach (stackalloc T item in values)
 }
 ```
 
-For non-lifted foreach lowering, the compiler may allocate one stackalloc item
-slot before the loop and assign into it each iteration. For iterator-lifted
-foreach lowering, any stackalloc storage area that is needed after resumption
-must be allocated on the resumed execution path so a resume cannot use a stale
-stack address.
+Storage for every `stackalloc` local is allocated once on entry to the function,
+even when the local is declared in a loop. Only the allocation is hoisted: the
+initializer and its side effects run where the declaration is written. For an
+iterator or async body, entry includes each resumption, so a resume allocates
+fresh storage and cannot use a stale stack address.
 
 That storage rule does not create a source-level exception to definite
 assignment. Every `stackalloc T` local or foreach target becomes unassigned

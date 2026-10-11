@@ -63,9 +63,14 @@ High-impact distinctions:
   (no constructor runs if the struct declares none) or `Value value = default;`.
   Pass `&value` where a pointer is needed. `stackalloc` is
   for storage whose size is not known at the declaration, such as `stackalloc T[count]`,
-  `stackalloc $"..."`, an erased generic `T`, or explicitly annotated
-  `stackalloc void<V> slot = value;`; do not use it directly for a `struct` of
-  known type.
+  `stackalloc $"..."`, an erased generic `T` (`any`, `copyable` or
+  `implements I`, with `sizeof(T)`), or explicitly annotated
+  `stackalloc void<V> slot = value;`. A `stackalloc` local of a known-size type
+  (`int`, a `struct`, a carrier, a representation `T`) is an error; use an
+  ordinary local. `auto` never infers a `stackalloc` local, and
+  `stackalloc void<int?> b = (void<int?>)42;` is valid where `auto d =
+  (void<int?>)42;` is not. Storage is allocated once per function entry, even
+  in a loop.
 - Use `stackalloc T[count]` for short-lived dynamic scratch arrays that do not
   escape and do not cross `await` or `yield`. Use `fixed T[N]` for small inline
   fixed-size storage. Use `new T[count]` when the storage must outlive the
@@ -1004,7 +1009,9 @@ once the signature matches.
 For non-expandable `P`, `P` and `void<P>` are compatible in `in`, `out`, pointer
 and array slots. A `void<V>` result and a carrier are nominal. These rules apply
 to newtype ascription and interface implementations, while virtual overrides
-remain exact.
+remain exact. A `void<V>*` of an expandable `V` converts implicitly to the
+distributive `V*` (one pointer per component, aliasing the one storage object,
+source evaluated once); the reverse is an error.
 
 Under `T: implements I` the type parameter is transported only by pointer:
 `T*`, `const T*`, `T[]` and `out T*` are valid; a `T` result, `in T`, `out T`
@@ -1088,8 +1095,8 @@ return an `iter T` value produced elsewhere.
 
 ## Async And Postponed Work
 
-`stackalloc void<V>` is activation-local storage: after `yield` or `await`,
-assign it again before reading it. Use a heap-backed `void<V>*` for hidden state
+`stackalloc void<V>` is activation-local storage allocated on entry to each
+resumption: after `yield` or `await`, assign it again before reading it. Use a heap-backed `void<V>*` for hidden state
 that must survive suspension. The annotation may name a private implementation
 type even in an exported signature or struct iterator. Generated APIs hide an
 inaccessible annotation and expose the opaque C contract; publish an explicit

@@ -382,8 +382,8 @@ Important restrictions include:
 
 Named `stackalloc` storage, including `stackalloc void<V>`, is unassigned after
 each `yield` or `await`. Assigning it again permits subsequent reads. Its storage
-is recreated in each resume activation and must not become a retained pointer
-field. Dynamic stackalloc array views remain subject to the existing suspension
+is allocated once on entry to each resume activation and must not become a
+retained pointer field. Dynamic stackalloc array views remain subject to the existing suspension
 restrictions. Heap-backed annotated pointers may be retained; their allocation
 lifetime and destructor contract survive lifting and apply to cleanup on both
 normal exhaustion and early iterator destruction.

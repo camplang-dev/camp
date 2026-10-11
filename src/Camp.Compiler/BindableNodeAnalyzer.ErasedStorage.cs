@@ -1,3 +1,5 @@
+using System;
+
 namespace Camp.Compiler;
 
 public sealed partial class BindableNodeAnalyzer
@@ -25,6 +27,51 @@ public sealed partial class BindableNodeAnalyzer
 			return captured;
 		}
 		return expression;
+	}
+
+	// 025 §7: a void<V>* of an expandable V converts implicitly to the distributive V*, one pointer per
+	// component of the one storage object. The reverse conversion is never formed.
+	bool TryGetErasedPointerExpansion(string source, string target, out string storageType)
+	{
+		storageType = "";
+		if (!source.Contains("void<", StringComparison.Ordinal) || !TryParseTypeShape(source, out TypeShape sourceShape) || !TryParseTypeShape(target, out TypeShape targetShape)
+			|| sourceShape.Kind != TypeShapeKind.Pointer || targetShape.Kind != TypeShapeKind.Pointer
+			|| sourceShape.Element is not { Kind: TypeShapeKind.Named } storage
+			|| !ErasedTypeIdentity.TryGetPayload(storage.Name, out string payload)
+			|| !TryGetParamsComponentShape(null, payload, "value", out _)
+			|| !TryParseTypeShape(payload, out TypeShape payloadShape) || targetShape.Element is null
+			|| !TypeShapesSameIgnoringValueQualifiers(payloadShape, targetShape.Element))
+			return false;
+		bool sourceConst = storage.Qualifiers.IsConst || payloadShape.Qualifiers.IsConst;
+		bool sourceVolatile = storage.Qualifiers.IsVolatile || payloadShape.Qualifiers.IsVolatile;
+		if (sourceConst && !targetShape.Element.Qualifiers.IsConst || sourceVolatile && !targetShape.Element.Qualifiers.IsVolatile)
+			return false;
+		storageType = TypeShapeParser.Format(storage);
+		return true;
+	}
+
+	// Replaces a void<V>* value by &*value typed as the distributive V*, so the ordinary component
+	// expansion of an address forms one pointer per component. The source is evaluated once.
+	Expression? TryExpandErasedPointer(Expression? value, string actual, string expected)
+	{
+		if (value is null || !TryGetErasedPointerExpansion(actual, expected, out string storageType))
+			return null;
+		UnaryExpression storage = new()
+		{
+			SourceSyntax = value.SourceSyntax,
+			Operator = UnaryOperator.PointerDereference,
+			Operand = value,
+			ResolvedType = storageType,
+			ValueLifetimeFact = value.ValueLifetimeFact
+		};
+		return new UnaryExpression
+		{
+			SourceSyntax = value.SourceSyntax,
+			Operator = UnaryOperator.AddressOf,
+			Operand = storage,
+			ResolvedType = StripLifetimeQualifiers(expected),
+			ValueLifetimeFact = value.ValueLifetimeFact
+		};
 	}
 
 	bool TryGetErasedStorageType(Expression? expression, out string storageType)

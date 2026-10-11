@@ -18,6 +18,37 @@ void forEachGeneric<T: copyable>(const T[] values, delegate void(in T item) visi
 	}
 }
 
+interface Reader
+{
+	int read();
+}
+
+struct Counter: Reader
+{
+	int count;
+	int read(): Reader => this.count;
+}
+
+int readInterface<T: implements Reader>(T* source, sizeof(T), vtableof(T: Reader))
+{
+	stackalloc T copy = *source;
+	T* address = &copy;
+	return address.read();
+}
+
+void fillOptional(int?* target, int value)
+{
+	*target = value;
+}
+
+int fillStorage()
+{
+	stackalloc void<int?> slot = (void<int?>)1;
+	fillOptional(&slot, 9);
+	int? read = slot;
+	return read.specified ? read.value : -1;
+}
+
 int sum = 0;
 
 void add(in int item)
@@ -33,5 +64,6 @@ export int main()
 	defaultGeneric(out cleared);
 	int[] values = [1, 2, 3];
 	forEachGeneric(values, add);
-	return value == 42 && cleared == 0 && sum == 6 ? 0 : 1;
+	Counter counter = { 4 };
+	return value == 42 && cleared == 0 && sum == 6 && readInterface(&counter) == 4 && fillStorage() == 9 ? 0 : 1;
 }

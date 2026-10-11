@@ -3,3 +3,13 @@ tests/Diagnostics/stackalloc_generic_storage_invalid.camp(8,2): error: Erased ge
 tests/Diagnostics/stackalloc_generic_storage_invalid.camp(13,11): error: Erased generic foreach requires 'stackalloc T value'.
 tests/Diagnostics/stackalloc_generic_storage_invalid.camp(20,13): error: stackalloc T requires sizeof(T) in scope.
 tests/Diagnostics/stackalloc_generic_storage_invalid.camp(20,23): error: Copying erased generic values requires sizeof(T).
+tests/Diagnostics/stackalloc_generic_storage_invalid.camp(28,13): error: A stackalloc local must be an erased type parameter or a void<V>; declare 'int number' as an ordinary local.
+tests/Diagnostics/stackalloc_generic_storage_invalid.camp(29,13): error: A stackalloc local must be an erased type parameter or a void<V>; declare 'Point point' as an ordinary local.
+tests/Diagnostics/stackalloc_generic_storage_invalid.camp(30,13): error: A stackalloc local must be an erased type parameter or a void<V>; declare 'long<Kind> carrier' as an ordinary local.
+tests/Diagnostics/stackalloc_generic_storage_invalid.camp(31,13): error: A stackalloc local must be an erased type parameter or a void<V>; declare 'int inferred' as an ordinary local.
+tests/Diagnostics/stackalloc_generic_storage_invalid.camp(36,13): error: A stackalloc local must be an erased type parameter or a void<V>; declare 'T value' as an ordinary local.
+tests/Diagnostics/stackalloc_generic_storage_invalid.camp(41,22): error: A stackalloc local must be an erased type parameter or a void<V>; declare 'int item' as an ordinary local.
+tests/Diagnostics/stackalloc_generic_storage_invalid.camp(50,14): error: Auto cannot infer a stackalloc local for 'void<int?>'; write 'stackalloc void<int?> cast' explicitly.
+tests/Diagnostics/stackalloc_generic_storage_invalid.camp(59,24): error: Declaration initializer cannot convert 'int?*' to 'void<int?>*'. Use a stackalloc void<int?> local and take its address for single-object storage.
+tests/Diagnostics/stackalloc_generic_storage_invalid.camp(55,15): error: A cast to 'void<int?>' is valid only in a stackalloc initializer, as an 'in void<int?>' argument, or when writing into void<int?> storage.
+tests/Diagnostics/stackalloc_generic_storage_invalid.camp(57,2): error: A cast to 'void<int?>' is valid only in a stackalloc initializer, as an 'in void<int?>' argument, or when writing into void<int?> storage.

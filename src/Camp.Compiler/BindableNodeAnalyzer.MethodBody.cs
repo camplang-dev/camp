@@ -32,6 +32,8 @@ public sealed partial class BindableNodeAnalyzer
 	FunctionDefinition? currentAnalysisFunction;
 	TypeDefinition? currentAnalysisContainingType;
 	bool isResolvingCallTarget;
+	// 025 §5: casts written as (void<V>)e, rewritten to (V)e, that no erased-storage consumer has claimed yet.
+	HashSet<CastExpression> pendingErasedCasts = new(ReferenceEqualityComparer.Instance);
 
 	void AnalyzeMethodBody(FunctionDefinition function, AnalysisScope typeAndMethodScope, TypeDefinition? containingType)
 	{
@@ -40,6 +42,8 @@ public sealed partial class BindableNodeAnalyzer
 
 		FunctionDefinition? previousAnalysisFunction = currentAnalysisFunction;
 		TypeDefinition? previousAnalysisContainingType = currentAnalysisContainingType;
+		HashSet<CastExpression> previousPendingErasedCasts = pendingErasedCasts;
+		pendingErasedCasts = new(ReferenceEqualityComparer.Instance);
 		currentAnalysisFunction = function;
 		currentAnalysisContainingType = containingType;
 		try
@@ -65,6 +69,7 @@ public sealed partial class BindableNodeAnalyzer
 
 			function.Body.ResolvedType = "void";
 			BodyAnalyzeBlock(function.Body.Statements, scope, typeAndMethodScope);
+			ReportUnclaimedErasedCasts();
 			WarnIfPrepBuffersAreNotWritten(function);
 			CollectAsyncAwaitSites(function);
 			if (function.IsAsync || function.AwaitSites.Count > 0)
@@ -83,6 +88,7 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			currentAnalysisFunction = previousAnalysisFunction;
 			currentAnalysisContainingType = previousAnalysisContainingType;
+			pendingErasedCasts = previousPendingErasedCasts;
 		}
 	}
 
@@ -781,6 +787,48 @@ public sealed partial class BindableNodeAnalyzer
 			expression.ResolvedType = baseClass.Name;
 	}
 
+	CastExpression? FindPendingErasedCast(Expression? value)
+	{
+		while (value is not null)
+		{
+			if (value is CastExpression cast)
+				return pendingErasedCasts.Contains(cast) ? cast : null;
+			if (value is ParenthesizedExpression parenthesized)
+				value = parenthesized.Expression;
+			else if (expressionRewrites.TryGetValue(value, out Expression? rewritten) && !ReferenceEquals(rewritten, value))
+				value = rewritten;
+			else
+				return null;
+		}
+		return null;
+	}
+
+	void ClaimErasedStorageCast(Expression? value)
+	{
+		if (FindPendingErasedCast(value) is CastExpression cast)
+			pendingErasedCasts.Remove(cast);
+	}
+
+	void ReportUnclaimedErasedCasts()
+	{
+		foreach (CastExpression cast in pendingErasedCasts)
+			Report(GetRange(cast.SourceSyntax), $"A cast to 'void<{cast.Type?.ResolvedType}>' is valid only in a stackalloc initializer, as an 'in void<{cast.Type?.ResolvedType}>' argument, or when writing into void<{cast.Type?.ResolvedType}> storage.");
+		pendingErasedCasts.Clear();
+	}
+
+	// 025 §5: a stackalloc local is unspecified-size storage: an erased type parameter or a void<V>.
+	void ValidateStackAllocLocalType(string? declaredType, SyntaxNode? syntax, string name, BodyScope scope)
+	{
+		if (declaredType is null or ErrorType or TargetType)
+			return;
+		string bare = StripTopLevelValueQualifiers(declaredType);
+		if (ErasedTypeIdentity.TryGetPayload(bare, out _))
+			return;
+		if (bare == BaseTypeName(bare) && FindBodyGenericParameter(scope, bare) is GenericParameter parameter && IsErasedGenericParameter(parameter))
+			return;
+		Report(GetRange(syntax), $"A stackalloc local must be an erased type parameter or a void<V>; declare '{WitnessTypeIdentity.Display(declaredType)} {name}' as an ordinary local.");
+	}
+
 	void BodyAnalyzeDeclarationStatement(DeclarationStatement declaration, BodyScope scope, AnalysisScope typeScope)
 	{
 		// Named stack storage is recreated in each resume activation and is checked
@@ -836,6 +884,19 @@ public sealed partial class BindableNodeAnalyzer
 		ValidateWrittenErasedType(declaration.Target.Type, declaration.Target.Type?.SourceSyntax ?? declaration.Target.SourceSyntax ?? declaration.SourceSyntax, "the type of a local variable", declaration.IsStackAllocStorage);
 		ValidateNoExternClassArrayElement(declaration.Target.Type, declaration.Target.Type?.SourceSyntax ?? declaration.Target.SourceSyntax ?? declaration.SourceSyntax);
 		ValidateErasedGenericLocalStorage(declaration, initialType, scope);
+		if (declaration.IsStackAllocStorage)
+		{
+			ValidateStackAllocLocalType(declaration.Target.ResolvedType, declaration.Target.Type?.SourceSyntax ?? declaration.Target.SourceSyntax ?? declaration.SourceSyntax,
+				declaration.Target.Names.Count == 1 ? declaration.Target.Names[0] : "name", scope);
+			ClaimErasedStorageCast(declaration.InitialValue);
+		}
+		else if (declaration.Target.Type is AutoTypeReference or null && FindPendingErasedCast(declaration.InitialValue) is CastExpression erasedCast)
+		{
+			string payload = erasedCast.Type?.ResolvedType ?? ErrorType;
+			string name = declaration.Target.Names.Count == 1 ? declaration.Target.Names[0] : "name";
+			Report(GetRange(declaration.InitialValue?.SourceSyntax ?? declaration.SourceSyntax), $"Auto cannot infer a stackalloc local for 'void<{payload}>'; write 'stackalloc void<{payload}> {name}' explicitly.");
+			ClaimErasedStorageCast(declaration.InitialValue);
+		}
 		if (declaration.InitialValue is not null)
 			TryReportInvalidCharacterLiteralTarget(declaration.Target.ResolvedType ?? ErrorType, declaration.InitialValue, declaration.InitialValue.SourceSyntax, "Declaration initializer");
 
@@ -848,6 +909,8 @@ public sealed partial class BindableNodeAnalyzer
 		else if (declaration.InitialValue is not null && !IsValidFixedStorageInitializer(declaration.Target.Type, declaration.InitialValue))
 		{
 			CheckAssignable(ErasedTypeIdentity.ReadType(declaration.Target.ResolvedType ?? ErrorType), initialType, declaration.InitialValue, declaration.InitialValue.SourceSyntax, "Declaration initializer");
+			if (TryExpandErasedPointer(declaration.InitialValue, initialType, declaration.Target.ResolvedType ?? ErrorType) is Expression expandedInitializer)
+				declaration.InitialValue = expandedInitializer;
 			if (ContainsConstOfTypeReference(declaration.Target.Type))
 				CheckConstOfProducedResult(declaration.Target.Type, declaration.InitialValue, declaration.InitialValue.SourceSyntax ?? declaration.SourceSyntax, "Declaration initializer");
 		}
@@ -1452,6 +1515,9 @@ public sealed partial class BindableNodeAnalyzer
 		if (statement.Target.Names.Count != 1)
 			Report(GetRange(statement.Target.SourceSyntax ?? statement.SourceSyntax), "Foreach statement must declare exactly one loop variable.");
 		BodyAnalyzeDeclarationTarget(statement.Target, scope, typeScope, elementType);
+		if (statement.IsStackAllocStorage)
+			ValidateStackAllocLocalType(statement.Target.ResolvedType, statement.Target.Type?.SourceSyntax ?? statement.Target.SourceSyntax ?? statement.SourceSyntax,
+				statement.Target.Names.Count == 1 ? statement.Target.Names[0] : "item", scope);
 		ValidateErasedGenericForeachStorage(statement, elementType, scope);
 		BodyAnalyzeOptionalLoopStatement(statement.Body, scope, typeScope);
 	}
@@ -2709,6 +2775,13 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (cast.Type is not null)
 			AnalyzeType(cast.Type, typeScope);
+		if (cast.Type is ErasedTypeReference { ParamsType: { ResolvedType: string erasedCastPayload } payloadType } && erasedCastPayload != ErrorType && cast.LifetimeCastKind is null)
+		{
+			// 025 §5: (void<V>)e is the explicit spelling of the conversion e receives when it is stored
+			// into void<V> storage. It converts like (V)e and is valid only where a consumer claims it.
+			cast.Type = payloadType;
+			pendingErasedCasts.Add(cast);
+		}
 		string targetType = cast.Type?.ResolvedType ?? ErrorType;
 		ValidateWrittenErasedType(cast.Type, cast.Type?.SourceSyntax ?? cast.SourceSyntax, "an explicit cast target");
 		string structuralTargetType = ContainsLifetimeAnnotation(cast.Type) && !TryGetCallableShape(targetType, out _)
@@ -4452,12 +4525,15 @@ public sealed partial class BindableNodeAnalyzer
 			}
 
 			string expected = SubstituteStorageType(analysisParameter?.ResolvedType ?? ErrorType, genericSubstitutions);
+			bool erasedInStorage = analysisParameter?.Modifier == ParameterModifier.In && ErasedTypeIdentity.TryGetPayload(expected, out _);
 			if (analysisParameter?.Modifier is ParameterModifier.In or ParameterModifier.Out || CarrierTypeIdentity.TryGetPayload(expected, out _))
 				expected = ReadErasedValueType(expected);
 			string analysisTarget = ContainsUnboundGenericParameter(expected, genericSubstitutions, genericParameterNames) ? TargetType : expected;
 			string actual = arguments[i].ResolvedType == ErrorType && arguments[i].Modifier is not (ArgumentModifier.Out or ArgumentModifier.Catch)
 				? ErrorType
 				: BodyAnalyzeArgumentExpression(arguments[i], scope, typeScope, analysisTarget);
+			if (erasedInStorage)
+				ClaimErasedStorageCast(arguments[i].Value);
 			if (analysisParameter is not null)
 			{
 				InferGenericSubstitutions(analysisParameter.ResolvedType ?? ErrorType, actual, genericSubstitutions, genericParameterNames);
@@ -4497,6 +4573,11 @@ public sealed partial class BindableNodeAnalyzer
 								Report(GetRange(argumentSyntax), $"Unbound slot receiver requires '{unboundReceiver}', not '{actual}'.");
 							else
 								CheckCallArgumentAssignable(structuralExpected, actual, arguments[i].Value, argumentSyntax, "Argument", function, genericSubstitutions, genericParameterNames);
+							if (TryExpandErasedPointer(arguments[i].Value, actual, structuralExpected) is Expression expandedPointer)
+							{
+								arguments[i].Value = expandedPointer;
+								arguments[i].ResolvedType = expandedPointer.ResolvedType;
+							}
 						}
 						if (CanLiftToOptional(actual, expected))
 							arguments[i].ResolvedType = expected;
@@ -6863,6 +6944,8 @@ public sealed partial class BindableNodeAnalyzer
 			return valueType;
 		}
 		RequireMutableWriteTarget(assignment.Target, targetType, assignment.Target?.SourceSyntax, "Assignment target", scope);
+		if (assignment.Operator == AssignmentOperator.Assign && TryGetErasedStorageType(assignment.Target, out _))
+			ClaimErasedStorageCast(assignment.Value);
 		if (assignment.Operator != AssignmentOperator.Assign && RejectNewtypeOperator(assignment.SourceSyntax, targetType, valueType))
 			return targetType;
 		if (!RequireIntegralAssignmentOperands(assignment, targetType, valueType))
@@ -6896,6 +6979,8 @@ public sealed partial class BindableNodeAnalyzer
 		else
 		{
 			CheckAssignable(targetType, valueType, assignment.Value, assignment.Value?.SourceSyntax, "Assignment");
+			if (assignment.Operator == AssignmentOperator.Assign && TryExpandErasedPointer(assignment.Value, valueType, targetType) is Expression expandedValue)
+				assignment.Value = expandedValue;
 			if (TryGetAssignmentTargetConstOfType(assignment.Target, out TypeReference? constOfType))
 				CheckConstOfProducedResult(constOfType, assignment.Value, assignment.Value?.SourceSyntax ?? assignment.SourceSyntax, "Assignment");
 			CheckLifetimeAssignment(assignment.Target, assignment.Value, assignment.Value?.SourceSyntax ?? assignment.SourceSyntax, scope, "Assignment");

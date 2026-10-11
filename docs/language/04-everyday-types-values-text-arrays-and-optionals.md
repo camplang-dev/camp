@@ -283,6 +283,28 @@ bare erased element; use a dynamic array with stack allocation as above.
 `stackalloc void<V> slot = value;` also creates a single local storage object.
 Its read type is `V`, and its address type is `void<V>*`.
 
+A `stackalloc` local is for a value of unspecified size: a `void<V>` or an
+erased type parameter (`any`, `copyable` or `implements I`, with `sizeof(T)` in
+scope). `stackalloc int x`, `stackalloc Point p`, `stackalloc long<Color> c` and
+`stackalloc T x` for a representation `T` are errors; write an ordinary local
+instead. `stackalloc` array and construction expressions (`stackalloc int[4]`,
+`stackalloc Point()`) are unaffected. `auto` never infers a `stackalloc` local,
+so a `void<V>` local is always written out. An explicit cast to an erased type
+is the spelling of the conversion the value already receives, and is valid in a
+`stackalloc` initializer, as an `in void<V>` argument, or when writing into
+`void<V>` storage:
+
+```camp
+stackalloc void<int?> a = 42;
+stackalloc void<int?> b = (void<int?>)42;
+auto c = (void<int?>)42;          // error: auto cannot infer a stackalloc local
+auto d = (int?)42;                // int?
+```
+
+Storage for every `stackalloc` local is allocated once when the function is
+entered, even when the local is declared in a loop. The initializer still runs
+where the declaration is written, on every pass.
+
 Erased types cannot be ordinary by-value locals or fields. They may be written
 behind pointers, as array elements, as `in`/`out` parameters (including optional
 forms), as optional results, and in generic arguments behind pointers. `V`

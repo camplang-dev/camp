@@ -76,6 +76,80 @@ int carrierStorage()
 	return 0;
 }
 
+interface Reader { int read(); }
+struct Counter: Reader { int n; int read(): Reader => this.n; }
+int pointerCalls;
+int storageEvaluations;
+int nextValue() { storageEvaluations++; return storageEvaluations; }
+int readOptional(in void<int?> value) { int? read = value; return read.specified ? read.value : -1; }
+int sumOptional(const int?* source) { int? read = *source; return read.specified ? read.value : -1; }
+void fillOptional(int?* target, int value) { *target = value; }
+void fillArray(int[]?* target, int[] data) { *target = data; }
+void<int?>* countedPointer(void<int?>* slot) { pointerCalls++; return slot; }
+int sameStorageAcrossLoop<T: copyable>(T[] values, sizeof(T))
+{
+	T* previous = null;
+	for (nuint i = 0; i < values.length; i++)
+	{
+		stackalloc T scratch = values[i];
+		T* address = &scratch;
+		if (i > 0 && address != previous) return 0;
+		previous = address;
+	}
+	return 1;
+}
+int interfaceStorage<T: implements Reader>(T* source, sizeof(T), vtableof(T: Reader))
+{
+	stackalloc T copy = *source;
+	T* address = &copy;
+	return address.read();
+}
+
+int erasedStackAllocForms()
+{
+	stackalloc void<int?> cast = (void<int?>)42;
+	if (readOptional(cast) != 42 || readOptional((void<int?>)5) != 5) return 201;
+	cast = (void<int?>)6;
+	if (readOptional(cast) != 6) return 202;
+	storageEvaluations = 0;
+	int total = 0;
+	for (int i = 0; i < 3; i++)
+	{
+		stackalloc void<int?> inLoop = (void<int?>)nextValue();
+		total += readOptional(inLoop);
+	}
+	if (storageEvaluations != 3 || total != 6) return 203;
+	int[] numbers = [4, 5, 6];
+	if (sameStorageAcrossLoop(numbers) != 1) return 204;
+	Counter counter = { 17 };
+	if (interfaceStorage(&counter) != 17) return 205;
+
+	stackalloc void<int?> expanded = default;
+	fillOptional(&expanded, 12);
+	if (readOptional(expanded) != 12 || sumOptional(&expanded) != 12) return 206;
+	pointerCalls = 0;
+	fillOptional(countedPointer(&expanded), 13);
+	if (pointerCalls != 1 || readOptional(expanded) != 13) return 207;
+	int?* direct = &expanded;
+	*direct = 14;
+	int?* assigned = direct;
+	assigned = countedPointer(&expanded);
+	*assigned = 15;
+	if (pointerCalls != 2 || readOptional(expanded) != 15) return 208;
+	void<int?>[] slots = stackalloc void<int?>[2];
+	slots[0] = default;
+	slots[1] = default;
+	fillOptional(&slots[1], 31);
+	int? lastSlot = slots[1];
+	if (slots[0].specified || !lastSlot.specified || lastSlot.value != 31) return 209;
+	stackalloc void<int[]?> arraySlot = default;
+	int[] data = [1, 2, 3];
+	fillArray(&arraySlot, data);
+	int[]? readBack = arraySlot;
+	if (!readBack.specified || readBack.length != 3 || readBack[2] != 3) return 210;
+	return 0;
+}
+
 export int main()
 {
 	stackalloc void<int> scalar = 7;
@@ -150,6 +224,8 @@ export int main()
 	if (wholeCallable(71) != 72 || callable(81) != 82) return 10;
 	int carrierResult = carrierStorage();
 	if (carrierResult != 0) return carrierResult;
+	int stackAllocResult = erasedStackAllocForms();
+	if (stackAllocResult != 0) return stackAllocResult;
 	Console.writeLine("erased storage passed");
 	if (typenameof(void<int?>).Length != typenameof(int).Length || typenameof(void<int?>)[0] != 'I') return 13;
 	if (typenameof(void<Integer>).Length != typenameof(int).Length || typenameof(void<Integer>)[0] != 'I') return 21;

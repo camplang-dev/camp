@@ -332,7 +332,8 @@ to use `void<V>`.
 
 Written erased types are permitted behind pointers (including multiple depths
 and constness), as dynamic array elements, as `in`/`out` parameters, as optional
-results, and as `stackalloc` locals. Optional erased parameters require `in` or
+results, and as `stackalloc` locals; a `stackalloc` local must be a `void<V>` or an
+erased type parameter. Optional erased parameters require `in` or
 `out`. A generic argument may contain erased storage behind a pointer. Bare
 results, by-value parameters, ordinary locals, fields, fixed-size array elements
 and by-value generic arguments cannot name erased storage. Validation applies to
@@ -349,7 +350,10 @@ values[0] = copy;
 
 Reads produce `V`; writes store `V`. A stack storage address has type
 `void<V>*`. An ordinary expandable address remains distributive and has one
-pointer per component. It cannot convert to an erased storage pointer.
+pointer per component. It cannot convert to an erased storage pointer. The
+reverse direction is implicit: any `void<V>*` of an expandable `V` expands to
+the distributive `V*`, with one pointer per component addressing that component
+inside the one storage object. A computed source pointer is evaluated once.
 Materialized members use logical component names, such as `value` and
 `specified`, `elements` and `length`, or `call` and `context`. Erased arrays
 index by the size of the complete object, including all components.

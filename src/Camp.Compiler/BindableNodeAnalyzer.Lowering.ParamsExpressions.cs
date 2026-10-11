@@ -1405,7 +1405,8 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		components = [];
 		if (expression is UnaryExpression { Operator: UnaryOperator.AddressOf } erasedAddress
-			&& TryGetErasedStorageType(erasedAddress.Operand, out _))
+			&& TryGetErasedStorageType(erasedAddress.Operand, out _)
+			&& ErasedTypeIdentity.TryGetPayload(TryGetPointerElementType(erasedAddress.ResolvedType), out _))
 			return false;
 		if (expression is MemberExpression preparedLengthMember && TryRegisterPreparedLengthMember(preparedLengthMember, out _))
 			return false;

@@ -13,6 +13,7 @@ static int __camp_delegate_valueOfInt(void *arg0, const void *arg1)
 
 int Array_sumGeneric(void *this, uintptr_t this_length, int (* valueOf)(void *arg0, const void *arg1), void *valueOf_context, uintptr_t sizeof_T)
 {
+	uint8_t *__stack0 = __builtin_alloca(sizeof_T);
 	int total = 0;
 	{
 		void *_foreachElements0 = this;
@@ -20,7 +21,7 @@ int Array_sumGeneric(void *this, uintptr_t this_length, int (* valueOf)(void *ar
 		uintptr_t _foreachIndex2 = 0;
 		while ((_foreachIndex2 < _foreachLength1))
 		{
-			uint8_t *item = __builtin_alloca(sizeof_T);
+			uint8_t *item = __stack0;
 			__builtin_memset(item, 0, sizeof_T);
 			__builtin_memmove(item, (void*)(((uint8_t*)_foreachElements0) + (_foreachIndex2 * sizeof_T)), sizeof_T);
 			total += valueOf(valueOf_context, item);

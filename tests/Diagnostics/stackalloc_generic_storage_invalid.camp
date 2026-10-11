@@ -19,3 +19,43 @@ void stackallocWithoutSize<T: copyable>(in T source)
 {
 	stackalloc T value = source;
 }
+
+struct Point { int x; int y; }
+enum Kind: int { RED, GREEN }
+
+void specifiedSizeLocals()
+{
+	stackalloc int number = 1;
+	stackalloc Point point = default;
+	stackalloc long<Kind> carrier = default;
+	stackalloc auto inferred = 5;
+}
+
+void representationLocal<T: long>(sizeof(T))
+{
+	stackalloc T value = default;
+}
+
+void specifiedSizeForeach(int[] values)
+{
+	foreach (stackalloc int item in values)
+	{
+	}
+}
+
+int readOptional(in void<int?> value) { int? read = value; return read.specified ? read.value : -1; }
+
+void erasedAuto()
+{
+	auto cast = (void<int?>)42;
+}
+
+void erasedCastOutsideStorage(int?* pointer)
+{
+	int? plain = (void<int?>)1;
+	int total = readOptional((void<int?>)2);
+	(void<int?>)3;
+	stackalloc void<int?> storage = (void<int?>)4;
+	void<int?>* reverse = pointer;
+	storage = (void<int?>)5;
+}

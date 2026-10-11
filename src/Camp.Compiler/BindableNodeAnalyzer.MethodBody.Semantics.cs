@@ -60,6 +60,8 @@ public sealed partial class BindableNodeAnalyzer
 
 	void CheckAssignable(string expected, string actual, Expression? value, SyntaxNode? syntax, string context)
 	{
+		if (ErasedTypeIdentity.TryGetPayload(expected, out _))
+			ClaimErasedStorageCast(value);
 		if (expected == ErrorType || actual == ErrorType || expected == TargetType || actual == TargetType)
 			return;
 		if (value is PreparedBufferExpression { ConvertedResultType: string converted } && converted == expected)
@@ -280,6 +282,9 @@ public sealed partial class BindableNodeAnalyzer
 				&& normalizedNominalSource == normalizedNominalTarget)
 				return new ConversionClassification(ConversionLevel.Implicit, ConversionReason.None);
 		}
+
+		if (TryGetErasedPointerExpansion(source, target, out _))
+			return new ConversionClassification(ConversionLevel.Implicit, ConversionReason.None);
 
 		if (TryClassifyConstructedTypeRewrite(source, target, out ConversionClassification constructedRewrite))
 			return constructedRewrite;

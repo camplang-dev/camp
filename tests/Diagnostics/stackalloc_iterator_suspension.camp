@@ -23,3 +23,20 @@ struct iter T assignBeforeReuse<T: copyable>(T[] values, sizeof(T))
 	current = values[1];
 	yield current;
 }
+
+struct iter int duplicateErased()
+{
+	stackalloc void<int?> current = (void<int?>)1;
+	yield (int)current;
+	int? again = current;
+	yield 2;
+}
+
+struct iter int reassignErased()
+{
+	stackalloc void<int?> current = (void<int?>)1;
+	yield 1;
+	current = (void<int?>)2;
+	int? again = current;
+	yield 2;
+}
