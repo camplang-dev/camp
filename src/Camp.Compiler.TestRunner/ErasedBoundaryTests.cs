@@ -212,4 +212,54 @@ public sealed class ErasedBoundaryTests
 		Assert.Contains(SemanticCompiler.CompileLowered("struct Secret { int value; } export Secret* bad(Secret* p) => p;").Diagnostics,
 			diagnostic => diagnostic.Contains("exposes non-exported type"));
 	}
+
+	[Theory]
+	[InlineData(false)]
+	[InlineData(true)]
+	public void Hidden_carriers_project_to_plain_carriers_without_relaxing_ordinary_visibility(bool lower)
+	{
+		string source = """
+			enum SecretKind: int { A, B }
+			alias HiddenAlias = SecretKind;
+			public enum PackageKind: int { C, D }
+			export enum VisibleKind: int { E, F }
+			export extern class Box<T: any>;
+			export struct Handle { long<SecretKind> hidden; long<VisibleKind> shown; long<PackageKind> packaged; int<HiddenAlias>[] items; long<SecretKind>* link; }
+			export long<SecretKind> make(long<SecretKind> kind, long<VisibleKind>* shown) => kind;
+			export newtype delegate long<SecretKind> Pick(long<SecretKind> kind);
+			export Box<long<SecretKind>>* box(Box<long<SecretKind>>* value) => value;
+			""";
+		SemanticCompilation compilation = lower ? SemanticCompiler.CompileLowered(source) : SemanticCompiler.CompileDeclarations(source);
+		SemanticCompiler.AssertNoDiagnostics(compilation);
+		using StringWriter writer = new();
+		BindableNodeCodeSerializer.Serialize(compilation.Module, writer, new BindableNodeCodeSerializerOptions { ApiHeader = true });
+		string api = writer.ToString();
+		Assert.DoesNotContain("SecretKind", api);
+		Assert.DoesNotContain("HiddenAlias", api);
+		Assert.DoesNotContain("PackageKind", api);
+		Assert.Contains("long hidden;", api);
+		Assert.Contains("long<VisibleKind> shown;", api);
+		Assert.Contains("long packaged;", api);
+		Assert.Contains("int[] items;", api);
+		Assert.Contains("long* link;", api);
+		Assert.Contains("long make(long kind, long<VisibleKind>* shown)", api);
+		Assert.Contains("newtype delegate long Pick(long kind)", api);
+		Assert.Contains("Box<long>* box(Box<long>* value)", api);
+		SemanticCompiler.AssertNoDiagnostics(SemanticCompiler.CompileLowered(api));
+		using StringWriter publicWriter = new();
+		BindableNodeCodeSerializer.Serialize(compilation.Module, publicWriter, new BindableNodeCodeSerializerOptions { ApiHeader = true, ApiSurface = CampApiSurfaceKind.Public });
+		string publicApi = publicWriter.ToString();
+		Assert.DoesNotContain("SecretKind", publicApi);
+		Assert.Contains("long<PackageKind> packaged;", publicApi);
+		SemanticCompilation consumer = SemanticCompiler.CompileLowered(publicApi);
+		Assert.True(consumer.Diagnostics.Count == 0, publicApi + "\n" + string.Join("\n", consumer.Diagnostics));
+		string metadata = MetadataJsonSerializer.Serialize(compilation.Compilation, MetadataVisibility.Export);
+		Assert.DoesNotContain("SecretKind", metadata);
+		Assert.DoesNotContain("PackageKind", metadata);
+		string all = MetadataJsonSerializer.Serialize(compilation.Compilation, MetadataVisibility.All).Replace("\\u003C", "<").Replace("\\u003E", ">");
+		Assert.Contains("long<SecretKind>", all);
+		Assert.Contains(lower ? "int<SecretKind>[]" : "int<HiddenAlias>[]", all);
+		Assert.Contains(SemanticCompiler.CompileLowered("enum SecretKind: int { A } export SecretKind bad(SecretKind kind) => kind;").Diagnostics,
+			diagnostic => diagnostic.Contains("exposes non-exported type"));
+	}
 }

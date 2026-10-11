@@ -133,17 +133,34 @@ unnameable internal source types.
 
 ## Generated Versus Source Declarations
 
-An annotation inside `void<V>` is not a visibility dependency. Ordinary private
-types still cannot appear in a public or exported signature. API and metadata
-views retain `void<V>` when that view includes `V`; otherwise they expose the
-opaque ABI: `void*`, `const void*`, or pointer plus `nuint` length for an array.
-Hidden `in` and `out` slots become ordinary const/writable pointer parameters.
-A hidden erased-array result becomes an opaque pointer result with a trailing
-`out nuint result_length` parameter, in both declaration and lowered API views.
-A hidden optional erased result becomes `bool` plus a writable result pointer,
-before allocator, error and capability slots. The producer retains the annotation
-for analysis and member access. Private annotations must not pull private layout
-declarations into the public API dependency closure.
+An annotation inside `void<V>` or an integer carrier `C<V>` is not a visibility
+dependency. Ordinary private types still cannot appear in a public or exported
+signature. API and metadata views retain `void<V>` when that view includes `V`;
+otherwise they expose the opaque ABI: `void*`, `const void*`, or pointer plus
+`nuint` length for an array. Hidden `in` and `out` slots become ordinary
+const/writable pointer parameters. A hidden erased-array result becomes an
+opaque pointer result with a trailing `out nuint result_length` parameter, in
+both declaration and lowered API views. A hidden erased result (`void<V>`) becomes
+a `void` result with a trailing writable `void* __result` parameter, before
+allocator, error and capability slots, matching the written erased-result ABI.
+The producer retains the annotation for analysis and member access. Private
+annotations must not pull private layout declarations into the public API
+dependency closure.
+
+A carrier is projected by the same visibility test with a different result: a view
+that can see `V` retains `C<V>`, and a view that cannot see `V` shows the plain
+carrier `C`. For example, an exported `long<PrivateKind> kind;` field is `long
+kind;` in the exported Camp API and metadata, and `int64_t kind;` in the C
+header, while the producer and `--metadata all` keep `long<PrivateKind>`. The
+same projection applies at every depth: `int<Hidden>[]` is `int[]`,
+`long<Hidden>*` is `long*`, `Box<long<Hidden>>*` is `Box<long>*`, and a callable
+type's parameters and result project independently. Only a hidden `V` projects; a
+carrier of a visible type keeps its annotation, so a consumer can read it as `V`.
+The plain carrier is the same C type the annotated carrier lowers to, so the
+projection changes the consumer's source view and never the ABI. A hidden `V`
+adds no declaration or forward typedef to the exported Camp API, JSON or C header.
+Conversion views are an analysis device and never appear in metadata, the Camp
+API, serialized source or symbol displays: they show the written type.
 
 Erased annotations remain part of generic identity in an authorized source view.
 For an inaccessible annotation, `Box<void<Private>*>*` projects to

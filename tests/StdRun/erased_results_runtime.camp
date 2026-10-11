@@ -39,6 +39,12 @@ int observe(out void<int?> target, void<int?>* direct, int?* ordinary)
 int observeScalar(out void<int> target, int* source) { target = 41; return *source; }
 int observeInput(in void<int?> source, int?* ordinary) { ordinary.value = 31; return source.value; }
 int observeStoredInput(in void<int?> source, void<int?>* stored) { stored.value = 37; return source.value; }
+virtual class Shape
+{
+	virtual void<int> area() { return 1; }
+	virtual void<Point> shifted(int dx) { Point p = { dx, 2 }; return p; }
+}
+sealed class Square: Shape { override void<int> area() { return 4; } }
 export int main()
 {
 	int n = identity<int>(4);
@@ -114,5 +120,9 @@ export int main()
 	if (cleanCopy.value != 5 || cleanups != 1) return 28;
 	relay(found, out optionalCopy);
 	if (!optionalCopy.specified || optionalCopy.value != 7) return 29;
+	Square* square = new Square() finally delete;
+	Shape* shape = square;
+	Shape* plain = new Shape() finally delete;
+	if (shape.area() != 4 || plain.area() != 1 || plain.shifted(6).x != 6 || shape.shifted(5).y != 2) return 30;
 	return 0;
 }

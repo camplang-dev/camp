@@ -66,11 +66,12 @@ Each pass owns certain rules:
 
 - declaration collection owns duplicate declarations and scope setup;
 - type binding owns unknown types, invalid specifiers, lifetime/const anchors,
-  and capability parameter binding;
+  capability parameter binding, and the operand of an integer carrier `C<V>`;
 - declaration validation owns inheritance, interface conformance, virtual
   rules, extern rules, inline constants, and callable ascription;
 - body analysis owns expression typing, overload resolution, call arguments,
-  conversions, flow, returns, `await`, `yield`, and `delete`;
+  conversions, flow, returns, `await`, `yield`, `delete`, `stackalloc` local
+  eligibility, and the contexts that accept a `(void<V>)e` cast;
 - lowering validation owns generated-form constraints and unsupported lowering
   surfaces;
 - target validation owns target-specific specs and unsupported primitives;
@@ -152,6 +153,12 @@ Examples of useful wording patterns:
   constraint."
 - "Method `read` does not implement interface member `IReadable.read(...)`
   because it is missing an explicit interface marker."
+- "'Wide' is not a valid carried type for byte<V>: it is wider than 'byte' and
+  does not satisfy 'T: byte'." A carrier operand names the representation
+  constraint it fails, not only the carrier.
+- "A stackalloc local must be an erased type parameter or a void<V>; declare
+  'int count' as an ordinary local." A rejected `stackalloc` local names the
+  ordinary spelling to use instead.
 - "Async definitions that can suspend require a resumer; add `@awaitwith` to an
   ordinary parameter or define `resumeAsync` on the receiver."
 

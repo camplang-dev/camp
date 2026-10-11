@@ -115,9 +115,11 @@ pass.
 Use `void<PrivateType>*` for an opaque pointer whose implementation type is
 private. Camp code in the implementation retains typed member access. Consumers
 that cannot see the annotation receive `void*`; a const pointer receives
-`const void*`. Erased arrays expose a pointer and length. An optional erased
-result exposes a boolean and a caller-provided pointer. Publish a size function
-or allocation API when consumers must provide storage for a hidden payload.
+`const void*`. Erased arrays expose a pointer and length. A `void<PrivateType>`
+result becomes a `void` function with a trailing caller-provided `void*`. An
+integer carrier such as `long<PrivateKind>` appears to consumers that cannot
+see `PrivateKind` as a plain `long` and keeps its `long` ABI. Publish a size
+function or allocation API when consumers must provide storage for a hidden payload.
 The annotation also permits private pointers in exported struct iterator state.
 See [metadata and API semantics](../semantics/11-metadata-api-surface-and-symbols.md).
 

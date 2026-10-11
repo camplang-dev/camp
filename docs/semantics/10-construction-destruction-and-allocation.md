@@ -242,6 +242,37 @@ escaped storage, retained by heap/escaped receivers, or used across suspension.
 The implementation may conservatively reject stackalloc in async/generator
 bodies rather than prove fine-grained post-suspension liveness.
 
+### `stackalloc` Locals
+
+A named `stackalloc` local (and a `foreach (stackalloc ...)` target) declares a
+single object of unspecified size, so its type must be either a `void<V>` or an
+erased type parameter (`any`, `copyable` or `implements I`) whose `sizeof(T)`
+capability is in scope. A local of a specified-size type is an error that names
+the ordinary local to write instead:
+
+```camp
+stackalloc void<int?> slot = 4;        // OK
+stackalloc T temp = values[0];         // OK in <T: any> with sizeof(T)
+stackalloc int count = 4;              // error: declare 'int count' as an ordinary local
+stackalloc long<Color> kind = RED;     // error: a carrier has a specified size
+```
+
+Allocation expressions are unchanged: `stackalloc int[4]`, `stackalloc char[n]`
+and `stackalloc Point()` select activation-stack storage as before. A carrier or
+`T: long` has a specified size, so neither is a `stackalloc` local.
+
+`auto` never infers a `stackalloc` local. `(void<V>)e` is the explicit spelling of
+the implicit conversion into erased storage. It is valid only as a `stackalloc`
+initializer, as an `in void<V>` argument, or when writing into `void<V>` storage,
+and is an error elsewhere.
+
+The storage of every such local is allocated once on entry to the function, or
+once on entry to each resume activation of an async or iterator body, never once
+per loop pass. Only the allocation is hoisted: the initializer and its side
+effects run at the declaration each time it is reached, and each pass of a loop
+sees the same storage address. The local is unassigned after each `yield` or
+`await`, and a read before the next assignment is an error.
+
 ### `(new)` Prepared Allocation
 
 Parenthesized `(new)` is the allocation modifier for a direct transformed prep

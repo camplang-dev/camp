@@ -448,7 +448,7 @@ full details.
 | `delegate R(...)` | Callable with context | Use for captures and stored callbacks. |
 | `once R(...)` | Callable consumed at most once | Common for continuations and async completion. |
 | `escaped`, `scoped`, `within` | Lifetime and allocation controls | State them when values cross storage or async boundaries. |
-| `void<V>` | One storage object annotated with payload `V`; C form is `void` | Use behind pointers, in dynamic arrays, in/out parameters, optional results, or stackalloc locals. |
+| `void<V>` | One storage object annotated with payload `V`; C form is `void` | Use behind pointers, in dynamic arrays, in/out parameters, results, or stackalloc locals. |
 | `C<V>` for `byte`, `ushort`, `short`, `uint`, `int`, `ulong`, `long`, `nuint`, `nint` | Integer carrier: a value of type `V` stored and passed as the integer `C` | Use when an enum, newtype, narrower integer or (for `nint`/`nuint`) pointer must cross the ABI at a fixed integer width. It has a specified size, so it can be a field, local, parameter or result. It reads as `V`; `V` must satisfy `T: C`. See [Generics And Capabilities](language/13-generics-and-capabilities.md). |
 | `void*`, `fn*`, `nint`, `nuint`, `untyped` | Raw carriers | Keep raw spans short and reconstruct typed values explicitly. |
 

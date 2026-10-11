@@ -1373,6 +1373,9 @@ public static class CCodeEmitter
                     foreach (string dependency in GetPointerTypeDependencyNames(attributed.Type))
                         yield return dependency;
                     yield break;
+                // C<V> is laid out as the integer C; V adds no declaration to the API header.
+                case GenericTypeReference carrier when CarrierTypeIdentity.TryGetPayload(carrier.ResolvedType, out _):
+                    yield break;
                 case GenericTypeReference generic:
                     foreach (string dependency in GetPointerTypeDependencyNames(generic.Type))
                         yield return dependency;

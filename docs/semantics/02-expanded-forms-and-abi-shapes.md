@@ -331,13 +331,13 @@ erased type directly. The removed `struct(V)` syntax is diagnosed with guidance
 to use `void<V>`.
 
 Written erased types are permitted behind pointers (including multiple depths
-and constness), as dynamic array elements, as `in`/`out` parameters, as optional
-results, and as `stackalloc` locals; a `stackalloc` local must be a `void<V>` or an
-erased type parameter. Optional erased parameters require `in` or
-`out`. A generic argument may contain erased storage behind a pointer. Bare
-results, by-value parameters, ordinary locals, fields, fixed-size array elements
-and by-value generic arguments cannot name erased storage. Validation applies to
-written types before substitution.
+and constness), as dynamic array elements, as `in`/`out` parameters, as bare
+results (`void<int> seven()` returns through caller storage), and as `stackalloc`
+locals; a `stackalloc` local must be a `void<V>` or an erased type parameter. A
+generic argument may contain erased storage behind a pointer. By-value parameters,
+ordinary locals, fields, fixed-size array elements and by-value generic arguments
+cannot name erased storage, and `void<V>` is never an optional payload. Validation
+applies to written types before substitution.
 
 ```camp
 stackalloc void<int?> stored = 3;

@@ -130,8 +130,8 @@ public sealed partial class BindableNodeAnalyzer
 			return false;
 		string? underlying = definition switch
 		{
-			EnumDefinition enumDefinition => enumDefinition.UnderlyingType?.ResolvedType ?? "int",
-			NewtypeDefinition { UnderlyingType: not null } newtype => newtype.UnderlyingType.ResolvedType,
+			EnumDefinition enumDefinition => enumDefinition.UnderlyingType is null ? "int" : GetDeclaredUnderlyingName(enumDefinition.UnderlyingType),
+			NewtypeDefinition { UnderlyingType: not null } newtype => GetDeclaredUnderlyingName(newtype.UnderlyingType),
 			_ => null
 		};
 		if (underlying is null || !IsIntegerWidthName(StripTopLevelValueQualifiers(underlying)))
@@ -139,6 +139,11 @@ public sealed partial class BindableNodeAnalyzer
 		width = GetCarrierWidth(StripTopLevelValueQualifiers(underlying), shape.TargetSpec);
 		return true;
 	}
+
+	// A callable signature can be checked before the declaration that owns the underlying type is
+	// analyzed, so a primitive written in source is read directly.
+	string? GetDeclaredUnderlyingName(TypeReference underlying) =>
+		underlying.ResolvedType ?? (underlying is PrimitiveTypeReference primitive ? GetPrimitiveTypeName(primitive.Type) : null);
 
 	static bool IsIntegerWidthName(string name) => name is "byte" or "sbyte" or "ushort" or "short" or "uint" or "int" or "ulong" or "long" or "nuint" or "nint";
 

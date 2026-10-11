@@ -166,6 +166,31 @@ first(constBytes, out mutableResult);   // error
 An omitted trailing `out` binding should infer the substituted result type, not
 an unresolved `constof(...)` type.
 
+## Annotated Types In Signature Comparison
+
+Signature and callable comparison classify types in the conversion view defined
+in [Conversions, Raw Carriers, And Fence Casts](03-conversions-raw-carriers-and-fence-casts.md),
+after the signatures are erasure-substituted. The view is applied recursively,
+so a nested callable parameter or result is compared the same way as a top-level
+one:
+
+- a `void<V>` of a non-expandable `V` matches `V` in `in`, `out`, pointer and
+  array positions, but a `void<V>` *result* is protected at every depth and is
+  never read as `V` or as a trailing `out V`;
+- an integer carrier in a callable signature stays a nominal value newtype:
+  `fn void(long<Color>)` does not match `fn void(Color)` or `fn void(long)`, and
+  `delegate long<Color>()` does not match `delegate Color()`;
+- an expandable `V` is never stripped, so `in int?` does not match `in void<int?>`;
+- matching compares written shapes. Call-form result binding is separate: a
+  written `void<V>` result and a call that reads it as `V` are both valid, while
+  a trailing `out V` is still an ordinary parameter and never fills a `void<V>`
+  result slot.
+
+Virtual and abstract overrides remain exact in the written types: an override
+matches the base method's annotations as written, not their views, because the
+override is an ABI slot. These rules apply to callable values, newtype
+ascription, lambdas, method references and interface implementations.
+
 ## Callable Variance
 
 Callable and signature compatibility applies `constof` variance:

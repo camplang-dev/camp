@@ -351,7 +351,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	static IEnumerable<TypeDefinition> GetDefinitionTypes(TypeReference type)
 	{
-		if (ErasedTypeIdentity.TryGetPayload(type.ResolvedType, out _)) yield break;
+		if (ErasedTypeIdentity.TryGetPayload(type.ResolvedType, out _) || CarrierTypeIdentity.TryGetPayload(type.ResolvedType, out _)) yield break;
 		switch (type)
 		{
 			// The annotation describes private storage, not a visible dependency.
@@ -468,7 +468,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	static IEnumerable<NamedTypeReference> GetNamedTypes(TypeReference type)
 	{
-		if (ErasedTypeIdentity.TryGetPayload(type.ResolvedType, out _)) yield break;
+		if (ErasedTypeIdentity.TryGetPayload(type.ResolvedType, out _) || CarrierTypeIdentity.TryGetPayload(type.ResolvedType, out _)) yield break;
 		switch (type)
 		{
 			case MaterializedStructTypeReference:

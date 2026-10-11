@@ -34,6 +34,26 @@ public sealed class CommandLineTests
 			extern void free(void* pointer);
 			struct PrivateValue { int value; }
 			int live;
+			enum PrivateKind: int { A = 3, B = 5 }
+			export enum PublicKind: int { X = 1, Y = 6 }
+			export struct Handle { long<PrivateKind> kind; long<PublicKind> shown; }
+			export long<PrivateKind> makeKind(bool second) { if (second) { long<PrivateKind> b = B; return b; } long<PrivateKind> a = A; return a; }
+			export bool isSecond(long<PrivateKind> kind) { PrivateKind value = kind; return value == B; }
+			export long<PublicKind> makeShown() { long<PublicKind> shown = Y; return shown; }
+			export bool isY(long<PublicKind> shown) { PublicKind value = shown; return value == Y; }
+			export void store(Handle* handle, bool second) { handle.kind = makeKind(second); handle.shown = makeShown(); }
+			export bool check(Handle* handle) => isSecond(handle.kind) && isY(handle.shown);
+			enum K1: byte { P = 200 } enum K2: ushort { P = 60000 } enum K3: short { P = -3 } enum K4: uint { P = 4000000000 } enum K5: int { P = -7 }
+			enum K6: ulong { P = 9223372036854775808 } enum K7: long { P = -9000000000000 }
+			export struct Wide { byte<K1> a; ushort<K2> b; short<K3> c; uint<K4> d; int<K5> e; ulong<K6> f; long<K7> g; nuint<PrivateValue*> h; nint<PrivateValue*> i; long<K7>[] list; nuint<PrivateValue*>* links; }
+			export newtype delegate nint<PrivateValue*> Probe(ulong<K6> value, byte<K1>[] bytes);
+			export void fillWide(Wide* wide)
+			{
+				byte<K1> a = P; ushort<K2> b = P; short<K3> c = P; uint<K4> d = P; int<K5> e = P; ulong<K6> f = P; long<K7> g = P;
+				PrivateValue* none = null; nuint<PrivateValue*> h = none; nint<PrivateValue*> i = none;
+				wide.a = a; wide.b = b; wide.c = c; wide.d = d; wide.e = e; wide.f = f; wide.g = g; wide.h = h; wide.i = i;
+			}
+			export nuint<PrivateValue*> probeLinks(nint<PrivateValue*> value, uint<K4>* counts, Probe probe) => null;
 			export nuint storageSize() => sizeof(PrivateValue);
 			export void fill(out void<PrivateValue> value) { PrivateValue p = { 7 }; value = p; }
 			export int read(in void<PrivateValue> value) => value.value;
@@ -64,6 +84,16 @@ public sealed class CommandLineTests
 			if (!find(0, storage) || read(storage) != 9) return 2;
 			if (find(1, storage) || read(storage) != 0) return 3;
 			free(storage);
+			Handle handle = default;
+			store(&handle, true);
+			long kind = makeKind(true);
+			if (!check(&handle) || !isSecond(kind) || isSecond(makeKind(false)) || handle.kind != kind) return 5;
+			long<PublicKind> shown = handle.shown;
+			if (!isY(shown) || sizeof(Handle) != 16) return 6;
+			Wide wide = default;
+			fillWide(&wide);
+			byte a = wide.a; ushort b = wide.b; short c = wide.c; uint d = wide.d; int e = wide.e; ulong f = wide.f; long g = wide.g; nuint h = wide.h; nint i = wide.i;
+			if (a != 200 || b != 60000 || c != -3 || d != 4000000000 || e != -7 || f != 9223372036854775808 || g != -9000000000000 || h != 0 || i != 0) return 8;
 			int total = 0;
 			foreach (int value in values()) total += value;
 			if (total != 15 || liveCount() != 0) return 4;
@@ -76,7 +106,16 @@ public sealed class CommandLineTests
 		AssertCommandSucceeded(RunExecutable(Path.Combine(output, ArtifactDirectoryForHost(NativeBuildKind.Exec), "consumer" + ExecutableExtensionForHost())));
 		string artifact = Path.Combine(library, "bin", ArtifactDirectoryForHost(NativeBuildKind.Static));
 		foreach (string extension in new[] { "camp", "json", "h" })
-			Assert.DoesNotContain("PrivateValue", File.ReadAllText(Path.Combine(artifact, "opaque_api." + extension)));
+		{
+			string api = File.ReadAllText(Path.Combine(artifact, "opaque_api." + extension));
+			Assert.DoesNotContain("PrivateValue", api);
+			Assert.DoesNotContain("PrivateKind", api);
+			for (int kind = 1; kind <= 7; kind++)
+				Assert.DoesNotContain("K" + kind, api);
+		}
+		string campApi = File.ReadAllText(Path.Combine(artifact, "opaque_api.camp"));
+		Assert.Contains("long kind;", campApi);
+		Assert.Contains("long<PublicKind> shown;", campApi);
 		string source = Path.Combine(root, "consumer.c");
 		File.WriteAllText(source, """
 			#include "opaque_api.h"
@@ -88,6 +127,19 @@ public sealed class CommandLineTests
 			if (!find(0, storage) || read(storage) != 9) return 2;
 			if (find(1, storage) || read(storage) != 0) return 3;
 			free(storage);
+			Handle handle = {0};
+			store(&handle, true);
+			if (!check(&handle) || !isSecond(makeKind(true)) || isSecond(makeKind(false)) || handle.kind != makeKind(true)) return 5;
+			if (sizeof(handle) != 16 || !isY(handle.shown)) return 6;
+			Wide wide = {0};
+			fillWide(&wide);
+			if (sizeof(wide.a) != 1 || sizeof(wide.b) != 2 || sizeof(wide.c) != 2 || sizeof(wide.d) != 4 || sizeof(wide.e) != sizeof(int)
+				|| sizeof(wide.f) != 8 || sizeof(wide.g) != 8 || sizeof(wide.h) != sizeof(void *) || sizeof(wide.i) != sizeof(void *)
+				|| sizeof(*wide.links) != sizeof(void *)) return 7;
+			if (wide.a != 200 || wide.b != 60000 || wide.c != -3 || wide.d != 4000000000u || wide.e != -7
+				|| wide.f != 9223372036854775808ull || wide.g != -9000000000000ll || wide.h != 0 || wide.i != 0) return 8;
+			Probe probe = 0;
+			(void)probe;
 			return 0;
 			}
 			""");

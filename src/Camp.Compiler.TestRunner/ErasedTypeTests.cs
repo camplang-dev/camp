@@ -286,7 +286,7 @@ public sealed class ErasedTypeTests
 	[InlineData("nint", "nuint")]
 	public void Carriers_accept_the_arguments_of_their_representation_constraint(string carrier, string operand)
 	{
-		SemanticCompilation compilation = SemanticCompiler.CompileLowered($"{CarrierPreamble} void take({carrier}<{operand}> value, {carrier}<{operand}>* pointer, {carrier}<{operand}>[] array) {{ }}");
+		SemanticCompilation compilation = SemanticCompiler.CompileLowered($"{CarrierPreamble} void take({carrier}<{operand}> value, {carrier}<{operand}>* pointer, {carrier}<{operand}>[] array) {{ }} newtype delegate void Callback({carrier}<{operand}> value, {carrier}<{operand}>[] array);");
 		SemanticCompiler.AssertNoDiagnostics(compilation);
 	}
 

@@ -1828,7 +1828,8 @@ public sealed partial class BindableNodeAnalyzer
 
 	static string GetFunctionReturnTypeName(FunctionDefinition function)
 	{
-		return function.ResolvedType ?? GetTypeReferenceName(function.ReturnType) ?? "void";
+		// A written void<V> result has no source name yet when a virtual dispatch body is built.
+		return function.ResolvedType ?? GetTypeReferenceName(function.ReturnType) ?? (function.ReturnType is ErasedTypeReference ? FormatTypeReference(function.ReturnType) : "void");
 	}
 
 	static string? GetTypeReferenceName(TypeReference? type)

@@ -26,6 +26,12 @@ analysis keeps its original diagnostic; it does not also need an inference
 diagnostic. The existing diagnostics for void initializers and initializer lists
 without a target type remain applicable.
 
+Inference reads storage as its carried type. `auto c = slot.value` over a
+`long<Color>` field is a `Color`, never a top-level carrier or `void<V>`. `auto`
+also never infers a `stackalloc` local: `auto d = (void<int?>)42;` is an error
+that asks for `stackalloc void<int?> d`, because the cast is valid only where it
+initializes erased storage.
+
 ## Integer Literal Target Ranges
 
 An integer literal used with a primitive integral target must fit that target's
@@ -34,6 +40,11 @@ decimal, hexadecimal, and integer suffixes. This
 applies to initialization, assignment, return values, arguments, and aggregate
 elements wherever a target type is supplied. Natural integer bounds follow the
 selected target and type specifier.
+
+The target of a carrier is its carried type: `int<byte> b = 300;` is out of range
+and `long<Color> c = RED;` resolves `RED` through `Color`. Natural-width carriers
+(`nint<V>`, `nuint<V>`) and `T: nint` follow the selected target like their plain
+types.
 
 Parentheses do not bypass the check. For unary `+` or `-` on a literal, check the
 signed value as a whole rather than the positive magnitude; this preserves
@@ -1077,9 +1088,7 @@ ignores `--sourcefile-root`.
 ## Omitted Trailing `out` Result Binding
 
 Erased results use caller storage independently of omitted source `out`
-binding. A substituted erased result reads as its annotated value, and an
-optional erased result reads as that value plus an outer presence bit. The
-callee clears the entire payload when that outer result is absent.
+binding. A substituted erased result reads as its annotated value.
 
 For erased reference arguments, pass existing single-object storage directly.
 Pack ordinary expandable arguments into a temporary and copy `out` components

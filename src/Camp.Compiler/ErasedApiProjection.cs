@@ -23,27 +23,40 @@ internal sealed class ErasedApiProjection
 		}
 	}
 
+	// A hidden void<V> is opaque storage (`void`); a hidden C<V> is its plain carrier `C`.
 	public string Type(string text)
 	{
 		int start = 0;
-		while ((start = text.IndexOf("void<", start, StringComparison.Ordinal)) >= 0)
+		while (start < text.Length)
 		{
-			int end = start + 5, depth = 1;
+			int open = text.IndexOf('<', start);
+			if (open < 0) break;
+			int nameStart = open;
+			while (nameStart > 0 && (char.IsLetterOrDigit(text[nameStart - 1]) || text[nameStart - 1] == '_'))
+				nameStart--;
+			string name = text[nameStart..open];
+			bool annotation = name == "void" || CarrierTypeIdentity.IsCarrierName(name);
+			if (!annotation || nameStart > 1 && text[nameStart - 1] == ':' && text[nameStart - 2] == ':')
+			{
+				start = open + 1;
+				continue;
+			}
+			int end = open + 1, depth = 1;
 			for (; end < text.Length && depth > 0; end++)
 			{
 				if (text[end] == '<') depth++;
 				else if (text[end] == '>') depth--;
 			}
 			if (depth != 0) break;
-			string payload = text[(start + 5)..(end - 1)];
+			string payload = text[(open + 1)..(end - 1)];
 			bool hidden = Regex.Matches(payload, @"[A-Za-z_][A-Za-z_0-9]*(?:::[A-Za-z_][A-Za-z_0-9]*)*")
 				.Any(match => types.TryGetValue(match.Value, out Definition? type) && !visible(type));
 			if (hidden)
 			{
-				text = text[..start] + "void" + text[end..];
-				start += 4;
+				text = text[..nameStart] + name + text[end..];
+				start = nameStart + name.Length;
 			}
-			else start = end;
+			else start = open + 1;
 		}
 		return text;
 	}

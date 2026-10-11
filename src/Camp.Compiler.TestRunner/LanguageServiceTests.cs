@@ -335,6 +335,36 @@ public sealed class LanguageServiceTests
 	}
 
 	[Fact]
+	public void Symbol_hover_shows_written_carrier_and_erased_types()
+	{
+		string root = CreateTempDirectory("language-service-carriers");
+		string source = Path.Combine(root, "main.camp");
+		string text = """
+			enum Color: int { RED, GREEN }
+			long<Color> pick(long<Color> color, in void<int?> optional) => color;
+
+			export int main()
+			{
+				long<Color> chosen = RED;
+				Color read = pick(chosen, (void<int?>)7);
+				return 0;
+			}
+			""";
+		File.WriteAllText(source, text);
+		CampAnalysisSnapshot snapshot = CampLanguageService.Analyze(Request(root, source));
+		Assert.True(snapshot.Success, string.Join(Environment.NewLine, snapshot.Diagnostics.Select(static diagnostic => diagnostic.Message)));
+		CampSymbolQueryService symbols = new(snapshot);
+
+		CampHover? function = symbols.GetHover(source, PositionOf(text, "pick(chosen"));
+		CampHover? local = symbols.GetHover(source, PositionOf(text, "chosen, (void"));
+
+		Assert.NotNull(function);
+		Assert.Contains("long<Color> pick(long<Color> color, in void<int?> optional)", function!.Markdown, StringComparison.Ordinal);
+		Assert.NotNull(local);
+		Assert.Contains("long<Color>", local!.Markdown, StringComparison.Ordinal);
+	}
+
+	[Fact]
 	public void Symbol_query_returns_signature_help_and_clean_hover_docs()
 	{
 		string root = CreateTempDirectory("language-service-signature-help");

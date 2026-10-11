@@ -2154,7 +2154,7 @@ public sealed class BindableNodeCodeSerializer
 		{
 			string original = SerializeType(type);
 			string projected = erasedProjection.Type(original);
-			if (projected != original && ErasedTypeIdentity.TryGetPayload(original, out _))
+			if (projected != original && (ErasedTypeIdentity.TryGetPayload(original, out _) || CarrierTypeIdentity.TryGetPayload(original, out _)))
 			{
 				writer.Write(projected);
 				return;

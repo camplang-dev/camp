@@ -2483,7 +2483,8 @@ public static class CompilerDriver
 
         static void CollectApiDependencyTypes(TypeReference? type, Queue<TypeDefinition> pending, HashSet<Definition> selected)
         {
-            if (ErasedTypeIdentity.TryGetPayload(type?.ResolvedType, out _)) return;
+            // Neither annotation names a visible dependency: void<V> and C<V> are opaque to viewers that cannot see V.
+            if (ErasedTypeIdentity.TryGetPayload(type?.ResolvedType, out _) || CarrierTypeIdentity.TryGetPayload(type?.ResolvedType, out _)) return;
             switch (type)
             {
                 case null:
