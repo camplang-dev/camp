@@ -7075,8 +7075,17 @@ public static class CCodeEmitter
             }
             switch (expression)
             {
+                case ParenthesizedExpression parenthesized:
+                    return TryFormatForwardedInArgument(parenthesized.Expression, parameterType, out value);
                 case IndexExpression index when TryFormatGenericArrayElementAddress(index, out string address):
                     value = address;
+                    return true;
+                case IndexExpression index
+                    when (TryGetArrayElementType(index.Target?.ResolvedType, out string storageType)
+                        || TryGetPointerElementType(index.Target?.ResolvedType, out storageType))
+                        && ErasedTypeIdentity.TryGetPayload(storageType, out string storedPayload)
+                        && StripTypeQualifiers(storedPayload) == StripTypeQualifiers(parameterType ?? ""):
+                    value = "&" + FormatIndexExpression(index);
                     return true;
                 // Forward an existing value's storage, not a pointer-valued &expression passed to in T*.
                 case UnaryExpression { Operator: UnaryOperator.AddressOf, Operand.ResolvedType: string operandType } addressOf

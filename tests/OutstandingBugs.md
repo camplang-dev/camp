@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-283.
+Next bug number: BUG-286.
 
 ## Bug Template
 
@@ -43,30 +43,3 @@ Actual:
 Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
-
-## BUG-285: Passing an element of a `void<V>` array to an `in void<V>` parameter fails in C
-
-Date/Time: 2026-10-10 23:18 EDT
-
-Summary:
-Passing `items[i]`, an element of a `void<int?>[]`, to an `in void<int?>`
-parameter builds a compound literal of the storage type initialized from the
-element, which is invalid C.
-
-Steps to Reproduce:
-
-1. Declare `int read(in void<int?> value)`.
-2. Declare `void<int?>[] slots = stackalloc void<int?>[2];` and assign
-   `slots[1] = 4;`.
-3. Call `read(slots[1])` and build the file.
-
-Expected:
-The element storage is passed by address.
-
-Actual:
-The generated C calls `read(&(storage){ ((storage *)(slots))[1] })` and the
-native compiler rejects initializing an `int` member from a structure.
-
-Known Impact:
-An array element cannot be passed to an `in void<V>` parameter. Programs must
-read it into a `V` local or pass `&items[i]` with a `void<V>*` parameter.

@@ -1,0 +1,27 @@
+int read(in void<int?> value) => value.specified ? value.value : -1;
+int readScalar(in void<int> value) => value;
+int readArray(in void<int[]?> value) => value.specified ? value.value[1] : -1;
+int observe(in void<int?> value, void<int?>* slot) { *slot = 9; return value.value; }
+int calls;
+int nextIndex() { calls++; return 1; }
+export int main()
+{
+	void<int?>[] slots = stackalloc void<int?>[2];
+	slots[0] = default;
+	slots[1] = 4;
+	if (read(slots[0]) != -1 || read(slots[1]) != 4) return 1;
+	if (read((slots[1])) != 4) return 2;
+	if (read(slots[nextIndex()]) != 4 || calls != 1) return 3;
+	if (observe(slots[1], &slots[1]) != 9 || read(slots[1]) != 9) return 4;
+	void<int?>* pointer = &slots[1];
+	if (read(pointer[0]) != 9) return 5;
+	void<int>[] scalars = stackalloc void<int>[2];
+	scalars[1] = 6;
+	if (readScalar(scalars[1]) != 6) return 6;
+	void<int[]?>[] arrays = stackalloc void<int[]?>[2];
+	arrays[0] = default;
+	int[] numbers = [1, 8];
+	arrays[1] = numbers;
+	if (readArray(arrays[0]) != -1 || readArray(arrays[1]) != 8) return 7;
+	return 0;
+}
