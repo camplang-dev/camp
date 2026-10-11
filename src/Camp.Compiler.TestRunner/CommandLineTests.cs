@@ -5173,8 +5173,9 @@ public sealed class CommandLineTests
 
 			bool isSolid(PenStyle style = SOLID)
 			{
-				return style == SOLID && SOLID == style;
+				return style == SOLID && SOLID == style && globalStyle == SOLID && SOLID == globalStyle;
 			}
+			PenStyle globalStyle;
 
 			enum PenStyle
 			{

@@ -6749,7 +6749,7 @@ public sealed partial class BindableNodeAnalyzer
 			left = BodyAnalyzeExpression(binary.Left, scope, typeScope, enumOperandTarget);
 			right = BodyAnalyzeExpression(binary.Right, scope, typeScope, enumOperandTarget);
 		}
-		else if (IsComparisonOperator(binary.Operator) && binary.Left is NamedExpression leftName && binary.Right is not null && !CanResolveLocalNamedExpression(leftName, scope))
+		else if (IsComparisonOperator(binary.Operator) && binary.Left is NamedExpression leftName && binary.Right is not null && !CanResolveStorageNamedExpression(leftName, scope))
 		{
 			right = BodyAnalyzeExpression(binary.Right, scope, typeScope);
 			left = BodyAnalyzeExpression(binary.Left, scope, typeScope, IsEnumTargetType(right) ? right : null);
@@ -6926,9 +6926,10 @@ public sealed partial class BindableNodeAnalyzer
 		});
 	}
 
-	static bool CanResolveLocalNamedExpression(NamedExpression named, BodyScope scope)
+	bool CanResolveStorageNamedExpression(NamedExpression named, BodyScope scope)
 	{
-		return named.Qualifiers.Count == 0 && scope.TryLookup(named.Name, out _);
+		return named.Qualifiers.Count == 0 && scope.TryLookup(named.Name, out _)
+			|| LookupGlobalStorageSymbol(named, named.SourceSyntax) is not null;
 	}
 
 	static bool IsComparisonOperator(BinaryOperator op)

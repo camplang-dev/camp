@@ -44,32 +44,6 @@ Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
 
-## BUG-280: Target-typed enum member lookup fails when a global is the left comparison operand
-
-Date/Time: 2026-10-10 20:54 EDT
-
-Summary:
-In an equality comparison, an unqualified enum member on the right resolves from
-the left operand's enum type when the left operand is a local variable, but not
-when the left operand is a global variable of the same enum type.
-
-Steps to Reproduce:
-
-1. Declare `enum Color: int { RED, GREEN }` and a global `Color g;`.
-2. In a function, write `Color l = RED; if (l != RED) return 1;` and
-   `if (g != RED) return 2;`.
-3. Build the file.
-
-Expected:
-Both comparisons resolve `RED` through the enum type of the left operand.
-
-Actual:
-The local comparison compiles. The global comparison reports
-`Symbol 'RED' could not be found.`
-
-Known Impact:
-Programs must copy the global to a local or qualify the member (`Color.RED`).
-
 ## BUG-281: Representation-constraint type arguments are not checked for width or kind
 
 Date/Time: 2026-10-10 21:00 EDT

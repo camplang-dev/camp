@@ -62,6 +62,12 @@ same operand-type check to all four forms, including property updates, before
 lowering or C emission. Boolean, pointer, aggregate, array, optional, and callable
 values are not numeric operands. Writable-target and const checks also apply.
 
+## Enum Comparisons
+
+An unqualified enum member in a comparison is target-typed from the other
+operand's enum type on either side. Local and global storage, including
+namespace-qualified globals, supply the same enum context.
+
 ## Newtype Operators
 
 A newtype retains its nominal identity regardless of its carrier. Arithmetic,
