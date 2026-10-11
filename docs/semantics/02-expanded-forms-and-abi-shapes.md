@@ -195,6 +195,8 @@ component names. Reserve all expanded names against user bindings. A pointer to
 an expanded value distributes recursively over its components; those components
 need not be adjacent. `void<V>` instead provides one storage object when required,
 and `void<V>[]` stores one complete `V` per element.
+Initializing or assigning a distributive pointer from `null` defaults every
+component pointer, including the pointer to an optional's presence flag.
 
 Optional payloads must be copyable. Resolve type aliases before checking
 copyability; an alias has the same eligibility as its target type.

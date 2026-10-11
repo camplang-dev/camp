@@ -1,0 +1,23 @@
+int?* globalPointer = null;
+int?* make() => null;
+struct Holder { int?* pointer; }
+int check(int?* pointer) => pointer == null ? 0 : 1;
+export int main()
+{
+	int?* pointer = null;
+	if (pointer != null || check(pointer) != 0) return 1;
+	int? value = 7;
+	pointer = &value;
+	if (pointer == null || !pointer.specified || pointer.value != 7) return 2;
+	pointer = null;
+	if (pointer != null || globalPointer != null) return 3;
+	int?* returned = make();
+	if (returned != null) return 4;
+	Holder holder = default;
+	holder.pointer = null;
+	if (holder.pointer != null) return 5;
+	int[]?* arrayPointer = null;
+	int?** nestedPointer = null;
+	if (arrayPointer != null || nestedPointer != null) return 6;
+	return 0;
+}

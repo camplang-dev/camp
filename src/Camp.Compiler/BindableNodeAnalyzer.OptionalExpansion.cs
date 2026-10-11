@@ -86,6 +86,16 @@ public sealed partial class BindableNodeAnalyzer
 	bool TryCreateValueParamsComponents(Expression expression, ParamsComponentShape target, out List<Expression> components)
 	{
 		components = [];
+		if (UnwrapParenthesizedExpression(expression) is LiteralExpression { Kind: LiteralKind.Null }
+			&& TryGetPointerElementType(target.TypeName) is not null)
+		{
+			components = target.Components.Select(component => (Expression)new DefaultExpression
+			{
+				SourceSyntax = expression.SourceSyntax,
+				ResolvedType = component.Type
+			}).ToList();
+			return true;
+		}
 		if (expression is WithinExpression { Expression: CallExpression call } within
 			&& (IsErasedResultCall(call) || TryGetParamsComponentShape(null, call.ResolvedType, "result", out _))
 			&& currentStatementPrefix is not null)

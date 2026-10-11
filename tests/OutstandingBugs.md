@@ -44,31 +44,6 @@ Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
 
-## BUG-283: A null initializer for a pointer to an optional lowers a component to `true`
-
-Date/Time: 2026-10-10 23:18 EDT
-
-Summary:
-Initializing a pointer to an optional with `null` expands the pointer into its
-component pointers, but the presence component receives the optional's
-presence value instead of a null pointer, so the generated C does not compile.
-
-Steps to Reproduce:
-
-1. Declare `export int main() { int?* pointer = null; return 0; }`.
-2. Build the file.
-
-Expected:
-Both component pointers (`pointer` and `pointer_specified`) are null.
-
-Actual:
-The generated C declares `bool *pointer_specified = true;` and the native
-compiler rejects the integer to pointer conversion.
-
-Known Impact:
-A pointer to an optional cannot be initialized with `null`. Programs must take
-the address of an existing optional instead.
-
 ## BUG-284: Declaring `vtableof` before `sizeof` drops the vtable argument at calls
 
 Date/Time: 2026-10-10 23:18 EDT
