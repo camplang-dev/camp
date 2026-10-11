@@ -196,7 +196,9 @@ an expanded value distributes recursively over its components; those components
 need not be adjacent. `void<V>` instead provides one storage object when required,
 and `void<V>[]` stores one complete `V` per element.
 
-Optional payloads must be copyable. Direct classes, fixed structs, and fixed-size
+Optional payloads must be copyable. Resolve type aliases before checking
+copyability; an alias has the same eligibility as its target type.
+Direct classes, fixed structs, and fixed-size
 arrays require a pointer payload. Copying an optional delegate copies its target
 and context, not the referenced object. A copied `once` value has its own duty of
 one invocation. Arrays and fixed-size arrays cannot directly contain expanded

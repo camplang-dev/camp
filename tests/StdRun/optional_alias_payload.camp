@@ -1,0 +1,14 @@
+alias Count = int;
+Count? copy(Count? value) => value;
+int read(in Count? value) => value.specified ? value.value : -1;
+struct Holder { Count? value; }
+export int main()
+{
+	Count? present = 7;
+	Count? empty = default;
+	Holder holder = default;
+	holder.value = copy(present);
+	if (read(holder.value) != 7) return 1;
+	if (read(copy(empty)) != -1) return 2;
+	return 0;
+}

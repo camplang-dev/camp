@@ -1328,6 +1328,8 @@ public sealed partial class BindableNodeAnalyzer
 	bool IsCopyableTypeArgument(TypeReference type, AnalysisScope scope, HashSet<string> visitedTypes)
 	{
 		type = UnwrapTypeDeclarators(type);
+		if (typeRewrites.TryGetValue(type, out TypeReference? rewritten) && !ReferenceEquals(type, rewritten))
+			return IsCopyableTypeArgument(rewritten, scope, visitedTypes);
 		switch (type)
 		{
 			case FixedArrayTypeReference:

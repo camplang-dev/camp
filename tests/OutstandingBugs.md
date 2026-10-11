@@ -44,32 +44,6 @@ Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
 
-## BUG-282: An optional of an alias to a copyable type is rejected as non-copyable
-
-Date/Time: 2026-10-10 22:40 EDT
-
-Summary:
-An optional whose payload is written through an `alias` reports that optional
-payloads must be copyable, although the aliased type is copyable. The same
-optional written with the aliased type directly is accepted.
-
-Steps to Reproduce:
-
-1. Declare `alias Count = int;`.
-2. Declare `void take(Count? value) { }` and `void direct(int? value) { }`.
-3. Build the file.
-
-Expected:
-Both declarations are accepted, because `Count` names `int`.
-
-Actual:
-`take` reports `Optional payloads must be copyable; use a pointer to a
-non-copyable value instead.` and `direct` is accepted.
-
-Known Impact:
-An alias cannot be used as an optional payload. Programs must write the aliased
-type directly.
-
 ## BUG-283: A null initializer for a pointer to an optional lowers a component to `true`
 
 Date/Time: 2026-10-10 23:18 EDT
