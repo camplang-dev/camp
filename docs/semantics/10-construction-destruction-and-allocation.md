@@ -246,8 +246,8 @@ bodies rather than prove fine-grained post-suspension liveness.
 
 A named `stackalloc` local (and a `foreach (stackalloc ...)` target) declares a
 single object of unspecified size, so its type must be either a `void<V>` or an
-erased type parameter (`any`, `copyable` or `implements I`) whose `sizeof(T)`
-capability is in scope. A local of a specified-size type is an error that names
+erased type parameter (`any` or `copyable`) whose `sizeof(T)` capability is in
+scope. A `T: implements I` is pointer-only and is never a local. A local of a specified-size type is an error that names
 the ordinary local to write instead:
 
 ```camp
@@ -255,6 +255,7 @@ stackalloc void<int?> slot = 4;        // OK
 stackalloc T temp = values[0];         // OK in <T: any> with sizeof(T)
 stackalloc int count = 4;              // error: declare 'int count' as an ordinary local
 stackalloc long<Color> kind = RED;     // error: a carrier has a specified size
+stackalloc T item = default;           // error under <T: implements I>: use T*
 ```
 
 Allocation expressions are unchanged: `stackalloc int[4]`, `stackalloc char[n]`

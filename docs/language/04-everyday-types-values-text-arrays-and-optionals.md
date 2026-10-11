@@ -284,8 +284,8 @@ bare erased element; use a dynamic array with stack allocation as above.
 Its read type is `V`, and its address type is `void<V>*`.
 
 A `stackalloc` local is for a value of unspecified size: a `void<V>` or an
-erased type parameter (`any`, `copyable` or `implements I`, with `sizeof(T)` in
-scope). `stackalloc int x`, `stackalloc Point p`, `stackalloc long<Color> c` and
+erased type parameter (`any` or `copyable`, with `sizeof(T)` in
+scope; a `T: implements I` is pointer-only and never a local). `stackalloc int x`, `stackalloc Point p`, `stackalloc long<Color> c` and
 `stackalloc T x` for a representation `T` are errors; write an ordinary local
 instead. `stackalloc` array and construction expressions (`stackalloc int[4]`,
 `stackalloc Point()`) are unaffected. `auto` never infers a `stackalloc` local,

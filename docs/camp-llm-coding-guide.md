@@ -63,8 +63,8 @@ High-impact distinctions:
   (no constructor runs if the struct declares none) or `Value value = default;`.
   Pass `&value` where a pointer is needed. `stackalloc` is
   for storage whose size is not known at the declaration, such as `stackalloc T[count]`,
-  `stackalloc $"..."`, an erased generic `T` (`any`, `copyable` or
-  `implements I`, with `sizeof(T)`), or explicitly annotated
+  `stackalloc $"..."`, an erased generic `T` (`any` or `copyable`, with
+  `sizeof(T)`; `T: implements I` is pointer-only and has no local at all), or explicitly annotated
   `stackalloc void<V> slot = value;`. A `stackalloc` local of a known-size type
   (`int`, a `struct`, a carrier, a representation `T`) is an error; use an
   ordinary local. `auto` never infers a `stackalloc` local, and

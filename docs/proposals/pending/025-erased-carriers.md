@@ -350,6 +350,7 @@ transported only by pointer:
 
 - `T*`, `const T*`, `T[]` and `out T*` are valid.
 - A `T` result, an `in T` parameter and an `out T` parameter are errors.
+- A local `T x` and a `stackalloc T x` are errors (§5).
 
 ## 5. `stackalloc` Locals
 
@@ -364,13 +365,16 @@ one rule.
 A `stackalloc` local gives local-variable syntax to a value of unspecified
 size. Its type must be one of:
 
-- an erased type parameter (`any`, `copyable` or `implements I`), with
-  `sizeof(T)` in scope;
+- an erased type parameter (`any` or `copyable`), with `sizeof(T)` in scope;
 - a `void<V>`.
 
 Any other type is an error: `stackalloc int x`, `stackalloc Point p`,
 `stackalloc long<Color> c` and `stackalloc T x` for a representation `T`. Such
-values are ordinary locals. `stackalloc` allocation expressions
+values are ordinary locals. A `T: implements I` is pointer-only (§4.1) and has no
+local of either kind: `T x` and `stackalloc T x` are errors that suggest `T*`.
+`void<V>` is valid for a `V` that has a specified size or is expandable, never
+for an erased type parameter, which is already unspecified-size storage: `void<T>`
+is an error. `stackalloc` allocation expressions
 (`stackalloc int[4]`, `stackalloc Point()`) are unaffected.
 
 Storage for every `stackalloc` local is allocated once on entry to the
@@ -553,6 +557,8 @@ All other rows of 024 §10 are unchanged.
 | Callable mismatch between a `void<V>` result and a trailing `out V` | Error suggesting a lambda or a `void<V>` result |
 | `T` result, `in T` or `out T` under `T: implements I` | Error suggesting `T*` or `out T*` |
 | `stackalloc` local of a specified-size type | Error suggesting an ordinary local |
+| `T x` or `stackalloc T x` under `T: implements I` | Error suggesting `T*` |
+| `void<T>` for an erased type parameter `T` | Error suggesting `T` or `T*` |
 | `auto` local that would infer a `void<V>` or erased `T` | Error suggesting `stackalloc` with an explicit type |
 | `void<V>` or carrier `overload` selector | Error: annotated erased types cannot select an overload |
 | `void<V>` or carrier `this` parameter | Error: annotated erased types cannot be a receiver type |

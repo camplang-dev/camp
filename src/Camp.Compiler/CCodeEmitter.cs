@@ -4072,7 +4072,7 @@ public static class CCodeEmitter
             foreach (GenericParameter parameter in function.GenericParameters)
             {
                 currentGenericTypeNames.Add(parameter.Name);
-                if (parameter.Constraint is AnyTypeReference or CopyableTypeReference || parameter.RequiresImplementation)
+                if (parameter.Constraint is AnyTypeReference or CopyableTypeReference)
                     currentAnyGenericTypeNames.Add(parameter.Name);
                 AddRepresentationGeneric(parameter);
             }
@@ -4080,7 +4080,7 @@ public static class CCodeEmitter
                 foreach (GenericParameter parameter in containingType.GenericParameters)
                 {
                     currentGenericTypeNames.Add(parameter.Name);
-                    if (parameter.Constraint is AnyTypeReference or CopyableTypeReference || parameter.RequiresImplementation)
+                    if (parameter.Constraint is AnyTypeReference or CopyableTypeReference)
                         currentAnyGenericTypeNames.Add(parameter.Name);
                     AddRepresentationGeneric(parameter);
                 }
@@ -4145,7 +4145,7 @@ public static class CCodeEmitter
             foreach (GenericParameter parameter in type.GenericParameters)
             {
                 currentGenericTypeNames.Add(parameter.Name);
-                if (parameter.Constraint is AnyTypeReference or CopyableTypeReference || parameter.RequiresImplementation)
+                if (parameter.Constraint is AnyTypeReference or CopyableTypeReference)
                     currentAnyGenericTypeNames.Add(parameter.Name);
                 AddRepresentationGeneric(parameter);
             }

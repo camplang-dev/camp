@@ -59,3 +59,18 @@ void erasedCastOutsideStorage(int?* pointer)
 	void<int?>* reverse = pointer;
 	storage = (void<int?>)5;
 }
+
+interface PointerOnly { int read(); }
+
+void implementsLocals<T: implements PointerOnly>(T* source, sizeof(T), vtableof(T: PointerOnly))
+{
+	stackalloc T stacked = default;
+	T plain = *source;
+	auto inferred = *source;
+}
+
+void erasedOperand<T: any>(T* source, sizeof(T))
+{
+	void<T>* pointer = null;
+	stackalloc void<T> storage = default;
+}

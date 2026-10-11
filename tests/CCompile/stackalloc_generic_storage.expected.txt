@@ -68,10 +68,7 @@ static int Counter_read(Counter *this)
 
 static int readInterface(void *source, uintptr_t sizeof_T, const Reader *vtableof_T_Reader)
 {
-	uint8_t *copy = __builtin_alloca(sizeof_T);
-	__builtin_memcpy(copy, source, sizeof_T);
-	void *address = copy;
-	return vtableof_T_Reader->read(address);
+	return vtableof_T_Reader->read(source);
 }
 
 static void fillOptional(int *target, bool *target_specified, int value)

@@ -13,3 +13,8 @@ tests/Diagnostics/stackalloc_generic_storage_invalid.camp(50,14): error: Auto ca
 tests/Diagnostics/stackalloc_generic_storage_invalid.camp(59,24): error: Declaration initializer cannot convert 'int?*' to 'void<int?>*'. Use a stackalloc void<int?> local and take its address for single-object storage.
 tests/Diagnostics/stackalloc_generic_storage_invalid.camp(55,15): error: A cast to 'void<int?>' is valid only in a stackalloc initializer, as an 'in void<int?>' argument, or when writing into void<int?> storage.
 tests/Diagnostics/stackalloc_generic_storage_invalid.camp(57,2): error: A cast to 'void<int?>' is valid only in a stackalloc initializer, as an 'in void<int?>' argument, or when writing into void<int?> storage.
+tests/Diagnostics/stackalloc_generic_storage_invalid.camp(67,13): error: A type parameter constrained by 'implements' is not copyable and cannot be a stackalloc local; use 'T*', 'const T*', 'T[]' or 'out T*'.
+tests/Diagnostics/stackalloc_generic_storage_invalid.camp(68,2): error: A type parameter constrained by 'implements' is not copyable and cannot be a local; use 'T*', 'const T*', 'T[]' or 'out T*'.
+tests/Diagnostics/stackalloc_generic_storage_invalid.camp(69,2): error: A type parameter constrained by 'implements' is not copyable and cannot be a local; use 'T*', 'const T*', 'T[]' or 'out T*'.
+tests/Diagnostics/stackalloc_generic_storage_invalid.camp(74,2): error: void<V> cannot contain the erased type parameter 'T', which is already storage of unspecified size; write 'T' (or 'T*').
+tests/Diagnostics/stackalloc_generic_storage_invalid.camp(75,13): error: void<V> cannot contain the erased type parameter 'T', which is already storage of unspecified size; write 'T' (or 'T*').

@@ -31,9 +31,7 @@ struct Counter: Reader
 
 int readInterface<T: implements Reader>(T* source, sizeof(T), vtableof(T: Reader))
 {
-	stackalloc T copy = *source;
-	T* address = &copy;
-	return address.read();
+	return source.read();
 }
 
 void fillOptional(int?* target, int value)

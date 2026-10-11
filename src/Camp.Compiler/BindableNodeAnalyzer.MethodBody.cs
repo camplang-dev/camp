@@ -825,7 +825,12 @@ public sealed partial class BindableNodeAnalyzer
 		if (ErasedTypeIdentity.TryGetPayload(bare, out _))
 			return;
 		if (bare == BaseTypeName(bare) && FindBodyGenericParameter(scope, bare) is GenericParameter parameter && IsErasedGenericParameter(parameter))
+		{
+			// An interface constraint gives witness dispatch, not storage: T is pointer-only.
+			if (parameter.RequiresImplementation)
+				Report(GetRange(syntax), ImplementsValueMessage("a stackalloc local"));
 			return;
+		}
 		Report(GetRange(syntax), $"A stackalloc local must be an erased type parameter or a void<V>; declare '{WitnessTypeIdentity.Display(declaredType)} {name}' as an ordinary local.");
 	}
 
@@ -965,6 +970,16 @@ public sealed partial class BindableNodeAnalyzer
 	void ValidateErasedGenericLocalStorage(DeclarationStatement declaration, string initialType, BodyScope scope)
 	{
 		string declaredType = declaration.Target.ResolvedType ?? ErrorType;
+		if (!declaration.IsStackAllocStorage)
+		{
+			// `T: implements I` is pointer-only, so no local of type T exists, explicit or inferred.
+			string valueType = declaration.Target.Type is AutoTypeReference or null ? initialType : declaredType;
+			if (TryGetImplementsConstrainedParameter(scope, valueType))
+			{
+				Report(GetRange(declaration.Target.Type?.SourceSyntax ?? declaration.InitialValue?.SourceSyntax ?? declaration.Target.SourceSyntax ?? declaration.SourceSyntax), ImplementsValueMessage("a local"));
+				return;
+			}
+		}
 		if (!TryGetErasedGenericValueParameter(scope, declaredType, out GenericParameter? parameter))
 		{
 			if (declaration.Target.Type is AutoTypeReference or null
@@ -987,6 +1002,13 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		Report(GetRange(declaration.Target.Type?.SourceSyntax ?? declaration.Target.SourceSyntax ?? declaration.SourceSyntax), $"Erased generic type '{erasedName}' requires explicit stackalloc local storage; write 'stackalloc {erasedName} name'.");
+	}
+
+	bool TryGetImplementsConstrainedParameter(BodyScope scope, string? type)
+	{
+		string normalized = StripTopLevelValueQualifiers(type ?? "");
+		return TryParseTypeShape(normalized, out TypeShape shape) && shape.Kind == TypeShapeKind.Named
+			&& !string.IsNullOrWhiteSpace(shape.Name) && FindBodyGenericParameter(scope, shape.Name) is { RequiresImplementation: true };
 	}
 
 	bool TryGetErasedGenericValueParameter(BodyScope scope, string? type, out GenericParameter? parameter)

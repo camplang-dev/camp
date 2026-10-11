@@ -426,9 +426,10 @@ class BufferView<T: copyable>
 Local variables are different. A generic function can use local `T` storage
 when its signature carries the capabilities needed by the operation, but erased
 generic storage is explicit. Use `stackalloc T` when the function needs a
-short-lived local slot for an erased value. It is accepted for `any`,
-`copyable` and `implements I` parameters with `sizeof(T)` in scope; a
-representation parameter such as `T: long` is an ordinary local:
+short-lived local slot for an erased value. It is accepted for `any` and
+`copyable` parameters with `sizeof(T)` in scope; a `T: implements I` is
+pointer-only and has no local (use `T*`), and a representation parameter such as
+`T: long` is an ordinary local:
 
 ```camp
 T choose<T: copyable>(in T left, in T right, bool useLeft, sizeof(T))

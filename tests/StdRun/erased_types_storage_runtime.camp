@@ -100,9 +100,7 @@ int sameStorageAcrossLoop<T: copyable>(T[] values, sizeof(T))
 }
 int interfaceStorage<T: implements Reader>(T* source, sizeof(T), vtableof(T: Reader))
 {
-	stackalloc T copy = *source;
-	T* address = &copy;
-	return address.read();
+	return source.read();
 }
 
 int erasedStackAllocForms()

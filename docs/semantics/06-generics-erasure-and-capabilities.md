@@ -441,8 +441,11 @@ void swapFirst<T: copyable>(T[] values, sizeof(T))
 
 The compiler rejects ordinary `T` locals and `auto` locals that would need to
 infer stackalloc storage for an erased generic value. `stackalloc T` requires
-`sizeof(T)` in scope and is accepted for `any`, `copyable` and `implements I`
-parameters only. A `stackalloc` local of a specified-size type, including a
+`sizeof(T)` in scope and is accepted for `any` and `copyable` parameters only.
+A `T: implements I` is pointer-only: it has no local, ordinary or `stackalloc`,
+and is reached through `T*`, `const T*`, `T[]` or `out T*`. `void<T>` with an
+erased type parameter operand is an error, because `T` is already storage of
+unspecified size. A `stackalloc` local of a specified-size type, including a
 representation `T`, is an error that suggests an ordinary local. Array views, pointers, and other non-exact shapes do not
 trigger this exact-value rule.
 
