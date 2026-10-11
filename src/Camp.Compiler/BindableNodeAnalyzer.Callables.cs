@@ -48,7 +48,7 @@ public sealed partial class BindableNodeAnalyzer
 				{
 					string signature = BuildCallableType(shape.Kind, shape.ReturnType,
 						GetParameterTypeNames(newtypeDefinition.Parameters.Where(parameter => parameter is not ThisParameterDefinition)).ToList(), shape.Spec, shape.CallSpec);
-					signature = ErasedCallableSignatureType(signature, name => newtypeDefinition.GenericParameters.Any(parameter => parameter.Name == name && IsErasedGenericParameter(parameter)));
+					signature = ErasedCallableSignatureType(signature, name => ErasureWrapper(newtypeDefinition.GenericParameters.FirstOrDefault(parameter => parameter.Name == name)));
 					CallableShape declaredShape = shape;
 					TryParseCallableShape(SubstituteStorageType(signature, substitutions), out shape);
 					shape = shape with { Spec = declaredShape.Spec, CallSpec = declaredShape.CallSpec, This = thisContract };
@@ -203,18 +203,31 @@ public sealed partial class BindableNodeAnalyzer
 		return new CallableShape(shape.Kind, shape.Spec, shape.CallSpec, shape.ReturnType, GetExpandedCallableParameterTypes(shape.Parameters), shape.This);
 	}
 
+	CallableShape ExpandCallableShapeForAbi(CallableShape shape)
+	{
+		shape = LowerCallableShapeForAbi(shape);
+		return new CallableShape(shape.Kind, shape.Spec, shape.CallSpec, shape.ReturnType, GetExpandedCallableParameterTypes(shape.Parameters), shape.This);
+	}
+
 	CallableShape NormalizeErasedCallableShape(CallableShape shape)
 	{
+		return ViewCallableShape(shape);
+	}
+
+	// ABI form: a `void<V>` result becomes a trailing out slot, as emitted in C. Matching never
+	// uses this form; it compares the written shapes through the conversion view.
+	CallableShape LowerCallableShapeForAbi(CallableShape shape)
+	{
 		shape = CallableShapeService.LowerErasedResult(shape);
-		return shape with { ReturnType = NormalizeErasedCallableSlot(shape.ReturnType, false), Parameters = shape.Parameters.Select(text =>
+		return shape with { ReturnType = NormalizeAbiSlot(shape.ReturnType, false), Parameters = shape.Parameters.Select(text =>
 		{
 			CallableSlot slot = ParseCallableSlot(text);
-			string type = NormalizeErasedCallableSlot(slot.Type, slot.Modifier is "in" or "out");
+			string type = NormalizeAbiSlot(slot.Type, slot.Modifier is "in" or "out");
 			return slot.Modifier.Length == 0 ? type : slot.Modifier + " " + type;
 		}).ToList() };
 	}
 
-	string NormalizeErasedCallableSlot(string type, bool reference)
+	string NormalizeAbiSlot(string type, bool reference)
 	{
 		return RewriteStorageTypeName(type, shape => Normalize(shape, reference));
 		string Normalize(TypeShape node, bool storage)
@@ -226,7 +239,7 @@ public sealed partial class BindableNodeAnalyzer
 				return payload;
 			if (TryParseCallableShape(node.Name, out CallableShape nested))
 			{
-				nested = NormalizeErasedCallableShape(nested);
+				nested = LowerCallableShapeForAbi(nested);
 				return BuildCallableType(nested.Kind, nested.ReturnType, nested.Parameters, nested.Spec, nested.CallSpec);
 			}
 			return node.Name;
@@ -263,7 +276,7 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			shape = new CallableShape(GetCallableKindName(callable.Kind), CompilerDefinedSpecs.EffectiveType(callable.TargetSpec), CompilerDefinedSpecs.EffectiveCall(callable.CallSpec), FormatSignatureTypeReference(callable.ReturnType, anchors), [.. definition.Parameters.Where(parameter => parameter is not ThisParameterDefinition).Select(parameter => FormatSignatureParameter(parameter, anchors))], thisContract);
 			string signature = ErasedCallableSignatureType(BuildCallableType(shape.Kind, shape.ReturnType, shape.Parameters, shape.Spec, shape.CallSpec),
-				name => definition.GenericParameters.Any(parameter => parameter.Name == name && IsErasedGenericParameter(parameter)));
+				name => ErasureWrapper(definition.GenericParameters.FirstOrDefault(parameter => parameter.Name == name)));
 			CallableShape declaredShape = shape;
 			TryParseCallableShape(signature, out shape);
 			// The textual parser cannot distinguish a lone target spec from a call

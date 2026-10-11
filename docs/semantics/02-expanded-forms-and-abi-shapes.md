@@ -385,8 +385,8 @@ type.
 
 ## Expanded Returns
 
-Erased results are a separate transport form. A substituted `void<V>` result
-returns `void` and takes a writable result pointer. `void<V>?` returns `bool`
+Erased results are a separate transport form. A written or substituted `void<V>`
+result returns `void` and takes a writable result pointer. `void<V>?` returns `bool`
 and takes the same pointer. The pointer comes after source parameters and before
 compiler-supplied slots. Absence clears every payload component. At the call
 site these results read as `V` and `V?`, preserving all nested optional layers.

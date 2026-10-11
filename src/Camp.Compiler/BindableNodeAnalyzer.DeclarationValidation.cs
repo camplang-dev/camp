@@ -1462,6 +1462,12 @@ public sealed partial class BindableNodeAnalyzer
 		if (parameter is not { Type: TypeReference type } || parameter is ThisParameterDefinition or SizeOfParameterDefinition or NameOfParameterDefinition or VTableOfParameterDefinition)
 			return;
 
+		if (parameter.Modifier is ParameterModifier.In or ParameterModifier.Out && IsImplementsConstrainedValue(type, scope))
+		{
+			Report(GetNameRange(parameter), ImplementsValueMessage($"an '{(parameter.Modifier == ParameterModifier.In ? "in" : "out")}' parameter"));
+			return;
+		}
+
 		if (parameter.Modifier == ParameterModifier.In)
 		{
 			if (UnwrapTypeDeclarators(type) is ErasedTypeReference erased)
@@ -1474,7 +1480,9 @@ public sealed partial class BindableNodeAnalyzer
 		if (parameter.Modifier is ParameterModifier.Out or ParameterModifier.Thrown or ParameterModifier.Within)
 			return;
 
-		if (IsErasedGenericValueParameter(type, scope))
+		if (IsImplementsConstrainedValue(type, scope))
+			Report(GetNameRange(parameter), ImplementsValueMessage("passed by value"));
+		else if (IsErasedGenericValueParameter(type, scope))
 			Report(GetNameRange(parameter), "Erased generic values cannot be passed by value; use 'in T', 'out T', or a pointer, even when sizeof(T) is available.");
 
 		if (!IsDirectExternClassType(type) && IsFixedOrClassLikeType(type))
@@ -1496,6 +1504,25 @@ public sealed partial class BindableNodeAnalyzer
 			_ => false
 		};
 	}
+
+	// An interface constraint gives witness dispatch, not copyability: `T` is only ever transported by pointer.
+	bool IsImplementsConstrainedValue(TypeReference type, AnalysisScope scope)
+	{
+		return type switch
+		{
+			NamedTypeReference named when scope.TryGetGenericParameter(named.Name, out GenericParameter? parameter) => parameter is { RequiresImplementation: true },
+			ConstTypeReference { Type: not null } constType => IsImplementsConstrainedValue(constType.Type, scope),
+			ConstOfTypeReference { Type: not null } constOf => IsImplementsConstrainedValue(constOf.Type, scope),
+			VolatileTypeReference { Type: not null } volatileType => IsImplementsConstrainedValue(volatileType.Type, scope),
+			EscapedTypeReference { Type: not null } escapedType => IsImplementsConstrainedValue(escapedType.Type, scope),
+			ScopedTypeReference { Type: not null } scopedType => IsImplementsConstrainedValue(scopedType.Type, scope),
+			UnscopedTypeReference { Type: not null } unscopedType => IsImplementsConstrainedValue(unscopedType.Type, scope),
+			_ => false
+		};
+	}
+
+	static string ImplementsValueMessage(string position) =>
+		$"A type parameter constrained by 'implements' is not copyable and cannot be {position}; use 'T*', 'const T*', 'T[]' or 'out T*'.";
 
 	bool IsErasedGenericValueParameter(TypeReference type, AnalysisScope scope)
 	{

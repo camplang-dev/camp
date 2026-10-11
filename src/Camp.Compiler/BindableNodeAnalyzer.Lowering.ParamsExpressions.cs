@@ -1138,7 +1138,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	CallableShape ExpandCallableShapeWithReturn(CallableShape shape)
 	{
-		shape = NormalizeErasedCallableShape(shape);
+		shape = LowerCallableShapeForAbi(shape);
 		List<string> parameters = GetExpandedCallableParameterTypes(shape.Parameters);
 		string returnType = shape.ReturnType;
 		if (TryGetParamsComponentShape(null, returnType, "result", out ParamsComponentShape returnShape) && returnShape.Components.Count > 1)
@@ -1156,7 +1156,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (expression is null
 			|| shape.Kind != ParamsComponentShapeKind.Delegate
 			|| shape.Components.Count != 2
-			|| !CanTargetTypeDirectFunctionAsDelegate(shape.TypeName, expression.ResolvedType ?? ErrorType, expression)
+			|| !CanTargetTypeDirectFunctionAsDelegate(shape.TypeName, expression.ResolvedType ?? ErrorType, expression, loweringStage: true)
 			|| (expression is NamedExpression named && expressionRewrites.TryGetValue(named, out Expression? rewrite) ? rewrite : expression)
 				is not MethodReferenceExpression { Candidates.Count: 1 } method)
 			return false;
@@ -3050,6 +3050,25 @@ public sealed partial class BindableNodeAnalyzer
 			rewritten = values[^1] is DefaultExpression ? CreateBlock(absentStatements)
 				: values[^1] is LiteralExpression { Kind: LiteralKind.True } ? CreateBlock(optionalStatements)
 				: new IfStatement { SourceSyntax = statement.SourceSyntax, ResolvedType = "void", Condition = LowerExpression(values[^1]), Body = CreateBlock(optionalStatements), ElseBody = CreateBlock(absentStatements) };
+			return true;
+		}
+
+		// A written `void<V>` result with an expandable V stores V component by component,
+		// exactly like assigning to an `out void<V>` parameter.
+		if (ErasedTypeIdentity.TryGetPayload(parameter.ResolvedType, out string writtenPayload)
+			&& TryGetParamsComponentShape(null, writtenPayload, "value", out ParamsComponentShape writtenShape) && writtenShape.Components.Count > 1
+			&& TryCreateValueParamsComponents(statement.Expression, writtenShape, out List<Expression> writtenValues))
+		{
+			List<Expression> writtenTargets = CreateMaterializedComponentExpressions(CreateVariableReference(parameter, writtenPayload), writtenShape, statement.SourceSyntax);
+			List<Statement> writtenStatements = [];
+			for (int i = 0; i < writtenTargets.Count && i < writtenValues.Count; i++)
+				writtenStatements.Add(new ExpressionStatement { SourceSyntax = statement.SourceSyntax, ResolvedType = "void", Expression = new AssignmentExpression
+				{
+					SourceSyntax = statement.SourceSyntax, Target = writtenTargets[i], Operator = AssignmentOperator.Assign,
+					Value = LowerExpression(writtenValues[i]), ResolvedType = writtenTargets[i].ResolvedType
+				} });
+			writtenStatements.Add(new ReturnStatement { SourceSyntax = statement.SourceSyntax, ResolvedType = "void" });
+			rewritten = CreateBlock(writtenStatements);
 			return true;
 		}
 

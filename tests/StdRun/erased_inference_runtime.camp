@@ -14,11 +14,10 @@ export int main()
 	void<int?>[] typedSection = section;
 	int?? typedMaybe = maybe;
 	auto get = items.getItem;
-	delegate void(nuint index, out void<int?> result) written = items.getItem;
+	delegate void<int?>(nuint index) written = items.getItem;
 	auto lookup = items.getItemOrDefault;
 	int? viaGet = get(0);
-	int? viaWritten = default;
-	written(0, out viaWritten);
+	int? viaWritten = written(0);
 	int?? viaLookup = lookup(300);
 	if (viaGet.value != 1 || viaWritten.value != 1 || viaLookup.specified) return 3;
 	auto numbers = new List<int>() finally delete;

@@ -1612,6 +1612,8 @@ public sealed partial class BindableNodeAnalyzer
 		ValidateNoDirectFixedArrayType(definition.ReturnType, definition.ReturnType?.SourceSyntax ?? definition.SourceSyntax, "a function return type");
 		ValidateNoDirectExternClassType(definition.ReturnType, definition.ReturnType?.SourceSyntax ?? definition.SourceSyntax, "a function return type");
 		ValidateWrittenErasedType(definition.ReturnType, definition.ReturnType?.SourceSyntax ?? definition.SourceSyntax, "a function return type");
+		if (definition.ReturnType is not null && IsImplementsConstrainedValue(definition.ReturnType, scope))
+			Report(GetRange(definition.ReturnType.SourceSyntax ?? definition.SourceSyntax), ImplementsValueMessage("a result"));
 		ValidateNoExternClassArrayElement(definition.ReturnType, definition.ReturnType?.SourceSyntax ?? definition.SourceSyntax);
 		AnalyzeOptionalConditionalInterfaceType(definition.CallableAscriptionType, scope);
 

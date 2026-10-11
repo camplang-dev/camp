@@ -797,6 +797,9 @@ public static class CCodeEmitter
         readonly HashSet<string> genericParameterNames = BuildGenericParameterNameSet(compilation);
         readonly HashSet<string> anyGenericParameterNames = BuildAnyGenericParameterNameSet(compilation);
         readonly HashSet<string> currentGenericTypeNames = new(StringComparer.Ordinal);
+        // Representation generics (`T: long`) are transported as the constraint's integer, not as void*.
+        readonly Dictionary<string, string> currentRepresentationGenerics = new(StringComparer.Ordinal);
+        FunctionDefinition? currentCalleeForGenericCasts;
         readonly HashSet<string> currentAnyGenericTypeNames = new(StringComparer.Ordinal);
         readonly HashSet<string> currentArrayElementComponentNames = new(StringComparer.Ordinal);
         readonly Dictionary<Expression, DelegateThunk> delegateThunksByExpression = [];
@@ -1735,6 +1738,12 @@ public static class CCodeEmitter
             return NormalizeCallableTypeSlot(left) == NormalizeCallableTypeSlot(right);
         }
 
+        // `void<V>` is the C shape of V in every slot position the analyzer already accepted.
+        static bool SameCallableTypeSlotIgnoringErasure(string left, string right)
+        {
+            return SameCallableTypeSlot(CarrierTypeIdentity.UnwrapAnnotations(left, carriers: false), CarrierTypeIdentity.UnwrapAnnotations(right, carriers: false));
+        }
+
         bool CanThunkArgumentConvert(ParameterDefinition sourceParameter, string targetType)
         {
             CallableSlot targetSlot = CallableShapeService.ParseCallableSlot(targetType);
@@ -1742,7 +1751,7 @@ public static class CCodeEmitter
                 && ErasedTypeIdentity.TryGetPayload(targetSlot.Type, out string payload)
                 && payload == sourceParameter.ResolvedType)
                 return true;
-            if (SameCallableTypeSlot(GetCallableParameterTypeText(sourceParameter), targetType))
+            if (SameCallableTypeSlotIgnoringErasure(GetCallableParameterTypeText(sourceParameter), targetType))
                 return true;
             if (!IsVoidPointerType(targetType))
                 return IsPointerStorageForValue(targetType, sourceParameter.ResolvedType ?? sourceParameter.Type?.ResolvedType ?? "");
@@ -4053,13 +4062,16 @@ public static class CCodeEmitter
         {
             HashSet<string> previous = new(currentGenericTypeNames, StringComparer.Ordinal);
             HashSet<string> previousAny = new(currentAnyGenericTypeNames, StringComparer.Ordinal);
+            Dictionary<string, string> previousRepresentation = new(currentRepresentationGenerics, StringComparer.Ordinal);
             currentGenericTypeNames.Clear();
             currentAnyGenericTypeNames.Clear();
+            currentRepresentationGenerics.Clear();
             foreach (GenericParameter parameter in function.GenericParameters)
             {
                 currentGenericTypeNames.Add(parameter.Name);
                 if (parameter.Constraint is AnyTypeReference or CopyableTypeReference)
                     currentAnyGenericTypeNames.Add(parameter.Name);
+                AddRepresentationGeneric(parameter);
             }
             if (containingTypes.TryGetValue(function, out TypeDefinition? containingType))
                 foreach (GenericParameter parameter in containingType.GenericParameters)
@@ -4067,6 +4079,7 @@ public static class CCodeEmitter
                     currentGenericTypeNames.Add(parameter.Name);
                     if (parameter.Constraint is AnyTypeReference or CopyableTypeReference)
                         currentAnyGenericTypeNames.Add(parameter.Name);
+                    AddRepresentationGeneric(parameter);
                 }
 
             try
@@ -4081,7 +4094,41 @@ public static class CCodeEmitter
                 currentAnyGenericTypeNames.Clear();
                 foreach (string name in previousAny)
                     currentAnyGenericTypeNames.Add(name);
+                currentRepresentationGenerics.Clear();
+                foreach ((string name, string constraint) in previousRepresentation)
+                    currentRepresentationGenerics[name] = constraint;
             }
+        }
+
+        void AddRepresentationGeneric(GenericParameter parameter)
+        {
+            if (GetRepresentationConstraint(parameter) is string constraint)
+                currentRepresentationGenerics[parameter.Name] = constraint;
+        }
+
+        static string? GetRepresentationConstraint(GenericParameter? parameter)
+        {
+            return parameter?.Constraint?.ResolvedType is string constraint && CarrierTypeIdentity.IsCarrierName(constraint) ? constraint : null;
+        }
+
+        // C spelling of the integer that transports a representation generic, or null when T is a plain void* slot.
+        string? RepresentationCType(string? genericName)
+        {
+            return genericName is not null && currentRepresentationGenerics.TryGetValue(StripTypeDecorators(genericName), out string? constraint)
+                ? compilation.Target?.Capabilities.GetPrimitiveCSpelling(constraint) ?? constraint
+                : null;
+        }
+
+        string? RepresentationCTypeOf(FunctionDefinition? function, string? genericName)
+        {
+            if (function is null || genericName is null)
+                return null;
+            string name = StripTypeDecorators(genericName);
+            GenericParameter? parameter = function.GenericParameters.FirstOrDefault(candidate => candidate.Name == name)
+                ?? (containingTypes.TryGetValue(function, out TypeDefinition? owner) ? owner.GenericParameters.FirstOrDefault(candidate => candidate.Name == name) : null);
+            return GetRepresentationConstraint(parameter) is string constraint
+                ? compilation.Target?.Capabilities.GetPrimitiveCSpelling(constraint) ?? constraint
+                : null;
         }
 
         void WithGenericContext(TypeDefinition type, Action action)
@@ -4090,11 +4137,14 @@ public static class CCodeEmitter
             HashSet<string> previousAny = new(currentAnyGenericTypeNames, StringComparer.Ordinal);
             currentGenericTypeNames.Clear();
             currentAnyGenericTypeNames.Clear();
+            Dictionary<string, string> previousRepresentation = new(currentRepresentationGenerics, StringComparer.Ordinal);
+            currentRepresentationGenerics.Clear();
             foreach (GenericParameter parameter in type.GenericParameters)
             {
                 currentGenericTypeNames.Add(parameter.Name);
                 if (parameter.Constraint is AnyTypeReference or CopyableTypeReference)
                     currentAnyGenericTypeNames.Add(parameter.Name);
+                AddRepresentationGeneric(parameter);
             }
 
             try
@@ -4109,6 +4159,9 @@ public static class CCodeEmitter
                 currentAnyGenericTypeNames.Clear();
                 foreach (string name in previousAny)
                     currentAnyGenericTypeNames.Add(name);
+                currentRepresentationGenerics.Clear();
+                foreach ((string name, string constraint) in previousRepresentation)
+                    currentRepresentationGenerics[name] = constraint;
             }
         }
 
@@ -5943,7 +5996,10 @@ public static class CCodeEmitter
                     parameterIndex += 2;
                     continue;
                 }
-                arguments.Add(FormatArgumentValue(argument, parameter, genericSubstitutions));
+                FunctionDefinition? previousCallee = currentCalleeForGenericCasts;
+                currentCalleeForGenericCasts = function;
+                try { arguments.Add(FormatArgumentValue(argument, parameter, genericSubstitutions)); }
+                finally { currentCalleeForGenericCasts = previousCallee; }
                 parameterIndex++;
             }
             if (TryRepairFormattedInterfaceSlotCallTarget(call, target, out string repairedTarget))
@@ -5955,7 +6011,7 @@ public static class CCodeEmitter
             if (function is not null && TryGetConcreteGenericType(function.ResolvedType, genericSubstitutions, out string? concreteReturnType))
             {
                 if (NeedsGenericScalarCast(concreteReturnType))
-                    return CastFromErasedGeneric(text, concreteReturnType);
+                    return CastFromErasedGeneric(text, concreteReturnType, RepresentationCTypeOf(function, function.ResolvedType));
             }
             if (TryGetCallResultCastType(call, function, genericSubstitutions, out string? castType))
                 return "(" + FormatResolvedType(castType!, "").Declaration.Trim() + ")(" + text + ")";
@@ -6294,13 +6350,13 @@ public static class CCodeEmitter
                 && assignment.Target?.ResolvedType is string targetType)
                 value = FormatAssignmentValueForTarget(GetCarrierStorageTypeOf(assignment.Target) is string carrierStorage && CarrierTypeIdentity.TryGetPayload(carrierStorage, out _) ? carrierStorage : targetType, assignment.Value!);
             if (assignment.Target is MemberReferenceExpression { Member: FieldDefinition erasedField } erasedMember
-                && TryGetErasedScalarFieldType(erasedMember, erasedField, out string erasedType))
+                && TryGetErasedScalarFieldType(erasedMember, erasedField, out string erasedType, out string? erasedSlot))
             {
                 string rawTarget = FormatMemberReferenceRaw(erasedMember);
                 if (assignment.Operator == AssignmentOperator.Assign)
-                    return rawTarget + " = " + CastToErasedGeneric(value, erasedType);
+                    return rawTarget + " = " + CastToErasedGeneric(value, erasedType, erasedSlot);
                 string compoundOperator = FormatAssignmentOperator(assignment.Operator);
-                return rawTarget + " = " + CastToErasedGeneric("(" + CastFromErasedGeneric(rawTarget, erasedType) + " " + compoundOperator[..^1] + " " + value + ")", erasedType);
+                return rawTarget + " = " + CastToErasedGeneric("(" + CastFromErasedGeneric(rawTarget, erasedType, erasedSlot) + " " + compoundOperator[..^1] + " " + value + ")", erasedType, erasedSlot);
             }
             return FormatStorageTarget(assignment.Target) + " " + FormatAssignmentOperator(assignment.Operator) + " " + value;
         }
@@ -6804,7 +6860,7 @@ public static class CCodeEmitter
                 && parameter is not SizeOfParameterDefinition and not NameOfParameterDefinition
                 && TryGetConcreteGenericType(rawExpectedParameterType, genericSubstitutions, out string? concreteType)
                 && NeedsGenericScalarCast(concreteType))
-                value = CastToErasedGeneric(value, concreteType);
+                value = CastToErasedGeneric(value, concreteType, RepresentationCTypeOf(currentCalleeForGenericCasts, rawExpectedParameterType));
             if (argument.Modifier == ArgumentModifier.None
                 && parameter is ThisParameterDefinition
                 && expectedParameterType is not null
@@ -7422,6 +7478,8 @@ public static class CCodeEmitter
 
         bool NeedsGenericScalarCast(string concreteType)
         {
+            if (IsPointerCarrier(concreteType))
+                return true;
             string type = StripTypeDecorators(CarrierTypeIdentity.TryGetPayload(concreteType, out string carriedType) ? carriedType : concreteType);
             if (type.EndsWith("*", StringComparison.Ordinal) || type.EndsWith("[]", StringComparison.Ordinal) || type.EndsWith("?", StringComparison.Ordinal))
                 return false;
@@ -7530,15 +7588,24 @@ public static class CCodeEmitter
             return compilation.SharedModule is Module module ? DeclarationParticipation.ActiveTopLevelDefinitions(module) : [];
         }
 
-        string CastToErasedGeneric(string value, string concreteType)
+        string CastToErasedGeneric(string value, string concreteType, string? slotCType = null)
         {
-            return "(void *)(intptr_t)(" + value + ")";
+            if (slotCType is null)
+                return "(void *)(intptr_t)(" + value + ")";
+            return "(" + slotCType + ")" + (IsPointerCarrier(concreteType) ? "(intptr_t)" : "") + "(" + value + ")";
         }
 
-        string CastFromErasedGeneric(string value, string concreteType)
+        string CastFromErasedGeneric(string value, string concreteType, string? slotCType = null)
         {
             string cType = FormatResolvedType(CarrierTypeIdentity.TryGetPayload(concreteType, out string carriedType) ? carriedType : concreteType, "").Declaration.Trim();
+            if (slotCType is not null && !IsPointerCarrier(concreteType))
+                return "(" + cType + ")(" + value + ")";
             return "(" + cType + ")(intptr_t)(" + value + ")";
+        }
+
+        static bool IsPointerCarrier(string concreteType)
+        {
+            return CarrierTypeIdentity.TryGetPayload(concreteType, out string payload) && StripTypeDecorators(payload).EndsWith("*", StringComparison.Ordinal);
         }
 
         static List<string> ExtractConstructedTypeArguments(string type)
@@ -7610,8 +7677,8 @@ public static class CCodeEmitter
             if (member.Member is VariableDefinition variable)
                 return CName(variable);
             if (member.Member is FieldDefinition erasedScalarField
-                && TryGetErasedScalarFieldType(member, erasedScalarField, out string erasedScalarType))
-                return CastFromErasedGeneric(FormatMemberReferenceRaw(member), erasedScalarType);
+                && TryGetErasedScalarFieldType(member, erasedScalarField, out string erasedScalarType, out string? erasedScalarSlot))
+                return CastFromErasedGeneric(FormatMemberReferenceRaw(member), erasedScalarType, erasedScalarSlot);
             if (member.Member is FieldDefinition slotField
                 && IsRetypedVTableSlot(member, slotField))
                 return "((" + FormatResolvedType(member.ResolvedType!, "").Declaration.Trim() + ")(" + FormatMemberReferenceRaw(member) + "))";
@@ -7629,9 +7696,10 @@ public static class CCodeEmitter
 
         // A field declared with an integral representation type parameter is stored in the erased carrier,
         // while the member expression has the concrete scalar type of the constructed type argument.
-        bool TryGetErasedScalarFieldType(MemberReferenceExpression member, FieldDefinition field, out string concreteType)
+        bool TryGetErasedScalarFieldType(MemberReferenceExpression member, FieldDefinition field, out string concreteType, out string? slotCType)
         {
             concreteType = "";
+            slotCType = null;
             if (member.Target is null
                 || field.Modifier == FieldModifier.Static
                 || member.ResolvedType is not string memberType
@@ -7641,9 +7709,11 @@ public static class CCodeEmitter
                 || member.Target.ResolvedType is not string targetType
                 || !TryFindFieldOwner(targetType, field, out TypeDefinition? owner)
                 || owner is null
-                || !owner.GenericParameters.Any(parameter => parameter.Name == declaredType))
+                || owner.GenericParameters.FirstOrDefault(parameter => parameter.Name == declaredType) is not GenericParameter genericParameter)
                 return false;
             concreteType = memberType;
+            if (GetRepresentationConstraint(genericParameter) is string constraint)
+                slotCType = compilation.Target?.Capabilities.GetPrimitiveCSpelling(constraint) ?? constraint;
             return true;
         }
 
@@ -9123,7 +9193,7 @@ public static class CCodeEmitter
                 NamedTypeReference named => new CType(CTypeName(named) + " " + declarator),
                 GenericTypeReference generic => FormatType(generic.Type, declarator),
                 WitnessTypeReference witness => FormatResolvedType(witness.ResolvedType ?? "void*", declarator),
-                GenericParameterTypeReference => new CType("void* " + declarator),
+                GenericParameterTypeReference genericParameter => new CType((RepresentationCType(genericParameter.Name) ?? "void*") + " " + declarator),
                 AnyTypeReference => new CType("void* " + declarator),
                 AutoTypeReference => new CType("void* " + declarator),
                 AllocatorTypeReference => FormatResolvedType("Allocator*", declarator),
@@ -9442,7 +9512,7 @@ public static class CCodeEmitter
                 return FormatResolvedFixedArrayType(qualifierPart + fixedBaseType, fixedLengths, pointerDeclarator);
             if (pointerCount == 0 && TryParseExpandedCallableStorageType(type, out _, out _, out _, out _))
                 return FormatStorageResolvedType(type, pointerDeclarator);
-            string cType = isGenericType && pointerCount == 0 ? "void*" : FormatResolvedBaseType(type);
+            string cType = isGenericType && pointerCount == 0 ? RepresentationCType(type) ?? "void*" : FormatResolvedBaseType(type);
             return new CType(qualifierPart + cType + " " + pointerDeclarator);
         }
 

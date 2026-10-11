@@ -87,7 +87,7 @@ public sealed partial class BindableNodeAnalyzer
 		string message = $"{context} cannot convert '{WitnessTypeIdentity.Display(actual)}' to '{WitnessTypeIdentity.Display(expected)}'.";
 		if (TryGetCallableShape(actual, out CallableShape sourceCallable) && TryGetCallableShape(expected, out CallableShape targetCallable)
 			&& !CallableShapesCompatibleWithConstOfVariance(sourceCallable, targetCallable))
-			message += " Use a lambda, a trailing out parameter, or a void<V> parameter to match the erased calling shape.";
+			message += " Use a lambda or a written void<V> result to match the erased calling shape.";
 		if (TryGetPointerElementType(expected) is string erasedElement
 			&& ErasedTypeIdentity.TryGetPayload(erasedElement, out string payload)
 			&& TryGetPointerElementType(actual) is string actualElement
@@ -4207,7 +4207,7 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		return ErasedCallableSignatureType($"{kind}{FormatCallSpec(function.CallSpec)} {function.ResolvedType ?? ErrorType}({string.Join(", ", parameters)})",
-			name => IsFunctionErasedParameter(function, name));
+			name => FunctionErasureWrapper(function, name));
 	}
 
 	string BuildBoundFunctionValueType(FunctionDefinition function, string receiverType)

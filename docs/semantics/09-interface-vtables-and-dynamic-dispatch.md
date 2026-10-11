@@ -186,14 +186,13 @@ always yields an escaped pointer, and `stackalloc T(...)` is not available.
 
 ## Struct Conformance
 
-Both struct and class implementation matching use callable compatibility.
-Non-expandable `P`/`void<P>` reference, pointer and array slots can match; an
-erased result matches a trailing output, including `bool` plus an output for
-an optional erased result. For example, an interface `void<int?>? find(int)`
-can be implemented by `bool find(int, out void<int?>)`. Its vtable thunk
-forwards the caller's storage and returns the implementation's presence bit.
-These rules do not relax exact virtual override signatures or receiver,
-lifetime, constness and availability requirements.
+Both struct and class implementation matching use callable compatibility in the
+conversion view. Non-expandable `P`/`void<P>` reference, pointer and array slots
+can match, so `int read(in int value)` implements `int read(in void<int> value)`.
+A `void<V>` result is nominal: an interface `void<int> find(int)` is implemented
+by `void<int> find(int)`, and neither a plain `int` result nor a trailing
+`out int` implements it. These rules do not relax exact virtual override
+signatures or receiver, lifetime, constness and availability requirements.
 
 Struct conformance binds methods directly against interface slots. Receiver
 representation and addressability are part of compatibility.

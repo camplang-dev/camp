@@ -247,9 +247,16 @@ public sealed partial class BindableNodeAnalyzer
 
 	string ViewCallable(CallableShape callable)
 	{
+		callable = ViewCallableShape(callable);
+		return BuildCallableType(callable.Kind, callable.ReturnType, callable.Parameters, callable.Spec, callable.CallSpec);
+	}
+
+	// Callable matching compares source shapes in the conversion view. A `void<V>` result is
+	// protected at every depth, so a trailing `out V` never stands in for it.
+	CallableShape ViewCallableShape(CallableShape callable)
+	{
 		string result = callable.ReturnType;
-		TypeShape resultShape;
-		if (TryParseTypeShape(result, out resultShape))
+		if (TryParseTypeShape(result, out TypeShape resultShape))
 			result = TypeShapeParser.Format(ViewShape(resultShape, resultPosition: true));
 
 		List<string> parameters = [];
@@ -267,7 +274,7 @@ public sealed partial class BindableNodeAnalyzer
 			string viewed = TypeShapeParser.Format(ViewShape(slotShape, resultPosition: false));
 			parameters.Add(slot.Modifier.Length == 0 ? viewed : slot.Modifier + " " + viewed);
 		}
-		return BuildCallableType(callable.Kind, result, parameters, callable.Spec, callable.CallSpec);
+		return callable with { ReturnType = result, Parameters = parameters };
 	}
 
 	string ViewGenericArguments(string name)

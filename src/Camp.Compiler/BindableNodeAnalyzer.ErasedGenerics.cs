@@ -23,26 +23,46 @@ public sealed partial class BindableNodeAnalyzer
 		return type[..parser.NamedTypeStart] + name + type[(parser.NamedTypeStart + named.Name.Length)..];
 	}
 
-	string ErasedCallableSignatureType(string type, System.Func<string, bool> erased, bool storage = false, bool result = false)
+	// Erasure substitution (025 §4): `any`/`copyable` become void<A>, a representation
+	// constraint (the unconstrained default is `nint`) becomes C<A>, and `implements I` stays A.
+	// `erasure` maps a type parameter name to "void", a carrier name, or null when nothing is erased.
+	string ErasedCallableSignatureType(string type, System.Func<string, string?> erasure, bool storage = false, bool result = false)
 	{
 		return RewriteStorageTypeName(type, shape => Rewrite(shape, storage, result));
 		string Rewrite(TypeShape node, bool reference, bool returned)
 		{
 			if (node.Element is not null)
-				return Rewrite(node.Element, reference && node.Kind == TypeShapeKind.Optional,
+				return Rewrite(node.Element, reference && node.Kind == TypeShapeKind.Optional || node.Kind is TypeShapeKind.Pointer or TypeShapeKind.Array,
 					returned && node.Kind == TypeShapeKind.Optional);
-			if ((reference || returned) && erased(node.Name)) return $"void<{node.Name}>";
+			if (erasure(node.Name) is string wrapper)
+			{
+				if (wrapper != "void") return $"{wrapper}<{node.Name}>";
+				if (reference || returned) return $"void<{node.Name}>";
+			}
 			if (TryParseCallableShape(node.Name, out CallableShape callable))
 			{
-				string returnType = ErasedCallableSignatureType(callable.ReturnType, erased, result: true);
+				string returnType = ErasedCallableSignatureType(callable.ReturnType, erasure, result: true);
 				List<string> parameters = callable.Parameters.Select(text => { CallableSlot slot = ParseCallableSlot(text);
-					string parameterType = ErasedCallableSignatureType(slot.Type, erased, slot.Modifier is "in" or "out");
+					string parameterType = ErasedCallableSignatureType(slot.Type, erasure, slot.Modifier is "in" or "out");
 					return slot.Modifier.Length == 0 ? parameterType : slot.Modifier + " " + parameterType; }).ToList();
 				return BuildCallableType(callable.Kind, returnType, parameters, callable.Spec, callable.CallSpec);
 			}
 			return node.Name;
 		}
 	}
+
+	static string? ErasureWrapper(GenericParameter? parameter)
+	{
+		if (parameter is null || parameter.RequiresImplementation) return null;
+		if (parameter.Constraint is AnyTypeReference or CopyableTypeReference) return "void";
+		if (parameter.Constraint is null) return "nint";
+		return parameter.Constraint.ResolvedType is string constraint && CarrierTypeIdentity.IsCarrierName(constraint) ? constraint : null;
+	}
+
+	string? FunctionErasureWrapper(FunctionDefinition function, string name) =>
+		function.GenericParameters.FirstOrDefault(parameter => parameter.Name == name) is GenericParameter parameter
+			? ErasureWrapper(parameter)
+			: ErasureWrapper(FindContainingType(function)?.GenericParameters.FirstOrDefault(parameter => parameter.Name == name));
 
 	bool IsFunctionErasedParameter(FunctionDefinition function, string name) =>
 		function.GenericParameters.FirstOrDefault(parameter => parameter.Name == name) is GenericParameter parameter

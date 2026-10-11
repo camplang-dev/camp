@@ -7,4 +7,8 @@ export void array(void<int?>[] values) { }
 export int input(in void<int> value) => value;
 export void output(out void<int> value) { value = 2; }
 export void callback(fn void(in void<int> input, out void<int> output) action) { }
+export enum Kind: int { A, B }
+export struct Wide<T: long> { T value; T get() => this.value; void set(T next) { this.value = next; } }
+export long<Kind> carrierResult(long<Kind> value) => value;
+export void carrierCallback(fn long<Kind>(long<Kind>) action) { }
 void main() { }

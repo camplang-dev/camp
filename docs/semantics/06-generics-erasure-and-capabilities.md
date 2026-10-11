@@ -385,6 +385,12 @@ into a call through `vtableof(T: IReadable)` with the original `T*` receiver.
 It does not cast that receiver into an interface-instance pointer. The interface
 supplement documents the distinct physical table carrier in more detail.
 
+An interface constraint does not imply `copyable`: `T` is transported only by
+pointer. `T*`, `const T*`, `T[]` and `out T*` are valid. A `T` result, an
+`in T` parameter, an `out T` parameter and a by-value `T` are errors that suggest
+`T*` or `out T*`; witness dispatch through `vtableof` is unchanged for struct
+and class implementations.
+
 The validator must reject:
 
 - `vtableof` where the second type is not an interface;
@@ -521,10 +527,25 @@ The compiler must preserve a distinction between:
 
 ## Generic Callable Policy
 
-Substitution inside nested callable signatures is storage-aware. An erased `T`
-result becomes `void<A>` for every argument `A`; a `T?` result becomes
-`void<A>?`. Reference, pointer and array slots retain `void<A>` when `A` is
-expandable. Ordinary nominal generic identities remain intact.
+Erasure substitution replaces each type parameter by its erased form wherever a
+callable type is formed from a generic declaration: a method reference or `fn`
+value of a generic method or of a method of a generic type, and a callable type
+written inside a generic signature once the type arguments are known.
+
+| Constraint | `T` becomes |
+|---|---|
+| `any`, `copyable` | `void<A>` in result, reference, pointer and array positions |
+| representation constraint `C` (the unconstrained default is `nint`) | `C<A>` in every position |
+| `implements I` | `A` |
+
+A representation generic is transported as its integer `C` in C, not as
+`void*`, so `Slot<Color>.get` is `delegate long<Color>()` and the function it
+names returns a `long`. When `A` is itself a carrier, `C<A>` collapses to `A`.
+The type of a method reference is the same for every type argument: `List<int>`
+and `List<int?>` references differ only in `A`. Direct calls are unchanged; a
+call reads its result as `A`. The old conditional rule, which wrote `void<A>`
+only where `A`'s own form would lower differently, is gone. Ordinary nominal
+generic identities remain intact.
 
 Inference reads an erased result as its payload and preserves each optional
 layer. For `List<int?>`, `Item[0]` infers `int?`, `take(0, 2)` infers

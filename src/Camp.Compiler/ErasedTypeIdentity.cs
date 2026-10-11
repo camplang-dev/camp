@@ -123,8 +123,9 @@ internal static class CarrierTypeIdentity
 		return builder.ToString();
 	}
 
-	// Name view: every annotation, `void<V>` or `C<V>`, is replaced by the type it annotates.
-	public static string UnwrapAnnotations(string type)
+	// Erasure wraps a representation parameter as C<T>; when the argument is itself a carrier the
+	// argument already is the carried form, so `C<C2<V>>` reads as `C2<V>`.
+	public static string CollapseNested(string type)
 	{
 		if (type.IndexOf('<') < 0)
 			return type;
@@ -140,7 +141,7 @@ internal static class CarrierTypeIdentity
 			while (end < type.Length && (char.IsLetterOrDigit(type[end]) || type[end] == '_'))
 				end++;
 			string word = type[i..end];
-			if (end < type.Length && type[end] == '<' && (word == "void" || IsCarrierName(word)))
+			if (end < type.Length && type[end] == '<' && IsCarrierName(word))
 			{
 				int depth = 0;
 				int close = end;
@@ -151,7 +152,50 @@ internal static class CarrierTypeIdentity
 				}
 				if (close < type.Length)
 				{
-					builder.Append(UnwrapAnnotations(type[(end + 1)..close]));
+					string inner = CollapseNested(type[(end + 1)..close]);
+					if (TryGetCarrier(inner, out _, out _))
+						builder.Append(inner);
+					else
+						builder.Append(word).Append('<').Append(inner).Append('>');
+					i = close + 1;
+					continue;
+				}
+			}
+			builder.Append(word);
+			i = end;
+		}
+		return builder.ToString();
+	}
+
+	// Name view: every annotation, `void<V>` or `C<V>`, is replaced by the type it annotates.
+	public static string UnwrapAnnotations(string type, bool carriers = true)
+	{
+		if (type.IndexOf('<') < 0)
+			return type;
+		System.Text.StringBuilder builder = new(type.Length);
+		for (int i = 0; i < type.Length;)
+		{
+			if (!(char.IsLetter(type[i]) || type[i] == '_') || i > 0 && (char.IsLetterOrDigit(type[i - 1]) || type[i - 1] == '_'))
+			{
+				builder.Append(type[i++]);
+				continue;
+			}
+			int end = i;
+			while (end < type.Length && (char.IsLetterOrDigit(type[end]) || type[end] == '_'))
+				end++;
+			string word = type[i..end];
+			if (end < type.Length && type[end] == '<' && (word == "void" || carriers && IsCarrierName(word)))
+			{
+				int depth = 0;
+				int close = end;
+				for (; close < type.Length; close++)
+				{
+					if (type[close] == '<') depth++;
+					else if (type[close] == '>' && --depth == 0) break;
+				}
+				if (close < type.Length)
+				{
+					builder.Append(UnwrapAnnotations(type[(end + 1)..close], carriers));
 					i = close + 1;
 					continue;
 				}

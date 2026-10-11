@@ -258,6 +258,12 @@ to a carrier converts to a pointer to `V` or to `C` only by an explicit cast.
 `typenameof(long<Color>)` is the name of `V`, `"Color"`. A carrier or `void<V>`
 can never be an `overload` selector or the type of a method's `this` parameter.
 
+A reference to a representation generic's method names the carrier, because that
+is what the function really takes and returns. For `Slot<Color>` with
+`T: long`, `slot.get` is `delegate long<Color>()`, and `delegate Color()` cannot
+be filled by it directly: write a lambda, `() => slot.get()`. An unconstrained
+parameter has the default constraint `nint`, so its references name `nint<A>`.
+
 ## Type Erasure With `T: any`
 
 `T: any` is the broadest erased value constraint. It can stand for scalars,
@@ -564,7 +570,9 @@ void retainTwice<T: implements Retainable>(
 ```
 
 `T: implements Retainable` says the concrete type explicitly implements the
-interface. `vtableof(T: Retainable)` supplies a typed witness for this particular
+interface. It does not make `T` copyable, so such a `T` is transported only by
+pointer: `T*`, `const T*`, `T[]` and `out T*` are valid, while a `T` result,
+`in T`, `out T` and a by-value `T` are errors. `vtableof(T: Retainable)` supplies a typed witness for this particular
 `T` and interface. Its unbound ordinary slots take `T*`, including when the
 slot is copied into a local `fn` value or the witness is forwarded to another
 generic call. An ordinary `Retainable*` interface call instead uses an interface

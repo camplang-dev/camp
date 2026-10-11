@@ -96,15 +96,19 @@ argument syntax.
 
 ## Shape Expansion
 
-Erased generic callback signatures are substituted before matching. For a
-non-expandable payload `P`, `void<P>` and `P` are compatible in `in`, `out`,
-pointer and array slots. Expanded payloads retain their one-object storage:
-`in int?` does not match `in void<int?>`.
+Generic callback signatures are erasure-substituted before matching (see
+[Generics, Erasure, And Capabilities](06-generics-erasure-and-capabilities.md)),
+then compared in the conversion view. For a non-expandable payload `P`,
+`void<P>` and `P` are compatible in `in`, `out`, pointer and array slots.
+Expanded payloads retain their one-object storage: `in int?` does not match
+`in void<int?>`.
 
-A `void<V>` result matches a trailing `out void<V>` with a `void` result;
-`void<V>?` matches the same trailing output with a `bool` result. The output
-precedes hidden allocator, error and capability slots. These rules apply to
-callable values, newtype ascription, lambdas and interface implementations.
+A `void<V>` result is never stripped and a trailing `out V` is never read as a
+result, so a callable mismatch between the two is an ordinary signature
+mismatch. Only the ABI view lowers a `void<V>` result to a trailing writable
+slot, which precedes hidden allocator, error and capability slots; matching
+compares the written shapes. These rules apply to callable values, newtype
+ascription, lambdas and interface implementations.
 An `fn T?` slot in an erased generic therefore emits a boolean-returning
 function pointer with payload storage, including when declared directly as a
 parameter or field. Its resolved erased signature governs emission; the source

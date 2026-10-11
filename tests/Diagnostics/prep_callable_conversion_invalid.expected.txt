@@ -1,1 +1,1 @@
-tests/Diagnostics/prep_callable_conversion_invalid.camp(14,42): error: Declaration initializer cannot convert 'fn nuint(char[])' to 'fn nuint(prep char[])'. Use a lambda, a trailing out parameter, or a void<V> parameter to match the erased calling shape.
+tests/Diagnostics/prep_callable_conversion_invalid.camp(14,42): error: Declaration initializer cannot convert 'fn nuint(char[])' to 'fn nuint(prep char[])'. Use a lambda or a written void<V> result to match the erased calling shape.

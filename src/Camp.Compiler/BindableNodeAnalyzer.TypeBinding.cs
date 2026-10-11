@@ -253,7 +253,7 @@ public sealed partial class BindableNodeAnalyzer
 				ValidateAnonymousCallableParameterNames(callable.Parameters, callable.Kind != CallableKind.Function);
 				ValidatePrepParameterList(callable.Parameters, callable.ReturnType, callable.SourceSyntax, "callable signature", callable.Kind == CallableKind.Once);
 				type.ResolvedType = ErasedCallableSignatureType(FormatTypeReference(type),
-					name => scope.TryGetGenericParameter(name, out GenericParameter? generic) && generic is not null && IsErasedGenericParameter(generic));
+					name => scope.TryGetGenericParameter(name, out GenericParameter? generic) ? ErasureWrapper(generic) : null);
 				break;
 
 			case IterTypeReference iter:
@@ -849,7 +849,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (type?.SourceSyntax is null)
 			return;
 		if (TryParseTypeShape(type.ResolvedType, out TypeShape shape))
-			ValidateWrittenErasedShape(shape, syntax, usage, allowStorage,
+			ValidateWrittenErasedShape(shape, syntax, usage, allowStorage || usage.EndsWith("return type", StringComparison.Ordinal),
 				usage.EndsWith("return type", StringComparison.Ordinal) || allowStorage && usage == "a parameter type");
 	}
 
@@ -858,12 +858,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (shape.Kind == TypeShapeKind.Named && ErasedTypeIdentity.TryGetPayload(shape.Name, out _))
 		{
 			if (!allowStorage)
-			{
-				string guidance = usage.EndsWith("return type", StringComparison.Ordinal)
-					? "use a trailing out void<V> parameter (or out V for a non-expandable payload), or an optional void<V>? result."
-					: "use V, void<V>*, or a stackalloc local for single-object storage.";
-				Report(GetRange(syntax), $"void<V> is storage and is not valid as {usage}; {guidance}");
-			}
+				Report(GetRange(syntax), $"void<V> is storage and is not valid as {usage}; use V, void<V>*, or a stackalloc local for single-object storage.");
 			return;
 		}
 		if (shape.Element is not null)

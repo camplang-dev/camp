@@ -15,8 +15,8 @@ internal readonly record struct CallableSlot(string Modifier, string Type);
 
 internal static class CallableShapeService
 {
-	// The source result stays visible for inference; comparison and ABI emission
-	// use the same caller-storage slot as an explicitly trailing out parameter.
+	// ABI form only: a written `void<V>` result is emitted as a caller-storage slot.
+	// Callable matching compares the written shapes through the conversion view.
 	public static CallableShape LowerErasedResult(CallableShape shape)
 	{
 		string result = shape.ReturnType;

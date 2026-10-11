@@ -88,12 +88,10 @@ public sealed class ErasedTypeTests
 	public void Result_slot_precedes_allocator_error_and_witness_capabilities()
 	{
 		SemanticCompilation compilation = SemanticCompiler.CompileLowered("""
-			interface Reader { int read(); }
 			T mixed<T: copyable>(in T value, within void* allocator, thrown int error, sizeof(T), typenameof(T)) => value;
-			T witnessed<T: implements Reader>(T* value, sizeof(T), vtableof(T: Reader)) => default;
 			""");
 		SemanticCompiler.AssertNoDiagnostics(compilation);
-		foreach (string name in new[] { "mixed", "witnessed" })
+		foreach (string name in new[] { "mixed" })
 		{
 			FunctionDefinition function = SemanticCompiler.Function(compilation, name);
 			Assert.Equal("__result", function.Parameters[1].Name);
@@ -105,7 +103,7 @@ public sealed class ErasedTypeTests
 	[InlineData("T? missing<T: copyable>(in T value) => value;", "requires sizeof(T)")]
 	[InlineData("T? missing<T: copyable>() => default;", "requires sizeof(T)")]
 	[InlineData("T? missing<T: any>(in T value, sizeof(T)) => value;", "non-copying")]
-	[InlineData("interface I { } void bad<T: implements I>(T value, sizeof(T)) { }", "use 'in T'")]
+	[InlineData("interface I { } void bad<T: implements I>(T value, sizeof(T)) { }", "cannot be passed by value")]
 	public void Erased_operations_keep_capability_requirements(string source, string message)
 	{
 		SemanticCompilation compilation = SemanticCompiler.CompileLowered(source);
@@ -163,7 +161,6 @@ public sealed class ErasedTypeTests
 	[InlineData("void<void<int>>*", "another erased type")]
 	[InlineData("void<int>", "storage and is not valid")]
 	[InlineData("void<int>?", "storage and is not valid")]
-	[InlineData("delegate void<int>()", "storage and is not valid")]
 	[InlineData("struct(int[])*", "use void<V> instead")]
 	public void Invalid_written_types_are_diagnosed(string type, string message)
 	{

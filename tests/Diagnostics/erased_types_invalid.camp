@@ -5,9 +5,7 @@ struct Holder
 	fixed void<int>[2] fixedField;
 }
 
-void<int> bareResult() { return default; }
 void bareParameter(void<int> value) { }
-void badCallable(delegate void<int>() callback) { }
 void invalidAnnotation(void<void>* a, void<void<int>>* b) { }
 void badSelector(overload in void<int> value) { }
 class Box<T: any> { }

@@ -319,8 +319,10 @@ chosen by analysis/lowering:
   have been checked before C emission;
 - params/grouped values as their component layout;
 - async functions as completion-callback ABI functions;
-- erased generic returns as caller-provided storage: `void` plus `void*` for
-  `T`, and `bool` plus `void*` for `T?`. The result pointer precedes compiler
+- written `void<V>` results and erased generic returns as caller-provided
+  storage: `void` plus `void*` for `T`, and `bool` plus `void*` for `T?`;
+- a representation generic `T: C` as the integer `C` (not `void*`), so that a
+  method reference typed `C<A>` has the same C signature as the function; The result pointer precedes compiler
   capability/allocator/error slots and follows source parameters. Explicit
   `void<V>?` results use the same optional ABI and default-fill absent payloads.
 

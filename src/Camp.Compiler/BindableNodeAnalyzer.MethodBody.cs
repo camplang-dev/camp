@@ -4927,7 +4927,7 @@ public sealed partial class BindableNodeAnalyzer
 		Report(GetRange(syntax), reconstructHint ?? $"{context} cannot convert '{WitnessTypeIdentity.Display(actual)}' to '{WitnessTypeIdentity.Display(expected)}'.");
 	}
 
-	bool CanTargetTypeDirectFunctionAsDelegate(string expected, string actual, Expression? value)
+	bool CanTargetTypeDirectFunctionAsDelegate(string expected, string actual, Expression? value, bool loweringStage = false)
 	{
 		Expression? direct = value is NamedExpression named && expressionRewrites.TryGetValue(named, out Expression? rewrite)
 			? rewrite
@@ -4943,7 +4943,11 @@ public sealed partial class BindableNodeAnalyzer
 			|| target.Kind != "delegate")
 			return false;
 
-		return CallableShapesAbiSlotCompatible(ExpandCallableShape(source), ExpandCallableShape(target), out bool lifetimeOnlyDifference)
+		// Lowering rewrote the function value to its C shape, so both sides compare there. Source
+		// matching compares the written shapes, where a trailing out is not a result.
+		return (loweringStage
+				? CallableShapesAbiSlotCompatible(ExpandCallableShapeForAbi(source), ExpandCallableShapeForAbi(target), out bool lifetimeOnlyDifference)
+				: CallableShapesAbiSlotCompatible(ExpandCallableShape(source), ExpandCallableShape(target), out lifetimeOnlyDifference))
 			&& !lifetimeOnlyDifference;
 	}
 
@@ -5105,7 +5109,7 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		foreach ((string name, string replacement) in substitutions)
 			type = ReplaceTypeIdentifier(type, name, replacement);
-		return type;
+		return CarrierTypeIdentity.CollapseNested(type);
 	}
 
 	static IEnumerable<string> ExtractGenericNames(string type, HashSet<string> genericParameterNames)

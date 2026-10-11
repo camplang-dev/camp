@@ -984,20 +984,33 @@ or in a callable signature is a value newtype over its integer. So
 
 ## Generics
 
-Erased generic callbacks must match their substituted storage signatures.
+A reference to a generic method has the erasure of its signature: `T` becomes
+`void<A>` for `any`/`copyable`, `C<A>` for a representation constraint (default
+`nint`) and `A` for `implements`. `numbers.getItem` is `delegate void<int>(nuint)`
+for both `List<int>` and `List<int?>`-style payloads, and `slot.get` of a
+`Slot<Color>` with `T: long` is `delegate long<Color>()`. A function may write a
+`void<V>` result (`void<int> seven() => 7;`); a call reads it as `V`.
+
+Erased generic callbacks must match those signatures in the conversion view.
 `in int?` cannot fill `in void<int?>`; use a lambda with implicit parameters or
-an explicitly erased parameter. A plain result such as `int seven()` cannot
-fill an erased `delegate T()` with `T = int`: use `() => seven()` or a function
-with a trailing `out int`. Ordinary function-to-delegate context adaptation
-still applies once the signature matches.
+an explicitly erased parameter. A plain result such as `int seven()` cannot fill
+`delegate void<int>()`: use `() => seven()` or write `void<int> seven()`. A
+function with a trailing `out int` is not a result and never fills such a slot,
+although `int value = sevenOut();` still binds its single trailing output as an
+ordinary call. Ordinary function-to-delegate context adaptation still applies
+once the signature matches.
 
 For non-expandable `P`, `P` and `void<P>` are compatible in `in`, `out`, pointer
-and array slots. Erased results match trailing outputs; optional erased results
-match `bool` plus a trailing output. These rules apply to newtype ascription and
-interface implementations, while virtual overrides remain exact.
+and array slots. A `void<V>` result and a carrier are nominal. These rules apply
+to newtype ascription and interface implementations, while virtual overrides
+remain exact.
 
-Bound generic method references keep their substituted erased result shape;
-invoking them produces the plain payload. `List<int?>.getItemOrDefault` returns
+Under `T: implements I` the type parameter is transported only by pointer:
+`T*`, `const T*`, `T[]` and `out T*` are valid; a `T` result, `in T`, `out T`
+and a by-value `T` are errors.
+
+Bound generic method references keep their erased result shape; invoking them
+produces the plain payload. `List<int?>.getItemOrDefault` returns
 `int??` at a call site, preserving both presence layers. Its `take` result is a
 borrowed `void<int?>[]`, and its `Item` getter produces `int?`.
 

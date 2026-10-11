@@ -746,24 +746,40 @@ detail.
 
 ## Method References
 
-References to erased generic methods expose their substituted calling shape.
-For a `List<int> numbers`, `auto get = numbers.getItem` has the shape
-`delegate void<int>(nuint)`. It can fill
-`delegate void(nuint, out int)`; calling `get(0)` produces an `int`. A lambda
-such as `index => numbers.getItem(index)` can fill a plain `delegate int(nuint)`.
+References to generic methods expose the erasure of their signature. Each
+type parameter is replaced by its erased form: `void<A>` for `any` and
+`copyable`, the carrier `C<A>` for a representation constraint (an unconstrained
+parameter is `nint`), and plain `A` under `implements`. The result is the same
+for every type argument. For a `List<int> numbers`,
+`auto get = numbers.getItem` is `delegate void<int>(nuint)` and
+`auto set = numbers.setItem` is `delegate void(nuint, in void<int>)`; for a
+`List<int?>` only `A` changes. For `Slot<Color>` with `T: long`,
+`auto read = slot.get` is `delegate long<Color>()`. Calling a generic directly
+still reads its result as `A`.
 
-Callable matching permits `P` against `void<P>` in reference, pointer and array
-slots when `P` is not expandable. An erased result also matches a trailing
-output: `void<V>` matches `void(..., out void<V>)`, and `void<V>?` matches
-`bool(..., out void<V>)`. Callable newtype ascription and interface implementation
-matching use these rules; virtual overrides remain exact.
+A function may declare a `void<V>` result. It returns no value in C and fills
+caller-owned storage, and a call reads as `V`:
 
-For an erased `delegate T()` callback, a plain `int seven()` cannot fill the
-slot when `T = int`. Use `() => seven()` or
-`void sevenOut(out int result) { result = 7; }`. Both produce `7`, and
-`int value = sevenOut()` also binds its single trailing output. Likewise,
-`in int?` cannot fill an `in void<int?>` callback slot: use an implicit-parameter
-lambda or declare the callback with `in void<int?>`.
+```camp
+void<int> seven() => 7;
+
+delegate void<int>() made = seven;
+int value = made();
+```
+
+Callable types are compared in the conversion view. `P` matches `void<P>` in
+`in`, `out`, pointer and array slots when `P` is not expandable, so
+`int compareInts(in int x, in int y)` fills a comparer of `in void<int>`. A
+`void<V>` result is never stripped, and a carrier is nominal: a plain
+`int seven()` does not fill `delegate void<int>()`, and `slot.get` does not fill
+`delegate Color()`. A trailing `out` parameter is never read as a result: a
+function `void sevenOut(out int result)` does not fill `delegate void<int>()`,
+although `int value = sevenOut();` still binds its single trailing output as an
+ordinary call. Use a lambda to adapt, such as `() => seven()` or
+`() => slot.get()`, or declare the function with a `void<V>` result. Likewise
+`in int?` cannot fill an `in void<int?>` slot. Callable newtype ascription,
+lambdas and interface implementation use the same matching; virtual overrides
+remain exact.
 
 A method reference can become a callable value. If the receiver is known, the
 callable captures the receiver as context. If the receiver is not known, the

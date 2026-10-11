@@ -67,6 +67,12 @@ int carrierStorage()
 	Kind inferredKind = inferred;
 	if (inferredKind != BLUE) return 113;
 	if (typenameof(long<Kind>*).Length != typenameof(Kind).Length || typenameof(long<Kind>*)[0] != 'K') return 114;
+	CarrierSlot<Kind>* slotPointer = stackalloc CarrierSlot<Kind>();
+	slotPointer.value = GREEN;
+	delegate long<Kind>() carrierGetter = slotPointer.get;
+	delegate Kind() adapted = () => slotPointer.get();
+	Kind viaGetter = carrierGetter();
+	if (viaGetter != GREEN || adapted() != GREEN) return 115;
 	return 0;
 }
 

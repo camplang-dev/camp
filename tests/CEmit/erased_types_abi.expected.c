@@ -2,6 +2,8 @@
 #include "erased_types_abi_private.h"
 
 /* Private file declarations. */
+static int64_t Wide_get(Wide *this);
+static void Wide_set(Wide *this, int64_t next);
 static void main(void);
 
 void *identity(void *p)
@@ -37,6 +39,25 @@ void callback(void (* action)(const void *input, void *output))
 {
 }
 
+static int64_t Wide_get(Wide *this)
+{
+	return this->value;
+}
+
+static void Wide_set(Wide *this, int64_t next)
+{
+	this->value = next;
+}
+
+int64_t carrierResult(int64_t value)
+{
+	return value;
+}
+
+void carrierCallback(int64_t (* action)(int64_t arg0))
+{
+}
+
 static void main(void)
 {
 }
@@ -54,6 +75,8 @@ void array(void *values, uintptr_t values_length);
 int input(const void *value);
 void output(void *value);
 void callback(void (* action)(const void *input, void *output));
+int64_t carrierResult(int64_t value);
+void carrierCallback(int64_t (* action)(int64_t arg0));
 
 #endif
 // file: erased_types_abi_private.h
@@ -66,8 +89,12 @@ void callback(void (* action)(const void *input, void *output));
 
 /* Forward declarations. */
 typedef struct Point Point;
+typedef struct Wide Wide;
 
 /* Enums. */
+typedef int Kind;
+#define Kind_A ((Kind)0)
+#define Kind_B ((Kind)1)
 
 /* Newtypes. */
 
@@ -75,6 +102,10 @@ typedef struct Point Point;
 struct Point
 {
 	int x;
+};
+struct Wide
+{
+	int64_t value;
 };
 
 /* Erased storage layouts. */
@@ -88,6 +119,8 @@ void array(void *values, uintptr_t values_length);
 int input(const void *value);
 void output(void *value);
 void callback(void (* action)(const void *input, void *output));
+int64_t carrierResult(int64_t value);
+void carrierCallback(int64_t (* action)(int64_t arg0));
 
 /* Object declarations. */
 
