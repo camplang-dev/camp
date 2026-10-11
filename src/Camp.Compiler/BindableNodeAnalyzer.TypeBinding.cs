@@ -280,7 +280,7 @@ public sealed partial class BindableNodeAnalyzer
 					&& payloadShape.Kind == TypeShapeKind.Named && payloadShape.Name == "void"
 					|| ErasedTypeIdentity.TryGetPayload(erased.ParamsType?.ResolvedType, out _))
 					Report(GetRange(erased.SourceSyntax), "void<V> cannot contain void or another erased type directly.");
-				else if (payloadShape.Kind == TypeShapeKind.Named && scope.TryGetGenericParameter(payloadShape.Name, out GenericParameter? erasedOperand) && IsErasedGenericParameter(erasedOperand))
+				else if (payloadShape.Kind == TypeShapeKind.Named && scope.TryGetGenericParameter(payloadShape.Name, out GenericParameter? erasedOperand) && erasedOperand is not null && IsErasedGenericParameter(erasedOperand))
 					Report(GetRange(erased.SourceSyntax), $"void<V> cannot contain the erased type parameter '{payloadShape.Name}', which is already storage of unspecified size; write '{payloadShape.Name}' (or '{payloadShape.Name}*').");
 				type.ResolvedType = FormatTypeReference(type);
 				break;
