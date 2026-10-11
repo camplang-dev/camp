@@ -4665,6 +4665,12 @@ public sealed partial class BindableNodeAnalyzer
 	bool TryBindCallArgumentToParameter(ArgumentExpression argument, List<ParameterDefinition> callableParameters, bool[] suppliedParameters, SyntaxNode? fallbackSyntax, out int parameterIndex)
 	{
 		parameterIndex = -1;
+		if (implicitCapabilityArguments.TryGetValue(argument, out ParameterDefinition? capability)
+			&& (parameterIndex = callableParameters.IndexOf(capability)) >= 0)
+		{
+			suppliedParameters[parameterIndex] = true;
+			return true;
+		}
 		if (!string.IsNullOrWhiteSpace(argument.Name))
 		{
 			parameterIndex = callableParameters.FindIndex(parameter => parameter.Name == argument.Name);
@@ -5322,18 +5328,33 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		ParameterDefinition? within = GetWithinParameter(function);
 		int withinIndex = within is null ? -1 : FindWithinArgumentIndex(within, call.Arguments);
-		if (withinIndex < 0)
-		{
-			int index = FindArgumentIndexForCallableParameter(call.Arguments, callableParameters, parameterIndex);
-			existing = index < call.Arguments.Count ? call.Arguments[index] : null;
-			return index;
-		}
-
 		List<ArgumentExpression> visible = [.. call.Arguments];
-		visible.RemoveAt(withinIndex);
-		int visibleIndex = FindArgumentIndexForCallableParameter(visible, callableParameters, parameterIndex);
-		existing = visibleIndex < visible.Count ? visible[visibleIndex] : null;
-		return visibleIndex <= withinIndex ? visibleIndex : visibleIndex + 1;
+		if (withinIndex >= 0) visible.RemoveAt(withinIndex);
+		bool[] supplied = new bool[callableParameters.Count];
+		existing = null;
+		int visibleIndex = 0;
+		for (; visibleIndex < visible.Count; visibleIndex++)
+		{
+			ArgumentExpression argument = visible[visibleIndex];
+			if (!TryBindCallArgumentToParameter(argument, callableParameters, supplied, call.SourceSyntax, out int boundIndex))
+				continue;
+			if (boundIndex >= parameterIndex)
+			{
+				if (boundIndex == parameterIndex) existing = argument;
+				break;
+			}
+			int consumed = CountCallableParametersSatisfiedByArgument(visible, argument, callableParameters, boundIndex);
+			for (int component = 1; component < consumed; component++)
+				MarkSuppliedParameter(supplied, boundIndex + component);
+		}
+		return withinIndex < 0 || visibleIndex <= withinIndex ? visibleIndex : visibleIndex + 1;
+	}
+
+	ArgumentExpression CreateImplicitCapabilityArgument(ParameterDefinition parameter, Expression value, SyntaxNode? syntax)
+	{
+		ArgumentExpression argument = new() { SourceSyntax = syntax, Value = value, ResolvedType = value.ResolvedType };
+		implicitCapabilityArguments[argument] = parameter;
+		return argument;
 	}
 
 	// The ABI places a within parameter immediately before the next ordinary parameter, or last when none follows.

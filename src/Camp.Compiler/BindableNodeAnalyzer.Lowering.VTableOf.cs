@@ -340,12 +340,8 @@ public sealed partial class BindableNodeAnalyzer
 					ResolvedType = new WitnessTypeIdentity(concreteType, vtableOf.InterfaceType?.ResolvedType ?? VTableOfTypeName(vtableOf.InterfaceType)).ResolvedType
 				})
 				: CreateConcreteVTableExpression(concreteType, vtableOf, vtableSyntax);
-			call.Arguments.Insert(System.Math.Min(argumentIndex, call.Arguments.Count), new ArgumentExpression
-			{
-				SourceSyntax = vtableSyntax,
-				Value = vtableValue,
-				ResolvedType = vtableValue.ResolvedType
-			});
+			call.Arguments.Insert(System.Math.Min(argumentIndex, call.Arguments.Count),
+				CreateImplicitCapabilityArgument(vtableOf, vtableValue, vtableSyntax));
 		}
 	}
 

@@ -214,12 +214,8 @@ public sealed partial class BindableNodeAnalyzer
 				ResolvedType = "nuint"
 			};
 			int insertIndex = Math.Min(argumentIndex, call.Arguments.Count);
-			call.Arguments.Insert(insertIndex, new ArgumentExpression
-			{
-				SourceSyntax = call.SourceSyntax ?? call.Target?.SourceSyntax,
-				Value = IsGenericSizeOf(value, out _) ? LowerSizeOfExpression(value) : value,
-				ResolvedType = "nuint"
-			});
+			call.Arguments.Insert(insertIndex, CreateImplicitCapabilityArgument(sizeOf,
+				IsGenericSizeOf(value, out _) ? LowerSizeOfExpression(value) : value, call.SourceSyntax ?? call.Target?.SourceSyntax));
 		}
 	}
 

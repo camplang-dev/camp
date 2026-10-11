@@ -1,0 +1,19 @@
+interface Reader { int read(); }
+struct Box: Reader { int value; int read(): Reader => this.value; }
+int a<T: implements Reader>(T* source, vtableof(T: Reader), sizeof(T), typenameof(T)) => source.read();
+int b<T: implements Reader>(T* source, vtableof(T: Reader), typenameof(T), sizeof(T)) => source.read();
+int c<T: implements Reader>(T* source, sizeof(T), vtableof(T: Reader), typenameof(T)) => source.read();
+int d<T: implements Reader>(T* source, sizeof(T), typenameof(T), vtableof(T: Reader)) => source.read();
+int e<T: implements Reader>(T* source, typenameof(T), vtableof(T: Reader), sizeof(T)) => source.read();
+int f<T: implements Reader>(T* source, typenameof(T), sizeof(T), vtableof(T: Reader)) => source.read();
+int forward<T: implements Reader>(T* source, vtableof(T: Reader), typenameof(T), sizeof(T)) => b(source);
+int expanded<T: implements Reader>(T* source, int? extra = 3, vtableof(T: Reader), sizeof(T)) => source.read() + extra.value;
+export int main()
+{
+	Box box = { 7 };
+	if (a(&box) != 7 || b(&box) != 7 || c(&box) != 7) return 1;
+	if (d(&box) != 7 || e(&box) != 7 || f(&box) != 7) return 2;
+	if (forward(&box) != 7) return 3;
+	if (expanded(&box) != 10 || expanded(&box, 5) != 12) return 4;
+	return 0;
+}

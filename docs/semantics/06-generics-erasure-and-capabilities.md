@@ -257,6 +257,9 @@ pointer value itself has ordinary pointer-sized copy semantics.
 `sizeof(T)`, `vtableof(T: Interface)`, and `typenameof(T)` parameters transport
 capabilities into generic bodies. Lowering must thread those values through
 generated calls and helper declarations.
+Call lowering preserves their declaration order. Track each generated argument
+by its capability parameter so a size, name, or witness argument cannot be
+mistaken for a different capability that has not yet been inserted.
 
 ### `sizeof(T)`
 

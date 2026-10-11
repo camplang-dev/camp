@@ -44,33 +44,6 @@ Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
 
-## BUG-284: Declaring `vtableof` before `sizeof` drops the vtable argument at calls
-
-Date/Time: 2026-10-10 23:18 EDT
-
-Summary:
-A generic function that declares `vtableof(T: I)` before `sizeof(T)` is called
-without its vtable argument. With the order reversed, the call is correct.
-
-Steps to Reproduce:
-
-1. Declare an interface `Reader`, a struct `Box: Reader`, and
-   `int read<T: implements Reader>(T* source, vtableof(T: Reader), sizeof(T)) => source.read();`.
-2. Call `read(&box)` from `main`.
-3. Build the file.
-
-Expected:
-The call passes the `Box` vtable and `sizeof(Box)`.
-
-Actual:
-The generated C calls `read(&box, sizeof(Box))` and the native compiler reports
-too few arguments. Declaring `sizeof(T)` first then `vtableof(T: Reader)`
-produces `read(&box, sizeof(Box), Box_Reader)`.
-
-Known Impact:
-Capability parameters must be declared with `sizeof(T)` before `vtableof`, with
-no diagnostic when they are not.
-
 ## BUG-285: Passing an element of a `void<V>` array to an `in void<V>` parameter fails in C
 
 Date/Time: 2026-10-10 23:18 EDT

@@ -453,12 +453,8 @@ public sealed partial class BindableNodeAnalyzer
 			Expression value = typeName == requestedTypeName && ContainsAnyGenericParameter(typeName, function)
 				? LowerNameOfExpression(new NameOfExpression { SourceSyntax = call.SourceSyntax ?? call.Target?.SourceSyntax, Text = typeName })
 				: NameOfStringLiteral(BuildNameOfTypeValue(typeName), call.SourceSyntax ?? call.Target?.SourceSyntax);
-			call.Arguments.Insert(Math.Min(argumentIndex, call.Arguments.Count), new ArgumentExpression
-			{
-				SourceSyntax = call.SourceSyntax ?? call.Target?.SourceSyntax,
-				Value = value,
-				ResolvedType = "string"
-			});
+			call.Arguments.Insert(Math.Min(argumentIndex, call.Arguments.Count),
+				CreateImplicitCapabilityArgument(nameOf, value, call.SourceSyntax ?? call.Target?.SourceSyntax));
 		}
 	}
 

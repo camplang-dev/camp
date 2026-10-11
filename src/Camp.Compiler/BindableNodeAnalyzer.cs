@@ -80,6 +80,7 @@ public sealed partial class BindableNodeAnalyzer
 	readonly Dictionary<AssignmentExpression, MemberReferenceExpression> compoundPropertyGetters = [];
 	readonly HashSet<AssignmentExpression> generatedRetainedAllocatorAssignments = [];
 	readonly Dictionary<TypeReference, TypeReference> typeRewrites = [];
+	readonly Dictionary<ArgumentExpression, ParameterDefinition> implicitCapabilityArguments = [];
 	readonly Dictionary<FunctionDefinition, ParameterDefinition> materializedGenericReturnParameters = [];
 	readonly HashSet<NewtypeDefinition> analyzedNewtypeSignatures = [];
 	readonly Dictionary<(InterfaceDefinition Definition, int Version), List<InterfaceDefinition>> interfaceAndBaseInterfaceCache = [];
