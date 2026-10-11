@@ -2,7 +2,7 @@
 
 ## Status
 
-Pending.
+Accepted and implemented (DEV-018).
 
 ## Proposal Date
 
