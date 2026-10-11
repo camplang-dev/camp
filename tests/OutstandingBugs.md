@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-287.
+Next bug number: BUG-288.
 
 ## Bug Template
 
@@ -82,3 +82,26 @@ The C compiler rejects the generated call: `(*source)->next(source, &_value1, 5)
 
 Known Impact:
 Any interface method with a written `void<V>` result cannot be called through the interface. Direct calls and generic dispatch to non-interface callables are unaffected. No workaround other than calling the concrete type or returning an ordinary value.
+
+## BUG-287: Distinct callable newtypes with identical shapes convert implicitly
+
+Date/Time: 2026-10-11 19:18 EDT
+
+Summary:
+Callable newtypes are nominal: two newtypes with the same calling shape remain different types, and a value of one needs an ascription, cast or source rule to become the other. The compiler accepts an implicit conversion between two distinct callable newtypes that have equal shapes, and also accepts a raw callable value converted to a callable newtype.
+
+Steps to Reproduce:
+
+1. Declare `newtype fn int First(int value);` and `newtype fn int Second(int value);`.
+2. Declare `int read(int value): First => value;`.
+3. In a function body, write `First first = read;` and then `Second second = first;`.
+4. Build the program.
+
+Expected:
+`Second second = first;` is rejected with an invalid implicit conversion, because the two newtypes are nominally distinct (see the callable newtype nominal boundary in the conversion semantics: a named newtype requires an ascription, cast or source rule to cross the boundary).
+
+Actual:
+The program compiles with no diagnostic. A callable newtype instantiated from a generic callable newtype (`Equals<int>` to `Matches<int>`) and a raw `fn` value assigned to a callable newtype are accepted as well. Conversions between different instantiations of one generic callable newtype (`Equals<int>` to `Equals<long>`) are rejected.
+
+Known Impact:
+A callback intended for one role can be passed where another role is required without any diagnostic. A golden that expects the rejection fails against this compiler.
