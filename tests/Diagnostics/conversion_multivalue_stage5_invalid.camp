@@ -1,4 +1,4 @@
-class Box<T>
+class Box<T: any>
 {
 }
 

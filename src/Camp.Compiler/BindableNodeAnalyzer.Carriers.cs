@@ -55,7 +55,7 @@ public sealed partial class BindableNodeAnalyzer
 			return true;
 		}
 
-		if (shape.Kind == TypeShapeKind.Pointer)
+		if (shape.Kind == TypeShapeKind.Pointer || shape.Kind == TypeShapeKind.Named && IsPrimitiveStringType(shape.Name))
 		{
 			if (carrier is not ("nint" or "nuint"))
 			{

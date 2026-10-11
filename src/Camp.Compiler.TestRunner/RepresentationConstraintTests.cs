@@ -15,6 +15,7 @@ public sealed class RepresentationConstraintTests
 	[Theory]
 	[InlineData("int", "ulong")]
 	[InlineData("int", "float")]
+	[InlineData("int", "string")]
 	[InlineData("int", "int*")]
 	[InlineData("int", "WideCode")]
 	[InlineData("int", "Wide")]
@@ -44,6 +45,9 @@ public sealed class RepresentationConstraintTests
 	[InlineData("int", "int<SmallCode>")]
 	[InlineData("long", "ulong")]
 	[InlineData("nint", "int*")]
+	[InlineData("nint", "string")]
+	[InlineData("nint", "wstring")]
+	[InlineData("nuint", "astring")]
 	[InlineData("nuint", "Point*")]
 	public void Compatible_arguments_are_accepted(string carrier, string argument)
 	{

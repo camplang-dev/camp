@@ -122,7 +122,8 @@ a default-construction or destruction capability.
 Integer representation constraints validate type arguments at type instantiation
 and at explicit or inferred generic calls. They accept integers, enums and value
 newtypes with integer underlying types no wider than the carrier; `nint` and
-`nuint` also accept non-distributive pointers that fit the selected target.
+`nuint` also accept non-distributive pointers, including primitive string
+pointers, that fit the selected target.
 The unconstrained default follows `nint`. Use the same operand rules as integer
 carriers and reject invalid arguments before lowering or native emission.
 An argument that is itself an integer carrier is checked by that carrier's

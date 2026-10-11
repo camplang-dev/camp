@@ -1,7 +1,7 @@
 // @ target msvc-win16-x86
 // @ variant large
 
-struct Box<T>
+struct Box<T: void*>
 {
 	T value;
 }
