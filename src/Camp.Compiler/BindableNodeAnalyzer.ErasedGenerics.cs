@@ -186,10 +186,21 @@ public sealed partial class BindableNodeAnalyzer
 	static bool IsErasedGenericParameter(GenericParameter parameter) =>
 		parameter.Constraint is AnyTypeReference or CopyableTypeReference || parameter.RequiresImplementation;
 
-	void ValidateRepresentationArgument(GenericParameter parameter, string type, SyntaxNode? syntax)
+	void ValidateRepresentationArgument(GenericParameter parameter, string type, AnalysisScope scope, SyntaxNode? syntax)
 	{
-		if (!IsErasedGenericParameter(parameter) && TryGetParamsComponentShape(null, type, "value", out _))
+		if (IsErasedGenericParameter(parameter) || type == ErrorType || type.StartsWith(UnresolvedType, System.StringComparison.Ordinal))
+			return;
+		if (TryGetParamsComponentShape(null, type, "value", out _))
+		{
 			Report(GetRange(syntax), $"Expandable type argument '{type}' requires an erased generic parameter; use '{parameter.Name}: any' or '{parameter.Name}: copyable'.");
+			return;
+		}
+		string? carrier = parameter.Constraint is null ? "nint"
+			: parameter.Constraint is PrimitiveTypeReference primitive && IsIntegralPrimitive(primitive.Type) ? GetPrimitiveTypeName(primitive.Type) : null;
+		// A carrier argument retains its identity and uses its own integer storage.
+		string operand = CarrierTypeIdentity.TryGetCarrier(StripTopLevelValueQualifiers(type), out string argumentCarrier, out _) ? argumentCarrier : type;
+		if (carrier is not null && TryExplainInvalidCarrierOperand(carrier, operand, scope, out string? reason))
+			Report(GetRange(syntax), $"Type argument '{type}' does not satisfy representation constraint '{parameter.Name}: {carrier}': {reason}");
 	}
 
 	// Substitution preserves generic identities, but storage positions must keep

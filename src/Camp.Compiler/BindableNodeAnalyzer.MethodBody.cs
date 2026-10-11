@@ -3615,7 +3615,7 @@ public sealed partial class BindableNodeAnalyzer
 				call.ResolvedType = ErrorType;
 				return ErrorType;
 			}
-			ValidateGenericCallSubstitutionConstraints(function, genericSubstitutions, scope, call.SourceSyntax ?? GetExpressionDiagnosticSyntax(call.Target));
+			ValidateGenericCallSubstitutionConstraints(function, genericSubstitutions, scope, typeScope, call.SourceSyntax ?? GetExpressionDiagnosticSyntax(call.Target));
 		}
 		if (function is not null)
 			callGenericSubstitutions[call] = new Dictionary<string, string>(genericSubstitutions, StringComparer.Ordinal);
@@ -3950,23 +3950,23 @@ public sealed partial class BindableNodeAnalyzer
 		];
 	}
 
-	void ValidateGenericCallSubstitutionConstraints(FunctionDefinition function, Dictionary<string, string> substitutions, BodyScope scope, SyntaxNode? syntax)
+	void ValidateGenericCallSubstitutionConstraints(FunctionDefinition function, Dictionary<string, string> substitutions, BodyScope scope, AnalysisScope typeScope, SyntaxNode? syntax)
 	{
 		HashSet<string> checkedNames = [];
 		foreach (GenericParameter parameter in function.GenericParameters)
-			ValidateGenericCallSubstitutionConstraint(function, parameter, substitutions, scope, syntax, checkedNames);
+			ValidateGenericCallSubstitutionConstraint(function, parameter, substitutions, scope, typeScope, syntax, checkedNames);
 		if (FindContainingType(function) is TypeDefinition containingType)
 			foreach (GenericParameter parameter in containingType.GenericParameters)
-				ValidateGenericCallSubstitutionConstraint(function, parameter, substitutions, scope, syntax, checkedNames);
+				ValidateGenericCallSubstitutionConstraint(function, parameter, substitutions, scope, typeScope, syntax, checkedNames);
 	}
 
-	void ValidateGenericCallSubstitutionConstraint(FunctionDefinition function, GenericParameter parameter, Dictionary<string, string> substitutions, BodyScope scope, SyntaxNode? syntax, HashSet<string> checkedNames)
+	void ValidateGenericCallSubstitutionConstraint(FunctionDefinition function, GenericParameter parameter, Dictionary<string, string> substitutions, BodyScope scope, AnalysisScope typeScope, SyntaxNode? syntax, HashSet<string> checkedNames)
 	{
 		if (!checkedNames.Add(parameter.Name))
 			return;
 		if (!substitutions.TryGetValue(parameter.Name, out string? substitutedType) || string.IsNullOrWhiteSpace(substitutedType))
 			return;
-		ValidateRepresentationArgument(parameter, substitutedType, syntax);
+		ValidateRepresentationArgument(parameter, substitutedType, typeScope, syntax);
 		if (parameter.Constraint is not CopyableTypeReference)
 			return;
 		if (!IsCopyableResolvedType(substitutedType, scope, []))
@@ -6505,7 +6505,7 @@ public sealed partial class BindableNodeAnalyzer
 			GetCallDisplayName(function, call.Target));
 		NormalizeAwaitCatchArguments(call, function);
 		AddReceiverConstOfAnchorFact(call.Target, function, constOfAnchors);
-		ValidateGenericCallSubstitutionConstraints(function, genericSubstitutions, scope, call.SourceSyntax ?? GetExpressionDiagnosticSyntax(call.Target));
+		ValidateGenericCallSubstitutionConstraints(function, genericSubstitutions, scope, typeScope, call.SourceSyntax ?? GetExpressionDiagnosticSyntax(call.Target));
 		callGenericSubstitutions[call] = new Dictionary<string, string>(genericSubstitutions, StringComparer.Ordinal);
 
 		if (!IsAwaitable(call, scope, typeScope))

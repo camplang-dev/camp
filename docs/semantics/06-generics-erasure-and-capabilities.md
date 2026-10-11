@@ -119,6 +119,15 @@ Do not use one constraint as a proxy for another. `vtableof` is not a size
 capability. `sizeof` is not an interface-dispatch capability. `copyable` is not
 a default-construction or destruction capability.
 
+Integer representation constraints validate type arguments at type instantiation
+and at explicit or inferred generic calls. They accept integers, enums and value
+newtypes with integer underlying types no wider than the carrier; `nint` and
+`nuint` also accept non-distributive pointers that fit the selected target.
+The unconstrained default follows `nint`. Use the same operand rules as integer
+carriers and reject invalid arguments before lowering or native emission.
+An argument that is itself an integer carrier is checked by that carrier's
+storage width and retains its identity during substitution.
+
 ## Erased Versus Materialized Values
 
 Only erased parameters (`any`, `copyable`, or interface constraints) accept

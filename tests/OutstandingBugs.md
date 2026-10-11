@@ -44,32 +44,6 @@ Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
 
-## BUG-281: Representation-constraint type arguments are not checked for width or kind
-
-Date/Time: 2026-10-10 21:00 EDT
-
-Summary:
-The language documents that a type argument for a representation constraint
-`T: C` must be an integer of equal or smaller width, a compatible enum or value
-newtype, or (for `nint` and `nuint`) a pointer. The compiler checks only that the
-argument is not expandable; any other argument is accepted.
-
-Steps to Reproduce:
-
-1. Declare `struct Slot<T: int> { T value; }`.
-2. Declare locals `Slot<ulong> a;`, `Slot<float> b;` and `Slot<int*> c;`.
-3. Build the file.
-
-Expected:
-Each declaration is rejected, naming the constraint the argument fails.
-
-Actual:
-No diagnostic is reported.
-
-Known Impact:
-A wider or non-integer argument silently receives a representation of the wrong
-size or kind.
-
 ## BUG-282: An optional of an alias to a copyable type is rejected as non-copyable
 
 Date/Time: 2026-10-10 22:40 EDT

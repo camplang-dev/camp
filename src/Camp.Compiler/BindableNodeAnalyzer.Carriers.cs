@@ -100,8 +100,9 @@ public sealed partial class BindableNodeAnalyzer
 		int carrierWidth = GetCarrierWidth(carrier, shape.TargetSpec);
 		if (scope.TryGetGenericParameter(shape.Name, out GenericParameter? generic) && generic is not null)
 		{
-			if (generic.RequiresImplementation || generic.Constraint is not PrimitiveTypeReference { Type: PrimitiveType primitiveConstraint } || !IsIntegralPrimitive(primitiveConstraint)
-				|| GetCarrierWidth(GetPrimitiveTypeName(primitiveConstraint), null) > carrierWidth)
+			string? genericCarrier = generic.Constraint is null ? "nint"
+				: generic.Constraint is PrimitiveTypeReference primitive && IsIntegralPrimitive(primitive.Type) ? GetPrimitiveTypeName(primitive.Type) : null;
+			if (generic.RequiresImplementation || genericCarrier is null || GetCarrierWidth(genericCarrier, null) > carrierWidth)
 				reason = $"type parameter '{generic.Name}' does not satisfy '{constraint}'; its constraint must be an integer representation constraint no wider than '{carrier}'.";
 			return reason is not null;
 		}
