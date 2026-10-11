@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-282.
+Next bug number: BUG-283.
 
 ## Bug Template
 
@@ -96,3 +96,28 @@ Known Impact:
 A wider or non-integer argument silently receives a representation of the wrong
 size or kind.
 
+## BUG-282: An optional of an alias to a copyable type is rejected as non-copyable
+
+Date/Time: 2026-10-10 22:40 EDT
+
+Summary:
+An optional whose payload is written through an `alias` reports that optional
+payloads must be copyable, although the aliased type is copyable. The same
+optional written with the aliased type directly is accepted.
+
+Steps to Reproduce:
+
+1. Declare `alias Count = int;`.
+2. Declare `void take(Count? value) { }` and `void direct(int? value) { }`.
+3. Build the file.
+
+Expected:
+Both declarations are accepted, because `Count` names `int`.
+
+Actual:
+`take` reports `Optional payloads must be copyable; use a pointer to a
+non-copyable value instead.` and `direct` is accepted.
+
+Known Impact:
+An alias cannot be used as an optional payload. Programs must write the aliased
+type directly.
