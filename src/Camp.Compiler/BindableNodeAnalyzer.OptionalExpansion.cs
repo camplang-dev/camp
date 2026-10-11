@@ -8,7 +8,7 @@ public sealed partial class BindableNodeAnalyzer
 {
 	bool TryGetCallableInvocationShape(string? type, out CallableShape shape)
 	{
-		if (TryGetOptionalPayloadType(type, out string payload) && !TryGetOptionalPayloadType(payload, out _)
+		if (TryGetOptionalPayloadType(type, out string payload)
 			&& TryGetCallableShape(payload, out shape) && shape.Kind is "delegate" or "once" or "async" or "iter")
 			return true;
 		return TryGetCallableShape(type, out shape);

@@ -10,18 +10,12 @@ void getPoint(void *result)
 	(*(Point *)result) = p;
 }
 
-bool find(int index, void *__result)
+void find(int index, void *__result)
 {
-	if ((index == 0))
 	{
 		(*(__camp_erased_storage_117913a4a09d6895 *)__result).value = 7;
 		(*(__camp_erased_storage_117913a4a09d6895 *)__result).specified = true;
-		return true;
-	}
-	{
-		(*(__camp_erased_storage_117913a4a09d6895 *)__result).value = 0;
-		(*(__camp_erased_storage_117913a4a09d6895 *)__result).specified = 0;
-		return false;
+		return;
 	}
 }
 
@@ -38,20 +32,17 @@ void identity(const void *value, void *__result, uintptr_t sizeof_T, const char 
 	}
 }
 
-bool maybe(const void *value, void *__result, uintptr_t sizeof_T)
+bool tryCopy(const void *value, void *result, uintptr_t sizeof_T)
 {
-	{
-		__builtin_memcpy(__result, value, sizeof_T);
-		return true;
-	}
+	__builtin_memcpy(result, value, sizeof_T);
+	return true;
 }
 
-void optional(const void *source, bool *source_specified, void *target, bool *target_specified)
+void optional(const void *source, void *target)
 {
 	{
 		(*(__camp_erased_storage_117913a4a09d6895 *)target).value = (*(const __camp_erased_storage_117913a4a09d6895 *)source).value;
 		(*(__camp_erased_storage_117913a4a09d6895 *)target).specified = (*(const __camp_erased_storage_117913a4a09d6895 *)source).specified;
-		(*target_specified) = (*source_specified);
 	}
 }
 
@@ -69,11 +60,11 @@ int externalCall(void)
 #include "erased_result_abi_private.h"
 
 void getPoint(void *result);
-bool find(int index, void *__result);
+void find(int index, void *__result);
 void *getOpaquePoint(void *value);
 void identity(const void *value, void *__result, uintptr_t sizeof_T, const char *typenameof_T);
-bool maybe(const void *value, void *__result, uintptr_t sizeof_T);
-void optional(const void *source, bool *source_specified, void *target, bool *target_specified);
+bool tryCopy(const void *value, void *result, uintptr_t sizeof_T);
+void optional(const void *source, void *target);
 int externalCall(void);
 
 #endif
@@ -104,11 +95,11 @@ typedef struct { int value; bool specified; } __camp_erased_storage_117913a4a09d
 
 /* Function declarations. */
 void getPoint(void *result);
-bool find(int index, void *__result);
+void find(int index, void *__result);
 void *getOpaquePoint(void *value);
 void identity(const void *value, void *__result, uintptr_t sizeof_T, const char *typenameof_T);
-bool maybe(const void *value, void *__result, uintptr_t sizeof_T);
-void optional(const void *source, bool *source_specified, void *target, bool *target_specified);
+bool tryCopy(const void *value, void *result, uintptr_t sizeof_T);
+void optional(const void *source, void *target);
 int externalCall(void);
 
 /* Object declarations. */

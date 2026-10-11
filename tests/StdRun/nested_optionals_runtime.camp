@@ -1,24 +1,25 @@
 newtype delegate int Predicate(int n);
 newtype once int OnceAction(int n);
 newtype iter int Numbers();
-struct State { int?? nested; int??? deep; int[]? array; int[]?? arrays; Predicate? callback; }
+struct State { int? scalar; int[]? array; Predicate? callback; }
 int plusOne(int n) => n + 1;
 int calls;
 int payload() { calls++; return 7; }
-int?? wrap(int? value) => value;
-int??? wrapDeep(int?? value) => value;
-int??? copyDeep(int??? value) => value;
+int? wrap(int value) => value;
+int? copyOpt(int? value) => value;
 int[]? wrapArray(int[] value) => value;
-int[]?? wrapArrays(int[]? value) => value;
+int[]? copyArray(int[]? value) => value;
+T[]? genericArray<T: any>(T[] value) => value;
+void<int?>[]? erasedArray(void<int?>[] value) => value;
 Predicate? wrapCallback(Predicate value) => value;
-int?? absent() => default;
-void assign(out int??? value) { value = 19; }
-int read(int??? value, int tail = 3) => value.value.value.value + tail;
-int readDefault(int??? value = default, int tail = 3) => value.specified ? value.value.value.value : tail;
-int readIn(in int??? value, int tail) => value.value.value.value + tail;
-void writePointer(int???* value) { *value = 29; }
-int??? makeDeep() { calls++; return 5; }
-State makeState() { calls++; State state = default; state.deep = 37; return state; }
+int? absent() => default;
+void assign(out int? value) { value = 19; }
+int read(int? value, int tail = 3) => value.value + tail;
+int readDefault(int? value = default, int tail = 3) => value.specified ? value.value : tail;
+int readIn(in int? value, int tail) => value.value + tail;
+void writePointer(int?* value) { *value = 29; }
+int? makeOpt() { calls++; return 5; }
+State makeState() { calls++; State state = default; state.scalar = 37; return state; }
 struct Producer
 {
 	bool next(int* current) : Numbers
@@ -31,99 +32,105 @@ struct Producer
 
 export int main()
 {
-	int?? both = payload();
-	int?? none = default;
-	int? empty = default;
-	int?? inner = empty;
-	if (calls != 1 || !both.specified || !both.value.specified || both.value.value != 7) return 1;
-	if (none.specified || none.value.specified || none.value.value != 0) return 2;
-	if (!inner.specified || inner.value.specified) return 3;
-	long?? widened = inner;
-	int?? narrowed = (int??)widened;
-	if (!narrowed.specified || narrowed.value.specified || narrowed.value.value != 0) return 25;
+	int? both = payload();
+	int? none = default;
+	if (calls != 1 || !both.specified || both.value != 7) return 1;
+	if (none.specified || none.value != 0) return 2;
+	long? widened = both;
+	int? narrowed = (int?)widened;
+	if (!narrowed.specified || narrowed.value != 7) return 3;
+	long? emptyWide = none;
+	int? emptyNarrow = (int?)emptyWide;
+	if (emptyNarrow.specified || emptyNarrow.value != 0) return 4;
 	int separate = 13;
-	bool separateInner = false;
-	bool separateOuter = true;
-	int??* separatePointers = { &separate, &separateInner, &separateOuter };
-	int?? separateCopy = *separatePointers;
-	if (!separateCopy.specified || separateCopy.value.specified || separateCopy.value.value != 13) return 26;
+	bool separateSpecified = true;
+	int?* separatePointers = { &separate, &separateSpecified };
+	int? separateCopy = *separatePointers;
+	if (!separateCopy.specified || separateCopy.value != 13) return 5;
 	*separatePointers = both;
-	if (separate != 7 || !separateInner || !separateOuter) return 27;
-	int??? deep = wrapDeep(wrap(5));
-	if (!deep.specified || !deep.value.specified || !deep.value.value.specified || deep.value.value.value != 5) return 4;
-	if (read(11) != 14 || read(both) != 10 || copyDeep(deep).value.value.value != 5) return 5;
-	assign(out deep);
-	if (deep.value.value.value != 19 || !deep.value.value.specified) return 6;
-	int???* distributed = &deep;
-	(*distributed).value.value.value = 23;
-	int??? restored = *distributed;
-	if (restored.value.value.value != 23) return 7;
-	if (readIn(deep, 2) != 25 || readDefault() != 3) return 20;
+	if (separate != 7 || !separateSpecified) return 6;
+	*separatePointers = none;
+	if (separateSpecified) return 7;
+	int? lifted = wrap(5);
+	if (!lifted.specified || lifted.value != 5) return 8;
+	if (read(11) != 14 || read(both) != 10 || copyOpt(lifted).value != 5) return 9;
+	assign(out lifted);
+	if (lifted.value != 19 || !lifted.specified) return 10;
+	int?* distributed = &lifted;
+	(*distributed).value = 23;
+	int? restored = *distributed;
+	if (restored.value != 23) return 11;
+	if (readIn(lifted, 2) != 25 || readDefault() != 3) return 12;
 	writePointer(distributed);
-	if (deep.value.value.value != 29 || !deep.specified) return 21;
-	(*distributed).value.value.value = 23;
+	if (lifted.value != 29 || !lifted.specified) return 13;
+	(*distributed).value = 23;
 	State state = default;
-	state.nested = inner;
-	state.deep = deep;
-	if (!state.nested.specified || state.nested.value.specified || state.deep.value.value.value != 23) return 8;
+	state.scalar = lifted;
+	if (!state.scalar.specified || state.scalar.value != 23) return 14;
 	int[] values = stackalloc int[3];
 	values[0] = 31; values[1] = 41; values[2] = 59;
 	int[]? array = wrapArray(values);
-	if (!array.specified || array.length != 3 || array[1] != 41 || array.value[2] != 59) return 9;
+	if (!array.specified || array.length != 3 || array[1] != 41 || array.value[2] != 59) return 15;
 	int[] tail = array[1..];
-	if (tail.length != 2 || tail[0] != 41 || array.elements != &values[0]) return 10;
-	int[]?? arrays = wrapArrays(array);
-	if (!arrays.specified || !arrays.value.specified || arrays.value.length != 3 || arrays.value[2] != 59) return 11;
-	if (wrapArray(values).length != 3 || wrapArrays(array).value[1] != 41) return 22;
+	if (tail.length != 2 || tail[0] != 41 || array.elements != &values[0]) return 16;
+	int[]? arrays = copyArray(array);
+	if (!arrays.specified || arrays.length != 3 || arrays[2] != 59) return 17;
+	if (wrapArray(values).length != 3 || copyArray(array).value[1] != 41) return 18;
 	state.array = array;
-	state.arrays = arrays;
-	if (state.array[0] != 31 || state.arrays.value.value[1] != 41) return 12;
+	if (state.array[0] != 31 || state.array.length != 3) return 19;
 	Predicate callback = plusOne;
 	Predicate? optional = wrapCallback(callback);
-	if (!optional.specified || optional(6) != 7 || optional.value(7) != 8 || optional.call(optional.context, 8) != 9) return 13;
+	if (!optional.specified || optional(6) != 7 || optional.value(7) != 8 || optional.call(optional.context, 8) != 9) return 20;
 	state.callback = optional;
-	if (!state.callback.specified || state.callback(9) != 10) return 14;
-	Predicate?? nestedCallback = optional;
-	if (!nestedCallback.specified || !nestedCallback.value.specified || nestedCallback.value(11) != 12) return 23;
+	if (!state.callback.specified || state.callback(9) != 10) return 21;
 	OnceAction action = (int n) => n + 1;
 	OnceAction? copiedAction = action;
-	if (!copiedAction.specified || copiedAction(10) != 11 || action(11) != 12) return 15;
-	stackalloc void<int??> storage = inner;
-	void<int??>* holder = &storage;
-	if (!holder.specified || holder.value.specified) return 16;
+	if (!copiedAction.specified || copiedAction(10) != 11 || action(11) != 12) return 22;
+	stackalloc void<int?> storage = none;
+	void<int?>* holder = &storage;
+	if (holder.specified) return 23;
 	*holder = both;
-	holder.value.value = 43;
-	int?? recovered = *holder;
-	if (!recovered.value.specified || recovered.value.value != 43) return 17;
-	void<int[]??>[] slots = stackalloc void<int[]??>[2];
+	holder.value = 43;
+	int? recovered = *holder;
+	if (!recovered.specified || recovered.value != 43) return 24;
+	void<int[]?>[] slots = stackalloc void<int[]?>[2];
 	slots[0] = arrays;
 	slots[1] = default;
-	void<int[]??>* slot = &slots[0];
-	if (!slot.specified || slot.value[2] != 59 || slots[1].specified) return 18;
-	stackalloc void<int???*> storedPointer = distributed;
-	void<int???*>* pointerHolder = &storedPointer;
-	int???* pointerCopy = *pointerHolder;
-	if ((*pointerCopy).value.value.value != 23) return 24;
+	void<int[]?>* slot = &slots[0];
+	if (!slot.specified || slot.value[2] != 59 || slots[1].specified) return 25;
+	stackalloc void<int?*> storedPointer = distributed;
+	void<int?*>* pointerHolder = &storedPointer;
+	int?* pointerCopy = *pointerHolder;
+	if ((*pointerCopy).value != 23) return 26;
+	void<int?>[] erasedValues = stackalloc void<int?>[2];
+	erasedValues[0] = 3;
+	erasedValues[1] = default;
+	void<int?>[]? erasedOptional = erasedArray(erasedValues);
+	if (!erasedOptional.specified || erasedOptional.length != 2 || erasedOptional[0].value != 3 || erasedOptional[1].specified) return 33;
+	int[]? genericOptional = genericArray<int>(values);
+	if (!genericOptional.specified || genericOptional.length != 3 || genericOptional[1] != 41) return 34;
+	void<int?>[]? erasedAbsent = default;
+	if (erasedAbsent.specified) return 35;
 	classPayloadPointers();
-	if (absent().specified) return 19;
-	fn int???() indirect = makeDeep;
+	if (absent().specified) return 27;
+	fn int?() indirect = makeOpt;
 	int before = calls;
-	int??? indirectResult = indirect();
-	if (calls != before + 1 || !indirectResult.specified || !indirectResult.value.specified || !indirectResult.value.value.specified || indirectResult.value.value.value != 5) return 28;
+	int? indirectResult = indirect();
+	if (calls != before + 1 || !indirectResult.specified || indirectResult.value != 5) return 28;
 	before = calls;
-	int??? memberResult = makeState().deep;
-	if (calls != before + 1 || memberResult.value.value.value != 37) return 29;
+	int? memberResult = makeState().scalar;
+	if (calls != before + 1 || memberResult.value != 37) return 29;
 	int offset = 2;
 	Predicate captured = (int n) => n + offset;
 	state.callback = captured;
 	if (!state.callback.specified || state.callback.context != captured.context || state.callback(3) != 5) return 30;
 	delegate int(int)? structural = captured;
-	if (!structural.specified || structural.value(5) != 7 || structural(6) != 8) return 32;
+	if (!structural.specified || structural.value(5) != 7 || structural(6) != 8) return 31;
 	Producer producer = default;
 	Numbers numbers = producer.next;
 	Numbers? optionalNumbers = numbers;
 	int current = 0;
-	if (!optionalNumbers.specified || !optionalNumbers(&current) || current != 47) return 31;
+	if (!optionalNumbers.specified || !optionalNumbers(&current) || current != 47) return 32;
 	optionalNumbers.value(null);
 	return 0;
 }

@@ -1,5 +1,5 @@
 tests/Diagnostics/erased_types_invalid.camp(3,2): error: void<V> is storage and is not valid as field storage; use V, void<V>*, or a stackalloc local for single-object storage.
-tests/Diagnostics/erased_types_invalid.camp(4,2): error: void<V> is storage and is not valid as field storage; use V, void<V>*, or a stackalloc local for single-object storage.
+tests/Diagnostics/erased_types_invalid.camp(4,2): error: An optional payload cannot be 'void<int>'; use a nullable 'void<int>*', or a 'tryGet' form with 'out'.
 tests/Diagnostics/erased_types_invalid.camp(5,8): error: void<V> is storage and is not valid as field storage; use V, void<V>*, or a stackalloc local for single-object storage.
 tests/Diagnostics/erased_types_invalid.camp(8,20): error: void<V> is storage and is not valid as a parameter type; use V, void<V>*, or a stackalloc local for single-object storage.
 tests/Diagnostics/erased_types_invalid.camp(9,24): error: void<V> cannot contain void or another erased type directly.

@@ -77,12 +77,18 @@ public class List<T: copyable>
 		return result;
 	}
 
-	/// Returns an item when the index is in range, otherwise an unspecified result.
-	public T? getItemOrDefault(int index)
+	/// Reports whether the index is in range and writes the item to `result`.
+	/// An item that is itself unspecified (a `List<int?>` entry) still counts as present.
+	/// - index: The index of the item to read.
+	/// - result: The item, or `default` when the index is negative or `>= this.length`.
+	public bool tryGetItem(int index, out T result)
 	{
+		result = default;
 		if (index < 0 || (nuint)index >= this.length)
-			return default;
-		return this.items[(nuint)index];
+			return false;
+
+		result = this.items[(nuint)index];
+		return true;
 	}
 
 	/// Returns a borrowed view of a range of items.

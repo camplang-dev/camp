@@ -1,25 +1,28 @@
-T? maybe<T: copyable>(delegate bool(int) look, int index = 6, sizeof(T)) => default;
-T? selected<T: copyable>(delegate bool(int) look, in T value, int index, sizeof(T))
+T maybe<T: copyable>(delegate bool(int) look, int index = 6, sizeof(T)) => default;
+bool selected<T: copyable>(delegate bool(int) look, in T value, int index, out T result, sizeof(T))
 {
-	if (look(index)) return value;
-	return default;
+	result = default;
+	if (!look(index)) return false;
+	result = value;
+	return true;
 }
 bool yes(int index) => true;
 export int main()
 {
-	int? first = maybe<int>(yes, 6);
-	int? second = maybe<int>(index => true, 6);
+	int first = maybe<int>(yes, 6);
+	int second = maybe<int>(index => true, 6);
 	int offset = 3;
-	int? third = maybe<int>(index => index > offset, 6);
+	int third = maybe<int>(index => index > offset, 6);
 	delegate bool(int) predicate = yes;
-	int? fourth = maybe<int>(predicate, 6);
-	int? fifth = maybe<int>(yes);
-	if (first.specified || second.specified || third.specified || fourth.specified || fifth.specified) return 1;
-	if (first.value != 0 || third.value != 0) return 2;
+	int fourth = maybe<int>(predicate, 6);
+	int fifth = maybe<int>(yes);
+	if (first != 0 || second != 0 || third != 0 || fourth != 0 || fifth != 0) return 1;
+	int? optionalFirst = maybe<int?>(yes, 6);
+	if (optionalFirst.specified || optionalFirst.value != 0) return 2;
 	int value = 17;
-	int? present = selected<int>(yes, value, 6);
-	int? absent = selected<int>(index => index > offset, value, 1);
-	if (!present.specified || present.value != 17) return 3;
-	if (absent.specified || absent.value != 0) return 4;
+	int present = 0;
+	int absent = 5;
+	if (!selected<int>(yes, value, 6, out present) || present != 17) return 3;
+	if (selected<int>(index => index > offset, value, 1, out absent) || absent != 0) return 4;
 	return 0;
 }

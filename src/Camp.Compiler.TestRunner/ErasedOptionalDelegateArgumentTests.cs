@@ -12,15 +12,15 @@ public sealed class ErasedOptionalDelegateArgumentTests
 	[InlineData("index => index > offset, 6")]
 	[InlineData("predicate, 6")]
 	[InlineData("yes")]
-	public void Expanded_delegate_arguments_preserve_optional_result_storage(string arguments)
+	public void Expanded_delegate_arguments_precede_erased_result_storage(string arguments)
 	{
 		SemanticCompilation compilation = SemanticCompiler.CompileLowered($$"""
-			T? maybe<T: copyable>(delegate bool(int) look, int index = 6, sizeof(T)) => default;
+			T maybe<T: copyable>(delegate bool(int) look, int index = 6, sizeof(T)) => default;
 			bool yes(int index) => true;
 			void test() {
 				int offset = 3;
 				delegate bool(int) predicate = yes;
-				int? hit = maybe<int>({{arguments}});
+				int hit = maybe<int>({{arguments}});
 			}
 			""");
 		SemanticCompiler.AssertNoDiagnostics(compilation);

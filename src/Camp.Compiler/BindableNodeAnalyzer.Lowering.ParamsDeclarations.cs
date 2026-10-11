@@ -139,13 +139,6 @@ public sealed partial class BindableNodeAnalyzer
 			return false;
 		TypeReference resultType = function.ReturnType;
 		string resultName = function.ResolvedType ?? ErrorType;
-		bool optional = TryGetOptionalPayloadType(resultName, out string payload);
-		if (optional)
-		{
-			optionalErasedReturnFunctions.Add(function);
-			resultName = payload;
-			resultType = TypeReferenceForResolvedName(payload);
-		}
 		function.ExpandedSourceReturnType = function.ReturnType;
 
 		ParameterDefinition result = new()
@@ -163,8 +156,8 @@ public sealed partial class BindableNodeAnalyzer
 		materializedGenericReturnParameters[function] = result;
 		int hidden = function.Parameters.FindIndex(parameter => parameter is WithinParameterDefinition or SizeOfParameterDefinition or NameOfParameterDefinition or VTableOfParameterDefinition || parameter.Modifier is ParameterModifier.Within or ParameterModifier.Thrown);
 		function.Parameters.Insert(hidden < 0 ? function.Parameters.Count : hidden, result);
-		function.ReturnType = new PrimitiveTypeReference { Type = optional ? PrimitiveType.Bool : PrimitiveType.Void, ResolvedType = optional ? "bool" : "void" };
-		function.ResolvedType = optional ? "bool" : "void";
+		function.ReturnType = new PrimitiveTypeReference { Type = PrimitiveType.Void, ResolvedType = "void" };
+		function.ResolvedType = "void";
 		return true;
 	}
 

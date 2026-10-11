@@ -413,27 +413,29 @@ A payload value can be formed with an initializer:
 int? someCount = { 42, true };
 ```
 
-Each optional layer keeps its own presence flag. Wrapping an existing optional
-adds an outer layer and preserves the inner state:
+An optional holds one level. Its payload is a non-erased value type (`int?`,
+`Color?`, `bool?`), an array (`int[]?`), or a delegate shape (`Predicate?`,
+`delegate int()?`). An optional of an optional (`int??`), of a type parameter
+(`T?`), of `void<V>` (`void<V>?`) or of an integer carrier (`long<Color>?`) is an
+error wherever it is written. Report absence of an item that may itself be an
+unspecified optional with a `bool` result and an `out` parameter:
 
 ```camp
-int?? both = 5;             // both.specified and both.value.specified are true
-int?? none = default;      // both presence flags are false
-int? empty = default;
-int?? inner = empty;       // inner.specified is true; inner.value.specified is false
-int??? deep = 5;
-int number = deep.value.value.value;
+int? found;
+if (items.tryGetItem(3, out found))   // List<int?>: false means no item at 3
+	use(found);                       // found may still be unspecified
 ```
 
 Optional arrays expose `.value`, and also `.elements`, `.length`, indexing, and
 slicing directly. Optional delegates expose `.value`, `.call`, `.context`, and
-ordinary invocation. Check `.specified` before using an absent value. For an
-optional of an optional, use `.value` to reach the next layer first.
+ordinary invocation. Check `.specified` before using an absent value.
 
 Payloads must be copyable. Use a pointer for a class, fixed struct, or fixed-size
 array payload. A delegate copy copies its call target and context; a copied
 `once` callable retains its own single-invocation duty. To store expanded values
-in an array, use erased element storage such as `void<int??>[]`.
+in an array, use erased element storage such as `void<int?>[]`; an optional
+itself can be held whole as the `V` of `void<V>` storage, so `List<int?>` and
+`List<int[]?>` are valid.
 
 Use optionals when absence is an ordinary result:
 

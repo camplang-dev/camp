@@ -552,16 +552,17 @@ language defines one: `T?` converts to `U?` exactly when `T` converts to `U`,
 implicitly or by the same cast, converting `.value` and carrying `.specified`
 unchanged. Nothing converts deeper than that payload conversion.
 
-Nested optionals are recursive expanded values. `int??? value` exposes
-`value.value.value.value` and a `.specified` flag at each layer. Plain payloads
-wrap one layer at a time; `int?? both = 5;` sets both flags, `int?? none = default;`
-clears both, and wrapping an empty `int?` produces an outer-present,
-inner-absent `int??`. Optional arrays forward array members, indexing and slicing;
-optional delegates forward callable members and invocation. Reach a nested
-optional's payload with `.value` before using its forwarded operations.
-Optional payloads must be copyable; use pointer payloads for classes, fixed
-structs, or fixed-size arrays. Arrays of expanded values, including distributive
-pointers, require erased element storage such as `void<int??>[]`.
+An optional holds one level: its payload is a non-erased value type, an array
+or a delegate shape. `int??`, `T?`, `void<V>?` and `long<Color>?` are errors
+everywhere. Optional arrays forward array members, indexing and slicing; optional
+delegates forward callable members and invocation. Optional payloads must be
+copyable; use pointer payloads for classes, fixed structs, or fixed-size arrays.
+Arrays of expanded values, including distributive pointers, require erased
+element storage such as `void<int?>[]`. Generic code cannot write `T?`. Report
+absence with a `bool` result and an `out T` parameter (`List.tryGetItem`) or a
+nullable `T*`, and take an optional input as `T*` or redesign it around a `bool`.
+An optional is still a valid type argument: `List<int?>` and `List<int[]?>` store
+their items as `void<int?>` and `void<int[]?>`.
 
 ## Pointers And Qualifiers
 
@@ -1010,9 +1011,9 @@ Under `T: implements I` the type parameter is transported only by pointer:
 and a by-value `T` are errors.
 
 Bound generic method references keep their erased result shape; invoking them
-produces the plain payload. `List<int?>.getItemOrDefault` returns
-`int??` at a call site, preserving both presence layers. Its `take` result is a
-borrowed `void<int?>[]`, and its `Item` getter produces `int?`.
+produces the plain payload. `List<int?>.tryGetItem` returns
+`true` for a present item even when that item is an unspecified `int?`. Its
+`take` result is a borrowed `void<int?>[]`, and its `Item` getter produces `int?`.
 
 Generic Camp code must declare what it does with `T`. Do not assume every generic
 type can be copied, compared, default-constructed, sized, or placed into an array.

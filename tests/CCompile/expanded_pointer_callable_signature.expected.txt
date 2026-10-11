@@ -2,13 +2,12 @@
 #include "expanded_pointer_callable_signature_private.h"
 
 /* Private file declarations. */
-static int *identity(int *value, bool *value_value_specified, bool *value_specified, bool **result_value_specified, bool **result_specified);
+static int *identity(int *value, bool *value_specified, bool **result_specified);
 static int **arrId(int **value, uintptr_t *value_length, uintptr_t **result_length);
 
-static int *identity(int *value, bool *value_value_specified, bool *value_specified, bool **result_value_specified, bool **result_specified)
+static int *identity(int *value, bool *value_specified, bool **result_specified)
 {
 	{
-		(*result_value_specified) = value_value_specified;
 		(*result_specified) = value_specified;
 		return value;
 	}
@@ -25,17 +24,14 @@ static int **arrId(int **value, uintptr_t *value_length, uintptr_t **result_leng
 int main(void)
 {
 	int value = 7;
-	bool value_value_specified = true;
 	bool value_specified = true;
-	int *(* callback)(int *arg0, bool *arg0_value_specified, bool *arg0_specified, bool **value_specified, bool **specified) = identity;
+	int *(* callback)(int *arg0, bool *arg0_specified, bool **specified) = identity;
 	int *a;
-	bool *a_value_specified;
 	bool *a_specified;
-	a = callback(&value, &value_value_specified, &value_specified, &a_value_specified, &a_specified);
+	a = callback(&value, &value_specified, &a_specified);
 	int *b;
-	bool *b_value_specified;
 	bool *b_specified;
-	b = identity(&value, &value_value_specified, &value_specified, &b_value_specified, &b_specified);
+	b = identity(&value, &value_specified, &b_specified);
 	int *items = (int []){1, 2, 3};
 	uintptr_t items_length = 3;
 	int **(* arrCb)(int **arg0, uintptr_t *arg0_length, uintptr_t **length) = arrId;

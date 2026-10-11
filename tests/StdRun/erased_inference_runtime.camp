@@ -1,25 +1,22 @@
-T? makeOptional<T>(T value) => value;
-T? makeInnerOptional<T: copyable>(in T value, sizeof(T)) => value;
 export int main()
 {
-	auto result = makeInnerOptional(makeInnerOptional(makeOptional(5)));
-	if (!result.specified || !result.value.specified || !result.value.value.specified || result.value.value.value != 5) return 1;
 	auto items = new List<int?>() finally delete;
 	items.add(1);
 	items.add(default);
 	auto first = items.Item[0];
 	auto section = items.take(0, 2);
-	auto maybe = items.getItemOrDefault(300);
-	if (!first.specified || first.value != 1 || section.length != 2 || !section[0].specified || section[1].specified || maybe.specified || maybe.value.specified) return 2;
+	int? maybe = 5;
+	auto hit = items.tryGetItem(300, out maybe);
+	if (!first.specified || first.value != 1 || section.length != 2 || !section[0].specified || section[1].specified || hit || maybe.specified) return 2;
 	void<int?>[] typedSection = section;
-	int?? typedMaybe = maybe;
 	auto get = items.getItem;
 	delegate void<int?>(nuint index) written = items.getItem;
-	auto lookup = items.getItemOrDefault;
+	auto lookup = items.tryGetItem;
 	int? viaGet = get(0);
 	int? viaWritten = written(0);
-	int?? viaLookup = lookup(300);
-	if (viaGet.value != 1 || viaWritten.value != 1 || viaLookup.specified) return 3;
+	int? viaLookup = 7;
+	bool viaHit = lookup(300, out viaLookup);
+	if (viaGet.value != 1 || viaWritten.value != 1 || viaHit || viaLookup.specified) return 3;
 	auto numbers = new List<int>() finally delete;
 	numbers.add(9);
 	delegate int(nuint index) plain = index => numbers.getItem(index);

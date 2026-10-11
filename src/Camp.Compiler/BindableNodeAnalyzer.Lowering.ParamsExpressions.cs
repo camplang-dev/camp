@@ -290,11 +290,6 @@ public sealed partial class BindableNodeAnalyzer
 					&& !TryGetParamsComponentShape(null, scalarCall.ResolvedType, "value", out _))
 					argument.Value = CaptureRepeatedParamsSourceExpression(scalarCall, "argument");
 			}
-			if (TryPackOptionalErasedArgument(arguments, i, callableParameters, parameterIndex))
-			{
-				i++;
-				continue;
-			}
 			if (callableParameters is not null && parameterIndex < callableParameters.Count
 				&& (IsMaterializedExpandedStorageParameter(callableParameters[parameterIndex]) || IsMaterializedGenericOutStorageParameter(callableParameters[parameterIndex]))
 				&& TryGetErasedStorageType(argument.Value, out _))
@@ -746,11 +741,6 @@ public sealed partial class BindableNodeAnalyzer
 		if (string.IsNullOrWhiteSpace(resultType) || resultType == "void")
 			resultType = expectedType;
 		bool materializedGenericReturn = IsErasedResultCall(call);
-		// An optional erased call transports payload and presence separately. Pack
-		// its complete source value below rather than writing only the payload into
-		// storage for the whole optional and discarding the presence result.
-		if (materializedGenericReturn && IsOptionalErasedResultCall(call))
-			return false;
 		bool concreteAggregateReturn = GetTypeDefinition(resultType) is StructDefinition;
 		if (!materializedGenericReturn && !concreteAggregateReturn)
 			return false;
@@ -3020,39 +3010,6 @@ public sealed partial class BindableNodeAnalyzer
 			|| !materializedGenericReturnParameters.TryGetValue(currentRewriteFunction, out ParameterDefinition? parameter)
 			|| statement.Expression is null)
 			return false;
-		if (optionalErasedReturnFunctions.Contains(currentRewriteFunction))
-		{
-			string payloadType = ReadErasedValueType(parameter.ResolvedType ?? ErrorType);
-			string optionalType = payloadType + "?";
-			if (!TryGetParamsComponentShape(null, optionalType, "result", out ParamsComponentShape optionalShape)
-				|| !TryCreateValueParamsComponents(statement.Expression, optionalShape, out List<Expression> values))
-				return false;
-			Expression target = CreateVariableReference(parameter, payloadType);
-			List<Expression> targets = TryGetParamsComponentShape(null, payloadType, "value", out ParamsComponentShape payloadShape)
-				? CreateMaterializedComponentExpressions(target, payloadShape, statement.SourceSyntax) : [target];
-			List<Statement> optionalStatements = [];
-			List<Statement> absentStatements = [];
-			for (int i = 0; i < targets.Count; i++)
-			{
-				optionalStatements.Add(new ExpressionStatement { SourceSyntax = statement.SourceSyntax, ResolvedType = "void", Expression = new AssignmentExpression
-				{
-					SourceSyntax = statement.SourceSyntax, Target = targets[i], Operator = AssignmentOperator.Assign,
-					Value = LowerExpression(values[i]), ResolvedType = targets[i].ResolvedType
-				} });
-				absentStatements.Add(new ExpressionStatement { SourceSyntax = statement.SourceSyntax, ResolvedType = "void", Expression = new AssignmentExpression
-				{
-					SourceSyntax = statement.SourceSyntax, Target = CloneParamsExpansionExpression(targets[i]), Operator = AssignmentOperator.Assign,
-					Value = new DefaultExpression { ResolvedType = targets[i].ResolvedType }, ResolvedType = targets[i].ResolvedType
-				} });
-			}
-			optionalStatements.Add(new ReturnStatement { SourceSyntax = statement.SourceSyntax, ResolvedType = "bool", Expression = BoolLiteral(true) });
-			absentStatements.Add(new ReturnStatement { SourceSyntax = statement.SourceSyntax, ResolvedType = "bool", Expression = BoolLiteral(false) });
-			rewritten = values[^1] is DefaultExpression ? CreateBlock(absentStatements)
-				: values[^1] is LiteralExpression { Kind: LiteralKind.True } ? CreateBlock(optionalStatements)
-				: new IfStatement { SourceSyntax = statement.SourceSyntax, ResolvedType = "void", Condition = LowerExpression(values[^1]), Body = CreateBlock(optionalStatements), ElseBody = CreateBlock(absentStatements) };
-			return true;
-		}
-
 		// A written `void<V>` result with an expandable V stores V component by component,
 		// exactly like assigning to an `out void<V>` parameter.
 		if (ErasedTypeIdentity.TryGetPayload(parameter.ResolvedType, out string writtenPayload)

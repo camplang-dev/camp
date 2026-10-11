@@ -8,7 +8,6 @@ namespace Camp.Compiler.Tests;
 public sealed class ErasedOptionalFunctionPointerTests
 {
 	[Theory]
-	[InlineData("T?", "bool (* look)(int arg0, void *__result)")]
 	[InlineData("T", "void (* look)(int arg0, void *__result)")]
 	public void Declared_erased_callback_results_use_payload_storage(string result, string expected)
 	{
@@ -20,13 +19,13 @@ public sealed class ErasedOptionalFunctionPointerTests
 	[Fact]
 	public void Generic_callable_fields_use_the_resolved_erased_result()
 	{
-		AssertEmitted("struct Reader<T: copyable> { fn T?(int) look; }", "bool (* look)(int arg0, void *__result)");
+		AssertEmitted("struct Reader<T: copyable> { fn T(int) look; }", "void (* look)(int arg0, void *__result)");
 	}
 
 	[Fact]
 	public void Lowered_interface_entries_do_not_add_result_storage_twice()
 	{
-		AssertEmitted("interface Reader { void<int?>? find(int index); }", "bool (* find)(void* ctx, int index, void *__result)");
+		AssertEmitted("interface Reader { void<int?> find(int index); }", "void (* find)(void* ctx, int index, void *__result)");
 	}
 
 	[Fact]

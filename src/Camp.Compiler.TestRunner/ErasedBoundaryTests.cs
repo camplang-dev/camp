@@ -129,7 +129,7 @@ public sealed class ErasedBoundaryTests
 			extern void free(void* pointer);
 			export extern class Box<T: any>;
 			export void<PackageValue>* value(void<PackageValue>* p) => p;
-			export void<int?>? optional() => 7;
+			export void<int?> optional() => 7;
 			export Box<void<Secret>*>* box(Box<void<Secret>*>* p) => p;
 			""");
 		SemanticCompiler.AssertNoDiagnostics(compilation);
@@ -139,7 +139,7 @@ public sealed class ErasedBoundaryTests
 		Assert.Contains("Box<void*>*", publicWriter.ToString());
 		Assert.DoesNotContain("Secret", publicWriter.ToString());
 		Assert.DoesNotContain("HiddenAlias", publicWriter.ToString());
-		Assert.Contains("void<int?>? optional()", publicWriter.ToString());
+		Assert.Contains("void<int?> optional()", publicWriter.ToString());
 		SemanticCompilation consumer = SemanticCompiler.CompileLowered(publicWriter.ToString());
 		Assert.True(consumer.Diagnostics.Count == 0, publicWriter.ToString() + "\n" + string.Join("\n", consumer.Diagnostics));
 		using StringWriter exportWriter = new();
@@ -159,13 +159,13 @@ public sealed class ErasedBoundaryTests
 			export const void<Secret>* readOnly(const void<Secret>* p) => p;
 			export int read(in void<Secret> p) => p.value;
 			export void fill(out void<Secret> p) { Secret s = { 7 }; p = s; }
-			export void<Secret>? find(int index) { if (index != 0) return default; Secret s = { 7 }; return s; }
+			export void<Secret> find(int index) { Secret s = { 7 }; return s; }
 			export void array(void<Secret>[] values) { }
 			export struct OpaqueView { void<Secret>[] buffer; }
-			export void optionalInput(in void<Secret>? value) { }
-			export void optionalOutput(out void<Secret>? value) { value = default; }
-			export newtype delegate void<Secret>? Lookup(int index);
-			export void callback(delegate void<Secret>?(int index) action) { }
+			export void pointerInput(void<Secret>* value) { }
+			export void pointerOutput(out void<Secret>* value) { value = default; }
+			export newtype delegate void<Secret> Lookup(int index);
+			export void callback(delegate void<Secret>(int index) action) { }
 			""";
 		SemanticCompilation compilation = lower ? SemanticCompiler.CompileLowered(source) : SemanticCompiler.CompileDeclarations(source);
 		SemanticCompiler.AssertNoDiagnostics(compilation);
@@ -177,14 +177,14 @@ public sealed class ErasedBoundaryTests
 		Assert.Contains("const void* readOnly(const void* p)", api);
 		Assert.Contains("int read(const void* p)", api);
 		Assert.Contains("void fill(void* p)", api);
-		Assert.Contains("bool find(int index, void* __result)", api);
+		Assert.Contains("void find(int index, void* __result)", api);
 		Assert.Contains("void array(void* values, nuint values_length)", api);
 		Assert.Contains("void* buffer;", api);
 		Assert.Contains("nuint buffer_length;", api);
-		Assert.Contains("optionalInput(const void* value, in bool value_specified)", api);
-		Assert.Contains("optionalOutput(void* value, out bool value_specified)", api);
-		Assert.Contains("newtype delegate bool Lookup(int index, void* __result)", api);
-		Assert.Contains("delegate bool(int index, void* __result) action", api);
+		Assert.Contains("pointerInput(void* value)", api);
+		Assert.Contains("pointerOutput(out void* value)", api);
+		Assert.Contains("newtype delegate void Lookup(int index, void* __result)", api);
+		Assert.Contains("delegate void(int index, void* __result) action", api);
 		SemanticCompiler.AssertNoDiagnostics(SemanticCompiler.CompileLowered(api));
 		string metadata = MetadataJsonSerializer.Serialize(compilation.Compilation, MetadataVisibility.Export);
 		Assert.DoesNotContain("Secret", metadata);

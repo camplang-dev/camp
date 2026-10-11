@@ -3489,11 +3489,6 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			Report(GetRange(call.Target?.SourceSyntax ?? call.SourceSyntax), "Raw function pointer 'fn*' is not callable; cast it to a concrete fn type first.");
 		}
-		else if (TryGetOptionalPayloadType(call.Target?.ResolvedType, out string optionalPayload)
-			&& TryGetOptionalPayloadType(optionalPayload, out _))
-		{
-			Report(GetRange(call.Target?.SourceSyntax ?? call.SourceSyntax), $"Type '{call.Target?.ResolvedType}' is not callable; reach the inner optional through .value first.");
-		}
 		bool includeExplicitThisArgument = IncludeExplicitThisArgument(call.Target, function);
 		if (function is not null)
 			ValidateExplicitAsyncCallShape(function, call, includeExplicitThisArgument);
@@ -3899,8 +3894,8 @@ public sealed partial class BindableNodeAnalyzer
 		string callableType = call.Target?.ResolvedType ?? ErrorType;
 		if (!TryGetCallableInvocationShape(callableType, out CallableShape callable))
 			return false;
-		if (ErasedTypeIdentity.TryGetPayload(callable.ReturnType.EndsWith('?') ? callable.ReturnType[..^1] : callable.ReturnType, out _))
-			erasedCallableResults[call] = callable.ReturnType;
+		if (ErasedTypeIdentity.TryGetPayload(callable.ReturnType, out _))
+			erasedCallableResults.Add(call);
 
 		List<ParameterDefinition> parameters = TryGetCallableNewtypeParameters(callableType, call.Arguments, out List<ParameterDefinition>? newtypeParameters)
 			? newtypeParameters!

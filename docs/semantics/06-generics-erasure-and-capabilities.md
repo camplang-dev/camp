@@ -132,13 +132,17 @@ uses `void<A>` at storage positions: `T*` becomes `void<A>*`, `T[]` becomes
 substitutes to an ordinary array. Generic argument identities remain distinct:
 `List<int[]*>` and `List<void<int[]>*>` do not name the same type.
 
-An erased `T` result uses caller-provided storage for every argument, including
-scalars and ordinary structs. `T?` returns a boolean presence bit and writes
-the payload to the same storage; absence default-fills that payload. The result
+An erased `T` result, like a written `void<V>` result, uses caller-provided
+storage for every argument, including scalars and ordinary structs. The result
 pointer follows source parameters and precedes compiler-supplied allocator,
-error, size, name, and witness slots. Calls read as `A` or `A?`; their ordinary
-inferred locals never acquire a top-level erased storage type. Written bare
-`void<A>` results remain invalid.
+error, size, name, and witness slots. Calls read as `A`; their ordinary
+inferred locals never acquire a top-level erased storage type.
+
+A generic declaration cannot write `T?`: an optional payload cannot be a type
+parameter of any constraint, so substitution never produces an optional of an
+optional. A declaration that would have returned `T?` returns `bool` and writes
+the value through a trailing `out T` (`List.tryGetItem`), and one that accepted
+`T?` takes a nullable `T*` or is redesigned around a `bool`.
 
 An expanded delegate argument contributes both its call and context slots before
 the erased result pointer. Adding defaults or capabilities to an already
@@ -547,11 +551,11 @@ call reads its result as `A`. The old conditional rule, which wrote `void<A>`
 only where `A`'s own form would lower differently, is gone. Ordinary nominal
 generic identities remain intact.
 
-Inference reads an erased result as its payload and preserves each optional
-layer. For `List<int?>`, `Item[0]` infers `int?`, `take(0, 2)` infers
-`void<int?>[]`, and `getItemOrDefault(300)` infers `int??`. A bound reference to
-`getItemOrDefault` retains `delegate void<int?>?(int)`; invoking it produces
-`int??`. Arrays and pointers retain their erased element annotations.
+Inference reads an erased result as its payload. For `List<int?>`, `Item[0]`
+infers `int?` and `take(0, 2)` infers `void<int?>[]`. A bound reference to
+`tryGetItem` is `delegate bool(int, out void<int?>)`; `tryGetItem(300, out found)`
+returns `false` for a missing item and `true` for a present item even when it is
+an unspecified `int?`. Arrays and pointers retain their erased element annotations.
 
 Callable types can contain generic parameters in return, parameter, receiver,
 context, thrown, and `within` positions. Compatibility must use the same

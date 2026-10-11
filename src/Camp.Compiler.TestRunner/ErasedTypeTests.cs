@@ -57,15 +57,15 @@ public sealed class ErasedTypeTests
 	}
 
 	[Fact]
-	public void Erased_results_precede_capability_slots_and_return_presence()
+	public void Erased_results_precede_capability_slots()
 	{
 		SemanticCompilation compilation = SemanticCompiler.CompileLowered("""
 			export struct Point { int x; int y; }
 			export void getPoint(out void<Point> result) { Point p = { 3, 4 }; result = p; }
-			export void<int?>? find(int index) { if (index == 0) return 7; return default; }
+			export void<int?> find(int index) { return 7; }
 			export void<Point>* getOpaquePoint(void<Point>* p) => p;
 			export T identity<T: copyable>(in T value, sizeof(T), typenameof(T)) => value;
-			export T? maybe<T: copyable>(in T value, sizeof(T)) => value;
+			export bool tryCopy<T: copyable>(in T value, out T result, sizeof(T)) { result = value; return true; }
 			""");
 		SemanticCompiler.AssertNoDiagnostics(compilation);
 		DirectoryInfo directory = Directory.CreateTempSubdirectory("camp-erased-results-");
@@ -76,10 +76,10 @@ public sealed class ErasedTypeTests
 			Assert.True(emission.Success, string.Join("\n", emission.Diagnostics));
 			string code = string.Join("\n", emission.GeneratedFiles.Where(path => Path.GetExtension(path) is ".c" or ".h").Select(File.ReadAllText));
 			Assert.Contains("void getPoint(void *result)", code);
-			Assert.Contains("bool find(int index, void *__result)", code);
+			Assert.Contains("void find(int index, void *__result)", code);
 			Assert.Contains("void *getOpaquePoint(void *p)", code);
 			Assert.Contains("void identity(const void *value, void *__result, uintptr_t sizeof_T, const char *typenameof_T)", code);
-			Assert.Contains("bool maybe(const void *value, void *__result, uintptr_t sizeof_T)", code);
+			Assert.Contains("bool tryCopy(const void *value, void *result, uintptr_t sizeof_T)", code);
 		}
 		finally { directory.Delete(recursive: true); }
 	}
@@ -100,9 +100,9 @@ public sealed class ErasedTypeTests
 	}
 
 	[Theory]
-	[InlineData("T? missing<T: copyable>(in T value) => value;", "requires sizeof(T)")]
-	[InlineData("T? missing<T: copyable>() => default;", "requires sizeof(T)")]
-	[InlineData("T? missing<T: any>(in T value, sizeof(T)) => value;", "non-copying")]
+	[InlineData("T missing<T: copyable>(in T value) => value;", "requires sizeof(T)")]
+	[InlineData("T missing<T: copyable>() => default;", "requires sizeof(T)")]
+	[InlineData("T missing<T: any>(in T value, sizeof(T)) => value;", "non-copying")]
 	[InlineData("interface I { } void bad<T: implements I>(T value, sizeof(T)) { }", "cannot be passed by value")]
 	public void Erased_operations_keep_capability_requirements(string source, string message)
 	{
@@ -160,7 +160,7 @@ public sealed class ErasedTypeTests
 	[InlineData("void<const void>*", "cannot contain void")]
 	[InlineData("void<void<int>>*", "another erased type")]
 	[InlineData("void<int>", "storage and is not valid")]
-	[InlineData("void<int>?", "storage and is not valid")]
+	[InlineData("void<int>?", "optional payload cannot be")]
 	[InlineData("struct(int[])*", "use void<V> instead")]
 	public void Invalid_written_types_are_diagnosed(string type, string message)
 	{
@@ -173,8 +173,8 @@ public sealed class ErasedTypeTests
 	[InlineData("const void<int>* p = default; int* q = p;", "cannot convert")]
 	[InlineData("void* p = default; void<int>* q = p;", "cannot convert")]
 	[InlineData("void<int> ordinary = 1;", "storage and is not valid")]
-	[InlineData("void<int>? optional = default;", "storage and is not valid")]
-	[InlineData("stackalloc void<int>? optional = default;", "storage and is not valid")]
+	[InlineData("void<int>? optional = default;", "optional payload cannot be")]
+	[InlineData("stackalloc void<int>? optional = default;", "optional payload cannot be")]
 	[InlineData("fixed void<int>[2] fixedLocal = default;", "storage and is not valid")]
 	[InlineData("int* p = default; void<int[]>* q = (void<int[]>*)p;", "cast through 'void*'")]
 	[InlineData("void<int>* p = default; void<long>* q = p;", "cannot convert")]
@@ -199,12 +199,12 @@ public sealed class ErasedTypeTests
 	}
 
 	[Fact]
-	public void Optional_signature_positions_and_pointer_wrapped_generic_arguments_bind()
+	public void Erased_signature_positions_and_pointer_wrapped_generic_arguments_bind()
 	{
 		SemanticCompilation compilation = SemanticCompiler.CompileLowered("""
 			class Box<T: any> { }
-			void take(in void<int>? input, out void<int>? output, Box<void<int[]>*>* pointer) { output = default; }
-			void<int>? result() => default;
+			void take(void<int>* input, out void<int>* output, Box<void<int[]>*>* pointer) { output = default; }
+			void<int> result() => 7;
 			""");
 		SemanticCompiler.AssertNoDiagnostics(compilation);
 	}

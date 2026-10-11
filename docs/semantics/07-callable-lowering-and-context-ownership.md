@@ -31,7 +31,7 @@ service or an equivalent centralized helper. Do not compare callable strings by
 ad hoc splitting in a feature-specific pass.
 
 Callable parameter ABI types recursively expand optional payloads. For example,
-`int??` carries an integer and two presence flags, and `int[]?` carries elements,
+`int?` carries an integer and a presence flag, and `int[]?` carries elements,
 length, and presence. Anonymous callables and callable newtypes use the same
 component order as a direct function with that signature.
 
@@ -109,10 +109,10 @@ mismatch. Only the ABI view lowers a `void<V>` result to a trailing writable
 slot, which precedes hidden allocator, error and capability slots; matching
 compares the written shapes. These rules apply to callable values, newtype
 ascription, lambdas and interface implementations.
-An `fn T?` slot in an erased generic therefore emits a boolean-returning
+An `fn T` slot in an erased generic therefore emits a `void`-returning
 function pointer with payload storage, including when declared directly as a
-parameter or field. Its resolved erased signature governs emission; the source
-`T?` spelling does not select an ordinary optional payload-return ABI.
+parameter or field. Its resolved erased signature governs emission. A generic
+declaration cannot write `T?`, so no callable slot has an optional erased result.
 Virtual overrides still require exact signatures. Receiver, constness, lifetime,
 target and calling-convention contracts remain part of matching.
 
@@ -120,7 +120,7 @@ An ordinary function may acquire the existing delegate context adapter only
 after its calling shape matches. A mismatch requires a source lambda or an
 explicit erased/trailing-output declaration; lowering must not create an ABI
 adapter to conceal it. Bound method references preserve the substituted erased
-signature, while calls read its result as `V` or `V?`.
+signature, while calls read its result as `V`.
 
 Callable comparison must account for expanded forms. A source parameter such as
 `byte[] data` may lower to multiple ABI parameters, and a `delegate` value is a
@@ -281,7 +281,7 @@ component deliberately.
 ### Method References With Expanded Receivers
 
 A bound method reference normally uses the receiver as the delegate context. If
-the receiver is an expanded value with multiple ABI components, such as `T?` or
+the receiver is an expanded value with multiple ABI components, such as `int?` or
 `delegate R(...)`, there is no single receiver pointer to store directly. The
 lowering pass must:
 

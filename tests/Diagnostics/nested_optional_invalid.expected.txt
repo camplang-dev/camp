@@ -6,6 +6,18 @@ tests/Diagnostics/nested_optional_invalid.camp(7,21): error: Arrays of expanded 
 tests/Diagnostics/nested_optional_invalid.camp(9,23): error: Arrays of expanded values are not supported; use void<Predicate>[] instead.
 tests/Diagnostics/nested_optional_invalid.camp(10,26): error: Arrays of expanded values are not supported; use void<int?*>[] instead.
 tests/Diagnostics/nested_optional_invalid.camp(11,23): error: Fixed-size arrays of expanded values are not supported; use void<int?*>[] with stackalloc instead.
-tests/Diagnostics/nested_optional_invalid.camp(12,29): error: Symbol 'b_value_specified' is already declared in this scope as a component of 'b'.
-tests/Diagnostics/nested_optional_invalid.camp(13,34): error: Symbol 'c_value_value_specified' is already declared in this scope as a component of 'c'.
-tests/Diagnostics/nested_optional_invalid.camp(14,37): error: Symbol 'b_value_length' is already declared in this scope as a component of 'b'.
+tests/Diagnostics/nested_optional_invalid.camp(12,28): error: Symbol 'b_specified' is already declared in this scope as a component of 'b'.
+tests/Diagnostics/nested_optional_invalid.camp(13,36): error: Symbol 'b_length' is already declared in this scope as a component of 'b'.
+tests/Diagnostics/nested_optional_invalid.camp(16,21): error: An optional cannot hold another optional; use a 'bool' result with an 'out' parameter, or a 'void<V>*'.
+tests/Diagnostics/nested_optional_invalid.camp(17,19): error: An optional cannot hold another optional; use a 'bool' result with an 'out' parameter, or a 'void<V>*'.
+tests/Diagnostics/nested_optional_invalid.camp(17,30): error: An optional cannot hold another optional; use a 'bool' result with an 'out' parameter, or a 'void<V>*'.
+tests/Diagnostics/nested_optional_invalid.camp(18,21): error: An optional cannot hold another optional; use a 'bool' result with an 'out' parameter, or a 'void<V>*'.
+tests/Diagnostics/nested_optional_invalid.camp(19,37): error: An optional payload cannot be the type parameter 'T'; use a 'tryGet' form with 'out T', or a nullable 'T*'.
+tests/Diagnostics/nested_optional_invalid.camp(20,27): error: An optional payload cannot be the type parameter 'T'; use a 'tryGet' form with 'out T', or a nullable 'T*'.
+tests/Diagnostics/nested_optional_invalid.camp(21,47): error: An optional payload cannot be the type parameter 'T'; use a 'tryGet' form with 'out T', or a nullable 'T*'.
+tests/Diagnostics/nested_optional_invalid.camp(22,39): error: An optional payload cannot be the type parameter 'T'; use a 'tryGet' form with 'out T', or a nullable 'T*'.
+tests/Diagnostics/nested_optional_invalid.camp(23,1): error: An optional payload cannot be the type parameter 'T'; use a 'tryGet' form with 'out T', or a nullable 'T*'.
+tests/Diagnostics/nested_optional_invalid.camp(24,21): error: An optional payload cannot be 'void<int>'; use a nullable 'void<int>*', or a 'tryGet' form with 'out'.
+tests/Diagnostics/nested_optional_invalid.camp(25,23): error: An optional payload cannot be 'void<int>'; use a nullable 'void<int>*', or a 'tryGet' form with 'out'.
+tests/Diagnostics/nested_optional_invalid.camp(26,28): error: An optional payload cannot be 'void<int>'; use a nullable 'void<int>*', or a 'tryGet' form with 'out'.
+tests/Diagnostics/nested_optional_invalid.camp(27,21): error: An optional payload cannot be the integer carrier 'long<Kind>'; use a nullable 'long<Kind>*', or a 'tryGet' form with 'out'.

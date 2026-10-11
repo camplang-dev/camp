@@ -1,9 +1,6 @@
 export newtype delegate int Predicate(int n);
-export struct State { int? a; int?? b; int??? c; int[]? array; int[]?? arrays; Predicate? callback; }
+export struct State { int? a; int[]? array; Predicate? callback; }
 export int? one(int? a) => a;
-export int?? two(int?? b) => b;
-export int??? three(int??? c) => c;
 export int[]? array(int[]? a) => a;
-export int[]?? arrays(int[]?? b) => b;
 export Predicate? callable(Predicate? d) => d;
 void main() { }

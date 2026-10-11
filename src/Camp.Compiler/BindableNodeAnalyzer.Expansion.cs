@@ -1197,10 +1197,9 @@ public sealed partial class BindableNodeAnalyzer
 		// Signatures are bound now. Forward erased result storage directly instead of
 		// interpreting the implementation's bool/void result as a source payload.
 		string resultType = thunk.ResolvedType ?? "void";
-		bool optional = resultType.EndsWith('?');
-		if (ErasedTypeIdentity.TryGetPayload(optional ? resultType[..^1] : resultType, out _))
+		if (ErasedTypeIdentity.TryGetPayload(resultType, out _))
 		{
-			string payload = optional ? resultType[..^1] : resultType;
+			string payload = resultType;
 			int hidden = thunk.Parameters.FindIndex(parameter => parameter.Modifier is ParameterModifier.Within or ParameterModifier.Thrown
 				|| parameter is WithinParameterDefinition or SizeOfParameterDefinition or NameOfParameterDefinition or VTableOfParameterDefinition);
 			thunk.Parameters.Insert(hidden < 0 ? thunk.Parameters.Count : hidden, new ParameterDefinition
@@ -1208,7 +1207,7 @@ public sealed partial class BindableNodeAnalyzer
 				Name = "__result", Symbol = "__result", Modifier = ParameterModifier.Out,
 				Type = TypeReferenceForResolvedName(payload), ResolvedType = payload
 			});
-			thunk.ResolvedType = optional ? "bool" : "void";
+			thunk.ResolvedType = "void";
 			thunk.ReturnType = TypeReferenceForResolvedName(thunk.ResolvedType);
 		}
 		BlockStatement body = new()

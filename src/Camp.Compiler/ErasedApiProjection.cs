@@ -55,13 +55,13 @@ internal sealed class ErasedApiProjection
 	{
 		TypeReference? source = function.ExpandedSourceReturnType ?? function.ReturnType;
 		string text = BindableNodeCodeSerializer.SerializeType(source);
-		return Hidden(text) && ErasedTypeIdentity.TryGetPayload(text.EndsWith('?') ? text[..^1] : text, out _);
+		return Hidden(text) && ErasedTypeIdentity.TryGetPayload(text, out _);
 	}
 
 	public string? ProjectedResultType(FunctionDefinition function)
 	{
 		string source = BindableNodeCodeSerializer.SerializeType(function.ExpandedSourceReturnType ?? function.ReturnType);
-		if (HiddenResult(function)) return source.EndsWith('?') ? "bool" : "void";
+		if (HiddenResult(function)) return "void";
 		string projected = Type(source);
 		return projected != source && projected is "void[]" or "const void[]" ? projected[..^2] + "*" : null;
 	}

@@ -37,7 +37,7 @@ public sealed class CommandLineTests
 			export nuint storageSize() => sizeof(PrivateValue);
 			export void fill(out void<PrivateValue> value) { PrivateValue p = { 7 }; value = p; }
 			export int read(in void<PrivateValue> value) => value.value;
-			export void<PrivateValue>? find(int index) { if (index != 0) return default; PrivateValue p = { 9 }; return p; }
+			export bool find(int index, out void<PrivateValue> value) { PrivateValue p = default; if (index == 0) p.value = 9; value = p; return index == 0; }
 			export void<PrivateValue>* identity(void<PrivateValue>* value) => value;
 			export const void<PrivateValue>* readOnly(const void<PrivateValue>* value) => value;
 			export int sum(void<PrivateValue>[] values) { int result = 0; foreach (PrivateValue value in values) result += value.value; return result; }

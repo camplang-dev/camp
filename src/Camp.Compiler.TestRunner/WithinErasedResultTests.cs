@@ -25,23 +25,4 @@ public sealed class WithinErasedResultTests
 		Assert.Equal(ArgumentModifier.Out, call.Arguments[1].Modifier);
 		Assert.IsType<SizeOfExpression>(call.Arguments[2].Value);
 	}
-
-	[Theory]
-	[InlineData("allocator")]
-	[InlineData("default")]
-	[InlineData("select(allocator)")]
-	public void Optional_erased_results_keep_storage_and_allocator_slots(string context)
-	{
-		SemanticCompilation compilation = SemanticCompiler.CompileLowered(WithinAllocationPolicy.Explicit, ("within_result.camp", $$"""
-			struct Allocator {}
-			Allocator* select(Allocator* allocator) => allocator;
-			T? keep<T: copyable>(in T value, within allocator, sizeof(T)) => value;
-			void use(Allocator* allocator) { int? result = within ({{context}}) keep<int>(5); }
-			"""));
-		SemanticCompiler.AssertNoDiagnostics(compilation);
-		CallExpression call = Assert.Single(SemanticCompiler.Descendants<CallExpression>(SemanticCompiler.Function(compilation, "use")), call => call.Arguments.Count == 4);
-		Assert.Equal(4, call.Arguments.Count);
-		Assert.Equal(ArgumentModifier.Out, call.Arguments[1].Modifier);
-		Assert.IsType<SizeOfExpression>(call.Arguments[2].Value);
-	}
 }

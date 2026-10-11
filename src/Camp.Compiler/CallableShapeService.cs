@@ -20,11 +20,10 @@ internal static class CallableShapeService
 	public static CallableShape LowerErasedResult(CallableShape shape)
 	{
 		string result = shape.ReturnType;
-		bool optional = result.EndsWith('?');
-		if (!ErasedTypeIdentity.TryGetPayload(optional ? result[..^1] : result, out _)) return shape;
+		if (!ErasedTypeIdentity.TryGetPayload(result, out _)) return shape;
 		List<string> parameters = [.. shape.Parameters];
-		parameters.Insert(ResultStorageIndex(parameters), "out " + (optional ? result[..^1] : result));
-		return shape with { ReturnType = optional ? "bool" : "void", Parameters = parameters };
+		parameters.Insert(ResultStorageIndex(parameters), "out " + result);
+		return shape with { ReturnType = "void", Parameters = parameters };
 	}
 
 	public static int ResultStorageIndex(List<string> parameters)

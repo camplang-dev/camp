@@ -2,23 +2,32 @@
 int selections = 0;
 int calls = 0;
 Allocator* selectAllocator(Allocator* allocator) { selections++; return allocator; }
-T? keep<T: copyable>(in T value, bool present = true, within allocator, sizeof(T))
+bool keep<T: copyable>(in T value, out T result, bool present = true, within allocator, sizeof(T))
 {
 	calls++;
-	if (present) return value;
-	return default;
+	result = default;
+	if (!present) return false;
+	result = value;
+	return true;
 }
 export int main()
 {
 	Allocator* allocator = null;
-	int? kept = within (selectAllocator(allocator)) keep<int>(5);
-	if (!kept.specified || kept.value != 5 || selections != 1 || calls != 1) return 1;
-	int? absent = within (selectAllocator(allocator)) keep<int>(9, false);
-	if (absent.specified || absent.value != 0 || selections != 2 || calls != 2) return 2;
-	int? defaultKept = within (default) keep<int>(7);
-	if (!defaultKept.specified || defaultKept.value != 7 || calls != 3) return 3;
-	int? assigned = default;
-	assigned = within (allocator) keep<int>(11);
-	if (!assigned.specified || assigned.value != 11 || calls != 4) return 4;
+	int kept = 0;
+	if (!within (selectAllocator(allocator)) keep<int>(5, out kept) || kept != 5 || selections != 1 || calls != 1) return 1;
+	int absent = 3;
+	if (within (selectAllocator(allocator)) keep<int>(9, out absent, false) || absent != 0 || selections != 2 || calls != 2) return 2;
+	int defaultKept = 0;
+	if (!within (default) keep<int>(7, out defaultKept) || defaultKept != 7 || calls != 3) return 3;
+	int assigned = 0;
+	bool found = false;
+	found = within (allocator) keep<int>(11, out assigned);
+	if (!found || assigned != 11 || calls != 4) return 4;
+	int? source = 13;
+	int? stored = default;
+	if (!within (allocator) keep<int?>(source, out stored) || !stored.specified || stored.value != 13 || calls != 5) return 5;
+	int? none = default;
+	int? copied = 99;
+	if (!within (allocator) keep<int?>(none, out copied) || copied.specified || calls != 6) return 6;
 	return 0;
 }

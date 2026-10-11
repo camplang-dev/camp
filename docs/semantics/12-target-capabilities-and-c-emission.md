@@ -320,11 +320,10 @@ chosen by analysis/lowering:
 - params/grouped values as their component layout;
 - async functions as completion-callback ABI functions;
 - written `void<V>` results and erased generic returns as caller-provided
-  storage: `void` plus `void*` for `T`, and `bool` plus `void*` for `T?`;
+  storage: `void` plus `void*`, with the result pointer after source parameters
+  and before compiler capability/allocator/error slots;
 - a representation generic `T: C` as the integer `C` (not `void*`), so that a
-  method reference typed `C<A>` has the same C signature as the function; The result pointer precedes compiler
-  capability/allocator/error slots and follows source parameters. Explicit
-  `void<V>?` results use the same optional ABI and default-fill absent payloads.
+  method reference typed `C<A>` has the same C signature as the function;
 
 The emitter should not rediscover expansion rules independently. Use the same
 expanded-form services as the analyzer/lowerer.

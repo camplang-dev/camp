@@ -8,16 +8,13 @@ public sealed class OptionalPayloadReturnTests
 {
 	[Theory]
 	[InlineData("int?", "item,item_specified")]
-	[InlineData("int??", "item,item_value_specified,item_specified")]
-	[InlineData("int???", "item,item_value_value_specified,item_value_specified,item_specified")]
 	[InlineData("int[]?", "item,item_length,item_specified")]
-	[InlineData("int[]??", "item,item_value_length,item_value_specified,item_specified")]
 	[InlineData("Predicate?", "item,item_context,item_specified")]
 	[InlineData("delegate int(int)?", "item,item_context,item_specified")]
 	[InlineData("once int(int)?", "item,item_context,item_specified")]
 	[InlineData("AsyncPredicate?", "item,item_context,item_specified")]
 	[InlineData("iter(int)?", "item,item_context,item_specified")]
-	public void Recursive_optional_names_match_across_storage_parameters_and_results(string type, string names)
+	public void Optional_names_match_across_storage_parameters_and_results(string type, string names)
 	{
 		SemanticCompilation compilation = SemanticCompiler.CompileLowered($$"""
 			newtype delegate int Predicate(int n);
@@ -37,35 +34,24 @@ public sealed class OptionalPayloadReturnTests
 	}
 
 	[Theory]
-	[InlineData("int?? item, bool item_value_specified")]
-	[InlineData("int??? item, bool item_value_value_specified")]
-	[InlineData("int[]?? item, nuint item_value_length")]
+	[InlineData("int? item, bool item_specified")]
+	[InlineData("int[]? item, nuint item_length")]
 	[InlineData("Predicate? item, void* item_context")]
-	public void Recursive_optional_component_names_are_reserved(string parameters)
+	public void Optional_component_names_are_reserved(string parameters)
 	{
 		SemanticCompilation compilation = SemanticCompiler.CompileLowered($"newtype delegate int Predicate(int n); void take({parameters}) {{ }}");
 		Assert.Contains(compilation.Diagnostics, diagnostic => diagnostic.Contains("as a component of 'item'"));
 	}
 
 	[Theory]
-	[InlineData("void local() { int?? item = default; bool item_value_specified; }")]
-	[InlineData("void local() { bool item_value_specified; int?? item = default; }")]
-	[InlineData("struct Holder { int?? item; bool item_value_specified; }")]
-	[InlineData("int?? copy(bool result_value_specified) => default;")]
-	public void Recursive_optional_names_collide_in_every_binding_scope(string source)
+	[InlineData("void local() { int? item = default; bool item_specified; }")]
+	[InlineData("void local() { bool item_specified; int? item = default; }")]
+	[InlineData("struct Holder { int? item; bool item_specified; }")]
+	[InlineData("int? copy(bool result_specified) => default;")]
+	public void Optional_names_collide_in_every_binding_scope(string source)
 	{
 		SemanticCompilation compilation = SemanticCompiler.CompileLowered(source);
 		Assert.Contains(compilation.Diagnostics, diagnostic => diagnostic.Contains("already declared"));
-	}
-
-	[Fact]
-	public void Optional_of_optional_callable_requires_value_before_invocation()
-	{
-		SemanticCompilation compilation = SemanticCompiler.CompileLowered("""
-			newtype delegate int Predicate(int n);
-			void local(Predicate?? callback) { callback(1); }
-			""");
-		Assert.Contains(compilation.Diagnostics, diagnostic => diagnostic.Contains("reach the inner optional through .value"));
 	}
 
 	[Theory]

@@ -61,11 +61,8 @@ Component names must be stable. For a binding named `items`, examples include:
 | Source form | Components |
 |---|---|
 | `T[] items` | `items`, `items_length` |
-| `T? maybe` | `maybe`, `maybe_specified` |
-| `int?? b` | `b`, `b_value_specified`, `b_specified` |
-| `int??? c` | `c`, `c_value_value_specified`, `c_value_specified`, `c_specified` |
+| `int? maybe` | `maybe`, `maybe_specified` |
 | `int[]? a` | `a`, `a_length`, `a_specified` |
-| `int[]?? b` | `b`, `b_value_length`, `b_value_specified`, `b_specified` |
 | `Predicate? d` (delegate newtype) | `d`, `d_context`, `d_specified` |
 | `delegate R(...) action` | `action`, `action_context` |
 | `once R(...) action` | `action`, `action_context` |
@@ -172,18 +169,26 @@ apply.
 
 ## Optionals
 
-`T?` is an expanded value with:
+An optional is an expanded value with:
 
 - payload component;
 - specified component.
 
-The payload uses the payload type's source semantics and expands recursively.
-Every layer exposes `.value` and `.specified`: an `int??? c` has
-`c.value.value.value`, `c.value.value.specified`, `c.value.specified`, and
-`c.specified`. Optional arrays also forward `.elements`, `.length`, indexing,
-and slicing; optional delegate shapes forward `.call`, `.context`, and
-invocation. An optional whose payload is another optional requires `.value`
-before accessing that payload's forwarded members.
+An optional holds one level. Its payload is a non-erased, non-expandable copyable
+type (`int?`, `Color?`), an array (`int[]?`, `T[]?`, `void<int?>[]?`) or a
+delegate shape (`Predicate?`, `delegate int()?`). A payload that is an optional,
+a type parameter of any constraint, `void<V>` or an integer carrier is an error
+wherever it is written: `int??`, `T?`, `void<V>?` and `long<Color>?`. Because a
+generic declaration cannot write `T?`, substitution never produces a nested
+optional. An optional remains a valid type argument and can be held whole as the
+`V` of `void<V>` storage, so `List<int?>` and `List<int[]?>` are valid.
+
+An optional of a non-expandable payload has two components, an optional array has
+the elements pointer, the `nuint` length and the presence flag, and an optional
+delegate shape has the call, the context and the presence flag. Every optional
+exposes `.value` and `.specified`. Optional arrays also forward `.elements`,
+`.length`, indexing, and slicing; optional delegate shapes forward `.call`,
+`.context`, and invocation.
 
 The same logical component paths determine local, field, parameter, and return
 component names. Reserve all expanded names against user bindings. A pointer to
@@ -206,10 +211,7 @@ detail.
 Returning a plain payload from an optional-returning function lifts that payload
 to a present optional. Lowering writes `true` to the specified result component
 for struct payloads as well as scalar payloads. Returning an existing optional
-carries its specified component instead. Wrapping adds one layer at a time:
-`int?? both = 5;` has both flags set, while `int? empty = default;
-int?? inner = empty;` has an outer presence flag and an absent inner payload.
-`int?? none = default;` defaults the payload and every flag.
+carries its specified component instead. `int? none = default;` defaults the payload and the flag.
 
 `T?` converts to `U?` exactly when `T` converts to `U`, with the same
 classification (implicit, explicit, or unsafe): the payload component converts as
@@ -386,14 +388,10 @@ type.
 ## Expanded Returns
 
 Erased results are a separate transport form. A written or substituted `void<V>`
-result returns `void` and takes a writable result pointer. `void<V>?` returns `bool`
-and takes the same pointer. The pointer comes after source parameters and before
-compiler-supplied slots. Absence clears every payload component. At the call
-site these results read as `V` and `V?`, preserving all nested optional layers.
-
-An `in void<V>?` or `out void<V>?` parameter keeps the ordinary outer optional
-expansion: one reference to erased payload storage and one to its presence bit.
-The payload itself is not distributed across ABI parameters.
+result returns `void` and takes a writable result pointer. The pointer comes after
+source parameters and before compiler-supplied slots. At the call site the result
+reads as `V`. An absent item is reported with a `bool` result and an `out` parameter
+(`List.tryGetItem`), not with an optional erased result; `void<V>?` is an error.
 
 Callables may return other callables. The returned callable's signature and
 expanded context are distinct from the outer callable's parameters and context.
@@ -439,7 +437,7 @@ Pointers to `T` refer to the storage form of `T`. Storage, arrays, optionals,
 and delegate fields involving generic `T` must use materialized storage where a
 single object is required.
 
-Do not recursively expand `T[]`, `T?`, or delegate shapes inside generic erasure
+Do not recursively expand `T[]`, `T[]?`, or delegate shapes inside generic erasure
 without checking whether `T` itself is expanded. Use the generic capability and
 materialization rules in
 [Generics, Erasure, And Capabilities](06-generics-erasure-and-capabilities.md).

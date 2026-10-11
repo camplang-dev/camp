@@ -5,8 +5,7 @@ namespace Camp.Compiler;
 
 public sealed partial class BindableNodeAnalyzer
 {
-	readonly HashSet<FunctionDefinition> optionalErasedReturnFunctions = [];
-	readonly Dictionary<CallExpression, string> erasedCallableResults = [];
+	readonly HashSet<CallExpression> erasedCallableResults = [];
 	readonly Dictionary<CallExpression, ParameterDefinition> trailingOutResults = [];
 	readonly HashSet<Statement> erasedArgumentCopyBackStatements = [];
 
@@ -77,21 +76,11 @@ public sealed partial class BindableNodeAnalyzer
 	bool IsErasedResultCall(CallExpression call)
 	{
 		if (trailingOutResults.ContainsKey(call)) return true;
-		if (erasedCallableResults.ContainsKey(call)) return true;
+		if (erasedCallableResults.Contains(call)) return true;
 		if (callTargets.TryGetValue(call, out FunctionDefinition? function)) return IsMaterializedGenericReturnFunction(function);
 		if (!TryGetCallableInvocationShape(call.Target?.ResolvedType, out CallableShape shape)) return false;
 		string result = shape.ReturnType;
-		return ErasedTypeIdentity.TryGetPayload(result.EndsWith('?') ? result[..^1] : result, out _);
-	}
-
-	bool IsOptionalErasedResultCall(CallExpression call)
-	{
-		if (callTargets.TryGetValue(call, out FunctionDefinition? function))
-			return optionalErasedReturnFunctions.Contains(function)
-				|| IsErasedGenericReturn(function) && TryGetOptionalPayloadType(function.ResolvedType, out _);
-		if (erasedCallableResults.TryGetValue(call, out string? result)) return result.EndsWith('?');
-		return TryGetCallableInvocationShape(call.Target?.ResolvedType, out CallableShape shape)
-			&& shape.ReturnType.EndsWith('?') && ErasedTypeIdentity.TryGetPayload(shape.ReturnType[..^1], out _);
+		return ErasedTypeIdentity.TryGetPayload(result, out _);
 	}
 
 	Expression CaptureCopyBackTarget(Expression target)
@@ -103,62 +92,6 @@ public sealed partial class BindableNodeAnalyzer
 		currentStatementPrefix!.Add(pointer);
 		return new UnaryExpression { SourceSyntax = target.SourceSyntax, Operator = UnaryOperator.PointerDereference,
 			Operand = CreateVariableReference(pointer.Target, pointerType), ResolvedType = target.ResolvedType };
-	}
-
-	bool TryPackOptionalErasedArgument(List<ArgumentExpression> arguments, int argumentIndex, List<ParameterDefinition>? parameters, int parameterIndex)
-	{
-		if (currentStatementPrefix is null || currentStatementSuffix is null || parameters is null
-			|| parameterIndex + 1 >= parameters.Count || arguments[argumentIndex].Value is not Expression value
-			|| parameters[parameterIndex].ExpandedSourceParameter is not ParameterDefinition source
-			|| !TryGetOptionalPayloadType(source.ResolvedType, out string erased)) return false;
-		if (!ErasedTypeIdentity.TryGetPayload(erased, out string payload))
-		{
-			if (!IsGenericPlaceholderParameter(erased)) return false;
-			payload = parameters[parameterIndex].ResolvedType ?? ErrorType;
-		}
-		ArgumentExpression argument = arguments[argumentIndex];
-		if (value is VariableReferenceExpression { Variable: ParameterDefinition input }
-			&& TryGetOptionalPayloadType(input.ResolvedType, out string inputPayload)
-			&& (ErasedTypeIdentity.TryGetPayload(inputPayload, out _) || IsGenericPlaceholderParameter(inputPayload))
-			&& paramsExpansions.TryGetValue(input, out List<ParamsExpansionComponent>? direct) && direct.Count == 2)
-		{
-			argument.Value = CreateVariableReference(direct[0].Node, ReadErasedValueType(direct[0].Type));
-			argument.ResolvedType = argument.Value.ResolvedType;
-			arguments.Insert(argumentIndex + 1, new ArgumentExpression { SourceSyntax = argument.SourceSyntax, Modifier = argument.Modifier,
-				Value = CreateVariableReference(direct[1].Node, direct[1].Type), ResolvedType = direct[1].Type });
-			return true;
-		}
-		if (!TryGetParamsComponentShape(null, payload + "?", "value", out ParamsComponentShape shape)
-			|| !TryCreateValueParamsComponents(value, shape, out List<Expression> components)) return false;
-		bool expanded = TryGetParamsComponentShape(null, payload, "value", out ParamsComponentShape payloadShape);
-		DeclarationStatement storage = expanded ? CreateMaterializedGenericReturnStorage(payload, value.SourceSyntax)
-			: CreateGeneratedLocal(NewGeneratedLocalName("argument"), payload, TypeReferenceForResolvedName(payload), null);
-		currentStatementPrefix.Add(storage);
-		List<Expression> slots = expanded ? CreateMaterializedComponentExpressions(storage.Target, payloadShape)
-			: [CreateVariableReference(storage.Target, payload)];
-		bool output = source.Modifier == ParameterModifier.Out;
-		for (int i = 0; i < slots.Count; i++)
-		{
-			Expression target = output ? CaptureCopyBackTarget(components[i]) : slots[i];
-			Expression initial = output ? slots[i] : components[i];
-			ExpressionStatement assignment = new()
-			{
-				SourceSyntax = value.SourceSyntax, ResolvedType = "void", Expression = new AssignmentExpression
-				{ Target = LowerExpression(target), Value = LowerExpression(initial), Operator = AssignmentOperator.Assign, ResolvedType = target.ResolvedType }
-			};
-			if (output) QueueErasedArgumentCopyBack(assignment);
-			else currentStatementPrefix.Add(assignment);
-		}
-		argument.Value = CreateVariableReference(storage.Target, storage.Target.ResolvedType ?? ErrorType);
-		argument.ResolvedType = argument.Value.ResolvedType;
-		DeclarationStatement flag = CreateGeneratedLocal(NewGeneratedLocalName("specified"), "bool", TypeReferenceForResolvedName("bool"), output ? null : LowerExpression(components[^1]));
-		currentStatementPrefix.Add(flag);
-		if (output)
-			QueueErasedArgumentCopyBack(new ExpressionStatement { ResolvedType = "void", Expression = new AssignmentExpression
-			{ Target = CaptureCopyBackTarget(components[^1]), Value = CreateVariableReference(flag.Target, "bool"), Operator = AssignmentOperator.Assign, ResolvedType = "bool" } });
-		arguments.Insert(argumentIndex + 1, new ArgumentExpression { SourceSyntax = argument.SourceSyntax, Modifier = argument.Modifier,
-			Value = CreateVariableReference(flag.Target, "bool"), ResolvedType = "bool" });
-		return true;
 	}
 
 	void QueueErasedArgumentCopyBack(Statement statement)
@@ -178,8 +111,8 @@ public sealed partial class BindableNodeAnalyzer
 		string type = expression.ResolvedType ?? "void";
 		if (expression is CallExpression call && materializedGenericReturnCalls.Contains(call) && callTargets.TryGetValue(call, out FunctionDefinition? function))
 			type = function.ResolvedType ?? "void";
-		else if (expression is CallExpression indirect && materializedGenericReturnCalls.Contains(indirect) && erasedCallableResults.TryGetValue(indirect, out string? resultType))
-			type = resultType.EndsWith('?') ? "bool" : "void";
+		else if (expression is CallExpression indirect && materializedGenericReturnCalls.Contains(indirect) && erasedCallableResults.Contains(indirect))
+			type = "void";
 		Expression result;
 		if (type == "void")
 		{
@@ -211,7 +144,7 @@ public sealed partial class BindableNodeAnalyzer
 			int position = parameters.IndexOf(result);
 			if (position >= 0) index = System.Math.Min(index, position);
 		}
-		else if (erasedCallableResults.ContainsKey(call) && TryGetCallableInvocationShape(call.Target?.ResolvedType, out CallableShape callable))
+		else if (erasedCallableResults.Contains(call) && TryGetCallableInvocationShape(call.Target?.ResolvedType, out CallableShape callable))
 		{
 			List<string> parameters = GetExpandedCallableParameterTypes(callable.Parameters);
 			int position = CallableShapeService.ResultStorageIndex(parameters);
@@ -229,9 +162,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	List<Expression> CaptureErasedResultComponents(CallExpression call, ParamsComponentShape shape, List<Statement> statements)
 	{
-		bool optional = IsOptionalErasedResultCall(call);
 		string valueType = call.ResolvedType ?? shape.TypeName;
-		if (optional && TryGetOptionalPayloadType(valueType, out string payload)) valueType = payload;
 		bool expanded = TryGetParamsComponentShape(null, valueType, "value", out ParamsComponentShape payloadShape);
 		DeclarationStatement storage = expanded ? CreateMaterializedGenericReturnStorage(valueType, call.SourceSyntax)
 			: CreateGeneratedLocal(NewGeneratedLocalName("result"), valueType, TypeReferenceForResolvedName(valueType), null);
@@ -249,13 +180,7 @@ public sealed partial class BindableNodeAnalyzer
 			lowered = LowerExpression(call) ?? call;
 		}
 		finally { currentStatementPrefix = previousPrefix; }
-		if (optional)
-		{
-			DeclarationStatement specified = CreateGeneratedLocal(NewGeneratedLocalName("specified"), "bool", TypeReferenceForResolvedName("bool"), lowered);
-			statements.Add(specified);
-			components.Add(CreateVariableReference(specified.Target, "bool"));
-		}
-		else statements.Add(new ExpressionStatement { SourceSyntax = call.SourceSyntax, ResolvedType = "void", Expression = lowered });
+		statements.Add(new ExpressionStatement { SourceSyntax = call.SourceSyntax, ResolvedType = "void", Expression = lowered });
 		return components;
 	}
 	static bool IsErasedGenericParameter(GenericParameter parameter) =>
@@ -298,8 +223,6 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (ErasedTypeIdentity.TryGetPayload(type, out string payload) || CarrierTypeIdentity.TryGetPayload(type, out payload))
 			return payload;
-		if (type.EndsWith('?') && ErasedTypeIdentity.TryGetPayload(type[..^1], out payload))
-			return payload + "?";
 		return type;
 	}
 }

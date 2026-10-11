@@ -165,9 +165,12 @@ public sealed partial class BindableNodeAnalyzer
 
 			case OptionalTypeReference optional:
 				AnalyzeOptionalType(optional.ElementType, scope);
-				if (optional.ElementType is not null && !ContainsGenericTypeName(optional.ElementType.ResolvedType ?? "", scope)
-					&& !IsCopyableTypeArgument(optional.ElementType, scope, []))
-					Report(GetRange(optional.SourceSyntax), "Optional payloads must be copyable; use a pointer to a non-copyable value instead.");
+				if (optional.ElementType is not null && ValidateOptionalPayloadFamily(optional, scope))
+				{
+					if (!ContainsGenericTypeName(optional.ElementType.ResolvedType ?? "", scope)
+						&& !IsCopyableTypeArgument(optional.ElementType, scope, []))
+						Report(GetRange(optional.SourceSyntax), "Optional payloads must be copyable; use a pointer to a non-copyable value instead.");
+				}
 				type.ResolvedType = FormatTypeReference(type);
 				break;
 
@@ -849,11 +852,10 @@ public sealed partial class BindableNodeAnalyzer
 		if (type?.SourceSyntax is null)
 			return;
 		if (TryParseTypeShape(type.ResolvedType, out TypeShape shape))
-			ValidateWrittenErasedShape(shape, syntax, usage, allowStorage || usage.EndsWith("return type", StringComparison.Ordinal),
-				usage.EndsWith("return type", StringComparison.Ordinal) || allowStorage && usage == "a parameter type");
+			ValidateWrittenErasedShape(shape, syntax, usage, allowStorage || usage.EndsWith("return type", StringComparison.Ordinal));
 	}
 
-	void ValidateWrittenErasedShape(TypeShape shape, SyntaxNode? syntax, string usage, bool allowStorage, bool allowOptionalStorage)
+	void ValidateWrittenErasedShape(TypeShape shape, SyntaxNode? syntax, string usage, bool allowStorage)
 	{
 		if (shape.Kind == TypeShapeKind.Named && ErasedTypeIdentity.TryGetPayload(shape.Name, out _))
 		{
@@ -861,10 +863,32 @@ public sealed partial class BindableNodeAnalyzer
 				Report(GetRange(syntax), $"void<V> is storage and is not valid as {usage}; use V, void<V>*, or a stackalloc local for single-object storage.");
 			return;
 		}
+		// An optional of void<V> is reported where the optional is written.
+		if (shape.Kind == TypeShapeKind.Optional && shape.Element is { Kind: TypeShapeKind.Named } payload && ErasedTypeIdentity.TryGetPayload(payload.Name, out _))
+			return;
 		if (shape.Element is not null)
-			ValidateWrittenErasedShape(shape.Element, syntax, usage,
-				shape.Kind is TypeShapeKind.Pointer or TypeShapeKind.Array || shape.Kind == TypeShapeKind.Optional && allowOptionalStorage,
-				allowOptionalStorage: false);
+			ValidateWrittenErasedShape(shape.Element, syntax, usage, shape.Kind is TypeShapeKind.Pointer or TypeShapeKind.Array);
+	}
+
+	// 025 §1: an optional holds one level of a non-erased value, an array or a delegate shape.
+	bool ValidateOptionalPayloadFamily(OptionalTypeReference optional, AnalysisScope scope)
+	{
+		if (optional.SourceSyntax is null || optional.ElementType?.ResolvedType is not string payload
+			|| !TryParseTypeShape(payload, out TypeShape shape))
+			return true;
+		string? message = null;
+		if (shape.Kind == TypeShapeKind.Optional)
+			message = "An optional cannot hold another optional; use a 'bool' result with an 'out' parameter, or a 'void<V>*'.";
+		else if (shape.Kind == TypeShapeKind.Named && scope.TryGetGenericParameter(BaseTypeName(shape.Name), out _))
+			message = $"An optional payload cannot be the type parameter '{shape.Name}'; use a 'tryGet' form with 'out {shape.Name}', or a nullable '{shape.Name}*'.";
+		else if (ErasedTypeIdentity.TryGetPayload(payload, out _))
+			message = $"An optional payload cannot be '{payload}'; use a nullable '{payload}*', or a 'tryGet' form with 'out'.";
+		else if (CarrierTypeIdentity.TryGetPayload(payload, out _))
+			message = $"An optional payload cannot be the integer carrier '{payload}'; use a nullable '{payload}*', or a 'tryGet' form with 'out'.";
+		if (message is null)
+			return true;
+		Report(GetRange(optional.SourceSyntax), message);
+		return false;
 	}
 
 	void ValidateNoDirectExternClassType(TypeReference? type, SyntaxNode? syntax, string usage)

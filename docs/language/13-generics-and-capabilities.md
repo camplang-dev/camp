@@ -86,9 +86,9 @@ not permit a by-value `T` parameter.
 The erased declaration has one ABI. With an expandable argument `A`, pointers
 and arrays of `T` become `void<A>*` and `void<A>[]`. With a non-expandable
 argument, arrays remain ordinary arrays. Generic results always use caller
-storage, including scalar results, and an optional result retains a separate
-outer presence bit. Source calls still produce ordinary values: `T = int?`
-gives an `int?` result for `T` and an `int??` result for `T?`.
+storage, including scalar results. Source calls still produce ordinary values:
+`T = int?` gives an `int?` result for `T`. A generic declaration cannot write
+`T?`, so substitution never produces an optional of an optional.
 
 An ordinary expandable `in` or `out` argument uses temporary packed storage.
 An `out` value is copied back as the call returns. Explicit `void<V>` storage
@@ -354,8 +354,7 @@ This swaps pointers to `T` storage. It does not copy the `T` values.
 
 Erased signatures keep the same storage shape for every instantiation, including
 callback signatures nested inside parameters. A substituted `T` result uses
-`void<A>` caller storage, while the call expression produces `A`. A substituted
-`T?` result produces `A?`; optional layers never collapse.
+`void<A>` caller storage, while the call expression produces `A`.
 
 For example, `List<int?>` stores optional values in erased elements:
 
@@ -365,15 +364,19 @@ items.add(1);
 items.add(default);
 auto first = items.Item[0];                // int?
 auto section = items.take(0, 2);           // void<int?>[]; borrowed storage
-auto maybe = items.getItemOrDefault(300);  // int??; outer layer absent
-auto lookup = items.getItemOrDefault;      // delegate void<int?>?(int)
-int?? result = lookup(0);                  // outer and inner present
+int? found;
+bool hit = items.tryGetItem(1, out found); // true: the item exists
+                                           // found is an unspecified int?
+bool miss = items.tryGetItem(300, out found); // false: no such item
+auto lookup = items.tryGetItem;            // delegate bool(int, out void<int?>)
 ```
 
 The range returned by `take` borrows list storage; growth and deletion can
-invalidate it, and mutations through the range affect the list. An existing
-but unspecified item yields a present outer optional containing an unspecified
-inner optional.
+invalidate it, and mutations through the range affect the list. `tryGetItem`
+reports whether the index names an item, so an existing but unspecified item
+(`true` with an unspecified `found`) is distinct from a missing one (`false`).
+An optional cannot be the payload of another optional, so generic code reports
+absence with a `bool` result and `out T` rather than a `T?` result.
 
 Use `T: copyable` when a generic function copies, assigns, returns, yields, or
 uses local `T` storage.

@@ -6,17 +6,37 @@ void listOptionalLookupAndBorrowedRange(within Allocator* allocator, thrown Asse
 	auto values = within (allocator) new List<int?>() finally delete;
 	values.add(5);
 	values.add(default);
-	int?? present = values.getItemOrDefault(0);
-	int?? innerMissing = values.getItemOrDefault(1);
-	int?? missing = values.getItemOrDefault(2);
-	assert(present.specified && present.value.specified && present.value.value == 5, "Lookup should preserve both presence layers");
-	assert(innerMissing.specified && !innerMissing.value.specified, "An unspecified item is still an item");
-	assert(!missing.specified && !missing.value.specified && missing.value.value == 0, "Missing lookup should default its payload");
-	assert(!values.getItemOrDefault(-1).specified, "Negative lookup should be unspecified");
+	int? item = 77;
+	assert(values.tryGetItem(0, out item) && item.specified && item.value == 5, "Lookup should return a present optional item");
+	assert(values.tryGetItem(1, out item) && !item.specified, "An unspecified item is still an item");
+	item = 88;
+	assert(!values.tryGetItem(2, out item) && !item.specified && item.value == 0, "Missing lookup should default its result");
+	item = 88;
+	assert(!values.tryGetItem(-1, out item) && !item.specified, "Negative lookup should report no item");
 	void<int?>[] range = values.take(0, 2);
 	assert(range.length == 2 && range[0].value == 5 && !range[1].specified, "Borrowed ranges should retain erased element storage");
 	range[0] = 9;
 	assert(values.Item[0].value == 9, "Borrowed ranges should refer to the list storage");
+}
+
+@test
+void listArrayOptionalStorageAndLookup(within Allocator* allocator, thrown Assertion* assertion)
+{
+	auto arrays = within (allocator) new List<int[]?>() finally delete;
+	int[] data = [3, 4, 5];
+	arrays.add(data);
+	arrays.add(default);
+	int[]? item = default;
+	assert(arrays.tryGetItem(0, out item) && item.specified && item.length == 3 && item[2] == 5, "Lookup should return a present array optional");
+	assert(arrays.tryGetItem(1, out item) && !item.specified, "An unspecified array item is still an item");
+	assert(!arrays.tryGetItem(2, out item) && !item.specified, "Missing array lookup should report no item");
+	assert(arrays.Item[0].specified && arrays.Item[0].length == 3 && !arrays.Item[1].specified, "Indexing should read stored array optionals");
+
+	auto plain = within (allocator) new List<int>() finally delete;
+	plain.add(11);
+	int number = 5;
+	assert(plain.tryGetItem(0, out number) && number == 11, "Plain lookup should return the item");
+	assert(!plain.tryGetItem(1, out number) && number == 0, "Plain lookup should default the result when missing");
 }
 
 @test
