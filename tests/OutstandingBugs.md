@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-291.
+Next bug number: BUG-292.
 
 ## Bug Template
 
@@ -175,3 +175,26 @@ Actual:
 
 Known Impact:
 A function cannot return an expanded erased pointer directly. Converting into a local before returning avoids the problem.
+
+## BUG-291: A `const void<V>*` of an expandable `V` does not expand to the `const V*` distributive pointer
+
+Date/Time: 2026-10-12 03:15 EDT
+
+Summary:
+A pointer to erased storage of an expandable `V` (`void<int?>*`, `void<int[]>*`) converts implicitly to the distributive pointer of `V`, preserving qualifiers. A mutable source converts to either a mutable or a const destination, but when the pointee of the source is itself const (`const void<int?>*`), the conversion to the matching const destination (`const int?*`) is rejected, so the components of const erased storage cannot be addressed at all. The same conversion is accepted for a non-expandable payload (`const void<int>*` to `const int*`).
+
+Steps to Reproduce:
+
+1. Declare `int read(const int?* source) { int? current = *source; return current.specified ? current.value : -1; }`.
+2. Declare `void viaArgument(const void<int?>* readOnly) { read(readOnly); }` and `void viaLocal(const void<int?>* readOnly) { const int?* view = readOnly; }`.
+3. Declare `void viaArray(const void<int[]>* readOnly) { const int[]* view = readOnly; }`.
+4. For comparison, declare `void viaMutable(void<int?>* mutable) { const int?* view = mutable; read(view); }` and `void viaMutableArray(void<int[]>* mutable) { const int[]* view = mutable; }`.
+
+Expected:
+All of the conversions are accepted: no qualifier is dropped, and the const components alias the const storage.
+
+Actual:
+The argument, local-initializer and array forms report `Argument cannot convert 'const void<int?>*' to 'const int?*'` and the matching declaration-initializer errors for `const void<int?>*` and `const void<int[]>*`. The mutable-source comparisons compile.
+
+Known Impact:
+Const erased storage of an optional or array cannot be passed to a function taking `const V*`; the storage has to be reached through a mutable pointer instead.
