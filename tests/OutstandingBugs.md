@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-294.
+Next bug number: BUG-295.
 
 ## Bug Template
 
@@ -244,3 +244,25 @@ Each reports that it cannot convert `long<Color>*` to `const long<Color>*` (retu
 
 Known Impact:
 A carrier-typed value cannot be exposed read-only by pointer. Passing the mutable pointer avoids the problem.
+
+## BUG-294: A generated project API omits the interface list of an exported struct
+
+Date/Time: 2026-10-12 20:11 EDT
+
+Summary:
+A project that exports an interface and a struct implementing it produces an API declaration in which the struct no longer names the interface. The struct's method keeps its `: Reader` implementation marker, so the API contradicts itself, and a consuming project can neither convert the struct to the interface nor build against the API at all when the method is exported.
+
+Steps to Reproduce:
+
+1. In a producer project, declare `export interface Reader { int read(); }` and `export struct Cell: Reader { int value; int read(): Reader { return this.value; } }`.
+2. In a second project that references the producer as a static project reference, write `Cell cell = { 5 }; Reader* r = &cell;`.
+3. Build the second project.
+
+Expected:
+The generated API declares `export struct Cell : Reader`, so the conversion compiles and `r.read()` dispatches to the struct's method.
+
+Actual:
+The generated API declares `export struct Cell` with no interface list and `export extern int read() : Reader;` inside it. The consumer reports `Declaration initializer cannot convert 'Cell*' to 'Reader*'.` If the method is declared `export int read(): Reader`, the generated API itself fails to build with `Method 'read' cannot implement 'Reader' because type 'Cell' does not implement that interface.`
+
+Known Impact:
+An exported type cannot be used as an interface, directly or through a generic `implements` constraint, from another project. Keeping the implementing type and its interface in the same project avoids the problem.
