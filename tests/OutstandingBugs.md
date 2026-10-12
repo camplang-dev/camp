@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-292.
+Next bug number: BUG-293.
 
 ## Bug Template
 
@@ -198,3 +198,25 @@ The argument, local-initializer and array forms report `Argument cannot convert 
 
 Known Impact:
 Const erased storage of an optional or array cannot be passed to a function taking `const V*`; the storage has to be reached through a mutable pointer instead.
+
+## BUG-292: A brace initializer of a distributive pointer field from a `void<V>*` emits invalid C
+
+Date/Time: 2026-10-12 03:15 EDT
+
+Summary:
+A pointer to erased storage of an expandable `V` (`void<int?>*`) converts implicitly to the distributive pointer of `V` (`int?*`). The conversion is accepted for arguments, local initializers and assignments, including assignment to a field. When the same address initializes a distributive pointer field in a brace initializer, the compiler accepts the program but emits C that does not compile: the field's extra component slot receives a boolean constant instead of the component pointer.
+
+Steps to Reproduce:
+
+1. Declare `struct Handle { int?* where; }` and `int read(const int?* source) { int? current = *source; return current.specified ? current.value : -1; }`.
+2. In `main`, declare `stackalloc void<int?> slot = (void<int?>)1;` and `Handle handle = { &slot };`, then call `read(handle.where)`.
+3. For comparison, replace the initializer with `Handle handle = default; handle.where = &slot;`, with `int?* local = &slot; Handle handle = { local };`, or with an address of an ordinary `int?` local (`Handle handle = { &plain };`).
+
+Expected:
+The initializer expands `&slot` into the component pointers, as an assignment does, and `read` returns `1`.
+
+Actual:
+The native build fails with `incompatible integer to pointer conversion initializing 'bool *' with an expression of type 'int'` on `(Handle){ .where = (int *)(&slot), .where_specified = true }`. The three comparison forms compile and return the stored value.
+
+Known Impact:
+A distributive pointer field cannot be brace-initialized directly from erased storage. Assigning the field afterwards, or expanding into a local first, avoids the problem.
