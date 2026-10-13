@@ -194,6 +194,10 @@ by `void<int> find(int)`, and neither a plain `int` result nor a trailing
 `out int` implements it. These rules do not relax exact virtual override
 signatures or receiver, lifetime, constness and availability requirements.
 
+An interface invocation places its receiver first, followed by all authored
+argument components, then the erased result storage. Scalar and expandable
+payloads use the same result-slot ordering.
+
 Struct conformance binds methods directly against interface slots. Receiver
 representation and addressability are part of compatibility.
 

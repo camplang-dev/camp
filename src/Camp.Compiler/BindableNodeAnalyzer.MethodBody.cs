@@ -4329,10 +4329,10 @@ public sealed partial class BindableNodeAnalyzer
 		if (target is MemberReferenceExpression
 			{
 				Target: UnaryExpression { Operator: UnaryOperator.PointerDereference },
-				Member: FunctionDefinition member
-			}
-			&& ReferenceEquals(member, function)
-			&& FindContainingType(member) is InterfaceDefinition)
+			} slot
+			&& function is not null
+			&& (ReferenceEquals(slot.Member, function) || slot.Member is null && slot.Name == GetCallableName(function))
+			&& FindContainingType(function) is InterfaceDefinition)
 		{
 			return true;
 		}

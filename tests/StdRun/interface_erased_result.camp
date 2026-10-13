@@ -1,0 +1,24 @@
+interface Source
+{
+	void<int> next(int step);
+	void<int?> maybe(int step);
+	void<int> sum(int[] steps);
+}
+struct Counter: Source
+{
+	int value;
+	void<int> next(int step): Source { return this.value + step; }
+	void<int?> maybe(int step): Source { return step != 0 ? (int?)step : default; }
+	void<int> sum(int[] steps): Source { return this.value + steps[0] + steps[1]; }
+}
+export int main()
+{
+	Counter counter = { 10 };
+	Source* source = &counter;
+	int[] steps = [3, 4];
+	if (source.next(5) != 15 || source.sum(steps) != 17) return 1;
+	int? present = source.maybe(8);
+	int? absent = source.maybe(0);
+	if (!present.specified || present.value != 8 || absent.specified) return 2;
+	return 0;
+}
