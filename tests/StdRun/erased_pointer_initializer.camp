@@ -1,0 +1,25 @@
+struct Handle { int?* where; }
+struct ArrayHandle { int[]* where; }
+struct ConstHandle { const int?* where; }
+int calls;
+void<int?>* select(void<int?>* value) { calls++; return value; }
+export int main()
+{
+	stackalloc void<int?> slot = 1;
+	Handle positional = { &slot };
+	Handle named = { .where = &slot };
+	Handle computed = { select(&slot) };
+	if (calls != 1 || !computed.where.specified || computed.where.value != 1) return 1;
+	positional.where.value = 8;
+	if (named.where.value != 8 || slot.value != 8) return 2;
+	slot = default;
+	if (named.where.specified || positional.where.specified) return 3;
+	stackalloc void<int[]> array = [3, 4];
+	ArrayHandle arrayHandle = { &array };
+	if (arrayHandle.where.length != 2 || (*arrayHandle.where)[1] != 4) return 4;
+	slot = 12;
+	const void<int?>* readOnly = &slot;
+	ConstHandle constHandle = { .where = readOnly };
+	if (!constHandle.where.specified || constHandle.where.value != 12) return 5;
+	return 0;
+}

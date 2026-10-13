@@ -2650,7 +2650,7 @@ public sealed partial class BindableNodeAnalyzer
 				item.TargetStorageGenericNames.AddRange(field.StorageGenericNames);
 				item.ResolvedType = BodyAnalyzeExpression(item.Expression, scope, typeScope, field.Type);
 				if (!ReportUnsupportedFunctionToDelegateInitializer(field.Type, item.ResolvedType ?? ErrorType, item.Expression?.SourceSyntax ?? item.SourceSyntax))
-					CheckInitializerFieldAssignable(field.Type, item.ResolvedType ?? ErrorType, item.Expression?.SourceSyntax ?? item.SourceSyntax);
+					CheckInitializerFieldAssignable(field.Type, item);
 				continue;
 			}
 
@@ -2677,15 +2677,21 @@ public sealed partial class BindableNodeAnalyzer
 			item.TargetStorageGenericNames.AddRange(namedField.StorageGenericNames);
 			item.ResolvedType = BodyAnalyzeExpression(item.Expression, scope, typeScope, namedField.Type);
 			if (!ReportUnsupportedFunctionToDelegateInitializer(namedField.Type, item.ResolvedType ?? ErrorType, item.Expression?.SourceSyntax ?? item.SourceSyntax))
-				CheckInitializerFieldAssignable(namedField.Type, item.ResolvedType ?? ErrorType, item.Expression?.SourceSyntax ?? item.SourceSyntax);
+				CheckInitializerFieldAssignable(namedField.Type, item);
 		}
 	}
 
-	void CheckInitializerFieldAssignable(string expected, string actual, SyntaxNode? syntax)
+	void CheckInitializerFieldAssignable(string expected, InitializerItem item)
 	{
+		string actual = item.ResolvedType ?? ErrorType;
 		if (IsExpandedDelegateStorageCompatible(expected, actual))
 			return;
-		CheckAssignable(expected, actual, syntax, "Initializer field");
+		CheckAssignable(expected, actual, item.Expression?.SourceSyntax ?? item.SourceSyntax, "Initializer field");
+		if (TryExpandErasedPointer(item.Expression, actual, expected) is Expression pointer)
+		{
+			item.Expression = pointer;
+			item.ResolvedType = pointer.ResolvedType;
+		}
 	}
 
 	bool IsExpandedDelegateStorageCompatible(string expected, string actual)

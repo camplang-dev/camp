@@ -365,6 +365,8 @@ Returning this conversion directly uses the same component addresses as a
 local initializer or argument; every returned pointer aliases the source storage.
 Const erased storage expands to a const distributive pointer, including optional
 and array payloads. The conversion must not remove const or volatile qualifiers.
+Positional and named brace initializers of distributive pointer fields also
+expand the source storage into all component addresses, evaluating it once.
 Materialized members use logical component names, such as `value` and
 `specified`, `elements` and `length`, or `call` and `context`. Erased arrays
 index by the size of the complete object, including all components.
