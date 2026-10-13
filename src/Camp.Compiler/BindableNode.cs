@@ -422,6 +422,7 @@ public class OptionalTypeReference : TypeReference
 
 public class PointerTypeReference : TypeReference
 {
+	internal TypeReference? ExpandedSourceType { get; set; }
 	public TypeReference? ElementType { get; set; }
 }
 

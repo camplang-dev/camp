@@ -377,7 +377,7 @@ public sealed class BindableNodeCodeSerializer
 		writer.Write("struct ");
 		writer.Write(definition.Name);
 		WriteGenericParameters(definition.GenericParameters);
-		WriteBaseTypes(apiHeader ? [] : definition.BaseTypes);
+		WriteBaseTypes(apiHeader ? [.. definition.BaseTypes, .. definition.LoweredInterfaceBaseTypes] : definition.BaseTypes);
 		WriteLineBlock(() =>
 		{
 			ConfigurationFlagExpression? previousRequirementContext = currentRequirementContext;
@@ -594,9 +594,9 @@ public sealed class BindableNodeCodeSerializer
 			WriteFieldDefinition(field);
 		}
 
-		if (apiFields.Count > 0 && HasApiFunction(functions))
+		if (apiFields.Count > 0 && (HasApiFunction(functions) || functions.Any(function => function.InterfaceImplementationInterface is not null)))
 			writer.WriteLine();
-		WriteApiFunctions(functions);
+		WriteApiAwareFunctions(functions, includeInterfaceImplementations: true);
 	}
 
 	void WriteApiClassMembers(ClassDefinition definition, List<FieldDefinition> fields, List<FunctionDefinition> functions)
@@ -768,12 +768,13 @@ public sealed class BindableNodeCodeSerializer
 		return result;
 	}
 
-	void WriteApiAwareFunctions(List<FunctionDefinition> functions)
+	void WriteApiAwareFunctions(List<FunctionDefinition> functions, bool includeInterfaceImplementations = false)
 	{
 		bool wrote = false;
 		foreach (FunctionDefinition function in functions)
 		{
-			if (apiHeader && !IsVisibleInApiSurface(function))
+			bool conformanceOnly = includeInterfaceImplementations && function.InterfaceImplementationInterface is not null && !IsVisibleInApiSurface(function);
+			if (apiHeader && !IsVisibleInApiSurface(function) && !conformanceOnly)
 				continue;
 			if (apiHeader && IsGeneratedApiImplementationDetail(function))
 				continue;
@@ -781,7 +782,7 @@ public sealed class BindableNodeCodeSerializer
 				continue;
 			if (wrote)
 				writer.WriteLine();
-			WriteFunctionDefinition(function);
+			WriteFunctionDefinition(function, conformanceOnly);
 			wrote = true;
 		}
 	}
@@ -893,12 +894,14 @@ public sealed class BindableNodeCodeSerializer
 		writer.WriteLine(";");
 	}
 
-	void WriteFunctionDefinition(FunctionDefinition definition)
+	void WriteFunctionDefinition(FunctionDefinition definition, bool conformanceOnly = false)
 	{
 		WriteRequirementPrefix(definition);
 		WriteAttributes(definition.Attributes);
 		WriteIndent();
 		WriteDefinitionPrefix(definition);
+		if (apiHeader && conformanceOnly && definition.Extern is null)
+			writer.Write("extern ");
 		WriteCallSpec(definition.CallSpec);
 		if (definition.Modifier == FunctionModifier.Constructor)
 		{
@@ -941,7 +944,7 @@ public sealed class BindableNodeCodeSerializer
 			WriteExpression(definition.InterfaceSlotInitializer);
 		}
 
-		if (definition.Body is null || apiHeader && IsVisibleInApiSurface(definition))
+		if (definition.Body is null || apiHeader && (IsVisibleInApiSurface(definition) || conformanceOnly))
 		{
 			writer.WriteLine(";");
 			return;
@@ -2237,6 +2240,11 @@ public sealed class BindableNodeCodeSerializer
 				break;
 
 			case PointerTypeReference pointer:
+				if (apiHeader && pointer.ExpandedSourceType is not null)
+				{
+					WriteType(pointer.ExpandedSourceType);
+					break;
+				}
 				WriteType(pointer.ElementType);
 				writer.Write("*");
 				break;

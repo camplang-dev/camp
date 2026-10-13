@@ -614,8 +614,11 @@ public sealed partial class BindableNodeAnalyzer
 			vtableStorage.Type = new ConstTypeReference { Type = InterfaceType(interfaceDefinition), ResolvedType = "const " + interfaceDefinition.Name };
 			vtableStorage.ResolvedType = "const " + interfaceDefinition.Name;
 			ApplyCombinedRequirement(vtableStorage, structDefinition, interfaceDefinition);
-			module.Definitions.Add(vtableStorage);
-			generatedInterfaceDefinitions.Add(vtableStorage);
+			if (!structDefinition.IsApiHeader)
+			{
+				module.Definitions.Add(vtableStorage);
+				generatedInterfaceDefinitions.Add(vtableStorage);
+			}
 
 			// The exported vtable holds direct entries that take the struct receiver. Interface carriers built from a
 			// struct point at an unnamed object vtable formed at the conversion site, whose entries convert the context
@@ -623,6 +626,10 @@ public sealed partial class BindableNodeAnalyzer
 			VariableDefinition vtable = generatedDeclarations.Variable(GeneratedDeclarationCategory.Interface, "interface vtable export", structDefinition);
 			vtable.Name = InterfaceVTableName(structDefinition, interfaceDefinition);
 			vtable.Symbol = InterfaceVTableName(structDefinition, interfaceDefinition);
+			vtable.Export = structDefinition.Export is not null && interfaceDefinition.Export is not null ? "export" : null;
+			vtable.Public = GetCombinedArtifactVisibility(structDefinition, interfaceDefinition);
+			vtable.Internal = GetCombinedInternalVisibility(structDefinition, interfaceDefinition);
+			vtable.Extern = structDefinition.IsApiHeader ? "extern" : null;
 			vtable.Type = PointerTo(new ConstTypeReference { Type = InterfaceType(interfaceDefinition), ResolvedType = "const " + interfaceDefinition.Name });
 			vtable.ResolvedType = "const " + interfaceDefinition.Name + "*";
 			ApplyCombinedRequirement(vtable, structDefinition, interfaceDefinition);
@@ -710,6 +717,13 @@ public sealed partial class BindableNodeAnalyzer
 			member.EffectiveRequirement);
 		thunk.Name = InterfaceThunkName(lowering.Type, entryInterface, member);
 		thunk.Symbol = InterfaceThunkName(lowering.Type, entryInterface, member);
+		if (lowering.IsStruct)
+		{
+			thunk.Export = lowering.Type.Export is not null && entryInterface.Export is not null ? "export" : null;
+			thunk.Public = GetCombinedArtifactVisibility(lowering.Type, entryInterface);
+			thunk.Internal = GetCombinedInternalVisibility(lowering.Type, entryInterface);
+			thunk.Extern = lowering.Type.IsApiHeader ? "extern" : null;
+		}
 		thunk.ReturnType = member.Modifier == FunctionModifier.Constructor
 			? new AnyTypeReference { ResolvedType = "any" }
 			: EraseConstOfTypeReference(member.ReturnType) ?? VoidType();
@@ -761,12 +775,14 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			foreach (InterfaceImplementationLowering lowering in lowerings)
 			{
-				lowering.VTableStorage.InitialValue = CreateInterfaceVTableInitializer(lowering, lowering.Interface, directEntries: true);
+				if (!lowering.Type.IsApiHeader)
+					lowering.VTableStorage.InitialValue = CreateInterfaceVTableInitializer(lowering, lowering.Interface, directEntries: true);
 			}
 		}
 
 		foreach ((FunctionDefinition thunk, InterfaceThunkLowering lowering) in interfaceThunkLowerings)
-			thunk.Body = CreateInterfaceThunkBody(thunk, lowering);
+			if (thunk.Extern is null)
+				thunk.Body = CreateInterfaceThunkBody(thunk, lowering);
 	}
 
 	void RefreshInterfaceAccessorAbiType(ClassDefinition classDefinition, InterfaceDefinition interfaceDefinition)
@@ -848,6 +864,7 @@ public sealed partial class BindableNodeAnalyzer
 			&& interfaceDefinition is not null)
 		{
 			TypeReference lowered = PointerTo(PointerTo(InterfaceType(interfaceDefinition)));
+			((PointerTypeReference)lowered).ExpandedSourceType = type;
 			lowered.SourceSyntax = type.SourceSyntax;
 			lowered.ResolvedType = $"{interfaceDefinition.Name}**";
 			return lowered;

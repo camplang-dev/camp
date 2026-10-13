@@ -32,6 +32,15 @@ though C emission uses a completion callback. An array parameter remains an
 array parameter in the API header even though ABI lowering passes pointer and
 length components.
 
+An exported struct retains its implemented interface list in the Camp API,
+including interfaces moved out of its base list during ABI lowering. Consumers
+use this list to validate implementation markers, interface conversions, and
+generic `implements` constraints.
+Private struct implementation signatures remain extern conformance declarations
+without added visibility. Native headers export the struct's witness table and
+interface dispatch adapters according to the type/interface visibility;
+consumers import those symbols instead of rebuilding the producer's helpers.
+
 API headers preserve availability requirements with `requires (...)`. They
 should serialize source-level requirements, not selected-target native
 filtering, unless the API being produced is explicitly a selected native API

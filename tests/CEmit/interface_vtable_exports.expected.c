@@ -3,15 +3,13 @@
 
 /* Private file declarations. */
 void *malloc(uintptr_t size);
-static void Handle_IRef_retain(IRef **ctx);
 static const IRef Widget_IRef__storage;
 static const IRef Handle_IRef__storage;
-static const IRef *Handle_IRef;
 
 static const IRef Widget_IRef__storage = { .retain = (void (*)(void* arg0))Widget_retain };
 const IRef *Widget_IRef = &Widget_IRef__storage;
 static const IRef Handle_IRef__storage = { .retain = (void (*)(void* arg0))Handle_retain };
-static const IRef *Handle_IRef = &Handle_IRef__storage;
+const IRef *Handle_IRef = &Handle_IRef__storage;
 void Widget_retain(Widget *this)
 {
 }
@@ -46,7 +44,7 @@ void Handle_retain(Handle *this)
 {
 }
 
-static void Handle_IRef_retain(IRef **ctx)
+void Handle_IRef_retain(IRef **ctx)
 {
 	IRef_Indirect *indirect = (IRef_Indirect *)(ctx);
 	Handle *instance = indirect->ctx;
@@ -65,7 +63,9 @@ Widget *Widget_create(void);
 void Widget_destroy(Widget *this);
 IRef **Widget_getIRef(const Widget *this);
 void Handle_retain(Handle *this);
+void Handle_IRef_retain(IRef **ctx);
 extern const IRef *Widget_IRef;
+extern const IRef *Handle_IRef;
 
 #endif
 // file: interface_vtable_exports_private.h
@@ -112,9 +112,11 @@ Widget *Widget_create(void);
 void Widget_destroy(Widget *this);
 IRef **Widget_getIRef(const Widget *this);
 void Handle_retain(Handle *this);
+void Handle_IRef_retain(IRef **ctx);
 
 /* Object declarations. */
 extern const IRef *Widget_IRef;
+extern const IRef *Handle_IRef;
 
 
 #endif

@@ -19,7 +19,7 @@ export extern class NativeCounter : IValue
 	export extern IValue* getIValue();
 }
 
-export struct ValueCounter
+export struct ValueCounter : IValue
 {
 	export extern int value() : IValue;
 }
