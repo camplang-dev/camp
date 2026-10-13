@@ -2696,6 +2696,8 @@ public sealed partial class BindableNodeAnalyzer
 
 	bool IsExpandedDelegateStorageCompatible(string expected, string actual)
 	{
+		if (AreDistinctCallableNewtypes(actual, expected))
+			return false;
 		if (!TryGetParamsComponentShape(null, expected, "value", out ParamsComponentShape expectedShape)
 			|| expectedShape.Kind != ParamsComponentShapeKind.Delegate
 			|| !TryGetParamsComponentShape(null, actual, "value", out ParamsComponentShape actualShape)

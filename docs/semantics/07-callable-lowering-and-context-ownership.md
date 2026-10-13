@@ -324,6 +324,8 @@ Distinct callable newtypes do not convert implicitly, even when their shapes
 match. A matching function declaration, anonymous function, or structural
 callable value may initialize a callable newtype implicitly; an alias of the
 same newtype retains that nominal identity.
+Aggregate field initializers enforce the same nominal boundary, including
+expanded delegate and once storage.
 
 Newtype callable shape is derived from the newtype's underlying callable or
 iterator type plus its declared parameter list. If the newtype has an explicit

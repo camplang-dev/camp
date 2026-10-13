@@ -1218,8 +1218,7 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (CallableShapesAbiSlotCompatible(sourceCallable, targetCallable, out bool lifetimeOnlyDifference))
 		{
-			bool distinctNewtypes = IsCallableNewtype(source) && IsCallableNewtype(target)
-				&& NormalizeNominalTypeAliases(StripCallableLifetimeQualifiers(source)) != NormalizeNominalTypeAliases(StripCallableLifetimeQualifiers(target));
+			bool distinctNewtypes = AreDistinctCallableNewtypes(source, target);
 			classification = lifetimeOnlyDifference
 				? new ConversionClassification(
 					ConversionLevel.Unsafe,
@@ -1244,6 +1243,12 @@ public sealed partial class BindableNodeAnalyzer
 			ConversionReason.CallableSignature,
 			"Callable signatures are not ABI-slot compatible; use an unsafe cast or an 'fn*' fence.");
 		return true;
+	}
+
+	bool AreDistinctCallableNewtypes(string source, string target)
+	{
+		return IsCallableNewtype(source) && IsCallableNewtype(target)
+			&& NormalizeNominalTypeAliases(StripCallableLifetimeQualifiers(source)) != NormalizeNominalTypeAliases(StripCallableLifetimeQualifiers(target));
 	}
 
 	bool IsCallableNewtype(string type)

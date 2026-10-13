@@ -47,4 +47,33 @@ public sealed class CallableNewtypeConversionTests
 			""");
 		SemanticCompiler.AssertNoDiagnostics(compilation);
 	}
+
+	[Theory]
+	[InlineData("delegate")]
+	[InlineData("once")]
+	public void Aggregate_fields_preserve_callable_newtype_identity(string kind)
+	{
+		SemanticCompilation compilation = SemanticCompiler.CompileLowered($$"""
+			newtype {{kind}} int First(int value);
+			newtype {{kind}} int Second(int value);
+			struct Handle { Second callback; }
+			void use(First source) { Handle positional = { source }; Handle named = { .callback = source }; }
+			""");
+		Assert.Equal(2, compilation.Diagnostics.Distinct().Count());
+		Assert.All(compilation.Diagnostics, message => Assert.Contains("Initializer field cannot convert", message));
+	}
+
+	[Fact]
+	public void Aggregate_fields_accept_structural_delegates_and_same_newtypes()
+	{
+		SemanticCompiler.AssertNoDiagnostics(SemanticCompiler.CompileLowered("""
+			newtype delegate int Reader(int value);
+			struct Handle { Reader callback; }
+			void use(delegate int(int) source, Reader nominal)
+			{
+				Handle structural = { source };
+				Handle same = { .callback = nominal };
+			}
+			"""));
+	}
 }
