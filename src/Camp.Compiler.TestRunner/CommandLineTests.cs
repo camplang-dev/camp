@@ -7412,8 +7412,7 @@ public sealed class CommandLineTests
 		Assert.Contains("autorelease<T: implements IRefCount>", api, StringComparison.Ordinal);
 		Assert.DoesNotContain("autorelease<T: IRefCount>", api, StringComparison.Ordinal);
 		Assert.Contains("export extern class RefThing : IRefCount", api, StringComparison.Ordinal);
-		Assert.Contains("export struct NamedRef", api, StringComparison.Ordinal);
-		Assert.DoesNotContain("export struct NamedRef : INamed", api, StringComparison.Ordinal);
+		Assert.Contains("export struct NamedRef : INamed", api, StringComparison.Ordinal);
 		Assert.DoesNotContain("using Std;", api, StringComparison.Ordinal);
 	}
 
@@ -7629,7 +7628,12 @@ public sealed class CommandLineTests
 				total += readValue(counter.getIValue());
 				total += readGeneric<Counter>(counter);
 				total += readViaWitness<Counter>(counter);
-				return total == 6 ? 0 : total;
+				StructCounter structCounter = default;
+				IValue* structView = &structCounter;
+				total += readValue(structView);
+				total += readGeneric<StructCounter>(&structCounter);
+				total += readViaWitness<StructCounter>(&structCounter);
+				return total == 12 ? 0 : total;
 			}
 		""");
 		string outDir = Path.Combine(appRoot, "bin");
@@ -7654,13 +7658,12 @@ public sealed class CommandLineTests
 		Assert.Contains("export extern constof(this) IValue* getIValue();", api, StringComparison.Ordinal);
 		Assert.Contains("export extern class NativeCounter : IValue", api, StringComparison.Ordinal);
 		Assert.Contains("export extern class NativeDerived : NativeCounter", api, StringComparison.Ordinal);
-		Assert.Contains("export struct StructCounter", api, StringComparison.Ordinal);
-		Assert.DoesNotContain("export struct StructCounter : IValue", api, StringComparison.Ordinal);
+		Assert.Contains("export struct StructCounter : IValue", api, StringComparison.Ordinal);
 		Assert.Contains("export extern int readViaWitness<T: implements IValue>(T* target, vtableof(T: IValue));", api, StringComparison.Ordinal);
 		string cApi = File.ReadAllText(Path.Combine(outDir, ArtifactDirectoryForHost(NativeBuildKind.Exec), "build", "interfaces_api.h"));
 		Assert.Contains("const IValue *Counter_IValue;", cApi, StringComparison.Ordinal);
 		Assert.Contains("(* value)(void* ctx);", cApi, StringComparison.Ordinal);
-		Assert.DoesNotContain("StructCounter_IValue", cApi, StringComparison.Ordinal);
+		Assert.Contains("const IValue *StructCounter_IValue;", cApi, StringComparison.Ordinal);
 		string cConsumer = Path.Combine(appRoot, "witness_consumer.c");
 		File.WriteAllText(cConsumer, """
 			#include "interfaces_api.h"
@@ -7673,7 +7676,9 @@ public sealed class CommandLineTests
 				int interface_value = (*instance)->value(instance);
 				int generic = readViaWitness(counter, Counter_IValue);
 				Counter_destroy(counter);
-				return witness == 1 && interface_value == 1 && generic == 1 ? 0 : 2;
+				StructCounter struct_counter = {0};
+				int struct_witness = StructCounter_IValue->value(&struct_counter);
+				return witness == 1 && interface_value == 1 && generic == 1 && struct_witness == 2 ? 0 : 2;
 			}
 			""");
 		string cHeaderDirectory = Path.Combine(outDir, ArtifactDirectoryForHost(NativeBuildKind.Exec), "build");
