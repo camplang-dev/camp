@@ -44,29 +44,6 @@ Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
 
-## BUG-287: Distinct callable newtypes with identical shapes convert implicitly
-
-Date/Time: 2026-10-11 19:18 EDT
-
-Summary:
-Callable newtypes are nominal with respect to each other: two newtypes with the same calling shape remain different types, and a value of one does not convert implicitly to the other. A function, anonymous function or delegate whose signature and call specification match a callable newtype converts to it implicitly, but the compiler also accepts an implicit conversion between two distinct callable newtypes that have equal shapes.
-
-Steps to Reproduce:
-
-1. Declare `newtype fn int First(int value);` and `newtype fn int Second(int value);`.
-2. Declare `int read(int value) => value;`.
-3. In a function body, write `First first = read;` and then `Second second = first;`.
-4. Build the program.
-
-Expected:
-`First first = read;` compiles because `read` matches the signature and call specification of `First`. `Second second = first;` is rejected with an invalid implicit conversion, because the two newtypes are distinct types.
-
-Actual:
-The program compiles with no diagnostic. A callable newtype instantiated from a generic callable newtype (`Equals<int>` to `Matches<int>`) is accepted as well. Conversions between different instantiations of one generic callable newtype (`Equals<int>` to `Equals<long>`) are rejected.
-
-Known Impact:
-A callback intended for one role can be passed where another role is required without any diagnostic. A golden that expects the rejection fails against this compiler.
-
 ## BUG-290: Returning a `void<V>*` as the distributive pointer of an expandable `V` reads wrong components
 
 Date/Time: 2026-10-12 02:59 EDT

@@ -1212,12 +1212,14 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (CallableShapesAbiSlotCompatible(sourceCallable, targetCallable, out bool lifetimeOnlyDifference))
 		{
+			bool distinctNewtypes = IsCallableNewtype(source) && IsCallableNewtype(target)
+				&& NormalizeNominalTypeAliases(StripCallableLifetimeQualifiers(source)) != NormalizeNominalTypeAliases(StripCallableLifetimeQualifiers(target));
 			classification = lifetimeOnlyDifference
 				? new ConversionClassification(
 					ConversionLevel.Unsafe,
 					ConversionReason.CallableLifetime,
 					"Cast changes callable lifetime contract; write 'unsafe' to acknowledge the hidden context/result lifetime change.")
-				: new ConversionClassification(ConversionLevel.Implicit, ConversionReason.None);
+				: new ConversionClassification(distinctNewtypes ? ConversionLevel.Explicit : ConversionLevel.Implicit, ConversionReason.None);
 			return true;
 		}
 
@@ -1236,6 +1238,13 @@ public sealed partial class BindableNodeAnalyzer
 			ConversionReason.CallableSignature,
 			"Callable signatures are not ABI-slot compatible; use an unsafe cast or an 'fn*' fence.");
 		return true;
+	}
+
+	bool IsCallableNewtype(string type)
+	{
+		string name = NormalizeNominalTypeAliases(StripCallableLifetimeQualifiers(type));
+		return typeDefinitions.TryGetValue(BaseTypeName(name), out TypeDefinition? definition)
+			&& definition is NewtypeDefinition newtype && GetCallableNewtypeFamily(newtype) != "value";
 	}
 
 	static string StripCallableLifetimeQualifiers(string type)

@@ -320,6 +320,11 @@ that context and knows the allocator/cleanup method to use.
 Callable newtypes are nominal wrappers around callable shapes. Compatibility
 must respect both callable shape and newtype boundary rules.
 
+Distinct callable newtypes do not convert implicitly, even when their shapes
+match. A matching function declaration, anonymous function, or structural
+callable value may initialize a callable newtype implicitly; an alias of the
+same newtype retains that nominal identity.
+
 Newtype callable shape is derived from the newtype's underlying callable or
 iterator type plus its declared parameter list. If the newtype has an explicit
 callable `this` parameter, that receiver contract becomes part of the shape.
