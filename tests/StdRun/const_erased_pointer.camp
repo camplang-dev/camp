@@ -1,0 +1,23 @@
+int read(const int?* source) { int? value = *source; return value.specified ? value.value : -1; }
+const int?* result(const void<int?>* source) => source;
+int observe(const void<int?>* source)
+{
+	const int?* view = source;
+	if (read(view) != 12 || read(source) != 12 || read(result(source)) != 12) return 1;
+	view = source;
+	return read(view) == 12 ? 0 : 2;
+}
+int arrayLength(const void<int[]>* source)
+{
+	const int[]* view = source;
+	return view.length == 3 && (*view)[1] == 5 ? 0 : 3;
+}
+export int main()
+{
+	stackalloc void<int?> optional = 12;
+	const void<int?>* readOnly = &optional;
+	if (observe(readOnly) != 0) return 1;
+	stackalloc void<int[]> array = [4, 5, 6];
+	const void<int[]>* readOnlyArray = &array;
+	return arrayLength(readOnlyArray);
+}

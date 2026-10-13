@@ -42,12 +42,25 @@ public sealed partial class BindableNodeAnalyzer
 			|| !TryParseTypeShape(payload, out TypeShape payloadShape) || targetShape.Element is null
 			|| !TypeShapesSameIgnoringValueQualifiers(payloadShape, targetShape.Element))
 			return false;
-		bool sourceConst = storage.Qualifiers.IsConst || payloadShape.Qualifiers.IsConst;
-		bool sourceVolatile = storage.Qualifiers.IsVolatile || payloadShape.Qualifiers.IsVolatile;
-		if (sourceConst && !targetShape.Element.Qualifiers.IsConst || sourceVolatile && !targetShape.Element.Qualifiers.IsVolatile)
+		TypeQualifiers sourceQualifiers = ExpandedPayloadQualifiers(payloadShape);
+		TypeQualifiers targetQualifiers = ExpandedPayloadQualifiers(targetShape.Element);
+		bool sourceConst = storage.Qualifiers.IsConst || sourceQualifiers.IsConst;
+		bool sourceVolatile = storage.Qualifiers.IsVolatile || sourceQualifiers.IsVolatile;
+		if (sourceConst && !targetQualifiers.IsConst || sourceVolatile && !targetQualifiers.IsVolatile)
 			return false;
 		storageType = TypeShapeParser.Format(storage);
 		return true;
+	}
+
+	static TypeQualifiers ExpandedPayloadQualifiers(TypeShape shape)
+	{
+		if (shape.Kind is TypeShapeKind.Array or TypeShapeKind.Optional && shape.Element is not null)
+		{
+			TypeQualifiers nested = ExpandedPayloadQualifiers(shape.Element);
+			return shape.Qualifiers with { IsConst = shape.Qualifiers.IsConst || nested.IsConst,
+				IsVolatile = shape.Qualifiers.IsVolatile || nested.IsVolatile };
+		}
+		return shape.Qualifiers;
 	}
 
 	// Replaces a void<V>* value by &*value typed as the distributive V*, so the ordinary component
