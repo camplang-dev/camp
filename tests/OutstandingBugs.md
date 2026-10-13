@@ -130,29 +130,6 @@ The C compiler rejects the generated body: `return source();` converts `intptr_t
 Known Impact:
 Callable types over an unconstrained generic parameter cannot be used. Declaring the parameter `T: nint` (or another representation constraint) avoids the problem.
 
-## BUG-289: A function without an ascription converts implicitly to a callable newtype
-
-Date/Time: 2026-10-12 02:29 EDT
-
-Summary:
-Callable newtypes are nominal. A function becomes a value of a callable newtype by being ascribed to it in its declaration (`: Name`), or through an explicit cast or other source rule. The compiler also accepts a function that carries no ascription wherever the newtype is required, as long as the calling shapes are structurally compatible.
-
-Steps to Reproduce:
-
-1. Declare `newtype fn int First(int value);`.
-2. Declare `int read(int value) => value;` with no ascription.
-3. In a function body, write `First first = read;` and call `first(5)`.
-4. Build and run the program.
-
-Expected:
-The initializer is rejected with an invalid implicit conversion, because `read` is not ascribed to `First` and the structural match alone does not cross the nominal boundary (conversion semantics, callable newtypes preserve nominal boundaries).
-
-Actual:
-The program compiles and prints `5`. The same acceptance applies to an instantiation of a generic callable newtype (`Equals<int> equal = sameInt;`).
-
-Known Impact:
-Ascription carries no checking weight: any compatible function can be used as the newtype, so the newtype no longer says which role a callback fills. No workaround is needed to compile, but code that relies on the rejection cannot be tested.
-
 ## BUG-290: Returning a `void<V>*` as the distributive pointer of an expandable `V` reads wrong components
 
 Date/Time: 2026-10-12 02:59 EDT
