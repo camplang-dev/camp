@@ -106,30 +106,6 @@ The program compiles with no diagnostic. A callable newtype instantiated from a 
 Known Impact:
 A callback intended for one role can be passed where another role is required without any diagnostic. A golden that expects the rejection fails against this compiler.
 
-## BUG-288: Unconstrained generic parameter in a callable result emits mismatched C types
-
-Date/Time: 2026-10-11 19:18 EDT
-
-Summary:
-A generic parameter with no constraint carries its values as `nint`, so a callable type formed from it uses the carrier `nint<A>` for the argument `A`. The generic body and the call site disagree about the C representation: the body is emitted with `void *` while the callable passed in is emitted with `intptr_t`.
-
-Steps to Reproduce:
-
-1. Declare `enum Color: int { RED = 10, GREEN = 20 }`.
-2. Declare `T make<T>(fn T() source) => source();` with no constraint on `T`.
-3. Declare `nint<Color> green() { return Color.GREEN; }`.
-4. In `main`, call `Color color = make<Color>(green);`.
-5. Build and run the program.
-
-Expected:
-The program compiles and `make<Color>(green)` produces `Color.GREEN`; an unconstrained parameter is the `nint` carrier in a callable type.
-
-Actual:
-The C compiler rejects the generated body: `return source();` converts `intptr_t` to the function's `void *` result type (`incompatible integer to pointer conversion`). The same mismatch occurs for an unconstrained parameter of a callable parameter, for example `int apply<T>(fn int(T) read, T value)`.
-
-Known Impact:
-Callable types over an unconstrained generic parameter cannot be used. Declaring the parameter `T: nint` (or another representation constraint) avoids the problem.
-
 ## BUG-290: Returning a `void<V>*` as the distributive pointer of an expandable `V` reads wrong components
 
 Date/Time: 2026-10-12 02:59 EDT
