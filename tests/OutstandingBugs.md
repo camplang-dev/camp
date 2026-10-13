@@ -44,30 +44,6 @@ Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
 
-## BUG-293: A pointer to an integer carrier does not convert to a pointer to a const carrier
-
-Date/Time: 2026-10-12 19:03 EDT
-
-Summary:
-Adding `const` to the pointee is an implicit conversion for every pointer type (`int*` to `const int*`). For a pointer to an integer carrier (`long<Color>*`) the same conversion is rejected in every context, so a carrier cannot be passed, returned or stored through a read-only pointer.
-
-Steps to Reproduce:
-
-1. Declare `enum Color: int { RED, GREEN }`.
-2. Declare `const long<Color>* viaReturn(long<Color>* p) => p;`.
-3. Declare `void viaLocal(long<Color>* p) { const long<Color>* q = p; }`.
-4. Declare `void viaArgument(const long<Color>* p) {}` and `void caller(long<Color>* p) { viaArgument(p); }`.
-5. For comparison, `const int* plain(int* p) => p;` compiles.
-
-Expected:
-All three forms are accepted, as for `int*` to `const int*`.
-
-Actual:
-Each reports that it cannot convert `long<Color>*` to `const long<Color>*` (return expression, declaration initializer, argument).
-
-Known Impact:
-A carrier-typed value cannot be exposed read-only by pointer. Passing the mutable pointer avoids the problem.
-
 ## BUG-294: A generated project API omits the interface list of an exported struct
 
 Date/Time: 2026-10-12 20:11 EDT

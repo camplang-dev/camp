@@ -85,6 +85,11 @@ converts to a pointer to its carried type or to its carrier integer only by an
 explicit cast, and `W<long<Color>>` remains a different type from `W<Color>`.
 `void<Button>*`, `Button*` and `void<Button*>` classify the same way.
 
+Adding pointee const to a pointer to the same carrier is implicit, just as for
+other nominal storage: `long<Color>*` converts to `const long<Color>*`.
+This preserves the carrier and payload identity and does not relax nested
+pointer qualification rules or permit removing const.
+
 | Conversion | View | Result |
 |---|---|---|
 | `void<Button>*` to `void<Widget*>` | `Button*` to `Widget*` | implicit |

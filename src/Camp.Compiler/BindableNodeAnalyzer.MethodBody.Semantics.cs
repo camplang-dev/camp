@@ -429,6 +429,12 @@ public sealed partial class BindableNodeAnalyzer
 		if (IsLoweredInterfacePointerConversion(source, target))
 			return true;
 
+		if (TryParseTypeShape(source, out TypeShape qualifiedSource) && qualifiedSource.IsPointer
+			&& TryParseTypeShape(target, out TypeShape qualifiedTarget) && qualifiedTarget.IsPointer
+			&& TypeShapesSameIgnoringValueQualifiers(qualifiedSource, qualifiedTarget)
+			&& CanImplicitlyConvertShape(qualifiedSource, qualifiedTarget))
+			return true;
+
 		if (IsNewtypeOrEnumBoundary(source, target))
 			return false;
 

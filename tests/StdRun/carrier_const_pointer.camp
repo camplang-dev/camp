@@ -1,0 +1,16 @@
+enum Color: int { RED = 3, GREEN = 7 }
+Color read(const long<Color>* source) => *source;
+const long<Color>* result(long<Color>* source) => source;
+struct Handle { const long<Color>* where; }
+export int main()
+{
+	long<Color> color = GREEN;
+	long<Color>* source = &color;
+	const long<Color>* view = source;
+	Handle handle = { source };
+	if (read(source) != GREEN || read(view) != GREEN || read(result(source)) != GREEN) return 1;
+	color = RED;
+	if (read(handle.where) != RED) return 2;
+	view = source;
+	return read(view) == RED ? 0 : 3;
+}
