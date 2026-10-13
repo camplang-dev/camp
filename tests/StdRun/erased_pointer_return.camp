@@ -1,0 +1,26 @@
+int?* optionalView(void<int?>* slot) { return slot; }
+int[]* arrayView(void<int[]>* slot) => slot;
+int[]?* nestedView(void<int[]?>* slot) => (slot);
+int calls;
+void<int?>* select(void<int?>* slot) { calls++; return slot; }
+int?* computedView(void<int?>* slot) => select(slot);
+export int main()
+{
+	stackalloc void<int?> optional = 9;
+	int?* pointer = optionalView(&optional);
+	if (!pointer.specified || pointer.value != 9) return 1;
+	pointer.value = 13;
+	if (optional.value != 13) return 2;
+	optional = default;
+	if (optionalView(&optional).specified) return 3;
+	stackalloc void<int[]> array = [4, 5, 6];
+	int[]* values = arrayView(&array);
+	if (values.length != 3 || (*values)[1] != 5) return 4;
+	stackalloc void<int[]?> nested = [7, 8];
+	int[]?* maybe = nestedView(&nested);
+	if (!maybe.specified || maybe.length != 2 || (*maybe)[0] != 7) return 5;
+	optional = 21;
+	int?* computed = computedView(&optional);
+	if (calls != 1 || !computed.specified || computed.value != 21) return 6;
+	return 0;
+}

@@ -361,6 +361,8 @@ pointer per component. It cannot convert to an erased storage pointer. The
 reverse direction is implicit: any `void<V>*` of an expandable `V` expands to
 the distributive `V*`, with one pointer per component addressing that component
 inside the one storage object. A computed source pointer is evaluated once.
+Returning this conversion directly uses the same component addresses as a
+local initializer or argument; every returned pointer aliases the source storage.
 Materialized members use logical component names, such as `value` and
 `specified`, `elements` and `length`, or `call` and `context`. Erased arrays
 index by the size of the complete object, including all components.

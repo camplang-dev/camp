@@ -44,29 +44,6 @@ Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
 
-## BUG-290: Returning a `void<V>*` as the distributive pointer of an expandable `V` reads wrong components
-
-Date/Time: 2026-10-12 02:59 EDT
-
-Summary:
-A pointer to erased storage of an expandable `V` (`void<int?>*`, `void<int[]>*`) converts implicitly to the distributive pointer of `V` (`int?*`, `int[]*`), with one pointer per component addressing that component inside the one storage object. The conversion works for arguments, initializers and assignments, but when the converted pointer is the function's result the caller receives pointers that do not address the storage: the extra component pointers are not set from the storage.
-
-Steps to Reproduce:
-
-1. Declare `int peek(int?* source) => source.specified ? source.value : -1;`.
-2. Declare `int?* viaReturn(void<int?>* slot) { return slot; }` (an expression body `=> slot` behaves the same).
-3. In `main`, declare `stackalloc void<int?> slot = (void<int?>)9;`, then call `peek(viaReturn(&slot))`.
-4. Repeat with `int[]* arrayResult(void<int[]>* slot) => slot;` over `stackalloc void<int[]> held = [4, 5, 6];` and read the array length through the returned pointer.
-
-Expected:
-The returned pointer addresses the components of the storage, so `peek` returns `9` and the array length is `3`, as when the same pointer is converted into a local first (`int?* p = slot; return p;`) or passed as an argument.
-
-Actual:
-`peek` returns `-1` (the specified bit is not read from the storage) and the array length is a garbage value (`185286154` in one run).
-
-Known Impact:
-A function cannot return an expanded erased pointer directly. Converting into a local before returning avoids the problem.
-
 ## BUG-291: A `const void<V>*` of an expandable `V` does not expand to the `const V*` distributive pointer
 
 Date/Time: 2026-10-12 03:15 EDT

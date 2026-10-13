@@ -451,6 +451,8 @@ public sealed partial class BindableNodeAnalyzer
 					Report(GetRange(returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax), "A prep-returning method writes the prepared value into 'buffer' and returns the required buffer length; return the length as 'nuint' instead of returning the buffer.");
 				else
 					CheckAssignable(returnTargetType, returnType, returnStatement.Expression, returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax, "Return expression");
+				if (TryExpandErasedPointer(returnStatement.Expression, returnType, returnTargetType) is Expression expandedReturnPointer)
+					returnStatement.Expression = expandedReturnPointer;
 				CheckConstOfProducedResult(scope.CurrentFunction.ReturnType, returnStatement.Expression, returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax, "Return expression");
 				if (scope.CurrentFunctionSourceReturnType is string sourceReturnType
 					&& sourceReturnType != FormatTypeReference(scope.CurrentFunction.ReturnType))
