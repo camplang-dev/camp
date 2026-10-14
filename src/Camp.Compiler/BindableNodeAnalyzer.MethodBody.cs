@@ -2911,7 +2911,8 @@ public sealed partial class BindableNodeAnalyzer
 			if (construction.Kind == ConstructionKind.StackAlloc)
 				Report(GetRange(construction.SourceSyntax), $"stackalloc cannot construct '{targetType}' through the interface constructor of '{constraintInterface.Name}'; the constructor allocates the value, so use new.");
 			else
-				genericInterfaceConstructions[construction] = (constraintInterface, interfaceConstructor);
+				// The slot lives in the interface that declares it; an inherited slot is reached by projecting the supplied witness.
+				genericInterfaceConstructions[construction] = (FindContainingType(interfaceConstructor) as InterfaceDefinition ?? constraintInterface, interfaceConstructor);
 			argumentFunction = interfaceConstructor;
 		}
 		if (argumentFunction is null
@@ -5264,11 +5265,27 @@ public sealed partial class BindableNodeAnalyzer
 		return false;
 	}
 
+	// One pass: a binder replaced by another parameter's name must not be substituted again,
+	// so swapped forwarding such as pick<U, T> from f<T, U> keeps each operand distinct.
 	static string SubstituteGenericType(string type, Dictionary<string, string> substitutions)
 	{
-		foreach ((string name, string replacement) in substitutions)
-			type = ReplaceTypeIdentifier(type, name, replacement);
-		return CarrierTypeIdentity.CollapseNested(type);
+		if (substitutions.Count == 0)
+			return CarrierTypeIdentity.CollapseNested(type);
+		System.Text.StringBuilder builder = new(type.Length);
+		for (int i = 0; i < type.Length;)
+		{
+			if (!IsIdentifierStart(type[i]))
+			{
+				builder.Append(type[i++]);
+				continue;
+			}
+			int tokenStart = i++;
+			while (i < type.Length && IsIdentifierPart(type[i]))
+				i++;
+			string token = type[tokenStart..i];
+			builder.Append(substitutions.TryGetValue(token, out string? replacement) ? replacement : token);
+		}
+		return CarrierTypeIdentity.CollapseNested(builder.ToString());
 	}
 
 	static IEnumerable<string> ExtractGenericNames(string type, HashSet<string> genericParameterNames)
@@ -5287,33 +5304,6 @@ public sealed partial class BindableNodeAnalyzer
 				start = -1;
 			}
 		}
-	}
-
-	static string ReplaceTypeIdentifier(string type, string name, string replacement)
-	{
-		List<string> parts = [];
-		int start = 0;
-		for (int i = 0; i < type.Length;)
-		{
-			if (IsIdentifierStart(type[i]))
-			{
-				int tokenStart = i++;
-				while (i < type.Length && IsIdentifierPart(type[i]))
-					i++;
-				if (type[tokenStart..i] == name)
-				{
-					parts.Add(type[start..tokenStart]);
-					parts.Add(replacement);
-					start = i;
-				}
-			}
-			else
-			{
-				i++;
-			}
-		}
-		parts.Add(type[start..]);
-		return string.Concat(parts);
 	}
 
 	static bool IsIdentifier(string value)

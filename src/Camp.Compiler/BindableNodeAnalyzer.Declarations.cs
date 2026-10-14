@@ -1637,6 +1637,7 @@ public sealed partial class BindableNodeAnalyzer
 		ValidateStaticFunctionHasNoExplicitThis(definition, suppressStaticThisDiagnostic);
 		BindFunctionReceiverLifetime(definition, containingType);
 
+		ValidateWitnessMultiplicity(definition, containingTypeDefinition, scope);
 		ValidateExpandedParameterNames(definition.Parameters);
 
 		if (containingType is not null && (GetExplicitThisParameter(definition) ?? definition.EffectiveThisParameter) is ThisParameterDefinition memberThisParameter)
@@ -2428,7 +2429,8 @@ public sealed partial class BindableNodeAnalyzer
 			if (componentSymbols.TryGetValue(name, out string? componentOwner))
 				Report(GetNameRange(parameter), $"Symbol '{name}' is already declared in this scope as a component of '{componentOwner}'.");
 
-			if (!symbols.TryAdd(name, parameter))
+			// A repeated witness is reported by the witness multiplicity check instead.
+			if (!symbols.TryAdd(name, parameter) && parameter is not VTableOfParameterDefinition)
 				Report(GetNameRange(parameter), $"Duplicate parameter name '{name}'.");
 
 			foreach (string componentName in GetPotentialParamsComponentNames(parameter.Type, parameter.ResolvedType, parameter.Name))

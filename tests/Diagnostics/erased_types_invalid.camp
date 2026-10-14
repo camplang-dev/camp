@@ -17,3 +17,20 @@ void badCarrierReceiver(int<Kind> this) { }
 void badErasedReceiver(void<int>* this) { }
 newtype Real: double;
 void floatCarriers(uint<double> wide, int<Real> nominal, nint<fn*> raw) { }
+
+interface IWitnessA { int first(); }
+interface IWitnessB { int second(); }
+
+int sameWitnessTwice<T>(T* value, vtableof(T: IWitnessA), vtableof(T: IWitnessA)) { return value.first(); }
+int twoWitnessInterfaces<T>(T* value, vtableof(T: IWitnessA), vtableof(T: IWitnessB)) { return value.first(); }
+int twoOperandsAreFine<T, U>(T* first, U* second, vtableof(T: IWitnessA), vtableof(U: IWitnessA)) { return first.first() + second.first(); }
+
+sealed class Retainer<T>
+{
+	Retainer(vtableof(T: IWitnessA)) { }
+
+	int replaceSame(T* value, vtableof(T: IWitnessA)) { return 0; }
+	int replaceOther(T* value, vtableof(T: IWitnessB)) { return 0; }
+	int ownWitnessIsFine<U>(U* value, vtableof(U: IWitnessB)) { return 0; }
+	int retainedIsFine(T* value) { return value.first(); }
+}

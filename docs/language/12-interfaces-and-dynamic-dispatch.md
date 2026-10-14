@@ -382,6 +382,10 @@ result of `new T()` or a parameter declared `escaped T*`), because the
 destructor slot also frees the object. An interface pointer cannot be deleted;
 only the generic code that holds the capability can.
 
+The capability may be a parameter or one retained by a generic class
+constructor, and a witness for a derived interface supplies the inherited
+constructor and destroy slots of its base interfaces.
+
 Structs can implement constructor and destructor contracts. Classes can do so
 when they are sealed. An unsealed class has derived construction and deletion
 paths, so it cannot safely promise a single interface constructor shape for

@@ -1326,7 +1326,7 @@ public sealed partial class BindableNodeAnalyzer
 			return true;
 		}
 
-		if (FindWitnessDestructor(scope.CurrentFunction, elementType) is null)
+		if (FindWitnessDestructor(scope.CurrentFunction, elementType, scope.ContainingType) is null)
 			return false;
 		if (!TryParseLifetimeFact(GetExpressionLifetimeFact(expression), out LifetimeFact fact) || fact.Kind != "escaped")
 			Report(GetRange(syntax), "Delete through a 'vtableof' destructor requires an escaped target; the destroy slot frees the object and may not receive scoped, stack, or unproven storage.");

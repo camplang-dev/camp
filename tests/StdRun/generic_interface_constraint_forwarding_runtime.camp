@@ -57,6 +57,68 @@ int readThroughLambda<T>(T* value, vtableof(T: Counter))
 	return read();
 }
 
+fixed struct Third: Counter
+{
+	fixed int[2] cells;
+
+	int read(): Counter
+	{
+		return this.cells[0];
+	}
+}
+
+int pairRead<T, U>(T* first, U* second, vtableof(T: Counter), vtableof(U: Counter))
+{
+	return first.read() * 100 + second.read();
+}
+
+int swappedRead<T, U>(T* first, U* second, vtableof(T: Counter), vtableof(U: Counter))
+{
+	return pairRead<U, T>(second, first);
+}
+
+int readIndirect<T>(in T value, sizeof(T), vtableof(T: Counter))
+{
+	return vtableof(T: Counter).read(&value);
+}
+
+sealed class Dispatcher<T>
+{
+	Dispatcher(vtableof(T: Counter)) { }
+
+	int read(T* value) { return value.read(); }
+	int readOther<U>(U* value, vtableof(U: Counter)) { return value.read(); }
+}
+
+sealed class Keeper<T>
+{
+	Keeper(sizeof(T), typenameof(T), vtableof(T: Counter)) { }
+
+	int read(T* value) { return value.read(); }
+	nuint width() { return sizeof(T); }
+	int labelStart() { return typenameof(T)[0]; }
+	int copyRead(T* target, T* source)
+	{
+		*target = *source;
+		return target.read();
+	}
+}
+
+int readAll<T>(T* value, sizeof(T), typenameof(T), vtableof(T: Counter))
+{
+	return value.read() + (int)sizeof(T) + (int)typenameof(T)[0];
+}
+
+int forwardExpressions<T>(T* value, sizeof(T), typenameof(T), vtableof(T: Counter))
+{
+	return readAll<T>(value, sizeof(T), typenameof(T), vtableof(T: Counter));
+}
+
+int forwardNames<T>(T* value, sizeof(T), typenameof(T), vtableof(T: Counter))
+{
+	return readAll<T>(value, sizeof_T, typenameof_T, vtableof_T_Counter);
+}
+
 export int main()
 {
 	First* first = stackalloc First(4);
@@ -80,5 +142,29 @@ export int main()
 		secondTotal += secondItem;
 	if (secondTotal != 18 || readThroughLambda<Second>(&second) != 9)
 		return 6;
+
+	if (swappedRead<First, Second>(first, &second) != 904 || swappedRead<Second, First>(&second, first) != 409)
+		return 7;
+	if (readIndirect(second) != 9)
+		return 8;
+	Third third = default;
+	third.cells[0] = 12;
+	Dispatcher<First>* classDispatcher = new Dispatcher<First>();
+	Dispatcher<Third>* fixedDispatcher = new Dispatcher<Third>();
+	if (classDispatcher.read(first) != 4 || fixedDispatcher.read(&third) != 12)
+		return 9;
+	if (classDispatcher.readOther<Second>(&second) != 9 || fixedDispatcher.readOther<First>(first) != 4)
+		return 10;
+	Keeper<Second>* keeper = new Keeper<Second>();
+	Second copied = default;
+	if (keeper.read(&second) != 9 || keeper.width() != sizeof(Second) || keeper.labelStart() != 'S')
+		return 11;
+	if (keeper.copyRead(&copied, &second) != 9 || copied.value != 9)
+		return 12;
+	int allEvidence = 9 + (int)sizeof(Second) + 'S';
+	if (readAll<Second>(&second) != allEvidence || forwardExpressions(&second) != allEvidence || forwardNames(&second) != allEvidence)
+		return 13;
+	if (readAll<Second>(&second, sizeof(Second), typenameof(Second), vtableof(Second: Counter)) != allEvidence)
+		return 14;
 	return 0;
 }

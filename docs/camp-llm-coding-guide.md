@@ -915,6 +915,15 @@ Agent-facing rules:
   code.
 - Generic code that needs an interface implementation must state the capability
   and pass or request `vtableof(T: Interface)` when required by the API shape.
+- A signature has at most one witness per type parameter, even for the same
+  interface. A generic class constructor that retains `vtableof(T: I)` already
+  supplies it to instance methods, so do not add a second one; a method with its
+  own type parameter may request a witness for that parameter. Structs retain
+  nothing: pass each capability per call.
+- A forwarded capability must match its exact operand. The caller declares its
+  own `sizeof`, `typenameof` or `vtableof` for the parameter it forwards, and a
+  swapped call such as `pair<U, T>` uses each operand's own evidence. A size, a
+  name string or a witness for another operand does not substitute.
 - Interface values retain the lifetime and ownership constraints of the
   underlying implementation. Do not widen a scoped implementation into escaped
   interface storage.

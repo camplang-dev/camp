@@ -254,6 +254,24 @@ public sealed partial class BindableNodeAnalyzer
 			&& TryGetIteratorStateField(iteratorState, VTableOfParameterName(vtableOf.Type, vtableOf.InterfaceType)) is FieldDefinition iteratorWitness)
 			return ThisMemberReference(VTableOfParameterName(vtableOf.Type, vtableOf.InterfaceType), iteratorWitness.ResolvedType);
 
+		// A retained witness for a derived interface also supplies its inherited slots.
+		if (vtableOf.InterfaceType is not null && TryGetInterfaceDefinition(vtableOf.InterfaceType, out InterfaceDefinition? requestedBase) && requestedBase is not null)
+		{
+			if (currentRewriteContainingType is TypeDefinition state)
+				foreach (FieldDefinition retained in GetIteratorFields(state))
+					if (retained.CapabilitySource is VTableOfParameterDefinition retainedWitness && VTableOfTypeName(retainedWitness.Type) == genericName
+						&& retainedWitness.InterfaceType is not null && TryGetInterfaceDefinition(retainedWitness.InterfaceType, out InterfaceDefinition? retainedInterface)
+						&& retainedInterface is not null && !ReferenceEquals(retainedInterface, requestedBase) && InterfaceContainsBase(retainedInterface, requestedBase))
+						return WithWitnessType(ProjectInheritedWitnessTable(ThisMemberReference(retained.Name, retained.ResolvedType), retainedInterface, requestedBase), genericName, vtableOf.InterfaceType, requestedBase);
+			if (currentRewriteContainingType is ClassDefinition retainingClass && currentRewriteFunction?.Modifier != FunctionModifier.Static)
+				foreach (((ClassDefinition Class, string GenericName, string InterfaceName) key, FieldDefinition retained) in vtableOfFields)
+					if (ReferenceEquals(key.Class, retainingClass) && key.GenericName == genericName
+						&& retained.CapabilitySource is VTableOfParameterDefinition { InterfaceType: not null } retainedWitness
+						&& TryGetInterfaceDefinition(retainedWitness.InterfaceType, out InterfaceDefinition? retainedInterface)
+						&& retainedInterface is not null && !ReferenceEquals(retainedInterface, requestedBase) && InterfaceContainsBase(retainedInterface, requestedBase))
+						return WithWitnessType(ProjectInheritedWitnessTable(CreateVTableOfFieldReference(retainingClass, retained, vtableOf.SourceSyntax), retainedInterface, requestedBase), genericName, vtableOf.InterfaceType, requestedBase);
+		}
+
 		if (currentRewriteContainingType is ClassDefinition classDefinition
 			&& vtableOfFields.TryGetValue((classDefinition, genericName, interfaceName), out FieldDefinition? field))
 		{
@@ -268,6 +286,12 @@ public sealed partial class BindableNodeAnalyzer
 
 		Report(vtableOf.SourceSyntax, $"vtableof({genericName}: {interfaceName}) requires parameter '{VTableOfParameterName(vtableOf.Type, vtableOf.InterfaceType)}'.");
 		return vtableOf;
+	}
+
+	static Expression WithWitnessType(Expression projected, string genericName, TypeReference? interfaceType, InterfaceDefinition requested)
+	{
+		projected.ResolvedType = new WitnessTypeIdentity(genericName, interfaceType?.ResolvedType ?? requested.Name).ResolvedType;
+		return projected;
 	}
 
 	static bool IsGenericVTableOf(VTableOfExpression vtableOf, out string genericName, out string interfaceName)

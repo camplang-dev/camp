@@ -1,0 +1,14 @@
+tests/Diagnostics/erased_capability_operands_invalid.camp(61,28): error: Capability slot 'sizeof_T' requires evidence for exact operand 'T', not an ordinary payload or another operand.
+tests/Diagnostics/erased_capability_operands_invalid.camp(67,30): error: Capability slot 'sizeof_T' requires evidence for exact operand 'int', not an ordinary payload or another operand.
+tests/Diagnostics/erased_capability_operands_invalid.camp(72,23): error: Capability slot 'typenameof_T' requires evidence for exact operand 'int', not an ordinary payload or another operand.
+tests/Diagnostics/erased_capability_operands_invalid.camp(77,35): error: Argument cannot convert 'int' to 'vtableof(Plain: IGet)'.
+tests/Diagnostics/erased_capability_operands_invalid.camp(77,35): error: Capability slot 'vtableof_T_IGet' requires evidence for exact operand 'Plain', not an ordinary payload or another operand.
+tests/Diagnostics/erased_capability_operands_invalid.camp(82,31): error: Argument cannot convert 'vtableof(T: IOther)' to 'vtableof(T: IGet)'.
+tests/Diagnostics/erased_capability_operands_invalid.camp(87,20): error: sizeof(T) capability needs evidence for 'T' in the caller; declare sizeof(T) in its signature or pass a pointer.
+tests/Diagnostics/erased_capability_operands_invalid.camp(92,20): error: typenameof(U) requires evidence for 'U' in the caller; declare typenameof(U) in its signature.
+tests/Diagnostics/erased_capability_operands_invalid.camp(97,23): error: vtableof(T: IGet) requires evidence for 'T' in the caller; declare vtableof(T: IGet) in its signature.
+tests/Diagnostics/erased_capability_operands_invalid.camp(102,23): error: vtableof(U: IGet) requires evidence for 'U' in the caller; declare vtableof(U: IGet) in its signature.
+tests/Diagnostics/erased_capability_operands_invalid.camp(107,23): error: vtableof(T: IGet) requires evidence for 'T' in the caller; declare vtableof(T: IGet) in its signature; its witness vtableof(T: IOther) does not supply it.
+tests/Diagnostics/erased_capability_operands_invalid.camp(117,23): error: sizeof(Held) capability requires a copyable argument, including when the slot is unused; pass a pointer for non-copyable storage.
+tests/Diagnostics/erased_capability_operands_invalid.camp(122,25): error: sizeof(Pinned) capability requires a copyable argument, including when the slot is unused; pass a pointer for non-copyable storage.
+tests/Diagnostics/erased_capability_operands_invalid.camp(127,27): error: vtableof requires a void-represented parameter or a direct implementing class or struct, not 'Held*'.

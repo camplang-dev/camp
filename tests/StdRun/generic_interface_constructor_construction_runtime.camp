@@ -79,6 +79,84 @@ void destroyCounted<T>(Allocator* allocator, escaped T* value, vtableof(T: Count
 	within (allocator) delete value;
 }
 
+interface CountedChild: Counted
+{
+	int extra();
+}
+
+sealed class ChildBox: CountedChild
+{
+	int value;
+
+	ChildBox(int start, within allocator)
+	{
+		this.value = start;
+	}
+
+	~ChildBox(within allocator)
+	{
+		destroyed += 100;
+	}
+
+	int extra(): CountedChild
+	{
+		return this.value + 1000;
+	}
+}
+
+struct ChildStruct: CountedChild
+{
+	int value;
+
+	ChildStruct(int start, within allocator)
+	{
+		this.value = start;
+	}
+
+	~ChildStruct(within allocator)
+	{
+		destroyed += 1000;
+	}
+
+	int extra(): CountedChild
+	{
+		return this.value + 2000;
+	}
+}
+
+sealed class Pool<T>
+{
+	Allocator* source;
+
+	Pool(Allocator* source, vtableof(T: CountedChild))
+	{
+		this.source = source;
+	}
+
+	escaped T* make(int start)
+	{
+		return within (this.source) new T(start);
+	}
+
+	int peek(T* value)
+	{
+		return value.extra();
+	}
+
+	void drop(escaped T* value)
+	{
+		within (this.source) delete value;
+	}
+}
+
+int roundTrip<T>(Allocator* allocator, int start, vtableof(T: CountedChild))
+{
+	T* made = within (allocator) new T(start);
+	int extra = made.extra();
+	within (allocator) delete made;
+	return extra;
+}
+
 export int main()
 {
 	CountingAllocator* counting = stackalloc CountingAllocator();
@@ -121,5 +199,26 @@ export int main()
 	destroyCounted(allocator, genericStruct);
 	if (destroyed != 11 || counting.deallocations != 5)
 		return 12;
+	
+	// Inherited constructor and destroy slots through a derived witness, retained and explicit.
+	destroyed = 0;
+	int allocationsBefore = counting.allocations;
+	int deallocationsBefore = counting.deallocations;
+	Pool<ChildBox>* boxPool = new Pool<ChildBox>(allocator);
+	ChildBox* childBox = boxPool.make(5);
+	if (boxPool.peek(childBox) != 1005)
+		return 13;
+	boxPool.drop(childBox);
+	Pool<ChildStruct>* structPool = new Pool<ChildStruct>(allocator);
+	ChildStruct* childStruct = structPool.make(6);
+	if (structPool.peek(childStruct) != 2006)
+		return 14;
+	structPool.drop(childStruct);
+	if (destroyed != 1100 || counting.allocations - allocationsBefore != 2 || counting.deallocations - deallocationsBefore != 2)
+		return 15;
+	if (roundTrip<ChildBox>(allocator, 1) != 1001 || roundTrip<ChildStruct>(allocator, 2) != 2002)
+		return 16;
+	if (destroyed != 2200)
+		return 17;
 	return 0;
 }

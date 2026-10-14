@@ -348,9 +348,11 @@ public sealed partial class BindableNodeAnalyzer
 
 	bool ContainsClassGenericParameter(ClassDefinition classDefinition, string typeName)
 	{
+		HashSet<string> names = [];
 		foreach (GenericParameter parameter in classDefinition.GenericParameters)
-			if (typeName.Contains(parameter.Name, StringComparison.Ordinal))
-				return true;
+			names.Add(parameter.Name);
+		foreach (string _ in ExtractGenericNames(typeName, names))
+			return true;
 		return false;
 	}
 
@@ -401,6 +403,8 @@ public sealed partial class BindableNodeAnalyzer
 			&& nameOfFields.TryGetValue((classDefinition, typeName), out FieldDefinition? field))
 			return CreateNameOfFieldReference(classDefinition, field, nameOf.SourceSyntax);
 
+		if (ReferencesCallerGenericParameter(typeName))
+			Report(nameOf.SourceSyntax, $"typenameof({typeName}) requires parameter 'typenameof_{SanitizeNameOfTypeName(typeName)}'.");
 		return nameOf;
 	}
 
@@ -450,8 +454,9 @@ public sealed partial class BindableNodeAnalyzer
 				continue;
 
 			string requestedTypeName = NameOfTypeName(nameOf.Type);
-			string typeName = SubstituteNameOfTypeName(requestedTypeName, substitutions);
-			Expression value = typeName == requestedTypeName && ContainsAnyGenericParameter(typeName, function)
+			string typeName = SubstituteGenericType(requestedTypeName, substitutions);
+			// A name that still mentions the caller's own parameter forwards the caller's exact capability.
+			Expression value = ReferencesCallerGenericParameter(typeName)
 				? LowerNameOfExpression(new NameOfExpression { SourceSyntax = call.SourceSyntax ?? call.Target?.SourceSyntax, Text = typeName })
 				: NameOfStringLiteral(BuildNameOfTypeValue(typeName), call.SourceSyntax ?? call.Target?.SourceSyntax);
 			call.Arguments.Insert(Math.Min(argumentIndex, call.Arguments.Count),
@@ -501,18 +506,15 @@ public sealed partial class BindableNodeAnalyzer
 		return false;
 	}
 
-	static string SubstituteNameOfTypeName(string typeName, Dictionary<string, string> substitutions)
+	bool ReferencesCallerGenericParameter(string typeName)
 	{
-		foreach ((string name, string replacement) in substitutions)
-			typeName = typeName.Replace(name, replacement, StringComparison.Ordinal);
-		return typeName;
-	}
-
-	static bool ContainsAnyGenericParameter(string typeName, FunctionDefinition function)
-	{
-		foreach (GenericParameter parameter in function.GenericParameters)
-			if (typeName.Contains(parameter.Name, StringComparison.Ordinal))
-				return true;
+		HashSet<string> names = [];
+		foreach (GenericParameter parameter in currentRewriteFunction?.GenericParameters ?? [])
+			names.Add(parameter.Name);
+		foreach (GenericParameter parameter in currentRewriteContainingType?.GenericParameters ?? [])
+			names.Add(parameter.Name);
+		foreach (string _ in ExtractGenericNames(typeName, names))
+			return true;
 		return false;
 	}
 

@@ -18,3 +18,7 @@ tests/Diagnostics/erased_types_invalid.camp(17,24): error: Annotated erased type
 tests/Diagnostics/erased_types_invalid.camp(19,25): error: 'double' is not a valid carried type for uint<V>: it is 64 bits wide, wider than 'uint'.
 tests/Diagnostics/erased_types_invalid.camp(19,43): error: 'Real' is not a valid carried type for int<V>: it is 64 bits wide, wider than 'int'.
 tests/Diagnostics/erased_types_invalid.camp(19,58): error: 'fn*' is not a valid carried type for nint<V>: raw function pointers are never carried by an integer representation.
+tests/Diagnostics/erased_types_invalid.camp(24,59): error: 'sameWitnessTwice' declares a second witness for 'T' (vtableof(T: IWitnessA) and vtableof(T: IWitnessA)); a bound parameter has at most one witness, even for the same interface.
+tests/Diagnostics/erased_types_invalid.camp(25,63): error: 'twoWitnessInterfaces' declares a second witness for 'T' (vtableof(T: IWitnessA) and vtableof(T: IWitnessB)); a bound parameter has at most one witness, even for the same interface.
+tests/Diagnostics/erased_types_invalid.camp(32,28): error: Method 'replaceSame' cannot request a witness for 'T': the constructor of 'Retainer' already retains vtableof(T: IWitnessA), even for the same interface.
+tests/Diagnostics/erased_types_invalid.camp(33,29): error: Method 'replaceOther' cannot request a witness for 'T': the constructor of 'Retainer' already retains vtableof(T: IWitnessA), even for the same interface.

@@ -207,7 +207,17 @@ public sealed partial class BindableNodeAnalyzer
 	string SubstituteStorageType(string type, Dictionary<string, string> substitutions)
 	{
 		if (substitutions.Count == 0) return type;
-		return SubstituteGenericType(RewriteStorageTypeName(type, shape => SubstituteStorageShapeName(shape, substitutions, storage: false)), substitutions);
+		// A structured type is substituted once by its shapes; substituting the result again would
+		// treat a replacement such as the swapped pick<U, T> arguments as binders to replace.
+		TypeShapeParser parser = new(type);
+		if (parser.TryParse(out TypeShape shape) && parser.IsEnd)
+		{
+			TypeShape named = shape;
+			while (named.Element is not null) named = named.Element;
+			if (named.Kind == TypeShapeKind.Named)
+				return CarrierTypeIdentity.CollapseNested(RewriteStorageTypeName(type, root => SubstituteStorageShapeName(root, substitutions, storage: false)));
+		}
+		return SubstituteGenericType(type, substitutions);
 	}
 
 	string SubstituteStorageShapeName(TypeShape shape, Dictionary<string, string> substitutions, bool storage)

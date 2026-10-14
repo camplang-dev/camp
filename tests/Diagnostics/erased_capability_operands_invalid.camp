@@ -1,0 +1,141 @@
+extern void* malloc(nuint size);
+
+interface IGet
+{
+	int get();
+}
+
+interface IOther
+{
+	int other();
+}
+
+interface IDerived: IGet
+{
+	int more();
+}
+
+sealed class Held: IGet
+{
+	int value;
+
+	Held(int value)
+	{
+		this.value = value;
+	}
+
+	int get(): IGet
+	{
+		return this.value;
+	}
+}
+
+struct Plain: IGet
+{
+	int value;
+
+	int get(): IGet
+	{
+		return this.value;
+	}
+}
+
+fixed struct Pinned: IGet
+{
+	fixed int[4] cells;
+
+	int get(): IGet
+	{
+		return 1;
+	}
+}
+
+nuint sizeSlot<T>(T* value, sizeof(T)) { return sizeof(T); }
+string nameSlot<T>(typenameof(T)) { return typenameof(T); }
+int witnessSlot<T>(T* value, vtableof(T: IGet)) { return value.get(); }
+
+nuint pairSize<T, U>(T* first, U* second, sizeof(T), sizeof(U)) { return sizeof(T) + sizeof(U); }
+
+nuint wrongSizeOperand<T, U>(T* first, U* second, sizeof(T), sizeof(U))
+{
+	return sizeSlot<T>(first, sizeof(U));
+}
+
+nuint numericSize(int* value)
+{
+	nuint bytes = 4;
+	return sizeSlot<int>(value, bytes);
+}
+
+string plainName()
+{
+	return nameSlot<int>("Int");
+}
+
+int rawWitness(Plain* value)
+{
+	return witnessSlot<Plain>(value, 0);
+}
+
+int wrongWitnessInterface<T>(T* value, vtableof(T: IGet))
+{
+	return witnessSlot<T>(value, vtableof(T: IOther));
+}
+
+nuint forwardSizeWithoutEvidence<T>(T* value)
+{
+	return sizeSlot<T>(value);
+}
+
+string forwardNameForOtherOperand<T, U>(typenameof(T))
+{
+	return nameSlot<U>();
+}
+
+int forwardWitnessWithoutEvidence<T>(T* value)
+{
+	return witnessSlot<T>(value);
+}
+
+int forwardWitnessForOtherOperand<T, U>(T* first, U* second, vtableof(T: IGet))
+{
+	return witnessSlot<U>(second);
+}
+
+int forwardWitnessOfOtherInterface<T>(T* value, vtableof(T: IOther))
+{
+	return witnessSlot<T>(value);
+}
+
+int forwardInheritedWitness<T>(T* value, vtableof(T: IDerived))
+{
+	return witnessSlot<T>(value);
+}
+
+nuint unusedSizeForClass(Held* value)
+{
+	return sizeSlot<Held>(value);
+}
+
+nuint unusedSizeForFixed(Pinned* value)
+{
+	return sizeSlot<Pinned>(value);
+}
+
+int pointerOperandWitness(Held* value)
+{
+	return witnessSlot<Held*>(&value);
+}
+
+nuint distinctOperands<T, U>(T* first, U* second, sizeof(T), sizeof(U), typenameof(T), typenameof(U), vtableof(T: IGet), vtableof(U: IGet))
+{
+	return pairSize<U, T>(second, first, sizeof(U), sizeof(T));
+}
+
+sealed class Holder<T>
+{
+	Holder(vtableof(T: IGet)) { }
+
+	int ownParameter<U>(U* value, vtableof(U: IGet)) { return value.get(); }
+	int retained(T* value) { return value.get(); }
+}

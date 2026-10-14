@@ -365,6 +365,51 @@ state. Constructor-requested `typenameof(T)` fields follow the same generated-
 field visibility rules as `sizeof(T)` and `vtableof(T: Interface)` fields: they
 are semantic implementation state, not source fields.
 
+### Capability Operands, Forwarding, And Retention
+
+A capability belongs to its exact bound operand, never to a parameter name or
+a coincident slot type. A call may supply a slot in three ways, and each is
+checked against the slot's substituted operand:
+
+- an expression such as `sizeof(T)`, `typenameof(T)` or `vtableof(T: I)`;
+- a written evidence name such as `sizeof_T` or `vtableof_T_I`, which resolves
+  to the caller's parameter or retained field before it is compared;
+- omission, where the compiler supplies the argument from the caller.
+
+Evidence for another operand, an ordinary `nuint` byte count, a plain string,
+a raw pointer or a witness for a different interface does not satisfy a slot.
+When an omitted slot's operand is the caller's own abstract parameter, the
+caller must hold evidence for exactly that operand through its signature, a
+retained class constructor capability or generated state. The call is rejected
+at the call otherwise, even if the callee never uses the slot. A witness
+supplied for a derived interface satisfies a request for any interface it
+inherits.
+
+Substitution is simultaneous, so swapped forwarding is distinct from identity
+forwarding. A caller `f<T, U>` that calls `pair<U, T>` supplies its U evidence
+for the callee's first operand and its T evidence for the second, whatever the
+parameters are named.
+
+A signature declares at most one witness for each bound parameter, including a
+second witness for the same interface. Two interfaces for one parameter are not
+a union. Distinct parameters may each have a witness. A generic class
+constructor that retains a witness for an owner parameter makes that witness
+the instance methods' witness: an instance method cannot request a second or
+replacement witness for that owner parameter. A generic method may request a
+witness for its own parameter. A requirement of one method does not become
+class-wide state.
+
+A retained witness for a derived interface supplies the inherited slots,
+including constructor and destroy slots, with the same projection as a witness
+parameter. A destroy through a retained witness runs the destructor with the
+retained or explicit allocator contract.
+
+Generic classes retain the requested size, name and witness values as generated
+semantic state, and later instance operations use that state. Generic structs
+do not retain constructor capabilities: each call receives what it needs.
+Ordinary numeric, string or pointer fields, including fields that happen to use
+the generated names, never become capability evidence.
+
 ## Generic Arrays And Iterators
 
 Generic arrays need element stride and lifetime-safe element handling. Generic

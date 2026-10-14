@@ -135,7 +135,7 @@ export int main()
 	return 0;
 }
 
-int compareInt(in int left, in int right)
+int compareInt(in int left, in int right, sizeof(int))
 {
 	if (left < right)
 		return -1;

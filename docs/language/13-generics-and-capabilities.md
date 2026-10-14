@@ -194,11 +194,37 @@ contracts. A witness-only class algorithm can dispatch without requesting size.
 An ordinary implementing copyable struct may combine size and a witness through
 legal indirect transport; that still does not permit direct T input.
 
+## Forwarding Capabilities
+
+A generic function that calls another generic function supplies the callee's
+capabilities from its own. Each capability follows its operand, not a name:
+
+```camp
+int pairRead<T, U>(T* first, U* second, vtableof(T: Reader), vtableof(U: Reader))
+{
+    return first.read() * 100 + second.read();
+}
+
+int swappedRead<T, U>(T* first, U* second, vtableof(T: Reader), vtableof(U: Reader))
+{
+    return pairRead<U, T>(second, first);
+}
+```
+
+The caller must declare the capability for the operand it forwards; a size,
+name or witness for another operand, a plain `nuint` or string, or a witness for
+a different interface is rejected at the call. A signature declares at most one
+witness for each parameter, even for the same interface.
+
 ## Retained Capabilities
 
 Generic class constructors retain requested size, name and witness values for
 later instance operations. They do not make unknown-size T fields legal.
-Method-local capabilities do not become class-wide state. Generic structs
+Method-local capabilities do not become class-wide state. A method cannot
+request a second witness for a parameter whose witness the constructor retains,
+even for the same interface; a method with its own type parameter may request a
+witness for that parameter. A witness retained for a derived interface supplies
+the inherited slots, including construction and destruction. Generic structs
 receive required capabilities per call; ordinary integer/string/raw-pointer
 fields do not manufacture evidence.
 

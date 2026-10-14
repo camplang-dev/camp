@@ -9,11 +9,52 @@ int secondIsN<T>(typenameof(T), sizeof(T))
 	return name[1] == 'n' ? 1 : 0;
 }
 
+int pairNames<T, U>(typenameof(T), typenameof(U))
+{
+	return typenameof(T)[0] * 1000 + typenameof(U)[0];
+}
+
+int swappedNames<T, U>(typenameof(T), typenameof(U))
+{
+	return pairNames<U, T>();
+}
+
+nuint pairWidths<T, U>(T* first, U* second, sizeof(T), sizeof(U))
+{
+	return sizeof(T) * 100 + sizeof(U);
+}
+
+nuint swappedWidths<T, U>(T* first, U* second, sizeof(T), sizeof(U))
+{
+	return pairWidths<U, T>(second, first);
+}
+
+sealed class Labeled<T>
+{
+	Labeled(typenameof(T), sizeof(T)) { }
+
+	int owner() { return typenameof(T)[0]; }
+	nuint ownerWidth() { return sizeof(T); }
+	int own<U>(typenameof(U)) { return typenameof(T)[0] * 1000 + typenameof(U)[0]; }
+	nuint ownWidth<U>(U* value, sizeof(U)) { return sizeof(T) * 100 + sizeof(U); }
+}
+
 export int main()
 {
 	if (firstIsI<int>() != 1)
 		return 1;
 	if (secondIsN<int>() != 1)
 		return 2;
+	if (swappedNames<int, bool>() != pairNames<bool, int>() || swappedNames<int, bool>() == pairNames<int, bool>())
+		return 3;
+	int small = 0;
+	long wide = 0;
+	if (swappedWidths<int, long>(&small, &wide) != 804 || swappedWidths<long, int>(&wide, &small) != 408)
+		return 4;
+	Labeled<int>* labeled = new Labeled<int>();
+	if (labeled.owner() != 'I' || labeled.ownerWidth() != sizeof(int))
+		return 5;
+	if (labeled.own<bool>() != 'I' * 1000 + 'B' || labeled.ownWidth<long>(&wide) != 408)
+		return 6;
 	return 0;
 }

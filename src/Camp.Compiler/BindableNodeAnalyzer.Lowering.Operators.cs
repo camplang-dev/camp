@@ -1107,7 +1107,7 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (captureTarget && (isPointer || isThisPointer))
 			target = CaptureDeleteTarget(target, "deleteTarget");
-		if (isPointer && !suppressDeallocate && FindWitnessDestructor(currentRewriteFunction, deletedType) is FunctionDefinition witnessDestructor)
+		if (isPointer && !suppressDeallocate && FindWitnessDestructor(currentRewriteFunction, deletedType, currentRewriteContainingType) is FunctionDefinition witnessDestructor)
 			return new DeleteOperation(CreateWitnessDestructorCall(target, witnessDestructor), captureTarget ? target : null);
 		bool deallocate = opDelete?.Name != DestroyMethodName
 			&& !suppressDeallocate
@@ -1118,24 +1118,43 @@ public sealed partial class BindableNodeAnalyzer
 
 	// A generic pointer with a vtableof capability deletes through the witness destroy slot,
 	// which runs the destructor and releases the object itself.
-	FunctionDefinition? FindWitnessDestructor(FunctionDefinition? function, string deletedType)
+	FunctionDefinition? FindWitnessDestructor(FunctionDefinition? function, string deletedType, TypeDefinition? owner)
 	{
-		if (function is null || !function.GenericParameters.Any(parameter => parameter.Name == deletedType))
+		if (function is null || !function.GenericParameters.Concat(owner?.GenericParameters ?? []).Any(parameter => parameter.Name == deletedType))
 			return null;
 
-		foreach (ParameterDefinition parameter in function.Parameters)
+		foreach (VTableOfParameterDefinition vtableOf in WitnessSlotsFor(function, owner, deletedType))
 		{
-			if (parameter is not VTableOfParameterDefinition vtableOf
-				|| VTableOfTypeName(vtableOf.Type) != deletedType
-				|| vtableOf.InterfaceType is null
+			if (vtableOf.InterfaceType is null
 				|| !TryGetInterfaceDefinition(vtableOf.InterfaceType, out InterfaceDefinition? interfaceDefinition)
 				|| interfaceDefinition is null)
 				continue;
-			foreach (FunctionDefinition member in GetFunctions(interfaceDefinition))
+			// The destroy slot may be declared by an interface the supplied witness inherits.
+			foreach (FunctionDefinition member in GetInterfaceMembers(interfaceDefinition))
 				if (IsDestructorFunction(member))
 					return member;
 		}
 		return null;
+	}
+
+	// The witnesses available for one operand: the signature's own, then those a generated state or a
+	// generic class constructor retained.
+	IEnumerable<VTableOfParameterDefinition> WitnessSlotsFor(FunctionDefinition function, TypeDefinition? owner, string genericName)
+	{
+		foreach (ParameterDefinition parameter in function.Parameters)
+			if (parameter is VTableOfParameterDefinition witness && VTableOfTypeName(witness.Type) == genericName)
+				yield return witness;
+		if (owner is null)
+			yield break;
+		foreach (FieldDefinition field in GetIteratorFields(owner))
+			if (field.CapabilitySource is VTableOfParameterDefinition witness && VTableOfTypeName(witness.Type) == genericName)
+				yield return witness;
+		if (owner is ClassDefinition classOwner && function.Modifier != FunctionModifier.Static)
+			foreach (FunctionDefinition constructor in classOwner.Functions)
+				if (constructor.Modifier == FunctionModifier.Constructor || constructor.Name == InitNewMethodName)
+					foreach (ParameterDefinition parameter in constructor.Parameters)
+						if (parameter is VTableOfParameterDefinition witness && VTableOfTypeName(witness.Type) == genericName)
+							yield return witness;
 	}
 
 	CallExpression CreateWitnessDestructorCall(Expression target, FunctionDefinition destructor)

@@ -32,7 +32,7 @@ class Holder<T>
 		this.target = target;
 	}
 
-	int read(vtableof(T: Reader))
+	int read()
 	{
 		int viaMethod = this.target.read();
 		int viaField = this._vtableof_T_Reader.read(this.target);
