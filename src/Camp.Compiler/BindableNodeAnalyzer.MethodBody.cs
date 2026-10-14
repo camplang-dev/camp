@@ -2507,7 +2507,7 @@ public sealed partial class BindableNodeAnalyzer
 		List<string> elementTypes = [];
 		foreach (Expression element in array.Elements)
 		{
-			string actual = BodyAnalyzeExpression(element, scope, typeScope, elementTarget);
+			string actual = BodyAnalyzeExpression(element, scope, typeScope, CarrierLiteralTarget(elementTarget));
 			if (elementTarget is null && element is ArrayExpression && TryGetArrayElementType(actual) is string nestedElement)
 			{
 				actual = $"{nestedElement}*";
@@ -2626,7 +2626,7 @@ public sealed partial class BindableNodeAnalyzer
 				item.TargetResolvedType = field.Type;
 				item.TargetStorageResolvedType = field.StorageType;
 				item.TargetStorageGenericNames.AddRange(field.StorageGenericNames);
-				item.ResolvedType = BodyAnalyzeExpression(item.Expression, scope, typeScope, field.Type);
+				item.ResolvedType = BodyAnalyzeExpression(item.Expression, scope, typeScope, CarrierLiteralTarget(field.Type));
 				if (!ReportUnsupportedFunctionToDelegateInitializer(field.Type, item.ResolvedType ?? ErrorType, item.Expression?.SourceSyntax ?? item.SourceSyntax))
 					CheckInitializerFieldAssignable(field.Type, item);
 				continue;
@@ -2653,11 +2653,15 @@ public sealed partial class BindableNodeAnalyzer
 			item.TargetResolvedType = namedField.Type;
 			item.TargetStorageResolvedType = namedField.StorageType;
 			item.TargetStorageGenericNames.AddRange(namedField.StorageGenericNames);
-			item.ResolvedType = BodyAnalyzeExpression(item.Expression, scope, typeScope, namedField.Type);
+			item.ResolvedType = BodyAnalyzeExpression(item.Expression, scope, typeScope, CarrierLiteralTarget(namedField.Type));
 			if (!ReportUnsupportedFunctionToDelegateInitializer(namedField.Type, item.ResolvedType ?? ErrorType, item.Expression?.SourceSyntax ?? item.SourceSyntax))
 				CheckInitializerFieldAssignable(namedField.Type, item);
 		}
 	}
+
+	// Initializers and literals are checked against the carried type of a carrier target.
+	static string? CarrierLiteralTarget(string? target) =>
+		CarrierTypeIdentity.TryGetPayload(target, out string payload) ? payload : target;
 
 	void CheckInitializerFieldAssignable(string expected, InitializerItem item)
 	{
@@ -3562,6 +3566,7 @@ public sealed partial class BindableNodeAnalyzer
 			}
 			AddExplicitGenericSubstitutions(function, call.TypeArguments, genericSubstitutions);
 			AddReceiverGenericSubstitutions(call.Target, function, genericSubstitutions);
+			NormalizeRepresentationSubstitutions(function, genericSubstitutions, typeScope);
 		}
 		else if (TryAnalyzeCallableInvocation(call, scope, typeScope, targetType, out string callableReturnType))
 		{
@@ -4197,6 +4202,35 @@ public sealed partial class BindableNodeAnalyzer
 		return returnType.Replace("T", firstType, StringComparison.Ordinal);
 	}
 
+	// A parameter T with integer representation R and argument A is substituted as R<A> wherever it
+	// is stored, so a pointer or array of A is not accepted for storage of R-sized elements.
+	// A forwarded type parameter stays itself; its binder already carries its representation.
+	void NormalizeRepresentationSubstitutions(FunctionDefinition? function, Dictionary<string, string> substitutions, AnalysisScope scope) =>
+		NormalizeRepresentationSubstitutions(function, substitutions, name => scope.TryGetGenericParameter(name, out _));
+
+	void NormalizeRepresentationSubstitutions(FunctionDefinition? function, Dictionary<string, string> substitutions, Func<string, bool> isForwardedParameter)
+	{
+		if (function is null || substitutions.Count == 0)
+			return;
+		foreach (string name in substitutions.Keys.ToList())
+		{
+			GenericParameter? parameter = function.GenericParameters.FirstOrDefault(candidate => candidate.Name == name)
+				?? FindContainingType(function)?.GenericParameters.FirstOrDefault(candidate => candidate.Name == name);
+			string? carrier = ErasureWrapper(parameter);
+			if (carrier is null or "void")
+				continue;
+			string value = substitutions[name];
+			if (value == ErrorType || value.StartsWith(UnresolvedType, StringComparison.Ordinal))
+				continue;
+			string argument = StripTopLevelValueQualifiers(value);
+			if (CarrierTypeIdentity.TryGetPayload(argument, out string payload) || ErasedTypeIdentity.TryGetPayload(argument, out payload))
+				argument = payload;
+			if (isForwardedParameter(argument))
+				continue;
+			substitutions[name] = $"{carrier}<{argument}>";
+		}
+	}
+
 	static void AddExplicitGenericSubstitutions(FunctionDefinition function, List<TypeReference> typeArguments, Dictionary<string, string> substitutions)
 	{
 		int count = Math.Min(function.GenericParameters.Count, typeArguments.Count);
@@ -4558,6 +4592,7 @@ public sealed partial class BindableNodeAnalyzer
 			}
 
 			string expected = SubstituteStorageType(analysisParameter?.ResolvedType ?? ErrorType, genericSubstitutions);
+			string storageExpected = expected;
 			bool erasedInStorage = analysisParameter?.Modifier == ParameterModifier.In && ErasedTypeIdentity.TryGetPayload(expected, out _);
 			if (analysisParameter?.Modifier is ParameterModifier.In or ParameterModifier.Out || CarrierTypeIdentity.TryGetPayload(expected, out _))
 				expected = ReadErasedValueType(expected);
@@ -4570,7 +4605,9 @@ public sealed partial class BindableNodeAnalyzer
 			if (analysisParameter is not null)
 			{
 				InferGenericSubstitutions(analysisParameter.ResolvedType ?? ErrorType, actual, genericSubstitutions, genericParameterNames);
+				NormalizeRepresentationSubstitutions(function, genericSubstitutions, typeScope);
 				expected = SubstituteStorageType(analysisParameter.ResolvedType ?? ErrorType, genericSubstitutions);
+				storageExpected = expected;
 				if (TryGetConstOfActualSlot(analysisParameter, arguments[i], out bool anchorIsConst) && !string.IsNullOrWhiteSpace(analysisParameter.Name))
 					constOfAnchorsInProgress[analysisParameter.Name] = anchorIsConst;
 				expected = SubstituteConstOfResolvedType(analysisParameter.Type, expected, constOfAnchorsInProgress, genericSubstitutions);
@@ -4592,7 +4629,13 @@ public sealed partial class BindableNodeAnalyzer
 						Report(GetRange(arguments[i].SourceSyntax ?? fallbackSyntax), "Only thrown parameters may use a 'catch' argument.");
 					SyntaxNode? argumentSyntax = GetArgumentDiagnosticSyntax(arguments[i], fallbackSyntax);
 					if (analysisParameter.Modifier == ParameterModifier.Out)
+					{
 						CheckCallArgumentAssignable(actual, expected, arguments[i].Value, argumentSyntax, "Out argument", function, genericSubstitutions, genericParameterNames);
+						// An out argument writes the carrier itself, so it cannot adapt storage of another representation.
+						if (CarrierTypeIdentity.TryGetPayload(storageExpected, out _) && !ContainsUnboundGenericParameter(storageExpected, genericSubstitutions, genericParameterNames)
+							&& (!TryGetCarrierStorageType(arguments[i].Value, out string outStorage) || StripTopLevelValueQualifiers(outStorage) != StripTopLevelValueQualifiers(storageExpected)))
+							Report(GetRange(argumentSyntax), $"Out argument requires storage of type '{StripTopLevelValueQualifiers(storageExpected)}', not '{actual}'; an out argument cannot adapt storage of another representation.");
+					}
 					else
 					{
 						string structuralExpected = GetLifetimeStructuralTargetType(expected, arguments[i].Value);
@@ -6442,7 +6485,7 @@ public sealed partial class BindableNodeAnalyzer
 			case UnaryOperator.Decrement:
 				RequireWritablePropertyUpdate(unary.Operand);
 				RequireMutableWriteTarget(unary.Operand, operandType, unary.Operand?.SourceSyntax, "Update target", scope);
-				RequireNumericUpdateOperand(unary.Operand, operandType);
+				RequireNumericUpdateOperand(unary.Operand, operandType, typeScope);
 				return operandType;
 
 			default:
@@ -6760,13 +6803,36 @@ public sealed partial class BindableNodeAnalyzer
 		string operandType = BodyAnalyzeExpression(postfix.Expression, scope, typeScope);
 		RequireWritablePropertyUpdate(postfix.Expression);
 		RequireMutableWriteTarget(postfix.Expression, operandType, postfix.Expression?.SourceSyntax, "Update target", scope);
-		RequireNumericUpdateOperand(postfix.Expression, operandType);
+		RequireNumericUpdateOperand(postfix.Expression, operandType, typeScope);
 		return operandType;
 	}
 
-	void RequireNumericUpdateOperand(Expression? operand, string operandType)
+	// An open integer-represented parameter has no payload operations, and a carrier of a floating or
+	// pointer payload stores bits that integer arithmetic would corrupt. Only assignment, default and
+	// equality are offered; computation reads the carried value into an ordinary local first.
+	bool RejectCarrierComputation(Expression? target, string targetType, AnalysisScope typeScope, SyntaxNode? syntax, string operation)
+	{
+		if (typeScope.TryGetGenericParameter(StripTopLevelValueQualifiers(targetType), out GenericParameter? generic) && generic is not null
+			&& ErasureWrapper(generic) is string representation && representation != "void")
+		{
+			Report(GetRange(syntax), $"'{generic.Name}' is represented by '{representation}' and supports only assignment, default and equality, not {operation}.");
+			return true;
+		}
+		if (TryGetCarrierStorageType(target, out string storage) && CarrierTypeIdentity.TryGetPayload(storage, out string payload)
+			&& TryParseTypeShape(StripTopLevelValueQualifiers(payload), out TypeShape payloadShape)
+			&& TryClassifyCarrierScalar(payloadShape, 0, out CarrierScalarKind kind, out _) && kind != CarrierScalarKind.Integer)
+		{
+			Report(GetRange(syntax), $"'{storage}' stores a {payload} as bits and supports only assignment, default and equality, not {operation}; read it into a '{payload}' local first.");
+			return true;
+		}
+		return false;
+	}
+
+	void RequireNumericUpdateOperand(Expression? operand, string operandType, AnalysisScope typeScope)
 	{
 		if (RejectNewtypeOperator(operand?.SourceSyntax, operandType))
+			return;
+		if (RejectCarrierComputation(operand, operandType, typeScope, operand?.SourceSyntax, "an update operator"))
 			return;
 		if (!IsNumericType(operandType))
 			Report(GetRange(operand?.SourceSyntax), $"Update operator requires a numeric operand, not '{operandType}'.");
@@ -6816,6 +6882,9 @@ public sealed partial class BindableNodeAnalyzer
 			Report(GetRange(binary.SourceSyntax), "Textual '+' composition is not supported. Use an interpolated string.");
 			return ErrorType;
 		}
+
+		if (IsComparisonOperator(binary.Operator) && RejectCarrierComparison(binary, left, right, typeScope))
+			return "bool";
 
 		return binary.Operator switch
 		{
@@ -7003,6 +7072,9 @@ public sealed partial class BindableNodeAnalyzer
 		if (assignment.Operator == AssignmentOperator.Assign && TryGetErasedStorageType(assignment.Target, out _))
 			ClaimErasedStorageCast(assignment.Value);
 		if (assignment.Operator != AssignmentOperator.Assign && RejectNewtypeOperator(assignment.SourceSyntax, targetType, valueType))
+			return targetType;
+		if (assignment.Operator != AssignmentOperator.Assign
+			&& RejectCarrierComputation(assignment.Target, targetType, typeScope, assignment.SourceSyntax, "a compound assignment"))
 			return targetType;
 		if (!RequireIntegralAssignmentOperands(assignment, targetType, valueType))
 			return targetType;
@@ -7320,6 +7392,68 @@ public sealed partial class BindableNodeAnalyzer
 		RequireExpressionType("bool", left, binary.Left?.SourceSyntax, "Logical operator left operand");
 		RequireExpressionType("bool", right, binary.Right?.SourceSyntax, "Logical operator right operand");
 		return "bool";
+	}
+
+	string? TryGetRepresentedFieldCarrier(Expression operand, string readType)
+	{
+		if (expressionRewrites.TryGetValue(operand, out Expression? rewritten) && !ReferenceEquals(operand, rewritten))
+			return TryGetRepresentedFieldCarrier(rewritten, readType);
+		if (operand is ParenthesizedExpression parenthesized && parenthesized.Expression is not null)
+			return TryGetRepresentedFieldCarrier(parenthesized.Expression, readType);
+		if (operand is not MemberReferenceExpression { Member: FieldDefinition { Modifier: not FieldModifier.Static } field }
+			|| StripTopLevelValueQualifiers(field.ResolvedType ?? field.Type?.ResolvedType ?? "") is not string declared)
+			return null;
+		foreach (TypeDefinition type in allTypeDefinitions)
+		{
+			if (!GetTypeFields(type).Contains(field))
+				continue;
+			return type.GenericParameters.FirstOrDefault(parameter => parameter.Name == declared) is GenericParameter parameter
+				&& ErasureWrapper(parameter) is string representation && representation != "void"
+				? $"{representation}<{StripTopLevelValueQualifiers(readType)}>"
+				: null;
+		}
+		return null;
+	}
+
+	GenericParameter? GetOpenIntegerParameter(string type, AnalysisScope typeScope) =>
+		typeScope.TryGetGenericParameter(StripTopLevelValueQualifiers(type), out GenericParameter? generic) && generic is not null
+			&& ErasureWrapper(generic) is string representation && representation != "void" ? generic : null;
+
+	// The written carrier of an operand: stored carrier storage or an open integer-represented parameter.
+	string? CarrierOperandKey(Expression? operand, string readType, AnalysisScope typeScope)
+	{
+		if (operand is not null && TryGetCarrierStorageType(operand, out string storage))
+			return StripTopLevelValueQualifiers(storage);
+		// A field declared with an integer-represented type parameter stores the carrier of its argument.
+		if (operand is not null && TryGetRepresentedFieldCarrier(operand, readType) is string fieldCarrier)
+			return fieldCarrier;
+		return GetOpenIntegerParameter(readType, typeScope) is GenericParameter generic
+			? $"{ErasureWrapper(generic)}<{StripTopLevelValueQualifiers(readType)}>"
+			: null;
+	}
+
+	// Two carrier operands compare their whole carrier, so they need the same representation and carried
+	// type. An open integer-represented parameter has no ordering. A carrier against an ordinary value
+	// compares the read value instead.
+	bool RejectCarrierComparison(BinaryExpression binary, string left, string right, AnalysisScope typeScope)
+	{
+		if (left == ErrorType || right == ErrorType)
+			return false;
+		if (binary.Operator is not (BinaryOperator.Equal or BinaryOperator.NotEqual))
+		{
+			if ((GetOpenIntegerParameter(left, typeScope) ?? GetOpenIntegerParameter(right, typeScope)) is GenericParameter ordered)
+			{
+				Report(GetRange(binary.SourceSyntax), $"'{ordered.Name}' is represented by '{ErasureWrapper(ordered)}' and supports only assignment, default and equality, not ordering.");
+				return true;
+			}
+			return false;
+		}
+		string? leftKey = CarrierOperandKey(binary.Left, left, typeScope);
+		string? rightKey = CarrierOperandKey(binary.Right, right, typeScope);
+		if (leftKey is null || rightKey is null || leftKey == rightKey)
+			return false;
+		Report(GetRange(binary.SourceSyntax), $"Carrier equality compares every bit and needs the same representation and carried type, not '{leftKey}' and '{rightKey}'; convert one operand explicitly.");
+		return true;
 	}
 
 	string AnalyzeComparisonBinary(BinaryExpression binary, string left, string right)

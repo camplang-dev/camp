@@ -1319,7 +1319,7 @@ public sealed partial class BindableNodeAnalyzer
 					CurrentFunctionReturnType = initializerContext.ResolvedType ?? ErrorType
 				};
 				string targetType = variable.ResolvedType ?? variable.Type?.ResolvedType ?? ErrorType;
-				string initialType = BodyAnalyzeExpression(variable.InitialValue, scope, typeScope, targetType);
+				string initialType = BodyAnalyzeExpression(variable.InitialValue, scope, typeScope, CarrierLiteralTarget(targetType));
 				if (!IsValidFixedStorageInitializer(variable.Type, variable.InitialValue))
 				{
 					CheckAssignable(targetType, initialType, variable.InitialValue.SourceSyntax ?? variable.SourceSyntax, "Global initializer");

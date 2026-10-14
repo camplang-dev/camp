@@ -314,6 +314,9 @@ public sealed class ErasedTypeTests
 		enum WideKind: long { A }
 		newtype Small: ushort;
 		newtype Wide: ulong;
+		newtype Single: float;
+		newtype Double: double;
+		newtype Handle: byte*;
 		struct Point { int x; }
 		class Widget { }
 		""";
@@ -352,6 +355,13 @@ public sealed class ErasedTypeTests
 	[InlineData("nint", "Kind")]
 	[InlineData("nint", "Point*")]
 	[InlineData("nint", "nuint")]
+	[InlineData("uint", "float")]
+	[InlineData("int", "Single")]
+	[InlineData("long", "float")]
+	[InlineData("long", "double")]
+	[InlineData("ulong", "Double")]
+	[InlineData("ulong", "Single")]
+	[InlineData("nint", "Handle")]
 	public void Carriers_accept_the_arguments_of_their_representation_constraint(string carrier, string operand)
 	{
 		SemanticCompilation compilation = SemanticCompiler.CompileLowered($"{CarrierPreamble} void take({carrier}<{operand}> value, {carrier}<{operand}>* pointer, {carrier}<{operand}>[] array) {{ }} newtype delegate void Callback({carrier}<{operand}> value, {carrier}<{operand}>[] array);");
@@ -368,18 +378,18 @@ public sealed class ErasedTypeTests
 	[InlineData("uint", "WideKind", "wider than 'uint'")]
 	[InlineData("int", "ulong", "wider than 'int'")]
 	[InlineData("int", "Wide", "wider than 'int'")]
-	[InlineData("ulong", "float", "does not satisfy 'T: ulong'")]
-	[InlineData("long", "double", "does not satisfy 'T: long'")]
-	[InlineData("long", "Point", "does not satisfy 'T: long'")]
-	[InlineData("long", "Widget*", "pointer types satisfy only 'T: nint' and 'T: nuint'")]
-	[InlineData("int", "byte*", "pointer types satisfy only 'T: nint' and 'T: nuint'")]
-	[InlineData("int", "string", "pointer types satisfy only 'T: nint' and 'T: nuint'")]
-	[InlineData("int", "int?", "does not satisfy 'T: int'")]
-	[InlineData("int", "int[]", "does not satisfy 'T: int'")]
-	[InlineData("nint", "float", "does not satisfy 'T: nint'")]
-	[InlineData("nint", "int[]?", "does not satisfy 'T: nint'")]
+	[InlineData("short", "float", "wider than 'short'")]
+	[InlineData("uint", "double", "wider than 'uint'")]
+	[InlineData("int", "Double", "wider than 'int'")]
+	[InlineData("long", "Point", "not an eligible 'long' payload")]
+	[InlineData("long", "Widget*", "carried only by 'nint' and 'nuint'")]
+	[InlineData("int", "byte*", "carried only by 'nint' and 'nuint'")]
+	[InlineData("int", "string", "carried only by 'nint' and 'nuint'")]
+	[InlineData("int", "int?", "multi-component")]
+	[InlineData("int", "int[]", "multi-component")]
+	[InlineData("nint", "int[]?", "multi-component")]
 	[InlineData("nint", "int[]*", "distributive")]
-	[InlineData("nint", "delegate int()", "does not satisfy 'T: nint'")]
+	[InlineData("nint", "delegate int()", "not an eligible 'nint' payload")]
 	[InlineData("int", "void", "cannot be void")]
 	[InlineData("int", "void<int>", "cannot be void<V> or another carrier")]
 	[InlineData("nint", "void<int[]>", "cannot be void<V> or another carrier")]
@@ -412,6 +422,16 @@ public sealed class ErasedTypeTests
 	[InlineData("gcc-linux-x86", "short<nint>", false)]
 	[InlineData("gcc-linux-x64", "int<nint>", false)]
 	[InlineData("gcc-linux-x64", "long<nuint>", true)]
+	[InlineData("gcc-linux-x64", "nint<double>", true)]
+	[InlineData("gcc-linux-x64", "nuint<float>", true)]
+	[InlineData("gcc-linux-x86", "nint<float>", true)]
+	[InlineData("gcc-linux-x86", "nint<double>", false)]
+	[InlineData("gcc-linux-x86", "long<double>", true)]
+	[InlineData("msvc-win16-x86", "nint<byte* _near>", true)]
+	[InlineData("msvc-win16-x86", "nint<byte* _far>", false)]
+	[InlineData("msvc-win16-x86", "nuint<byte* _huge>", true)]
+	[InlineData("msvc-win16-x86", "int<float>", true)]
+	[InlineData("msvc-win16-x86", "ushort<float>", false)]
 	public void Natural_integer_carriers_follow_the_selected_target(string target, string carrier, bool valid)
 	{
 		SemanticCompilation compilation = SemanticCompiler.CompileLoweredForTarget(target, $"void take({carrier} value) {{ }}");

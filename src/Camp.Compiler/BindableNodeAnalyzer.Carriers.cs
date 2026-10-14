@@ -39,19 +39,18 @@ public sealed partial class BindableNodeAnalyzer
 			return;
 		if (!TryExplainInvalidCarrierOperand(carrier, payload, scope, out string? reason))
 			return;
-		Report(GetRange(operand.SourceSyntax ?? generic.SourceSyntax), $"'{payload}' is not a valid carried type for {carrier}<V>: {reason}");
+		Report(GetRange(operand.SourceSyntax) ?? GetRange(generic.SourceSyntax), $"'{payload}' is not a valid carried type for {carrier}<V>: {reason}");
 	}
 
-	// Mirrors the argument rules of a representation constraint `T: C`. The reason names
-	// the constraint that the operand fails.
+	// Eligibility of a payload for an integer representation. The reason names the representation
+	// that the payload fails and never recommends a removed constraint.
 	bool TryExplainInvalidCarrierOperand(string carrier, string payload, AnalysisScope scope, out string? reason)
 	{
 		reason = null;
-		string constraint = $"T: {carrier}";
 		string bare = StripTopLevelValueQualifiers(payload);
 		if (!TryParseTypeShape(bare, out TypeShape shape))
 		{
-			reason = $"it does not satisfy '{constraint}'.";
+			reason = $"it is not an eligible '{carrier}' payload.";
 			return true;
 		}
 
@@ -59,17 +58,17 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			if (carrier is not ("nint" or "nuint"))
 			{
-				reason = $"pointer types satisfy only 'T: nint' and 'T: nuint', not '{constraint}'.";
+				reason = $"data pointers are carried only by 'nint' and 'nuint', not '{carrier}'.";
 				return true;
 			}
 			if (shape.Element is not null && TryGetParamsComponentShape(null, bare, "value", out _))
 			{
-				reason = $"a pointer to an expanded type is distributive and does not satisfy '{constraint}'.";
+				reason = $"a pointer to an expanded type is distributive and is not an eligible '{carrier}' payload.";
 				return true;
 			}
 			if (GetObjectPointerWidth(shape) > GetCarrierWidth(carrier, shape.TargetSpec))
 			{
-				reason = $"the pointer is wider than '{carrier}' on the selected target, so it does not satisfy '{constraint}'.";
+				reason = $"the pointer is wider than '{carrier}' on the selected target.";
 				return true;
 			}
 			return false;
@@ -77,7 +76,9 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (shape.Kind != TypeShapeKind.Named)
 		{
-			reason = $"it does not satisfy '{constraint}'; array, optional and raw function pointer types cannot be carried.";
+			reason = shape.Kind == TypeShapeKind.RawFunctionPointer
+				? "raw function pointers are never carried by an integer representation."
+				: "arrays, optionals and other multi-component values cannot be carried.";
 			return true;
 		}
 
@@ -93,7 +94,7 @@ public sealed partial class BindableNodeAnalyzer
 		}
 		if (TryGetParamsComponentShape(null, bare, "value", out _))
 		{
-			reason = $"an expanded type does not satisfy '{constraint}'; use void<V> storage instead.";
+			reason = $"an expanded type is not an eligible '{carrier}' payload; use void<V> storage instead.";
 			return true;
 		}
 
@@ -101,20 +102,76 @@ public sealed partial class BindableNodeAnalyzer
 		if (scope.TryGetGenericParameter(shape.Name, out GenericParameter? generic) && generic is not null)
 		{
 			string? genericCarrier = ErasureWrapper(generic);
-			if (genericCarrier is null or "void" || GetCarrierWidth(genericCarrier, null) > carrierWidth)
-				reason = $"type parameter '{generic.Name}' does not satisfy '{constraint}'; its constraint must be an integer representation constraint no wider than '{carrier}'.";
+			if (genericCarrier is null or "void")
+				reason = $"type parameter '{generic.Name}' has void representation, which does not prove that every argument fits '{carrier}'.";
+			else if (GetCarrierWidth(genericCarrier, null) > carrierWidth)
+				reason = $"type parameter '{generic.Name}' is represented by '{genericCarrier}', which is wider than '{carrier}'.";
 			return reason is not null;
 		}
 
-		if (TryGetIntegerOperandWidth(shape, out int operandWidth))
+		if (!TryClassifyCarrierScalar(shape, 0, out CarrierScalarKind kind, out int operandWidth))
 		{
-			if (operandWidth > carrierWidth)
-				reason = $"it is wider than '{carrier}' and does not satisfy '{constraint}'.";
-			return reason is not null;
+			reason = $"it is not an eligible '{carrier}' payload; carried types are integers, booleans, characters, enums, floating-point numbers, scalar newtypes over those, and data pointers for nint and nuint.";
+			return true;
 		}
+		if (kind == CarrierScalarKind.Pointer && carrier is not ("nint" or "nuint"))
+		{
+			reason = $"data pointers are carried only by 'nint' and 'nuint', not '{carrier}'.";
+			return true;
+		}
+		if (operandWidth > carrierWidth)
+			reason = carrier is "nint" or "nuint"
+				? $"it is {operandWidth} bits wide and does not fit '{carrier}' on the selected target."
+				: $"it is {operandWidth} bits wide, wider than '{carrier}'.";
+		return reason is not null;
+	}
 
-		reason = $"it does not satisfy '{constraint}'; carried types are integers, enums, value newtypes with an integer underlying type, or pointers for nint and nuint.";
-		return true;
+	enum CarrierScalarKind { Integer, Float, Pointer }
+
+	// Classifies a scalar payload by its actual underlying category and width. Aliases and scalar
+	// newtypes resolve to their underlying type; nothing is classified by spelling alone.
+	bool TryClassifyCarrierScalar(TypeShape shape, int depth, out CarrierScalarKind kind, out int width)
+	{
+		kind = CarrierScalarKind.Integer;
+		width = 0;
+		if (depth > 16)
+			return false;
+		if (shape.Kind == TypeShapeKind.Pointer || shape.Kind == TypeShapeKind.Named && IsPrimitiveStringType(shape.Name))
+		{
+			if (shape.Element is not null && TryGetParamsComponentShape(null, TypeShapeParser.Format(shape), "value", out _))
+				return false;
+			kind = CarrierScalarKind.Pointer;
+			width = GetObjectPointerWidth(shape);
+			return true;
+		}
+		if (shape.Kind != TypeShapeKind.Named)
+			return false;
+		string name = shape.Name;
+		if (name is "float")
+		{
+			kind = CarrierScalarKind.Float;
+			width = 32;
+			return true;
+		}
+		if (name is "double")
+		{
+			kind = CarrierScalarKind.Float;
+			width = 64;
+			return true;
+		}
+		if (TryGetIntegerOperandWidth(shape, out width))
+			return true;
+		if (!TryGetTypeDefinitionByResolvedName(name, out TypeDefinition? definition) || definition is null)
+			return false;
+		string? underlying = definition switch
+		{
+			EnumDefinition enumDefinition => enumDefinition.UnderlyingType is null ? "int" : GetDeclaredUnderlyingName(enumDefinition.UnderlyingType),
+			NewtypeDefinition { UnderlyingType: not null } newtype => GetDeclaredUnderlyingName(newtype.UnderlyingType),
+			_ => null
+		};
+		if (underlying is null || !TryParseTypeShape(StripTopLevelValueQualifiers(underlying), out TypeShape underlyingShape))
+			return false;
+		return TryClassifyCarrierScalar(underlyingShape, depth + 1, out kind, out width);
 	}
 
 	bool TryGetIntegerOperandWidth(TypeShape shape, out int width)
@@ -131,18 +188,7 @@ public sealed partial class BindableNodeAnalyzer
 			width = name is "wchar" ? 16 : name is "uchar" ? 32 : 8;
 			return true;
 		}
-		if (!TryGetTypeDefinitionByResolvedName(name, out TypeDefinition? definition) || definition is null)
-			return false;
-		string? underlying = definition switch
-		{
-			EnumDefinition enumDefinition => enumDefinition.UnderlyingType is null ? "int" : GetDeclaredUnderlyingName(enumDefinition.UnderlyingType),
-			NewtypeDefinition { UnderlyingType: not null } newtype => GetDeclaredUnderlyingName(newtype.UnderlyingType),
-			_ => null
-		};
-		if (underlying is null || !IsIntegerWidthName(StripTopLevelValueQualifiers(underlying)))
-			return false;
-		width = GetCarrierWidth(StripTopLevelValueQualifiers(underlying), shape.TargetSpec);
-		return true;
+		return false;
 	}
 
 	// A callable signature can be checked before the declaration that owns the underlying type is

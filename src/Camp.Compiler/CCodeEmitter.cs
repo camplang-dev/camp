@@ -4383,7 +4383,7 @@ public static class CCodeEmitter
                     WriteIndent(writer, indent);
                     writer.Write("return");
                     if (ret.Expression is not null)
-                        writer.Write(" " + (currentFunction?.ResolvedType is string resultType && (RequiresAscribedCallableCast(ret.Expression, resultType) || TryGetPointerCarrierStorage(resultType, out _, out _))
+                        writer.Write(" " + (currentFunction?.ResolvedType is string resultType && (RequiresAscribedCallableCast(ret.Expression, resultType) || CarrierTypeIdentity.TryGetPayload(resultType, out _))
                             ? FormatAssignmentValueForTarget(resultType, ret.Expression) : FormatExpression(ret.Expression)));
                     writer.WriteLine(";");
                     break;
@@ -4784,7 +4784,8 @@ public static class CCodeEmitter
         {
             return value switch
             {
-                ArrayExpression array => "{" + string.Join(", ", array.Elements.Select(FormatFixedArrayInitializerElement)) + "}",
+                ArrayExpression array => "{" + string.Join(", ", array.Elements.Select(element => TryGetArrayLiteralElementType(array.ResolvedType, out string fixedElementType) && CarrierTypeIdentity.TryGetPayload(fixedElementType, out _) && element is not ArrayExpression
+                    ? FormatAssignmentValueForTarget(fixedElementType, element) : FormatFixedArrayInitializerElement(element))) + "}",
                 DefaultExpression => "{0}",
                 _ => FormatExpression(value)
             };
@@ -4962,21 +4963,80 @@ public static class CCodeEmitter
             writer.WriteLine("}");
         }
 
-        // A pointer carrier (`nint<P*>`, `nuint<P*>`) stores its pointer as a C integer. Reads convert
-        // back to the carried pointer; the root of a storage target is formatted without that read.
+        // Pointer and floating payloads cannot ride C's value conversion: a pointer needs an integer cast
+        // and a floating value must keep its exact bits. A carrier of such a payload stores the encoded
+        // integer; reads decode it, and the root of a storage target is formatted without that read.
         Expression? carrierStorageRoot;
 
-        bool TryGetPointerCarrierStorage(string? storageType, out string carrierC, out string payloadC)
+        sealed record BitTransport(bool Pointer, string CarrierC, string PayloadC, string BitsC);
+
+        readonly Dictionary<string, string> scalarUnderlyingCache = new(StringComparer.Ordinal);
+
+        // Follows scalar newtypes and enums to the primitive, pointer or string they are made of.
+        string ResolveScalarUnderlying(string type)
         {
-            carrierC = payloadC = "";
+            type = StripTypeQualifiers(type);
+            string start = type;
+            if (scalarUnderlyingCache.TryGetValue(start, out string? cached))
+                return cached;
+            for (int depth = 0; depth < 16; depth++)
+            {
+                if (IsPrimitiveScalarType(type) || type.EndsWith('*') || IsPrimitiveStringResolvedName(type))
+                    break;
+                TypeDefinition? definition = GetDefinitions().OfType<TypeDefinition>().FirstOrDefault(candidate => candidate.Name == type);
+                string? next = definition switch
+                {
+                    NewtypeDefinition { UnderlyingType: not null } newtype => newtype.UnderlyingType.ResolvedType,
+                    EnumDefinition enumDefinition => enumDefinition.UnderlyingType?.ResolvedType ?? "int",
+                    _ => null
+                };
+                if (next is null)
+                    break;
+                type = StripTypeQualifiers(next);
+            }
+            scalarUnderlyingCache[start] = type;
+            return type;
+        }
+
+        string PrimitiveCSpelling(string name) => compilation.Target?.Capabilities.GetPrimitiveCSpelling(name) ?? name;
+
+        bool TryGetBitTransportPayload(string payload, string carrier, string carrierC, out BitTransport transport)
+        {
+            transport = null!;
+            string resolved = ResolveScalarUnderlying(payload);
+            if (resolved.EndsWith('*') || IsPrimitiveStringResolvedName(resolved))
+            {
+                if (carrier is not ("nint" or "nuint"))
+                    return false;
+                transport = new BitTransport(true, carrierC, FormatResolvedType(resolved, "").Declaration.Trim(), "");
+                return true;
+            }
+            if (resolved is not ("float" or "double"))
+                return false;
+            transport = new BitTransport(false, carrierC, PrimitiveCSpelling(resolved), PrimitiveCSpelling(resolved == "float" ? "uint" : "ulong"));
+            return true;
+        }
+
+        bool TryGetBitTransport(string? storageType, out BitTransport transport)
+        {
+            transport = null!;
             if (!CarrierTypeIdentity.TryGetCarrier(storageType, out string carrier, out string payload))
                 return false;
-            payload = StripTypeQualifiers(payload);
-            if (carrier is not ("nint" or "nuint") || !payload.EndsWith('*'))
-                return false;
-            carrierC = FormatResolvedType(carrier, "").Declaration.Trim();
-            payloadC = FormatResolvedType(payload, "").Declaration.Trim();
-            return true;
+            return TryGetBitTransportPayload(StripTypeQualifiers(payload), carrier, FormatResolvedType(carrier, "").Declaration.Trim(), out transport);
+        }
+
+        static string EncodeBitTransport(BitTransport transport, string value)
+        {
+            if (transport.Pointer)
+                return "(" + transport.CarrierC + ")(" + value + ")";
+            return "(" + transport.CarrierC + ")((union { " + transport.PayloadC + " f; " + transport.BitsC + " u; }){ " + value + " }).u";
+        }
+
+        static string DecodeBitTransport(BitTransport transport, string raw)
+        {
+            if (transport.Pointer)
+                return "((" + transport.PayloadC + ")" + raw + ")";
+            return "((union { " + transport.BitsC + " u; " + transport.PayloadC + " f; }){ (" + transport.BitsC + ")(" + raw + ") }).f";
         }
 
         string? GetCarrierStorageTypeOf(Expression? expression)
@@ -4993,6 +5053,27 @@ public static class CCodeEmitter
             };
         }
 
+        // The carrier type of a value that already is a stored carrier: storage, a carrier call result or a cast.
+        string? GetCarrierValueStorageType(Expression? expression) => expression switch
+        {
+            ParenthesizedExpression parenthesized => GetCarrierValueStorageType(parenthesized.Expression),
+            CastExpression { LifetimeCastKind: null } cast when CarrierTypeIdentity.TryGetPayload(cast.Type?.ResolvedType ?? cast.ResolvedType, out _)
+                => StripTypeQualifiers(StripLifetimeOnly(cast.Type?.ResolvedType ?? cast.ResolvedType ?? "")),
+            CallExpression call => TryGetCallFunction(call)?.ResolvedType,
+            _ => GetCarrierStorageTypeOf(expression)
+        };
+
+        // The stored carrier of a carrier-typed expression, without decoding its carried value.
+        string FormatCarrierStorageValue(Expression? expression)
+        {
+            Expression? previous = carrierStorageRoot;
+            carrierStorageRoot = expression;
+            while (carrierStorageRoot is ParenthesizedExpression parenthesized)
+                carrierStorageRoot = parenthesized.Expression;
+            try { return FormatExpression(expression); }
+            finally { carrierStorageRoot = previous; }
+        }
+
         string FormatStorageTarget(Expression? expression)
         {
             Expression? previous = carrierStorageRoot;
@@ -5006,11 +5087,11 @@ public static class CCodeEmitter
             string text = FormatExpressionCore(expression);
             if (expression is VariableReferenceExpression or MemberReferenceExpression or UnaryExpression { Operator: UnaryOperator.PointerDereference } or IndexExpression
                 && !ReferenceEquals(expression, carrierStorageRoot)
-                && TryGetPointerCarrierStorage(GetCarrierStorageTypeOf(expression), out _, out string payloadC))
-                return "((" + payloadC + ")" + text + ")";
-            if (expression is CallExpression call && TryGetCallFunction(call) is FunctionDefinition callee
-                && TryGetPointerCarrierStorage(callee.ResolvedType, out _, out string resultC))
-                return "((" + resultC + ")" + text + ")";
+                && TryGetBitTransport(GetCarrierStorageTypeOf(expression), out BitTransport readTransport))
+                return DecodeBitTransport(readTransport, text);
+            if (expression is CallExpression call && !ReferenceEquals(expression, carrierStorageRoot) && TryGetCallFunction(call) is FunctionDefinition callee
+                && TryGetBitTransport(callee.ResolvedType, out BitTransport resultTransport))
+                return DecodeBitTransport(resultTransport, text);
             return text;
         }
 
@@ -5078,6 +5159,20 @@ public static class CCodeEmitter
             // analyzed cast node and its lifetime facts, but emit only the value.
             if (targetType == sourceType && IsAggregateValueType(targetType))
                 return "(" + FormatExpression(cast.Expression) + ")";
+            if (cast.Expression is not null && CarrierTypeIdentity.TryGetCarrier(targetType, out string castCarrier, out string castPayload))
+            {
+                if (GetCarrierStorageTypeOf(cast.Expression) is string castSource && StripTypeQualifiers(castSource) == targetType)
+                    return FormatCarrierStorageValue(cast.Expression);
+                // A cast to a carrier converts to the carried type, then encodes it in the whole carrier.
+                string carriedC = FormatResolvedType(StripTypeQualifiers(castPayload), "").Declaration.Trim();
+                string carried = "(" + carriedC + ")(" + FormatExpression(cast.Expression) + ")";
+                if (TryGetBitTransport(targetType, out BitTransport castTransport))
+                    return EncodeBitTransport(castTransport, carried);
+                string castCarrierC = FormatResolvedType(castCarrier, "").Declaration.Trim();
+                if (ResolveScalarUnderlying(castPayload) is "char" or "achar")
+                    carried = "(" + PrimitiveCSpelling("byte") + ")(" + FormatExpression(cast.Expression) + ")";
+                return "(" + castCarrierC + ")" + carried;
+            }
 
             string type = TryGetErasedGenericStoragePointerCastType(cast.Type, out string erasedType)
                 ? erasedType
@@ -5169,6 +5264,9 @@ public static class CCodeEmitter
         string FormatSizeOfExpression(SizeOfExpression sizeOf)
         {
             string? resolvedType = sizeOf.Type?.ResolvedType;
+            // A carrier occupies its integer representation, not the payload it carries.
+            if (CarrierTypeIdentity.TryGetCarrier(resolvedType, out string sizeCarrier, out _))
+                return "sizeof(" + FormatResolvedType(sizeCarrier, "").Declaration.Trim() + ")";
             if (ErasedTypeIdentity.TryGetPayload(resolvedType, out string payload))
                 return "sizeof(" + FormatStorageResolvedType(payload, "").Declaration.Trim() + ")";
             if (IsAnyGenericParameterType(resolvedType))
@@ -6456,8 +6554,33 @@ public static class CCodeEmitter
         string FormatAssignmentValueForTarget(string? targetType, Expression value, IReadOnlyCollection<string>? erasedGenericNames)
         {
             string formatted = FormatExpression(value);
-            if (TryGetPointerCarrierStorage(targetType, out string pointerCarrierC, out _))
-                return "(" + pointerCarrierC + ")(" + formatted + ")";
+            if (CarrierTypeIdentity.TryGetCarrier(targetType, out string targetCarrier, out string targetPayload))
+            {
+                string? sourceStorage = GetCarrierValueStorageType(value);
+                bool sourceIsCarrier = CarrierTypeIdentity.TryGetPayload(sourceStorage, out _);
+                // Same representation and carried type: copy every bit, including noncanonical unused ones.
+                if (sourceIsCarrier && StripTypeQualifiers(sourceStorage!) == StripTypeQualifiers(targetType!))
+                    return FormatCarrierStorageValue(value);
+                if (TryGetBitTransport(targetType, out BitTransport targetTransport))
+                {
+                    if (fileScopeInitializerDepth > 0 && !targetTransport.Pointer)
+                    {
+                        if (value is DefaultExpression)
+                            return "((" + targetTransport.CarrierC + ")0)";
+                        if (TryEvaluateFloatingConstant(value, out double constant))
+                            return "((" + targetTransport.CarrierC + ")" + FormatFloatingBitsConstant(targetTransport.PayloadC == PrimitiveCSpelling("double"), constant) + ")";
+                    }
+                    return EncodeBitTransport(targetTransport, formatted);
+                }
+                string targetCarrierC = FormatResolvedType(targetCarrier, "").Declaration.Trim();
+                string payloadC = FormatResolvedType(StripTypeQualifiers(targetPayload), "").Declaration.Trim();
+                // A different representation decodes the carried value and encodes it again.
+                if (sourceIsCarrier)
+                    return "(" + targetCarrierC + ")(" + payloadC + ")(" + FormatCarrierStorageValue(value) + ")";
+                // Boolean and character payloads zero-extend, whatever the signedness of C's plain char.
+                if (ResolveScalarUnderlying(targetPayload) is "char" or "achar")
+                    return "(" + targetCarrierC + ")(" + PrimitiveCSpelling("byte") + ")(" + formatted + ")";
+            }
             if (targetType is not null && value.ResolvedType is string sourceType && sourceType != targetType
                 && (sourceType.Contains("void<", StringComparison.Ordinal) || targetType.Contains("void<", StringComparison.Ordinal))
                 && IsPointerLike(sourceType) && IsPointerLike(targetType))
@@ -6694,8 +6817,14 @@ public static class CCodeEmitter
                 return "NULL";
 
             string cArrayType = FormatResolvedType(elementType, "[]").Declaration.Trim();
-            return "(" + cArrayType + "){" + string.Join(", ", array.Elements.Select(FormatExpression)) + "}";
+            return "(" + cArrayType + "){" + string.Join(", ", array.Elements.Select(element => FormatArrayElement(elementType, element))) + "}";
         }
+
+        // An element of carrier storage holds the encoded carrier, like any other carrier write.
+        string FormatArrayElement(string elementType, Expression element) =>
+            CarrierTypeIdentity.TryGetPayload(elementType, out _) && element is not ArrayExpression
+                ? FormatAssignmentValueForTarget(elementType, element)
+                : FormatExpression(element);
 
         static bool TryGetArrayLiteralElementType(string? resolvedType, out string elementType)
         {
@@ -6889,8 +7018,8 @@ public static class CCodeEmitter
             string? rawExpectedParameterType = parameter?.ResolvedType ?? parameter?.Type?.ResolvedType;
             string? expectedParameterType = SubstituteGenericTypeTokens(rawExpectedParameterType, genericSubstitutions);
             if (argument.Modifier == ArgumentModifier.None && argument.Value is not null && parameter?.Modifier is not (ParameterModifier.In or ParameterModifier.Out)
-                && TryGetPointerCarrierStorage(expectedParameterType, out string argumentCarrierC, out _))
-                value = "(" + argumentCarrierC + ")(" + value + ")";
+                && CarrierTypeIdentity.TryGetPayload(expectedParameterType, out _))
+                value = FormatAssignmentValueForTarget(expectedParameterType, argument.Value);
             if (argument.Modifier == ArgumentModifier.None && argument.Value is not null
                 && expectedParameterType is not null && RequiresAscribedCallableCast(argument.Value, expectedParameterType))
                 value = FormatAssignmentValueForTarget(expectedParameterType, argument.Value);
@@ -6904,7 +7033,7 @@ public static class CCodeEmitter
                 && parameter?.Modifier != ParameterModifier.In
                 && parameter is not SizeOfParameterDefinition and not NameOfParameterDefinition
                 && TryGetConcreteGenericType(rawExpectedParameterType, genericSubstitutions, out string? concreteType)
-                && NeedsGenericScalarCast(concreteType))
+                && (NeedsGenericScalarCast(concreteType) || RepresentationCTypeOf(currentCalleeForGenericCasts, rawExpectedParameterType) is not null && IsPointerCarrier(concreteType)))
                 value = CastToErasedGeneric(value, concreteType, RepresentationCTypeOf(currentCalleeForGenericCasts, rawExpectedParameterType));
             if (argument.Modifier == ArgumentModifier.None
                 && parameter is ThisParameterDefinition
@@ -7046,6 +7175,13 @@ public static class CCodeEmitter
         string FormatInArgument(Expression? expression, string value, string? concreteType)
         {
             if (ErasedTypeIdentity.TryGetPayload(concreteType, out string payload)) concreteType = payload;
+            else if (expression is not null && concreteType is not null && CarrierTypeIdentity.TryGetPayload(concreteType, out _))
+            {
+                // An input carrier slot holds the carrier: forward matching storage, otherwise encode a temporary.
+                if (GetCarrierStorageTypeOf(expression) is string storage && StripTypeQualifiers(storage) == StripTypeQualifiers(concreteType))
+                    return "&" + FormatCarrierStorageValue(expression);
+                return "&(" + FormatResolvedType(StripTypeQualifiers(concreteType), "").Declaration.Trim() + "){" + FormatAssignmentValueForTarget(concreteType, expression) + "}";
+            }
             if (TryFormatForwardedInArgument(expression, concreteType, out string forwarded))
                 return forwarded;
 
@@ -7541,7 +7677,15 @@ public static class CCodeEmitter
                 return false;
             if (IsPrimitiveScalarType(type))
                 return true;
-            return IsEnumType(type);
+            return IsEnumType(type) || IsPrimitiveScalarType(ResolveScalarUnderlying(type));
+        }
+
+        // Floating payloads cross an integer slot by bits, never by numeric conversion.
+        bool TryGetFloatingSlotTransport(string concreteType, string slotCType, out BitTransport transport)
+        {
+            transport = null!;
+            string payload = CarrierTypeIdentity.TryGetPayload(concreteType, out string carried) ? carried : concreteType;
+            return TryGetBitTransportPayload(StripTypeQualifiers(payload), "nint", slotCType, out transport) && !transport.Pointer;
         }
 
         bool IsAnyGenericParameterType(string? type)
@@ -7646,20 +7790,32 @@ public static class CCodeEmitter
         {
             if (slotCType is null)
                 return "(void *)(intptr_t)(" + value + ")";
-            return "(" + slotCType + ")" + (IsPointerCarrier(concreteType) ? "(intptr_t)" : "") + "(" + value + ")";
+            if (TryGetFloatingSlotTransport(concreteType, slotCType, out BitTransport floating))
+                return EncodeBitTransport(floating, value);
+            return "(" + slotCType + ")" + (IsWrappedPointerCarrier(concreteType) ? "(intptr_t)" : "") + "(" + value + ")";
         }
 
         string CastFromErasedGeneric(string value, string concreteType, string? slotCType = null)
         {
+            if (slotCType is not null && TryGetFloatingSlotTransport(concreteType, slotCType, out BitTransport floating))
+                return DecodeBitTransport(floating, value);
             string cType = FormatResolvedType(CarrierTypeIdentity.TryGetPayload(concreteType, out string carriedType) ? carriedType : concreteType, "").Declaration.Trim();
-            if (slotCType is not null && !IsPointerCarrier(concreteType))
+            if (slotCType is not null && !IsWrappedPointerCarrier(concreteType))
                 return "(" + cType + ")(" + value + ")";
             return "(" + cType + ")(intptr_t)(" + value + ")";
         }
 
-        static bool IsPointerCarrier(string concreteType)
+        static bool IsWrappedPointerCarrier(string concreteType)
         {
             return CarrierTypeIdentity.TryGetPayload(concreteType, out string payload) && StripTypeDecorators(payload).EndsWith("*", StringComparison.Ordinal);
+        }
+
+        // A pointer, string or scalar newtype over one, carried or not, that an integer slot holds as an integer.
+        bool IsPointerCarrier(string concreteType)
+        {
+            string payload = CarrierTypeIdentity.TryGetPayload(concreteType, out string carried) ? carried : concreteType;
+            string resolved = ResolveScalarUnderlying(StripTypeDecorators(payload));
+            return resolved.EndsWith('*') || IsPrimitiveStringResolvedName(resolved);
         }
 
         static List<string> ExtractConstructedTypeArguments(string type)
@@ -7757,7 +7913,7 @@ public static class CCodeEmitter
             if (member.Target is null
                 || field.Modifier == FieldModifier.Static
                 || member.ResolvedType is not string memberType
-                || !NeedsGenericScalarCast(memberType)
+                || !(NeedsGenericScalarCast(memberType) || IsPointerCarrier(memberType))
                 || StripTypeDecorators(field.ResolvedType ?? field.Type?.ResolvedType ?? "") is not string declaredType
                 || declaredType.Length == 0
                 || member.Target.ResolvedType is not string targetType
@@ -7765,9 +7921,11 @@ public static class CCodeEmitter
                 || owner is null
                 || owner.GenericParameters.FirstOrDefault(parameter => parameter.Name == declaredType) is not GenericParameter genericParameter)
                 return false;
-            concreteType = memberType;
             if (GetRepresentationConstraint(genericParameter) is string constraint)
                 slotCType = compilation.Target?.Capabilities.GetPrimitiveCSpelling(constraint) ?? constraint;
+            else if (IsPointerCarrier(memberType))
+                return false;
+            concreteType = memberType;
             return true;
         }
 
@@ -8120,7 +8278,7 @@ public static class CCodeEmitter
                 VariableDefinition definition => CName(definition),
                 ParameterDefinition { Modifier: ParameterModifier.Thrown } parameter when currentFunction?.IsAsync == true => CName(parameter),
                 ParameterDefinition { Modifier: ParameterModifier.Out or ParameterModifier.Thrown } parameter => "(*" + CName(parameter) + ")",
-                ParameterDefinition { Modifier: ParameterModifier.In } parameter when IsGenericParameterType(parameter.ResolvedType) => CName(parameter),
+                ParameterDefinition { Modifier: ParameterModifier.In } parameter when IsGenericParameterType(parameter.ResolvedType) && !IsRepresentationGenericType(parameter.ResolvedType) => CName(parameter),
                 ParameterDefinition { Modifier: ParameterModifier.In } parameter => "(*" + CName(parameter) + ")",
                 ParameterDefinition parameter => CName(parameter),
                 FieldDefinition field => CName(field),
@@ -8173,6 +8331,10 @@ public static class CCodeEmitter
             return parameter is not null;
         }
 
+        // An integer-represented parameter has a fixed carrier, so its input slot points at that carrier.
+        bool IsRepresentationGenericType(string? type) =>
+            type is not null && currentRepresentationGenerics.ContainsKey(StripTypeDecorators(type));
+
         bool IsGenericParameterType(string? type)
         {
             if (string.IsNullOrWhiteSpace(type))
@@ -8181,12 +8343,52 @@ public static class CCodeEmitter
             return genericParameterNames.Contains(stripped) || currentGenericTypeNames.Contains(stripped);
         }
 
+        // File-scope initializers must be C constants, so a floating carrier folds its bits at compile time.
+        int fileScopeInitializerDepth;
+
         string FormatFileScopeInitializer(string? targetType, Expression expression)
+        {
+            fileScopeInitializerDepth++;
+            try { return FormatFileScopeInitializerCore(targetType, expression); }
+            finally { fileScopeInitializerDepth--; }
+        }
+
+        static bool TryEvaluateFloatingConstant(Expression? expression, out double value)
+        {
+            value = 0;
+            switch (expression)
+            {
+                case ParenthesizedExpression parenthesized:
+                    return TryEvaluateFloatingConstant(parenthesized.Expression, out value);
+                case CastExpression { Expression: not null } cast:
+                    return TryEvaluateFloatingConstant(cast.Expression, out value);
+                case UnaryExpression { Operator: UnaryOperator.Minus } minus when TryEvaluateFloatingConstant(minus.Operand, out double inner):
+                    value = -inner;
+                    return true;
+                case UnaryExpression { Operator: UnaryOperator.Plus } plus:
+                    return TryEvaluateFloatingConstant(plus.Operand, out value);
+                case LiteralExpression { Kind: LiteralKind.Number } literal:
+                    string text = literal.Text.Replace("_", "", StringComparison.Ordinal).TrimEnd('f', 'F', 'd', 'D');
+                    if (text.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
+                        return false;
+                    return double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out value);
+                default:
+                    return false;
+            }
+        }
+
+        static string FormatFloatingBitsConstant(bool isDouble, double value) => isDouble
+            ? "0x" + BitConverter.DoubleToUInt64Bits(value).ToString("x", CultureInfo.InvariantCulture) + "ULL"
+            : "0x" + BitConverter.SingleToUInt32Bits((float)value).ToString("x", CultureInfo.InvariantCulture) + "U";
+
+        string FormatFileScopeInitializerCore(string? targetType, Expression expression)
         {
             if (TryGetFixedArrayElementType(targetType ?? "", out _))
                 return FormatFixedArrayInitializer(expression);
             if (expression is InitializerExpression initializer)
                 return FormatInitializer(initializer, includeType: false);
+            if (targetType is not null && TryGetBitTransport(targetType, out _))
+                return FormatAssignmentValueForTarget(targetType, expression);
             if (targetType is not null && RequiresAscribedCallableCast(expression, targetType))
                 return FormatAssignmentValueForTarget(targetType, expression);
             return FormatFileScopeConstantExpression(expression) ?? FormatExpression(expression);
@@ -8304,10 +8506,41 @@ public static class CCodeEmitter
             return "(" + string.Join(", ", grouped.Items.Select(static item => item.Expression).Select(FormatExpression)) + ")";
         }
 
+        bool IsCarrierStorageOperand(Expression? operand) =>
+            CarrierTypeIdentity.TryGetPayload(GetCarrierStorageTypeOf(operand), out _) || IsRepresentedFieldOperand(operand);
+
+        // A field of an integer-represented type parameter stores the carrier of its argument.
+        bool IsRepresentedFieldOperand(Expression? operand) => operand switch
+        {
+            ParenthesizedExpression parenthesized => IsRepresentedFieldOperand(parenthesized.Expression),
+            MemberReferenceExpression { Member: FieldDefinition field } member => TryGetErasedScalarFieldType(member, field, out _, out string? slot) && slot is not null,
+            _ => false
+        };
+
+        string FormatCarrierOperandStorage(Expression? operand) => operand switch
+        {
+            ParenthesizedExpression parenthesized when IsRepresentedFieldOperand(parenthesized.Expression) => FormatCarrierOperandStorage(parenthesized.Expression),
+            MemberReferenceExpression member when IsRepresentedFieldOperand(member) => FormatMemberReferenceRaw(member),
+            _ => FormatCarrierStorageValue(operand)
+        };
+
         string FormatBinaryExpression(BinaryExpression binary)
         {
-            string left = FormatExpression(binary.Left);
-            string right = FormatExpression(binary.Right);
+            string left, right;
+            // Carrier equality compares the stored carriers, never the values they decode to; a default
+            // operand is the carrier's encoded default.
+            if (binary.Operator is BinaryOperator.Equal or BinaryOperator.NotEqual
+                && (IsCarrierStorageOperand(binary.Left) && (IsCarrierStorageOperand(binary.Right) || binary.Right is DefaultExpression)
+                    || IsCarrierStorageOperand(binary.Right) && binary.Left is DefaultExpression))
+            {
+                left = binary.Left is DefaultExpression ? "0" : FormatCarrierOperandStorage(binary.Left);
+                right = binary.Right is DefaultExpression ? "0" : FormatCarrierOperandStorage(binary.Right);
+            }
+            else
+            {
+                left = FormatExpression(binary.Left);
+                right = FormatExpression(binary.Right);
+            }
             string op = FormatBinaryOperator(binary.Operator);
             if (binary.Operator is BinaryOperator.Add or BinaryOperator.Subtract
                 && TryGetPointerElementType(binary.Left?.ResolvedType, out string erasedElement)

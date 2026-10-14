@@ -388,10 +388,14 @@ For each integer representation `C` (`byte`, `ushort`, `short`,
 `uint`, `int`, `ulong`, `long`, `nuint`, `nint`), `C<V>` is a carrier type: a
 value of type `V` carried as a `C`. It has the layout of `C` and the semantics a
 value of a type parameter `T: C` bound to `V` has. `V` must be a valid
-argument for `T: C` on the selected target: an integer, bool or character type of equal or smaller
-width, an enum or value newtype with an integer underlying type of equal or
-smaller width, or, for `nint` and `nuint`, an object pointer that fits the
-natural integer. `V` cannot be expandable or no-value `void`. Generic
+argument for `T: C` on the selected target: an integer, bool or character type
+of equal or smaller width, an enum or scalar newtype over an eligible type of
+equal or smaller width, a `float` or `double` that fits (its exact bits are
+carried and the unused high bits are zero), or, for `nint` and `nuint`, a data
+pointer or string that fits the natural integer. `V` cannot be expandable, a
+raw function pointer or no-value `void`. Encoding and carrier equality are
+specified in
+[Generics, Erasure, And Capabilities](06-generics-erasure-and-capabilities.md). Generic
 substitution replaces an existing outer annotation with the destination C,
 preserving its actual nominal payload and nested arguments.
 

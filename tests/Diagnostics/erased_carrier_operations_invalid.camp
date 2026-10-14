@@ -1,0 +1,38 @@
+void orderParameter<T: int>(T left, T right)
+{
+	bool less = left < right;
+	bool notLess = left >= right;
+}
+
+void computeParameter<T: int>(T* target, T value)
+{
+	*target += value;
+	(*target)++;
+}
+
+void computeBits(int<float> bits, nint<byte*> address)
+{
+	bits += 1.0f;
+	address++;
+}
+
+void mixedCarriers(int<byte> a, long<byte> b, int<short> c, int<byte> d)
+{
+	bool differentCarrier = a == b;
+	bool differentPayload = a == c;
+	bool sameCarrier = a == d;
+	bool carrierAgainstValue = a == (byte)1;
+}
+
+void unrelatedParameters<T: int, U: int>(T left, U right)
+{
+	bool unrelated = left == right;
+}
+
+void strideParameter<T: long>(T* target, in T source, out T result) { result = source; }
+
+void strideCall(short plain, long<short> carried, long<short>* carriedPointer)
+{
+	strideParameter<short>(&plain, plain, out plain);
+	strideParameter<short>(carriedPointer, plain, out carried);
+}

@@ -148,6 +148,169 @@ int erasedStackAllocForms()
 	return 0;
 }
 
+// Integer carriers: deterministic encoding, bit-preserving floating payloads and whole-carrier equality.
+newtype EncSingle: float;
+newtype EncHandle: byte*;
+enum EncShade: byte { DARK = 1, LIGHT = 200 }
+interface EncSource { int next(); }
+class EncCell: EncSource
+{
+	int value;
+	EncCell(int value) { this.value = value; }
+	int next(): EncSource => this.value;
+}
+T encThroughNint<T: nint>(T value) { return value; }
+T encThroughLong<T: long>(T value) { return value; }
+T encThroughUint<T: uint>(T value) { return value; }
+T encThroughByte<T: byte>(T value) { return value; }
+bool encSame<T: long>(T left, T right) { return left == right; }
+bool encDiffer<T: long>(T left, T right) { return left != right; }
+T encDefault<T: long>() { T value = default; return value; }
+void encStore<T: long>(T* target, T value) { *target = value; }
+T encLoad<T: long>(T* source) { return *source; }
+T encInput<T: long>(in T source) { return source; }
+void encCopy<T: long>(in T source, out T destination) { destination = source; }
+class EncBox<T: nint>
+{
+	T value;
+	EncBox(T value) { this.value = value; }
+	T read() { return this.value; }
+	void write(T replacement) { this.value = replacement; }
+	bool isDefault() { return this.value == default; }
+}
+struct EncRecord { int<float> single; long<double> wide; nint<string> text; }
+int<float> encGlobal = 1.5f;
+nuint encSize<T: long>(T value, sizeof(T)) { return sizeof(T); }
+float encDouble(int<float> value) { float read = value; return (float)(read * 2.0f); }
+
+int carrierEncoding()
+{
+	// Signed payloads sign-extend, unsigned payloads, booleans and characters zero-extend.
+	long<short> negative = (short)-3;
+	long<ushort> large = (ushort)65535;
+	ulong<int> extended = -1;
+	long<char> character = (char)200;
+	long<bool> truth = true;
+	if (*(long*)&negative != -3 || *(long*)&large != 65535 || *(ulong*)&extended != 0xffffffffffffffff) return 301;
+	if (*(long*)&character != 200 || *(long*)&truth != 1) return 302;
+	// Floating payloads keep their exact bits and zero-fill the rest of a wider carrier.
+	long<float> wideSingle = 1.0f;
+	long<double> wideDouble = 1.0;
+	uint<float> sameWidth = 2.0f;
+	if (*(long*)&wideSingle != 0x3f800000 || *(ulong*)&wideDouble != 0x3ff0000000000000 || *(uint*)&sameWidth != 0x40000000) return 303;
+	float singleRead = wideSingle;
+	double doubleRead = wideDouble;
+	if (singleRead != 1.0f || doubleRead != 1.0) return 304;
+	// Equality compares every carrier bit: signed zeros differ and NaN payloads decide equality.
+	float positive = 0.0f;
+	float negativeZero = -positive;
+	uint<float> zero = positive;
+	uint<float> minusZero = negativeZero;
+	if (zero == minusZero || !(zero != minusZero)) return 305;
+	float comparedZero = zero;
+	float comparedMinusZero = minusZero;
+	if (comparedZero != comparedMinusZero) return 306;
+	uint quietBits = 0x7fc00000;
+	uint payloadBits = 0x7fc00001;
+	uint<float>* quiet = (uint<float>*)&quietBits;
+	uint<float>* payload = (uint<float>*)&payloadBits;
+	uint<float> quietCopy = *quiet;
+	float readQuiet = *quiet;
+	if (*quiet != quietCopy || *quiet == *payload || !(*quiet != *payload) || readQuiet == readQuiet) return 307;
+	// The same representation copies all bits, including initialized unused ones; a conversion re-encodes.
+	ulong wideBits = 0xffff000000000000 | 0x3f800000;
+	ulong<float>* wideStored = (ulong<float>*)&wideBits;
+	ulong<float> wideCopy = *wideStored;
+	long<float> reencoded = *wideStored;
+	if (*(ulong*)&wideCopy != wideBits || wideCopy != *wideStored || *(long*)&reencoded != 0x3f800000) return 308;
+	// Defaults encode the whole carrier.
+	long<float> defaulted = default;
+	if (*(long*)&defaulted != 0 || defaulted != default) return 309;
+	// Nominal payloads, casts, aggregates, globals, arrays and callbacks use the same transport.
+	float nominalSource = 2.5f;
+	EncSingle nominal = (EncSingle)nominalSource;
+	int<EncSingle> carriedNominal = nominal;
+	int<float> cast = (int<float>)3.25f;
+	EncRecord record = { 2.5f, 4.5, "text" };
+	EncRecord blank = default;
+	int<float>[] values = [1.0f, 2.0f, 3.0f];
+	float total = 0.0f;
+	for (nuint index = 0; index < values.length; index++) total = total + values[index];
+	string recordText = record.text;
+	float recordSingle = record.single;
+	float blankSingle = blank.single;
+	float globalRead = encGlobal;
+	if ((float)(EncSingle)carriedNominal != 2.5f || cast != 3.25f) return 310;
+	if (recordSingle != 2.5f || record.wide != 4.5 || recordText[1] != 'e' || blankSingle != 0.0f) return 311;
+	if (total != 6.0f || globalRead != 1.5f || encDouble(cast) != 6.5f) return 312;
+
+	// Generic bodies treat a represented parameter as its carrier: copy, default and equality only.
+	float generic = encThroughNint<float>(1.25f);
+	double genericWide = encThroughLong<double>(-2.5);
+	if (generic != 1.25f || genericWide != -2.5) return 313;
+	double genericZero = 0.0;
+	double genericMinusZero = -genericZero;
+	if (!encSame<double>(2.5, 2.5) || encSame<double>(2.5, 2.75) || !encDiffer<double>(2.5, 2.75)) return 314;
+	if (encSame<double>(genericZero, genericMinusZero) || !encDiffer<double>(genericZero, genericMinusZero)) return 315;
+	ulong nanBits = 0x7ff8000000000000;
+	ulong otherNanBits = 0x7ff8000000000001;
+	long<double>* genericNan = (long<double>*)&nanBits;
+	long<double>* genericOtherNan = (long<double>*)&otherNanBits;
+	double firstNan = *genericNan;
+	double secondNan = *genericOtherNan;
+	if (!encSame<double>(firstNan, firstNan) || encSame<double>(firstNan, secondNan)) return 316;
+	if (encDefault<double>() != 0.0 || encThroughUint<float>(7.5f) != 7.5f) return 317;
+	long<double> slot = default;
+	encStore<double>(&slot, 9.5);
+	if (encLoad<double>(&slot) != 9.5 || slot != 9.5) return 318;
+	// Pointers, strings, interface pointers and scalar newtypes round-trip through nint.
+	int pointee = 41;
+	int* original = &pointee;
+	int* roundTripped = encThroughNint<int*>(original);
+	string text = "carrier";
+	string textRoundTrip = encThroughNint<string>(text);
+	EncCell* cell = new EncCell(9);
+	EncSource* source = cell;
+	EncSource* sourceRoundTrip = encThroughNint<EncSource*>(source);
+	byte marker = 7;
+	EncHandle handle = (EncHandle)&marker;
+	EncHandle handleRoundTrip = encThroughNint<EncHandle>(handle);
+	nint<int*> stored = original;
+	nint<int*>* storedAddress = &stored;
+	int next = sourceRoundTrip.next();
+	delete cell;
+	if (roundTripped != original || *roundTripped != 41 || *(*storedAddress == original ? original : null) != 41) return 319;
+	if (textRoundTrip[0] != 'c' || textRoundTrip[6] != 'r' || next != 9 || (byte*)handleRoundTrip != &marker) return 320;
+	if (encThroughByte<EncShade>(EncShade.LIGHT) != EncShade.LIGHT || encThroughLong<bool>(true) != true) return 321;
+	if (encThroughLong<char>((char)200) != (char)200 || encThroughLong<long>(-5000000000) != -5000000000) return 322;
+	// Pointers, inputs and outputs use storage of the destination representation.
+	long<short> source16 = (short)6;
+	long<short> destination16 = (short)0;
+	short plain16 = (short)5;
+	encCopy<short>(source16, out destination16);
+	if (destination16 != 6 || encInput<short>(plain16) != 5 || encInput<short>(source16) != 6) return 323;
+	EncBox<float>* box = new EncBox<float>(7.5f);
+	float boxed = box.read();
+	box.write(-1.5f);
+	bool boxedDefault = box.isDefault();
+	float boxedReplacement = box.read();
+	delete box;
+	if (boxed != 7.5f || boxedReplacement != -1.5f || boxedDefault) return 324;
+	// A field of a represented parameter is carrier storage, so its equality is bitwise too.
+	EncBox<float>* zeroBox = new EncBox<float>(positive);
+	EncBox<float>* minusZeroBox = new EncBox<float>(negativeZero);
+	bool fieldsEqual = zeroBox.value == minusZeroBox.value;
+	bool fieldsDiffer = zeroBox.value != minusZeroBox.value;
+	bool fieldsAlike = zeroBox.value == zeroBox.value;
+	delete zeroBox;
+	delete minusZeroBox;
+	if (fieldsEqual || !fieldsDiffer || !fieldsAlike) return 325;
+	short narrow = (short)3;
+	double wide = 1.0;
+	if (encSize<short>(narrow) != sizeof(long) || encSize(narrow) != sizeof(long) || encSize(wide) != sizeof(long)) return 326;
+	return 0;
+}
+
 export int main()
 {
 	stackalloc void<int> scalar = 7;
@@ -224,6 +387,8 @@ export int main()
 	if (carrierResult != 0) return carrierResult;
 	int stackAllocResult = erasedStackAllocForms();
 	if (stackAllocResult != 0) return stackAllocResult;
+	int encodingResult = carrierEncoding();
+	if (encodingResult != 0) return encodingResult;
 	Console.writeLine("erased storage passed");
 	if (typenameof(void<int?>).Length != typenameof(int).Length || typenameof(void<int?>)[0] != 'I') return 13;
 	if (typenameof(void<Integer>).Length != typenameof(int).Length || typenameof(void<Integer>)[0] != 'I') return 21;

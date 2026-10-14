@@ -1,0 +1,11 @@
+tests/Diagnostics/erased_carrier_operations_invalid.camp(3,19): error: 'T' is represented by 'int' and supports only assignment, default and equality, not ordering.
+tests/Diagnostics/erased_carrier_operations_invalid.camp(4,22): error: 'T' is represented by 'int' and supports only assignment, default and equality, not ordering.
+tests/Diagnostics/erased_carrier_operations_invalid.camp(9,2): error: 'T' is represented by 'int' and supports only assignment, default and equality, not a compound assignment.
+tests/Diagnostics/erased_carrier_operations_invalid.camp(10,2): error: 'T' is represented by 'int' and supports only assignment, default and equality, not an update operator.
+tests/Diagnostics/erased_carrier_operations_invalid.camp(15,2): error: 'int<float>' stores a float as bits and supports only assignment, default and equality, not a compound assignment; read it into a 'float' local first.
+tests/Diagnostics/erased_carrier_operations_invalid.camp(16,2): error: 'nint<byte*>' stores a byte* as bits and supports only assignment, default and equality, not an update operator; read it into a 'byte*' local first.
+tests/Diagnostics/erased_carrier_operations_invalid.camp(21,28): error: Carrier equality compares every bit and needs the same representation and carried type, not 'int<byte>' and 'long<byte>'; convert one operand explicitly.
+tests/Diagnostics/erased_carrier_operations_invalid.camp(22,28): error: Carrier equality compares every bit and needs the same representation and carried type, not 'int<byte>' and 'int<short>'; convert one operand explicitly.
+tests/Diagnostics/erased_carrier_operations_invalid.camp(29,24): error: Carrier equality compares every bit and needs the same representation and carried type, not 'int<T>' and 'int<U>'; convert one operand explicitly.
+tests/Diagnostics/erased_carrier_operations_invalid.camp(36,25): error: Argument cannot convert 'short*' to 'long<short>*'.
+tests/Diagnostics/erased_carrier_operations_invalid.camp(36,44): error: Out argument requires storage of type 'long<short>', not 'short'; an out argument cannot adapt storage of another representation.

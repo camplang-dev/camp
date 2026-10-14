@@ -1,4 +1,4 @@
-class Holder<T>
+class Holder<T: int>
 {
 	T value;
 }

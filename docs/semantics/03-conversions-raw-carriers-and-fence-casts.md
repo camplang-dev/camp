@@ -107,6 +107,13 @@ argument selects the `Color` member of an overload family.
 An expandable `void<V>` is not stripped; it converts with `V` by reading and
 writing its single storage object.
 
+The view applies to reads and conversions only. Two carrier operands of `==`
+or `!=` are compared as carriers, before the view could strip them, so the
+comparison covers every bit of the stored integer. Eligible payloads, the
+encoding of a payload in its carrier (including bit-preserving `float` and
+`double` transport) and the operations a carrier offers are specified in
+[Generics, Erasure, And Capabilities](06-generics-erasure-and-capabilities.md).
+
 ## Value Conversion Versus Type Rewrite
 
 Implicit scalar conversions also apply to `in` arguments. When the source and

@@ -127,6 +127,52 @@ conversion may decode/re-encode A, but pointers/arrays cannot change element
 stride and out storage cannot gain an implicit allocation/copy-back adapter.
 Capabilities describe destination represented storage, not a previous carrier.
 
+### Integer Carrier Values, Encoding, And Equality
+
+An integer-represented value `R<A>` holds A in the low-order payload-width bits
+of R. Eligible payloads are integers, booleans and characters; enums and scalar
+newtypes over eligible payloads; `float` and `double`; and data pointers
+(including strings and interface-instance pointers) for `nint` and `nuint`
+only, because no other pointer-to-integer transport exists. Width and pointer
+domains follow the selected target: the pointer must fit the natural integer
+width of its own domain, and raw function pointers never qualify. Classify the
+actual underlying category; never classify by spelling.
+
+Encoding initializes every carrier bit:
+
+- signed integral payloads sign-extend and unsigned, boolean and character
+  payloads zero-extend, whatever the signedness of C's plain `char`;
+- floating payloads keep their exact bits, zero-fill the unused high bits and
+  never undergo numeric float-to-integer conversion; decoding preserves signed
+  zero and NaN payload bits;
+- pointers use the target's reversible data-pointer/integer transport;
+- `default` encodes the complete zero carrier;
+- assigning the same represented type copies every bit, including initialized
+  unused ones, while a representation-changing value conversion decodes A and
+  encodes it in the destination.
+
+Open integer-represented parameters and direct carrier operands support
+assignment, `default`, `==` and `!=` only. Arithmetic, ordering, shifts and
+bitwise computation are rejected on an open parameter; a carrier of a floating
+or pointer payload also rejects compound assignment and updates, because integer
+arithmetic on its bits would corrupt the payload. Reading a carrier into an
+ordinary local of A first makes later operations A's own.
+
+`==` on two carrier operands (carrier storage, a field of a represented
+parameter, or the parameter itself) compares every bit of the carrier before
+any read view is applied. `!=` is its logical inverse and a `default` operand is
+the encoded default. The operands need the same representation and carried type;
+equal width is not a conversion. Consequently carried floating values compare
+as bit patterns: `+0` and `-0` differ, identical NaN patterns are equal and
+different NaN patterns differ. A carrier compared with an ordinary value
+compares the read value instead. Raw producers must initialize every carrier
+bit: differing initialized unused bits make equal payloads compare unequal.
+
+A pointer, array or `in`/`out` slot of `R<A>` holds R-sized elements. An
+argument of plain A storage is therefore not accepted for it (no stride
+adapter), an `out` argument needs storage of exactly `R<A>`, and an `in`
+argument that is not that storage is encoded into a temporary carrier.
+
 ## Erased Versus Materialized Values
 
 Void-represented parameters accept expandable type arguments. Integer

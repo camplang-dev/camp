@@ -6,12 +6,15 @@ tests/Diagnostics/erased_types_invalid.camp(9,24): error: void<V> cannot contain
 tests/Diagnostics/erased_types_invalid.camp(9,39): error: void<V> cannot contain void or another erased type directly.
 tests/Diagnostics/erased_types_invalid.camp(10,40): error: `overload value` is invalid because annotated erased types cannot select an overload; 'void<int>' names no method-symbol type fragment.
 tests/Diagnostics/erased_types_invalid.camp(12,26): error: void<V> is storage and is not valid as a by-value generic argument; use V, void<V>*, or a stackalloc local for single-object storage.
-tests/Diagnostics/erased_types_invalid.camp(14,26): error: 'long' is not a valid carried type for int<V>: it is wider than 'int' and does not satisfy 'T: int'.
-tests/Diagnostics/erased_types_invalid.camp(14,42): error: 'int?' is not a valid carried type for int<V>: it does not satisfy 'T: int'; array, optional and raw function pointer types cannot be carried.
-tests/Diagnostics/erased_types_invalid.camp(14,63): error: 'float' is not a valid carried type for nint<V>: it does not satisfy 'T: nint'; carried types are integers, enums, value newtypes with an integer underlying type, or pointers for nint and nuint.
-tests/Diagnostics/erased_types_invalid.camp(14,80): error: 'void<int>' is not a valid carried type for int<V>: a carrier operand cannot be void<V> or another carrier.
-tests/Diagnostics/erased_types_invalid.camp(14,104): error: 'Kind' is not a valid carried type for byte<V>: it is wider than 'byte' and does not satisfy 'T: byte'.
-tests/Diagnostics/erased_types_invalid.camp(14,118): error: int<V> requires exactly one carried type.
+tests/Diagnostics/erased_types_invalid.camp(14,26): error: 'long' is not a valid carried type for int<V>: it is 64 bits wide, wider than 'int'.
+tests/Diagnostics/erased_types_invalid.camp(14,42): error: 'int?' is not a valid carried type for int<V>: arrays, optionals and other multi-component values cannot be carried.
+tests/Diagnostics/erased_types_invalid.camp(14,64): error: 'float' is not a valid carried type for short<V>: it is 32 bits wide, wider than 'short'.
+tests/Diagnostics/erased_types_invalid.camp(14,81): error: 'void<int>' is not a valid carried type for int<V>: a carrier operand cannot be void<V> or another carrier.
+tests/Diagnostics/erased_types_invalid.camp(14,105): error: 'Kind' is not a valid carried type for byte<V>: it is 32 bits wide, wider than 'byte'.
+tests/Diagnostics/erased_types_invalid.camp(14,119): error: int<V> requires exactly one carried type.
 tests/Diagnostics/erased_types_invalid.camp(15,45): error: `overload value` is invalid because annotated erased types cannot select an overload; 'long<Kind>' names no method-symbol type fragment.
 tests/Diagnostics/erased_types_invalid.camp(16,25): error: Annotated erased types cannot be a receiver type; 'int<Kind>' would name no method symbol. Write an ordinary function or method.
 tests/Diagnostics/erased_types_invalid.camp(17,24): error: Annotated erased types cannot be a receiver type; 'void<int>*' would name no method symbol. Write an ordinary function or method.
+tests/Diagnostics/erased_types_invalid.camp(19,25): error: 'double' is not a valid carried type for uint<V>: it is 64 bits wide, wider than 'uint'.
+tests/Diagnostics/erased_types_invalid.camp(19,43): error: 'Real' is not a valid carried type for int<V>: it is 64 bits wide, wider than 'int'.
+tests/Diagnostics/erased_types_invalid.camp(19,58): error: 'fn*' is not a valid carried type for nint<V>: raw function pointers are never carried by an integer representation.

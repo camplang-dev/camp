@@ -234,6 +234,10 @@ public sealed partial class BindableNodeAnalyzer
 		AddFunctionTypeArgumentSubstitutions(function, call.TypeArguments, substitutions);
 		if (constructedType is not null && FindContainingType(function) is TypeDefinition containingType)
 			AddTypeArgumentSubstitutions(containingType.GenericParameters, GetTypeArguments(constructedType), substitutions);
+		// Capabilities describe the destination storage R<A>, so lowering sees the same substitution analysis does.
+		NormalizeRepresentationSubstitutions(function, substitutions, name =>
+			currentRewriteFunction?.GenericParameters.Exists(parameter => parameter.Name == name) == true
+			|| currentRewriteContainingType?.GenericParameters.Exists(parameter => parameter.Name == name) == true);
 		return substitutions;
 	}
 

@@ -153,9 +153,9 @@ Examples of useful wording patterns:
   constraint."
 - "Method `read` does not implement interface member `IReadable.read(...)`
   because it is missing an explicit interface marker."
-- "'Wide' is not a valid carried type for byte<V>: it is wider than 'byte' and
-  does not satisfy 'T: byte'." A carrier operand names the representation
-  constraint it fails, not only the carrier.
+- "'Wide' is not a valid carried type for byte<V>: it is 64 bits wide, wider
+  than 'byte'." A carrier operand names the representation it fails and the
+  reason, never a removed constraint.
 - "A stackalloc local must be an erased type parameter or a void<V>; declare
   'int count' as an ordinary local." A rejected `stackalloc` local names the
   ordinary spelling to use instead.

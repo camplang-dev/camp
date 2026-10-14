@@ -125,6 +125,26 @@ using R. Its address, array elements and callable signatures retain that
 storage type. An ordinary read exposes A. Literals are checked against A;
 a wide carrier does not make an out-of-range byte literal valid.
 
+Eligible arguments are integers, booleans, characters, enums, `float`, `double`,
+scalar newtypes over those, and data pointers or strings for `nint` and `nuint`.
+A signed value sign-extends into a wider carrier and an unsigned, boolean or
+character value zero-extends. A `float` or `double` keeps its exact bits
+(`long<float>` holds the `float`'s 32 bits, zero-filled) and is never converted
+numerically.
+
+Inside a generic body an integer-represented `T` supports assignment, `default`,
+`==` and `!=` only. Compare the carrier first and compute on an ordinary
+local of the carried type:
+
+```camp
+bool sameBits<T: long>(T left, T right) => left == right;
+```
+
+`==` compares every bit of the carrier, so for floating payloads `+0` and `-0`
+are different and equal NaN bit patterns are equal; read both operands into
+`float` or `double` locals when numeric equality is wanted. Carriers of different
+representations or carried types do not compare directly; convert one first.
+
 ## Forwarding And Representation Replacement
 
 Supplying an argument already carried as S<A> selects the destination's R<A>.
