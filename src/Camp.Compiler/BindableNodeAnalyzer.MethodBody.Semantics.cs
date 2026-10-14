@@ -696,8 +696,14 @@ public sealed partial class BindableNodeAnalyzer
 			&& sourceType is ClassDefinition classDefinition
 			&& typeDefinitions.TryGetValue(BaseTypeName(targetElement), out TypeDefinition? targetType)
 			&& targetType is InterfaceDefinition interfaceDefinition
-			&& ClassImplementsInterface(classDefinition, interfaceDefinition);
+			&& ClassImplementsInterface(classDefinition, interfaceDefinition)
+			&& ImplementsConstruction(sourceElement, classDefinition, interfaceDefinition, targetElement);
 	}
+
+	// Conversion to a generic interface needs the exact construction, not merely the interface definition.
+	bool ImplementsConstruction(string sourceType, TypeDefinition source, InterfaceDefinition target, string targetType) =>
+		target.GenericParameters.Count == 0
+		|| ConcreteTypeImplementsConstruction(StripTopLevelValueQualifiers(sourceType), source, target, StripTopLevelValueQualifiers(targetType), out _);
 
 	bool IsClassPointerUpcast(string source, string target)
 	{
@@ -736,7 +742,8 @@ public sealed partial class BindableNodeAnalyzer
 			&& sourceType is StructDefinition structDefinition
 			&& typeDefinitions.TryGetValue(BaseTypeName(StripTopLevelValueQualifiers(targetElement)), out TypeDefinition? targetType)
 			&& targetType is InterfaceDefinition interfaceDefinition
-			&& TypeImplementsInterface(structDefinition, interfaceDefinition);
+			&& TypeImplementsInterface(structDefinition, interfaceDefinition)
+			&& ImplementsConstruction(sourceElement, structDefinition, interfaceDefinition, targetElement);
 	}
 
 	bool IsStructToInterfaceConversion(string source, string target)
@@ -750,7 +757,8 @@ public sealed partial class BindableNodeAnalyzer
 			&& sourceType is StructDefinition structDefinition
 			&& typeDefinitions.TryGetValue(BaseTypeName(StripTopLevelValueQualifiers(targetElement)), out TypeDefinition? targetType)
 			&& targetType is InterfaceDefinition interfaceDefinition
-			&& TypeImplementsInterface(structDefinition, interfaceDefinition);
+			&& TypeImplementsInterface(structDefinition, interfaceDefinition)
+			&& ImplementsConstruction(source, structDefinition, interfaceDefinition, targetElement);
 	}
 
 	bool TryCheckInterfacePointerConversion(string expected, string actual, Expression? value, SyntaxNode? syntax, string context)
@@ -771,8 +779,8 @@ public sealed partial class BindableNodeAnalyzer
 			if (!typeDefinitions.TryGetValue(sourceName, out TypeDefinition? sourceType))
 				return false;
 
-			if (sourceType is ClassDefinition classDefinition && ClassImplementsInterface(classDefinition, interfaceDefinition)
-				|| sourceType is StructDefinition structDefinition && TypeImplementsInterface(structDefinition, interfaceDefinition))
+			if (sourceType is ClassDefinition classDefinition && ClassImplementsInterface(classDefinition, interfaceDefinition) && ImplementsConstruction(sourceElement, classDefinition, interfaceDefinition, targetElement)
+				|| sourceType is StructDefinition structDefinition && TypeImplementsInterface(structDefinition, interfaceDefinition) && ImplementsConstruction(sourceElement, structDefinition, interfaceDefinition, targetElement))
 			{
 				if (IsConstReceiverType(actual))
 				{
@@ -817,7 +825,10 @@ public sealed partial class BindableNodeAnalyzer
 			&& sourceType is InterfaceDefinition sourceInterface
 			&& typeDefinitions.TryGetValue(BaseTypeName(targetElement), out TypeDefinition? targetType)
 			&& targetType is InterfaceDefinition targetInterface
-			&& InterfaceInheritsFrom(sourceInterface, targetInterface);
+			&& InterfaceInheritsFrom(sourceInterface, targetInterface)
+			&& (targetInterface.GenericParameters.Count == 0
+				|| ConstructedInterfaceArguments(sourceElement, targetInterface) is List<string> arguments
+					&& System.Linq.Enumerable.SequenceEqual(arguments, ExtractConstructedTypeArguments(targetElement)));
 	}
 
 	bool IsLoweredInterfacePointerConversion(string source, string target)
@@ -2471,7 +2482,7 @@ public sealed partial class BindableNodeAnalyzer
 			foreach (FunctionDefinition function in GetInterfaceMembers(interfaceDefinition))
 			{
 				if ((GetSignatureName(function) == name || function.Name == name) && IsMemberVisible(function, interfaceDefinition, referenceSyntax))
-					members.Add(new BodySymbol(name, BuildFunctionValueType(function, isInstance: true, allowCallableAscription: true), function));
+					members.Add(new BodySymbol(name, BuildBoundFunctionValueType(function, interfaceElement), function));
 				if (function.Name == "get" + name && function.Parameters.Count == 0 && IsMemberVisible(function, interfaceDefinition, referenceSyntax))
 					members.Add(new BodySymbol(name, GetGetterMemberType(targetType, function, referenceSyntax), function));
 			}
@@ -2791,10 +2802,20 @@ public sealed partial class BindableNodeAnalyzer
 			return [];
 
 		List<BodySymbol> members = [];
+		bool constructed = TryGetWitnessInterfaceType(targetType, scope, out string witnessInterface);
 		foreach (FunctionDefinition function in GetInterfaceMembers(interfaceDefinition))
 		{
 			if ((GetSignatureName(function) == name || function.Name == name) && IsMemberVisible(function, interfaceDefinition, referenceSyntax))
-				members.Add(new BodySymbol(name, BuildFunctionValueType(function, isInstance: true, allowCallableAscription: true), function));
+			{
+				// A member reached through a witness takes its owner arguments from the witness's construction.
+				Dictionary<string, string> owner = [];
+				if (constructed && FindContainingType(function) is InterfaceDefinition declaring && declaring.GenericParameters.Count > 0
+					&& ConstructedInterfaceArguments(witnessInterface, declaring) is List<string> arguments)
+					for (int i = 0; i < Math.Min(declaring.GenericParameters.Count, arguments.Count); i++)
+						owner[declaring.GenericParameters[i].Name] = arguments[i];
+				string memberType = BuildFunctionValueType(function, isInstance: true, allowCallableAscription: true);
+				members.Add(new BodySymbol(name, owner.Count == 0 ? memberType : SubstituteStorageType(memberType, owner), function));
+			}
 		}
 		return members;
 	}

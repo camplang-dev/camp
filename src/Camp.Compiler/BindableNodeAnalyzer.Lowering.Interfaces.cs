@@ -101,6 +101,8 @@ public sealed partial class BindableNodeAnalyzer
 		if (function.Modifier == FunctionModifier.Constructor)
 			return false;
 
+		string? receiverType = member.Target.ResolvedType;
+		member.Target = ViewAsDeclaringInterface(member.Target, interfaceDefinition);
 		Expression context = member.Target;
 		Expression slotTarget;
 		if (!IsInterfaceInstanceReceiver(context.ResolvedType, interfaceDefinition) && TryGetGenericReceiverTypeName(context.ResolvedType, out string genericName))
@@ -139,7 +141,10 @@ public sealed partial class BindableNodeAnalyzer
 			};
 		}
 
+		// An owner-generic slot is called through its substituted entry type: the lowered receiver no longer
+		// names the construction, so the function's own erased owner binders cannot be resolved later.
 		bool erasedAbi = materializedGenericReturnParameters.ContainsKey(function)
+			|| interfaceDefinition.GenericParameters.Count > 0
 			|| function.Parameters.Exists(parameter => ErasedTypeIdentity.TryGetPayload(parameter.ResolvedType ?? "", out _));
 		call.Target = new MemberReferenceExpression
 		{
@@ -147,7 +152,7 @@ public sealed partial class BindableNodeAnalyzer
 			Target = slotTarget,
 			Name = GetCallableName(function),
 			Member = erasedAbi ? null : function,
-			ResolvedType = erasedAbi ? BuildInterfaceEntryCallableType(interfaceDefinition, function) : member.ResolvedType
+			ResolvedType = SubstituteInterfaceOwner(erasedAbi ? BuildInterfaceEntryCallableType(interfaceDefinition, function) : member.ResolvedType ?? ErrorType, call, receiverType, interfaceDefinition)
 		};
 		call.Arguments.Insert(0, new ArgumentExpression
 		{
@@ -169,6 +174,10 @@ public sealed partial class BindableNodeAnalyzer
 
 		Expression vtable = receiver;
 		Expression context = receiver;
+		receiver = ViewAsDeclaringInterface(receiver, interfaceDefinition);
+		context = receiver;
+		if (IsInterfaceInstanceReceiver(TryGetPointerElementType(context.ResolvedType ?? "") ?? context.ResolvedType, interfaceDefinition))
+			return TryCreateInterfaceInstanceDelegateComponents(member, receiver, function, interfaceDefinition, out components);
 		if (IsInterfaceInstanceReceiver(context.ResolvedType, interfaceDefinition) || !TryGetGenericReceiverTypeName(context.ResolvedType, out string genericName))
 			return false;
 		if (!IsGenericParameterName(genericName))
@@ -210,6 +219,57 @@ public sealed partial class BindableNodeAnalyzer
 			Kind = CastKind.Type,
 			Type = TypeReferenceForResolvedName("void*"),
 			Expression = context,
+			ResolvedType = "void*"
+		});
+		return true;
+	}
+
+	// The slot type names the owner's and the method's binders; the analyzed call supplies their arguments, or
+	// the receiver's construction when the call recorded none.
+	string SubstituteInterfaceOwner(string slotType, CallExpression call, string? receiverType, InterfaceDefinition declaring)
+	{
+		if (callGenericSubstitutions.TryGetValue(call, out Dictionary<string, string>? recorded) && recorded.Count > 0)
+			return SubstituteGenericType(slotType, recorded);
+		if (declaring.GenericParameters.Count == 0 || receiverType is null
+			|| ConstructedInterfaceArguments(receiverType, declaring) is not List<string> arguments)
+			return slotType;
+		Dictionary<string, string> owner = BuildConstructedOwnerMap(declaring, arguments, []);
+		return owner.Count == 0 ? slotType : SubstituteGenericType(slotType, owner);
+	}
+
+	// An inherited member is part of the derived contract; its slot lives in the base table, which a derived
+	// interface instance presents as the base instance.
+	Expression ViewAsDeclaringInterface(Expression receiver, InterfaceDefinition declaring)
+	{
+		if (TryGetPointerElementType(receiver.ResolvedType ?? "") is not string element
+			|| !typeDefinitions.TryGetValue(BaseTypeName(element), out TypeDefinition? definition)
+			|| definition is not InterfaceDefinition receiverInterface
+			|| ReferenceEquals(receiverInterface, declaring)
+			|| !InterfaceContainsBase(receiverInterface, declaring))
+			return receiver;
+		return LowerInterfaceConversionToTarget(receiver, declaring, $"{InterfaceResolvedName(declaring)}*") ?? receiver;
+	}
+
+	// A reference to a member of an interface instance keeps dynamic dispatch: the delegate's call is the slot
+	// read from the instance's table when the reference is formed, and its context is the instance itself.
+	bool TryCreateInterfaceInstanceDelegateComponents(MemberReferenceExpression member, Expression receiver, FunctionDefinition function, InterfaceDefinition interfaceDefinition, out List<Expression> components)
+	{
+		components = [];
+		string slotType = BuildInterfaceEntryCallableType(interfaceDefinition, function);
+		Expression slot = new MemberReferenceExpression
+		{
+			SourceSyntax = member.SourceSyntax,
+			Target = receiver,
+			Name = GetCallableName(function),
+			ResolvedType = slotType
+		};
+		components.Add(slot);
+		components.Add(new CastExpression
+		{
+			SourceSyntax = receiver.SourceSyntax,
+			Kind = CastKind.Type,
+			Type = TypeReferenceForResolvedName("void*"),
+			Expression = receiver,
 			ResolvedType = "void*"
 		});
 		return true;

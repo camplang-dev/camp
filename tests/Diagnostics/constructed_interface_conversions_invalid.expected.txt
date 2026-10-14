@@ -1,0 +1,7 @@
+tests/Diagnostics/constructed_interface_conversions_invalid.camp(16,76): error: Argument cannot convert 'short' to 'byte'.
+tests/Diagnostics/constructed_interface_conversions_invalid.camp(17,52): error: Type 'ShortCheck' implements 'Check<short>', not 'Check<byte>'.
+tests/Diagnostics/constructed_interface_conversions_invalid.camp(17,52): error: Call result cannot convert 'short' to 'byte'.
+tests/Diagnostics/constructed_interface_conversions_invalid.camp(17,52): error: Return expression cannot convert 'short' to 'byte'.
+tests/Diagnostics/constructed_interface_conversions_invalid.camp(24,29): error: Declaration initializer cannot convert 'ByteCheck*' to 'Check<short>*'.
+tests/Diagnostics/constructed_interface_conversions_invalid.camp(26,29): error: Declaration initializer cannot convert 'ShortCheck*' to 'Check<byte>*'.
+tests/Diagnostics/constructed_interface_conversions_invalid.camp(28,28): error: Declaration initializer cannot convert 'Check<byte>*' to 'Check<short>*'.

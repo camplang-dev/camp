@@ -3567,6 +3567,7 @@ public sealed partial class BindableNodeAnalyzer
 			}
 			AddExplicitGenericSubstitutions(function, call.TypeArguments, genericSubstitutions);
 			AddReceiverGenericSubstitutions(call.Target, function, genericSubstitutions);
+			AddWitnessOwnerSubstitutions(call.Target, function, scope, genericSubstitutions);
 			NormalizeRepresentationSubstitutions(function, genericSubstitutions, typeScope);
 		}
 		else if (TryAnalyzeCallableInvocation(call, scope, typeScope, targetType, out string callableReturnType))
@@ -4289,7 +4290,9 @@ public sealed partial class BindableNodeAnalyzer
 		if (containingType.GenericParameters.Count == 0)
 			return;
 
-		List<string> typeArguments = ExtractConstructedTypeArguments(receiverType);
+		List<string> typeArguments = containingType is InterfaceDefinition owningInterface
+			? ConstructedInterfaceArguments(receiverType, owningInterface) ?? ExtractConstructedTypeArguments(receiverType)
+			: ExtractConstructedTypeArguments(receiverType);
 		int count = Math.Min(containingType.GenericParameters.Count, typeArguments.Count);
 		for (int i = 0; i < count; i++)
 			substitutions[containingType.GenericParameters[i].Name] = typeArguments[i];

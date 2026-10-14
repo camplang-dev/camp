@@ -194,6 +194,19 @@ contracts. A witness-only class algorithm can dispatch without requesting size.
 An ordinary implementing copyable struct may combine size and a witness through
 legal indirect transport; that still does not permit direct T input.
 
+A witness can name a constructed interface. `vtableof(T: Check<byte>)`
+requires a type that implements exactly `Check<byte>`; its members are typed
+with that construction, so `v.pass(x)` takes and returns `byte`. A type that
+implements `Check<short>` does not qualify, and a call that would infer a
+different construction from its other arguments is rejected.
+
+```camp
+byte viaWitness<T>(T* v, byte x, vtableof(T: Check<byte>))
+{
+    return v.pass(x);
+}
+```
+
 ## Forwarding Capabilities
 
 A generic function that calls another generic function supplies the callee's

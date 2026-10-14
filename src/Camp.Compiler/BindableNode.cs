@@ -233,7 +233,7 @@ public class GenericParameter : BindableNode
 	// Generated declarations share the source binder, never merely its spelling.
 	public object? Binder { get; set; }
 	public int Ordinal { get; set; }
-	public string Representation => Constraint?.ResolvedType ?? "void";
+	public string Representation => Constraint is null ? "void" : Constraint.ResolvedType ?? BindableNodeAnalyzer.FormatTypeReference(Constraint);
 	public bool IsVoidRepresentation => Constraint is null;
 	public List<AttributeConstructor> Attributes { get; } = [];
 	public string Name { get; set; } = "";

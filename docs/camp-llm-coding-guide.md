@@ -913,6 +913,12 @@ Agent-facing rules:
   destructor.
 - Do not manually construct vtables or interface wrapper structs in source-level
   code.
+- A generic interface is implemented at one construction, and the marker names
+  it exactly (`: Check<byte>`); `Check<byte>*` and `Check<short>*` are distinct
+  and convert only to their own construction. A generic interface method needs
+  the same generic arity, per-parameter representation and capability
+  parameters (kind, operand, order) in its implementation; binder names may
+  differ. `vtableof(T: Check<byte>)` requires exactly that construction.
 - Generic code that needs an interface implementation must state the capability
   and pass or request `vtableof(T: Interface)` when required by the API shape.
 - A signature has at most one witness per type parameter, even for the same

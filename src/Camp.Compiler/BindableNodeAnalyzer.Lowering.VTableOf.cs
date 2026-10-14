@@ -82,6 +82,9 @@ public sealed partial class BindableNodeAnalyzer
 			{
 				if (!ConcreteTypeImplementsInterface(concreteType, interfaceDefinition))
 					Report(GetRange(syntax), $"Type '{concreteType.Name}' does not implement interface '{interfaceDefinition.Name}'.");
+				else if (interfaceDefinition.GenericParameters.Count > 0
+					&& !ConcreteTypeImplementsConstruction(type?.ResolvedType ?? concreteType.Name, concreteType, interfaceDefinition, interfaceType.ResolvedType ?? FormatTypeReference(interfaceType), out string implemented))
+					Report(GetRange(syntax), $"Type '{type?.ResolvedType ?? concreteType.Name}' implements '{implemented}', not '{interfaceType.ResolvedType ?? FormatTypeReference(interfaceType)}'.");
 				return;
 			}
 
@@ -115,7 +118,8 @@ public sealed partial class BindableNodeAnalyzer
 		return type switch
 		{
 			TypeDefinitionReference { Definition: TypeDefinition typeDefinition } => (definition = typeDefinition) is not null,
-			NamedTypeReference named => TryGetNamedTypeDefinition(named, out definition) && definition is not null,
+			NamedTypeReference named => TryGetNamedTypeDefinition(named, out definition) && definition is not null
+				|| named.Name.Contains('<') && typeDefinitions.TryGetValue(BaseTypeName(named.Name), out definition) && definition is not null,
 			_ => false
 		};
 	}

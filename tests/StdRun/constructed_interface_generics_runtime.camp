@@ -1,0 +1,132 @@
+interface Check<A: int>
+{
+	bool same(A a, A b);
+	A pass(A a);
+}
+
+interface Both<A: int>
+{
+	A tag<U>(A a, U* p, sizeof(U));
+	bool stash<U>(in U v, U* slot, sizeof(U));
+}
+
+interface Base<A: int> { A pass(A a); }
+interface Derived<B: int>: Base<B> { bool same(B a, B b); }
+
+class ByteCheck: Check<byte>
+{
+	bool same(int<byte> a, int<byte> b): Check<byte> => a == b;
+	int<byte> pass(int<byte> a): Check<byte> => a;
+}
+
+struct ShortCheck: Check<short>
+{
+	int pad;
+	bool same(int<short> a, int<short> b): Check<short> => a == b;
+	int<short> pass(int<short> a): Check<short> => a;
+}
+
+class GenCheck<T: int>: Check<T>
+{
+	bool same(T a, T b): Check<T> => a == b;
+	T pass(T a): Check<T> => a;
+}
+
+struct GenStruct<T: int>: Check<T>
+{
+	int pad;
+	bool same(T a, T b): Check<T> => a == b;
+	T pass(T a): Check<T> => a;
+}
+
+class ByteBoth: Both<byte>
+{
+	int<byte> tag<V>(int<byte> a, V* p, sizeof(V)): Both<byte> => a;
+	bool stash<W>(in W v, W* slot, sizeof(W)): Both<byte> { *slot = v; return true; }
+}
+
+struct GenBoth<T: int>: Both<T>
+{
+	int pad;
+	T tag<V>(T a, V* p, sizeof(V)): Both<T> => a;
+	bool stash<W>(in W v, W* slot, sizeof(W)): Both<T> { *slot = v; return true; }
+}
+
+class DerivedImpl: Derived<short>
+{
+	int<short> pass(int<short> a): Base<short> => a;
+	bool same(int<short> a, int<short> b): Derived<short> => a == b;
+}
+
+struct DerivedStruct<T: int>: Derived<T>
+{
+	int pad;
+	T pass(T a): Base<T> => a;
+	bool same(T a, T b): Derived<T> => a == b;
+}
+
+byte viaWitnessByte<T>(T* v, byte x, vtableof(T: Check<byte>)) { return v.pass(x); }
+short viaWitnessShort<T>(T* v, short x, vtableof(T: Check<short>)) { return v.pass(x); }
+bool sameWitness<T>(T* v, short x, vtableof(T: Check<short>)) { return v.same(x, x); }
+
+export int main()
+{
+	// Owner substitution through class and struct implementers.
+	ByteCheck* b = new ByteCheck();
+	Check<byte>* cb = b;
+	if (cb.pass(201) != 201) return 1;
+	ShortCheck s = default;
+	Check<short>* cs = &s;
+	if (cs.pass(-1234) != -1234) return 2;
+	GenCheck<byte>* g = new GenCheck<byte>();
+	Check<byte>* cg = g;
+	if (cg.pass(250) != 250) return 3;
+	GenStruct<ushort> gs = default;
+	Check<ushort>* cgs = &gs;
+	if (cgs.pass(60000) != 60000) return 4;
+
+	// Owner and method generics together, with capability slots.
+	ByteBoth* bb = new ByteBoth();
+	Both<byte>* cbb = bb;
+	long probe = 9;
+	if (cbb.tag<long>(201, &probe) != 201) return 5;
+	long dst = 0;
+	if (!cbb.stash<long>(5000000000, &dst)) return 6;
+	if (dst != 5000000000) return 7;
+	GenBoth<short> gb = default;
+	Both<short>* cgb = &gb;
+	if (cgb.tag<long>(-4321, &probe) != -4321) return 8;
+	int di = 0;
+	if (!cgb.stash<int>(123456, &di)) return 9;
+	if (di != 123456) return 10;
+
+	// Closed references to interface members.
+	auto f = cb.pass;
+	if (f(222) != 222) return 11;
+	auto same = cb.same;
+	if (!same(200, 200)) return 12;
+	if (same(200, 201)) return 13;
+	auto h = cs.pass;
+	if (h(-4321) != -4321) return 14;
+
+	// Inherited members through derived and base views.
+	DerivedImpl* di2 = new DerivedImpl();
+	Derived<short>* d = di2;
+	if (d.pass(-300) != -300) return 15;
+	if (!d.same(-300, -300)) return 16;
+	Base<short>* bv = d;
+	if (bv.pass(-301) != -301) return 17;
+	DerivedStruct<ushort> ds = default;
+	Derived<ushort>* dsp = &ds;
+	if (dsp.pass(60001) != 60001) return 18;
+	Base<ushort>* bsp = dsp;
+	if (bsp.pass(60002) != 60002) return 19;
+	auto fd = dsp.pass;
+	if (fd(60003) != 60003) return 20;
+
+	// Witnesses over constructed interfaces.
+	if (viaWitnessByte(b, 201) != 201) return 21;
+	if (viaWitnessShort(&s, -1234) != -1234) return 22;
+	if (!sameWitness(&s, -1234)) return 23;
+	return 0;
+}

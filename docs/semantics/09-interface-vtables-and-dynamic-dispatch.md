@@ -284,6 +284,52 @@ target is an exact base interface and the compiler can perform the required
 carrier conversion. Narrowing or side-casting follows the raw/interface cast
 rules in the conversion supplement.
 
+## Constructed Interfaces
+
+A generic interface is lowered once per source interface; the construction is
+source-level identity. A type implements one construction of an interface, and
+implementation markers name it exactly: `: Check<byte>` for an implementer of
+`Check<byte>`. Validation walks base interfaces and base classes, compares
+constructed names by one nominal spelling, and reports a second construction of
+the same interface, a marker naming a construction the type does not implement,
+and a marker naming a method-owned parameter.
+
+Owner substitution maps the interface's parameters to the construction's
+arguments. Integer-represented owners normalize through their carrier
+(`A` becomes `int<byte>` for `Check<byte>` with `A: int`); forwarded implementer
+binders keep their names. Method-binder mapping is a separate positional
+mapping (`#M0…`) applied in the same simultaneous substitution pass
+(`SubstituteGenericType`), so a combined owner/method signature never captures
+one binder as the other.
+
+A generic interface method contract requires equal generic arity, equal
+normalized representation per ordinal, matching capability slots (kind, operand,
+order) and a compatible substituted signature. Capability parameters render as
+`sizeof(T)`, `typenameof(T)` and `vtableof(T: I)` in signatures. Names are
+immaterial. Violations report at the implementation method: arity, per-ordinal
+representation, and capability-slot mismatches are separate diagnostics.
+
+Lowered slots are generic over the method's own binders, so struct implementers
+receive thunks generic over both the implementer's and the method's binders.
+Slot types and capability operands are rewritten structurally and carrier
+arguments are built as generic references (`int<short>`). Class implementers use
+direct entries.
+
+Lowered interface receivers drop the construction (`Store**`). Calls and member
+references on owner-generic interfaces therefore use the erased slot type
+substituted with the call's recorded substitutions, or the receiver's
+construction when none were recorded. A member reference from an interface
+pointer (`auto f = i.pass`) reads the slot when formed and carries the instance
+as its context; it is not a flattened static call. A call through a derived
+interface pointer to an inherited member first views the receiver as the
+declaring base interface.
+
+Conversion to an interface pointer checks the exact construction; a base
+interface upcast compares the constructed base arguments. Witnesses over
+constructed interfaces take owner arguments from the witness's construction,
+never from call-argument inference, and concrete operands are checked against
+the exact construction.
+
 ## VTable Generation
 
 VTables are generated from interface shape and implementation mapping. Emitted
@@ -447,7 +493,10 @@ Interface and dynamic-dispatch changes should cover:
 - inherited interfaces and diamond shapes;
 - interface constructors and destructors;
 - explicit implementation markers and overload selectors;
-- generic `vtableof` dispatch;
+- generic `vtableof` dispatch, including witnesses over constructed interfaces;
+- constructed interface markers, owner substitution, generic method contracts and
+  closed interface-member references (`tests/Diagnostics/constructed_interface_*`,
+  `tests/StdRun/constructed_interface_generics_runtime`);
 - class virtual dispatch and destructor rules;
 - metadata/API output for interface implementation markers;
 - C emission for vtable variables, slot order, and thunks.
@@ -456,6 +505,8 @@ Interface and dynamic-dispatch changes should cover:
 
 Primary implementation points include:
 
+- `BindableNodeAnalyzer.ConstructedInterfaces.cs` for constructed interface
+  identity, owner maps, generic method contracts and witness owner arguments;
 - `BindableNodeAnalyzer.DeclarationValidation.cs` for conformance, default slot
   validation, virtual hierarchy validation, and extern checks;
 - `BindableNodeAnalyzer.Lowering.Interfaces.cs` for interface conversion and

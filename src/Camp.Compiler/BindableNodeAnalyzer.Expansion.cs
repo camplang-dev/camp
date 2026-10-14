@@ -403,9 +403,11 @@ public sealed partial class BindableNodeAnalyzer
 
 		List<InterfaceImplementationLowering> implementations = [];
 		int interfaceIndex = classDefinition.Fields.Count > 0 && classDefinition.Fields[0].Name == VirtualTableFieldName ? 1 : 0;
+		HashSet<InterfaceDefinition> declaredInterfaces = [];
 		foreach (TypeReference baseType in classDefinition.BaseTypes)
 		{
-			if (!TryGetDirectInterface(baseType, interfaces, out InterfaceDefinition? interfaceDefinition) || interfaceDefinition is null)
+			// A second construction of one interface is diagnosed in analysis and has no table of its own.
+			if (!TryGetDirectInterface(baseType, interfaces, out InterfaceDefinition? interfaceDefinition) || interfaceDefinition is null || !declaredInterfaces.Add(interfaceDefinition))
 				continue;
 
 			if (classDefinition.Extern is not null)
@@ -601,9 +603,10 @@ public sealed partial class BindableNodeAnalyzer
 	void GenerateStructInterfaceDeclarations(Module module, StructDefinition structDefinition, Dictionary<string, InterfaceDefinition> interfaces)
 	{
 		List<InterfaceImplementationLowering> implementations = [];
+		HashSet<InterfaceDefinition> declaredInterfaces = [];
 		foreach (TypeReference baseType in structDefinition.BaseTypes)
 		{
-			if (!TryGetDirectInterface(baseType, interfaces, out InterfaceDefinition? interfaceDefinition) || interfaceDefinition is null)
+			if (!TryGetDirectInterface(baseType, interfaces, out InterfaceDefinition? interfaceDefinition) || interfaceDefinition is null || !declaredInterfaces.Add(interfaceDefinition))
 				continue;
 
 			foreach (InterfaceDefinition entryInterface in GetInterfaceAndBaseInterfaces(interfaceDefinition, interfaces))
@@ -740,13 +743,97 @@ public sealed partial class BindableNodeAnalyzer
 				ResolvedType = $"{entryInterface.Name}**"
 			});
 		}
+		// The thunk forwards to the implementation, so it is erased over the implementer's binders: the owner
+		// parameters of a generic implementer and the implementation's own method parameters, which stand for
+		// the interface member's binders by position. Slot types and capability operands are rewritten to them.
+		FunctionDefinition? implementation = FindImplementationMethod(lowering.Type, member);
+		Dictionary<string, string> binders = [];
+		if (entryInterface.GenericParameters.Count > 0
+			&& GetConstructedInterfaces(lowering.Type).FirstOrDefault(candidate => ReferenceEquals(candidate.Definition, entryInterface)) is ConstructedInterface constructed)
+			foreach ((string owner, string argument) in constructed.Owner)
+				binders[owner] = argument;
+		List<GenericParameter> methodBinders = implementation is not null && implementation.GenericParameters.Count == member.GenericParameters.Count
+			? implementation.GenericParameters
+			: member.GenericParameters;
+		for (int i = 0; i < member.GenericParameters.Count; i++)
+			binders[member.GenericParameters[i].Name] = methodBinders[i].Name;
+		foreach (GenericParameter parameter in lowering.Type.GenericParameters)
+			thunk.GenericParameters.Add(CloneGenericParameter(parameter));
+		foreach (GenericParameter parameter in methodBinders)
+			thunk.GenericParameters.Add(CloneGenericParameter(parameter));
+		if (binders.Count > 0 && member.Modifier != FunctionModifier.Constructor)
+		{
+			thunk.ReturnType = RewriteThunkType(thunk.ReturnType, binders, thunk);
+			if (thunk.ResolvedType is string returned)
+				thunk.ResolvedType = SubstituteGenericType(returned, binders);
+		}
 		foreach (ParameterDefinition parameter in member.Parameters)
 		{
 			if (parameter is ThisParameterDefinition)
 				continue;
-			thunk.Parameters.Add(CloneParameter(parameter));
+			thunk.Parameters.Add(CloneThunkParameter(parameter, binders, thunk));
 		}
 		return thunk;
+	}
+
+	// An integer-carrier argument R<A> is a generic type over its representation, as the parser builds it.
+	static TypeReference TypeReferenceForSubstitution(string text, SyntaxNode? sourceSyntax)
+	{
+		if (!CarrierTypeIdentity.TryGetCarrier(text, out string carrier, out string payload))
+			return TypeReferenceForResolvedName(text, sourceSyntax);
+		GenericTypeReference generic = new() { SourceSyntax = sourceSyntax, Type = TypeReferenceForResolvedName(carrier, sourceSyntax) };
+		generic.TypeArguments.Add(TypeReferenceForSubstitution(payload, sourceSyntax));
+		return generic;
+	}
+
+	// Structural copy with binder names replaced; the copy is rebound when the generated declaration is analyzed.
+	TypeReference? RewriteThunkType(TypeReference? type, Dictionary<string, string> binders, FunctionDefinition thunk)
+	{
+		TypeReference? clone = CloneType(type);
+		if (clone is null || binders.Count == 0)
+			return clone;
+
+		TypeReference Rename(TypeReference candidate)
+		{
+			string? name = candidate switch
+			{
+				NamedTypeReference { Qualifiers.Count: 0, TypeArguments.Count: 0 } named => named.Name,
+				GenericParameterTypeReference generic => generic.Name,
+				_ => null
+			};
+			return name is not null && binders.TryGetValue(name, out string? replacement)
+				? TypeReferenceForSubstitution(replacement, candidate.SourceSyntax)
+				: candidate;
+		}
+
+		clone = Rename(clone);
+		BindableNodeTraversal.RewriteChildren(clone, static expression => expression, Rename, new HashSet<BindableNode>(ReferenceEqualityComparer.Instance));
+		return clone;
+	}
+
+	ParameterDefinition CloneThunkParameter(ParameterDefinition parameter, Dictionary<string, string> binders, FunctionDefinition thunk)
+	{
+		ParameterDefinition clone = CloneParameter(parameter);
+		if (binders.Count == 0)
+			return clone;
+
+		clone.Type = RewriteThunkType(parameter.Type, binders, thunk);
+		if (parameter.ResolvedType is string resolved)
+			clone.ResolvedType = SubstituteGenericType(resolved, binders);
+		switch (clone)
+		{
+			case SizeOfParameterDefinition:
+				clone.Name = clone.Symbol = SizeOfParameterName(clone.Type);
+				break;
+			case NameOfParameterDefinition:
+				clone.Name = clone.Symbol = NameOfParameterName(clone.Type);
+				break;
+			case VTableOfParameterDefinition witness:
+				witness.InterfaceType = RewriteThunkType(witness.InterfaceType, binders, thunk);
+				clone.Name = clone.Symbol = VTableOfParameterName(clone.Type, witness.InterfaceType);
+				break;
+		}
+		return clone;
 	}
 
 	void CompleteInterfaceDeclarations(Module module)
@@ -1106,7 +1193,10 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			if (parameter is ThisParameterDefinition)
 				continue;
-			callable.Parameters.Add(CloneParameter(parameter));
+			ParameterDefinition slot = CloneParameter(parameter);
+			if (slot is NameOfParameterDefinition)
+				slot.ResolvedType = "string";
+			callable.Parameters.Add(slot);
 		}
 		return new FieldDefinition
 		{
@@ -1589,7 +1679,7 @@ public sealed partial class BindableNodeAnalyzer
 			interfaceDefinition = definition;
 			return true;
 		}
-		if (type is NamedTypeReference named && typeDefinitions.TryGetValue(named.Name, out TypeDefinition? typeDefinition) && typeDefinition is InterfaceDefinition namedInterface)
+		if (type is NamedTypeReference named && typeDefinitions.TryGetValue(BaseTypeName(named.Name), out TypeDefinition? typeDefinition) && typeDefinition is InterfaceDefinition namedInterface)
 		{
 			interfaceDefinition = namedInterface;
 			return true;
@@ -1652,28 +1742,36 @@ public sealed partial class BindableNodeAnalyzer
 
 	bool IsMarkedInterfaceImplementation(FunctionDefinition function, FunctionDefinition interfaceMember)
 	{
+		bool lifecycle = IsInterfaceLifecycleMember(interfaceMember);
 		if (function.InterfaceImplementationMember is not null)
 		{
 			if (function.InterfaceImplementationMember == interfaceMember)
 				return true;
 			return GetCallableName(function.InterfaceImplementationMember) == GetCallableName(interfaceMember)
 				&& MethodSignatureCompatibleWithConstOfVariance(
-					GetCachedMethodSignature(function.InterfaceImplementationMember, includeLifecycleWithin: IsInterfaceLifecycleMember(interfaceMember)),
-					GetCachedMethodSignature(interfaceMember, includeLifecycleWithin: IsInterfaceLifecycleMember(interfaceMember)),
+					GetCachedMethodSignature(function.InterfaceImplementationMember, includeLifecycleWithin: lifecycle),
+					GetCachedMethodSignature(interfaceMember, includeLifecycleWithin: lifecycle),
 					compareName: function.InterfaceImplementationSlotName is null);
 		}
 
 		if (function.CallableAscriptionType is null || FindContainingType(interfaceMember) is not InterfaceDefinition interfaceDefinition)
 			return false;
-		string targetType = BaseTypeName(function.CallableAscriptionType.ResolvedType ?? GetTypeReferenceName(function.CallableAscriptionType) ?? ErrorType);
-		if (targetType != interfaceDefinition.Name)
+		string markerType = function.CallableAscriptionType.ResolvedType ?? GetTypeReferenceName(function.CallableAscriptionType) ?? ErrorType;
+		if (BaseTypeName(markerType) != interfaceDefinition.Name)
 			return false;
 		string slotName = function.InterfaceImplementationSlotName ?? GetCallableName(function);
-		return slotName == GetCallableName(interfaceMember)
-			&& MethodSignatureCompatibleWithConstOfVariance(
-				GetCachedMethodSignature(function, includeLifecycleWithin: IsInterfaceLifecycleMember(interfaceMember)),
-				GetCachedMethodSignature(interfaceMember, includeLifecycleWithin: IsInterfaceLifecycleMember(interfaceMember)),
-				compareName: function.InterfaceImplementationSlotName is null);
+		if (slotName != GetCallableName(interfaceMember))
+			return false;
+
+		// Owner arguments come from the implementer's constructed interface (declaration analysis already
+		// required the marker to name it and a type implements an interface once); method binders map by position.
+		ConstructedInterface? constructed = FindContainingType(function) is TypeDefinition owner
+			? FindConstructedInterface(owner, interfaceDefinition, null)
+			: null;
+		return MethodSignatureCompatibleWithConstOfVariance(
+			BuildBinderMappedSignature(function, lifecycle, null),
+			BuildBinderMappedSignature(interfaceMember, lifecycle, constructed?.Owner),
+			compareName: function.InterfaceImplementationSlotName is null);
 	}
 
 	MethodSignature GetCachedMethodSignature(FunctionDefinition function, bool includeLifecycleWithin)
@@ -1753,7 +1851,7 @@ public sealed partial class BindableNodeAnalyzer
 			parameters.Add(GetParameterTypeNames([parameter]).FirstOrDefault() ?? ErrorType);
 		}
 		string returnType = member.Modifier == FunctionModifier.Constructor ? "any" : member.ResolvedType ?? ErrorType;
-		string result = $"fn {returnType}({string.Join(", ", parameters)})";
+		string result = ErasedCallableSignatureType($"fn {returnType}({string.Join(", ", parameters)})", name => FunctionErasureWrapper(member, name));
 		interfaceEntryCallableTypeCache[key] = result;
 		return result;
 	}

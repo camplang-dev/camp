@@ -161,11 +161,15 @@ public sealed partial class BindableNodeAnalyzer
 			}
 			if (slot is VTableOfParameterDefinition witnessSlot)
 			{
-				string interfaceType = SubstituteGenericType(witnessSlot.InterfaceType?.ResolvedType ?? ErrorType, substitutions);
+				// Interface arguments are the nominal types themselves, never the carrier form used for storage.
+				string interfaceType = SubstituteGenericType(witnessSlot.InterfaceType?.ResolvedType ?? ErrorType, ReadSubstitutions(substitutions));
 				ValidateVTableOfRequest(TypeReferenceForResolvedName(ErasedTypeIdentity.ReadType(operand)), TypeReferenceForResolvedName(interfaceType), syntax, typeScope);
 			}
 		}
 	}
+
+	static Dictionary<string, string> ReadSubstitutions(Dictionary<string, string> substitutions) =>
+		substitutions.ToDictionary(static pair => pair.Key, static pair => ErasedTypeIdentity.ReadType(pair.Value), System.StringComparer.Ordinal);
 
 	// An omitted capability argument is supplied from the caller. When its operand is the caller's own
 	// abstract parameter the caller must hold evidence for exactly that operand.

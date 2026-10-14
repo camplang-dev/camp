@@ -417,6 +417,62 @@ The practical rule is this: interface inheritance is nominal, and inherited
 members are part of the derived contract. If two inherited paths make a member
 ambiguous, write the interface you mean rather than relying on guesswork.
 
+## Generic Interfaces
+
+An interface may take type parameters. A type implements one *construction* of
+it, and the marker names that construction exactly:
+
+```camp
+interface Check<A: int>
+{
+	bool same(A a, A b);
+	A pass(A a);
+}
+
+class ByteCheck: Check<byte>
+{
+	bool same(int<byte> a, int<byte> b): Check<byte> => a == b;
+	int<byte> pass(int<byte> a): Check<byte> => a;
+}
+
+struct Wide<T: int>: Check<T>
+{
+	int pad;
+	bool same(T a, T b): Check<T> => a == b;
+	T pass(T a): Check<T> => a;
+}
+```
+
+`Check<byte>*` and `Check<short>*` are different types. A `ByteCheck*` converts
+to `Check<byte>*` only; naming another construction in a marker, listing two
+constructions of one interface on a type, or converting to a different
+construction is an error. Inherited constructions follow the same rule:
+`interface Derived<B: int>: Base<B>` is implemented as `Derived<short>`, and a
+`Derived<short>*` calls the inherited `Base<short>` members directly or converts
+to `Base<short>*`.
+
+A generic interface method is part of the contract. The implementation must have
+the same number of generic parameters in the same order, the same representation
+for each (`U: int` requires `U: int`, not a pointer-only `U`), and the same
+capability parameters by kind, operand and order. Names are immaterial, so
+`tag<U>` may be implemented as `tag<V>`:
+
+```camp
+interface Both<A: int>
+{
+	A tag<U>(A a, U* p, sizeof(U));
+}
+
+class ByteBoth: Both<byte>
+{
+	int<byte> tag<V>(int<byte> a, V* p, sizeof(V)): Both<byte> => a;
+}
+```
+
+A reference to a member of an interface pointer keeps dynamic dispatch and is
+fully substituted: `auto f = check.pass;` has the construction's type, and
+calling `f` runs the implementation.
+
 ## Constness And Lifetimes
 
 Interface method signatures carry the same kind of contract as ordinary method

@@ -464,6 +464,18 @@ the implementing relationship; it is not a generic declaration constraint.
 Existing interface inheritance permits inherited slot projection. Capability
 requirements are checked even when the body does not use a declared slot.
 
+A witness over a constructed interface (`vtableof(T: Check<byte>)`) fixes the
+owner arguments: member lookup substitutes them into the slot, concrete operands
+must implement exactly that construction, and call-argument inference cannot
+choose a different one. The witness interface text uses payload (not carrier)
+arguments, so a forwarded `U: int` owner reads `Check<U>`, never
+`Check<int<U>>`.
+
+A generic interface method is matched by ordinal, not by binder name: equal
+arity, equal normalized representation and equal capability slots in order. See
+semantics 09, Constructed Interfaces, for owner substitution and the lowered slot
+shape.
+
 ## Generic Construction And Destruction
 
 Generic construction and destruction require the generated helper surface or

@@ -2764,10 +2764,51 @@ public static class CCodeEmitter
                     if (fields.Count == 0)
                         writer.WriteLine("\tchar _camp_empty;");
                     foreach (FieldDefinition field in fields.Where(static field => field.Modifier != FieldModifier.Static))
-                        writer.WriteLine("\t" + FormatFieldLayoutDeclaration(field) + ";");
+                        WithInterfaceMemberGenerics(type, field, () => writer.WriteLine("\t" + FormatFieldLayoutDeclaration(field) + ";"));
                     writer.WriteLine("};");
                 });
             });
+        }
+
+        // A lowered interface keeps its members as fields; a generic member's own parameters (and their
+        // representations) are in scope only for that member's slot.
+        void WithInterfaceMemberGenerics(TypeDefinition type, FieldDefinition field, Action action)
+        {
+            FunctionDefinition? member = type is StructDefinition { SourceInterface: InterfaceDefinition source } && field.Type is CallableTypeReference
+                ? source.Functions.FirstOrDefault(function => function.GenericParameters.Count > 0 && SymbolNameService.CallableName(function).Value == field.Name)
+                : null;
+            if (member is null)
+            {
+                action();
+                return;
+            }
+
+            HashSet<string> previous = new(currentGenericTypeNames, StringComparer.Ordinal);
+            HashSet<string> previousAny = new(currentAnyGenericTypeNames, StringComparer.Ordinal);
+            Dictionary<string, string> previousRepresentation = new(currentRepresentationGenerics, StringComparer.Ordinal);
+            foreach (GenericParameter parameter in member.GenericParameters)
+            {
+                currentGenericTypeNames.Add(parameter.Name);
+                if (parameter.IsVoidRepresentation)
+                    currentAnyGenericTypeNames.Add(parameter.Name);
+                AddRepresentationGeneric(parameter);
+            }
+            try
+            {
+                action();
+            }
+            finally
+            {
+                currentGenericTypeNames.Clear();
+                foreach (string name in previous)
+                    currentGenericTypeNames.Add(name);
+                currentAnyGenericTypeNames.Clear();
+                foreach (string name in previousAny)
+                    currentAnyGenericTypeNames.Add(name);
+                currentRepresentationGenerics.Clear();
+                foreach ((string name, string constraint) in previousRepresentation)
+                    currentRepresentationGenerics[name] = constraint;
+            }
         }
 
         void WriteShadowDataLayout(TextWriter writer, ClassDefinition shadowClass)

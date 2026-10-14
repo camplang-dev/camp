@@ -844,8 +844,19 @@ public sealed partial class BindableNodeAnalyzer
 
 	string GetSignatureParameterType(ParameterDefinition parameter, Dictionary<string, string> anchors)
 	{
+		// A capability slot is identified by kind and operand, never by its carried integer or pointer.
+		string? operand = parameter.Type is null ? null : FormatSignatureTypeReference(parameter.Type, anchors);
+		switch (parameter)
+		{
+			case SizeOfParameterDefinition:
+				return $"sizeof({operand})";
+			case NameOfParameterDefinition:
+				return $"typenameof({operand})";
+			case VTableOfParameterDefinition witness:
+				return $"vtableof({operand}: {(witness.InterfaceType is null ? ErrorType : FormatSignatureTypeReference(witness.InterfaceType, anchors))})";
+		}
 		if (parameter.Type is not null)
-			return FormatSignatureTypeReference(parameter.Type, anchors);
+			return operand!;
 		return parameter.ResolvedType ?? ErrorType;
 	}
 

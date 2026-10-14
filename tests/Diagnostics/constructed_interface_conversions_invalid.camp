@@ -1,0 +1,30 @@
+interface Check<A: int> { bool same(A a, A b); A pass(A a); }
+
+class ByteCheck: Check<byte>
+{
+	bool same(int<byte> a, int<byte> b): Check<byte> => a == b;
+	int<byte> pass(int<byte> a): Check<byte> => a;
+}
+
+struct ShortCheck: Check<short>
+{
+	int pad;
+	bool same(int<short> a, int<short> b): Check<short> => a == b;
+	int<short> pass(int<short> a): Check<short> => a;
+}
+
+short wrongArg<T>(T* v, short x, vtableof(T: Check<byte>)) { return v.pass(x); }
+byte wrongInstance(ShortCheck* s) { return wrongArg(s, 1); }
+int mismatchResult<T>(T* v, vtableof(T: Check<byte>)) { short s = v.pass(1); return s; }
+
+export int main()
+{
+	// An interface pointer converts only to its own construction.
+	ByteCheck* b = new ByteCheck();
+	Check<short>* wrongClass = b;
+	ShortCheck s = default;
+	Check<byte>* wrongStruct = &s;
+	Check<byte>* ok = b;
+	Check<short>* wrongView = ok;
+	return 0;
+}

@@ -1,0 +1,27 @@
+interface Check<A> { bool check(A* a); }
+interface Plain { bool run<U>(U* a); bool two<U>(U* a, U* b); bool same<U: int>(U a); bool cap<U>(U* a, sizeof(U)); }
+
+// The marker must name the exact construction the type implements.
+class WrongMarker: Check<byte> { bool check(short* a): Check<short> => true; }
+
+// A method parameter cannot stand in for a fixed interface owner argument.
+class MethodOwned: Check<byte> { bool check<V>(V* a): Check<V> => true; }
+
+// A type implements one construction of an interface.
+class Twice: Check<byte>, Check<short> { bool check(byte* a): Check<byte> => true; }
+
+// Generic arity must match the interface member.
+class ExtraBinder: Plain { bool run<U, V>(U* a): Plain => true; bool two<U>(U* a, U* b): Plain => true; bool same<U: int>(U a): Plain => true; bool cap<U>(U* a, sizeof(U)): Plain => true; }
+
+// A generic member is not implemented by a specialization.
+struct Special: Plain { int x; bool run(int* a): Plain => true; bool two<U>(U* a, U* b): Plain => true; bool same<U: int>(U a): Plain => true; bool cap<U>(U* a, sizeof(U)): Plain => true; }
+
+// Representation must match per generic parameter.
+class RepMismatch: Plain { bool run<U>(U* a): Plain => true; bool two<U>(U* a, U* b): Plain => true; bool same<U>(U* a): Plain => true; bool cap<U>(U* a, sizeof(U)): Plain => true; }
+
+// Capability slots must match by kind, operand and order.
+class NoCap: Plain { bool run<U>(U* a): Plain => true; bool two<U>(U* a, U* b): Plain => true; bool same<U: int>(U a): Plain => true; bool cap<U>(U* a): Plain => true; }
+class MoreCap: Plain { bool run<U>(U* a, sizeof(U)): Plain => true; bool two<U>(U* a, U* b): Plain => true; bool same<U: int>(U a): Plain => true; bool cap<U>(U* a, sizeof(U)): Plain => true; }
+class WrongCap: Plain { bool run<U>(U* a): Plain => true; bool two<U>(U* a, U* b): Plain => true; bool same<U: int>(U a): Plain => true; bool cap<U>(U* a, typenameof(U)): Plain => true; }
+
+export int main() { return 0; }

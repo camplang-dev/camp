@@ -529,8 +529,20 @@ public sealed partial class BindableNodeAnalyzer
 		}
 	}
 
+	// An interface has one table per implementer, so a type implements each interface at one construction.
+	void ValidateSingleInterfaceConstruction(TypeDefinition implementation)
+	{
+		foreach (IGrouping<InterfaceDefinition, ConstructedInterface> group in GetConstructedInterfaces(implementation).GroupBy(static constructed => constructed.Definition))
+		{
+			List<string> constructions = [.. group.Select(static constructed => constructed.Type).Distinct()];
+			if (constructions.Count > 1)
+				Report(GetNameRange(implementation), $"Type '{implementation.Name}' implements interface '{group.Key.Name}' as {string.Join(" and ", constructions.Select(static type => $"'{type}'"))}; a type implements one construction of an interface.");
+		}
+	}
+
 	void ValidateInterfaceImplementationMarkers(TypeDefinition implementation)
 	{
+		ValidateSingleInterfaceConstruction(implementation);
 		HashSet<FunctionDefinition> claimed = [];
 		foreach (FunctionDefinition function in GetFunctions(implementation))
 		{
@@ -565,11 +577,23 @@ public sealed partial class BindableNodeAnalyzer
 
 			FunctionDefinition member = slots[0];
 			function.InterfaceImplementationMember = member;
+			string? markerType = function.CallableAscriptionType.ResolvedType;
+			ConstructedInterface? constructed = FindConstructedInterface(implementation, interfaceDefinition, markerType);
+			if (constructed is null)
+			{
+				string implemented = string.Join(", ", GetConstructedInterfaces(implementation).Where(candidate => ReferenceEquals(candidate.Definition, interfaceDefinition)).Select(static candidate => $"'{candidate.Type}'"));
+				Report(GetRange(function.CallableAscriptionType.SourceSyntax ?? function.SourceSyntax), $"Method '{function.Name}' cannot implement '{markerType}' because type '{implementation.Name}' implements {implemented}; the marker must name the constructed interface exactly.");
+				continue;
+			}
 			MethodSignature declared = BuildMethodSignature(function, includeLifecycleWithin: IsInterfaceLifecycleMember(member));
 			MethodSignature required = BuildMethodSignature(member, includeLifecycleWithin: IsInterfaceLifecycleMember(member));
-			if (!MethodSignatureCompatibleWithConstOfVariance(declared, required, compareName: function.InterfaceImplementationSlotName is null))
+			MethodSignature declaredMapped = BuildBinderMappedSignature(function, IsInterfaceLifecycleMember(member), null);
+			MethodSignature requiredMapped = BuildBinderMappedSignature(member, IsInterfaceLifecycleMember(member), constructed.Owner);
+			if (ReportGenericContractMismatch(function, member, interfaceDefinition, declared, required, declaredMapped, requiredMapped))
+				continue;
+			if (!MethodSignatureCompatibleWithConstOfVariance(declaredMapped, requiredMapped, compareName: function.InterfaceImplementationSlotName is null))
 			{
-				Report(GetNameRange(function), $"Method '{declared.DisplayName}' is not compatible with interface member '{interfaceDefinition.Name}.{required.DisplayName}'.");
+				Report(GetNameRange(function), $"Method '{declared.DisplayName}' is not compatible with interface member '{constructed.Type}.{required.DisplayName}'.");
 				continue;
 			}
 			if (!OverloadSelectorShapeCompatible(function, member, out string overloadShapeMismatch))
