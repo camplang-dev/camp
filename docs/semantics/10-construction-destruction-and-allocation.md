@@ -87,9 +87,9 @@ or by explicit storage-oriented operations.
 
 Compiler rules to preserve:
 
-- a fixed struct type does not satisfy `copyable`;
-- direct fixed-size array value types do not satisfy `copyable`;
-- pointers to fixed structs and fixed-size arrays do satisfy `copyable` because
+- a fixed struct type cannot satisfy a checked `sizeof(T)` copy contract;
+- direct fixed-size array value types cannot satisfy that copy contract;
+- pointers to fixed structs and fixed-size arrays satisfy it because
   the pointer value is copyable;
 - fixed structs and classes must be passed by reference, except where an extern
   surface explicitly owns a compatible native representation;
@@ -246,16 +246,16 @@ bodies rather than prove fine-grained post-suspension liveness.
 
 A named `stackalloc` local (and a `foreach (stackalloc ...)` target) declares a
 single object of unspecified size, so its type must be either a `void<V>` or an
-erased type parameter (`any` or `copyable`) whose `sizeof(T)` capability is in
-scope. A `T: implements I` is pointer-only and is never a local. A local of a specified-size type is an error that names
+void-represented type parameter whose checked `sizeof(T)` capability is in
+scope. A witness alone supplies no copy or layout authority. A local of a specified-size type is an error that names
 the ordinary local to write instead:
 
 ```camp
 stackalloc void<int?> slot = 4;        // OK
-stackalloc T temp = values[0];         // OK in <T: any> with sizeof(T)
+stackalloc T temp = values[0];         // OK in <T> with checked sizeof(T)
 stackalloc int count = 4;              // error: declare 'int count' as an ordinary local
 stackalloc long<Color> kind = RED;     // error: a carrier has a specified size
-stackalloc T item = default;           // error under <T: implements I>: use T*
+stackalloc T item = default;           // error if sizeof(T) is unavailable
 ```
 
 Allocation expressions are unchanged: `stackalloc int[4]`, `stackalloc char[n]`

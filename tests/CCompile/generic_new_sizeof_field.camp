@@ -1,7 +1,7 @@
 extern escaped void* malloc(nuint size);
 extern void free(void* ptr);
 
-class Box<T: any>
+class Box<T>
 {
 	Box(sizeof(T))
 	{

@@ -69,7 +69,7 @@
         {
           "id": "function:readVisible/type-parameter:T",
           "name": "T",
-          "constraint": "IVisible"
+          "constraint": "void"
         }
       ],
       "parameters": [

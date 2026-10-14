@@ -122,6 +122,7 @@ public sealed partial class BindableNodeAnalyzer
 					AddImplicitDefaultArguments(call);
 					LowerThrowingArguments(call);
 					AddImplicitSizeOfArguments(call);
+					AddImplicitCallableCapabilityArguments(call);
 					AddImplicitNameOfArguments(call);
 					AddImplicitWithinArgument(call);
 					AddImplicitVTableOfArguments(call);
@@ -627,6 +628,7 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (callTargets.ContainsKey(call))
 			return false;
+		AddImplicitCallableCapabilityArguments(call);
 		if (call.Target is not null && TryGetOptionalPayloadType(call.Target.ResolvedType, out string payload)
 			&& TryGetCallableShape(payload, out CallableShape optionalCallable) && optionalCallable.Kind is "delegate" or "once" or "async" or "iter")
 			call.Target = new MemberExpression { SourceSyntax = call.Target.SourceSyntax,
@@ -734,7 +736,7 @@ public sealed partial class BindableNodeAnalyzer
 		for (int parameterIndex = 0; parameterIndex < callableParameters.Count; parameterIndex++)
 		{
 			ParameterDefinition parameter = callableParameters[parameterIndex];
-			if (parameter is SizeOfParameterDefinition)
+			if (parameter is SizeOfParameterDefinition && argumentsByParameter[parameterIndex] is null)
 				continue;
 			if (argumentsByParameter[parameterIndex] is ArgumentExpression supplied
 				&& !(IsExplicitHiddenArgument(supplied) && IsImplicitOnlyCallParameter(parameter)))

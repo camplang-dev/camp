@@ -1051,10 +1051,8 @@ public sealed partial class BindableNodeAnalyzer
 		GenericParameter generic = new()
 		{
 			Name = "U",
-			ResolvedType = "U",
-			Constraint = PointerTo(VoidType())
+			ResolvedType = "U"
 		};
-		generic.Constraint.ResolvedType = "void*";
 
 		StructDefinition indirect = new()
 		{

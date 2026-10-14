@@ -1,4 +1,4 @@
-void use<T: copyable>()
+void use<T>(sizeof(T))
 {
 }
 

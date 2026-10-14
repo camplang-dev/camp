@@ -88,7 +88,7 @@ public sealed class MutableWriteTargetTests
 	public void Generic_mutable_array_write_remains_valid()
 	{
 		SemanticCompiler.AssertNoDiagnostics(SemanticCompiler.CompileLowered("""
-			void write<T: copyable>(T[] items, in T value, sizeof(T))
+			void write<T>(T[] items, in T value, sizeof(T))
 			{
 				items[0] = value;
 			}
@@ -99,7 +99,7 @@ public sealed class MutableWriteTargetTests
 	public void Generic_const_array_write_keeps_its_existing_diagnostic()
 	{
 		SemanticCompilation compilation = SemanticCompiler.CompileLowered("""
-			void write<T: copyable>(const T[] items, in T value, sizeof(T))
+			void write<T>(const T[] items, in T value, sizeof(T))
 			{
 				items[0] = value;
 			}

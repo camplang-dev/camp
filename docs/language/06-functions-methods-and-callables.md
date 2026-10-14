@@ -747,9 +747,10 @@ detail.
 ## Method References
 
 References to generic methods expose the erasure of their signature. Each
-type parameter is replaced by its erased form: `void<A>` for `any` and
-`copyable`, the carrier `C<A>` for a representation constraint (an unconstrained
-parameter is `nint`), and plain `A` under `implements`. The result is the same
+type parameter is replaced by its represented form: `void<A>` for an omitted
+representation, or `R<A>` for an explicit integer representation. An existing
+outer representation on A is replaced; nested nominal arguments stay intact.
+Capabilities remain typed slots in the source signature. The rule is the same
 for every type argument. For a `List<int> numbers`,
 `auto get = numbers.getItem` is `delegate void<int>(nuint)` and
 `auto set = numbers.setItem` is `delegate void(nuint, in void<int>)`; for a

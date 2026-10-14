@@ -1,8 +1,8 @@
-class List<T: any>
+class List<T>
 {
 	nuint length;
 
-	void add(in T item)
+	void add(in T item, sizeof(T))
 	{
 	}
 

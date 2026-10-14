@@ -10,7 +10,7 @@ interface Managed
 	~Managed(within allocator);
 }
 
-void create<T: implements Managed>(Allocator* allocator, sizeof(T), vtableof(T: Managed))
+void create<T>(Allocator* allocator, sizeof(T), vtableof(T: Managed))
 {
 	T* value = within (allocator) stackalloc T();
 }

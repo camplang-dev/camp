@@ -21,7 +21,7 @@
         {
           "id": "struct:Docs::Box/type-parameter:T",
           "name": "T",
-          "constraint": "copyable"
+          "constraint": "void"
         }
       ],
       "fields": [

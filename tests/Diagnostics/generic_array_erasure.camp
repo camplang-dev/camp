@@ -3,49 +3,49 @@ interface IValue
 	void use();
 }
 
-void indexWithoutSize<T: any>(T[] items)
+void indexWithoutSize<T>(T[] items)
 {
 	auto value = items[0];
 }
 
-void addressWithoutSize<T: any>(T[] items)
+void addressWithoutSize<T>(T[] items)
 {
 	auto address = &items[0];
 }
 
-void foreachWithoutSize<T: any>(T[] items)
+void foreachWithoutSize<T>(T[] items)
 {
 	foreach (auto item in items)
 	{
 	}
 }
 
-void sliceWithoutSize<T: any>(T[] items)
+void sliceWithoutSize<T>(T[] items)
 {
 	auto slice = items[1..2];
 }
 
-void assignWithoutSize<T: any>(T[] items, in T value)
+void assignWithoutSize<T>(T[] items, T* value)
 {
-	items[0] = value;
+	items[0] = *value;
 }
 
-void newWithoutSize<T: any>(nuint count)
+void newWithoutSize<T>(nuint count)
 {
 	auto values = new T[count];
 }
 
-void vtableWithoutSize<T: implements IValue>(T[] items, vtableof(T: IValue))
+void vtableWithoutSize<T>(T[] items, vtableof(T: IValue))
 {
 	items[0].use();
 }
 
-void dispatchWithoutVTable<T: implements IValue>(T[] items, sizeof(T))
+void dispatchWithoutVTable<T>(T[] items, sizeof(T))
 {
 	items[0].use();
 }
 
-void mutateConst<T: any>(const T[] items, in T value, sizeof(T))
+void mutateConst<T>(const T[] items, in T value, sizeof(T))
 {
 	items[0] = value;
 }

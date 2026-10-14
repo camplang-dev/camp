@@ -7,6 +7,69 @@ namespace Camp.Compiler.Tests;
 
 public sealed class ErasedTypeTests
 {
+	[Fact]
+	public void Representation_capability_foundation_uses_void_default_and_checked_copy_contracts()
+	{
+		SemanticCompiler.AssertNoDiagnostics(SemanticCompiler.CompileLowered("""
+			class Borrowed<T> { T* value; }
+			T choose<T>(in T left, in T right, bool first, sizeof(T)) { return first ? left : right; }
+			void borrow<T>(T* value) { }
+			void test() { int value = 7; borrow(&value); int chosen = choose(value, 9, true); }
+			"""));
+		foreach (string source in new[]
+		{
+			"void bad<T>(T value) { }",
+			"void bad<T>(T value, sizeof(T)) { }",
+			"interface I { } void bad<T>(T value, vtableof(T: I)) { }",
+			"interface I { } void bad<T>(T value, sizeof(T), vtableof(T: I)) { }",
+			"void bad<T>(in T value) { }",
+			"void bad<T>(out T value) { }",
+			"void size<T>(sizeof(T)) { } class Object { } void test() { size<Object>(); }",
+			"void size<T>(sizeof(T)) { } fixed struct State { int x; } void test() { size<State>(); }",
+			"void size<T>(sizeof(T)) { } void test() { size<int>(4); }",
+			"class Fake<T> { nuint sizeof_T; nuint size() => sizeof(T); }",
+			"void copy<T>(sizeof(T)) { } void use<U>(U* value, sizeof(U*)) { copy<U>(); }"
+		})
+			Assert.NotEmpty(SemanticCompiler.CompileLowered(source).Diagnostics);
+	}
+
+	[Theory]
+	[InlineData("void")]
+	[InlineData("any")]
+	[InlineData("copyable")]
+	[InlineData("implements I")]
+	[InlineData("sbyte")]
+	[InlineData("void*")]
+	public void Removed_or_invalid_generic_representations_are_diagnosed(string representation)
+	{
+		SemanticCompilation compilation = SemanticCompiler.CompileLowered($"interface I {{ }} class Box<T: {representation}> {{ }}");
+		Assert.Contains(compilation.Diagnostics, diagnostic => diagnostic.Contains("representation"));
+	}
+
+	[Fact]
+	public void Representation_aliases_calls_and_outer_replacement_preserve_the_destination_contract()
+	{
+		foreach (string representation in new[] { "byte", "ushort", "short", "uint", "int", "ulong", "long", "nuint", "nint" })
+			SemanticCompiler.AssertNoDiagnostics(SemanticCompiler.CompileLowered($$"""
+				alias Word = {{representation}};
+				class Holder<T: Word> { T value; }
+				void take<U: Word>(U value) { }
+				void use(Holder<byte>* holder, byte value) { take<byte>(value); take(value); }
+				"""));
+		SemanticCompilation replaced = SemanticCompiler.CompileLowered("""
+			struct Slot<T: long> { T value; T get() => this.value; }
+			void use(Slot<int<byte>>* slot) { auto getter = slot.get; }
+			""");
+		SemanticCompiler.AssertNoDiagnostics(replaced);
+		DeclarationStatement local = Assert.Single(SemanticCompiler.Descendants<DeclarationStatement>(SemanticCompiler.Function(replaced, "use")), declaration => declaration.Target.Names.Contains("getter"));
+		// Lowering exposes the delegate's function/context components; its result
+		// must still carry the destination representation and original byte identity.
+		Assert.Equal("fn long<byte>(void*)", local.Target.ResolvedType);
+		SemanticCompiler.AssertNoDiagnostics(SemanticCompiler.CompileLowered("void borrow<U>(U* value) { } void forward<T>(T* value) { borrow<T>(value); }"));
+		SemanticCompilation invalid = SemanticCompiler.CompileLowered("void wider<U: long>(U value) { } void forward<T: int>(T value) { wider<T>(value); }");
+		Assert.Contains(invalid.Diagnostics, diagnostic => diagnostic.Contains("representation-changing transport"));
+	}
+
 	[Theory]
 	[InlineData("void<int>", "Int")]
 	[InlineData("void<int>*", "Int")]
@@ -20,7 +83,7 @@ public sealed class ErasedTypeTests
 	[InlineData("void", "Void")]
 	public void Annotated_types_name_the_annotated_type(string type, string expected)
 	{
-		SemanticCompilation compilation = SemanticCompiler.CompileLowered($"class Widget {{ }} class Bag<T: any> {{ }} enum Kind: byte {{ A }} export string name() => typenameof({type});");
+		SemanticCompilation compilation = SemanticCompiler.CompileLowered($"class Widget {{ }} class Bag<T> {{ }} enum Kind: byte {{ A }} export string name() => typenameof({type});");
 		SemanticCompiler.AssertNoDiagnostics(compilation);
 		DirectoryInfo directory = Directory.CreateTempSubdirectory("camp-erased-name-");
 		try
@@ -35,13 +98,13 @@ public sealed class ErasedTypeTests
 	}
 
 	[Theory]
-	[InlineData("copyable", "")]
-	[InlineData("copyable", ", sizeof(T)")]
-	[InlineData("any", "")]
-	[InlineData("any", ", sizeof(T)")]
-	public void Erased_generic_inputs_require_references(string constraint, string capabilities)
+	[InlineData("")]
+	[InlineData(", sizeof(T)")]
+	[InlineData(", vtableof(T: I)")]
+	[InlineData(", sizeof(T), vtableof(T: I)")]
+	public void Erased_generic_inputs_require_references(string capabilities)
 	{
-		SemanticCompilation compilation = SemanticCompiler.CompileLowered($"void take<T: {constraint}>(T value{capabilities}) {{ }}");
+		SemanticCompilation compilation = SemanticCompiler.CompileLowered($"interface I {{ }} void take<T>(T value{capabilities}) {{ }}");
 		Assert.Contains(compilation.Diagnostics, diagnostic => diagnostic.Contains("use 'in T'"));
 	}
 
@@ -52,8 +115,8 @@ public sealed class ErasedTypeTests
 	[InlineData("delegate int()")]
 	public void Representation_generics_reject_expandable_arguments(string type)
 	{
-		SemanticCompilation compilation = SemanticCompiler.CompileLowered($"class Box<T> {{ }} void take(Box<{type}>* p) {{ }}");
-		Assert.Contains(compilation.Diagnostics, diagnostic => diagnostic.Contains("requires an erased generic parameter"));
+		SemanticCompilation compilation = SemanticCompiler.CompileLowered($"class Box<T: nint> {{ }} void take(Box<{type}>* p) {{ }}");
+		Assert.Contains(compilation.Diagnostics, diagnostic => diagnostic.Contains("representation constraint"));
 	}
 
 	[Fact]
@@ -64,8 +127,8 @@ public sealed class ErasedTypeTests
 			export void getPoint(out void<Point> result) { Point p = { 3, 4 }; result = p; }
 			export void<int?> find(int index) { return 7; }
 			export void<Point>* getOpaquePoint(void<Point>* p) => p;
-			export T identity<T: copyable>(in T value, sizeof(T), typenameof(T)) => value;
-			export bool tryCopy<T: copyable>(in T value, out T result, sizeof(T)) { result = value; return true; }
+			export T identity<T>(in T value, sizeof(T), typenameof(T)) => value;
+			export bool tryCopy<T>(in T value, out T result, sizeof(T)) { result = value; return true; }
 			""");
 		SemanticCompiler.AssertNoDiagnostics(compilation);
 		DirectoryInfo directory = Directory.CreateTempSubdirectory("camp-erased-results-");
@@ -88,7 +151,7 @@ public sealed class ErasedTypeTests
 	public void Result_slot_precedes_allocator_error_and_witness_capabilities()
 	{
 		SemanticCompilation compilation = SemanticCompiler.CompileLowered("""
-			T mixed<T: copyable>(in T value, within void* allocator, thrown int error, sizeof(T), typenameof(T)) => value;
+			T mixed<T>(in T value, within void* allocator, thrown int error, sizeof(T), typenameof(T)) => value;
 			""");
 		SemanticCompiler.AssertNoDiagnostics(compilation);
 		foreach (string name in new[] { "mixed" })
@@ -100,10 +163,10 @@ public sealed class ErasedTypeTests
 	}
 
 	[Theory]
-	[InlineData("T missing<T: copyable>(in T value) => value;", "requires sizeof(T)")]
-	[InlineData("T missing<T: copyable>() => default;", "requires sizeof(T)")]
-	[InlineData("T missing<T: any>(in T value, sizeof(T)) => value;", "non-copying")]
-	[InlineData("interface I { } void bad<T: implements I>(T value, sizeof(T)) { }", "cannot be passed by value")]
+	[InlineData("T missing<T>(in T value) => value;", "requires checked sizeof(T)")]
+	[InlineData("T missing<T>() => default;", "requires sizeof(T)")]
+	[InlineData("T missing<T>(T* value) => *value;", "requires checked sizeof(T)")]
+	[InlineData("interface I { } void bad<T>(T value, sizeof(T)) { }", "cannot be passed by value")]
 	public void Erased_operations_keep_capability_requirements(string source, string message)
 	{
 		SemanticCompilation compilation = SemanticCompiler.CompileLowered(source);
@@ -202,7 +265,7 @@ public sealed class ErasedTypeTests
 	public void Erased_signature_positions_and_pointer_wrapped_generic_arguments_bind()
 	{
 		SemanticCompilation compilation = SemanticCompiler.CompileLowered("""
-			class Box<T: any> { }
+			class Box<T> { }
 			void take(void<int>* input, out void<int>* output, Box<void<int[]>*>* pointer) { output = default; }
 			void<int> result() => 7;
 			""");
@@ -226,7 +289,7 @@ public sealed class ErasedTypeTests
 	public void Explicit_generic_calls_reject_bare_erased_arguments()
 	{
 		SemanticCompilation compilation = SemanticCompiler.CompileLowered("""
-			void take<T: any>() { }
+			void take<T>() { }
 			void test() { take<void<int>>(); }
 			""");
 		Assert.Contains(compilation.Diagnostics, diagnostic => diagnostic.Contains("a by-value generic argument"));
@@ -240,7 +303,7 @@ public sealed class ErasedTypeTests
 			""");
 		SemanticCompiler.AssertNoDiagnostics(allowed);
 		SemanticCompilation forbidden = SemanticCompiler.CompileLowered("""
-			void test<T: any>(T* source) { void<int>* target = (void<int>*)source; }
+			void test<T>(T* source) { void<int>* target = (void<int>*)source; }
 			""");
 		Assert.Contains(forbidden.Diagnostics, diagnostic => diagnostic.Contains("cast through 'void*'"));
 	}
@@ -276,6 +339,8 @@ public sealed class ErasedTypeTests
 	[InlineData("long", "ulong")]
 	[InlineData("long", "Kind")]
 	[InlineData("long", "Small")]
+	[InlineData("long", "bool")]
+	[InlineData("long", "char")]
 	[InlineData("nuint", "uint")]
 	[InlineData("nuint", "byte*")]
 	[InlineData("nuint", "Widget*")]
@@ -305,8 +370,6 @@ public sealed class ErasedTypeTests
 	[InlineData("int", "Wide", "wider than 'int'")]
 	[InlineData("ulong", "float", "does not satisfy 'T: ulong'")]
 	[InlineData("long", "double", "does not satisfy 'T: long'")]
-	[InlineData("long", "bool", "does not satisfy 'T: long'")]
-	[InlineData("long", "char", "does not satisfy 'T: long'")]
 	[InlineData("long", "Point", "does not satisfy 'T: long'")]
 	[InlineData("long", "Widget*", "pointer types satisfy only 'T: nint' and 'T: nuint'")]
 	[InlineData("int", "byte*", "pointer types satisfy only 'T: nint' and 'T: nuint'")]
@@ -401,7 +464,7 @@ public sealed class ErasedTypeTests
 			class Widget { }
 			class Button: Widget { }
 			struct W<T: long> { T v; }
-			class Bag<T: any> { }
+			class Bag<T> { }
 			void takeKind(long<Kind> value) { }
 			void takePlain(Kind value) { }
 			void take(in void<Widget*> w) { }

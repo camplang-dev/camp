@@ -252,7 +252,7 @@ For erased generic value iteration, use explicit stack storage for the current
 item when the compiler cannot know the value's size at compile time:
 
 ```camp
-struct iter T each<T: copyable>(T[] values, sizeof(T))
+struct iter T each<T>(T[] values, sizeof(T))
 {
 	foreach (stackalloc T item in values)
 		yield item;
@@ -606,23 +606,22 @@ nuint countNonZero(const byte[] bytes)
 ```
 
 In generic code, array iteration follows the same rules as other generic array
-operations. If the element type is only `T: any`, the loop should usually work
+operations. For void-represented T, the loop may work
 with element storage instead of pretending that each element can be copied as a
 source value:
 
 ```camp
-void visitEach<T: any>(T[] values, fn void(T* value) visit, sizeof(T))
+void visitEach<T>(T[] values, fn void(T* value) visit, sizeof(T))
 {
 	for (nuint index = 0; index < values.length; index++)
 		visit(&values[index]);
 }
 ```
 
-`sizeof(T)` supplies the element stride. The callback receives a pointer to the
-element's storage form, so this works for fixed structs, fixed-size arrays,
-classes, expanded forms, and ordinary scalar values. If the loop body copies,
-returns, yields, or keeps the element value in a local, the generic signature
-also needs `T: copyable`.
+Checked `sizeof(T)` supplies the element stride and requires a copyable actual
+argument even when the body only borrows. The callback receives a pointer to the
+element's storage form. For a noncopyable actual type, borrow a T* without
+requesting sizeof(T); a witness alone cannot authorize array indexing.
 
 For fixed structs, classes, fixed-size arrays, and other non-copyable element
 forms, prefer APIs that expose addresses or other storage-aware views rather
@@ -634,24 +633,23 @@ Generic iterators obey the same generic rules you learned in the previous
 chapter:
 
 ```camp
-struct iter T iterate<T: copyable>(T[] values, sizeof(T))
+struct iter T iterate<T>(T[] values, sizeof(T))
 {
-	foreach (auto value in values)
+	foreach (stackalloc T value in values)
 		yield value;
 }
 ```
 
-This iterator copies each yielded `T`, so it requires `T: copyable`. It also
-asks for `sizeof(T)` because the generated state and array enumeration need
-the element size.
+This iterator asks for checked `sizeof(T)` because yielding, generated state
+and array enumeration need copy/layout authority.
 
-A generic adapter over an existing iterator may work under `T: any` if it does
-not copy yielded values in a way the constraint forbids:
+A generic adapter over an existing iterator also requests checked size when
+it allocates storage for yielded values:
 
 ```camp
-nuint countIterator<T: any>(iter T values, sizeof(T))
+nuint countIterator<T>(iter T values, sizeof(T))
 {
-	T current = default;
+	stackalloc T current = default;
 	nuint count = 0;
 
 	while (values(&current))
@@ -662,9 +660,9 @@ nuint countIterator<T: any>(iter T values, sizeof(T))
 }
 ```
 
-For `T: any`, the `T* current` slot points at the storage form of `T`. If `T`
-is an expanded form, that means materialized storage. If `T` is a fixed struct
-or fixed-size array, that means storage for the fixed value.
+The T* current slot points at the storage form of T. An expanded argument uses
+materialized storage. Fixed structs and direct fixed arrays cannot satisfy
+the checked size contract in this example.
 
 ## Iterators And Expanded Values
 

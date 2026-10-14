@@ -30,7 +30,7 @@ public sealed class StructInterfaceApiTests
 		string api = writer.ToString();
 		Assert.Contains("struct Cell : Reader, Writer", api);
 		SemanticCompilation consumer = SemanticCompiler.CompileLowered("export interface Reader { int read(); } export interface Writer { void write(int value); }\n" + api + """
-			int use<T: implements Reader>(T* value, vtableof(T: Reader)) => value.read();
+			int use<T>(T* value, vtableof(T: Reader)) => value.read();
 			void test()
 			{
 				Cell cell = { 5 };

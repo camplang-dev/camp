@@ -1,7 +1,7 @@
-void store<T: copyable>(out T target, in T value, sizeof(T)) { target = value; }
-void storeReversed<T: copyable>(in T value, out T target, sizeof(T)) { target = value; }
-T identity<T: copyable>(in T value, sizeof(T)) => value;
-void storeWithTail<T: copyable>(out T target, in T value, int check = 7, sizeof(T))
+void store<T>(out T target, in T value, sizeof(T)) { target = value; }
+void storeReversed<T>(in T value, out T target, sizeof(T)) { target = value; }
+T identity<T>(in T value, sizeof(T)) => value;
+void storeWithTail<T>(out T target, in T value, int check = 7, sizeof(T))
 {
 	if (check == 7) target = value;
 	else target = default;

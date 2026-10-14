@@ -6,7 +6,7 @@ internal interface IRefCount
 	void release();
 }
 
-void captureRelease<T: implements IRefCount>(T* value, vtableof(T: IRefCount))
+void captureRelease<T>(T* value, vtableof(T: IRefCount))
 {
 	value.retain();
 	fn void(T* context) capturedRelease = vtableof_T_IRefCount.release;

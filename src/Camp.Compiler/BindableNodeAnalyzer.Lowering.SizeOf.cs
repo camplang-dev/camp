@@ -47,6 +47,7 @@ public sealed partial class BindableNodeAnalyzer
 
 				FieldDefinition field = new()
 				{
+					CapabilitySource = sizeOf,
 					SourceSyntax = sizeOf.SourceSyntax,
 					Name = SizeOfFieldName(sizeOf.Type),
 					Symbol = SizeOfFieldName(sizeOf.Type),
@@ -123,7 +124,8 @@ public sealed partial class BindableNodeAnalyzer
 			return CreateSizeOfFieldReference(classDefinition, field, sizeOf.SourceSyntax);
 		}
 
-		if (ThisMemberReference(SizeOfParameterName(sizeOf.Type), "nuint") is { Member: FieldDefinition } iteratorSizeOfField)
+		if (ThisMemberReference(SizeOfParameterName(sizeOf.Type), "nuint") is { Member: FieldDefinition { CapabilitySource: SizeOfParameterDefinition retained } } iteratorSizeOfField
+			&& SameBinder(BoundParameter(retained.Type), BoundParameter(sizeOf.Type)))
 			return iteratorSizeOfField;
 
 		Report(sizeOf.SourceSyntax, $"sizeof({genericName}) requires parameter '{SizeOfParameterName(sizeOf.Type)}'.");
@@ -205,11 +207,15 @@ public sealed partial class BindableNodeAnalyzer
 			string concreteType = substitutions.TryGetValue(genericName, out string? substituted)
 				? substituted
 				: sizeOf.Type?.ResolvedType ?? genericName;
+			GenericParameter? callerOperand = currentRewriteFunction?.GenericParameters.Find(parameter => parameter.Name == concreteType)
+				?? currentRewriteContainingType?.GenericParameters.Find(parameter => parameter.Name == concreteType);
 			SizeOfExpression value = new()
 			{
 				SourceSyntax = call.SourceSyntax ?? call.Target?.SourceSyntax,
-				Type = concreteType == genericName
-					? CloneType(sizeOf.Type)
+				Type = callerOperand is not null
+					? new GenericParameterTypeReference { Name = concreteType, Parameter = callerOperand, ResolvedType = concreteType }
+					: concreteType == genericName
+						? CloneType(sizeOf.Type)
 					: TypeReferenceForResolvedName(concreteType),
 				ResolvedType = "nuint"
 			};

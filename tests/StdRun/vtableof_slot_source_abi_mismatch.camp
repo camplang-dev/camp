@@ -15,7 +15,7 @@ void addReleaseFunction(fn void(RefThing* context) releaseFunction)
 	usedReleaseFunctions++;
 }
 
-void captureRelease<T: implements IRefCount>(T* value, out fn void(T*) release, vtableof(T: IRefCount))
+void captureRelease<T>(T* value, out fn void(T*) release, vtableof(T: IRefCount))
 {
 	release = vtableof_T_IRefCount.release;
 }

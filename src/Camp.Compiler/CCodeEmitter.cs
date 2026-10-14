@@ -1638,7 +1638,8 @@ public static class CCodeEmitter
             // Prep is a source contract; its flattened buffer slots have the
             // ordinary array ABI, just like GetCallableParameterTypeText below.
             targetParameterTypes = targetParameterTypes.Select(type =>
-                CallableShapeService.ParseCallableSlot(type) is { Modifier: "prep" } slot ? slot.Type : type).ToList();
+                GenericCapabilityIdentity.Parse(type)?.ResolvedType
+                    ?? (CallableShapeService.ParseCallableSlot(type) is { Modifier: "prep" } slot ? slot.Type : type)).ToList();
 
             List<ParameterDefinition> sourceParameters = GetCallableParametersForCall(sourceFunction);
             bool forwardsContext = sourceParameters.Count == targetParameterTypes.Count
@@ -2340,7 +2341,7 @@ public static class CCodeEmitter
 
             void AddParameter(GenericParameter parameter)
             {
-                if (parameter.Constraint is AnyTypeReference or CopyableTypeReference)
+                if (parameter.IsVoidRepresentation)
                     names.Add(parameter.Name);
             }
         }
@@ -4072,7 +4073,7 @@ public static class CCodeEmitter
             foreach (GenericParameter parameter in function.GenericParameters)
             {
                 currentGenericTypeNames.Add(parameter.Name);
-                if (parameter.Constraint is AnyTypeReference or CopyableTypeReference)
+                if (parameter.IsVoidRepresentation)
                     currentAnyGenericTypeNames.Add(parameter.Name);
                 AddRepresentationGeneric(parameter);
             }
@@ -4080,7 +4081,7 @@ public static class CCodeEmitter
                 foreach (GenericParameter parameter in containingType.GenericParameters)
                 {
                     currentGenericTypeNames.Add(parameter.Name);
-                    if (parameter.Constraint is AnyTypeReference or CopyableTypeReference)
+                    if (parameter.IsVoidRepresentation)
                         currentAnyGenericTypeNames.Add(parameter.Name);
                     AddRepresentationGeneric(parameter);
                 }
@@ -4145,7 +4146,7 @@ public static class CCodeEmitter
             foreach (GenericParameter parameter in type.GenericParameters)
             {
                 currentGenericTypeNames.Add(parameter.Name);
-                if (parameter.Constraint is AnyTypeReference or CopyableTypeReference)
+                if (parameter.IsVoidRepresentation)
                     currentAnyGenericTypeNames.Add(parameter.Name);
                 AddRepresentationGeneric(parameter);
             }
@@ -6053,7 +6054,8 @@ public static class CCodeEmitter
             string text = target + "(" + string.Join(", ", arguments) + ")";
             if (function is not null && TryGetConcreteGenericType(function.ResolvedType, genericSubstitutions, out string? concreteReturnType))
             {
-                if (NeedsGenericScalarCast(concreteReturnType))
+                if (NeedsGenericScalarCast(concreteReturnType) || RepresentationCTypeOf(function, function.ResolvedType) is not null
+                    && (IsPrimitiveStringResolvedName(concreteReturnType) || concreteReturnType.EndsWith('*')))
                     return CastFromErasedGeneric(text, concreteReturnType, RepresentationCTypeOf(function, function.ResolvedType));
             }
             if (TryGetCallResultCastType(call, function, genericSubstitutions, out string? castType))
@@ -7862,7 +7864,7 @@ public static class CCodeEmitter
                 formatted = casted;
             return target switch
             {
-                UnaryExpression { Operator: UnaryOperator.PointerDereference } => "(" + formatted + ")",
+                UnaryExpression { Operator: UnaryOperator.PointerDereference or UnaryOperator.AddressOf } => "(" + formatted + ")",
                 CastExpression => "(" + formatted + ")",
                 ConditionalExpression => "(" + formatted + ")",
                 AssignmentExpression => "(" + formatted + ")",
@@ -7918,7 +7920,7 @@ public static class CCodeEmitter
                 && (WitnessTypeIdentity.TryParse(witnessOperand.ResolvedType, out _)
                     || witnessOperand is VariableReferenceExpression { Variable: VTableOfParameterDefinition }
                     || witnessOperand is MemberReferenceExpression { Member: FieldDefinition { Type: WitnessTypeReference } }))
-                return FormatExpression(witnessOperand) + "->" + SanitizeIdentifier(name);
+                return FormatMemberTarget(witnessOperand) + "->" + SanitizeIdentifier(name);
             if (target is UnaryExpression { Operator: UnaryOperator.PointerDereference, Operand: Expression operand }
                 && TryGetPointerElementType(operand.ResolvedType, out string operandElementType)
                 && TryFindInterfaceStruct(InterfaceStructNameFromPointerElement(operandElementType), name, out _))
@@ -9372,6 +9374,8 @@ public static class CCodeEmitter
 
         CType FormatResolvedType(string resolvedType, string declarator, bool normalizeInterfacePointer = true)
         {
+            if (GenericCapabilityIdentity.Parse(resolvedType) is ParameterDefinition capability)
+                resolvedType = capability.ResolvedType ?? "void*";
             string type = CarrierTypeIdentity.StripAnnotations(resolvedType.Trim());
             if (type.Contains("void<", StringComparison.Ordinal)
                 && TryParseResolvedCallableType(type, out string annotatedReturnType, out List<string> annotatedParameters, out string? annotatedTargetSpec, out string? annotatedCallSpec))
@@ -9525,8 +9529,6 @@ public static class CCodeEmitter
                 pointerCount++;
 
             bool isGenericType = currentGenericTypeNames.Contains(type) || genericParameterNames.Contains(type);
-            if (isGenericType && !anyGenericParameterNames.Contains(type) && pointerCount > 0 && currentArrayElementComponentNames.Contains(declarator))
-                pointerCount++;
             string pointerPart = pointerCount == 0 ? "" : new string('*', pointerCount);
             string targetSpec = pointerPart.Length == 0 ? "" : FormatTypeSpec(explicitTargetSpec ?? GetDefaultTargetTypeSpec(functionPointer: false));
             if (targetSpec.Length > 0)
@@ -9627,7 +9629,7 @@ public static class CCodeEmitter
         {
             type = StripTypeDecorators(type);
             if (currentGenericTypeNames.Contains(type))
-                return "void";
+                return RepresentationCType(type) ?? "void";
             if (genericParameterNames.Contains(type))
                 return "void";
 

@@ -15,7 +15,7 @@ public sealed class ErasedOptionalDelegateArgumentTests
 	public void Expanded_delegate_arguments_precede_erased_result_storage(string arguments)
 	{
 		SemanticCompilation compilation = SemanticCompiler.CompileLowered($$"""
-			T maybe<T: copyable>(delegate bool(int) look, int index = 6, sizeof(T)) => default;
+			T maybe<T>(delegate bool(int) look, int index = 6, sizeof(T)) => default;
 			bool yes(int index) => true;
 			void test() {
 				int offset = 3;

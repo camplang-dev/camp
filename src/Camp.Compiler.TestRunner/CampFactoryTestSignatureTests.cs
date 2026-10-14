@@ -217,7 +217,7 @@ public sealed class CampFactoryTestSignatureTests
 			}
 
 			@factorytest
-			void genericFactory<T: any>(thrown Assertion* assertion)
+			void genericFactory<T>(thrown Assertion* assertion)
 			{
 			}
 			"""));

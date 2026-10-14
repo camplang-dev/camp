@@ -116,7 +116,9 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		foreach (GenericParameter parameter in function.GenericParameters)
 		{
-			if (parameter.Constraint is not AnyTypeReference and not CopyableTypeReference)
+			if (!parameter.IsVoidRepresentation)
+				continue;
+			if (function.ReturnType is not IterTypeReference iter || (iter.ElementType?.ResolvedType ?? FormatTypeReference(iter.ElementType)) != parameter.Name)
 				continue;
 			if (FindSizeOfParameter(function, parameter.Name) is not null)
 				continue;
@@ -550,6 +552,7 @@ public sealed partial class BindableNodeAnalyzer
 			AddIteratorField(state, new FieldDefinition
 			{
 				SourceSyntax = parameter.SourceSyntax,
+				CapabilitySource = parameter is SizeOfParameterDefinition or NameOfParameterDefinition or VTableOfParameterDefinition ? parameter : null,
 				Name = fieldName,
 				Symbol = fieldName,
 				Type = IteratorStateFieldTypeReference(parameter, parameterType, containingType),

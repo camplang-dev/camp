@@ -7,7 +7,7 @@ inline nuint HASHMAP_EMPTY = (nuint)0;
 /// A hash-based map from keys to values.
 /// @remarks
 /// HashMap owns shallow copies of its keys and values. Pointer and string keys copy the pointer value; the supplied hash policy controls identity or content comparison.
-public class HashMap<K: copyable, V: copyable>
+public class HashMap<K, V>
 {
 	HashPolicy<K> policy;
 	escaped K[] keys;
@@ -53,7 +53,7 @@ public class HashMap<K: copyable, V: copyable>
 	/// Adds or replaces a value for a key.
 	public void setItem(in K key, in V value)
 	{
-		fn nuint(in K) hashFunction = this.policy.hash;
+		fn nuint(in K, sizeof(K)) hashFunction = this.policy.hash;
 		nuint hash = hashFunction(key);
 		nint existing = this.findSlot(key, hash);
 		if (existing >= 0)
@@ -82,7 +82,7 @@ public class HashMap<K: copyable, V: copyable>
 	public bool tryGet(const this, in K key, out V value)
 	{
 		value = default;
-		fn nuint(in K) hashFunction = this.policy.hash;
+		fn nuint(in K, sizeof(K)) hashFunction = this.policy.hash;
 		nint slot = this.findSlot(key, hashFunction(key));
 		if (slot < 0)
 			return false;
@@ -102,7 +102,7 @@ public class HashMap<K: copyable, V: copyable>
 	/// Returns true when the key is present.
 	public bool containsKey(const this, in K key)
 	{
-		fn nuint(in K) hashFunction = this.policy.hash;
+		fn nuint(in K, sizeof(K)) hashFunction = this.policy.hash;
 		return this.findSlot(key, hashFunction(key)) != -1;
 	}
 
@@ -112,7 +112,7 @@ public class HashMap<K: copyable, V: copyable>
 		if (this.buckets.length == 0)
 			return false;
 
-		fn nuint(in K) hashFunction = this.policy.hash;
+		fn nuint(in K, sizeof(K)) hashFunction = this.policy.hash;
 		nuint hash = hashFunction(key);
 		nuint bucket = hash % this.buckets.length;
 		nuint previous = HASHMAP_EMPTY;

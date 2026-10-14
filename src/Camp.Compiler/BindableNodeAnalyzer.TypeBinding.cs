@@ -242,6 +242,7 @@ public sealed partial class BindableNodeAnalyzer
 				break;
 
 			case CallableTypeReference callable:
+				scope = new AnalysisScope(scope) { CapabilityParameters = callable.Parameters };
 				ValidateCallableSpec(callable);
 				ValidateCallableUponParameters(callable);
 				NormalizeAnonymousCallableParameterNames(callable.Parameters, callable.Kind == CallableKind.Function ? 0 : 1);
@@ -280,8 +281,6 @@ public sealed partial class BindableNodeAnalyzer
 					&& payloadShape.Kind == TypeShapeKind.Named && payloadShape.Name == "void"
 					|| ErasedTypeIdentity.TryGetPayload(erased.ParamsType?.ResolvedType, out _))
 					Report(GetRange(erased.SourceSyntax), "void<V> cannot contain void or another erased type directly.");
-				else if (payloadShape.Kind == TypeShapeKind.Named && scope.TryGetGenericParameter(payloadShape.Name, out GenericParameter? erasedOperand) && erasedOperand is not null && IsErasedGenericParameter(erasedOperand))
-					Report(GetRange(erased.SourceSyntax), $"void<V> cannot contain the erased type parameter '{payloadShape.Name}', which is already storage of unspecified size; write '{payloadShape.Name}' (or '{payloadShape.Name}*').");
 				type.ResolvedType = FormatTypeReference(type);
 				break;
 
@@ -1320,8 +1319,6 @@ public sealed partial class BindableNodeAnalyzer
 			GenericParameter parameter = definition.GenericParameters[i];
 			TypeReference argument = named.TypeArguments[i];
 			ValidateRepresentationArgument(parameter, argument.ResolvedType ?? FormatTypeReference(argument), scope, argument.SourceSyntax ?? named.SourceSyntax);
-			if (parameter.Constraint is CopyableTypeReference && !IsCopyableTypeArgument(argument, scope, []))
-				Report(GetRange(argument.SourceSyntax ?? named.SourceSyntax), $"Type argument '{argument.ResolvedType ?? FormatTypeReference(argument)}' does not satisfy copyable constraint '{parameter.Name}: copyable'.");
 		}
 	}
 
@@ -1350,10 +1347,10 @@ public sealed partial class BindableNodeAnalyzer
 				return IsCopyableTypeArgument(optional.ElementType, scope, visitedTypes);
 
 			case NamedTypeReference named when scope.TryGetGenericParameter(named.Name, out GenericParameter? parameter) && parameter is not null:
-				return parameter.Constraint is CopyableTypeReference;
+				return HasDeclarationCopyCapability(parameter, scope);
 
 			case GenericParameterTypeReference generic:
-				return generic.Parameter?.Constraint is CopyableTypeReference;
+				return generic.Parameter is GenericParameter bound && HasDeclarationCopyCapability(bound, scope);
 
 			case NamedTypeReference named when typeDefinitions.TryGetValue(BaseTypeName(named.ResolvedType ?? named.Name), out TypeDefinition? namedDefinition) && namedDefinition is not null:
 				return IsCopyableTypeDefinition(namedDefinition, visitedTypes);
@@ -1413,7 +1410,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (shape.Kind != TypeShapeKind.Named)
 			return true;
 		if (bodyScope is not null && FindBodyGenericParameter(bodyScope, shape.Name) is GenericParameter parameter)
-			return parameter.Constraint is CopyableTypeReference;
+			return !parameter.IsVoidRepresentation || HasSizeOfCapability(bodyScope, parameter.Name);
 		if (typeDefinitions.TryGetValue(BaseTypeName(shape.Name), out TypeDefinition? definition) && definition is not null)
 			return IsCopyableTypeDefinition(definition, visitedTypes);
 		return true;

@@ -98,6 +98,7 @@ internal static class ExpandedFormService
 
 	static string FormatParameterType(ParameterDefinition parameter)
 	{
+		if (GenericCapabilityIdentity.Describe(parameter) is string capability) return capability;
 		string parameterType = parameter.ResolvedType ?? "#ERROR";
 		return parameter.Modifier switch
 		{

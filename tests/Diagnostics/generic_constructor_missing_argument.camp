@@ -1,4 +1,4 @@
-extern class HashMap<TKey: copyable, TValue: copyable>
+extern class HashMap<TKey, TValue>
 {
 	extern HashMap(int policy);
 	extern ~HashMap();

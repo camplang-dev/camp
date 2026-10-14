@@ -16,7 +16,7 @@ public sealed class AliasAvailabilityTests
 	[InlineData("void f() { HA a = default; }")]
 	[InlineData("void f() { auto a = HA(); }")]
 	[InlineData("int f(HB a) => 0;")]
-	[InlineData("struct Wrapper<T: any> { T* value; } int f(Wrapper<HA>* a) => 0;")]
+	[InlineData("struct Wrapper<T> { T* value; } int f(Wrapper<HA>* a) => 0;")]
 	public void Alias_uses_require_the_target_gate(string use)
 	{
 		SemanticCompilation compilation = Compile(("use.camp", $$"""

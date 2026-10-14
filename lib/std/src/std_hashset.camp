@@ -7,7 +7,7 @@ inline nuint HASH_EMPTY = (nuint)0;
 /// A hash-based set of unique keys.
 /// @remarks
 /// HashSet owns shallow copies of its keys. Pointer and string keys copy the pointer value; the supplied hash policy controls identity or content comparison.
-public class HashSet<K: copyable>
+public class HashSet<K>
 {
 	HashPolicy<K> policy;
 	escaped K[] keys;
@@ -50,7 +50,7 @@ public class HashSet<K: copyable>
 	/// Adds a key and returns true when the key was not already present.
 	public bool add(in K key)
 	{
-		fn nuint(in K) hashFunction = this.policy.hash;
+		fn nuint(in K, sizeof(K)) hashFunction = this.policy.hash;
 		nuint hash = hashFunction(key);
 		if (this.findSlot(key, hash) != -1)
 			return false;
@@ -74,7 +74,7 @@ public class HashSet<K: copyable>
 	/// Returns true when the key is present.
 	public bool contains(in K key)
 	{
-		fn nuint(in K) hashFunction = this.policy.hash;
+		fn nuint(in K, sizeof(K)) hashFunction = this.policy.hash;
 		return this.findSlot(key, hashFunction(key)) != -1;
 	}
 
@@ -84,7 +84,7 @@ public class HashSet<K: copyable>
 		if (this.buckets.length == 0)
 			return false;
 
-		fn nuint(in K) hashFunction = this.policy.hash;
+		fn nuint(in K, sizeof(K)) hashFunction = this.policy.hash;
 		nuint hash = hashFunction(key);
 		nuint bucket = hash % this.buckets.length;
 		nuint previous = HASH_EMPTY;

@@ -12,7 +12,7 @@ export void main()
 	Console.writeLine(list.Length);
 }
 
-void removeAll<T: copyable>(List<T>* this, delegate bool(in T item) predicate)
+void removeAll<T>(List<T>* this, delegate bool(in T item, sizeof(T)) predicate, sizeof(T))
 {
 	for (nuint i = 1; i < this.Length + 1; i++)
 	{

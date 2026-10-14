@@ -14,12 +14,12 @@ export int main()
 	return 0;
 }
 
-void addItems<T>(StringMap<T>* this, T item)
+void addItems<T: nint>(StringMap<T>* this, T item)
 {
 	callCount++;
 }
 
-fixed struct StringMap<T>
+fixed struct StringMap<T: nint>
 {
 	string[] keys;
 	T[] values;

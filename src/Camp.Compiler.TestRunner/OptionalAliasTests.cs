@@ -19,7 +19,7 @@ public sealed class OptionalAliasTests
 			alias Payload = {{payload}};
 			alias Nested = Payload;
 			namespace Types { alias Qualified = {{payload}}; }
-			struct Holder<T: copyable> { T* item; }
+			struct Holder<T> { T* item; }
 			struct OptionalHolder { Payload? item; }
 			Payload? copy(Payload? item) => item;
 			void take(Nested? item, Types::Qualified? other) { }

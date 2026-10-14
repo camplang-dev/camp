@@ -1,8 +1,8 @@
-void copyTo<T: any>(const T[] this, T[] destination, sizeof(T))
+void copyTo<T>(const T[] this, T[] destination, sizeof(T))
 {
 }
 
-void copyFrom<T: any>(T[] this, const T[] source, sizeof(T))
+void copyFrom<T>(T[] this, const T[] source, sizeof(T))
 {
 }
 

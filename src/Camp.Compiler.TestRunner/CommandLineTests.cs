@@ -4960,7 +4960,7 @@ public sealed class CommandLineTests
 			using Lib;
 			using Lib as L;
 
-			struct Holder<T: any>
+			struct Holder<T>
 			{
 				T* value;
 			}
@@ -6466,7 +6466,7 @@ public sealed class CommandLineTests
 		File.WriteAllText(Path.Combine(library, "library.campbuild"), "--nostdlib\n--artifact static\n--name reader\nlibrary.camp\n");
 		string app = Path.Combine(root, "app.camp");
 		File.WriteAllText(app, """
-			int readGeneric<T: implements Reader>(T* value, vtableof(T: Reader)) => value.read();
+			int readGeneric<T>(T* value, vtableof(T: Reader)) => value.read();
 			export int main()
 			{
 				Cell cell = { 5 };
@@ -7366,7 +7366,7 @@ public sealed class CommandLineTests
 				void release();
 			}
 
-			export escaped T* autorelease<T: implements IRefCount>(
+			export escaped T* autorelease<T>(
 				escaped T* this,
 				vtableof(T: IRefCount))
 			{
@@ -7409,7 +7409,7 @@ public sealed class CommandLineTests
 
 		Assert.Equal(0, result.ExitCode);
 		string api = result.StdOut;
-		Assert.Contains("autorelease<T: implements IRefCount>", api, StringComparison.Ordinal);
+		Assert.Contains("autorelease<T>", api, StringComparison.Ordinal);
 		Assert.DoesNotContain("autorelease<T: IRefCount>", api, StringComparison.Ordinal);
 		Assert.Contains("export extern class RefThing : IRefCount", api, StringComparison.Ordinal);
 		Assert.Contains("export struct NamedRef : INamed", api, StringComparison.Ordinal);
@@ -7592,7 +7592,7 @@ public sealed class CommandLineTests
 				}
 			}
 
-			export int readViaWitness<T: implements IValue>(T* target, vtableof(T: IValue))
+			export int readViaWitness<T>(T* target, vtableof(T: IValue))
 			{
 				return vtableof_T_IValue.value(target);
 			}
@@ -7612,7 +7612,7 @@ public sealed class CommandLineTests
 				return value.value();
 			}
 
-			int readGeneric<T: implements IValue>(T* value, vtableof(T: IValue))
+			int readGeneric<T>(T* value, vtableof(T: IValue))
 			{
 				return value.value();
 			}
@@ -7659,7 +7659,7 @@ public sealed class CommandLineTests
 		Assert.Contains("export extern class NativeCounter : IValue", api, StringComparison.Ordinal);
 		Assert.Contains("export extern class NativeDerived : NativeCounter", api, StringComparison.Ordinal);
 		Assert.Contains("export struct StructCounter : IValue", api, StringComparison.Ordinal);
-		Assert.Contains("export extern int readViaWitness<T: implements IValue>(T* target, vtableof(T: IValue));", api, StringComparison.Ordinal);
+		Assert.Contains("export extern int readViaWitness<T>(T* target, vtableof(T: IValue));", api, StringComparison.Ordinal);
 		string cApi = File.ReadAllText(Path.Combine(outDir, ArtifactDirectoryForHost(NativeBuildKind.Exec), "build", "interfaces_api.h"));
 		Assert.Contains("const IValue *Counter_IValue;", cApi, StringComparison.Ordinal);
 		Assert.Contains("(* value)(void* ctx);", cApi, StringComparison.Ordinal);

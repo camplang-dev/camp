@@ -7,7 +7,7 @@ struct iter int range(int first, int last)
 		yield i;
 }
 
-nuint countIterator<T: any>(iter T values, sizeof(T))
+nuint countIterator<T>(iter T values, sizeof(T))
 {
 	stackalloc T current = default;
 	nuint count = 0;
@@ -16,7 +16,7 @@ nuint countIterator<T: any>(iter T values, sizeof(T))
 	return count;
 }
 
-class Collector<T: any>
+class Collector<T>
 {
 	nuint count;
 

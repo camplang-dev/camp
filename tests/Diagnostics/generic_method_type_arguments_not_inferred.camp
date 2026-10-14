@@ -5,7 +5,7 @@ struct BigValue
 
 class Store
 {
-	T get<T: copyable>(string key, in T defaultValue = default, sizeof(T))
+	T get<T>(string key, in T defaultValue = default, sizeof(T))
 	{
 		return defaultValue;
 	}

@@ -1,7 +1,7 @@
 extern escaped void* malloc(nuint size);
 extern void free(void* ptr);
 
-class Buffer<T: copyable>
+class Buffer<T>
 {
 	escaped T[] items;
 

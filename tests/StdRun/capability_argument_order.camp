@@ -1,13 +1,13 @@
 interface Reader { int read(); }
 struct Box: Reader { int value; int read(): Reader => this.value; }
-int a<T: implements Reader>(T* source, vtableof(T: Reader), sizeof(T), typenameof(T)) => source.read();
-int b<T: implements Reader>(T* source, vtableof(T: Reader), typenameof(T), sizeof(T)) => source.read();
-int c<T: implements Reader>(T* source, sizeof(T), vtableof(T: Reader), typenameof(T)) => source.read();
-int d<T: implements Reader>(T* source, sizeof(T), typenameof(T), vtableof(T: Reader)) => source.read();
-int e<T: implements Reader>(T* source, typenameof(T), vtableof(T: Reader), sizeof(T)) => source.read();
-int f<T: implements Reader>(T* source, typenameof(T), sizeof(T), vtableof(T: Reader)) => source.read();
-int forward<T: implements Reader>(T* source, vtableof(T: Reader), typenameof(T), sizeof(T)) => b(source);
-int expanded<T: implements Reader>(T* source, int? extra = 3, vtableof(T: Reader), sizeof(T)) => source.read() + extra.value;
+int a<T>(T* source, vtableof(T: Reader), sizeof(T), typenameof(T)) => source.read();
+int b<T>(T* source, vtableof(T: Reader), typenameof(T), sizeof(T)) => source.read();
+int c<T>(T* source, sizeof(T), vtableof(T: Reader), typenameof(T)) => source.read();
+int d<T>(T* source, sizeof(T), typenameof(T), vtableof(T: Reader)) => source.read();
+int e<T>(T* source, typenameof(T), vtableof(T: Reader), sizeof(T)) => source.read();
+int f<T>(T* source, typenameof(T), sizeof(T), vtableof(T: Reader)) => source.read();
+int forward<T>(T* source, vtableof(T: Reader), typenameof(T), sizeof(T)) => b(source);
+int expanded<T>(T* source, int? extra = 3, vtableof(T: Reader), sizeof(T)) => source.read() + extra.value;
 export int main()
 {
 	Box box = { 7 };

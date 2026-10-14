@@ -16,7 +16,7 @@ public sealed class WithinErasedResultTests
 		SemanticCompilation compilation = SemanticCompiler.CompileLowered(WithinAllocationPolicy.Explicit, ("within_result.camp", $$"""
 			struct Allocator {}
 			Allocator* select(Allocator* allocator) => allocator;
-			T keep<T: copyable>(in T value, within allocator, sizeof(T)) => value;
+			T keep<T>(in T value, within allocator, sizeof(T)) => value;
 			void use(Allocator* allocator, {{type}} source) { {{type}} result = within ({{context}}) keep<{{type}}>(source); }
 			"""));
 		SemanticCompiler.AssertNoDiagnostics(compilation);

@@ -326,6 +326,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	string FormatSignatureParameter(ParameterDefinition parameter, Dictionary<string, string> anchors)
 	{
+		if (GenericCapabilityIdentity.Describe(parameter) is string capability) return capability;
 		string type = parameter.Type is null ? parameter.ResolvedType ?? ErrorType : FormatSignatureTypeReference(parameter.Type, anchors);
 		return parameter.Modifier switch
 		{

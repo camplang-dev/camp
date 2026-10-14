@@ -2,16 +2,16 @@
 #include "generic_array_receiver_foreach_private.h"
 
 /* Private file declarations. */
-static int __camp_delegate_valueOfInt(void *arg0, const void *arg1);
-static int valueOfInt(int *item);
+static int __camp_delegate_valueOfInt(void *arg0, const void *arg1, uintptr_t arg2);
+static int valueOfInt(int *item, uintptr_t sizeof_int);
 
-static int __camp_delegate_valueOfInt(void *arg0, const void *arg1)
+static int __camp_delegate_valueOfInt(void *arg0, const void *arg1, uintptr_t arg2)
 {
 	(void)arg0;
-	return valueOfInt((int *)arg1);
+	return valueOfInt((int *)arg1, arg2);
 }
 
-int Array_sumGeneric(void *this, uintptr_t this_length, int (* valueOf)(void *arg0, const void *arg1), void *valueOf_context, uintptr_t sizeof_T)
+int Array_sumGeneric(void *this, uintptr_t this_length, int (* valueOf)(void *arg0, const void *arg1, uintptr_t arg2), void *valueOf_context, uintptr_t sizeof_T)
 {
 	uint8_t *__stack0 = __builtin_alloca(sizeof_T);
 	int total = 0;
@@ -24,7 +24,7 @@ int Array_sumGeneric(void *this, uintptr_t this_length, int (* valueOf)(void *ar
 			uint8_t *item = __stack0;
 			__builtin_memset(item, 0, sizeof_T);
 			__builtin_memmove(item, (void*)(((uint8_t*)_foreachElements0) + (_foreachIndex2 * sizeof_T)), sizeof_T);
-			total += valueOf(valueOf_context, item);
+			total += valueOf(valueOf_context, item, sizeof_T);
 __foreach_continue3: ;
 			_foreachIndex2++;
 		}
@@ -33,7 +33,7 @@ __foreach_break4: ;
 	return total;
 }
 
-static int valueOfInt(int *item)
+static int valueOfInt(int *item, uintptr_t sizeof_int)
 {
 	return (*item);
 }
@@ -42,7 +42,7 @@ int main(void)
 {
 	int *values = (int []){1, 2, 3};
 	uintptr_t values_length = 3;
-	return ((Array_sumGeneric(values, values_length, (int (*)(void *arg0, const void *arg1))__camp_delegate_valueOfInt, NULL, sizeof(int)) == 6) ? 0 : 1);
+	return ((Array_sumGeneric(values, values_length, (int (*)(void *arg0, const void *arg1, uintptr_t arg2))__camp_delegate_valueOfInt, NULL, sizeof(int)) == 6) ? 0 : 1);
 }
 
 // file: generic_array_receiver_foreach.h
@@ -51,7 +51,7 @@ int main(void)
 
 #include "generic_array_receiver_foreach_private.h"
 
-int Array_sumGeneric(void *this, uintptr_t this_length, int (* valueOf)(void *arg0, const void *arg1), void *valueOf_context, uintptr_t sizeof_T);
+int Array_sumGeneric(void *this, uintptr_t this_length, int (* valueOf)(void *arg0, const void *arg1, uintptr_t arg2), void *valueOf_context, uintptr_t sizeof_T);
 int main(void);
 
 #endif
@@ -72,7 +72,7 @@ int main(void);
 /* Layouts. */
 
 /* Function declarations. */
-int Array_sumGeneric(void *this, uintptr_t this_length, int (* valueOf)(void *arg0, const void *arg1), void *valueOf_context, uintptr_t sizeof_T);
+int Array_sumGeneric(void *this, uintptr_t this_length, int (* valueOf)(void *arg0, const void *arg1, uintptr_t arg2), void *valueOf_context, uintptr_t sizeof_T);
 int main(void);
 
 /* Object declarations. */

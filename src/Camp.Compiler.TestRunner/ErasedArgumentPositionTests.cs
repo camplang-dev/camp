@@ -17,7 +17,7 @@ public sealed class ErasedArgumentPositionTests
 		string parameters = reversed ? "in T value, out T target" : "out T target, in T value";
 		string arguments = reversed ? "source, out destination" : "out destination, source";
 		SemanticCompilation compilation = SemanticCompiler.CompileLowered($$"""
-			void store<T: copyable>({{parameters}}, sizeof(T)) { target = value; }
+			void store<T>({{parameters}}, sizeof(T)) { target = value; }
 			void use({{type}} source, out {{type}} destination) { store<{{type}}>({{arguments}}); }
 			""");
 		SemanticCompiler.AssertNoDiagnostics(compilation);

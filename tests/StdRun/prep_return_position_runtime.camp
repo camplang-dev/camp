@@ -57,7 +57,7 @@ virtual class WriterImpl: IWriter
 	}
 }
 
-prep char[] writeGeneric<T: implements IWriter>(T* this, vtableof(T: IWriter))
+prep char[] writeGeneric<T>(T* this, vtableof(T: IWriter))
 {
 	return this.write(buffer);
 }

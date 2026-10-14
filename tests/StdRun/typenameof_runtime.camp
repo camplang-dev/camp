@@ -1,6 +1,6 @@
 using Std;
 
-class Box<T: any>
+class Box<T>
 {
 	Box(typenameof(T))
 	{
@@ -14,12 +14,12 @@ class Box<T: any>
 
 alias MyUInt = uint;
 
-void writeTypeName<T: any>(typenameof(T))
+void writeTypeName<T>(typenameof(T))
 {
 	Console.writeLine(typenameof(T));
 }
 
-void forwardTypeName<T: any>(typenameof(T))
+void forwardTypeName<T>(typenameof(T))
 {
 	writeTypeName<T>();
 }

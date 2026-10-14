@@ -1,6 +1,6 @@
 using Std;
 
-struct iter T duplicateForeach<T: copyable>(T[] values, sizeof(T))
+struct iter T duplicateForeach<T>(T[] values, sizeof(T))
 {
 	foreach (stackalloc T item in values)
 	{
@@ -9,14 +9,14 @@ struct iter T duplicateForeach<T: copyable>(T[] values, sizeof(T))
 	}
 }
 
-struct iter T duplicateLocal<T: copyable>(T[] values, sizeof(T))
+struct iter T duplicateLocal<T>(T[] values, sizeof(T))
 {
 	stackalloc T current = values[0];
 	yield current;
 	yield current;
 }
 
-struct iter T assignBeforeReuse<T: copyable>(T[] values, sizeof(T))
+struct iter T assignBeforeReuse<T>(T[] values, sizeof(T))
 {
 	stackalloc T current = values[0];
 	yield current;

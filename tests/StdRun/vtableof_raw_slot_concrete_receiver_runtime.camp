@@ -41,7 +41,7 @@ struct StructReader: Readable
 	}
 }
 
-int callSlot<T: implements Readable>(T* value, int addend, vtableof(T: Readable))
+int callSlot<T>(T* value, int addend, vtableof(T: Readable))
 {
 	fn int(T*, int) slot = vtableof(T: Readable).read;
 	int extracted = slot(value, addend);
@@ -50,7 +50,7 @@ int callSlot<T: implements Readable>(T* value, int addend, vtableof(T: Readable)
 	return extracted == direct && direct == named ? extracted : -1;
 }
 
-int readWithin<T: implements Readable>(within allocator, T* value, sizeof(T), vtableof(T: Readable))
+int readWithin<T>(within allocator, T* value, vtableof(T: Readable))
 {
 	return value.read(1);
 }

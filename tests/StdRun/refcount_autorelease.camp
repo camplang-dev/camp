@@ -9,7 +9,7 @@ export escaped interface IRefCount
 List<delegate void()>* pendingReleases;
 int released;
 
-export escaped T* autorelease<T: implements IRefCount>(
+export escaped T* autorelease<T>(
 	escaped T* this,
 	vtableof(T: IRefCount))
 {

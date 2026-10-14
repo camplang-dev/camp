@@ -1,16 +1,16 @@
-void assignGeneric<T: copyable>(in T source, out T destination, sizeof(T))
+void assignGeneric<T>(in T source, out T destination, sizeof(T))
 {
 	stackalloc T scratch = source;
 	destination = scratch;
 }
 
-void defaultGeneric<T: copyable>(out T destination, sizeof(T))
+void defaultGeneric<T>(out T destination, sizeof(T))
 {
 	stackalloc T scratch = default;
 	destination = scratch;
 }
 
-void forEachGeneric<T: copyable>(const T[] values, delegate void(in T item) visit, sizeof(T))
+void forEachGeneric<T>(const T[] values, delegate void(in T item, sizeof(T)) visit, sizeof(T))
 {
 	foreach (stackalloc T value in values)
 	{
@@ -29,7 +29,7 @@ struct Counter: Reader
 	int read(): Reader => this.count;
 }
 
-int readInterface<T: implements Reader>(T* source, sizeof(T), vtableof(T: Reader))
+int readInterface<T>(T* source, sizeof(T), vtableof(T: Reader))
 {
 	return source.read();
 }
@@ -49,7 +49,7 @@ int fillStorage()
 
 int sum = 0;
 
-void add(in int item)
+void add(in int item, sizeof(int))
 {
 	sum += item;
 }

@@ -1,7 +1,7 @@
 namespace Docs;
 
 /// A [Box<T>] stores a pointer to a single value.
-export struct Box<T: copyable>
+export struct Box<T>
 {
 	/// Stored value pointer.
 	T* value;

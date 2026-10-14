@@ -731,7 +731,7 @@ public static class MetadataJsonSerializer
 			json.WriteStartObject();
 			json.WriteString("id", GetId(parameter));
 			json.WriteString("name", parameter.Name);
-			WriteTypeProperty(json, "constraint", parameter.Constraint, parameter.Constraint?.ResolvedType ?? "nint");
+			WriteTypeProperty(json, "constraint", parameter.Constraint, parameter.Representation);
 			WriteMetadata(json, parameter.Attributes);
 			json.WriteEndObject();
 		}

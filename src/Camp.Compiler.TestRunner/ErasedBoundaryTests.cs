@@ -71,7 +71,7 @@ public sealed class ErasedBoundaryTests
 		SemanticCompilation compilation = SemanticCompiler.CompileLowered($$"""
 			class Resumer { void resumeAsync(escaped once void() continuation) { continuation(); } }
 			async int tick(@awaitwith Resumer* resumer) { return 1; }
-			async int run<T: copyable>(@awaitwith Resumer* resumer, in T source, sizeof(T)) {
+			async int run<T>(@awaitwith Resumer* resumer, in T source, sizeof(T)) {
 			stackalloc T scratch = source;
 			int ignored = await tick(resumer);
 			{{(reassign ? "scratch = source;" : "")}}
@@ -147,7 +147,7 @@ public sealed class ErasedBoundaryTests
 			export void<HiddenAlias>* aliasValue(void<HiddenAlias>* p) => p;
 			extern escaped void* malloc(nuint size);
 			extern void free(void* pointer);
-			export extern class Box<T: any>;
+			export extern class Box<T>;
 			export void<PackageValue>* value(void<PackageValue>* p) => p;
 			export void<int?> optional() => 7;
 			export Box<void<Secret>*>* box(Box<void<Secret>*>* p) => p;
@@ -223,7 +223,7 @@ public sealed class ErasedBoundaryTests
 			alias HiddenAlias = SecretKind;
 			public enum PackageKind: int { C, D }
 			export enum VisibleKind: int { E, F }
-			export extern class Box<T: any>;
+			export extern class Box<T>;
 			export struct Handle { long<SecretKind> hidden; long<VisibleKind> shown; long<PackageKind> packaged; int<HiddenAlias>[] items; long<SecretKind>* link; }
 			export long<SecretKind> make(long<SecretKind> kind, long<VisibleKind>* shown) => kind;
 			export newtype delegate long<SecretKind> Pick(long<SecretKind> kind);

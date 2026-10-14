@@ -815,7 +815,7 @@ public sealed class LanguageServiceTests
 			CLOSED
 		}
 
-		class Holder<T: copyable>
+		class Holder<T>
 		{
 		}
 
@@ -881,7 +881,7 @@ public sealed class LanguageServiceTests
 			}
 		}
 
-		struct Box<T: copyable>
+		struct Box<T>
 		{
 			T* value;
 		}

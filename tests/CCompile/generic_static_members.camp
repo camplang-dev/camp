@@ -1,11 +1,11 @@
-class Box<T: any>
+class Box<T>
 {
 	inline int DEFAULT = 3;
 	static int count = 4;
 
 	static int getValue() => Box.DEFAULT + Box.count;
 
-	static nuint sizeOf<U: copyable>(sizeof(U)) => sizeof(U);
+	static nuint sizeOf<U>(sizeof(U)) => sizeof(U);
 
 	T* item;
 
@@ -16,20 +16,20 @@ class Box<T: any>
 	}
 }
 
-struct Pair<T: any>
+struct Pair<T>
 {
 	T* left;
 	static int count = 5;
 	static int getTotal() => Pair.count + 1;
 }
 
-newtype Handle<T: any>: int
+newtype Handle<T>: int
 {
 	static inline int NONE = 0;
 	static int current = 7;
 }
 
-int useCopyable<T: copyable>(sizeof(T))
+int useCopyable<T>(sizeof(T))
 {
 	return (int)Box.sizeOf<T>();
 }

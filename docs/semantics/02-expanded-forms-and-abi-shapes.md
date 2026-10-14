@@ -384,14 +384,16 @@ method's receiver type.
 
 ## Integer Carriers
 
-For each integer representation constraint `C` (`byte`, `ushort`, `short`,
+For each integer representation `C` (`byte`, `ushort`, `short`,
 `uint`, `int`, `ulong`, `long`, `nuint`, `nint`), `C<V>` is a carrier type: a
 value of type `V` carried as a `C`. It has the layout of `C` and the semantics a
 value of a type parameter `T: C` bound to `V` has. `V` must be a valid
-argument for `T: C` on the selected target: an integer type of equal or smaller
+argument for `T: C` on the selected target: an integer, bool or character type of equal or smaller
 width, an enum or value newtype with an integer underlying type of equal or
 smaller width, or, for `nint` and `nuint`, an object pointer that fits the
-natural integer. `V` cannot be expandable, `void`, `void<W>` or another carrier.
+natural integer. `V` cannot be expandable or no-value `void`. Generic
+substitution replaces an existing outer annotation with the destination C,
+preserving its actual nominal payload and nested arguments.
 
 Unlike `void<V>`, a carrier has a specified size. It is stored by value and may
 be a local, global, field, by-value parameter, result, array element, pointer

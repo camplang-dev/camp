@@ -1,9 +1,9 @@
 int countOf(int[] values) => (int)values.length;
-int across<T: copyable>(T[] values, delegate int(T[]) look) => look(values);
-int acrossFn<T: copyable>(T[] values, fn int(T[]) look) => look(values);
-int acrossOnce<T: copyable>(T[] values, once int(T[]) look) => look(values);
-int acrossSlice<T: copyable>(T[] values, delegate int(T[]) look, sizeof(T)) => look(values[1..]);
-T identity<T: copyable>(in T value, sizeof(T)) => value;
+int across<T>(T[] values, delegate int(T[]) look) => look(values);
+int acrossFn<T>(T[] values, fn int(T[]) look) => look(values);
+int acrossOnce<T>(T[] values, once int(T[]) look) => look(values);
+int acrossSlice<T>(T[] values, delegate int(T[]) look, sizeof(T)) => look(values[1..]);
+T identity<T>(in T value, sizeof(T)) => value;
 export int main()
 {
 	int[] numbers = [6, 7, 8];

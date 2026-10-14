@@ -16,11 +16,11 @@ enum Kind: int { A }
 void nestedOptional(int?? a) { }
 void deeplyNested(int[]?? a, int??? b) { }
 void nestedCallable(Predicate?? a) { }
-void copyableParameter<T: copyable>(T? a) { }
-void anyParameter<T: any>(T? a) { }
-void interfaceParameter<T: implements Reader>(T? a) { }
+void copyableParameter<T>(T? a) { }
+void anyParameter<T>(T? a) { }
+void interfaceParameter<T>(T? a) { }
 void representationParameter<T: long>(T? a) { }
-T? optionalResult<T: copyable>(in T value, sizeof(T)) => value;
+T? optionalResult<T>(in T value, sizeof(T)) => value;
 void erasedInput(in void<int>? a) { }
 void erasedOutput(out void<int>? a) { a = default; }
 void erasedResult(delegate void<int>?() a) { }

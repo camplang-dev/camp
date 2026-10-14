@@ -1,5 +1,15 @@
-tests/Diagnostics/generic_any_copy_invalid.camp(3,15): error: T: any is non-copying. Use T: copyable plus sizeof(T) for generic value-copy operations.
-tests/Diagnostics/generic_any_copy_invalid.camp(8,20): error: T: any is non-copying. Use T: copyable plus sizeof(T) for generic value-copy operations.
+tests/Diagnostics/generic_any_copy_invalid.camp(3,9): error: Cannot index T[] because element stride for void-represented parameter 'T' requires sizeof(T); a witness supplies dispatch, not copy/layout.
+tests/Diagnostics/generic_any_copy_invalid.camp(3,15): error: Copying void-represented generic values requires checked sizeof(T) copy/layout capability.
+tests/Diagnostics/generic_any_copy_invalid.camp(8,2): error: Cannot index T[] because element stride for void-represented parameter 'T' requires sizeof(T); a witness supplies dispatch, not copy/layout.
+tests/Diagnostics/generic_any_copy_invalid.camp(8,14): error: Cannot index T[] because element stride for void-represented parameter 'T' requires sizeof(T); a witness supplies dispatch, not copy/layout.
+tests/Diagnostics/generic_any_copy_invalid.camp(8,8): error: Cannot mutate T[] because element stride for void-represented parameter 'T' requires sizeof(T); a witness supplies dispatch, not copy/layout.
+tests/Diagnostics/generic_any_copy_invalid.camp(8,20): error: Copying void-represented generic values requires checked sizeof(T) copy/layout capability.
+tests/Diagnostics/generic_any_copy_invalid.camp(9,11): error: Cannot index T[] because element stride for void-represented parameter 'T' requires sizeof(T); a witness supplies dispatch, not copy/layout.
 tests/Diagnostics/generic_any_copy_invalid.camp(9,2): error: Erased generic type 'T' requires explicit stackalloc local storage; write 'stackalloc T name'.
-tests/Diagnostics/generic_any_copy_invalid.camp(9,17): error: T: any is non-copying. Use T: copyable plus sizeof(T) for generic value-copy operations.
-tests/Diagnostics/generic_any_copy_invalid.camp(10,14): error: T: any is non-copying. Use T: copyable plus sizeof(T) for generic value-copy operations.
+tests/Diagnostics/generic_any_copy_invalid.camp(9,17): error: Copying void-represented generic values requires checked sizeof(T) copy/layout capability.
+tests/Diagnostics/generic_any_copy_invalid.camp(10,2): error: Cannot index T[] because element stride for void-represented parameter 'T' requires sizeof(T); a witness supplies dispatch, not copy/layout.
+tests/Diagnostics/generic_any_copy_invalid.camp(10,8): error: Cannot mutate T[] because element stride for void-represented parameter 'T' requires sizeof(T); a witness supplies dispatch, not copy/layout.
+tests/Diagnostics/generic_any_copy_invalid.camp(10,14): error: Copying void-represented generic values requires checked sizeof(T) copy/layout capability.
+tests/Diagnostics/generic_any_copy_invalid.camp(11,2): error: Cannot index T[] because element stride for void-represented parameter 'T' requires sizeof(T); a witness supplies dispatch, not copy/layout.
+tests/Diagnostics/generic_any_copy_invalid.camp(11,8): error: Cannot mutate T[] because element stride for void-represented parameter 'T' requires sizeof(T); a witness supplies dispatch, not copy/layout.
+tests/Diagnostics/generic_any_copy_invalid.camp(11,14): error: Default-filling erased generic storage requires sizeof(T).

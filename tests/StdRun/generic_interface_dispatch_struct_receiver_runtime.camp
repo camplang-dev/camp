@@ -18,12 +18,12 @@ struct Value: Reader
 	}
 }
 
-int readIt<T: implements Reader>(T* value, vtableof(T: Reader))
+int readIt<T>(T* value, vtableof(T: Reader))
 {
 	return value.read();
 }
 
-class Holder<T: implements Reader>
+class Holder<T>
 {
 	T* target;
 

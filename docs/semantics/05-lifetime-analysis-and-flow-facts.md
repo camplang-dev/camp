@@ -388,7 +388,7 @@ restrictions. Heap-backed annotated pointers may be retained; their allocation
 lifetime and destructor contract survive lifting and apply to cleanup on both
 normal exhaustion and early iterator destruction.
 
-Generic `T: any` values are treated conservatively because they may be
+Void-represented generic T values are treated conservatively because they may be
 pointer-bearing. Returning, storing, copying, or capturing them can require
 capabilities described in
 [Generics, Erasure, And Capabilities](06-generics-erasure-and-capabilities.md).

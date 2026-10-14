@@ -1,5 +1,5 @@
-T maybe<T: copyable>(delegate bool(int) look, int index = 6, sizeof(T)) => default;
-bool selected<T: copyable>(delegate bool(int) look, in T value, int index, out T result, sizeof(T))
+T maybe<T>(delegate bool(int) look, int index = 6, sizeof(T)) => default;
+bool selected<T>(delegate bool(int) look, in T value, int index, out T result, sizeof(T))
 {
 	result = default;
 	if (!look(index)) return false;

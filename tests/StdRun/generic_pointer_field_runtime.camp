@@ -1,6 +1,6 @@
 using Std;
 
-struct Holder<T: copyable>
+struct Holder<T>
 {
 	T* value;
 }

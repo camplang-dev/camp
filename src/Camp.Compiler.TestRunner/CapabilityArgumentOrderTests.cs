@@ -18,8 +18,8 @@ public sealed class CapabilityArgumentOrderTests
 		SemanticCompilation compilation = SemanticCompiler.CompileLowered($$"""
 			interface Reader { int read(); }
 			struct Box: Reader { int value; int read(): Reader => this.value; }
-			int read<T: implements Reader>(T* source, {{capabilities}}) => source.read();
-			int forward<T: implements Reader>(T* source, {{capabilities}}) => read(source);
+			int read<T>(T* source, {{capabilities}}) => source.read();
+			int forward<T>(T* source, {{capabilities}}) => read(source);
 			void test() { Box box = default; read(&box); forward(&box); }
 			""");
 		SemanticCompiler.AssertNoDiagnostics(compilation);

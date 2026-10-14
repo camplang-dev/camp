@@ -1,4 +1,4 @@
-export extern class GenericBox<T: any>
+export extern class GenericBox<T>
 {
 	export inline int LIMIT = 8;
 	export extern static int current;
@@ -9,10 +9,10 @@ export extern class GenericBox<T: any>
 
 	export extern static int getLimit();
 
-	export extern static nuint sizeOf<U: copyable>(sizeof(U));
+	export extern static nuint sizeOf<U>(sizeof(U));
 }
 
-export struct GenericPair<T: any>
+export struct GenericPair<T>
 {
 	T* value;
 	export extern static int current;

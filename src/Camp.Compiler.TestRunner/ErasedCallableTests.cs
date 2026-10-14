@@ -14,7 +14,7 @@ public sealed class ErasedCallableTests
 	public void Storage_substitution_preserves_written_result_lifetime(string lifetime)
 	{
 		SemanticCompilation compilation = SemanticCompiler.CompileLowered($$"""
-			extern {{lifetime}} T* identity<T: any>(T* owner);
+			extern {{lifetime}} T* identity<T>(T* owner);
 			void test(int* pointer) { auto result = identity(pointer); }
 			""");
 		SemanticCompiler.AssertNoDiagnostics(compilation);
@@ -41,9 +41,9 @@ public sealed class ErasedCallableTests
 	}
 
 	[Theory]
-	[InlineData("int peek(in int? value) => value.specified ? value.value : -1; int read<T: copyable>(in T value, delegate int(in T) f, sizeof(T)) => f(value); void test() { int? value = 4; read<int?>(value, peek); }")]
-	[InlineData("int seven() => 7; T produce<T: copyable>(delegate T() make, sizeof(T)) => make(); void test() { produce<int>(seven); }")]
-	[InlineData("struct Point { int x; } Point make() { Point value = { 7 }; return value; } T produce<T: copyable>(delegate T() make, sizeof(T)) => make(); void test() { produce<Point>(make); }")]
+	[InlineData("int peek(in int? value) => value.specified ? value.value : -1; int read<T>(in T value, delegate int(in T, sizeof(T)) f, sizeof(T)) => f(value); void test() { int? value = 4; read<int?>(value, peek); }")]
+	[InlineData("int seven() => 7; T produce<T>(delegate T() make, sizeof(T)) => make(); void test() { produce<int>(seven); }")]
+	[InlineData("struct Point { int x; } Point make() { Point value = { 7 }; return value; } T produce<T>(delegate T() make, sizeof(T)) => make(); void test() { produce<Point>(make); }")]
 	public void Incompatible_erased_callbacks_require_an_explicit_adapter(string source)
 	{
 		SemanticCompilation compilation = SemanticCompiler.CompileLowered(source);
@@ -64,8 +64,8 @@ public sealed class ErasedCallableTests
 
 	[Theory]
 	[InlineData("void<int> seven() => 7; int produce(delegate void<int>() make) => make(); void test() { int value = produce(seven); }")]
-	[InlineData("int seven() => 7; T produce<T: copyable>(delegate T() make, sizeof(T)) => make(); void test() { int value = produce<int>(() => seven()); }")]
-	[InlineData("int peek(in int? value) => value.specified ? value.value : -1; int read<T: copyable>(in T value, delegate int(in T) f, sizeof(T)) => f(value); void test() { int? value = 4; read<int?>(value, x => peek(x)); }")]
+	[InlineData("int seven() => 7; T produce<T>(delegate T() make, sizeof(T)) => make(); void test() { int value = produce<int>(() => seven()); }")]
+	[InlineData("int peek(in int? value) => value.specified ? value.value : -1; int read<T>(in T value, delegate int(in T, sizeof(T)) f, sizeof(T)) => f(value); void test() { int? value = 4; read<int?>(value, x => peek(x)); }")]
 	public void Explicit_callback_alternatives_are_valid(string source)
 	{
 		SemanticCompiler.AssertNoDiagnostics(SemanticCompiler.CompileLowered(source));
@@ -101,10 +101,10 @@ public sealed class ErasedCallableTests
 	[InlineData("struct Slot<T: long> { T value; T get() => this.value; } enum Color: int { A } void test(Slot<Color>* s) { auto r = s.get; }", "delegate long<Color>()")]
 	[InlineData("struct Slot<T: long> { T value; void set(T v) { this.value = v; } } enum Color: int { A } void test(Slot<Color>* s) { auto r = s.set; }", "delegate void(long<Color>)")]
 	[InlineData("struct Slot<T: long> { T value; T get() => this.value; } void test(Slot<long<ushort>>* s) { auto r = s.get; }", "delegate long<ushort>()")]
-	[InlineData("struct Plain<T> { T value; T get() => this.value; } enum Color: int { A } void test(Plain<Color>* s) { auto r = s.get; }", "delegate nint<Color>()")]
-	[InlineData("struct Plain<T> { T value; T get() => this.value; } void test(Plain<int>* s) { auto r = s.get; }", "delegate nint<int>()")]
-	[InlineData("extern escaped void* malloc(nuint size); extern void free(void* value); class Bag<T: copyable> { T[] items; Bag(sizeof(T)) { } T get(nuint at) => this.items[at]; void put(nuint at, in T value) { } } void test(Bag<int>* a) { auto r = a.get; auto w = a.put; }", "delegate void<int>(nuint)")]
-	[InlineData("extern escaped void* malloc(nuint size); extern void free(void* value); class Bag<T: copyable> { T[] items; Bag(sizeof(T)) { } T get(nuint at) => this.items[at]; void put(nuint at, in T value) { } } void test(Bag<int?>* a) { auto r = a.get; auto w = a.put; }", "delegate void<int?>(nuint)")]
+	[InlineData("struct Plain<T: nint> { T value; T get() => this.value; } enum Color: int { A } void test(Plain<Color>* s) { auto r = s.get; }", "delegate nint<Color>()")]
+	[InlineData("struct Plain<T: nint> { T value; T get() => this.value; } void test(Plain<int>* s) { auto r = s.get; }", "delegate nint<int>()")]
+	[InlineData("extern escaped void* malloc(nuint size); extern void free(void* value); class Bag<T> { T[] items; Bag(sizeof(T)) { } T get(nuint at) => this.items[at]; void put(nuint at, in T value) { } } void test(Bag<int>* a) { auto r = a.get; auto w = a.put; }", "delegate void<int>(nuint)")]
+	[InlineData("extern escaped void* malloc(nuint size); extern void free(void* value); class Bag<T> { T[] items; Bag(sizeof(T)) { } T get(nuint at) => this.items[at]; void put(nuint at, in T value) { } } void test(Bag<int?>* a) { auto r = a.get; auto w = a.put; }", "delegate void<int?>(nuint)")]
 	public void Method_references_have_the_erased_signature_of_their_constraint(string source, string expected)
 	{
 		SemanticCompilation compilation = SemanticCompiler.CompileDeclarations(source);
@@ -151,23 +151,23 @@ public sealed class ErasedCallableTests
 	}
 
 	[Theory]
-	[InlineData("T bad<T: implements Reader>(T value) => value;", "cannot be a result")]
-	[InlineData("T bad<T: implements Reader>(T* value) => *value;", "cannot be a result")]
-	[InlineData("void bad<T: implements Reader>(in T value) { }", "cannot be an 'in' parameter")]
-	[InlineData("void bad<T: implements Reader>(out T value) { }", "cannot be an 'out' parameter")]
-	[InlineData("void bad<T: implements Reader>(T value) { }", "cannot be passed by value")]
-	public void Interface_constrained_parameters_are_transported_only_by_pointer(string function, string message)
+	[InlineData("T bad<T>(T value) => value;", "cannot be passed by value")]
+	[InlineData("T bad<T>(T* value) => *value;", "requires checked sizeof(T)")]
+	[InlineData("void bad<T>(in T value) { }", "in T requires checked sizeof(T)")]
+	[InlineData("void bad<T>(out T value) { }", "out T requires checked sizeof(T)")]
+	[InlineData("void bad<T>(T value) { }", "cannot be passed by value")]
+	public void Void_inputs_and_copies_require_their_indirect_capability_contract(string function, string message)
 	{
 		SemanticCompilation compilation = SemanticCompiler.CompileLowered("interface Reader { int read(); }\n" + function);
-		Assert.Contains(compilation.Diagnostics, diagnostic => diagnostic.Contains(message) && diagnostic.Contains("'out T*'"));
+		Assert.Contains(compilation.Diagnostics, diagnostic => diagnostic.Contains(message));
 	}
 
 	[Theory]
-	[InlineData("T* ok<T: implements Reader>(T* value) => value;")]
-	[InlineData("const T* ok<T: implements Reader>(const T* value) => value;")]
-	[InlineData("void ok<T: implements Reader>(T[] values) { }")]
-	[InlineData("void ok<T: implements Reader>(T* source, out T* value) { value = source; }")]
-	[InlineData("int ok<T: implements Reader>(T* value, vtableof(T: Reader)) => value.read();")]
+	[InlineData("T* ok<T>(T* value) => value;")]
+	[InlineData("const T* ok<T>(const T* value) => value;")]
+	[InlineData("void ok<T>(T[] values) { }")]
+	[InlineData("void ok<T>(T* source, out T* value) { value = source; }")]
+	[InlineData("int ok<T>(T* value, vtableof(T: Reader)) => value.read();")]
 	public void Interface_constrained_pointer_forms_are_valid(string function)
 	{
 		SemanticCompiler.AssertNoDiagnostics(SemanticCompiler.CompileLowered("interface Reader { int read(); }\n" + function));

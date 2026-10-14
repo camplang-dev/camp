@@ -3,7 +3,7 @@ constof(source) int* firstInt(const int[] source)
 	return source.elements;
 }
 
-constof(source) T* firstGeneric<T: any>(const T[] source, sizeof(T))
+constof(source) T* firstGeneric<T>(const T[] source, sizeof(T))
 {
 	return source.elements;
 }

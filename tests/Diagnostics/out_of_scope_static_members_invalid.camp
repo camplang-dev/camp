@@ -1,4 +1,4 @@
-class Box<T: any>
+class Box<T>
 {
 }
 
@@ -21,5 +21,5 @@ static int IFoo.BAD_INTERFACE() => 0;
 static int Color.BAD_ENUM() => 0;
 static int MyInt.BAD_ALIAS() => 0;
 static int Box<int>.BAD_GENERIC_OWNER() => 0;
-static int Box.BAD_REDECLARE<T: any>() => 0;
+static int Box.BAD_REDECLARE<T>() => 0;
 int Box.BAD_METHOD() => 0;

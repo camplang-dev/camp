@@ -1,4 +1,4 @@
-void missingCapability<T: any>()
+void missingCapability<T>()
 {
 	string name = typenameof(T);
 }

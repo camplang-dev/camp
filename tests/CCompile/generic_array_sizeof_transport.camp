@@ -1,4 +1,4 @@
-nint binarySearch<T: any>(const T[] this, in T value, delegate int(in T left, in T right) compare, sizeof(T))
+nint binarySearch<T>(const T[] this, in T value, delegate int(in T left, in T right, sizeof(T)) compare, sizeof(T))
 {
 	nuint low = 0;
 	nuint high = this.length;
@@ -25,7 +25,7 @@ nint binarySearch<T: any>(const T[] this, in T value, delegate int(in T left, in
 	return -1;
 }
 
-int compareInt(in int left, in int right)
+int compareInt(in int left, in int right, sizeof(int))
 {
 	if (left < right)
 		return -1;

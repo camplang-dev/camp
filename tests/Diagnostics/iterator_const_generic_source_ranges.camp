@@ -1,4 +1,4 @@
-struct iter T bad<T: copyable>(const Missing[] this, sizeof(T))
+struct iter T bad<T>(const Missing[] this, sizeof(T))
 {
 	foreach (auto item in this)
 		yield item;

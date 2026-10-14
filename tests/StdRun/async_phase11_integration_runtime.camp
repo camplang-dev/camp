@@ -17,7 +17,7 @@ class Resumer
 
 Resumer resumer;
 
-async int lengthAsync<T: any>(const T[] values, sizeof(T), @awaitwith Resumer* resumer)
+async int lengthAsync<T>(const T[] values, sizeof(T), @awaitwith Resumer* resumer)
 {
 	return (int)values.length;
 }

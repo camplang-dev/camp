@@ -16,7 +16,7 @@ public sealed class GenericCallableArrayArgumentTests
 	{
 		string value = slice ? "values[1..]" : "values";
 		SemanticCompilation compilation = SemanticCompiler.CompileLowered($$"""
-			int across<T: copyable>(T[] values, {{kind}} int(T[]) look, sizeof(T)) => look({{value}});
+			int across<T>(T[] values, {{kind}} int(T[]) look, sizeof(T)) => look({{value}});
 			""");
 		SemanticCompiler.AssertNoDiagnostics(compilation);
 		CallExpression call = Assert.Single(SemanticCompiler.Descendants<CallExpression>(SemanticCompiler.Function(compilation, "across")));

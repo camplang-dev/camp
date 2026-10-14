@@ -1,4 +1,4 @@
-void pick<T: any>(const T[] this, in T value, sizeof(T))
+void pick<T>(const T[] this, in T value, sizeof(T))
 {
 }
 

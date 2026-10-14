@@ -28,30 +28,30 @@ struct Second: Counter
 	}
 }
 
-int readOne<T: implements Counter>(T* value, vtableof(T: Counter))
+int readOne<T>(T* value, vtableof(T: Counter))
 {
 	int viaMethod = value.read();
 	int viaNamedCapability = vtableof_T_Counter.read(value);
 	return viaMethod == viaNamedCapability ? viaMethod : -1;
 }
 
-int forwardExplicit<T: implements Counter>(T* value, vtableof(T: Counter))
+int forwardExplicit<T>(T* value, vtableof(T: Counter))
 {
 	return readOne<T>(value);
 }
 
-int forwardInferred<T: implements Counter>(T* value, vtableof(T: Counter))
+int forwardInferred<T>(T* value, vtableof(T: Counter))
 {
 	return readOne(value);
 }
 
-struct iter int readThroughIterator<T: implements Counter>(T* value, vtableof(T: Counter))
+struct iter int readThroughIterator<T>(T* value, vtableof(T: Counter))
 {
 	yield vtableof(T: Counter).read(value);
 	yield value.read();
 }
 
-int readThroughLambda<T: implements Counter>(T* value, vtableof(T: Counter))
+int readThroughLambda<T>(T* value, vtableof(T: Counter))
 {
 	delegate int() read = () => vtableof_T_Counter.read(value);
 	return read();

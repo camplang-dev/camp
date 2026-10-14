@@ -21,12 +21,12 @@ void deleteInterfacePointer(IPlainDestroy* view)
 	within (default) delete view;
 }
 
-void deleteUnprovenGeneric<T: implements IPlainDestroy>(T* value, vtableof(T: IPlainDestroy))
+void deleteUnprovenGeneric<T>(T* value, vtableof(T: IPlainDestroy))
 {
 	within (default) delete value;
 }
 
-void deleteEscapedGeneric<T: implements IPlainDestroy>(escaped T* value, vtableof(T: IPlainDestroy))
+void deleteEscapedGeneric<T>(escaped T* value, vtableof(T: IPlainDestroy))
 {
 	within (default) delete value;
 }

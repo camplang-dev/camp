@@ -1,4 +1,4 @@
-class Box<T: any>
+class Box<T>
 {
 }
 
@@ -22,7 +22,7 @@ void rewriteGeneric(Box<int>* values)
 	Box<uint>* rewritten = (Box<uint>*)values;
 }
 
-void hiddenSizeOfDoesNotHelp<T: any>(Box<T>* values, sizeof(T))
+void hiddenSizeOfDoesNotHelp<T>(Box<T>* values, sizeof(T))
 {
 	Box<int>* rewritten = (unsafe Box<int>*)values;
 }

@@ -1,4 +1,4 @@
-class Sink<T: any>
+class Sink<T>
 {
 	void addEach(iter T iterator)
 	{

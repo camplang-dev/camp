@@ -1,6 +1,6 @@
 extern escaped void* malloc(nuint size);
 
-class List<T>
+class List<T: nint>
 {
 	T[] items;
 	nuint count;

@@ -827,12 +827,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (ErasedTypeIdentity.TryGetPayload(bare, out _))
 			return;
 		if (bare == BaseTypeName(bare) && FindBodyGenericParameter(scope, bare) is GenericParameter parameter && IsErasedGenericParameter(parameter))
-		{
-			// An interface constraint gives witness dispatch, not storage: T is pointer-only.
-			if (parameter.RequiresImplementation)
-				Report(GetRange(syntax), ImplementsValueMessage("a stackalloc local"));
 			return;
-		}
 		Report(GetRange(syntax), $"A stackalloc local must be an erased type parameter or a void<V>; declare '{WitnessTypeIdentity.Display(declaredType)} {name}' as an ordinary local.");
 	}
 
@@ -931,7 +926,7 @@ public sealed partial class BindableNodeAnalyzer
 			return false;
 		string type = StripTopLevelValueQualifiers(targetType);
 		while (TryGetOptionalPayloadType(type, out string payload)) type = payload;
-		return FindBodyGenericParameter(scope, type) is GenericParameter { Constraint: AnyTypeReference };
+		return FindBodyGenericParameter(scope, type) is GenericParameter parameter && parameter.IsVoidRepresentation && !HasSizeOfCapability(scope, type);
 	}
 
 	bool RequiresCopyableGenericCopySizeOf(string targetType, Expression? value, BodyScope scope)
@@ -940,7 +935,7 @@ public sealed partial class BindableNodeAnalyzer
 			return false;
 		string type = StripTopLevelValueQualifiers(targetType);
 		while (TryGetOptionalPayloadType(type, out string payload)) type = payload;
-		return FindBodyGenericParameter(scope, type) is GenericParameter { Constraint: CopyableTypeReference }
+		return FindBodyGenericParameter(scope, type) is GenericParameter parameter && parameter.IsVoidRepresentation
 			&& !HasSizeOfCapability(scope, type);
 	}
 
@@ -950,13 +945,13 @@ public sealed partial class BindableNodeAnalyzer
 			return false;
 		string type = StripTopLevelValueQualifiers(targetType);
 		while (TryGetOptionalPayloadType(type, out string payload)) type = payload;
-		return FindBodyGenericParameter(scope, type) is GenericParameter { Constraint: AnyTypeReference or CopyableTypeReference }
+		return FindBodyGenericParameter(scope, type) is GenericParameter parameter && parameter.IsVoidRepresentation
 			&& !HasSizeOfCapability(scope, type);
 	}
 
 	void ReportAnyGenericCopy(SyntaxNode? syntax)
 	{
-		Report(GetRange(syntax), "T: any is non-copying. Use T: copyable plus sizeof(T) for generic value-copy operations.");
+		Report(GetRange(syntax), "Copying void-represented generic values requires checked sizeof(T) copy/layout capability.");
 	}
 
 	void ReportCopyableGenericCopyNeedsSizeOf(SyntaxNode? syntax)
@@ -972,16 +967,6 @@ public sealed partial class BindableNodeAnalyzer
 	void ValidateErasedGenericLocalStorage(DeclarationStatement declaration, string initialType, BodyScope scope)
 	{
 		string declaredType = declaration.Target.ResolvedType ?? ErrorType;
-		if (!declaration.IsStackAllocStorage)
-		{
-			// `T: implements I` is pointer-only, so no local of type T exists, explicit or inferred.
-			string valueType = declaration.Target.Type is AutoTypeReference or null ? initialType : declaredType;
-			if (TryGetImplementsConstrainedParameter(scope, valueType))
-			{
-				Report(GetRange(declaration.Target.Type?.SourceSyntax ?? declaration.InitialValue?.SourceSyntax ?? declaration.Target.SourceSyntax ?? declaration.SourceSyntax), ImplementsValueMessage("a local"));
-				return;
-			}
-		}
 		if (!TryGetErasedGenericValueParameter(scope, declaredType, out GenericParameter? parameter))
 		{
 			if (declaration.Target.Type is AutoTypeReference or null
@@ -1006,13 +991,6 @@ public sealed partial class BindableNodeAnalyzer
 		Report(GetRange(declaration.Target.Type?.SourceSyntax ?? declaration.Target.SourceSyntax ?? declaration.SourceSyntax), $"Erased generic type '{erasedName}' requires explicit stackalloc local storage; write 'stackalloc {erasedName} name'.");
 	}
 
-	bool TryGetImplementsConstrainedParameter(BodyScope scope, string? type)
-	{
-		string normalized = StripTopLevelValueQualifiers(type ?? "");
-		return TryParseTypeShape(normalized, out TypeShape shape) && shape.Kind == TypeShapeKind.Named
-			&& !string.IsNullOrWhiteSpace(shape.Name) && FindBodyGenericParameter(scope, shape.Name) is { RequiresImplementation: true };
-	}
-
 	bool TryGetErasedGenericValueParameter(BodyScope scope, string? type, out GenericParameter? parameter)
 	{
 		parameter = null;
@@ -1023,7 +1001,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (string.IsNullOrWhiteSpace(name))
 			return false;
 		parameter = FindBodyGenericParameter(scope, name);
-		return parameter?.Constraint is AnyTypeReference or CopyableTypeReference;
+		return parameter?.IsVoidRepresentation == true;
 	}
 
 	static bool IsValidFixedStorageInitializer(TypeReference? targetType, Expression value)
@@ -3086,6 +3064,18 @@ public sealed partial class BindableNodeAnalyzer
 			NewDelegateLambdaDepth = scope.NewDelegateLambdaDepth + (lambda.IsNewDelegate ? 1 : 0)
 		};
 
+		if (lambdaAnalysisShape is CallableShape capabilityShape
+			&& lambda.Parameters.Count == capabilityShape.Parameters.Count(text => GenericCapabilityIdentity.Parse(text) is null))
+		{
+			for (int i = 0; i < capabilityShape.Parameters.Count; i++)
+				if (GenericCapabilityIdentity.Parse(capabilityShape.Parameters[i]) is ParameterDefinition capability)
+				{
+					capability.Name = capability.Symbol = capability is SizeOfParameterDefinition ? SizeOfParameterName(capability.Type)
+						: capability is NameOfParameterDefinition ? NameOfParameterName(capability.Type)
+						: VTableOfParameterName(capability.Type, ((VTableOfParameterDefinition)capability).InterfaceType);
+					lambda.Parameters.Insert(i, new LambdaParameter { Parameter = capability, SourceSyntax = lambda.SourceSyntax });
+				}
+		}
 		if (lambdaAnalysisShape is CallableShape shape && shape.Parameters.Count != lambda.Parameters.Count)
 			Report(GetRange(lambda.SourceSyntax), $"Lambda parameter count '{lambda.Parameters.Count.ToString(CultureInfo.InvariantCulture)}' does not match target callable parameter count '{shape.Parameters.Count.ToString(CultureInfo.InvariantCulture)}'.");
 
@@ -3414,6 +3404,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	static string GetLambdaParameterCallableSlot(ParameterDefinition parameter)
 	{
+		if (GenericCapabilityIdentity.Describe(parameter) is string capability) return capability;
 		string type = parameter.ResolvedType ?? parameter.Type?.ResolvedType ?? ErrorType;
 		return parameter.Modifier switch
 		{
@@ -3977,10 +3968,11 @@ public sealed partial class BindableNodeAnalyzer
 		if (!substitutions.TryGetValue(parameter.Name, out string? substitutedType) || string.IsNullOrWhiteSpace(substitutedType))
 			return;
 		ValidateRepresentationArgument(parameter, substitutedType, typeScope, syntax);
-		if (parameter.Constraint is not CopyableTypeReference)
-			return;
-		if (!IsCopyableResolvedType(substitutedType, scope, []))
-			Report(GetRange(syntax), $"Type argument '{substitutedType}' does not satisfy copyable constraint '{parameter.Name}: copyable' for call to '{function.Name}'.");
+		string argument = ErasedTypeIdentity.ReadType(StripTopLevelValueQualifiers(substitutedType));
+		if (FindBodyGenericParameter(scope, argument) is GenericParameter source && source.Representation != parameter.Representation
+			&& function.Parameters.Any(slot => slot is not SizeOfParameterDefinition and not NameOfParameterDefinition and not VTableOfParameterDefinition
+				&& ExtractGenericNames(slot.Type?.ResolvedType ?? slot.ResolvedType ?? ErrorType, new HashSet<string>([parameter.Name])).Any()))
+			Report(GetRange(syntax), $"Cannot prove representation-changing transport from '{source.Representation}' to '{parameter.Representation}' for abstract argument '{argument}'; same-representation forwarding is required.");
 	}
 
 	static void NormalizeGenericCallSyntax(CallExpression call)
@@ -4137,6 +4129,15 @@ public sealed partial class BindableNodeAnalyzer
 		int index = firstSourceIndex;
 		foreach (string parameterType in parameterTypes)
 		{
+			if (GenericCapabilityIdentity.Parse(parameterType) is ParameterDefinition capability)
+			{
+				capability.Name = capability.Symbol = parameterType.StartsWith("sizeof(", StringComparison.Ordinal) ? SizeOfParameterName(capability.Type)
+					: capability is NameOfParameterDefinition ? NameOfParameterName(capability.Type)
+					: VTableOfParameterName(capability.Type, ((VTableOfParameterDefinition)capability).InterfaceType);
+				parameters.Add(capability);
+				index++;
+				continue;
+			}
 			string typeName = parameterType;
 			ParameterModifier modifier = ParameterModifier.None;
 			if (typeName.StartsWith("in ", StringComparison.Ordinal))
@@ -4630,6 +4631,7 @@ public sealed partial class BindableNodeAnalyzer
 			binding.Parameters = callableParameters;
 			binding.SuppliedParameters = suppliedParameters;
 		}
+		ValidateCapabilityCall(parameters, analyzedLifetimeArguments, genericSubstitutions, scope, typeScope, fallbackSyntax);
 		if (parameters.Count > 0 && TryFindMissingRequiredCallArgument(callableParameters, suppliedParameters, allowOmittedPrepParameter, out ParameterDefinition? missingParameter))
 			Report(GetRange(missingArgumentSyntax ?? fallbackSyntax ?? (arguments.Count > 0 ? arguments[^1].SourceSyntax : null)), MissingRequiredArgumentMessage(missingParameter!, callDisplayName ?? GetCallDisplayName(function, callTarget)));
 		if (extraArgument is not null && (function is not null || parameters.Count > 0))

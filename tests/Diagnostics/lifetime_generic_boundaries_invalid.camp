@@ -1,22 +1,22 @@
 const char[] global;
 delegate bool(in int) globalPredicate;
 
-T* badInTransportEscape<T: any>(in T value)
+T* badInTransportEscape<T>(in T value, sizeof(T))
 {
 	return &value;
 }
 
-struct Holder<T: copyable>
+struct Holder<T>
 {
 	T* value;
 }
 
-void badInTransportRetain<T: copyable>(Holder<T>* holder, in T value, sizeof(T))
+void badInTransportRetain<T>(Holder<T>* holder, in T value, sizeof(T))
 {
 	holder.value = &value;
 }
 
-void choose<T: copyable>(in T value, out T result, sizeof(T))
+void choose<T>(in T value, out T result, sizeof(T))
 {
 	result = value;
 }

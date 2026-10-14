@@ -130,7 +130,7 @@ export extern void literalDocs();
 /// - start: First index to search.
 /// - count: Number of values to inspect.
 /// @returns The matching index, or -1.
-export extern nint find<T: any>(
+export extern nint find<T>(
 	const T[] this,
 	in T value,
 	@range nuint start = 0,

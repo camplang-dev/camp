@@ -30,7 +30,7 @@ struct Handle
 	{
 	}
 }
-void retainGeneric<T: implements IRef>(T* value, vtableof(T: IRef))
+void retainGeneric<T>(T* value, vtableof(T: IRef))
 {
 	(*vtableof_T_IRef).retain(value);
 }
@@ -49,7 +49,7 @@ void main()
 const IRef Widget_IRef__storage = {.retain = Widget_retain};
 const IRef* Widget_IRef = &Widget_IRef__storage;
 
-fixed struct IRef_Indirect<U: void*>
+fixed struct IRef_Indirect<U>
 {
 	const IRef* _vt;
 	U* ctx;

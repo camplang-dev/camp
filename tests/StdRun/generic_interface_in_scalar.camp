@@ -4,9 +4,9 @@ struct Doubler: IScale
 	int factor;
 	int scale(in int x): IScale => x * this.factor;
 }
-int viaGeneric<T: implements IScale>(T* s, in int x, vtableof(T: IScale)) => s.scale(x);
-int viaValue<T: implements IScale>(T* s, int x, vtableof(T: IScale)) => s.scale(x);
-int viaLiteral<T: implements IScale>(T* s, vtableof(T: IScale)) => s.scale(5);
+int viaGeneric<T>(T* s, in int x, vtableof(T: IScale)) => s.scale(x);
+int viaValue<T>(T* s, int x, vtableof(T: IScale)) => s.scale(x);
+int viaLiteral<T>(T* s, vtableof(T: IScale)) => s.scale(5);
 export int main()
 {
 	Doubler d = { 3 };

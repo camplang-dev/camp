@@ -63,8 +63,8 @@ High-impact distinctions:
   (no constructor runs if the struct declares none) or `Value value = default;`.
   Pass `&value` where a pointer is needed. `stackalloc` is
   for storage whose size is not known at the declaration, such as `stackalloc T[count]`,
-  `stackalloc $"..."`, an erased generic `T` (`any` or `copyable`, with
-  `sizeof(T)`; `T: implements I` is pointer-only and has no local at all), or explicitly annotated
+  `stackalloc $"..."`, a void-represented generic T with checked
+  `sizeof(T)`, or explicitly annotated
   `stackalloc void<V> slot = value;`. A `stackalloc` local of a known-size type
   (`int`, a `struct`, a carrier, a representation `T`) is an error; use an
   ordinary local. `auto` never infers a `stackalloc` local, and
@@ -82,8 +82,8 @@ High-impact distinctions:
   prepared storage; `(new)` directly before that call uses allocated storage
   under the active `within` context.
 - Textual `+` and textual `+=` are diagnostics. Use interpolation instead.
-- Generic code must state the capabilities it uses. `T: any` is intentionally
-  restrictive.
+- Generic code must state the capabilities it uses. Omitted representation is
+  void; borrowing T* needs no copy/layout capability, while in/out T needs checked size.
 - Unsafe casts do not tunnel into arrays, delegates, optionals, interfaces, or
   other expanded forms. Convert the carrier intentionally, then reconstruct the
   expanded value. An optional's own conversion is not a tunnel: `T?` casts to
@@ -425,7 +425,7 @@ default value. The selector can appear after stable key/index parameters; every
 entry in that family must preserve the selector name, selector position, and
 pre-selector parameter shape. Do not mix ordinary declarations and overload
 declarations in one family. A generic selector type must contribute a concrete
-method-symbol fragment; unconstrained `T: any` is too weak for selector naming.
+method-symbol fragment; void-represented T is too weak for selector naming.
 Values such as `null`, `default`, aggregate initializers, and untyped lambdas
 do not select overloads unless you give them an explicit type or call the
 concrete overload name.
@@ -991,8 +991,9 @@ or in a callable signature is a value newtype over its integer. So
 ## Generics
 
 A reference to a generic method has the erasure of its signature: `T` becomes
-`void<A>` for `any`/`copyable`, `C<A>` for a representation constraint (default
-`nint`) and `A` for `implements`. `numbers.getItem` is `delegate void<int>(nuint)`
+`void<A>` for an omitted representation or `R<A>` for an explicit integer
+representation. An existing outer annotation is replaced with the destination R;
+nested nominal arguments remain intact. `numbers.getItem` is `delegate void<int>(nuint)`
 for both `List<int>` and `List<int?>`-style payloads, and `slot.get` of a
 `Slot<Color>` with `T: long` is `delegate long<Color>()`. A function may write a
 `void<V>` result (`void<int> seven() => 7;`); a call reads it as `V`.
@@ -1013,9 +1014,10 @@ remain exact. A `void<V>*` of an expandable `V` converts implicitly to the
 distributive `V*` (one pointer per component, aliasing the one storage object,
 source evaluated once); the reverse is an error.
 
-Under `T: implements I` the type parameter is transported only by pointer:
-`T*`, `const T*`, `T[]` and `out T*` are valid; a `T` result, `in T`, `out T`
-and a by-value `T` are errors.
+Omitted representation is always void. Void T cannot be a direct input even
+with size and witness. Use T* to borrow, or in/out T with checked sizeof(T)
+for copyable actual arguments. A witness allows dispatch on a direct implementing
+class or struct; it supplies no copy/layout authority.
 
 Bound generic method references keep their erased result shape; invoking them
 produces the plain payload. `List<int?>.tryGetItem` returns
@@ -1027,24 +1029,25 @@ type can be copied, compared, default-constructed, sized, or placed into an arra
 
 Common capability patterns:
 
-- Use `T: any` when the code only passes, stores by address, or otherwise handles
-  `T` without copying or requiring layout operations.
-- Use `T: copyable` when the code copies, returns by value, or duplicates `T`;
-  it is still erased, so fields may not store direct `T` values.
-- Use `in T value` when generic values need input transport without granting the
-  body ordinary copy or storage rights.
-- Use interface constraints when the code calls interface methods on `T`.
+- Use `<T>` and T* for borrowing without copy/layout operations.
+- Use checked sizeof(T) when copying, returning or duplicating void T. Even an
+  unused size slot requires a copyable actual argument.
+- Use in/out T with sizeof(T) for indirect value transport.
+- Use T:R for fixed integer representation; there are nine permitted integer R
+  spellings, including aliases. Explicit void and old any/copyable/implements
+  constraints are rejected.
 - Use `sizeof(T)` when the code indexes, slices, allocates, enumerates storage
-  of generic elements, default-fills erased storage, or copies `T: copyable`
+  of generic elements, default-fills erased storage, or copies void-represented T
   values through erased storage.
 - Use `typenameof(T)` only for diagnostic or metadata-style names.
 - Use `vtableof(T: SomeInterface)` when generic interface dispatch needs a typed witness.
 - Use `T*`, `T[]`, or explicit erased storage for generic type fields. A field
-  declared as plain `T value;` is invalid even when `T: copyable`; locals of
-  type `T` are allowed inside functions with the needed runtime size capability.
+  declared as plain T value is invalid for void representation. Write stackalloc
+  T for a local with checked size. Generic in/out callback slots need their own
+  sizeof(T), and concrete helper signatures must preserve that capability slot.
 
 ```camp
-export T choose<T: copyable>(in T left, in T right, bool useLeft, sizeof(T))
+export T choose<T>(in T left, in T right, bool useLeft, sizeof(T))
 {
     if (useLeft)
     {
@@ -1372,7 +1375,7 @@ Stable agent habits:
 | Returning an array view over local fixed storage | Allocate or store backing data in a valid owner |
 | Passing or returning fixed-size arrays by value | Use a pointer to the fixed array or a `T[]` span view |
 | Arrays of expanded values such as direct optional or delegate arrays | Use erased elements, for example `void<int?>[]`, allocated with `stackalloc void<int?>[count]` |
-| Copying `T: any` | Add `T: copyable` and any required `sizeof(T)` |
+| Copying void-represented T without authority | Add checked `sizeof(T)` and use `stackalloc T` for local storage |
 | Casting a delegate to another delegate signature | Write an adapter with the correct signature |
 | Passing expanded values through raw carriers | Convert the carrier intentionally and reconstruct the typed value |
 | Storing scoped values in escaped fields or callbacks | Change ownership/lifetime or keep the value scoped |

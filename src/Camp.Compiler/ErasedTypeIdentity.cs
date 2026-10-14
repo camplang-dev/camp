@@ -123,8 +123,8 @@ internal static class CarrierTypeIdentity
 		return builder.ToString();
 	}
 
-	// Erasure wraps a representation parameter as C<T>; when the argument is itself a carrier the
-	// argument already is the carried form, so `C<C2<V>>` reads as `C2<V>`.
+	// Substitution replaces only an existing outer representation. Nominal arguments
+	// and annotations nested inside their argument lists keep their identities.
 	public static string CollapseNested(string type)
 	{
 		if (type.IndexOf('<') < 0)
@@ -141,7 +141,7 @@ internal static class CarrierTypeIdentity
 			while (end < type.Length && (char.IsLetterOrDigit(type[end]) || type[end] == '_'))
 				end++;
 			string word = type[i..end];
-			if (end < type.Length && type[end] == '<' && IsCarrierName(word))
+			if (end < type.Length && type[end] == '<' && (word == "void" || IsCarrierName(word)))
 			{
 				int depth = 0;
 				int close = end;
@@ -153,8 +153,8 @@ internal static class CarrierTypeIdentity
 				if (close < type.Length)
 				{
 					string inner = CollapseNested(type[(end + 1)..close]);
-					if (TryGetCarrier(inner, out _, out _))
-						builder.Append(inner);
+					if (TryGetCarrier(inner, out _, out string payload) || ErasedTypeIdentity.TryGetPayload(inner, out payload))
+						builder.Append(word).Append('<').Append(payload).Append('>');
 					else
 						builder.Append(word).Append('<').Append(inner).Append('>');
 					i = close + 1;

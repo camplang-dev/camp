@@ -69,12 +69,12 @@ struct CountedStruct: Counted
 	}
 }
 
-escaped T* createCounted<T: implements Counted>(Allocator* allocator, int start, vtableof(T: Counted))
+escaped T* createCounted<T>(Allocator* allocator, int start, vtableof(T: Counted))
 {
 	return within (allocator) new T(start);
 }
 
-void destroyCounted<T: implements Counted>(Allocator* allocator, escaped T* value, vtableof(T: Counted))
+void destroyCounted<T>(Allocator* allocator, escaped T* value, vtableof(T: Counted))
 {
 	within (allocator) delete value;
 }

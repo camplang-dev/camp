@@ -43,7 +43,7 @@ class Box
 	}
 }
 
-nuint countWhere<T: copyable>(T[] this, escaped delegate bool(in T item) predicate, sizeof(T))
+nuint countWhere<T>(T[] this, escaped delegate bool(in T item, sizeof(T)) predicate, sizeof(T))
 {
 	nuint count = 0;
 	for (nuint i = 0; i < this.length; i++)

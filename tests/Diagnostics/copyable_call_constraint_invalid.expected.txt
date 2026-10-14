@@ -1,1 +1,1 @@
-tests/Diagnostics/copyable_call_constraint_invalid.camp(7,14): error: Type argument 'byte[4]' does not satisfy copyable constraint 'T: copyable' for call to 'use'.
+tests/Diagnostics/copyable_call_constraint_invalid.camp(7,14): error: sizeof(byte[4]) capability requires a copyable argument, including when the slot is unused; pass a pointer for non-copyable storage.

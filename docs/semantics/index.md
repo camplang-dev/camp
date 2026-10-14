@@ -116,14 +116,13 @@ code. Ordinary Camp users should start with the language guide.
 
 - Binding Model
 - Receiver-Relative Type Forms
-- Constraint Categories
+- Representations And Eligible Arguments
 - Erased Versus Materialized Values
-- `T: any`
-- `T: copyable`
+- Copy And Placement Rules
 - Size, VTable, And Type Name Capabilities
 - Generic Arrays And Iterators
 - Generic Prepared Arrays
-- Interface-Constrained Generics
+- Witness-Mediated Generic Dispatch
 - Generic Construction And Destruction
 - Materialized Generic Results
 - Static Members

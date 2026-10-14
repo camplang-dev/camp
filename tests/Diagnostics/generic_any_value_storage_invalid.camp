@@ -1,17 +1,17 @@
-class BadBox<T: any>
+class BadBox<T>
 {
 	T value;
 	T* pointer;
 	T[] span;
 }
 
-class BadCopyableBox<T: copyable>
+class BadCopyableBox<T>
 {
 	T value;
 	T* pointer;
 	T[] span;
 }
 
-void acceptValue<T: any>(T value)
+void acceptValue<T>(T value)
 {
 }

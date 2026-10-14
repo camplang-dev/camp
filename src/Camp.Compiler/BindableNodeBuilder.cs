@@ -1807,6 +1807,8 @@ public sealed partial class BindableNodeBuilder
 		{
 			GenericParameter parameter = new()
 			{
+				Binder = syntax,
+				Ordinal = target.Count,
 				SourceSyntax = parameterSyntax,
 				Name = GetRequiredIdentifier(parameterSyntax.Identifier, parameterSyntax, "Generic parameter is missing a name."),
 				RequiresImplementation = parameterSyntax.ImplementsKeyword is not null,

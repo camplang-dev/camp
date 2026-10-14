@@ -2804,10 +2804,10 @@ public sealed partial class BindableNodeAnalyzer
 		interfaceDefinition = null;
 		string genericName = TryGetPointerElementType(targetType) ?? BaseTypeName(targetType);
 		GenericParameter? parameter = FindBodyGenericParameter(scope, genericName);
-		if (parameter is null || !parameter.RequiresImplementation || parameter.Constraint is null)
+		if (parameter is null || FindWitnessCapability(scope, parameter) is not VTableOfParameterDefinition witness)
 			return false;
 
-		if (!TryGetInterfaceDefinition(parameter.Constraint, out interfaceDefinition) || interfaceDefinition is null)
+		if (witness.InterfaceType is null || !TryGetInterfaceDefinition(witness.InterfaceType, out interfaceDefinition) || interfaceDefinition is null)
 			return false;
 
 		return true;
@@ -4218,7 +4218,7 @@ public sealed partial class BindableNodeAnalyzer
 			if (isInstance && parameter is ThisParameterDefinition)
 				continue;
 
-			string parameterType = parameter.ResolvedType ?? ErrorType;
+			string parameterType = GetParameterTypeName(parameter);
 			parameters.Add(parameter.Modifier switch
 			{
 				ParameterModifier.In => "in " + parameterType,

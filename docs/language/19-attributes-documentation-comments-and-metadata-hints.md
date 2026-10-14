@@ -26,7 +26,7 @@ extern int add(int left, int right);
 ```
 
 ```camp
-export nint find<T: any>(
+export nint find<T>(
 	const T[] this,
 	in T value,
 	@range nuint start = 0,
@@ -221,7 +221,7 @@ declaration.
 /// - start: First index to inspect.
 /// - count: Number of values to inspect.
 /// @returns The matching index, or -1.
-export nint find<T: any>(
+export nint find<T>(
 	const T[] this,
 	in T value,
 	@range nuint start = 0,

@@ -16,7 +16,7 @@ struct InlineBuffer
 	int marker;
 }
 
-class PointerBox<T: any>
+class PointerBox<T>
 {
 	T* value;
 

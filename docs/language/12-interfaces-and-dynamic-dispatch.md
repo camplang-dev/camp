@@ -640,7 +640,7 @@ Generic code is covered later, but interfaces introduce one generic-looking
 piece of syntax that is worth recognizing now:
 
 ```camp
-void writeTwice<T: implements TextSink>(
+void writeTwice<T>(
 	T* sink,
 	vtableof(T: TextSink))
 {
@@ -649,8 +649,8 @@ void writeTwice<T: implements TextSink>(
 }
 ```
 
-`T: implements TextSink` says the concrete type must explicitly implement the
-interface. `vtableof(T: TextSink)` supplies the vtable capability needed for
+`<T>` selects void representation. The concrete type must directly implement
+TextSink as a class or struct. `vtableof(T: TextSink)` supplies the capability needed for
 erased generic dispatch. It is a witness for this particular `T` and interface,
 not a `TextSink` table value. For example, `vtableof(T: TextSink).write(sink,
 "first")` uses a `T*` receiver; an unbound slot read from a `TextSink` table

@@ -12,7 +12,7 @@ int readValue(IValue* value)
 	return value.value();
 }
 
-int readGeneric<T: implements IValue>(T* value, vtableof(T: IValue))
+int readGeneric<T>(T* value, vtableof(T: IValue))
 {
 	return value.value();
 }

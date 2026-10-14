@@ -1,9 +1,9 @@
-int firstIsI<T: copyable>(typenameof(T))
+int firstIsI<T>(typenameof(T), sizeof(T))
 {
 	return typenameof(T)[0] == 'I' ? 1 : 0;
 }
 
-int secondIsN<T: copyable>(typenameof(T))
+int secondIsN<T>(typenameof(T), sizeof(T))
 {
 	string name = typenameof(T);
 	return name[1] == 'n' ? 1 : 0;

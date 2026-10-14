@@ -2,7 +2,7 @@
 int selections = 0;
 int calls = 0;
 Allocator* selectAllocator(Allocator* allocator) { selections++; return allocator; }
-bool keep<T: copyable>(in T value, out T result, bool present = true, within allocator, sizeof(T))
+bool keep<T>(in T value, out T result, bool present = true, within allocator, sizeof(T))
 {
 	calls++;
 	result = default;

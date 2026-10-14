@@ -13,7 +13,7 @@ public sealed class WithinArrayInitializerTests
 	[InlineData("allocator", false)]
 	public void Within_array_result_initializers_keep_call_and_length_output(string context, bool generic)
 	{
-		string function = generic ? "T[] echo<T: copyable>(T[] values, within allocator, sizeof(T)) => values;"
+		string function = generic ? "T[] echo<T>(T[] values, within allocator, sizeof(T)) => values;"
 			: "int[] echo(int[] values, within allocator) => values;";
 		string invocation = generic ? "echo<int>(values)" : "echo(values)";
 		SemanticCompilation compilation = SemanticCompiler.CompileLowered(WithinAllocationPolicy.Explicit, ("within_array.camp", $$"""

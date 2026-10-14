@@ -1311,6 +1311,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	static string GetParameterTypeName(ParameterDefinition parameter)
 	{
+		if (GenericCapabilityIdentity.Describe(parameter) is string capability) return capability;
 		return parameter.ResolvedType ?? parameter.Type?.ResolvedType ?? FormatTypeReference(parameter.Type) ?? ErrorType;
 	}
 
@@ -1580,6 +1581,7 @@ public sealed partial class BindableNodeAnalyzer
 		public Dictionary<string, GenericParameter> GenericParameters { get; } = new(StringComparer.Ordinal);
 		public Dictionary<string, BindableNode> LifetimeAnchors { get; } = new(StringComparer.Ordinal);
 		public TypeDefinition? ContainingType { get; set; }
+		public List<ParameterDefinition> CapabilityParameters { get; set; } = [];
 		public bool IsStaticMemberScope { get; set; }
 
 		public bool ContainsInheritedGenericTypeName(string name)

@@ -397,24 +397,24 @@ export int main()
 	return sumItems(values, valueOfInt) == 6 ? 0 : 1;
 }
 
-int sumItems<T: any>(T[] values, delegate int(in T item) valueOf, sizeof(T))
+int sumItems<T>(T[] values, delegate int(in T item, sizeof(T)) valueOf, sizeof(T))
 {
 	int total = 0;
-	foreach (auto item in values)
+	foreach (stackalloc T item in values)
 		total += valueOf(item);
 	return total;
 }
 
-int valueOfInt(in int item) => item;
+int valueOfInt(in int item, sizeof(int)) => item;
 ```
 
 `sumItems(values, valueOfInt)` does not spell `int` at the call site. The
-compiler can often infer generic arguments from the values you pass. `T: any`
+compiler can often infer generic arguments from the values you pass. `<T>`
 allows the function to receive values of many element types, but it does not
 promise arithmetic, copying, construction, comparison, or formatting. The
 caller supplies `valueOfInt` to say how an item contributes to the sum.
-`sizeof(T)` is an explicit capability parameter that lets erased generic code
-know the element size.
+Checked sizeof(T) supplies copy/layout authority and requires a copyable actual
+argument. The callback carries its own size slot.
 
 Generics are a major feature, so this chapter only sets the expectation:
 generic declarations state the capabilities they need instead of assuming a

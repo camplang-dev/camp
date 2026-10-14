@@ -226,6 +226,13 @@ public sealed partial class BindableNodeAnalyzer
 
 	static ParameterDefinition CreateCallableShapeParameter(string parameterType, string name = "")
 	{
+		if (GenericCapabilityIdentity.Parse(parameterType) is ParameterDefinition capability)
+		{
+			capability.Name = capability.Symbol = capability is SizeOfParameterDefinition ? SizeOfParameterName(capability.Type)
+				: capability is NameOfParameterDefinition ? NameOfParameterName(capability.Type)
+				: VTableOfParameterName(capability.Type, ((VTableOfParameterDefinition)capability).InterfaceType);
+			return capability;
+		}
 		string typeName = parameterType.Trim();
 		ParameterModifier modifier = ParameterModifier.None;
 		if (typeName.StartsWith("in ", System.StringComparison.Ordinal))
@@ -3431,7 +3438,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	ArgumentExpression CloneArgument(ArgumentExpression argument)
 	{
-		return new ArgumentExpression
+		ArgumentExpression clone = new()
 		{
 			SourceSyntax = argument.SourceSyntax,
 			Name = argument.Name,
@@ -3441,6 +3448,9 @@ public sealed partial class BindableNodeAnalyzer
 			Value = CloneParamsExpansionExpression(argument.Value),
 			ResolvedType = argument.ResolvedType
 		};
+		if (implicitCapabilityArguments.TryGetValue(argument, out ParameterDefinition? capability))
+			implicitCapabilityArguments[clone] = capability;
+		return clone;
 	}
 
 	bool TryCreateParamsMemberComponentExpression(MemberReferenceExpression member, out Expression componentExpression)
@@ -3774,18 +3784,7 @@ public sealed partial class BindableNodeAnalyzer
 		};
 		clone.TypeArguments.AddRange(call.TypeArguments);
 		foreach (ArgumentExpression argument in call.Arguments)
-		{
-			clone.Arguments.Add(new ArgumentExpression
-			{
-				SourceSyntax = argument.SourceSyntax,
-				Name = argument.Name,
-				Modifier = argument.Modifier,
-				Type = argument.Type,
-				Target = argument.Target,
-				Value = CloneParamsExpansionExpression(argument.Value),
-				ResolvedType = argument.ResolvedType
-			});
-		}
+			clone.Arguments.Add(CloneArgument(argument));
 		if (callTargets.TryGetValue(call, out FunctionDefinition? target))
 		{
 			callTargets[clone] = target;
@@ -3800,6 +3799,7 @@ public sealed partial class BindableNodeAnalyzer
 		}
 		if (callableInvocationParameters.TryGetValue(call, out List<ParameterDefinition>? parameters))
 			callableInvocationParameters[clone] = parameters;
+		if (preparedCallableCapabilities.Contains(call)) preparedCallableCapabilities.Add(clone);
 		if (callGenericSubstitutions.TryGetValue(call, out Dictionary<string, string>? substitutions))
 			callGenericSubstitutions[clone] = new Dictionary<string, string>(substitutions, System.StringComparer.Ordinal);
 		return clone;

@@ -230,6 +230,11 @@ public class ParamsDefinition : TypeDefinition
 
 public class GenericParameter : BindableNode
 {
+	// Generated declarations share the source binder, never merely its spelling.
+	public object? Binder { get; set; }
+	public int Ordinal { get; set; }
+	public string Representation => Constraint?.ResolvedType ?? "void";
+	public bool IsVoidRepresentation => Constraint is null;
 	public List<AttributeConstructor> Attributes { get; } = [];
 	public string Name { get; set; } = "";
 	public bool RequiresImplementation { get; set; }
@@ -327,6 +332,8 @@ public class NameOfParameterDefinition : ParameterDefinition
 
 public class FieldDefinition : Definition
 {
+	// Generated typed retention is evidence; ordinary numeric/name/raw fields are not.
+	public ParameterDefinition? CapabilitySource { get; set; }
 	public FieldModifier Modifier { get; set; }
 	public bool IsInline { get; set; }
 	public bool IsFixedStorage { get; set; }

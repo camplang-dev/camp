@@ -1407,24 +1407,12 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (parameter.Constraint is null)
 			return;
-
-		if (parameter.RequiresImplementation)
-		{
-			if (!TryGetNamedTypeDefinition(parameter.Constraint, out TypeDefinition? definition) || definition is not InterfaceDefinition)
-				Report(GetRange(parameter.Constraint.SourceSyntax), $"Generic parameter '{parameter.Name}' has an implements constraint that is not an interface.");
+		if (!parameter.RequiresImplementation && CarrierTypeIdentity.IsCarrierName(parameter.Representation))
 			return;
-		}
-
-		if (parameter.Constraint is AnyTypeReference or CopyableTypeReference)
-			return;
-
-		if (parameter.Constraint is PrimitiveTypeReference primitive && IsIntegralPrimitive(primitive.Type))
-			return;
-
-		if (parameter.Constraint is PointerTypeReference { ElementType: PrimitiveTypeReference { Type: PrimitiveType.Void } })
-			return;
-
-		Report(GetRange(parameter.Constraint.SourceSyntax), $"Generic parameter '{parameter.Name}' must be constrained to any, copyable, an integral type, or implements Interface.");
+		string message = parameter.Representation == "void"
+			? $"Explicit void representation is invalid; write '<{parameter.Name}>' for unspecified-size representation."
+			: $"Generic parameter '{parameter.Name}' requires an integer representation or omission for void; removed constraints must be replaced with sizeof, typenameof or vtableof capabilities.";
+		Report(GetRange(parameter.Constraint.SourceSyntax ?? parameter.SourceSyntax), message);
 	}
 
 	void ValidateGenericArity(NamedTypeReference type, TypeDefinition definition)
@@ -1462,9 +1450,12 @@ public sealed partial class BindableNodeAnalyzer
 		if (parameter is not { Type: TypeReference type } || parameter is ThisParameterDefinition or SizeOfParameterDefinition or NameOfParameterDefinition or VTableOfParameterDefinition)
 			return;
 
-		if (parameter.Modifier is ParameterModifier.In or ParameterModifier.Out && IsImplementsConstrainedValue(type, scope))
+		if (parameter.Modifier is ParameterModifier.In or ParameterModifier.Out && IsErasedGenericValueParameter(type, scope))
 		{
-			Report(GetNameRange(parameter), ImplementsValueMessage($"an '{(parameter.Modifier == ParameterModifier.In ? "in" : "out")}' parameter"));
+			GenericParameter? bound = BoundParameter(type);
+			if (bound is null && scope.TryGetGenericParameter(BaseTypeName(parameter.ResolvedType ?? FormatTypeReference(type)), out GenericParameter? found)) bound = found;
+			if (bound is not null && !HasDeclarationCopyCapability(bound, scope))
+				Report(GetNameRange(parameter), $"{parameter.Modifier.ToString().ToLowerInvariant()} {bound.Name} requires checked sizeof({bound.Name}) copy/layout capability in its signature or retained receiver.");
 			return;
 		}
 
@@ -1472,7 +1463,7 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			if (UnwrapTypeDeclarators(type) is ErasedTypeReference erased)
 				type = erased.ParamsType ?? type;
-			if (!IsAnyOrAnyConstrainedGeneric(type, scope) && !IsCopyableTypeArgument(type, scope, []))
+			if (!IsCopyableTypeArgument(type, scope, []))
 				Report(GetNameRange(parameter), $"Parameter '{parameter.Name}' cannot use 'in' with non-copyable type '{parameter.ResolvedType ?? FormatTypeReference(type)}'. Pass it explicitly by pointer instead.");
 			return;
 		}
@@ -1480,49 +1471,12 @@ public sealed partial class BindableNodeAnalyzer
 		if (parameter.Modifier is ParameterModifier.Out or ParameterModifier.Thrown or ParameterModifier.Within)
 			return;
 
-		if (IsImplementsConstrainedValue(type, scope))
-			Report(GetNameRange(parameter), ImplementsValueMessage("passed by value"));
-		else if (IsErasedGenericValueParameter(type, scope))
+		if (IsErasedGenericValueParameter(type, scope))
 			Report(GetNameRange(parameter), "Erased generic values cannot be passed by value; use 'in T', 'out T', or a pointer, even when sizeof(T) is available.");
 
 		if (!IsDirectExternClassType(type) && IsFixedOrClassLikeType(type))
 			Report(GetNameRange(parameter), "Fixed structs and classes must be passed by reference.");
 	}
-
-	bool IsAnyOrAnyConstrainedGeneric(TypeReference type, AnalysisScope scope)
-	{
-		return type switch
-		{
-			AnyTypeReference => true,
-			NamedTypeReference named when scope.TryGetGenericParameter(named.Name, out GenericParameter? parameter) => parameter is { Constraint: AnyTypeReference },
-			ConstTypeReference { Type: not null } constType => IsAnyOrAnyConstrainedGeneric(constType.Type, scope),
-			ConstOfTypeReference { Type: not null } constOf => IsAnyOrAnyConstrainedGeneric(constOf.Type, scope),
-			VolatileTypeReference { Type: not null } volatileType => IsAnyOrAnyConstrainedGeneric(volatileType.Type, scope),
-			EscapedTypeReference { Type: not null } escapedType => IsAnyOrAnyConstrainedGeneric(escapedType.Type, scope),
-			ScopedTypeReference { Type: not null } scopedType => IsAnyOrAnyConstrainedGeneric(scopedType.Type, scope),
-			UnscopedTypeReference { Type: not null } unscopedType => IsAnyOrAnyConstrainedGeneric(unscopedType.Type, scope),
-			_ => false
-		};
-	}
-
-	// An interface constraint gives witness dispatch, not copyability: `T` is only ever transported by pointer.
-	bool IsImplementsConstrainedValue(TypeReference type, AnalysisScope scope)
-	{
-		return type switch
-		{
-			NamedTypeReference named when scope.TryGetGenericParameter(named.Name, out GenericParameter? parameter) => parameter is { RequiresImplementation: true },
-			ConstTypeReference { Type: not null } constType => IsImplementsConstrainedValue(constType.Type, scope),
-			ConstOfTypeReference { Type: not null } constOf => IsImplementsConstrainedValue(constOf.Type, scope),
-			VolatileTypeReference { Type: not null } volatileType => IsImplementsConstrainedValue(volatileType.Type, scope),
-			EscapedTypeReference { Type: not null } escapedType => IsImplementsConstrainedValue(escapedType.Type, scope),
-			ScopedTypeReference { Type: not null } scopedType => IsImplementsConstrainedValue(scopedType.Type, scope),
-			UnscopedTypeReference { Type: not null } unscopedType => IsImplementsConstrainedValue(unscopedType.Type, scope),
-			_ => false
-		};
-	}
-
-	static string ImplementsValueMessage(string position) =>
-		$"A type parameter constrained by 'implements' is not copyable and cannot be {position}; use 'T*', 'const T*', 'T[]' or 'out T*'.";
 
 	bool IsErasedGenericValueParameter(TypeReference type, AnalysisScope scope)
 	{

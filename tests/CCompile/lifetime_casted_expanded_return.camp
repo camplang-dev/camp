@@ -1,14 +1,14 @@
-T[] inner<T: any>(T[] value, sizeof(T))
+T[] inner<T>(T[] value, sizeof(T))
 {
 	return value;
 }
 
-escaped T[] trustLocal<T: any>(T[] value, sizeof(T))
+escaped T[] trustLocal<T>(T[] value, sizeof(T))
 {
 	return (escaped T[])value;
 }
 
-escaped T[] trustCall<T: any>(T[] value, sizeof(T))
+escaped T[] trustCall<T>(T[] value, sizeof(T))
 {
 	return (escaped T[])inner<T>(value);
 }

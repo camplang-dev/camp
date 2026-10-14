@@ -5,19 +5,19 @@ class Cleanup { ~Cleanup() { cleanups++; } }
 int tick(int step) { order = order * 10 + step; return step; }
 int? makeValue(int step) { tick(step); return step; }
 int ordered(int first, in void<int?> middle, int last) => first + middle.value + last;
-T identity<T: copyable>(in T value, sizeof(T)) => value;
-T namedIdentity<T: copyable>(in T value, sizeof(T), typenameof(T)) => value;
-T forward<T: copyable>(in T value, sizeof(T)) => identity<T>(value);
-T cleaned<T: copyable>(in T value, sizeof(T))
+T identity<T>(in T value, sizeof(T)) => value;
+T namedIdentity<T>(in T value, sizeof(T), typenameof(T)) => value;
+T forward<T>(in T value, sizeof(T)) => identity<T>(value);
+T cleaned<T>(in T value, sizeof(T))
 {
 	auto cleanup = new Cleanup() finally delete;
 	return value;
 }
 void<int?> clearedPayload() { int? value = 99; value.specified = false; return value; }
-T[] view<T: any>(T[] values) => values;
-T* pointer<T: any>(T* value) => value;
-void replace<T: copyable>(in T value, out T result, sizeof(T)) { result = value; }
-bool tryPick<T: copyable>(bool present, in T value, out T result, sizeof(T))
+T[] view<T>(T[] values) => values;
+T* pointer<T>(T* value) => value;
+void replace<T>(in T value, out T result, sizeof(T)) { result = value; }
+bool tryPick<T>(bool present, in T value, out T result, sizeof(T))
 {
 	result = default;
 	if (!present) return false;

@@ -29,7 +29,7 @@ struct Point
 	int x;
 }
 
-struct iter T iterate<T: copyable>(const T[] this, sizeof(T))
+struct iter T iterate<T>(const T[] this, sizeof(T))
 {
 	foreach (stackalloc T item in this)
 	{
@@ -37,7 +37,7 @@ struct iter T iterate<T: copyable>(const T[] this, sizeof(T))
 	}
 }
 
-struct iter T reverse<T: copyable>(iter T this, sizeof(T), within allocator)
+struct iter T reverse<T>(iter T this, sizeof(T), within allocator)
 {
 	auto list = new List<T>() finally delete;
 	foreach (stackalloc T item in this)

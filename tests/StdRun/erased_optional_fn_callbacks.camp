@@ -1,20 +1,20 @@
-bool tryLook<T: copyable>(fn bool(int, out T) look, int index, out T result, sizeof(T)) => look(index, out result);
-T produce<T: copyable>(fn T(int) look, int index, sizeof(T)) => look(index);
-bool tryInt(int index, out int result)
+bool tryLook<T>(fn bool(int, out T, sizeof(T)) look, int index, out T result, sizeof(T)) => look(index, out result);
+T produce<T>(fn T(int) look, int index, sizeof(T)) => look(index);
+bool tryInt(int index, out int result, sizeof(int))
 {
 	result = index > 0 ? index : 0;
 	return index > 0;
 }
 void<int> scalarWritten(int index) => index + 1;
 struct Point { int x; int y; }
-bool tryPoint(int index, out Point result)
+bool tryPoint(int index, out Point result, sizeof(Point))
 {
 	Point value = { index, index + 1 };
 	if (index <= 0) value = { 0, 0 };
 	result = value;
 	return index > 0;
 }
-bool tryOptional(int index, out void<int?> result)
+bool tryOptional(int index, out void<int?> result, sizeof(int?))
 {
 	int? inner = default;
 	if (index > 0) inner = index;

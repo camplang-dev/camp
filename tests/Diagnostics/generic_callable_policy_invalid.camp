@@ -1,15 +1,15 @@
-struct DelegatePolicy<K: any>
+struct DelegatePolicy<K>
 {
-	delegate nuint(in K key) hash;
-	delegate bool(in K left, in K right) equals;
+	delegate nuint(in K key, sizeof(K)) hash;
+	delegate bool(in K left, in K right, sizeof(K)) equals;
 }
 
-nuint hashInt(in int key)
+nuint hashInt(in int key, sizeof(int))
 {
 	return (nuint)key;
 }
 
-bool equalsInt(in int left, in int right)
+bool equalsInt(in int left, in int right, sizeof(int))
 {
 	return left == right;
 }

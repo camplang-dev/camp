@@ -1,9 +1,9 @@
-T copyReturn<T: any>(T[] values, sizeof(T))
+T copyReturn<T>(T[] values)
 {
 	return values[0];
 }
 
-void copyAssign<T: any>(T[] values, sizeof(T))
+void copyAssign<T>(T[] values)
 {
 	values[0] = values[1];
 	T temp = values[0];

@@ -22,8 +22,8 @@ public sealed partial class BindableNodeAnalyzer
 		return type[..parser.NamedTypeStart] + name + type[(parser.NamedTypeStart + named.Name.Length)..];
 	}
 
-	// Erasure substitution (025 §4): `any`/`copyable` become void<A>, a representation
-	// constraint (the unconstrained default is `nint`) becomes C<A>, and `implements I` stays A.
+	// Representation substitution: omitted representation becomes void<A>;
+	// an explicit integer representation becomes C<A>.
 	// `erasure` maps a type parameter name to "void", a carrier name, or null when nothing is erased.
 	string ErasedCallableSignatureType(string type, System.Func<string, string?> erasure, bool storage = false, bool result = false)
 	{
@@ -52,10 +52,9 @@ public sealed partial class BindableNodeAnalyzer
 
 	static string? ErasureWrapper(GenericParameter? parameter)
 	{
-		if (parameter is null || parameter.RequiresImplementation) return null;
-		if (parameter.Constraint is AnyTypeReference or CopyableTypeReference) return "void";
-		if (parameter.Constraint is null) return "nint";
-		return parameter.Constraint.ResolvedType is string constraint && CarrierTypeIdentity.IsCarrierName(constraint) ? constraint : null;
+		if (parameter is null) return null;
+		return parameter.IsVoidRepresentation ? "void"
+			: CarrierTypeIdentity.IsCarrierName(parameter.Representation) ? parameter.Representation : null;
 	}
 
 	string? FunctionErasureWrapper(FunctionDefinition function, string name) =>
@@ -184,21 +183,21 @@ public sealed partial class BindableNodeAnalyzer
 		return components;
 	}
 	static bool IsErasedGenericParameter(GenericParameter parameter) =>
-		parameter.Constraint is AnyTypeReference or CopyableTypeReference || parameter.RequiresImplementation;
+		parameter.IsVoidRepresentation;
 
 	void ValidateRepresentationArgument(GenericParameter parameter, string type, AnalysisScope scope, SyntaxNode? syntax)
 	{
-		if (IsErasedGenericParameter(parameter) || type == ErrorType || type.StartsWith(UnresolvedType, System.StringComparison.Ordinal))
+		if (type == ErrorType || type.StartsWith(UnresolvedType, System.StringComparison.Ordinal))
 			return;
-		if (TryGetParamsComponentShape(null, type, "value", out _))
+		string operand = StripTopLevelValueQualifiers(type);
+		if (ErasedTypeIdentity.TryGetPayload(operand, out string payload) || CarrierTypeIdentity.TryGetPayload(operand, out payload)) operand = payload;
+		if (operand == "void")
 		{
-			Report(GetRange(syntax), $"Expandable type argument '{type}' requires an erased generic parameter; use '{parameter.Name}: any' or '{parameter.Name}: copyable'.");
+			Report(GetRange(syntax), "No-value void is not a generic type argument.");
 			return;
 		}
-		string? carrier = parameter.Constraint is null ? "nint"
-			: parameter.Constraint is PrimitiveTypeReference primitive && IsIntegralPrimitive(primitive.Type) ? GetPrimitiveTypeName(primitive.Type) : null;
-		// A carrier argument retains its identity and uses its own integer storage.
-		string operand = CarrierTypeIdentity.TryGetCarrier(StripTopLevelValueQualifiers(type), out string argumentCarrier, out _) ? argumentCarrier : type;
+		if (IsErasedGenericParameter(parameter)) return;
+		string? carrier = ErasureWrapper(parameter);
 		if (carrier is not null && TryExplainInvalidCarrierOperand(carrier, operand, scope, out string? reason))
 			Report(GetRange(syntax), $"Type argument '{type}' does not satisfy representation constraint '{parameter.Name}: {carrier}': {reason}");
 	}

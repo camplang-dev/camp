@@ -1,15 +1,15 @@
 struct Point { int x; int y; }
 int peek(in int? value) => value.specified ? value.value : -1;
-int peekErased(in void<int?> value) => value.specified ? value.value : -1;
-int read<T: copyable>(in T value, delegate int(in T) f, sizeof(T)) => f(value);
+int peekErased(in void<int?> value, sizeof(int?)) => value.specified ? value.value : -1;
+int read<T>(in T value, delegate int(in T, sizeof(T)) f, sizeof(T)) => f(value);
 int seven() => 7;
 void sevenOut(out int result) { result = 7; }
 void pointOut(out Point result) { Point value = { 3, 4 }; result = value; }
 Point makePoint() { Point value = { 5, 6 }; return value; }
-T produce<T: copyable>(delegate T() make, sizeof(T)) => make();
-int compare(in int left, in int right) => left - right;
-newtype delegate T Factory<T: copyable>();
-newtype delegate T AllocatingFactory<T: copyable>(within Allocator* allocator);
+T produce<T>(delegate T() make, sizeof(T)) => make();
+int compare(in int left, in int right, sizeof(int)) => left - right;
+newtype delegate T Factory<T>();
+newtype delegate T AllocatingFactory<T>(within Allocator* allocator);
 void<int> sevenWritten() => 7;
 void<Point> pointWritten() { Point value = { 3, 4 }; return value; }
 void<int> sevenWithin(within Allocator* allocator) => 7;

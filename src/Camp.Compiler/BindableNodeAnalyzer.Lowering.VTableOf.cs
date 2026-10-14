@@ -85,17 +85,14 @@ public sealed partial class BindableNodeAnalyzer
 				return;
 			}
 
-			Report(GetRange(syntax), $"vtableof requires a generic type parameter constrained with 'implements' or a concrete type that implements the interface, not '{type?.ResolvedType ?? genericName}'.");
+			Report(GetRange(syntax), $"vtableof requires a void-represented parameter or a direct implementing class or struct, not '{type?.ResolvedType ?? genericName}'.");
 			return;
 		}
-		if (!genericParameter.RequiresImplementation)
+		if (!genericParameter.IsVoidRepresentation)
 		{
-			Report(GetRange(syntax), $"Generic parameter '{genericName}' must be constrained with 'implements {interfaceDefinition.Name}' to use vtableof.");
+			Report(GetRange(syntax), $"Witness operand '{genericName}' requires void representation; omit its integer representation.");
 			return;
 		}
-
-		if (!CanGenericParameterImplementInterface(genericParameter, interfaceDefinition))
-			Report(GetRange(syntax), $"Generic parameter '{genericName}' is not constrained to implement interface '{interfaceDefinition.Name}'.");
 	}
 
 	static GenericParameter? FindGenericParameter(AnalysisScope scope, string name)
@@ -177,6 +174,7 @@ public sealed partial class BindableNodeAnalyzer
 
 				FieldDefinition field = new()
 				{
+					CapabilitySource = vtableOf,
 					SourceSyntax = vtableOf.SourceSyntax,
 					Name = VTableOfFieldName(vtableOf.Type, vtableOf.InterfaceType),
 					Symbol = VTableOfFieldName(vtableOf.Type, vtableOf.InterfaceType),
@@ -239,6 +237,16 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (FindVTableOfParameter(currentRewriteFunction, genericName, interfaceName) is VTableOfParameterDefinition parameter)
 			return CreateVariableReference(parameter, parameter.ResolvedType ?? VTableOfParameterType(parameter));
+		if (vtableOf.InterfaceType is not null && TryGetInterfaceDefinition(vtableOf.InterfaceType, out InterfaceDefinition? requested) && requested is not null)
+			foreach (ParameterDefinition slot in currentRewriteFunction?.Parameters ?? [])
+				if (slot is VTableOfParameterDefinition inherited && VTableOfTypeName(inherited.Type) == genericName
+					&& inherited.InterfaceType is not null && TryGetInterfaceDefinition(inherited.InterfaceType, out InterfaceDefinition? supplied)
+					&& supplied is not null && InterfaceContainsBase(supplied, requested))
+				{
+					Expression projected = ProjectInheritedWitnessTable(CreateVariableReference(inherited, VTableOfParameterType(inherited)), supplied, requested);
+					projected.ResolvedType = new WitnessTypeIdentity(genericName, vtableOf.InterfaceType.ResolvedType ?? requested.Name).ResolvedType;
+					return projected;
+				}
 
 		// Iterator next methods retain the source capability in their generated state.
 		// An implicit constrained call can request it after iterator expression rewriting.

@@ -17,6 +17,6 @@ export abstract class Fluent
 }
 
 /// Describes a generic type by name.
-export void describe<T: any>(typenameof(T), string displayName)
+export void describe<T>(typenameof(T), string displayName)
 {
 }

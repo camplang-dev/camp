@@ -138,7 +138,7 @@ public sealed partial class BindableNodeAnalyzer
 		string baseName = BaseTypeName(StripTopLevelValueQualifiers(resolvedType ?? ""));
 		return !string.IsNullOrWhiteSpace(baseName)
 			&& typeScope.GenericParameters.TryGetValue(baseName, out GenericParameter? parameter)
-			&& parameter.Constraint is AnyTypeReference;
+			&& parameter.IsVoidRepresentation;
 	}
 
 	bool IsPointerBearingResolvedType(string? type)

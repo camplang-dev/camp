@@ -86,7 +86,7 @@ int sumOptional(const int?* source) { int? read = *source; return read.specified
 void fillOptional(int?* target, int value) { *target = value; }
 void fillArray(int[]?* target, int[] data) { *target = data; }
 void<int?>* countedPointer(void<int?>* slot) { pointerCalls++; return slot; }
-int sameStorageAcrossLoop<T: copyable>(T[] values, sizeof(T))
+int sameStorageAcrossLoop<T>(T[] values, sizeof(T))
 {
 	T* previous = null;
 	for (nuint i = 0; i < values.length; i++)
@@ -98,7 +98,7 @@ int sameStorageAcrossLoop<T: copyable>(T[] values, sizeof(T))
 	}
 	return 1;
 }
-int interfaceStorage<T: implements Reader>(T* source, sizeof(T), vtableof(T: Reader))
+int interfaceStorage<T>(T* source, sizeof(T), vtableof(T: Reader))
 {
 	return source.read();
 }

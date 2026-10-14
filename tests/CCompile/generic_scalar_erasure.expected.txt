@@ -3,19 +3,19 @@
 
 /* Private file declarations. */
 void *malloc(uintptr_t size);
-static void List_add(List *this, void* item);
-static void* List_getItem(const List *this, uintptr_t index);
+static void List_add(List *this, intptr_t item);
+static intptr_t List_getItem(const List *this, uintptr_t index);
 static void List_op_initnew(List *this);
 static List *List_create(void);
 static void acceptInt(int value);
 static int main(void);
 
-static void List_add(List *this, void* item)
+static void List_add(List *this, intptr_t item)
 {
 	this->items[this->count++] = item;
 }
 
-static void* List_getItem(const List *this, uintptr_t index)
+static intptr_t List_getItem(const List *this, uintptr_t index)
 {
 	return this->items[index];
 }
@@ -52,8 +52,8 @@ static int main(void)
 		*numbers = (List){0};
 		List_op_initnew(numbers);
 	}
-	List_add(numbers, (void *)(intptr_t)(1));
-	acceptInt((int)(intptr_t)(List_getItem((const List *)(numbers), 0)));
+	List_add(numbers, (intptr_t)(1));
+	acceptInt((int)(List_getItem((const List *)(numbers), 0)));
 	return 0;
 }
 
@@ -75,7 +75,7 @@ typedef struct List List;
 /* Layouts. */
 struct List
 {
-	void **items;
+	intptr_t *items;
 	uintptr_t items_length;
 	uintptr_t count;
 };

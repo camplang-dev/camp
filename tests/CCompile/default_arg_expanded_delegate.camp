@@ -1,7 +1,7 @@
 extern void* malloc(nuint size);
 extern void free(void* ptr);
 
-int compareInt(in int left, in int right)
+int compareInt(in int left, in int right, sizeof(int))
 {
 	if (left < right)
 		return -1;
@@ -15,7 +15,7 @@ int compareInt(in int left, in int right)
 // Call with explicit optional: no extra default. Call without: uses default.
 // --
 
-nint findInArray<T: any>(const T[] this, in T item, delegate int(in T left, in T right) comparer, nuint startAt = 0, sizeof(T))
+nint findInArray<T>(const T[] this, in T item, delegate int(in T left, in T right, sizeof(T)) comparer, nuint startAt = 0, sizeof(T))
 {
 	nuint i = startAt;
 	while (i < this.length)
@@ -31,13 +31,13 @@ nint findInArray<T: any>(const T[] this, in T item, delegate int(in T left, in T
 // Test 2: delegate arg expands to call/context; optional is supplied explicitly.
 // --
 
-void forEachFrom<T: any>(T[] this, delegate void(in T value) body, nuint startAt = 0, sizeof(T))
+void forEachFrom<T>(T[] this, delegate void(in T value, sizeof(T)) body, nuint startAt = 0, sizeof(T))
 {
 	for (nuint i = startAt; i < this.length; i++)
 		body(this[i]);
 }
 
-void noop(in int value)
+void noop(in int value, sizeof(int))
 {
 }
 

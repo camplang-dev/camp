@@ -1,4 +1,4 @@
-void accept<T: any>(T* value)
+void accept<T>(T* value)
 {
 }
 
@@ -14,16 +14,16 @@ Aggregate makeAggregate()
 	return { 1 };
 }
 
-void acceptValue<T: copyable>(in T value)
+void acceptValue<T>(in T value, sizeof(T))
 {
 }
 
-T identity<T: copyable>(in T value, sizeof(T))
+T identity<T>(in T value, sizeof(T))
 {
 	return value;
 }
 
-T getAt<T: copyable>(in T value, uint index, sizeof(T))
+T getAt<T>(in T value, uint index, sizeof(T))
 {
 	return value;
 }

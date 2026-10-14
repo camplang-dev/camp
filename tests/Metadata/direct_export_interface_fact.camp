@@ -12,7 +12,7 @@ export class DirectWidget: IVisible
 	public int getValue(): IVisible => 7;
 }
 
-export int readVisible<T: implements IVisible>(T* value, vtableof(T: IVisible))
+export int readVisible<T>(T* value, vtableof(T: IVisible))
 {
 	return value.getValue();
 }

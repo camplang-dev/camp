@@ -680,6 +680,8 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		return new GenericParameter
 		{
+			Binder = parameter.Binder ?? parameter,
+			Ordinal = parameter.Ordinal,
 			SourceSyntax = parameter.SourceSyntax,
 			Name = parameter.Name,
 			RequiresImplementation = parameter.RequiresImplementation,
@@ -690,6 +692,11 @@ public sealed partial class BindableNodeAnalyzer
 
 	static ParameterDefinition CreateLambdaFunctionParameter(LambdaParameter parameter, string parameterType, int index)
 	{
+		if (GenericCapabilityIdentity.Parse(parameterType) is ParameterDefinition capability)
+		{
+			capability.Name = capability.Symbol = GetLambdaParameterSymbolName(parameter) ?? "capability" + index;
+			return capability;
+		}
 		ParameterDefinition source = parameter.Parameter ?? new ParameterDefinition();
 		string name = GetLambdaParameterSymbolName(parameter) ?? "arg" + index.ToString(System.Globalization.CultureInfo.InvariantCulture);
 		ParameterModifier modifier = source.Modifier;

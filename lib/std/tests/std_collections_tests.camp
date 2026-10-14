@@ -168,7 +168,7 @@ void hashMapSetAndListCollectionsBehaveAcrossGrowthCopyAndRemoval(within Allocat
 	assert(lineItem2.length == 5 && lineItem2[0] == 't', "List<const char[]> should accept string values");
 }
 
-int compareCollectionTestInt(in int left, in int right)
+int compareCollectionTestInt(in int left, in int right, sizeof(int))
 {
 	if (left < right)
 		return -1;

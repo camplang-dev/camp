@@ -221,8 +221,8 @@ void sortScores()
 Helpers such as `copyTo`, `copyFrom`, `copyArray`, `reverse`, `sort`,
 `binarySearch`, and `findIndex` keep the same generic discipline you saw in
 the generics chapter. Operations that copy or rearrange elements use
-`T: copyable`. Operations that only inspect through `in T` can work with
-broader erased values.
+checked `sizeof(T)` contracts. An `in T` callback also declares `sizeof(T)`;
+its concrete helper must match that slot, or a target-typed lambda supplies it.
 
 For one-off loops, plain indexing is still often clearer:
 
@@ -472,7 +472,8 @@ is a callable value with a context and a small protocol.
 ## Lists
 
 `List<T>` is the standard growable contiguous collection. It stores and moves
-values, so its type parameter is `T: copyable`.
+values, so its constructor retains checked `sizeof(T)` for its void-represented
+type parameter. Noncopyable arguments fail construction.
 
 ```camp
 void collectReadings()

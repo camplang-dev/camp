@@ -2,7 +2,7 @@
 int calls = 0;
 int selections = 0;
 Allocator* selectAllocator(Allocator* allocator) { selections++; return allocator; }
-T[] echo<T: copyable>(T[] values, within allocator, sizeof(T)) { calls++; return values; }
+T[] echo<T>(T[] values, within allocator, sizeof(T)) { calls++; return values; }
 int[] ordinary(int[] values, within allocator) { calls++; return values; }
 export int main()
 {

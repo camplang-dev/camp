@@ -1,4 +1,4 @@
-export int sumGeneric<T: any>(T[] this, delegate int(in T item) valueOf, sizeof(T))
+export int sumGeneric<T>(T[] this, delegate int(in T item, sizeof(T)) valueOf, sizeof(T))
 {
 	int total = 0;
 	foreach (stackalloc T item in this)
@@ -6,7 +6,7 @@ export int sumGeneric<T: any>(T[] this, delegate int(in T item) valueOf, sizeof(
 	return total;
 }
 
-int valueOfInt(in int item) => item;
+int valueOfInt(in int item, sizeof(int)) => item;
 
 export int main()
 {

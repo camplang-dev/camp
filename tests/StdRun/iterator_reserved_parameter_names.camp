@@ -12,7 +12,7 @@ export void main()
 	Console.writeLine("DONE");
 }
 
-struct iter T iterate<T: copyable>(T[] this, sizeof(T))
+struct iter T iterate<T>(T[] this, sizeof(T))
 {
 	foreach (stackalloc T v in this)
 		yield v;

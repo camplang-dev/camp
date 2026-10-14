@@ -46,7 +46,7 @@ void defaulted(overload int value = 0)
 {
 }
 
-void genericAny<T: any>(overload T value)
+void genericAny<T>(overload T value)
 {
 }
 

@@ -50,7 +50,7 @@ For receiver relationships, `constof(this)` binds to the receiver or callable
 At a call site, each anchor has a caller-visible const fact. For a parameter:
 
 ```camp
-void share<T: any>(const T[] source, constof(source) T[] view, sizeof(T));
+void share<T>(const T[] source, constof(source) T[] view, sizeof(T));
 ```
 
 the actual for `view` must match the actual constness of `source` in the

@@ -20,7 +20,7 @@ struct Handle: IRef
 	}
 }
 
-void retainGeneric<T: implements IRef>(T* value, vtableof(T: IRef))
+void retainGeneric<T>(T* value, vtableof(T: IRef))
 {
 	value.retain();
 }

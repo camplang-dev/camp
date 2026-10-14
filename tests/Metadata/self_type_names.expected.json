@@ -76,7 +76,7 @@
         {
           "id": "function:Meta::describe/type-parameter:T",
           "name": "T",
-          "constraint": "any"
+          "constraint": "void"
         }
       ],
       "parameters": [

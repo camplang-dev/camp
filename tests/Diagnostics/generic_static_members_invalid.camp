@@ -1,4 +1,4 @@
-class Bad<T: any>
+class Bad<T>
 {
 	static T* field = default;
 	inline T* inlineField = default;
@@ -16,9 +16,9 @@ class Bad<T: any>
 	int instanceRedeclare<T>() => 0;
 }
 
-class Good<T: copyable>
+class Good<T>
 {
 	inline int VALUE = 1;
 	static int getCount() => VALUE;
-	static nuint sizeOf<U: copyable>(sizeof(U)) => sizeof(U);
+	static nuint sizeOf<U>(sizeof(U)) => sizeof(U);
 }

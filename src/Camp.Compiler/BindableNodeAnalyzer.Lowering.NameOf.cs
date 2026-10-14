@@ -333,6 +333,7 @@ public sealed partial class BindableNodeAnalyzer
 
 				FieldDefinition field = new()
 				{
+					CapabilitySource = nameOf,
 					SourceSyntax = nameOf.SourceSyntax,
 					Name = NameOfFieldName(nameOf.Type),
 					Symbol = NameOfFieldName(nameOf.Type),

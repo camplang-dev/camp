@@ -2,18 +2,18 @@
 #include "generic_array_copy_mutation_private.h"
 
 /* Private file declarations. */
-static int __camp_delegate_compareInt(void *arg0, const void *arg1, const void *arg2);
+static int __camp_delegate_compareInt(void *arg0, const void *arg1, const void *arg2, uintptr_t arg3);
 static void clear(void *values, uintptr_t values_length, uintptr_t sizeof_T);
 static void copyTo(const void *source, uintptr_t source_length, void *destination, uintptr_t destination_length, uintptr_t sizeof_T);
 static void copyFrom(void *destination, uintptr_t destination_length, const void *source, uintptr_t source_length, uintptr_t sizeof_T);
 static void reverse(void *values, uintptr_t values_length, uintptr_t sizeof_T);
-static void sort(void *values, uintptr_t values_length, int (* compare)(void *arg0, const void *arg1, const void *arg2), void *compare_context, uintptr_t sizeof_T);
-static int compareInt(int *left, int *right);
+static void sort(void *values, uintptr_t values_length, int (* compare)(void *arg0, const void *arg1, const void *arg2, uintptr_t arg3), void *compare_context, uintptr_t sizeof_T);
+static int compareInt(int *left, int *right, uintptr_t sizeof_int);
 
-static int __camp_delegate_compareInt(void *arg0, const void *arg1, const void *arg2)
+static int __camp_delegate_compareInt(void *arg0, const void *arg1, const void *arg2, uintptr_t arg3)
 {
 	(void)arg0;
-	return compareInt((int *)arg1, (int *)arg2);
+	return compareInt((int *)arg1, (int *)arg2, arg3);
 }
 
 static void clear(void *values, uintptr_t values_length, uintptr_t sizeof_T)
@@ -86,7 +86,7 @@ __while_break7: ;
 	}
 }
 
-static void sort(void *values, uintptr_t values_length, int (* compare)(void *arg0, const void *arg1, const void *arg2), void *compare_context, uintptr_t sizeof_T)
+static void sort(void *values, uintptr_t values_length, int (* compare)(void *arg0, const void *arg1, const void *arg2, uintptr_t arg3), void *compare_context, uintptr_t sizeof_T)
 {
 	uint8_t *__stack0 = __builtin_alloca(sizeof_T);
 	if ((values_length < 2))
@@ -98,7 +98,7 @@ static void sort(void *values, uintptr_t values_length, int (* compare)(void *ar
 		{
 			uintptr_t j = i;
 			{
-				while (((j > 0) && (compare(compare_context, (void*)(((uint8_t*)values) + ((j - 1) * sizeof_T)), (void*)(((uint8_t*)values) + (j * sizeof_T))) > 0)))
+				while (((j > 0) && (compare(compare_context, (void*)(((uint8_t*)values) + ((j - 1) * sizeof_T)), (void*)(((uint8_t*)values) + (j * sizeof_T)), sizeof_T) > 0)))
 				{
 					uint8_t *temp = __stack0;
 					__builtin_memcpy(temp, (void*)(((uint8_t*)values) + ((j - 1) * sizeof_T)), sizeof_T);
@@ -115,7 +115,7 @@ __for_break9: ;
 	}
 }
 
-static int compareInt(int *left, int *right)
+static int compareInt(int *left, int *right, uintptr_t sizeof_int)
 {
 	if (((*left) < (*right)))
 	{
@@ -136,7 +136,7 @@ int main(void)
 	uintptr_t destination_length = 4;
 	copyTo(source, source_length, destination, destination_length, sizeof(int));
 	reverse(destination, destination_length, sizeof(int));
-	sort(destination, destination_length, (int (*)(void *arg0, const void *arg1, const void *arg2))__camp_delegate_compareInt, NULL, sizeof(int));
+	sort(destination, destination_length, (int (*)(void *arg0, const void *arg1, const void *arg2, uintptr_t arg3))__camp_delegate_compareInt, NULL, sizeof(int));
 	clear(source, source_length, sizeof(int));
 	copyFrom(source, source_length, destination, destination_length, sizeof(int));
 	return (((source[0] + source[1]) + source[2]) + source[3]);

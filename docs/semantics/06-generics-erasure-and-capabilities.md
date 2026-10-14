@@ -14,24 +14,15 @@ needed by the operation being performed.
 
 ## Binding Model
 
-Generic parameters are bound in type and function scopes. Type arguments are
-applied through substitution while preserving nominal boundaries and source
-syntax for diagnostics.
+Generic parameters are identified by their introducing declaration and ordinal.
+A source name is a lookup spelling, not binder identity. Owner substitution and
+method binder mapping are distinct operations. Generated iterator, lambda and
+interface helpers preserve the original binders deliberately.
 
-The binder must keep three pieces of information separate:
-
-- the source generic parameter declaration, including constraint and source
-  range;
-- the resolved type name used for substitution, usually the generic parameter
-  name before instantiation;
-- capability parameters or fields that transport layout, vtable, or type-name
-  information.
-
-Generic parameters introduced by a containing type are visible to member
-functions. Function generic parameters are visible only within that function and
-its generated helper declarations. Generated iterator, lambda, and virtual
-helper declarations must copy or thread generic parameters deliberately; they
-must not rely on ambient analyzer state.
+Keep binder identity, representation, actual nominal argument, represented
+storage, expression read view and exact-operand capabilities separate. A read
+view is a comparison/expression device; it never replaces canonical types in
+signatures, generic arguments, symbols, metadata or API output.
 
 ## Receiver-Relative Type Forms
 
@@ -96,50 +87,57 @@ the special safe producer for `classtype`; other enclosing-class-to-`classtype`
 flows require an explicit cast and must be checked by the conversion
 classifier.
 
-## Constraint Categories
+## Representations And Eligible Arguments
 
-Constraints determine which operations are legal. `any` permits the type to be
-named. `copyable` permits copying when paired with any needed representation
-capabilities. Interface constraints permit interface calls when the required
-vtable capability is available.
+A parameter declared as `<T>` selects unspecified-size (void) representation.
+Omission has this meaning uniformly for types, interfaces, callable newtypes
+and methods. A colon selects one of `byte`, `ushort`, `short`, `uint`,
+`int`, `ulong`, `long`, `nuint`, or `nint`; resolve aliases before
+validating the representation. Explicit `T: void` and the former `any`,
+`copyable`, `implements`, and pointer constraints are invalid.
 
-Compiler code commonly distinguishes these categories:
+Void admits otherwise legal actual types, including copyable/noncopyable
+aggregates, pointers, ordinary optionals and expanded values. No-value void,
+namespaces and open definitions are not actual arguments. Integer
+representations admit fitting scalar payloads and eligible nominal scalar
+types. Direct aggregates, expanded values and function pointers do not qualify.
+Width and pointer domains follow the selected target, never the compiler host.
+Check construction and explicit/inferred specialization before operations.
 
-- **representation-known:** an unconstrained type parameter in a representation
-  context, integral primitive constraint, or pointer-to-void style constraint
-  where ordinary representation operations are available;
-- **any:** the type is erased and may be named, stored by reference, and passed
-  through source surfaces, but layout/copy operations are not implied;
-- **copyable:** erased value copying is permitted when the operation also has
-  any required representation capability;
-- **interface implementation:** the type is constrained to implement an
-  interface, but dispatch still needs a `vtableof` value.
+An open body has only its representation and declared/retained capabilities.
+A concrete argument cannot grant it undeclared copying, arithmetic or dispatch.
+Integer representation supplies ordinary fixed carrier copy/layout facts; it
+does not supply a witness, type name, constructor or destructor.
 
-Do not use one constraint as a proxy for another. `vtableof` is not a size
-capability. `sizeof` is not an interface-dispatch capability. `copyable` is not
-a default-construction or destruction capability.
+### Representation Substitution And Transport
 
-Integer representation constraints validate type arguments at type instantiation
-and at explicit or inferred generic calls. They accept integers, enums and value
-newtypes with integer underlying types no wider than the carrier; `nint` and
-`nuint` also accept non-distributive pointers, including primitive string
-pointers, that fit the selected target.
-The unconstrained default follows `nint`. Use the same operand rules as integer
-carriers and reject invalid arguments before lowering or native emission.
-An argument that is itself an integer carrier is checked by that carrier's
-storage width and retains its identity during substitution.
+Substitute `T` represented by R with `R<A>`, where R is void on omission.
+If the supplied argument already has outer representation `S<A>`, replace
+that outer annotation: `R<A>`, never `S<A>` or `R<S<A>>`. Validate A
+against the destination R. Preserve actual nominal A and its nested arguments.
+For example, a nominal `Container<int<byte>>` remains that complete A.
+
+Same-representation abstract forwarding preserves represented storage and bound
+identity. Different-representation abstract transport requires proof of argument
+eligibility and its required encoding/layout facts. Representation width alone
+does not reveal eventual payload width, signedness or floating category.
+
+Substitution is not an in-place storage conversion. Known legal scalar
+conversion may decode/re-encode A, but pointers/arrays cannot change element
+stride and out storage cannot gain an implicit allocation/copy-back adapter.
+Capabilities describe destination represented storage, not a previous carrier.
 
 ## Erased Versus Materialized Values
 
-Only erased parameters (`any`, `copyable`, or interface constraints) accept
-expandable type arguments. Representation parameters, including unconstrained
-parameters, reject them. A direct erased `T` input must use `in`, `out`,
-`thrown`, or a pointer; `sizeof(T)` never permits a by-value input.
+Void-represented parameters accept expandable type arguments. Integer
+representations reject them. A direct void T input is always invalid; in/out
+transport requires checked sizeof(T), while pointers and views can be borrowed
+without element copy/layout rights.
 
 Substitution preserves a single declaration ABI. An expandable argument `A`
 uses `void<A>` at storage positions: `T*` becomes `void<A>*`, `T[]` becomes
-`void<A>[]`, and `in T` takes one storage reference. Non-expandable `T[]`
-substitutes to an ordinary array. Generic argument identities remain distinct:
+`void<A>[]`, and `in T` takes one storage reference, for scalar as well as
+expanded A. Generic argument identities remain distinct:
 `List<int[]*>` and `List<void<int[]>*>` do not name the same type.
 
 An erased `T` result, like a written `void<V>` result, uses caller-provided
@@ -194,64 +192,34 @@ capability must request the corresponding capability explicitly.
 The highest-risk mistakes are:
 
 - indexing `T[]` without knowing element stride;
-- copying `T` when `T` is only constrained by `any`;
+- copying void-represented T without checked sizeof(T);
 - mutating elements through `const T[]`;
 - allocating or default-filling `T[]` without size and fill semantics;
 - calling interface methods on `T` without a usable vtable;
 - lowering an iterator or async frame that needs to store erased values but has
   not threaded the needed capabilities into the generated state.
 
-## `T: any`
+## Copy And Placement Rules
 
-`T: any` does not imply copyability, size availability, default filling, array
-stride, or destructor availability. Report specific capability diagnostics.
+Direct void-represented T input is always invalid, with neither capability,
+size, witness or both. Use a pointer/view or a justified indirect mode.
+`in T` and `out T` require checked `sizeof(T)` in their callable contract
+or retained receiver state. Fixed integer representations use ordinary mode
+rules and need no implicit size slot.
 
-Allowed operations should be limited to operations that can be performed without
-knowing layout or copying value bits. The compiler can name the type, preserve
-it in signatures, and pass existing values through compatible surfaces, but it
-cannot assume how to index, copy, allocate, or destroy values of `T`.
+A direct void T result is a valid declaration independently of a copy
+operation. Its body/caller materialization needs copy/layout proof when copying;
+genuinely copy-free forwarding does not gain a size requirement merely from the
+result declaration. An erased result keeps whole caller storage and remains
+protected in every nested callable signature. A plain A result or trailing
+source out parameter is not that result.
 
-Example diagnostic shape:
-
-```camp
-T first<T: any>(T[] values)
-{
-	return values[0]; // needs sizeof(T) and copyability
-}
-```
-
-This should not become a vague "generic operation failed" error. The diagnostic
-must name the missing element stride and, when relevant, the missing copy
-capability.
-
-## `T: copyable`
-
-`T: copyable` is an erased value constraint. It permits ordinary value-copy
-operations, assignment, local value storage, and value return when the operation
-also has any representation capability needed to emit the code. It does not
-make `T` a compile-time layout type.
-
-For array element access, `copyable` is not sufficient by itself when the
-element type is erased. A compiler path that copies an element out of `T[]`
-needs both:
-
-- permission to copy `T`;
-- element stride, normally supplied by `sizeof(T)` or by a representation-known
-  constraint.
-
-`copyable` also does not say that a value can be safely retained beyond its
-lifetime. Lifetime analysis must still enforce pointer-bearing generic
-boundaries.
-
-Direct fields of type `T` are invalid in erased generic type bodies under both
-`T: any` and `T: copyable`. The generic type has one physical layout, and the
-size of `T` is not a compile-time field layout. Store `T*`, `T[]`, or explicit
-erased storage instead. Local variables of type `T` are source-valid when the
-function has the size capability needed to allocate the runtime-sized storage.
-
-Direct class types, fixed structs, and fixed-size array value types do not
-satisfy `copyable`. Pointers to those values do satisfy `copyable`, because the
-pointer value itself has ordinary pointer-sized copy semantics.
+Direct void T fields are invalid: the declaration has one fixed layout.
+Pointer/view fields follow ordinary lifetime rules. An exact void T local
+requires explicit stackalloc and size; auto cannot choose unknown-size storage.
+Integer-represented T uses ordinary locals/fields. T?, void<A>? and R<A>? are
+invalid optional payloads; an ordinary optional A supplied under void is
+different, so void<int?> and legal optional array values remain usable.
 
 ## Size, VTable, And Type Name Capabilities
 
@@ -264,9 +232,12 @@ mistaken for a different capability that has not yet been inserted.
 
 ### `sizeof(T)`
 
-`sizeof(T)` supplies the runtime element size for an erased type parameter. It
-is used by generic arrays, element address calculation, slicing, allocation,
-copying, and iterator state that must store or enumerate `T` values.
+`sizeof(T)` is checked copy/layout capability. A must be semantically copyable;
+classes, fixed structs and fixed-array values cannot satisfy it even if the
+slot is unused. Their pointers are copyable. For void T its payload size covers
+every stored component; for R<A> it describes R's storage width. An ordinary
+numeric size, another operand's size, sizeof(T*) or sizeof(T[]) does not prove
+T's copyability/stride. This applies to explicit and automatic supply.
 
 The analyzer should find `sizeof(T)` capability in:
 
@@ -282,8 +253,9 @@ available inside the generic body, report the operation that needs it.
 ### `vtableof(T: Interface)`
 
 `vtableof(T: Interface)` supplies a witness capability for generic interface
-dispatch. It requires the generic parameter to be constrained with an
-interface implementation relation compatible with the requested interface.
+dispatch. It requires a void-represented parameter with a direct class/struct
+argument implementing the requested interface. Its operand relationship is
+independent of a size or name capability.
 
 The source type preserves both `T` and `Interface`; it is distinct from the
 interface table value `Interface` and interface-instance pointer `Interface*`.
@@ -325,7 +297,7 @@ applied as they are to `V`. `typenameof(void<User>*)` is `"User"`,
 `typenameof(nint<ColorType>)` is `"ColorType"` and `typenameof(void<int[]>)` is
 `"IntArray"`. The name needs no runtime capability for `V` because the
 annotation names it. The receiver of a `typenameof` capability already knows the
-carrier from its constraint; the annotation is the part it cannot know.
+declared representation; the argument identity is the part it cannot know.
 
 An annotated type has a name but no symbol. A `void<V>` or carrier type,
 including one behind pointers or arrays, can never be an `overload` selector or
@@ -363,12 +335,12 @@ Operations on `T[]` should check the operation precisely:
 - copying an element value needs copyability;
 - allocating `T[]` needs element stride and allocation/fill semantics.
 
-Inside erased substitution for `T: any` or `T: copyable`, `T*` means a pointer
+Inside erased substitution for void representation, `T*` means a pointer
 to the storage form of `T`. If `T` is an expanded form, that storage form is the
 single-object `void<V>` representation. A compiler must not treat a pointer to
 one expanded component as a pointer to the whole substituted value.
 
-Iterator generators with `T: any` or `T: copyable` add `sizeof(T)` parameters
+Iterator generators with void representation add `sizeof(T)` parameters
 when the generated state needs element stride. When an iterator lowers into a
 state type, these capability parameters become state fields so the `next`
 method can run after the factory call has returned.
@@ -387,33 +359,19 @@ lowering evaluates or acquires each `sizeof(T)`, `typenameof(T)`,
 both. Compiler-supplied capability parameters may follow prep because the
 ordinary binder can satisfy them without a caller-written argument.
 
-## Interface-Constrained Generics
+## Witness-Mediated Generic Dispatch
 
-An interface-constrained generic parameter may call interface members only when
-the call can obtain a vtable capability. The lowering path for a generic
-interface call conceptually turns:
+`vtableof(T: I)` requires void representation and a direct implementing
+class/struct argument. It supplies typed dispatch, not size/copy/stride.
+The source witness slot's receiver is T* (substituting to void<A>*); an ordinary
+interface-table slot takes I*. A shared erased C table does not equate these
+source receiver roles. Constructor slots have no receiver and return T*.
+Destroy slots preserve ownership and selected/retained allocator contracts.
 
-```camp
-value.read()
-```
-
-into a call through `vtableof(T: IReadable)` with the original `T*` receiver.
-It does not cast that receiver into an interface-instance pointer. The interface
-supplement documents the distinct physical table carrier in more detail.
-
-An interface constraint does not imply `copyable`: `T` is transported only by
-pointer. `T*`, `const T*`, `T[]` and `out T*` are valid. A `T` result, an
-`in T` parameter, an `out T` parameter and a by-value `T` are errors that suggest
-`T*` or `out T*`; witness dispatch through `vtableof` is unchanged for struct
-and class implementations.
-
-The validator must reject:
-
-- `vtableof` where the second type is not an interface;
-- `vtableof` on a non-generic type that does not implement the interface;
-- `vtableof(T: Interface)` where `T` is not constrained to implement that
-  interface or a derived interface;
-- use of `vtableof` as if it supplied array stride.
+Member lookup uses the exact available witness. The colon inside vtableof is
+the implementing relationship; it is not a generic declaration constraint.
+Existing interface inheritance permits inherited slot projection. Capability
+requirements are checked even when the body does not use a declared slot.
 
 ## Generic Construction And Destruction
 
@@ -444,7 +402,7 @@ An exact erased generic value local such as `T value` is runtime-sized storage.
 Source must choose that storage explicitly:
 
 ```camp
-void swapFirst<T: copyable>(T[] values, sizeof(T))
+void swapFirst<T>(T[] values, sizeof(T))
 {
 	stackalloc T temp = values[0];
 	values[0] = values[1];
@@ -454,11 +412,10 @@ void swapFirst<T: copyable>(T[] values, sizeof(T))
 
 The compiler rejects ordinary `T` locals and `auto` locals that would need to
 infer stackalloc storage for an erased generic value. `stackalloc T` requires
-`sizeof(T)` in scope and is accepted for `any` and `copyable` parameters only.
-A `T: implements I` is pointer-only: it has no local, ordinary or `stackalloc`,
-and is reached through `T*`, `const T*`, `T[]` or `out T*`. `void<T>` with an
-erased type parameter operand is an error, because `T` is already storage of
-unspecified size. A `stackalloc` local of a specified-size type, including a
+`sizeof(T)` in scope and is accepted for void-represented parameters.
+Adding a witness does not change these storage rules. Same-representation
+forwarding preserves the bound unspecified-size storage without introducing a
+second wrapper. A `stackalloc` local of a specified-size type, including a
 representation `T`, is an error that suggests an ordinary local. Array views, pointers, and other non-exact shapes do not
 trigger this exact-value rule.
 
@@ -548,48 +505,32 @@ The compiler must preserve a distinction between:
 
 ## Generic Callable Policy
 
-Erasure substitution replaces each type parameter by its erased form wherever a
-callable type is formed from a generic declaration: a method reference or `fn`
-value of a generic method or of a method of a generic type, and a callable type
-written inside a generic signature once the type arguments are known.
+Erasure substitutes every generic callable source occurrence with its declared
+representation: omitted T becomes void<A>; T:R becomes R<A>. This includes
+references and nested callable signatures. Only an existing outer representation
+on A is replaced. Direct calls read results as A; pointer/array storage and
+callable signatures retain their represented identity.
 
-| Constraint | `T` becomes |
-|---|---|
-| `any`, `copyable` | `void<A>` in result, reference, pointer and array positions |
-| representation constraint `C` (the unconstrained default is `nint`) | `C<A>` in every position |
-| `implements I` | `A` |
+Nonexpanded in void<A> may match ordinary in A under the established conversion
+view. Expanded whole storage does not match distributed components. Erased
+results remain protected at every depth, and integer carrier slots retain
+nominal carrier identity. Virtual override written shapes remain exact.
 
-A representation generic is transported as its integer `C` in C, not as
-`void*`, so `Slot<Color>.get` is `delegate long<Color>()` and the function it
-names returns a `long`. When `A` is itself a carrier, `C<A>` collapses to `A`.
-The type of a method reference is the same for every type argument: `List<int>`
-and `List<int?>` references differ only in `A`. Direct calls are unchanged; a
-call reads its result as `A`. The old conditional rule, which wrote `void<A>`
-only where `A`'s own form would lower differently, is gone. Ordinary nominal
-generic identities remain intact.
+Capability slots retain kind, exact operand/interface and position in source
+callable shapes. sizeof is not an ordinary nuint, typenameof is not an ordinary
+string and a witness is not an arbitrary raw pointer. ABI lowering alone selects
+those payload types. A constructed callable's argument identity and applicability
+must survive separate compilation.
 
-Inference reads an erased result as its payload. For `List<int?>`, `Item[0]`
-infers `int?` and `take(0, 2)` infers `void<int?>[]`. A bound reference to
-`tryGetItem` is `delegate bool(int, out void<int?>)`; `tryGetItem(300, out found)`
-returns `false` for a missing item and `true` for a present item even when it is
-an unspecified `int?`. Arrays and pointers retain their erased element annotations.
-
-Callable types can contain generic parameters in return, parameter, receiver,
-context, thrown, and `within` positions. Compatibility must use the same
-expanded callable shape logic as non-generic callables after applying generic
-substitutions.
-
-Callables involving erased generic values must not bypass capability checks.
-For example, a delegate returning `T` may be type-compatible, but invoking it
-and copying the result into storage can still require copyability and lifetime
-checks.
-
-Callable newtypes remain nominal across generic substitution. Matching erased
-shape alone does not erase the newtype boundary.
+Matching declarations, anonymous functions and structural callable values may
+initialize callable newtypes under the existing conversion policy. Distinct
+nominal callable types do not become interchangeable merely by shape.
+Ascribed reference identity must be established directly, independently of
+assignment acceptance.
 
 ## Metadata And API Output
 
-Metadata should preserve source-level generic parameters, constraints,
+Metadata should preserve source-level generic binders, representations,
 capability parameters, and type arguments. Capability parameters should be
 recognizable as capabilities rather than ordinary user parameters:
 
@@ -613,9 +554,8 @@ Good diagnostics are operation-specific:
   "invalid generic array access";
 - "vtableof supplies interface dispatch capability, not element stride" is
   better than treating the vtable parameter as irrelevant;
-- "T: any is non-copying" is better than a generic assignment failure;
-- "Generic parameter `T` must be constrained with implements `IValue`" is better
-  than a failed member lookup.
+- "Copying T requires checked sizeof(T)" identifies the missing contract;
+- "Dispatch on T requires vtableof(T: IValue)" identifies the exact witness.
 
 The range should point to the operation requiring the capability: the index
 operator, call argument, `vtableof` expression, mutation target, allocation
@@ -625,7 +565,7 @@ expression, or generic type argument.
 
 Generic changes should cover:
 
-- `T: any` copy/default-fill/storage failures;
+- void-represented T copy/default-fill/storage failures;
 - generic array indexing, mutation, enumeration, slicing, and allocation;
 - `sizeof(T)` implicit and explicit arguments;
 - `vtableof` validation for generic and concrete types;

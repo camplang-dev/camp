@@ -12,14 +12,14 @@ public sealed class ErasedOptionalFunctionPointerTests
 	public void Declared_erased_callback_results_use_payload_storage(string result, string expected)
 	{
 		AssertEmitted($$"""
-			{{result}} choose<T: copyable>(fn {{result}}(int) look, int index, sizeof(T)) => look(index);
+			{{result}} choose<T>(fn {{result}}(int) look, int index, sizeof(T)) => look(index);
 			""", expected);
 	}
 
 	[Fact]
 	public void Generic_callable_fields_use_the_resolved_erased_result()
 	{
-		AssertEmitted("struct Reader<T: copyable> { fn T(int) look; }", "void (* look)(int arg0, void *__result)");
+		AssertEmitted("struct Reader<T> { fn T(int) look; }", "void (* look)(int arg0, void *__result)");
 	}
 
 	[Fact]

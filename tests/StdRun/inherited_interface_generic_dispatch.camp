@@ -51,7 +51,7 @@ struct Bird: IPet
 	}
 }
 
-int twiceGeneric<T: implements IPet>(T* value, vtableof(T: IPet), vtableof(T: IRootPet))
+int twiceGeneric<T>(T* value, vtableof(T: IPet))
 {
 	return value.twice(2);
 }
@@ -61,7 +61,7 @@ void feedNonGeneric(IPet* pet, int amount)
 	pet.feed(amount);
 }
 
-this feedGeneric<T: implements IPet>(T* this, int amount, vtableof(T: IPet))
+this feedGeneric<T>(T* this, int amount, vtableof(T: IPet))
 {
 	this.feed(amount);
 	return this;

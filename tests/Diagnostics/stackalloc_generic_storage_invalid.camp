@@ -1,23 +1,23 @@
-void ordinaryLocal<T: copyable>(in T source, sizeof(T))
+void ordinaryLocal<T>(in T source, sizeof(T))
 {
 	T value = source;
 }
 
-void autoLocal<T: copyable>(T[] values, sizeof(T))
+void autoLocal<T>(T[] values, sizeof(T))
 {
 	auto value = values[0];
 }
 
-void foreachAuto<T: copyable>(T[] values, sizeof(T))
+void foreachAuto<T>(T[] values, sizeof(T))
 {
 	foreach (auto value in values)
 	{
 	}
 }
 
-void stackallocWithoutSize<T: copyable>(in T source)
+void stackallocWithoutSize<T>(T* source)
 {
-	stackalloc T value = source;
+	stackalloc T value = *source;
 }
 
 struct Point { int x; int y; }
@@ -62,14 +62,14 @@ void erasedCastOutsideStorage(int?* pointer)
 
 interface PointerOnly { int read(); }
 
-void implementsLocals<T: implements PointerOnly>(T* source, sizeof(T), vtableof(T: PointerOnly))
+void implementsLocals<T>(T* source, sizeof(T), vtableof(T: PointerOnly))
 {
 	stackalloc T stacked = default;
 	T plain = *source;
 	auto inferred = *source;
 }
 
-void erasedOperand<T: any>(T* source, sizeof(T))
+void erasedOperand<T>(T* source, sizeof(T))
 {
 	void<T>* pointer = null;
 	stackalloc void<T> storage = default;

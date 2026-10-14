@@ -12,7 +12,7 @@ public sealed class AutoTypeInferenceTests
 		SemanticCompilation compilation = SemanticCompiler.CompileDeclarations("""
 			extern escaped void* malloc(nuint size);
 			extern void free(void* value);
-			class Items<T: copyable> {
+			class Items<T> {
 				T[] items;
 				Items(sizeof(T)) { }
 				T getItem(nuint index) => this.items[index];

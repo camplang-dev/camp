@@ -1,6 +1,6 @@
 #within explicit
 int calls = 0;
-T keep<T: copyable>(in T value, int check = 7, within allocator, sizeof(T))
+T keep<T>(in T value, int check = 7, within allocator, sizeof(T))
 {
 	calls++;
 	return value;

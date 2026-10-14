@@ -38,7 +38,7 @@ int readViaInterface(IProbe* probe)
 	return probe.read();
 }
 
-int readViaVTable<T: implements IProbe>(T* probe, vtableof(T: IProbe))
+int readViaVTable<T>(T* probe, vtableof(T: IProbe))
 {
 	return probe.read();
 }

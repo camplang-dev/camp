@@ -12,9 +12,9 @@ tests/Diagnostics/nested_optional_invalid.camp(16,21): error: An optional cannot
 tests/Diagnostics/nested_optional_invalid.camp(17,19): error: An optional cannot hold another optional; use a 'bool' result with an 'out' parameter, or a 'void<V>*'.
 tests/Diagnostics/nested_optional_invalid.camp(17,30): error: An optional cannot hold another optional; use a 'bool' result with an 'out' parameter, or a 'void<V>*'.
 tests/Diagnostics/nested_optional_invalid.camp(18,21): error: An optional cannot hold another optional; use a 'bool' result with an 'out' parameter, or a 'void<V>*'.
-tests/Diagnostics/nested_optional_invalid.camp(19,37): error: An optional payload cannot be the type parameter 'T'; use a 'tryGet' form with 'out T', or a nullable 'T*'.
-tests/Diagnostics/nested_optional_invalid.camp(20,27): error: An optional payload cannot be the type parameter 'T'; use a 'tryGet' form with 'out T', or a nullable 'T*'.
-tests/Diagnostics/nested_optional_invalid.camp(21,47): error: An optional payload cannot be the type parameter 'T'; use a 'tryGet' form with 'out T', or a nullable 'T*'.
+tests/Diagnostics/nested_optional_invalid.camp(19,27): error: An optional payload cannot be the type parameter 'T'; use a 'tryGet' form with 'out T', or a nullable 'T*'.
+tests/Diagnostics/nested_optional_invalid.camp(20,22): error: An optional payload cannot be the type parameter 'T'; use a 'tryGet' form with 'out T', or a nullable 'T*'.
+tests/Diagnostics/nested_optional_invalid.camp(21,28): error: An optional payload cannot be the type parameter 'T'; use a 'tryGet' form with 'out T', or a nullable 'T*'.
 tests/Diagnostics/nested_optional_invalid.camp(22,39): error: An optional payload cannot be the type parameter 'T'; use a 'tryGet' form with 'out T', or a nullable 'T*'.
 tests/Diagnostics/nested_optional_invalid.camp(23,1): error: An optional payload cannot be the type parameter 'T'; use a 'tryGet' form with 'out T', or a nullable 'T*'.
 tests/Diagnostics/nested_optional_invalid.camp(24,21): error: An optional payload cannot be 'void<int>'; use a nullable 'void<int>*', or a 'tryGet' form with 'out'.

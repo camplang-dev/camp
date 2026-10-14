@@ -1,3 +1,5 @@
+extern void* malloc(nuint size);
+
 class RefType
 {
 }
@@ -12,14 +14,18 @@ struct InlineBuffer
 	fixed byte[4] bytes;
 }
 
-class Holder<T: copyable>
+class Holder<T>
 {
+	Holder(sizeof(T)) { }
 }
 
 Holder<int>* okPrimitive;
 Holder<byte[4]*>* okPointerToFixedArray;
 Holder<InlineBuffer>* okStructWithCopyableFixedArray;
 
-Holder<byte[4]>* badFixedArray;
-Holder<RefType>* badClass;
-Holder<FixedValue>* badFixedStruct;
+void rejectNoncopyableArguments()
+{
+	auto badFixedArray = new Holder<byte[4]>();
+	auto badClass = new Holder<RefType>();
+	auto badFixedStruct = new Holder<FixedValue>();
+}

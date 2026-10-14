@@ -832,7 +832,7 @@ Camp generics use type erasure. A generic body receives explicit capabilities
 for the facts it needs:
 
 ```camp
-export nuint byteLength<T: any>(const T[] values, sizeof(T))
+export nuint byteLength<T>(const T[] values, sizeof(T))
 {
 	return values.length * sizeof(T);
 }
@@ -848,12 +848,12 @@ size_t byteLength(
 ```
 
 When generic code needs a source-level type name, it asks for `typenameof(T)`.
-When it dispatches through an interface constraint, it asks for a typed witness
+When it dispatches through an interface, it asks for a typed witness
 `vtableof(T: Interface)`; this is not an `Interface` table value or an
 `Interface*` instance pointer.
 
 ```camp
-export void writeAll<T: implements TextWritable>(
+export void writeAll<T>(
 	const T[] values,
 	TextSink* sink,
 	sizeof(T),

@@ -38,7 +38,7 @@ void arrayHelpersCopySortSearchAndOverlap(within Allocator* allocator, thrown As
 	assert(overlap[0] == 1 && overlap[1] == 2 && overlap[2] == 3 && overlap[3] == 4 && overlap[4] == 4, "copyTo should handle overlapping backward copy");
 }
 
-int compareArrayTestInt(in int left, in int right)
+int compareArrayTestInt(in int left, in int right, sizeof(int))
 {
 	if (left < right)
 		return -1;

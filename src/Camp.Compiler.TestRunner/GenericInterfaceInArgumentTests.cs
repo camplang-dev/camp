@@ -15,7 +15,7 @@ public sealed class GenericInterfaceInArgumentTests
 	{
 		SemanticCompilation compilation = SemanticCompiler.CompileLowered($$"""
 			interface IScale { int scale(in int x); }
-			int viaGeneric<T: implements IScale>(T* s, {{parameter}} x, vtableof(T: IScale)) => s.scale({{argument}});
+			int viaGeneric<T>(T* s, {{parameter}} x, vtableof(T: IScale)) => s.scale({{argument}});
 			""");
 		SemanticCompiler.AssertNoDiagnostics(compilation);
 		DirectoryInfo directory = Directory.CreateTempSubdirectory("camp-witness-in-");

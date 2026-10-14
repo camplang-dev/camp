@@ -167,7 +167,7 @@ public sealed class NamespaceBindingTests
 			("use.camp", """
 				using Left;
 				using Right;
-				void test<Box: copyable>(Box* value) { }
+				void test<Box>(Box* value) { }
 				"""));
 		SemanticCompiler.AssertNoDiagnostics(compilation);
 	}

@@ -100,9 +100,8 @@ public sealed partial class BindableNodeAnalyzer
 		int carrierWidth = GetCarrierWidth(carrier, shape.TargetSpec);
 		if (scope.TryGetGenericParameter(shape.Name, out GenericParameter? generic) && generic is not null)
 		{
-			string? genericCarrier = generic.Constraint is null ? "nint"
-				: generic.Constraint is PrimitiveTypeReference primitive && IsIntegralPrimitive(primitive.Type) ? GetPrimitiveTypeName(primitive.Type) : null;
-			if (generic.RequiresImplementation || genericCarrier is null || GetCarrierWidth(genericCarrier, null) > carrierWidth)
+			string? genericCarrier = ErasureWrapper(generic);
+			if (genericCarrier is null or "void" || GetCarrierWidth(genericCarrier, null) > carrierWidth)
 				reason = $"type parameter '{generic.Name}' does not satisfy '{constraint}'; its constraint must be an integer representation constraint no wider than '{carrier}'.";
 			return reason is not null;
 		}
@@ -125,6 +124,11 @@ public sealed partial class BindableNodeAnalyzer
 		if (IsIntegerWidthName(name))
 		{
 			width = GetCarrierWidth(name, shape.TargetSpec);
+			return true;
+		}
+		if (name is "bool" or "char" or "achar" or "wchar" or "uchar")
+		{
+			width = name is "wchar" ? 16 : name is "uchar" ? 32 : 8;
 			return true;
 		}
 		if (!TryGetTypeDefinitionByResolvedName(name, out TypeDefinition? definition) || definition is null)

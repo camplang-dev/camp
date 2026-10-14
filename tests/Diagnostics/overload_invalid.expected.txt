@@ -1,5 +1,5 @@
-tests/Diagnostics/overload_invalid.camp(17,36): error: Erased generic values cannot be passed by value; use 'in T', 'out T', or a pointer, even when sizeof(T) is available.
-tests/Diagnostics/overload_invalid.camp(17,36): error: `overload value` is invalid because 'T' does not contribute a method-symbol type fragment.
+tests/Diagnostics/overload_invalid.camp(17,31): error: Erased generic values cannot be passed by value; use 'in T', 'out T', or a pointer, even when sizeof(T) is available.
+tests/Diagnostics/overload_invalid.camp(17,31): error: `overload value` is invalid because 'T' does not contribute a method-symbol type fragment.
 tests/Diagnostics/overload_invalid.camp(25,29): error: An overload selector may not declare a default value.
 tests/Diagnostics/overload_invalid.camp(1,6): error: `mixed` cannot contain both ordinary declarations and overload declarations.
 tests/Diagnostics/overload_invalid.camp(5,6): error: `mixed` cannot contain both ordinary declarations and overload declarations.

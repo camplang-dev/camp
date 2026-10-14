@@ -492,13 +492,13 @@ allocator path.
 attribute arguments.
 
 ```camp
-void writeType<T: any>(typenameof(T))
+void writeType<T>(typenameof(T))
 {
 	Console.writeLine(typenameof(T));
 }
 
-void clear<T: any>(T[] values, sizeof(T));
-void drawAll<T: implements Drawable>(T[] values, sizeof(T), vtableof(T: Drawable));
+void clear<T>(T[] values, sizeof(T));
+void drawAll<T>(T[] values, sizeof(T), vtableof(T: Drawable));
 ```
 
 ## Blocks, Locals, And Fixed Storage

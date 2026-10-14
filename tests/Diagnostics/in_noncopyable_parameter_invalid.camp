@@ -16,7 +16,7 @@ void classInstance(in Widget value)
 {
 }
 
-void genericTransport<T: any>(in T value, sizeof(T))
+void genericTransport<T>(in T value, sizeof(T))
 {
 }
 

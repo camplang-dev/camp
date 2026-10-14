@@ -829,6 +829,7 @@ public sealed partial class BindableNodeAnalyzer
 		definition.ResolvedType = definition.Name;
 		AnalyzeGenericParameters(definition.GenericParameters, scope);
 		RegisterParameterLifetimeAnchors(definition.Parameters, scope);
+		scope.CapabilityParameters = definition.Parameters;
 		AnalyzeOptionalType(definition.UnderlyingType, scope);
 		NormalizeCallableNewtypeParameterNames(definition);
 		if (ContainsThisTypeReference(definition.UnderlyingType))
@@ -1596,7 +1597,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (definition.OutOfScopeOwnerName is not null)
 			ValidateOutOfScopeFunction(definition);
 
-		AnalysisScope scope = new(parentScope);
+		AnalysisScope scope = new(parentScope) { CapabilityParameters = definition.Parameters };
 		foreach (GenericParameter parameter in definition.GenericParameters)
 			scope.GenericParameters[parameter.Name] = parameter;
 		RegisterFunctionLifetimeAnchors(definition, scope, containingType);
@@ -1612,8 +1613,6 @@ public sealed partial class BindableNodeAnalyzer
 		ValidateNoDirectFixedArrayType(definition.ReturnType, definition.ReturnType?.SourceSyntax ?? definition.SourceSyntax, "a function return type");
 		ValidateNoDirectExternClassType(definition.ReturnType, definition.ReturnType?.SourceSyntax ?? definition.SourceSyntax, "a function return type");
 		ValidateWrittenErasedType(definition.ReturnType, definition.ReturnType?.SourceSyntax ?? definition.SourceSyntax, "a function return type");
-		if (definition.ReturnType is not null && IsImplementsConstrainedValue(definition.ReturnType, scope))
-			Report(GetRange(definition.ReturnType.SourceSyntax ?? definition.SourceSyntax), ImplementsValueMessage("a result"));
 		ValidateNoExternClassArrayElement(definition.ReturnType, definition.ReturnType?.SourceSyntax ?? definition.SourceSyntax);
 		AnalyzeOptionalConditionalInterfaceType(definition.CallableAscriptionType, scope);
 

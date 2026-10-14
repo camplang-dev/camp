@@ -23,4 +23,4 @@ export struct ValueCounter : IValue
 {
 	export extern int value() : IValue;
 }
-export extern int useValue<T: implements IValue>(T* value, vtableof(T: IValue));
+export extern int useValue<T>(T* value, vtableof(T: IValue));

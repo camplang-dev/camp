@@ -1067,6 +1067,8 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			SourceSyntax = source.SourceSyntax,
 			Name = source.Name,
+			Binder = source.Binder ?? source,
+			Ordinal = source.Ordinal,
 			RequiresImplementation = source.RequiresImplementation,
 			Constraint = CloneProjectionTypeReference(source.Constraint),
 			ResolvedType = source.ResolvedType

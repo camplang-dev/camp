@@ -14,7 +14,7 @@ void duplicate(overload int value)
 {
 }
 
-void genericAny<T: any>(overload T value)
+void genericAny<T>(overload T value)
 {
 }
 

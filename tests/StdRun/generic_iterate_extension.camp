@@ -28,14 +28,14 @@ export void main()
 	Console.writeLine("DONE");
 }
 
-struct iter T iterate<T: copyable>(T[] this, sizeof(T))
+struct iter T iterate<T>(T[] this, sizeof(T))
 {
 	foreach (stackalloc T v in this)
 		yield v;
 }
 
 @symbol("Iter_where")
-struct iter T where<T: copyable>(iter T this, delegate bool(in T item) predicate)
+struct iter T where<T>(iter T this, delegate bool(in T item, sizeof(T)) predicate)
 {
 	foreach (stackalloc T v in this)
 		if (predicate(v))
