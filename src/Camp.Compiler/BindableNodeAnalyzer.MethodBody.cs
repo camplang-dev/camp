@@ -32,6 +32,7 @@ public sealed partial class BindableNodeAnalyzer
 	FunctionDefinition? currentAnalysisFunction;
 	TypeDefinition? currentAnalysisContainingType;
 	bool isResolvingCallTarget;
+	int? specializationArity;
 	// 025 §5: casts written as (void<V>)e, rewritten to (V)e, that no erased-storage consumer has claimed yet.
 	HashSet<CastExpression> pendingErasedCasts = new(ReferenceEqualityComparer.Instance);
 
@@ -2220,6 +2221,11 @@ public sealed partial class BindableNodeAnalyzer
 
 			if (!isResolvingCallTarget && DeclarationParticipation.IsTest(functions[0]))
 				Report(GetRange(named.SourceSyntax), "@test functions are invoked only by the built-in test runner and may not have their address taken.");
+			if (!isResolvingCallTarget && functions[0].GenericParameters.Count > 0)
+			{
+				named.ResolvedType = ReportOpenMethodReference(functions[0], named.SourceSyntax);
+				return named.ResolvedType;
+			}
 
 			MethodReferenceExpression method = new()
 			{
@@ -3533,6 +3539,9 @@ public sealed partial class BindableNodeAnalyzer
 		if (call.Initializer is not null)
 			Report(GetRange(call.Initializer.SourceSyntax ?? call.SourceSyntax), "Initializer lists can only follow type construction.");
 
+		if (TryAnalyzeSpecializedReference(call, scope, typeScope, out string specializedType))
+			return specializedType;
+
 		FunctionDefinition? trailing = targetType is not null ? ResolveCallTargetAllowingOmittedOut(call, 1, scope, typeScope, singleVoidResult: true) : null;
 		if (trailing is not null && trailing.ResolvedType == "void")
 		{
@@ -4397,6 +4406,82 @@ public sealed partial class BindableNodeAnalyzer
 		return IncludeExplicitThisArgument(target, function);
 	}
 
+	List<FunctionDefinition> FilterSpecializationCandidates(List<FunctionDefinition> functions)
+	{
+		if (specializationArity is not int arity || functions.Count < 2)
+			return functions;
+		List<FunctionDefinition> matching = [.. functions.Where(function => function.GenericParameters.Count == arity)];
+		return matching.Count > 0 ? matching : functions;
+	}
+
+	// `method<A>` without a call forms a reference to the explicitly specialized method; the
+	// parenthesized form is a call and is handled by the ordinary call path. Owner and method
+	// arguments are substituted in one simultaneous pass so an enclosing argument that is spelled
+	// like a method binder keeps denoting the enclosing parameter.
+	bool TryAnalyzeSpecializedReference(CallExpression call, BodyScope scope, AnalysisScope typeScope, out string type)
+	{
+		type = ErrorType;
+		if (call.SourceSyntax is not GenericPostfixPartSyntax || call.Arguments.Count != 0 || call.TypeArguments.Count == 0)
+			return false;
+		if (call.Target is not NamedExpression and not MemberExpression)
+			return false;
+		if (call.Target is NamedExpression { Qualifiers.Count: 0 } local && scope.TryLookup(local.Name, out _))
+			return false;
+
+		int? previousArity = specializationArity;
+		specializationArity = call.TypeArguments.Count;
+		FunctionDefinition? function;
+		try
+		{
+			function = ResolveCallTarget(call.Target, scope, typeScope, []);
+		}
+		finally
+		{
+			specializationArity = previousArity;
+		}
+
+		SyntaxNode? syntax = call.SourceSyntax ?? GetExpressionDiagnosticSyntax(call.Target);
+		if (function is null)
+		{
+			if (call.Target?.ResolvedType is not (null or ErrorType))
+				Report(GetRange(syntax), "Explicit type arguments without a call can only specialize a generic method reference.");
+			call.ResolvedType = ErrorType;
+			return true;
+		}
+
+		EnsureFunctionSignatureAnalyzed(function, typeScope);
+		string methodName = FormatGenericMethodName(function);
+		if (function.GenericParameters.Count != call.TypeArguments.Count)
+		{
+			Report(GetRange(syntax), function.GenericParameters.Count == 0
+				? $"Method '{methodName}' is not generic and cannot be specialized."
+				: $"Method '{methodName}' declares {function.GenericParameters.Count} type argument(s), but {call.TypeArguments.Count} were supplied.");
+			call.ResolvedType = ErrorType;
+			return true;
+		}
+
+		Dictionary<string, string> substitutions = [];
+		AddExplicitGenericSubstitutions(function, call.TypeArguments, substitutions);
+		AddReceiverGenericSubstitutions(call.Target, function, substitutions);
+		AddWitnessOwnerSubstitutions(call.Target, function, scope, substitutions);
+		ValidateGenericCallSubstitutionConstraints(function, substitutions, scope, typeScope, syntax);
+
+		Expression reference = expressionRewrites.TryGetValue(call.Target!, out Expression? rewritten) ? rewritten : call.Target!;
+		type = SubstituteStorageType(reference.ResolvedType ?? ErrorType, substitutions);
+		reference.ResolvedType = type;
+		call.ResolvedType = type;
+		expressionRewrites[call] = reference;
+		return true;
+	}
+
+	string ReportOpenMethodReference(FunctionDefinition function, SyntaxNode? syntax)
+	{
+		string binders = string.Join(", ", function.GenericParameters.Select(parameter => parameter.Name));
+		string name = GetCallableName(function);
+		Report(GetRange(syntax), $"Reference to generic method '{FormatGenericMethodName(function)}' has unresolved type argument(s) {binders}; specialize the reference explicitly, for example '{name}<...>'. A target type does not infer method type arguments.");
+		return ErrorType;
+	}
+
 	FunctionDefinition? ResolveCallTarget(Expression? target, BodyScope scope, AnalysisScope typeScope, List<ArgumentExpression>? arguments = null)
 	{
 		int argumentCount = arguments?.Count ?? 0;
@@ -4413,7 +4498,7 @@ public sealed partial class BindableNodeAnalyzer
 					return null;
 				}
 
-				List<FunctionDefinition> functions = LookupFunctions(named, scope);
+				List<FunctionDefinition> functions = FilterSpecializationCandidates(LookupFunctions(named, scope));
 				if (functions.Count > 1 && TrySelectOverload(named.Name, functions, arguments ?? [], scope, typeScope, named.SourceSyntax) is FunctionDefinition selectedNamed)
 				{
 					EnsureFunctionSignatureAnalyzed(selectedNamed, typeScope);
@@ -4474,6 +4559,7 @@ public sealed partial class BindableNodeAnalyzer
 					: LookupMemberFunctions(lookupTargetType, member.Name, member.SourceSyntax);
 				if (functions.Count == 0)
 					functions = LookupGenericConstraintMemberFunctions(lookupTargetType, member.Name, scope, member.SourceSyntax);
+				functions = FilterSpecializationCandidates(functions);
 				if (functions.Count > 1 && TrySelectOverload(member.Name, functions, arguments ?? [], scope, typeScope, member.SourceSyntax) is FunctionDefinition selectedMember)
 				{
 					member.ResolvedType = selectedMember.ResolvedType ?? ErrorType;
@@ -5248,6 +5334,17 @@ public sealed partial class BindableNodeAnalyzer
 
 	void InferGenericCallableSubstitutions(CallableShape pattern, CallableShape actual, Dictionary<string, string> substitutions, HashSet<string> genericParameterNames)
 	{
+		// The written slots keep their carrier annotations (`int<T>` against `int<short>`); the
+		// conversion view then covers the erased forms that only match after viewing.
+		CallableShape writtenPattern = pattern with { Parameters = GetExpandedCallableParameterTypes(pattern.Parameters) };
+		CallableShape writtenActual = actual with { Parameters = GetExpandedCallableParameterTypes(actual.Parameters) };
+		if (writtenPattern.Kind == writtenActual.Kind && writtenPattern.Parameters.Count == writtenActual.Parameters.Count)
+		{
+			InferGenericSubstitutions(writtenPattern.ReturnType, writtenActual.ReturnType, substitutions, genericParameterNames);
+			for (int i = 0; i < writtenPattern.Parameters.Count; i++)
+				InferGenericSubstitutions(writtenPattern.Parameters[i], writtenActual.Parameters[i], substitutions, genericParameterNames);
+		}
+
 		pattern = ExpandCallableShape(pattern);
 		actual = ExpandCallableShape(actual);
 		if (pattern.Kind != actual.Kind || pattern.Parameters.Count != actual.Parameters.Count)
@@ -5274,19 +5371,38 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (substitutions.Count == 0)
 			return CarrierTypeIdentity.CollapseNested(type);
+		// A binder inside a nominal argument list (`Holder<T>`) names the nominal argument A, so a
+		// carrier replacement R<A> contributes its payload there; a carrier or void wrapper keeps R<A>.
 		System.Text.StringBuilder builder = new(type.Length);
+		Stack<bool> nominalLists = new();
+		string previousToken = "";
 		for (int i = 0; i < type.Length;)
 		{
 			if (!IsIdentifierStart(type[i]))
 			{
-				builder.Append(type[i++]);
+				char symbol = type[i++];
+				if (symbol == '<')
+					nominalLists.Push(previousToken != "void" && !CarrierTypeIdentity.IsCarrierName(previousToken));
+				else if (symbol == '>' && nominalLists.Count > 0)
+					nominalLists.Pop();
+				if (symbol != ' ')
+					previousToken = "";
+				builder.Append(symbol);
 				continue;
 			}
 			int tokenStart = i++;
 			while (i < type.Length && IsIdentifierPart(type[i]))
 				i++;
 			string token = type[tokenStart..i];
-			builder.Append(substitutions.TryGetValue(token, out string? replacement) ? replacement : token);
+			previousToken = token;
+			if (substitutions.TryGetValue(token, out string? replacement))
+			{
+				if (nominalLists.Count > 0 && nominalLists.Peek() && CarrierTypeIdentity.TryGetPayload(replacement, out string payload))
+					replacement = payload;
+				builder.Append(replacement);
+			}
+			else
+				builder.Append(token);
 		}
 		return CarrierTypeIdentity.CollapseNested(builder.ToString());
 	}
@@ -6201,6 +6317,10 @@ public sealed partial class BindableNodeAnalyzer
 			};
 			return memberType;
 		}
+
+		if (selected.Node is FunctionDefinition { GenericParameters.Count: > 0 } openMethod
+			&& openMethod.Name != "get" + member.Name && GetCallableName(openMethod) != "get" + member.Name)
+			return ReportOpenMethodReference(openMethod, member.SourceSyntax);
 
 		MemberReferenceExpression reference = CreateMemberReference(member, member.Target, memberType, selected.Node);
 			reference.IsRetypedVTableSlot = retypedVTableSlot;

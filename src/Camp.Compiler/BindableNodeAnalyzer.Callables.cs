@@ -296,6 +296,35 @@ public sealed partial class BindableNodeAnalyzer
 		return false;
 	}
 
+	// A fully constructed callable newtype denotes its declared erased shape with the written
+	// arguments substituted; the open declaration is never the identity of an ascribed reference.
+	bool TryBuildConstructedNewtypeCallableShape(NewtypeDefinition definition, string? constructedType, out CallableShape shape)
+	{
+		if (!TryBuildNewtypeSourceCallableShape(definition, out shape))
+			return false;
+		Dictionary<string, string> substitutions = [];
+		if (constructedType is not null)
+			AddConstructedTypeGenericSubstitutions(constructedType, substitutions);
+		if (substitutions.Count == 0)
+			return true;
+		CallableShape declared = shape;
+		if (TryParseCallableShape(SubstituteStorageType(BuildCallableType(shape.Kind, shape.ReturnType, shape.Parameters, shape.Spec, shape.CallSpec), substitutions), out shape))
+			shape = shape with { Spec = declared.Spec, CallSpec = declared.CallSpec, This = declared.This };
+		else
+			shape = declared;
+		return true;
+	}
+
+	// The declaration's own signature in the same erased form as a callable type, so owner and method
+	// binders compare by representation (`int<T>`, `void<T>`) exactly as the target's arguments do.
+	CallableShape ErasedFunctionCallableShape(FunctionDefinition function, CallableShape shape)
+	{
+		if (!TryParseCallableShape(ErasedCallableSignatureType(BuildCallableType(shape.Kind, shape.ReturnType, shape.Parameters, shape.Spec, shape.CallSpec),
+			name => FunctionErasureWrapper(function, name)), out CallableShape erased))
+			return shape;
+		return erased with { Spec = shape.Spec, CallSpec = shape.CallSpec, This = shape.This };
+	}
+
 	CallableShape BuildInterfaceSourceSlotCallableShape(InterfaceDefinition owner, FunctionDefinition member)
 	{
 		Dictionary<string, string> anchors = BuildSignatureAnchorMap(member.Parameters);

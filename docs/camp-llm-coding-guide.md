@@ -1039,6 +1039,17 @@ produces the plain payload. `List<int?>.tryGetItem` returns
 `true` for a present item even when that item is an unspecified `int?`. Its
 `take` result is a borrowed `void<int?>[]`, and its `Item` getter produces `int?`.
 
+Ascribe a generic callable newtype by its full constructed type:
+`bool isEmpty(T value) : EmptyCheck<T>` in `class Box<T: int>`, or
+`bool f(int<short> value) : EmptyCheck<short>` for a concrete target. The declaration
+must spell the substituted signature (`int<short>`, not `short`), the same
+capability slots in the same order, and a protected `void<V>` result where the
+newtype has one. A method with its own type parameters is referenced with explicit
+arguments and no parentheses: `box.isEmpty2<byte>` is an `EmptyCheck<byte>`, while
+`box.isEmpty2<byte>(0)` calls it and bare `box.isEmpty2` is an error. Target typing
+never infers method type arguments, and `EmptyCheck<byte>` does not convert to
+`EmptyCheck<short>`.
+
 Generic Camp code must declare what it does with `T`. Do not assume every generic
 type can be copied, compared, default-constructed, sized, or placed into an array.
 

@@ -1,0 +1,25 @@
+export interface Reader { int read(); }
+export newtype fn U Narrow<U: int>(U value);
+export newtype fn U Wide<U: long>(U value);
+export newtype fn U Native<U: nint>(U value);
+export newtype delegate U Bound<U: int>(U value);
+export newtype fn int Named<U>(U* item, typenameof(U), sizeof(U));
+export newtype fn int Witnessed<U>(U* item, vtableof(U: Reader));
+export newtype fn bool Copying<U>(in U value, out U slot, sizeof(U));
+export newtype fn U Nested<U: int>(Narrow<U> inner, U value);
+
+export int<byte> narrow(int<byte> value): Narrow<byte> => value;
+export long<long> wide(long<long> value): Wide<long> => value;
+export V native<V: nint>(V value): Native<V> => value;
+export int named<V>(V* item, typenameof(V), sizeof(V)): Named<V> => 1;
+export int witnessed<V>(V* item, vtableof(V: Reader)): Witnessed<V> => item.read();
+export bool copying<V>(in V value, out V slot, sizeof(V)): Copying<V> { slot = value; return true; }
+export V nested<V: int>(Narrow<V> inner, V value): Nested<V> => inner(value);
+
+export struct Holder<T: int>
+{
+	export T bound(T value): Bound<T> => value;
+}
+
+export Narrow<byte> pick() => narrow;
+export Bound<short> referenceBound(Holder<short>* holder) => holder.bound;

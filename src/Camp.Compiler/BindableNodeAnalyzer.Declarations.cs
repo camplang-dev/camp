@@ -1633,7 +1633,7 @@ public sealed partial class BindableNodeAnalyzer
 		ValidateIteratorGeneratorParameters(definition);
 		ValidatePrepParameters(definition);
 		ValidateIndexAwareParameters(definition);
-		ValidateCallableAscription(definition, containingType);
+		ValidateCallableAscription(definition, containingType, scope);
 		ValidateStaticFunctionHasNoExplicitThis(definition, suppressStaticThisDiagnostic);
 		BindFunctionReceiverLifetime(definition, containingType);
 
@@ -1947,7 +1947,7 @@ public sealed partial class BindableNodeAnalyzer
 		definition.ReturnType.ResolvedType = definition.ResolvedType;
 	}
 
-	void ValidateCallableAscription(FunctionDefinition definition, string? containingType)
+	void ValidateCallableAscription(FunctionDefinition definition, string? containingType, AnalysisScope scope)
 	{
 		if (definition.CallableAscriptionType is null)
 			return;
@@ -2025,9 +2025,14 @@ public sealed partial class BindableNodeAnalyzer
 		ValidateCallableAscriptionThisContract(definition, containingType, newtypeDefinition, family, syntax, declarationName);
 
 		string sourceType = BuildCallableAscriptionSourceType(definition, family, receiverBearing);
-		CallableShape sourceShape = BuildFunctionSourceCallableShape(definition, receiverBearing, family);
+		// An argument or signature type that already failed binding (for example an unavailable
+		// static owner parameter) has its own diagnostic; it is not also a contract mismatch.
+		if (ContainsUnresolvedType(definition.CallableAscriptionType.ResolvedType) || ContainsUnresolvedType(sourceType)
+			|| HasInvalidRepresentationArgument(newtypeDefinition, definition.CallableAscriptionType.ResolvedType, scope))
+			return;
+		CallableShape sourceShape = ErasedFunctionCallableShape(definition, BuildFunctionSourceCallableShape(definition, receiverBearing, family));
 		bool sourceShapeAvailable = true;
-		bool targetShapeAvailable = TryBuildNewtypeSourceCallableShape(newtypeDefinition, out CallableShape targetShape);
+		bool targetShapeAvailable = TryBuildConstructedNewtypeCallableShape(newtypeDefinition, definition.CallableAscriptionType.ResolvedType, out CallableShape targetShape);
 		if (!sourceShapeAvailable
 			|| !targetShapeAvailable
 			|| !CallableShapesCompatibleWithConstOfVariance(sourceShape, targetShape, compareThis: false, expandParams: false))
@@ -2043,10 +2048,78 @@ public sealed partial class BindableNodeAnalyzer
 			}
 			else
 			{
-				Report(GetRange(syntax), $"Callable ascription target '{newtypeDefinition.Name}' is not compatible with declaration '{declarationName}'.");
+				string targetName = definition.CallableAscriptionType.ResolvedType ?? newtypeDefinition.Name;
+				Report(GetRange(syntax), $"Callable ascription target '{targetName}' is not compatible with declaration '{declarationName}': {ExplainCallableContractMismatch(sourceShape, targetShape)}");
 			}
 		}
 	}
+
+	static bool IsCapabilitySlot(string text)
+	{
+		CallableSlot slot = ParseCallableSlot(text);
+		return slot.Type.StartsWith("sizeof(", StringComparison.Ordinal)
+			|| slot.Type.StartsWith("typenameof(", StringComparison.Ordinal)
+			|| slot.Type.StartsWith("vtableof(", StringComparison.Ordinal);
+	}
+
+	// Anchors of a constof dependence are positional in a signature; the source names are not kept.
+	static string DisplayCallableSlot(string text) =>
+		System.Text.RegularExpressions.Regex.Replace(text, @"constof\(#\d+\)", "constof(...)");
+
+	// Names the first contract difference: capability slots, then parameters, then the result.
+	// Slots are compared in the conversion view and shown in their written form.
+	string ExplainCallableContractMismatch(CallableShape written, CallableShape writtenTarget)
+	{
+		CallableShape source = NormalizeErasedCallableShape(written);
+		CallableShape target = NormalizeErasedCallableShape(writtenTarget);
+		List<string> sourceCapabilities = [.. written.Parameters.Where(IsCapabilitySlot)];
+		List<string> targetCapabilities = [.. writtenTarget.Parameters.Where(IsCapabilitySlot)];
+		if (!sourceCapabilities.SequenceEqual(targetCapabilities))
+			return $"its capability slots ({FormatCapabilityList(sourceCapabilities)}) must match the target's ({FormatCapabilityList(targetCapabilities)}) by kind, operand and order.";
+
+		List<int> sourceIndexes = [.. Enumerable.Range(0, source.Parameters.Count).Where(index => !IsCapabilitySlot(source.Parameters[index]))];
+		List<int> targetIndexes = [.. Enumerable.Range(0, target.Parameters.Count).Where(index => !IsCapabilitySlot(target.Parameters[index]))];
+		if (sourceIndexes.Count != targetIndexes.Count)
+			return $"it declares {sourceIndexes.Count} parameter(s) but the target requires {targetIndexes.Count}.";
+		for (int i = 0; i < sourceIndexes.Count; i++)
+		{
+			CallableSlot sourceSlot = ParseCallableSlot(source.Parameters[sourceIndexes[i]]);
+			CallableSlot targetSlot = ParseCallableSlot(target.Parameters[targetIndexes[i]]);
+			bool modifiersMatch = sourceSlot.Modifier == targetSlot.Modifier || sourceSlot.Modifier == "prep" && targetSlot.Modifier.Length == 0;
+			if (!modifiersMatch || sourceSlot.Modifier != "thrown" && !CallableSlotTypesCompatible(sourceSlot.Type, targetSlot.Type, sourceSlot.Modifier is "out" or "prep")
+				|| sourceSlot.Modifier == "thrown" && sourceSlot.Type != targetSlot.Type)
+				return $"parameter {i + 1} is '{DisplayCallableSlot(written.Parameters[sourceIndexes[i]])}' but the target requires '{DisplayCallableSlot(writtenTarget.Parameters[targetIndexes[i]])}'.";
+		}
+		if (!CallableSlotTypesCompatible(source.ReturnType, target.ReturnType, outputPosition: true))
+		{
+			string protectedNote = written.ReturnType.Contains("void<", StringComparison.Ordinal) || writtenTarget.ReturnType.Contains("void<", StringComparison.Ordinal)
+				? "; a protected void<V> result is not filled by a plain result or a trailing out parameter"
+				: "";
+			return $"its result is '{DisplayCallableSlot(written.ReturnType)}' but the target requires '{DisplayCallableSlot(writtenTarget.ReturnType)}'{protectedNote}.";
+		}
+		return "its receiver, constness, lifetime, target specification or calling convention differs from the target's.";
+	}
+
+	// The argument was already diagnosed where the constructed type was written.
+	bool HasInvalidRepresentationArgument(NewtypeDefinition definition, string? constructedType, AnalysisScope scope)
+	{
+		if (constructedType is null)
+			return false;
+		List<string> arguments = ExtractConstructedTypeArgumentsPreservingTypeText(constructedType);
+		for (int i = 0; i < Math.Min(arguments.Count, definition.GenericParameters.Count); i++)
+		{
+			string? carrier = ErasureWrapper(definition.GenericParameters[i]);
+			string operand = StripTopLevelValueQualifiers(arguments[i]);
+			if (ErasedTypeIdentity.TryGetPayload(operand, out string payload) || CarrierTypeIdentity.TryGetPayload(operand, out payload))
+				operand = payload;
+			if (carrier is not null and not "void" && TryExplainInvalidCarrierOperand(carrier, operand, scope, out _))
+				return true;
+		}
+		return false;
+	}
+
+	static bool ContainsUnresolvedType(string? type) =>
+		type is not null && (type.Contains(UnresolvedType, StringComparison.Ordinal) || type.Contains(ErrorType, StringComparison.Ordinal));
 
 	static bool CallableSpecsDiffer(CallableShape source, CallableShape target)
 	{

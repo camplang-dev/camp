@@ -196,7 +196,7 @@ nuint hashcodePointerValue<T>(in T* value, sizeof(T*)) => hashInteger((nuint)(ni
 bool hashEqualsPointerValue<T>(in T* left, in T* right, sizeof(T*)) => left == right;
 
 /// Returns a pointer-identity hash policy for `T*`.
-public HashPolicy<T*> pointerHashPolicy<T>() => { .hash = hashcodePointerValue, .equals = hashEqualsPointerValue };
+public HashPolicy<T*> pointerHashPolicy<T>() => { .hash = hashcodePointerValue<T>, .equals = hashEqualsPointerValue<T> };
 
 /// Returns a content hash code for a string.
 public nuint hashcode(in string this)

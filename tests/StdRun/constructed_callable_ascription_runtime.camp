@@ -1,0 +1,193 @@
+struct Point { int x; int y; }
+interface Reader { int read(); }
+newtype delegate bool EmptyCheck<U: int>(U value);
+newtype fn U Idf<U: int>(U v);
+newtype fn U IdfL<U: long>(U v);
+newtype fn U IdfN<U: nint>(U v);
+newtype fn U Apply<U: int>(Idf<U> f, U v);
+newtype delegate U Idd<U: int>(U v);
+newtype fn void<U> Producer<U>();
+newtype fn fn void<U>() Nest<U>();
+newtype fn bool PutF<U>(in U v, out U slot, sizeof(U));
+newtype delegate bool PutD<U>(in U v, out U slot, sizeof(U));
+newtype fn bool Borrow<U>(U* a, U* b);
+newtype fn int WithName<U>(U* p, typenameof(U), sizeof(U));
+newtype fn int Wit<U>(U* p, vtableof(U: Reader));
+newtype fn bool Raw(short v);
+
+class Box<T: int>
+{
+	T stored;
+
+	bool isEmpty(T value): EmptyCheck<T>
+	{
+		this.stored = value;
+		return value == default;
+	}
+
+	bool isEmpty2<V: int>(V value): EmptyCheck<V>
+	{
+		return value == default;
+	}
+
+	int zero<V: int>() { return 3; }
+}
+
+struct SBox<T: int>
+{
+	int pad;
+	T get(T v): Idd<T> { return v; }
+	U pick<U: int>(U v): Idd<U> { return v; }
+}
+
+class Holder<T: int>
+{
+	T stored;
+	T get(T v): Idd<T> { this.stored = v; return v; }
+	U pick<U: int>(U v): Idd<U> { return v; }
+}
+
+class Cell
+{
+	int count;
+	bool put<V>(in V v, out V slot, sizeof(V)): PutD<V> { this.count += 1; slot = v; return true; }
+}
+
+struct SCell
+{
+	int count;
+	bool put<V>(in V v, out V slot, sizeof(V)): PutD<V> { this.count += 10; slot = v; return true; }
+}
+
+class Impl: Reader { int read(): Reader { return 9; } }
+
+int<byte> idb(int<byte> v): Idf<byte> => v;
+long<long> idl(long<long> v): IdfL<long> => v;
+V idg<V: int>(V v): Idf<V> => v;
+V idn<V: nint>(V v): IdfN<V> => v;
+int<byte> applyb(Idf<byte> f, int<byte> v): Apply<byte> => f(v);
+V applyg<V: int>(Idf<V> f, V v): Apply<V> => f(v);
+void<int> seven(): Producer<int> { return 7; }
+fn void<int>() nestImpl(): Nest<int> { return seven; }
+bool jshort(int<short> v) { return v == default; }
+bool rawShort(short v): Raw { return v == 5; }
+bool putF<V>(in V v, out V slot, sizeof(V)): PutF<V> { slot = v; return true; }
+bool putInt(in int v, out int slot, sizeof(int)): PutF<int> { slot = v + 1; return true; }
+bool putPoint(in void<Point> v, out void<Point> slot, sizeof(Point)): PutF<Point> { slot = v; return true; }
+bool putOpt(in void<int?> v, out void<int?> slot, sizeof(int?)): PutF<int?> { slot = v; return true; }
+bool same(int* a, int* b): Borrow<int> { return a == b; }
+int withName<V>(V* p, typenameof(V), sizeof(V)): WithName<V> { return 4; }
+int wit<V>(V* p, vtableof(V: Reader)): Wit<V> { return p.read(); }
+
+T callIt<T: int>(Idf<T> f, T v) { return f(v); }
+T callN<T: nint>(IdfN<T> f, T v) { return f(v); }
+T callL<T: long>(IdfL<T> f, T v) { return f(v); }
+T callRef<T: int>(T v) { auto r = idg<T>; return r(v); }
+T callDelegate<T: int>(Idd<T> d, T v) { return d(v); }
+bool apply<V>(PutF<V> f, in V v, out V slot, sizeof(V)) { return f(v, out slot); }
+bool applyD<V>(PutD<V> d, in V v, out V slot, sizeof(V)) { return d(v, out slot); }
+
+// An enclosing parameter is denoted by identity, even when a method binder is spelled the same.
+bool enclosing<W: int>(Box<short>* box, W value)
+{
+	auto reference = box.isEmpty2<W>;
+	EmptyCheck<W> same = reference;
+	return same(value);
+}
+
+bool coincident<V: int>(Box<short>* box, V value)
+{
+	EmptyCheck<V> reference = box.isEmpty2<V>;
+	return reference(value);
+}
+
+export int main()
+{
+	// §10: Box<short> yields EmptyCheck<short>; the method reference selects EmptyCheck<byte>.
+	Box<short>* box = stackalloc Box<short>();
+	auto own = box.isEmpty;
+	auto selected = box.isEmpty2<byte>;
+	EmptyCheck<short> ownCheck = own;
+	EmptyCheck<byte> selectedCheck = selected;
+	if (!ownCheck((short)0) || ownCheck((short)5) || box.stored != 5) return 1;
+	if (selectedCheck((byte)5) || !selected((byte)0) || !box.isEmpty2<byte>(0)) return 2;
+	if (!enclosing<ushort>(box, 0) || enclosing<int>(box, 4)) return 3;
+	if (!coincident<byte>(box, 0) || coincident<short>(box, 9)) return 4;
+	auto zero = box.zero<byte>;
+	if (zero() != 3 || box.zero<byte>() != 3) return 5;
+
+	// Receiverless fn references: ascribed, structural and raw controls.
+	if (idb((byte)201) != (byte)201) return 6;
+	Idf<byte> fb = idb;
+	if (fb(201) != 201) return 7;
+	auto g = idg<short>;
+	if (g(-1234) != -1234) return 8;
+	Idf<ushort> gu = idg<ushort>;
+	if (gu(60000) != 60000) return 9;
+	if (idl(5000000000L) != 5000000000L || callL<long>(idl, -5000000000L) != -5000000000L) return 10;
+	if (applyb(idb, 250) != 250) return 11;
+	Apply<ushort> ap = applyg<ushort>;
+	if (ap(idg<ushort>, 60001) != 60001) return 12;
+	if (callIt<byte>(idb, 199) != 199 || callIt(idb, 198) != 198) return 13;
+	if (callRef<short>(-4321) != -4321 || callN<nint>(idn<nint>, 77) != 77) return 14;
+	auto structural = jshort;
+	fn bool(int<short>) viewed = structural;
+	EmptyCheck<short> fromStructural = (int<short> value) => value == default;
+	if (!structural((short)0) || !viewed((short)0) || !fromStructural((short)0)) return 15;
+	Raw raw = rawShort;
+	if (!raw(5) || raw(4)) return 16;
+
+	// Delegate references on class and struct receivers, owner- and method-dependent.
+	Holder<short>* held = stackalloc Holder<short>();
+	auto hg = held.get;
+	if (hg(-1234) != -1234 || held.stored != -1234) return 17;
+	auto hp = held.pick<byte>;
+	if (hp(201) != 201) return 18;
+	if (callDelegate<short>(held.get, -77) != -77 || callDelegate<byte>(held.pick<byte>, 222) != 222) return 19;
+	SBox<ushort> sbox = default;
+	auto sg = sbox.get;
+	if (sg(60002) != 60002 || callDelegate<ushort>(sbox.get, 60003) != 60003) return 20;
+	auto sp = sbox.pick<int>;
+	if (sp(-2000000001) != -2000000001) return 21;
+
+	// Protected results and nested callables.
+	Producer<int> producer = seven;
+	Nest<int> nest = nestImpl;
+	if (producer() != 7 || nest()() != 7) return 22;
+
+	// Void representation: scalar, expanded optional and struct payloads through fn and delegate.
+	int a = 0;
+	if (!putF<int>(5, out a) || a != 5) return 23;
+	auto r1 = putF<int>;
+	PutF<int> r2 = putInt;
+	if (!r1(6, out a) || a != 6 || !r2(7, out a) || a != 8) return 24;
+	int? ob = 9;
+	int? oa = default;
+	PutF<int?> r3 = putOpt;
+	if (!r3(ob, out oa) || !oa.specified || oa.value != 9) return 25;
+	Point p = { 3, 4 };
+	Point q = default;
+	PutF<Point> r4 = putPoint;
+	if (!r4(p, out q) || q.x != 3 || q.y != 4 || !apply<Point>(putPoint, p, out q)) return 26;
+	if (!apply<int>(putF<int>, 11, out a) || a != 11) return 27;
+	Borrow<int> bw = same;
+	if (!bw(&a, &a) || bw(&a, &q.x)) return 28;
+	Cell* c = stackalloc Cell();
+	c.count = 0;
+	auto d1 = c.put<int>;
+	PutD<Point> d2 = c.put<Point>;
+	if (!d1(12, out a) || a != 12 || !d2(p, out q) || q.x != 3 || c.count != 2) return 29;
+	if (!applyD<int>(c.put<int>, 13, out a) || a != 13 || c.count != 3) return 30;
+	SCell sc = default;
+	auto d3 = sc.put<int?>;
+	if (!d3(ob, out oa) || sc.count != 10 || !applyD<Point>(sc.put<Point>, p, out q) || sc.count != 20) return 31;
+
+	// Capability slots keep their kind, operand and order through the reference.
+	int probe = 4;
+	auto named = withName<int>;
+	if (named(&probe) != 4) return 32;
+	Impl* impl = stackalloc Impl();
+	auto witnessed = wit<Impl>;
+	if (witnessed(impl) != 9) return 33;
+	return 0;
+}

@@ -722,6 +722,37 @@ Ascription is useful for public APIs, overload resolution, metadata, and
 documentation. It names the callable contract without requiring callers to
 reverse-engineer it from a raw signature.
 
+A generic callable newtype is ascribed by its full constructed type. The
+arguments may be concrete types, a parameter of the enclosing type, or the
+ascribed method's own parameter. Each argument is substituted into the
+newtype's signature exactly as a call would, so an integer-represented
+parameter `U: int` becomes `int<A>`:
+
+```camp
+newtype delegate bool EmptyCheck<U: int>(U value);
+
+class Box<T: int>
+{
+	bool isEmpty(T value) : EmptyCheck<T>
+	{
+		return value == default;
+	}
+
+	bool isEmpty2<V: int>(V value) : EmptyCheck<V>
+	{
+		return value == default;
+	}
+}
+```
+
+A concrete declaration must spell the substituted input: `bool f(int<short> value)
+: EmptyCheck<short>` matches, while `bool f(short value) : EmptyCheck<short>`
+does not. The contract also fixes the capability slots (`sizeof`, `typenameof`,
+`vtableof`) by kind, operand and order, protected `void<V>` results, and the
+`fn` or `delegate` receiver shape. A static method cannot name a type parameter
+of its enclosing type, so it ascribes through its own parameters. A mismatch is
+reported at the ascription, naming the first difference.
+
 ## Lambdas
 
 Lambdas are target-typed by the callable type expected at the assignment or
@@ -781,6 +812,26 @@ ordinary call. Use a lambda to adapt, such as `() => seven()` or
 `in int?` cannot fill an `in void<int?>` slot. Callable newtype ascription,
 lambdas and interface implementation use the same matching; virtual overrides
 remain exact.
+
+A method with its own type parameters is referenced by specializing it
+explicitly. Without parentheses `box.isEmpty2<byte>` selects the reference and
+does not call it, even for a method with no arguments; with parentheses it is an
+ordinary call. A reference whose method parameters are not all supplied is an
+error, even when the target type would determine them or the parameter is
+unused. An enclosing type parameter may be supplied and then denotes that
+parameter itself:
+
+```camp
+auto m1 = box.isEmpty;           // EmptyCheck<short> for a Box<short>
+auto m2 = box.isEmpty2<byte>;    // EmptyCheck<byte>
+auto m3 = box.isEmpty2<W>;       // EmptyCheck<W> inside a scope that declares W
+// auto bad = box.isEmpty2;      // error: unresolved type argument V
+```
+
+The same references without the ascription have structural types, for example
+`delegate bool(int<short>)`. An interface implementation marker alone does not
+give a method a callable newtype identity. A distinct constructed type, such as
+`EmptyCheck<byte>` for `EmptyCheck<short>`, does not convert implicitly.
 
 A method reference can become a callable value. If the receiver is known, the
 callable captures the receiver as context. If the receiver is not known, the

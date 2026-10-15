@@ -1,8 +1,8 @@
-void addItem<T>(Box<T>* this, T item)
+void addItem<T: int>(Box<T>* this, T item)
 {
 }
 
-fixed struct Box<T>
+fixed struct Box<T: int>
 {
 	T value;
 }

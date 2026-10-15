@@ -45,7 +45,7 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (typeDefinitions.TryGetValue(BaseTypeName(normalized), out TypeDefinition? definition)
 			&& definition is NewtypeDefinition newtypeDefinition
-			&& TryBuildNewtypeSourceCallableShape(newtypeDefinition, out shape))
+			&& TryBuildConstructedNewtypeCallableShape(newtypeDefinition, normalized, out shape))
 			return true;
 
 		return TryGetCallableShape(normalized, out shape);

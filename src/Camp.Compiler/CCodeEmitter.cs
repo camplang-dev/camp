@@ -2380,14 +2380,15 @@ public static class CCodeEmitter
                 return;
 
             string name = CName(definition);
+            // A representation parameter is transported as its carrier in the typedef's slots.
             if (definition.UnderlyingType is CallableTypeReference callable)
             {
-                writer.WriteLine(FormatCallableNewtypeTypedef(callable, definition.Parameters, name) + ";");
+                WithGenericContext(definition, () => writer.WriteLine(FormatCallableNewtypeTypedef(callable, definition.Parameters, name) + ";"));
                 return;
             }
             if (definition.UnderlyingType is IterTypeReference iter)
             {
-                writer.WriteLine(FormatIterNewtypeTypedef(iter, definition.Parameters, name) + ";");
+                WithGenericContext(definition, () => writer.WriteLine(FormatIterNewtypeTypedef(iter, definition.Parameters, name) + ";"));
                 return;
             }
 
@@ -5831,7 +5832,10 @@ public static class CCodeEmitter
             // Expanded arrays and constof anchors can differ as source types while
             // retaining identical C signatures. This cast handles erased storage
             // compatibility, whose concrete and opaque pointer spellings differ.
-            if (!(callable.ResolvedType ?? "").Contains("void<", StringComparison.Ordinal)
+            // A constructed newtype's typedef is declared over the erased generic slots (void* or the
+            // carrier), while the ascribed symbol keeps its own concrete C signature.
+            if (ascription.GenericParameters.Count == 0
+                && !(callable.ResolvedType ?? "").Contains("void<", StringComparison.Ordinal)
                 && !(function.ExpandedSourceReturnType?.ResolvedType ?? function.ResolvedType ?? "").Contains("void<", StringComparison.Ordinal)
                 && !function.Parameters.Concat(ascription.Parameters).Any(parameter =>
                     (parameter.ExpandedSourceParameter?.ResolvedType ?? parameter.ResolvedType ?? "").Contains("void<", StringComparison.Ordinal)))
@@ -9386,6 +9390,12 @@ public static class CCodeEmitter
 
                 string name = CallableParameterName(parameter, parameterIndex++);
                 string parameterType = parameter.ResolvedType ?? parameter.Type?.ResolvedType ?? "";
+                // A typenameof slot is a name string whatever its operand type is.
+                if (parameter is NameOfParameterDefinition)
+                {
+                    types.Add(("string", name));
+                    continue;
+                }
                 if (TryGetArrayElementOnly(parameterType, out string arrayElementType))
                 {
                     types.Add((arrayElementType + "*", name));

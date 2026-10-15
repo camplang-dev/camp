@@ -121,6 +121,53 @@ public sealed class ErasedCallableTests
 		Assert.Equal(expected, inferred[0]);
 	}
 
+	// 026 §10: an ascribed reference has its complete constructed newtype; without the ascription the same
+	// reference has the substituted structural shape. Explicit method and enclosing arguments select the member.
+	[Theory]
+	[InlineData("class Box<T: int> { bool isEmpty(T value): EmptyCheck<T> { return value == default; } } void test(Box<short>* box) { auto r = box.isEmpty; }", "EmptyCheck<short>")]
+	[InlineData("class Box<T: int> { bool isEmpty2<V: int>(V value): EmptyCheck<V> { return value == default; } } void test(Box<short>* box) { auto r = box.isEmpty2<byte>; }", "EmptyCheck<byte>")]
+	[InlineData("class Box<T: int> { bool isEmpty2<V: int>(V value): EmptyCheck<V> { return value == default; } } void test<W: int>(Box<short>* box) { auto r = box.isEmpty2<W>; }", "EmptyCheck<W>")]
+	[InlineData("class Box<T: int> { bool isEmpty2<V: int>(V value): EmptyCheck<V> { return value == default; } } void test<V: int>(Box<short>* box) { auto r = box.isEmpty2<V>; }", "EmptyCheck<V>")]
+	[InlineData("newtype delegate bool Two<X: int, Y: int>(X x, Y y); struct C { int pad; bool two<A: int, B: int>(A a, B b): Two<A, B> { return true; } } void test<B: int, A: int>(C* c) { auto r = c.two<B, A>; }", "Two<B, A>")]
+	[InlineData("class Box<T: int> { bool plain(T value) { return value == default; } } void test(Box<short>* box) { auto r = box.plain; }", "delegate bool(int<short>)")]
+	[InlineData("class Box<T: int> { bool plain2<V: int>(V value) { return value == default; } } void test(Box<short>* box) { auto r = box.plain2<byte>; }", "delegate bool(int<byte>)")]
+	[InlineData("class Box<T: int> { int zero<V: int>() { return 3; } } void test(Box<short>* box) { auto r = box.zero<byte>; }", "delegate int()")]
+	[InlineData("bool plain3<V: int>(V value) { return value == default; } void test() { auto r = plain3<byte>; }", "fn bool(int<byte>)")]
+	[InlineData("newtype fn bool FnCheck<U: int>(U value); bool carried(int<short> value): FnCheck<short> { return true; } void test() { auto r = carried; }", "FnCheck<short>")]
+	[InlineData("newtype fn bool FnCheck<U: int>(U value); bool carried2<V: int>(V value): FnCheck<V> { return true; } void test() { auto r = carried2<ushort>; }", "FnCheck<ushort>")]
+	[InlineData("bool raw(int<short> value) { return true; } void test() { auto r = raw; }", "fn bool(int<short>)")]
+	[InlineData("newtype fn bool Borrow<U>(U* value); bool borrowed<V>(V* value): Borrow<V> { return true; } void test() { auto r = borrowed<int>; }", "Borrow<int>")]
+	public void Specialized_references_have_complete_constructed_identity(string source, string expected)
+	{
+		SemanticCompilation compilation = SemanticCompiler.CompileDeclarations("newtype delegate bool EmptyCheck<U: int>(U value);\n" + source);
+		SemanticCompiler.AssertNoDiagnostics(compilation);
+		List<string?> inferred = [];
+		LoweringResult lowered = BindableNodeLowerer.Lower(compilation.Compilation.DeclarationExpansion!, (phase, action) =>
+		{
+			action();
+			if (phase == "method body analysis")
+				foreach (DeclarationStatement declaration in SemanticCompiler.Descendants<DeclarationStatement>(SemanticCompiler.Function(compilation, "test")))
+					inferred.Add(declaration.Target.ResolvedType);
+		});
+		Assert.Empty(lowered.Diagnostics);
+		Assert.Equal(expected, inferred[0]);
+	}
+
+	[Theory]
+	[InlineData("class Box<T: int> { bool m<V: int>(V value) { return true; } } void test(Box<short>* box) { auto r = box.m; }", "unresolved type argument(s) V")]
+	[InlineData("class Box<T: int> { bool m<V: int>(V value) { return true; } } void test(Box<short>* box) { fn bool(int<byte>) r = box.m; }", "unresolved type argument(s) V")]
+	[InlineData("class Box<T: int> { bool m<V: int>(V value): Check<V> { return true; } } void test(Box<short>* box) { Check<byte> r = box.m; }", "unresolved type argument(s) V")]
+	[InlineData("class Box<T: int> { int zero<V: int>() { return 3; } } void test(Box<short>* box) { auto r = box.zero; }", "unresolved type argument(s) V")]
+	[InlineData("bool m<V: int>(V value) { return true; } void test() { auto r = m; }", "unresolved type argument(s) V")]
+	[InlineData("class Box<T: int> { bool m<V: int>(V value) { return true; } } void test(Box<short>* box) { auto r = box.m<byte, short>; }", "declares 1 type argument(s), but 2 were supplied")]
+	[InlineData("class Box<T: int> { bool m<V: int>(V value) { return true; } } void test(Box<short>* box) { auto r = box.m<long>; }", "does not satisfy representation constraint")]
+	[InlineData("class Box<T: int> { bool m(T value) { return true; } } void test(Box<short>* box) { auto r = box.m<byte>; }", "is not generic and cannot be specialized")]
+	public void Method_references_reject_unresolved_or_invalid_specialization(string source, string message)
+	{
+		SemanticCompilation compilation = SemanticCompiler.CompileLowered("newtype delegate bool Check<U: int>(U value);\n" + source);
+		Assert.Contains(compilation.Diagnostics, diagnostic => diagnostic.Contains(message));
+	}
+
 	[Fact]
 	public void Representation_callbacks_are_nominal_carriers()
 	{

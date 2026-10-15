@@ -87,9 +87,18 @@ public sealed partial class BindableNodeAnalyzer
 	string AssignmentConversionMessage(string expected, string actual, string context)
 	{
 		string message = $"{context} cannot convert '{WitnessTypeIdentity.Display(actual)}' to '{WitnessTypeIdentity.Display(expected)}'.";
-		if (TryGetCallableShape(actual, out CallableShape sourceCallable) && TryGetCallableShape(expected, out CallableShape targetCallable)
-			&& !CallableShapesCompatibleWithConstOfVariance(sourceCallable, targetCallable))
-			message += " Use a lambda or a written void<V> result to match the erased calling shape.";
+		if (TryGetCallableShape(actual, out CallableShape sourceCallable) && TryGetCallableShape(expected, out CallableShape targetCallable))
+		{
+			// Two callable newtypes differ by definition or constructed argument; no adapter applies.
+			if (!TryParseCallableShape(actual, out _) && !TryParseCallableShape(expected, out _))
+				message += " Callable newtypes with different definitions or constructed arguments do not convert implicitly.";
+			else if (!CallableShapesCompatibleWithConstOfVariance(sourceCallable, targetCallable))
+			{
+				if (!System.Linq.Enumerable.SequenceEqual(sourceCallable.Parameters.FindAll(IsCapabilitySlot), targetCallable.Parameters.FindAll(IsCapabilitySlot)))
+					message += " Capability slots must match by kind, operand and order; no conversion adds, drops or rearranges them.";
+				message += " Use a lambda or a written void<V> result to match the erased calling shape.";
+			}
+		}
 		if (TryGetPointerElementType(expected) is string erasedElement
 			&& ErasedTypeIdentity.TryGetPayload(erasedElement, out string payload)
 			&& TryGetPointerElementType(actual) is string actualElement
@@ -4273,16 +4282,20 @@ public sealed partial class BindableNodeAnalyzer
 		bool receiverBearing = IsReceiverBearingDeclaration(function);
 		if (!isInstanceReference && !receiverBearing && family == "fn")
 		{
-			ascribedType = newtypeDefinition.Name;
+			ascribedType = ConstructedAscriptionType(function, newtypeDefinition);
 			return true;
 		}
 		if (isInstanceReference && receiverBearing && family is "delegate" or "iter")
 		{
-			ascribedType = newtypeDefinition.Name;
+			ascribedType = ConstructedAscriptionType(function, newtypeDefinition);
 			return true;
 		}
 		return false;
 	}
+
+	// The full constructed nominal type written on the declaration, never the bare definition name.
+	static string ConstructedAscriptionType(FunctionDefinition function, NewtypeDefinition definition) =>
+		function.CallableAscriptionType?.ResolvedType is string written && BaseTypeName(written) == definition.Name ? written : definition.Name;
 
 	MemberReferenceExpression CreateMemberReference(MemberExpression member, Expression? target, string type, BindableNode node)
 	{

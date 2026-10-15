@@ -112,7 +112,7 @@ typedef struct HashSet HashSet;
 /* Enums. */
 
 /* Newtypes. */
-typedef uintptr_t (* HashCode)(void *key, uintptr_t sizeof_K);
+typedef uintptr_t (* HashCode)(const void *key, uintptr_t sizeof_K);
 
 /* Layouts. */
 struct HashPolicy

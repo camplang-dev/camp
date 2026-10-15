@@ -631,6 +631,20 @@ nominal callable types do not become interchangeable merely by shape.
 Ascribed reference identity must be established directly, independently of
 assignment acceptance.
 
+A binder inside a nominal argument list names the nominal argument A. Substituting
+`T: R` with A therefore yields `R<A>` where `T` itself is stored or passed, and
+`A` inside `Holder<T>` or `Newtype<T>`. A call to `f<T: int>(Holder<T>* h)` with
+`T = short` expects `Holder<short>*`. Inferring `T` from a constructed callable
+newtype argument reads the written carrier slots first, so `Check<short>` binds
+`T` through its `int<short>` input.
+
+The C typedef of a constructed callable newtype is declared over the erased slots
+of its definition: an integer-represented parameter is its carrier (`int`,
+`int64_t`, `intptr_t`), a void-represented one is `void*`, and capability slots
+keep their order and payload (`sizeof` is `uintptr_t`, `typenameof` a name
+string). A symbol ascribed to the newtype keeps its own C signature and is cast to
+the typedef where it is used as the newtype.
+
 ## Metadata And API Output
 
 Metadata should preserve source-level generic binders, representations,

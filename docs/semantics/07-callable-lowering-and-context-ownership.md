@@ -341,6 +341,20 @@ slot. The validator must ensure:
 - parameter and return shapes match after source-level `constof` rules;
 - unsupported ascription cases diagnose before lowering.
 
+A generic callable newtype is ascribed by its complete constructed type, never
+by its open definition. The checked target shape is the declared erased shape
+with the written arguments substituted: an integer-represented parameter
+`U: R` contributes `R<A>` and an omitted representation contributes `void<A>`.
+Arguments may be concrete, enclosing-owner or method-owned. The declaration's own
+owner and method parameters are erased with the same rule, so the comparison
+holds for `T` as for `short`.
+The ascription also fixes capability slots (kind, operand, order), protected
+results, receiver shape and specifications. The first difference is diagnosed at
+the ascription; an argument or signature type that already failed binding, such
+as a static member naming an enclosing type parameter, is not also reported as a
+mismatch. The inferred type of a successfully ascribed reference is the complete
+constructed newtype.
+
 A named function accepted through erased/concrete storage compatibility keeps
 its declared C signature. Using that symbol to initialize, assign, pass, or
 return its ascribed `fn` newtype casts it to the checked nominal carrier when
@@ -363,6 +377,19 @@ the receiver may become:
 - a delegate context pointer for a bound method reference;
 - an interface instance slot for interface methods;
 - a virtual-dispatch context for virtual class calls.
+
+Reference formation is distinct from invocation. `method<A>` written without call
+parentheses selects the reference for the explicitly specialized method, with
+owner and method arguments substituted in one simultaneous pass so an enclosing
+parameter that happens to share a binder's name keeps denoting the enclosing
+parameter. A zero-argument method needs parentheses to be called. A reference
+whose method-owned parameters are not all supplied is rejected at formation,
+whether or not a target type would fix them and whether or not the parameter is
+used; target typing never infers method arguments. Type arguments are validated
+against the parameter's representation exactly as for a call, and the number of
+arguments must equal the method's own parameter count. The referenced method's
+type is the ascribed newtype when it is ascribed, and the structural callable
+shape otherwise.
 
 Explicit callable `this` parameters are part of the callable type. A target
 callable with `const this` requires a method callable on a const receiver. A

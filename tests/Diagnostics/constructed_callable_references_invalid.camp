@@ -1,0 +1,50 @@
+newtype fn bool ShortCheck<U: int>(U value);
+newtype delegate bool ByteDelegate<U: int>(U value);
+newtype delegate bool Other<U: int>(U value);
+newtype delegate void ConstAdd<U: int>(const this, U value);
+newtype fn int Named<U>(U* p, typenameof(U), sizeof(U));
+newtype fn int Swapped<U>(U* p, sizeof(U), typenameof(U));
+
+class Box<T: int>
+{
+	int total;
+	bool receiverCheck(T value): ByteDelegate<T> { return true; }
+	void constAdd<V: int>(V value): ConstAdd<V> { this.total += 1; }
+	bool isEmpty2<V: int>(V value): ByteDelegate<V> { return value == default; }
+	int zero<V: int>() { return 3; }
+}
+
+bool shortCheck(int<short> value): ShortCheck<short> { return true; }
+
+// Distinct constructed identities do not convert, and a structural value never gains one by target typing alone.
+void conversions(ByteDelegate<short> delegateShort, ShortCheck<short> check)
+{
+	ByteDelegate<byte> otherArgument = delegateShort;
+	Other<short> otherNominal = delegateShort;
+	ShortCheck<byte> fnArgument = check;
+}
+
+// Method references are explicit and never inferred.
+void references(Box<short>* box)
+{
+	auto bare = box.isEmpty2;
+	ByteDelegate<byte> inferred = box.isEmpty2;
+	fn bool(int<byte>) structural = box.isEmpty2;
+	auto unusedBinder = box.zero;
+	auto wrongArity = box.isEmpty2<byte, short>;
+	auto notGeneric = box.receiverCheck<byte>;
+	auto tooWide = box.isEmpty2<long>;
+	auto notMethod = box.total<byte>;
+}
+
+// Capability slots are part of every callable identity: kind, operand and order.
+int named<V>(V* p, typenameof(V), sizeof(V)) { return 4; }
+void capabilities(Named<int> nominal)
+{
+	fn int(void<int>*, typenameof(int), sizeof(int)) exact = named<int>;
+	fn int(void<int>*, sizeof(int), typenameof(int)) swapped = named<int>;
+	fn int(void<int>*, typenameof(long), sizeof(int)) operand = named<int>;
+	fn int(void<int>*, typenameof(int)) missing = named<int>;
+	Swapped<int> distinct = nominal;
+	Named<long> argument = nominal;
+}

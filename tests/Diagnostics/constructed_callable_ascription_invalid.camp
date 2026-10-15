@@ -1,0 +1,31 @@
+interface Reader { int read(); }
+newtype fn bool ShortCheck<U: int>(U value);
+newtype fn int WithName<U>(U* p, typenameof(U), sizeof(U));
+newtype fn int Copying<U>(in U value, sizeof(U));
+newtype fn void<U> Producer<U>();
+newtype delegate bool ByteDelegate<U: int>(U value);
+
+// Constructed argument and carrier identity.
+bool plainShort(short value): ShortCheck<short> { return true; }
+bool wrongArgument(int<byte> value): ShortCheck<short> { return true; }
+bool tooWide(int<short> value): ShortCheck<long> { return true; }
+
+// Capability kind, operand and order.
+int swappedSlots<V>(V* p, sizeof(V), typenameof(V)): WithName<V> { return 1; }
+int missingSlot<V>(V* p, sizeof(V)): WithName<V> { return 1; }
+int wrongOperand<V, W>(V* p, typenameof(W), sizeof(V)): WithName<V> { return 1; }
+int sizePayload<V>(V* p, typenameof(V), nuint size): WithName<V> { return 1; }
+
+// Protected results and expanded storage.
+int plainResult(): Producer<int> { return 7; }
+void trailingOut(out int result): Producer<int> { result = 7; }
+int distributedInput(in int? value, sizeof(int?)): Copying<int?> { return 1; }
+
+// Receivers.
+class Box<T: int>
+{
+	bool receiverFn(T value): ShortCheck<T> { return true; }
+	static bool staticOwner(T value): ShortCheck<T> { return true; }
+	static bool staticTarget(int<short> value): ShortCheck<T> { return true; }
+}
+bool receiverlessDelegate(int<short> value): ByteDelegate<short> { return true; }

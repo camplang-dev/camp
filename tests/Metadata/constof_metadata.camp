@@ -1,6 +1,6 @@
 namespace ConstOfMetadata;
 
-export struct Box<T>
+export struct Box<T: nint>
 {
 	T value;
 }

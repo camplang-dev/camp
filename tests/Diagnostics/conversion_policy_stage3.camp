@@ -1,9 +1,9 @@
 // @ target msvc-win16-x86
 // @ variant large
 
-struct Box<T: void*>
+struct Box<T>
 {
-	T value;
+	T* value;
 }
 
 void policyDiagnostics(
