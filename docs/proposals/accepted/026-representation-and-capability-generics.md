@@ -2,9 +2,9 @@
 
 Proposal date: 2026-10-13
 
-Last updated date: 2026-10-13
+Last updated date: 2026-10-15
 
-Status: Pending language-design review; not accepted or implemented.
+Status: Accepted and implemented (DEV-020). Historical record; canonical semantics live in docs/semantics/06-generics-erasure-and-capabilities.md, docs/semantics/07-callable-lowering-and-context-ownership.md and the Camp coding guide.
 
 ## Summary
 
