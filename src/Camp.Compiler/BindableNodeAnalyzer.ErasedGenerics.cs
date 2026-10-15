@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -207,6 +208,9 @@ public sealed partial class BindableNodeAnalyzer
 	string SubstituteStorageType(string type, Dictionary<string, string> substitutions)
 	{
 		if (substitutions.Count == 0) return type;
+		// An iterator protocol yields through a current slot, which is storage.
+		if (type.StartsWith("iter ", StringComparison.Ordinal))
+			return "iter " + CarrierTypeIdentity.CollapseNested(RewriteStorageTypeName(type["iter ".Length..].Trim(), root => SubstituteStorageShapeName(root, substitutions, storage: true)));
 		// A structured type is substituted once by its shapes; substituting the result again would
 		// treat a replacement such as the swapped pick<U, T> arguments as binders to replace.
 		TypeShapeParser parser = new(type);

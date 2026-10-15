@@ -288,6 +288,10 @@ public sealed partial class BindableNodeAnalyzer
 			return CreateVTableOfFieldReference(classDefinition, field, vtableOf.SourceSyntax);
 		}
 
+		if (currentRewriteFunction?.CapturedCapabilityOwner is ClassDefinition capturedOwner
+			&& vtableOfFields.TryGetValue((capturedOwner, genericName, interfaceName), out FieldDefinition? capturedField))
+			return CreateVTableOfFieldReference(capturedOwner, capturedField, vtableOf.SourceSyntax);
+
 		Report(vtableOf.SourceSyntax, $"vtableof({genericName}: {interfaceName}) requires parameter '{VTableOfParameterName(vtableOf.Type, vtableOf.InterfaceType)}'.");
 		return vtableOf;
 	}
@@ -322,6 +326,11 @@ public sealed partial class BindableNodeAnalyzer
 				&& VTableOfTypeName(vtableOf.InterfaceType) == interfaceName)
 				return vtableOf;
 		}
+		foreach (ParameterDefinition captured in function.CapturedCapabilities)
+			if (captured is VTableOfParameterDefinition vtableOf
+				&& VTableOfTypeName(vtableOf.Type) == genericName
+				&& VTableOfTypeName(vtableOf.InterfaceType) == interfaceName)
+				return vtableOf;
 
 		return null;
 	}

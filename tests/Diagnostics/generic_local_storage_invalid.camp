@@ -1,0 +1,31 @@
+struct iter T stackFixed<T: int>(T first)
+{
+	stackalloc T value = first;
+	yield value;
+}
+
+struct iter T foreachPlain<T>(const T[] values, sizeof(T))
+{
+	foreach (T item in values)
+	{
+		yield item;
+	}
+}
+
+struct iter T foreachAuto<T>(const T[] values, sizeof(T))
+{
+	foreach (auto item in values)
+	{
+		yield item;
+	}
+}
+
+void optionalLocals<T>(T[] values, sizeof(T)) { T? x; }
+void carrierLocals<T: int>(T value) { T? x; int<T>? y; }
+
+void captureNeeded<T>(T[] values, sizeof(T))
+{
+	fn void() f = () => { stackalloc T item = values[0]; };
+}
+
+export int main() { return 0; }

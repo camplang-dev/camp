@@ -102,6 +102,8 @@ public sealed partial class BindableNodeAnalyzer
 		DeclarationTarget? lambdaContextLocal = null;
 		if (contextInfo is not null)
 			lambdaContextLocal = RewriteLambdaCaptureReferences(function, contextInfo);
+		if (contextInfo is not null && lambdaContextLocal is not null)
+			RecordCapturedCapabilityReads(function, contextInfo, lambdaContextLocal);
 		if (contextInfo?.AllocatorField is not null && lambdaContextLocal is not null && bodyUsesInheritedAllocator)
 			WrapLambdaBodyInCapturedAllocator(function.Body, contextInfo, lambdaContextLocal);
 		RewriteFunction(function, containingType: null);
@@ -117,6 +119,35 @@ public sealed partial class BindableNodeAnalyzer
 			: CreateMethodReference(function, BuildFunctionValueType(function, isInstance: false));
 		expressionRewrites[lambda] = result;
 		return result;
+	}
+
+	string CapabilityCaptureType(ParameterDefinition slot)
+	{
+		return slot switch
+		{
+			SizeOfParameterDefinition => "nuint",
+			NameOfParameterDefinition => "string",
+			VTableOfParameterDefinition witness => witness.ResolvedType ?? VTableOfParameterType(witness),
+			_ => GetCaptureType(slot)
+		};
+	}
+
+	// The emitter resolves implicit stride and size uses by capability name; give it the context read.
+	void RecordCapturedCapabilityReads(FunctionDefinition function, LambdaContextInfo context, DeclarationTarget contextLocal)
+	{
+		foreach (ParameterDefinition slot in function.CapturedCapabilities)
+			if (FindCapture(context, slot) is LambdaCapture capture)
+				function.CapturedCapabilityReads[slot.Name] = CreateCapturedValueReference(capture, contextLocal, null);
+		if (function.CapturedCapabilityOwner is ClassDefinition owner && FindThisCapture(context) is LambdaCapture thisCapture)
+			foreach (((ClassDefinition Class, string GenericName) key, FieldDefinition field) in sizeOfFields)
+				if (ReferenceEquals(key.Class, owner))
+					function.CapturedCapabilityReads["sizeof_" + key.GenericName] = new MemberReferenceExpression
+					{
+						Target = CreateCapturedValueReference(thisCapture, contextLocal, null),
+						Name = field.Name,
+						Member = field,
+						ResolvedType = "nuint"
+					};
 	}
 
 	static CallableShape EraseConstOfCallableShape(CallableShape shape)
@@ -151,6 +182,17 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			foreach (GenericParameter parameter in currentRewriteFunction.GenericParameters)
 				function.GenericParameters.Add(CloneGenericParameter(parameter));
+			// The enclosing type's parameters are in scope in the lambda body as well.
+			if (FindCurrentRewriteContainingType() is TypeDefinition ownerType)
+				foreach (GenericParameter parameter in ownerType.GenericParameters)
+					if (!function.GenericParameters.Exists(existing => existing.Name == parameter.Name))
+						function.GenericParameters.Add(CloneGenericParameter(parameter));
+			if (lambdaCapabilityUses.TryGetValue(lambda, out LambdaCapabilityUse? capabilityUse))
+			{
+				function.CapturedCapabilities.AddRange(capabilityUse.Parameters);
+				if (capabilityUse.UsesRetained && FindCurrentRewriteContainingType() is ClassDefinition retainingClass)
+					function.CapturedCapabilityOwner = retainingClass;
+			}
 		}
 		if (includeDelegateContext)
 		{
@@ -834,6 +876,13 @@ public sealed partial class BindableNodeAnalyzer
 		Dictionary<BindableNode, LambdaCapture> captures = new(ReferenceEqualityComparer.Instance);
 		BindableNode? thisCaptureNode = CreateLambdaThisCaptureNode(currentFunction, containingType, lambda.SourceSyntax, reportUnsupported);
 		CollectLambdaCaptures(lambda.Body, localNodes, captures, thisCaptureNode, reportUnsupported);
+		if (lambdaCapabilityUses.TryGetValue(lambda, out LambdaCapabilityUse? capabilityUse))
+		{
+			foreach (ParameterDefinition slot in capabilityUse.Parameters)
+				AddSingleLambdaCapture(slot, slot.Name, CapabilityCaptureType(slot), lambda.SourceSyntax, captures, reportUnsupported);
+			if (capabilityUse.UsesRetained && thisCaptureNode is not null)
+				AddLambdaCapture(thisCaptureNode, lambda.SourceSyntax, captures, reportUnsupported, isThis: true);
+		}
 		return [.. captures.Values];
 	}
 

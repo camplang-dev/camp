@@ -57,30 +57,67 @@ public sealed partial class BindableNodeAnalyzer
 		GenericParameter? operand = FindBodyGenericParameter(scope, genericName);
 		if (operand is null) return false;
 		foreach (ParameterDefinition slot in scope.CurrentFunction.Parameters)
-			if (slot is SizeOfParameterDefinition && ExactOperand(slot.Type, operand)) return true;
+			if (slot is SizeOfParameterDefinition && ExactOperand(slot.Type, operand)) return NoteCapabilityUse(scope, slot, retained: false);
 		if (scope.ContainingType is TypeDefinition containingType)
 			foreach (FieldDefinition field in GetIteratorFields(containingType))
-				if (field.CapabilitySource is SizeOfParameterDefinition size && ExactOperand(size.Type, operand)) return true;
+				if (field.CapabilitySource is SizeOfParameterDefinition size && ExactOperand(size.Type, operand)) return NoteCapabilityUse(scope, size, retained: true);
 		if (scope.CurrentFunction.Modifier != FunctionModifier.Static && scope.ContainingType is ClassDefinition owner)
 			foreach (FunctionDefinition constructor in owner.Functions)
 				if (constructor.Modifier == FunctionModifier.Constructor || constructor.Name == InitNewMethodName)
 					foreach (ParameterDefinition slot in constructor.Parameters)
-						if (slot is SizeOfParameterDefinition && ExactOperand(slot.Type, operand)) return true;
+						if (slot is SizeOfParameterDefinition && ExactOperand(slot.Type, operand)) return NoteCapabilityUse(scope, slot, retained: true);
+		return false;
+	}
+
+	// A lambda body is lowered into its own function. Capability evidence it relies on, whether an
+	// enclosing parameter or the receiver's retained state, is captured through its context.
+	sealed class LambdaCapabilityUse
+	{
+		public HashSet<ParameterDefinition> Parameters { get; } = [];
+		public bool UsesRetained { get; set; }
+	}
+
+	readonly Dictionary<LambdaExpression, LambdaCapabilityUse> lambdaCapabilityUses = [];
+
+	bool NoteCapabilityUse(BodyScope scope, ParameterDefinition slot, bool retained)
+	{
+		for (BodyScope? current = scope; current is not null; current = current.Parent)
+		{
+			if (current.Lambda is not LambdaExpression lambda)
+				continue;
+			// A capability slot the lambda declares for itself is used directly.
+			if (!retained && LambdaDeclaresCapability(lambda, slot))
+				break;
+			if (!lambdaCapabilityUses.TryGetValue(lambda, out LambdaCapabilityUse? use))
+				lambdaCapabilityUses[lambda] = use = new LambdaCapabilityUse();
+			if (retained)
+				use.UsesRetained = true;
+			else
+				use.Parameters.Add(slot);
+		}
+		return true;
+	}
+
+	static bool LambdaDeclaresCapability(LambdaExpression lambda, ParameterDefinition slot)
+	{
+		foreach (LambdaParameter parameter in lambda.Parameters)
+			if (parameter.Parameter is ParameterDefinition own && own.GetType() == slot.GetType() && own.Name == slot.Name)
+				return true;
 		return false;
 	}
 
 	VTableOfParameterDefinition? FindWitnessCapability(BodyScope scope, GenericParameter operand)
 	{
 		foreach (ParameterDefinition slot in scope.CurrentFunction.Parameters)
-			if (slot is VTableOfParameterDefinition witness && ExactOperand(witness.Type, operand)) return witness;
+			if (slot is VTableOfParameterDefinition witness && ExactOperand(witness.Type, operand)) { NoteCapabilityUse(scope, witness, retained: false); return witness; }
 		if (scope.ContainingType is TypeDefinition state)
 			foreach (FieldDefinition field in GetIteratorFields(state))
-				if (field.CapabilitySource is VTableOfParameterDefinition witness && ExactOperand(witness.Type, operand)) return witness;
+				if (field.CapabilitySource is VTableOfParameterDefinition witness && ExactOperand(witness.Type, operand)) { NoteCapabilityUse(scope, witness, retained: true); return witness; }
 		if (scope.CurrentFunction.Modifier != FunctionModifier.Static && scope.ContainingType is ClassDefinition owner)
 			foreach (FunctionDefinition constructor in owner.Functions)
 				if (constructor.Modifier == FunctionModifier.Constructor || constructor.Name == InitNewMethodName)
 					foreach (ParameterDefinition slot in constructor.Parameters)
-						if (slot is VTableOfParameterDefinition witness && ExactOperand(witness.Type, operand)) return witness;
+						if (slot is VTableOfParameterDefinition witness && ExactOperand(witness.Type, operand)) { NoteCapabilityUse(scope, witness, retained: true); return witness; }
 		return null;
 	}
 

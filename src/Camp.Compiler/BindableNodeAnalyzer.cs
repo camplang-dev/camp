@@ -1273,7 +1273,17 @@ public sealed partial class BindableNodeAnalyzer
 
 	void Report(TokenRange? range, string message, string? code = null)
 	{
-		diagnostics.Add(new AnalysisDiagnostic(range, message, code));
+		diagnostics.Add(new AnalysisDiagnostic(range, DisplayCarrierStandIns(message), code));
+	}
+
+	// Carrier newtypes are internal stand-ins for written R<A> forms; diagnostics show the source form.
+	string DisplayCarrierStandIns(string message)
+	{
+		if (!message.Contains("CarrierOf", StringComparison.Ordinal))
+			return message;
+		foreach ((string written, string standIn) in carrierNewtypeNames.OrderByDescending(entry => entry.Value.Length))
+			message = message.Replace(standIn, written, StringComparison.Ordinal);
+		return message;
 	}
 
 	static string GetImplicitParameterType(ParameterDefinition definition)

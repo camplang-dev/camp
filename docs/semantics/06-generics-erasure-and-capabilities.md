@@ -410,6 +410,31 @@ do not retain constructor capabilities: each call receives what it needs.
 Ordinary numeric, string or pointer fields, including fields that happen to use
 the generated names, never become capability evidence.
 
+### Capabilities In Lambdas, Iterator State And Async Frames
+
+Generated execution state keeps the capability evidence it needs; it never
+invents evidence and never acquires a second copy of the same evidence.
+
+- A lambda that uses `sizeof(T)`, `typenameof(T)` or `vtableof(T: I)` captures
+  the evidence for that exact operand: the enclosing parameter, or the class
+  retained field reached through `this`. The capture is a context field of the
+  matching type (`uintptr_t`, `const char *`, a witness pointer) and the lifted
+  lambda function reads it through the context. Evidence is captured only when
+  the lambda body uses it, directly or by forwarding to a callee that needs it.
+- Capturing lambdas require a delegate target. A function-pointer target cannot
+  hold a context, so a lambda that needs enclosing capability evidence reports
+  `Capturing lambdas require a delegate target.`
+- Generator capability parameters, and the implicit `sizeof(T)` for a generator
+  whose element type is a bare void-represented `T`, become iterator state
+  fields (`_sizeof_T`, `_typenameof_T`, `_vtableof_T_I`). Every resumption reads
+  the retained field, so a `typenameof(T)` after a `yield` is valid.
+- An async method cannot declare capability parameters. An async method of a
+  generic class reads its evidence from the class retained fields through the
+  frame's `this`, and `stackalloc T` locals in an async body are allocated at
+  the top of the resume function from that evidence.
+- `prep` sizing and filling reuse one acquired evidence value; the lowering
+  evaluates `sizeof_T` once and passes it to both protocol invocations.
+
 ## Generic Arrays And Iterators
 
 Generic arrays need element stride and lifetime-safe element handling. Generic
@@ -435,6 +460,12 @@ Iterator generators with void representation add `sizeof(T)` parameters
 when the generated state needs element stride. When an iterator lowers into a
 state type, these capability parameters become state fields so the `next`
 method can run after the factory call has returned.
+
+The `next(T* current)` slot of a generic iterator is one erased slot. When the
+iterator is instantiated with an expanded argument such as `int?`, the slot is
+whole `void<A>` storage, not the distributed components, and the consumer reads
+the foreach target from that storage. A foreach over such an iterator, and a
+generic passthrough of it, preserve the expanded value.
 
 ### Generic Prepared Arrays
 
@@ -521,6 +552,20 @@ forwarding preserves the bound unspecified-size storage without introducing a
 second wrapper. A `stackalloc` local of a specified-size type, including a
 representation `T`, is an error that suggests an ordinary local. Array views, pointers, and other non-exact shapes do not
 trigger this exact-value rule.
+
+Generator bodies follow the same rule with one addition. A local of exact
+void-represented `T` that would be lifted into iterator state must be written
+`stackalloc T name`; `auto` and a plain `T name` report `Erased generic type 'T'
+requires explicit stackalloc local storage`. Fixed integer representations
+(`T: int`) keep ordinary locals and reject `stackalloc`.
+
+Storage operations on erased values are size authorized. Indexing, element
+address, slicing, in/out copy-back, `new T[n]`, default fill (`default` writes
+`sizeof(T)` zero bytes) and foreach all stride by `sizeof(T)`. An expanded
+value needs whole storage: `void<int?>[]`, `stackalloc void<int?>[n]` and
+`void<int[]>[]` work, while `T?`, `carrier?` and `int<T>?` payloads over an
+erased `T` are rejected. Nested optionals over fixed shapes such as
+`void<int?>` remain valid.
 
 Foreach over erased generic array values follows the same rule:
 
@@ -688,6 +733,12 @@ Generic changes should cover:
 - `vtableof` validation for generic and concrete types;
 - interface-constrained generic dispatch;
 - generic iterators and lifted capability fields;
+- lambda capability capture, async generic-class `stackalloc T` and generator
+  state (`StdRun/generic_execution_state_runtime`, `CEmit/generic_execution_state_abi`);
+- strided storage operations and optional-payload rejection
+  (`StdRun/generic_storage_operations_runtime`,
+  `Diagnostics/generic_local_storage_invalid`,
+  `Diagnostics/generic_generator_locals_invalid`);
 - generic static member lookup and type argument inference;
 - generic constructor argument errors;
 - metadata output for capability parameters and generic self-links.

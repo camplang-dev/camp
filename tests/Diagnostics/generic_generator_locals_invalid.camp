@@ -1,0 +1,61 @@
+// Expansion-time rules: a generator local is lifted into its state, so unknown-size storage is stackalloc only.
+struct iter T autoLocal<T>(const T[] values, sizeof(T))
+{
+	auto value = values[0];
+	yield value;
+}
+
+struct iter T plainLocal<T>(const T[] values, sizeof(T))
+{
+	T value = values[0];
+	yield value;
+}
+
+struct iter T defaultLocal<T>(const T[] values, sizeof(T))
+{
+	T value = default;
+	yield value;
+}
+
+struct iter T nestedPlainLocal<T>(const T[] values, sizeof(T))
+{
+	for (nuint i = 0; i < values.length; i++)
+	{
+		T value;
+		value = values[i];
+		yield value;
+	}
+}
+
+struct iter T readAfterYield<T>(const T[] values, sizeof(T))
+{
+	stackalloc T value = values[0];
+	yield value;
+	yield value;
+}
+
+struct iter T copyAfterYield<T>(const T[] values, sizeof(T))
+{
+	foreach (stackalloc T item in values)
+	{
+		yield item;
+		stackalloc T copy = item;
+	}
+}
+
+struct iter T assignedAgain<T>(const T[] values, sizeof(T))
+{
+	stackalloc T value = values[0];
+	yield value;
+	value = values[1];
+	yield value;
+}
+
+struct iter T fixedRepresentation<T: int>(T first)
+{
+	T value = first;
+	yield value;
+	yield value;
+}
+
+export int main() { return 0; }

@@ -1,6 +1,6 @@
 using Std;
 
-int compareInt(in int left, in int right)
+int compareInt(in int left, in int right, sizeof(int))
 {
 	if (left < right)
 		return -1;

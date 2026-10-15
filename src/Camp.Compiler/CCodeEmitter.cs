@@ -962,11 +962,11 @@ public static class CCodeEmitter
 
             writer.WriteLine("/* Private file declarations. */");
             foreach (AsyncFrameInfo frame in asyncFrames)
-                WriteAsyncFrameDeclaration(writer, frame);
+                WithGenericContext(frame.Function, () => WriteAsyncFrameDeclaration(writer, frame));
             foreach (DelegateThunk thunk in delegateThunks)
                 WriteDelegateThunkPrototype(writer, thunk);
             foreach (AsyncFrameInfo frame in asyncFrames)
-                WriteAsyncFrameHelperPrototypes(writer, frame);
+                WithGenericContext(frame.Function, () => WriteAsyncFrameHelperPrototypes(writer, frame));
             foreach (FunctionDefinition function in privateFunctions)
                 WriteFunctionPrototype(writer, function, storage: PrivateFunctionStorage(function));
             foreach (VariableDefinition variable in privateVariables)
@@ -1011,7 +1011,7 @@ public static class CCodeEmitter
 
             foreach (AsyncFrameInfo frame in asyncFrames)
             {
-                WriteAsyncFrameHelperDefinitions(body, frame);
+                WithGenericContext(frame.Function, () => WriteAsyncFrameHelperDefinitions(body, frame));
                 wrote = true;
             }
 
@@ -3594,7 +3594,17 @@ public static class CCodeEmitter
         {
             if (declaration.IsActivationLocal)
             {
-                if (declaration.InitialValue is not null)
+                if (declaration.InitialValue is not null && IsAnyGenericParameterType(declaration.Target.ResolvedType))
+                {
+                    // The resume prologue allocated the slot; the initializer runs at the declaration.
+                    string slot = FormatVariableReference(declaration.Target);
+                    string size = FormatGenericSizeExpression(declaration.Target.ResolvedType);
+                    WriteIndent(writer, indent);
+                    writer.WriteLine(declaration.InitialValue is DefaultExpression
+                        ? FormatMemoryCall("memset", slot, "0", size) + ";"
+                        : FormatMemoryCall("memcpy", slot, FormatGenericStorageSource(declaration.InitialValue), size) + ";");
+                }
+                else if (declaration.InitialValue is not null)
                 {
                     WriteIndent(writer, indent);
                     writer.WriteLine(FormatVariableReference(declaration.Target) + " = " + FormatDeclarationInitializer(ErasedTypeIdentity.ReadType(declaration.Target.ResolvedType ?? "void"), declaration.InitialValue) + ";");
@@ -4772,7 +4782,9 @@ public static class CCodeEmitter
             {
                 WriteIndent(writer, indent);
                 writer.Write(FormatStorageResolvedType(payload, name).Declaration);
-                if (declaration.InitialValue is not null)
+                if (declaration.InitialValue is DefaultExpression)
+                    writer.Write(" = {0}");
+                else if (declaration.InitialValue is not null)
                     writer.Write(" = " + FormatDeclarationInitializer(payload, declaration.InitialValue));
                 writer.WriteLine(";");
                 return;
@@ -6201,6 +6213,10 @@ public static class CCodeEmitter
                     && (IsPrimitiveStringResolvedName(concreteReturnType) || concreteReturnType.EndsWith('*')))
                     return CastFromErasedGeneric(text, concreteReturnType, RepresentationCTypeOf(function, function.ResolvedType));
             }
+            // An erased pointer result is a void pointer in C; the concrete call type needs the cast,
+            // parenthesized so a member access or dereference applies to the converted pointer.
+            if (function is not null && call.ResolvedType is string concretePointer && concretePointer.EndsWith('*') && IsErasedPointerResult(function))
+                return "((" + FormatResolvedType(concretePointer, "").Declaration.Trim() + ")(" + text + "))";
             if (TryGetCallResultCastType(call, function, genericSubstitutions, out string? castType))
                 return "(" + FormatResolvedType(castType!, "").Declaration.Trim() + ")(" + text + ")";
             return text;
@@ -6429,6 +6445,17 @@ public static class CCodeEmitter
 
             castType = expressionReturnType;
             return true;
+        }
+
+        bool IsErasedPointerResult(FunctionDefinition function)
+        {
+            string declared = StripTypeDecorators(function.ResolvedType ?? "");
+            if (!declared.EndsWith('*'))
+                return false;
+            string element = StripTypeDecorators(declared.TrimEnd('*'));
+            GenericParameter? parameter = function.GenericParameters.FirstOrDefault(candidate => candidate.Name == element)
+                ?? (containingTypes.TryGetValue(function, out TypeDefinition? owner) ? owner.GenericParameters.FirstOrDefault(candidate => candidate.Name == element) : null);
+            return parameter?.IsVoidRepresentation == true;
         }
 
         string FirstReturnComponentType(string type)
@@ -7741,22 +7768,30 @@ public static class CCodeEmitter
             return currentAnyGenericTypeNames.Contains(stripped);
         }
 
+        // Inside an async resume function the receiver and parameters live in the frame.
+        string FormatAsyncFrameNameOrSelf(string name)
+        {
+            return currentAsyncFrameNameReplacements.TryGetValue(name, out string? replacement) ? replacement : name;
+        }
+
         string FormatGenericSizeExpression(string? type)
         {
             string genericName = StripTypeDecorators(type ?? "");
             if (currentFunction is not null)
             {
+                if (currentFunction.CapturedCapabilityReads.TryGetValue("sizeof_" + genericName, out Expression? captured))
+                    return FormatExpression(captured);
                 foreach (ParameterDefinition parameter in currentFunction.Parameters)
                 {
                     if (parameter is SizeOfParameterDefinition && parameter.Name == "sizeof_" + genericName)
-                        return CName(parameter);
+                        return FormatAsyncFrameNameOrSelf(CName(parameter));
                     if (parameter.Name == "sizeof_" + genericName)
-                        return CName(parameter);
+                        return FormatAsyncFrameNameOrSelf(CName(parameter));
                 }
                 if (containingTypes.TryGetValue(currentFunction, out TypeDefinition? containingType)
                     && containingType.GenericParameters.Exists(parameter => parameter.Name == genericName))
                 {
-                    return "this->_sizeof_" + SanitizeIdentifier(genericName);
+                    return FormatAsyncFrameNameOrSelf("this") + "->_sizeof_" + SanitizeIdentifier(genericName);
                 }
             }
             return "sizeof(void*)";

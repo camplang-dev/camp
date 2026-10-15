@@ -618,6 +618,7 @@ public sealed partial class BindableNodeAnalyzer
 		return parameter switch
 		{
 			SizeOfParameterDefinition sizeOf => SizeOfParameterName(sizeOf.Type),
+			NameOfParameterDefinition nameOf => NameOfParameterName(nameOf.Type),
 			VTableOfParameterDefinition vtableOf => VTableOfParameterName(vtableOf.Type, vtableOf.InterfaceType),
 			_ => parameter.Name
 		};
@@ -633,7 +634,7 @@ public sealed partial class BindableNodeAnalyzer
 		string sourceName = IteratorStateFieldSourceName(parameter);
 		if (parameter is ThisParameterDefinition)
 			return "__iter_this";
-		if (parameter is SizeOfParameterDefinition)
+		if (parameter is SizeOfParameterDefinition or NameOfParameterDefinition)
 			return "_" + sourceName;
 		if (parameter is VTableOfParameterDefinition)
 			return "_" + sourceName;
@@ -658,6 +659,7 @@ public sealed partial class BindableNodeAnalyzer
 		return parameter switch
 		{
 			SizeOfParameterDefinition => "nuint",
+			NameOfParameterDefinition => "string",
 			VTableOfParameterDefinition vtableOf => VTableOfParameterType(vtableOf),
 			_ => ContainsLifetimeAnnotation(parameter.Type) ? StripLifetimeQualifiers(resolvedType) : resolvedType
 		};
@@ -673,6 +675,7 @@ public sealed partial class BindableNodeAnalyzer
 		return parameter switch
 		{
 			SizeOfParameterDefinition => NuintType(),
+			NameOfParameterDefinition => TypeReferenceForResolvedName("string"),
 			VTableOfParameterDefinition => TypeReferenceForResolvedName(resolvedType),
 			_ when ContainsLifetimeAnnotation(parameter.Type) => TypeReferenceForIteratorField(resolvedType),
 			_ => CloneType(parameter.Type) ?? TypeReferenceForResolvedName(resolvedType)
@@ -723,6 +726,14 @@ public sealed partial class BindableNodeAnalyzer
 				{
 					declaration.Target.Type = inferredType;
 					declaration.Target.ResolvedType = inferredResolvedType;
+				}
+				// A lifted local becomes a state field, which has one fixed layout. An exact
+				// void-represented value is unknown-size storage and is only valid as stackalloc.
+				if (typeScope.GenericParameters.TryGetValue(StripTopLevelValueQualifiers(declaration.Target.ResolvedType ?? declaration.Target.Type?.ResolvedType ?? FormatTypeReference(declaration.Target.Type)), out GenericParameter? erased)
+					&& erased.IsVoidRepresentation)
+				{
+					Report(GetRange(declaration.Target.Type?.SourceSyntax ?? declaration.Target.SourceSyntax ?? declaration.SourceSyntax), $"Erased generic type '{erased.Name}' requires explicit stackalloc local storage; write 'stackalloc {erased.Name} name'.");
+					continue;
 				}
 
 				FieldDefinition field = new()

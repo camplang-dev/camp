@@ -1,0 +1,6 @@
+tests/Diagnostics/generic_generator_locals_invalid.camp(4,7): error: Iterator local 'value' must have an explicit type so it can be lifted into the iterator state.
+tests/Diagnostics/generic_generator_locals_invalid.camp(10,2): error: Erased generic type 'T' requires explicit stackalloc local storage; write 'stackalloc T name'.
+tests/Diagnostics/generic_generator_locals_invalid.camp(16,2): error: Erased generic type 'T' requires explicit stackalloc local storage; write 'stackalloc T name'.
+tests/Diagnostics/generic_generator_locals_invalid.camp(24,3): error: Erased generic type 'T' requires explicit stackalloc local storage; write 'stackalloc T name'.
+tests/Diagnostics/generic_generator_locals_invalid.camp(34,8): error: Stackalloc value 'value' is unassigned after suspension; assign it before reading it again.
+tests/Diagnostics/generic_generator_locals_invalid.camp(42,23): error: Stackalloc value 'item' is unassigned after suspension; assign it before reading it again.

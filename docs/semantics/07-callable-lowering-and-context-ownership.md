@@ -436,6 +436,19 @@ the tree. It must distinguish:
 Capture field order should be stable. Stable order keeps lowered dumps, C
 output, and diagnostics predictable.
 
+### Capability Evidence Captures
+
+A lambda body that uses generic capability evidence captures that evidence as
+explicit context fields. Collection records every `sizeof(T)`, `typenameof(T)`
+and `vtableof(T: I)` use, including uses reached by forwarding evidence to a
+callee, and captures the enclosing capability parameter. When the evidence is
+class-retained state, the lambda captures `this` and reads the retained field
+through it. The lifted lambda function carries the captured evidence names so
+lowering of its capability expressions reads context fields, not parameters it
+does not have. Capture types follow the capability: `nuint` for size, a string
+for type names, and a witness pointer for vtables. A function-pointer target
+cannot hold a context, so such a lambda needs a delegate target.
+
 ## Scoped Versus Escaped Contexts
 
 For a scoped context, captured values can be stored as pointers to existing

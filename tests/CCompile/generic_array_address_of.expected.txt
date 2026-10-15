@@ -39,8 +39,8 @@ static int main(void)
 {
 	int *arr = (int []){10, 20, 30};
 	uintptr_t arr_length = 3;
-	int *p = getAddressOf(arr, arr_length, 1, sizeof(int));
-	const int *cp = getAddressOfConst(arr, arr_length, 2, sizeof(int));
+	int *p = ((int *)(getAddressOf(arr, arr_length, 1, sizeof(int))));
+	const int *cp = ((const int *)(getAddressOfConst(arr, arr_length, 2, sizeof(int))));
 	passInArg(arr, arr_length, 0, sizeof(int));
 	writeTo(arr, arr_length, 0, &(int){*p}, sizeof(int));
 	return (((int)((*p)) + (int)((*cp))) - 50);

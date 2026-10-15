@@ -128,6 +128,10 @@ public sealed partial class BindableNodeAnalyzer
 			&& SameBinder(BoundParameter(retained.Type), BoundParameter(sizeOf.Type)))
 			return iteratorSizeOfField;
 
+		if (currentRewriteFunction?.CapturedCapabilityOwner is ClassDefinition capturedOwner
+			&& sizeOfFields.TryGetValue((capturedOwner, genericName), out FieldDefinition? capturedField))
+			return CreateSizeOfFieldReference(capturedOwner, capturedField, sizeOf.SourceSyntax);
+
 		Report(sizeOf.SourceSyntax, $"sizeof({genericName}) requires parameter '{SizeOfParameterName(sizeOf.Type)}'.");
 		return sizeOf;
 	}
@@ -154,6 +158,9 @@ public sealed partial class BindableNodeAnalyzer
 			if (parameter is SizeOfParameterDefinition sizeOf && SizeOfTypeName(sizeOf.Type) == genericName)
 				return sizeOf;
 		}
+		foreach (ParameterDefinition captured in function.CapturedCapabilities)
+			if (captured is SizeOfParameterDefinition sizeOf && SizeOfTypeName(sizeOf.Type) == genericName)
+				return sizeOf;
 
 		return null;
 	}

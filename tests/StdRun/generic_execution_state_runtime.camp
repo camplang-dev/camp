@@ -1,0 +1,252 @@
+using Std;
+
+struct Wide { long a; byte b; short c; }
+interface Reader { int read(); }
+struct R: Reader { int v; int read(): Reader => this.v; }
+
+int observed;
+class Resumer { void resumeAsync(escaped once void() continuation) { continuation(); } }
+Resumer resumer;
+async int tick(int value, @awaitwith Resumer* r) { return value; }
+void complete(void* context, int value) { observed = value; }
+
+// Generators: exact locals are stackalloc, reassigned after every yield, and rebuilt on each resumption.
+struct iter T each<T>(const T[] values, sizeof(T))
+{
+	foreach (stackalloc T item in values)
+	{
+		yield item;
+	}
+}
+
+struct iter T eachTwice<T>(const T[] values, sizeof(T))
+{
+	for (nuint i = 0; i < values.length; i++)
+	{
+		stackalloc T item = values[i];
+		yield item;
+		item = values[i];
+		yield item;
+	}
+}
+
+struct iter T passthrough<T>(iter T source, sizeof(T))
+{
+	foreach (stackalloc T item in source)
+	{
+		yield item;
+	}
+}
+
+struct iter T fixedLocal<T: int>(T first)
+{
+	T local = first;
+	yield local;
+	yield local;
+}
+
+// Capabilities requested by a generator live in its state across yields.
+struct iter int readAll<T>(T* items, nuint count, sizeof(T), vtableof(T: Reader))
+{
+	for (nuint i = 0; i < count; i++)
+	{
+		T* item = &items[i];
+		yield item.read();
+		yield item.read() * 10;
+	}
+}
+
+class iter int nameLengths<T>(typenameof(T))
+{
+	yield (int)typenameof(T).Length;
+	yield (int)typenameof(T).Length + 1;
+}
+
+struct iter int sizes<T>(sizeof(T))
+{
+	yield (int)sizeof(T);
+	yield (int)sizeof(T) * 2;
+}
+
+long weigh(in Wide w, sizeof(Wide)) => w.a + w.b + w.c;
+
+// Lambdas capture the evidence of the enclosing generic function.
+long viaCallback<T>(T[] values, delegate long(in T, sizeof(T)) f, sizeof(T))
+{
+	long total = 0;
+	delegate void(nuint) step = (nuint i) =>
+	{
+		stackalloc T item = values[i];
+		total += f(item);
+	};
+	for (nuint i = 0; i < values.length; i++) step(i);
+	return total;
+}
+
+void copyVia<T>(T[] values, nuint from, nuint to, sizeof(T))
+{
+	delegate void() move = () => { values[to] = values[from]; };
+	move();
+}
+
+nuint sizeVia<T>(sizeof(T))
+{
+	delegate nuint() read = () => { return sizeof(T); };
+	return read();
+}
+
+int nameVia<T>(typenameof(T))
+{
+	delegate int() length = () => (int)typenameof(T).Length;
+	return length();
+}
+
+int callRead<T>(T* p, vtableof(T: Reader)) { return p.read(); }
+
+int witnessVia<T>(T* p, vtableof(T: Reader))
+{
+	delegate int() implicitUse = () => p.read();
+	delegate int() explicitUse = () => callRead<T>(p, vtableof(T: Reader));
+	return implicitUse() + explicitUse();
+}
+
+escaped delegate nuint() escapedSize<T>(sizeof(T))
+{
+	return new delegate () => sizeof(T);
+}
+
+// A lambda in a generic class method uses the capabilities its constructor retained.
+class Holder<T>
+{
+	T[] items;
+	Holder(T[] items, sizeof(T)) { this.items = items; }
+
+	void swapVia(nuint i, nuint j)
+	{
+		delegate void() swap = () =>
+		{
+			stackalloc T temp = this.items[i];
+			this.items[i] = this.items[j];
+			this.items[j] = temp;
+		};
+		swap();
+	}
+}
+
+class Keeper<T>
+{
+	T* item;
+	Keeper(T* item, typenameof(T), vtableof(T: Reader), sizeof(T)) { this.item = item; }
+
+	int viaLambda()
+	{
+		delegate int() use = () => this.item.read() + (int)typenameof(T).Length;
+		return use();
+	}
+
+	// Async frames keep the receiver, so retained evidence is available after the await.
+	async int afterAwait(int bias, @awaitwith Resumer* r)
+	{
+		int before = this.item.read();
+		stackalloc T copy = *this.item;
+		int x = await tick(bias, r);
+		copy = *this.item;
+		*this.item = copy;
+		return x + before + this.item.read() + (int)typenameof(T).Length;
+	}
+}
+
+int run1()
+{
+	Wide[] w = [{1, 2, 3}, {4, 5, 6}, {7, 8, 9}];
+	long n = 0;
+	foreach (Wide x in each<Wide>(w)) n += x.a + x.b + x.c;
+	if (n != 45) return 1;
+	n = 0;
+	foreach (Wide y in eachTwice<Wide>(w)) n += y.a;
+	if (n != 24) return 2;
+	n = 0;
+	foreach (Wide z in passthrough<Wide>(each<Wide>(w))) n += z.c;
+	if (n != 18) return 3;
+
+	// Whole expanded storage flows through the protocol; the loop target may read it distributed or whole.
+	void<int?>[] o = stackalloc void<int?>[3];
+	o[0] = 5;
+	o[1] = default;
+	o[2] = 7;
+	int total = 0;
+	foreach (int? maybe in each<int?>(o)) total += maybe.specified ? maybe.value : 1000;
+	if (total != 1012) return 4;
+	total = 0;
+	foreach (stackalloc void<int?> whole in eachTwice<int?>(o)) total += whole.specified ? whole.value : 1000;
+	if (total != 2024) return 5;
+	total = 0;
+	foreach (int? relayed in passthrough<int?>(each<int?>(o))) total += relayed.specified ? relayed.value : 1000;
+	if (total != 1012) return 6;
+
+	int[] a0 = [1, 2];
+	int[] a1 = [3];
+	void<int[]>[] arrays = stackalloc void<int[]>[2];
+	arrays[0] = a0;
+	arrays[1] = a1;
+	int count = 0;
+	foreach (int[] view in passthrough<int[]>(each<int[]>(arrays))) count += (int)view.length;
+	if (count != 3) return 7;
+
+	int sum = 0;
+	foreach (short s in fixedLocal<short>(-5)) sum += s;
+	if (sum != -10) return 8;
+	return 0;
+}
+
+int run2()
+{
+	R[] rs = [{1}, {2}];
+	int total = 0;
+	foreach (int v in readAll<R>(&rs[0], 2)) total += v;
+	if (total != 1 + 10 + 2 + 20) return 1;
+	int names = 0;
+	foreach (int len in nameLengths<R>()) names += len;
+	if (names != (int)typenameof(R).Length * 2 + 1) return 2;
+	int bytes = 0;
+	foreach (int z in sizes<R>()) bytes += z;
+	if (bytes != (int)sizeof(R) * 3) return 3;
+	return 0;
+}
+
+int run3()
+{
+	Wide[] w = [{1, 2, 3}, {4, 5, 6}, {7, 8, 9}];
+	if (viaCallback<Wide>(w, weigh) != 45) return 1;
+	copyVia<Wide>(w, 2, 0);
+	if (w[0].a != 7 || w[0].c != 9 || w[1].a != 4) return 2;
+	if (sizeVia<Wide>() != sizeof(Wide) || sizeVia<int>() != sizeof(int)) return 3;
+	if (nameVia<R>() != (int)typenameof(R).Length) return 4;
+	R item = { 9 };
+	if (witnessVia<R>(&item) != 18) return 5;
+	auto escapedSizer = within (default) escapedSize<Wide>();
+	nuint captured = escapedSizer();
+	delete escapedSizer;
+	if (captured != sizeof(Wide)) return 6;
+	Wide[] pair = [{1, 2, 3}, {4, 5, 6}];
+	Holder<Wide>* holder = new Holder<Wide>(pair) finally delete;
+	holder.swapVia(0, 1);
+	if (pair[0].a != 4 || pair[0].c != 6 || pair[1].a != 1 || pair[1].c != 3) return 7;
+	R kept = { 5 };
+	Keeper<R>* keeper = new Keeper<R>(&kept) finally delete;
+	if (keeper.viaLambda() != 5 + (int)typenameof(R).Length) return 8;
+	keeper.afterAwait(1, &resumer, complete, null);
+	if (observed != 1 + 5 + 5 + (int)typenameof(R).Length) return 9;
+	return 0;
+}
+
+export int main()
+{
+	int r = run1();
+	if (r != 0) return 10 + r;
+	r = run2();
+	if (r != 0) return 30 + r;
+	r = run3();
+	if (r != 0) return 50 + r;
+	return 0;
+}

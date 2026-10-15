@@ -1591,8 +1591,8 @@ public sealed partial class BindableNodeAnalyzer
 			ConstructionExpression construction => BodyAnalyzeConstructionExpression(construction, scope, typeScope, targetType),
 			WithinExpression within => BodyAnalyzeWithinExpression(within, scope, typeScope, targetType),
 			PreparedBufferExpression prepared => BodyAnalyzePreparedBufferExpression(prepared, scope, typeScope, targetType),
-			SizeOfExpression sizeOf => BodyAnalyzeSizeOfExpression(sizeOf, typeScope),
-			VTableOfExpression vtableOf => BodyAnalyzeVTableOfExpression(vtableOf, typeScope),
+			SizeOfExpression sizeOf => BodyAnalyzeSizeOfExpression(sizeOf, scope, typeScope),
+			VTableOfExpression vtableOf => BodyAnalyzeVTableOfExpression(vtableOf, scope, typeScope),
 			NameOfExpression nameOf => BodyAnalyzeNameOfExpression(nameOf, scope, typeScope, targetType),
 			SymbolOfExpression symbolOf => BodyAnalyzeSymbolOfExpression(symbolOf),
 			CallerSourceCaptureExpression caller => BodyAnalyzeCallerSourceCaptureExpression(caller),
@@ -3031,16 +3031,24 @@ public sealed partial class BindableNodeAnalyzer
 		return expressionType;
 	}
 
-	string BodyAnalyzeSizeOfExpression(SizeOfExpression sizeOf, AnalysisScope typeScope)
+	string BodyAnalyzeSizeOfExpression(SizeOfExpression sizeOf, BodyScope scope, AnalysisScope typeScope)
 	{
 		if (sizeOf.Type is not null)
 			AnalyzeType(sizeOf.Type, typeScope);
+		// An explicit sizeof(T) reads the capability, which a lambda must then capture.
+		string operandName = StripTopLevelValueQualifiers(sizeOf.Type?.ResolvedType ?? "");
+		if (FindBodyGenericParameter(scope, operandName) is not null)
+			HasSizeOfCapability(scope, operandName);
 		return "nuint";
 	}
 
-	string BodyAnalyzeVTableOfExpression(VTableOfExpression vtableOf, AnalysisScope typeScope)
+	string BodyAnalyzeVTableOfExpression(VTableOfExpression vtableOf, BodyScope scope, AnalysisScope typeScope)
 	{
-		return BodyAnalyzeVTableOfExpressionCore(vtableOf, typeScope);
+		string witnessType = BodyAnalyzeVTableOfExpressionCore(vtableOf, typeScope);
+		// An explicit vtableof(T: I) reads the capability, which a lambda must then capture.
+		if (FindBodyGenericParameter(scope, StripTopLevelValueQualifiers(vtableOf.Type?.ResolvedType ?? "")) is GenericParameter operand)
+			FindWitnessCapability(scope, operand);
+		return witnessType;
 	}
 
 	string BodyAnalyzeLambdaExpression(LambdaExpression lambda, BodyScope scope, AnalysisScope typeScope, string? targetType)
@@ -3072,7 +3080,8 @@ public sealed partial class BindableNodeAnalyzer
 			CurrentIteratorElementType = null,
 			CurrentIteratorThrownType = null,
 			ExplicitWithinContextDepth = scope.ExplicitWithinContextDepth,
-			NewDelegateLambdaDepth = scope.NewDelegateLambdaDepth + (lambda.IsNewDelegate ? 1 : 0)
+			NewDelegateLambdaDepth = scope.NewDelegateLambdaDepth + (lambda.IsNewDelegate ? 1 : 0),
+			Lambda = lambda
 		};
 
 		if (lambdaAnalysisShape is CallableShape capabilityShape
@@ -7667,6 +7676,8 @@ public sealed partial class BindableNodeAnalyzer
 	sealed class BodyScope(BodyScope? parent, FunctionDefinition currentFunction, TypeDefinition? containingType)
 	{
 		public BodyScope? Parent { get; } = parent;
+		// Set on the scope of a lambda body so capability uses can be attributed to the lambda.
+		public LambdaExpression? Lambda { get; set; }
 		public FunctionDefinition CurrentFunction { get; } = currentFunction;
 		public TypeDefinition? ContainingType { get; } = containingType;
 		public string CurrentFunctionReturnType { get; set; } = ErrorType;

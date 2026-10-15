@@ -1822,8 +1822,9 @@ public sealed partial class BindableNodeAnalyzer
 				continue;
 
 			next = function;
+			// The current slot is storage: an expanded argument keeps its whole single-object form.
 			elementType = substitutions.Count > 0
-				? SubstituteGenericType(yieldedType, substitutions)
+				? TryGetPointerElementType(SubstituteStorageType(parameters[0].ResolvedType!, substitutions)) ?? SubstituteGenericType(yieldedType, substitutions)
 				: yieldedType;
 			return true;
 		}

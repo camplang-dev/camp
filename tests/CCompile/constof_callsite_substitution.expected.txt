@@ -67,8 +67,8 @@ int main(void)
 	uintptr_t readonlyValues_length = values_length;
 	int *mutablePointer = (int *)(firstInt(values, values_length));
 	const int *readonlyPointer = firstInt(readonlyValues, readonlyValues_length);
-	int *genericMutablePointer = (int *)(firstGeneric(values, values_length, sizeof(int)));
-	const int *genericReadonlyPointer = firstGeneric(readonlyValues, readonlyValues_length, sizeof(int));
+	int *genericMutablePointer = ((int *)(firstGeneric(values, values_length, sizeof(int))));
+	const int *genericReadonlyPointer = ((const int *)(firstGeneric(readonlyValues, readonlyValues_length, sizeof(int))));
 	getFirstInt(values, values_length, (const int **)&mutablePointer);
 	getFirstInt(readonlyValues, readonlyValues_length, &readonlyPointer);
 	requireSameConstness(values, values_length, values, values_length);

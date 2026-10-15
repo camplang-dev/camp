@@ -290,12 +290,19 @@ public sealed partial class BindableNodeAnalyzer
 
 	bool HasNameOfCapability(BodyScope scope, string typeName)
 	{
-		if (FindNameOfParameter(scope.CurrentFunction, typeName) is not null)
-			return true;
+		if (FindNameOfParameter(scope.CurrentFunction, typeName) is NameOfParameterDefinition parameter)
+			return NoteCapabilityUse(scope, parameter, retained: false);
 
 		if (scope.ContainingType is ClassDefinition classDefinition
-			&& nameOfFields.ContainsKey((classDefinition, typeName)))
-			return true;
+			&& nameOfFields.TryGetValue((classDefinition, typeName), out FieldDefinition? retained)
+			&& retained.CapabilitySource is ParameterDefinition retainedSource)
+			return NoteCapabilityUse(scope, retainedSource, retained: true);
+
+		// A generator retains the name capability in its state across yields.
+		if (scope.ContainingType is TypeDefinition state)
+			foreach (FieldDefinition field in GetIteratorFields(state))
+				if (field.CapabilitySource is NameOfParameterDefinition stateName && NameOfTypeName(stateName.Type) == typeName)
+					return NoteCapabilityUse(scope, stateName, retained: true);
 
 		return false;
 	}
@@ -403,6 +410,15 @@ public sealed partial class BindableNodeAnalyzer
 			&& nameOfFields.TryGetValue((classDefinition, typeName), out FieldDefinition? field))
 			return CreateNameOfFieldReference(classDefinition, field, nameOf.SourceSyntax);
 
+		if (currentRewriteContainingType is TypeDefinition iteratorState)
+			foreach (FieldDefinition stateField in GetIteratorFields(iteratorState))
+				if (stateField.CapabilitySource is NameOfParameterDefinition stateName && NameOfTypeName(stateName.Type) == typeName)
+					return ThisMemberReference(NameOfParameterName(stateName.Type), "string");
+
+		if (currentRewriteFunction?.CapturedCapabilityOwner is ClassDefinition capturedOwner
+			&& nameOfFields.TryGetValue((capturedOwner, typeName), out FieldDefinition? capturedField))
+			return CreateNameOfFieldReference(capturedOwner, capturedField, nameOf.SourceSyntax);
+
 		if (ReferencesCallerGenericParameter(typeName))
 			Report(nameOf.SourceSyntax, $"typenameof({typeName}) requires parameter 'typenameof_{SanitizeNameOfTypeName(typeName)}'.");
 		return nameOf;
@@ -414,6 +430,9 @@ public sealed partial class BindableNodeAnalyzer
 			return null;
 		foreach (ParameterDefinition parameter in function.Parameters)
 			if (parameter is NameOfParameterDefinition nameOf && NameOfTypeName(nameOf.Type) == typeName)
+				return nameOf;
+		foreach (ParameterDefinition captured in function.CapturedCapabilities)
+			if (captured is NameOfParameterDefinition nameOf && NameOfTypeName(nameOf.Type) == typeName)
 				return nameOf;
 		return null;
 	}

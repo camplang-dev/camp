@@ -929,6 +929,14 @@ public sealed partial class BindableNodeAnalyzer
 			return new ArgumentExpression { SourceSyntax = syntax, Value = value, ResolvedType = parameterType };
 		}
 
+		// An erased current slot (T*) receives the whole single-object storage of an expanded
+		// element, never a pointer to its first component.
+		if (ErasedTypeIdentity.TryGetPayload(value.ResolvedType, out _)
+			&& TryGetPointerElementType(parameterType) is string erasedPointee
+			&& typeDefinitions.ContainsKey(erasedPointee) == false
+			&& !ErasedTypeIdentity.TryGetPayload(erasedPointee, out _))
+			parameterType = AddPointer(value.ResolvedType!);
+
 		return new ArgumentExpression
 		{
 			SourceSyntax = syntax,
@@ -1124,6 +1132,14 @@ public sealed partial class BindableNodeAnalyzer
 		string? thrownType = thrownParameter?.ResolvedType ?? thrownParameter?.Type?.ResolvedType;
 		string elementType = foreachStatement.Target.ResolvedType ?? TryGetPointerElementType(currentParameters.Count > 0 ? currentParameters[0].ResolvedType : null) ?? ErrorType;
 		bool useLiftedState = iteratorForeachStates.TryGetValue(foreachStatement, out IteratorForeachStateFields? stateFields);
+		// A generic iterator instantiated with an expanded argument yields its whole single-object
+		// storage; the loop target is read from that storage rather than receiving its components.
+		string currentType = elementType;
+		if (!useLiftedState
+			&& TryFindIteratorNextMethod(iteratorType, out _, out string iteratorElementType)
+			&& ErasedTypeIdentity.TryGetPayload(iteratorElementType, out _)
+			&& !ErasedTypeIdentity.TryGetPayload(elementType, out _))
+			currentType = iteratorElementType;
 		DeclarationStatement? iteratorLocal = null;
 		DeclarationStatement? currentLocal = null;
 		DeclarationStatement? errorLocal = null;
@@ -1163,7 +1179,7 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			iteratorLocal = CreateGeneratedLocal(NewGeneratedLocalName("foreachIter"), iteratorType, TypeReferenceForResolvedName(iteratorType), source);
 			string currentLocalName = NewGeneratedLocalName("foreachCurrent");
-			currentLocal = CreateGeneratedLocal(currentLocalName, elementType, TypeReferenceForResolvedName(elementType), new DefaultExpression { ResolvedType = elementType });
+			currentLocal = CreateGeneratedLocal(currentLocalName, currentType, TypeReferenceForResolvedName(currentType), new DefaultExpression { ResolvedType = currentType });
 			setupStatements.Add(iteratorLocal);
 			if (TryGetParamsComponentShape(currentLocal.Target.Type, currentLocal.Target.ResolvedType, currentLocalName, out ParamsComponentShape currentShape)
 				&& currentShape.Components.Count > 1)
@@ -1197,7 +1213,7 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			return useLiftedState && stateFields is not null
 				? ThisMemberReference(stateFields.CurrentFieldName, elementType)
-				: CreateVariableReference(currentLocal!.Target, elementType);
+				: CreateVariableReference(currentLocal!.Target, currentType);
 		}
 		Expression ErrorReference() => CreateVariableReference(errorLocal!.Target, errorLocal.Target.ResolvedType ?? thrownType ?? ErrorType);
 

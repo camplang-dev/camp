@@ -1078,7 +1078,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	void Report(SyntaxNode? syntax, string message, string? code = null)
 	{
-		diagnostics.Add(new AnalysisDiagnostic(GetRange(syntax), message, code));
+		diagnostics.Add(new AnalysisDiagnostic(GetRange(syntax), DisplayCarrierStandIns(message), code));
 	}
 
 	void Warn(SyntaxNode? syntax, string message, string? code = null)

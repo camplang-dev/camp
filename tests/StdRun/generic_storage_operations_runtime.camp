@@ -1,0 +1,260 @@
+using Std;
+
+struct Wide { long a; byte b; short c; }
+
+T at<T>(T[] values, nuint i, sizeof(T)) { stackalloc T r = values[i]; return r; }
+void setAt<T>(T[] values, nuint i, in T v, sizeof(T)) { values[i] = v; }
+T* addr<T>(T[] values, nuint i, sizeof(T)) { return &values[i]; }
+T[] tail<T>(T[] values, sizeof(T)) { return values[1..]; }
+T[] mid<T>(T[] values, sizeof(T)) { return values[1..3]; }
+void fill<T>(T[] values, in T v, sizeof(T)) { for (nuint i = 0; i < values.length; i++) values[i] = v; }
+void reset<T>(T[] values, sizeof(T)) { for (nuint i = 0; i < values.length; i++) values[i] = default; }
+void copyOut<T>(T[] values, nuint i, out T dst, sizeof(T)) { dst = values[i]; }
+void copyIn<T>(in T src, T[] values, nuint i, sizeof(T)) { values[i] = src; }
+escaped T[] make<T>(nuint n, in T v, sizeof(T)) { T[] r = new T[n]; fill<T>(r, v); return r; }
+escaped T[] makeDefault<T>(nuint n, sizeof(T)) { T[] r = new T[n]; for (nuint i = 0; i < n; i++) r[i] = default; return r; }
+nuint count<T>(const T[] values, sizeof(T)) { nuint n = 0; foreach (stackalloc T item in values) n++; return n; }
+void swap<T>(T[] values, nuint i, nuint j, sizeof(T)) { stackalloc T t = values[i]; values[i] = values[j]; values[j] = t; }
+T pickAt<T>(const T[] values, nuint i, sizeof(T)) => values[i];
+
+int run1()
+{
+	Wide[] w = [{1, 2, 3}, {4, 5, 6}, {7, 8, 9}, {10, 11, 12}];
+	Wide w2 = at<Wide>(w, 2);
+	if (w2.a != 7 || w2.b != 8 || w2.c != 9) return 1;
+	Wide nv = { 100, 101, 102 };
+	setAt<Wide>(w, 1, nv);
+	if (w[1].a != 100 || w[1].b != 101 || w[1].c != 102 || w[0].a != 1 || w[2].a != 7) return 2;
+	Wide* p = addr<Wide>(w, 3);
+	if (p.a != 10 || p.c != 12) return 3;
+	p.c = 77;
+	if (w[3].c != 77) return 4;
+	Wide[] t = tail<Wide>(w);
+	if (t.length != 3 || t[0].a != 100 || t[2].c != 77) return 5;
+	Wide[] m = mid<Wide>(w);
+	if (m.length != 2 || m[0].a != 100 || m[1].a != 7 || m[1].c != 9) return 6;
+	Wide fv = { 5, 6, 7 };
+	fill<Wide>(w, fv);
+	if (w[0].a != 5 || w[3].c != 7 || w[2].b != 6) return 7;
+	reset<Wide>(w);
+	if (w[0].a != 0 || w[3].c != 0 || w[2].b != 0 || w[1].a != 0) return 8;
+	Wide o = default;
+	setAt<Wide>(w, 2, fv);
+	copyOut<Wide>(w, 2, out o);
+	if (o.a != 5 || o.b != 6 || o.c != 7) return 9;
+	copyIn<Wide>(nv, w, 0);
+	if (w[0].a != 100 || w[0].c != 102 || w[1].a != 0) return 10;
+	Wide[] made = make<Wide>(5, fv);
+	if (made.length != 5 || made[4].a != 5 || made[4].c != 7 || made[0].b != 6) return 11;
+	delete made;
+	Wide[] md = makeDefault<Wide>(3);
+	if (md.length != 3 || md[2].a != 0 || md[2].c != 0) return 12;
+	delete md;
+	if (count<Wide>(w) != 4) return 13;
+	setAt<Wide>(w, 1, fv);
+	swap<Wide>(w, 0, 1);
+	if (w[0].a != 5 || w[1].a != 100) return 14;
+	Wide pk = pickAt<Wide>(w, 1);
+	if (pk.a != 100 || pk.b != 101 || pk.c != 102) return 15;
+	return 0;
+}
+
+int run2()
+{
+	void<int?>[] w = stackalloc void<int?>[4];
+	w[0] = 1; w[1] = default; w[2] = 3; w[3] = 4;
+	int? o = at<int?>(w, 0);
+	if (!o.specified || o.value != 1) return 1;
+	o = at<int?>(w, 1);
+	if (o.specified) return 2;
+	int? nv = 42;
+	setAt<int?>(w, 1, nv);
+	if (!w[1].specified || w[1].value != 42 || w[2].value != 3) return 3;
+	void<int?>[] t = tail<int?>(w);
+	if (t.length != 3 || !t[0].specified || t[0].value != 42 || t[2].value != 4) return 4;
+	swap<int?>(w, 0, 3);
+	if (w[0].value != 4 || w[3].value != 1) return 5;
+	reset<int?>(w);
+	if (w[0].specified || w[3].specified || w[1].specified || w[2].specified) return 6;
+	void<int?>[] made = make<int?>(3, nv);
+	if (made.length != 3 || !made[2].specified || made[2].value != 42 || !made[0].specified) return 7;
+	delete made;
+	void<int?>[] md = makeDefault<int?>(3);
+	if (md.length != 3 || md[2].specified || md[0].specified) return 8;
+	delete md;
+	if (count<int?>(w) != 4) return 9;
+	int? pk = pickAt<int?>(w, 2);
+	if (pk.specified) return 10;
+	return 0;
+}
+
+int cb(int x) => x + 1;
+int cb2(int x) => x + 2;
+
+int run3()
+{
+	void<delegate int(int)>[] ds = stackalloc void<delegate int(int)>[4];
+	ds[0] = cb; ds[1] = cb2; ds[2] = cb; ds[3] = cb2;
+	delegate int(int) d = at<delegate int(int)>(ds, 1);
+	if (d(10) != 12) return 1;
+	delegate int(int) c2 = cb2;
+	setAt<delegate int(int)>(ds, 0, c2);
+	if (ds[0](1) != 3) return 2;
+	void<delegate int(int)>[] t = tail<delegate int(int)>(ds);
+	if (t.length != 3 || t[0](1) != 3 || t[1](1) != 2 || t[2](1) != 3) return 3;
+	swap<delegate int(int)>(ds, 0, 1);
+	if (ds[0](1) != 3 || ds[1](1) != 3 || ds[2](1) != 2) return 4;
+	void<delegate int(int)>[] made = make<delegate int(int)>(3, c2);
+	if (made.length != 3 || made[2](5) != 7 || made[0](5) != 7) return 5;
+	delete made;
+	return 0;
+}
+
+int run4()
+{
+	int[] a0 = [1,2];
+	int[] a1 = [3,4,5];
+	int[] a2 = [6];
+	void<int[]>[] aa = stackalloc void<int[]>[3];
+	aa[0] = a0; aa[1] = a1; aa[2] = a2;
+	int[] x = at<int[]>(aa, 1);
+	if (x.length != 3 || x[2] != 5) return 1;
+	swap<int[]>(aa, 0, 2);
+	if (aa[0].length != 1 || aa[2].length != 2 || aa[2][1] != 2) return 2;
+	void<int[]>[] t = tail<int[]>(aa);
+	if (t.length != 2 || t[0].length != 3) return 3;
+	void<int[]>[] made = make<int[]>(2, a1);
+	if (made.length != 2 || made[1].length != 3 || made[1][2] != 5) return 4;
+	delete made;
+	return 0;
+}
+
+T last<T>(const T[] values, sizeof(T)) => values[^1];
+T[] headTwo<T>(T[] values, sizeof(T)) => values[..2];
+T[] rest<T>(T[] values, sizeof(T)) => values[2..];
+T* ident<T>(T* p) => p;
+T* addrAt<T>(T* p, nuint i, sizeof(T)) => &p[i];
+T readAt<T>(const T* p, nuint i, sizeof(T)) => p[i];
+
+int calls;
+int nextIndex() { calls++; return calls; }
+
+// Storage is allocated once on entry; the initializer and its effects run where the declaration is written.
+long sumLoop<T>(const T[] values, nuint rounds, delegate long(in T, sizeof(T)) f, sizeof(T))
+{
+	long total = 0;
+	for (nuint r = 0; r < rounds; r++)
+	{
+		stackalloc T item = values[r % values.length];
+		total += f(item);
+	}
+	return total;
+}
+
+long initializerEffects<T>(const T[] values, sizeof(T))
+{
+	long total = 0;
+	for (int i = 0; i < 4; i++)
+	{
+		stackalloc T item = values[(nuint)(nextIndex() % 2)];
+		total += i;
+	}
+	return total;
+}
+
+int skippedInitializer<T>(const T[] values, bool take, sizeof(T))
+{
+	int before = calls;
+	if (take)
+	{
+		stackalloc T item = values[(nuint)(nextIndex() % 2)];
+	}
+	return calls - before;
+}
+
+long weigh(in Wide w, sizeof(Wide)) => w.a + w.b + w.c;
+
+// A prepared array sizes and fills with the same size evidence.
+nuint produce<T>(in T value, nuint count, prep T[] buffer = default, sizeof(T))
+{
+	if (buffer.length >= count)
+		for (nuint i = 0; i < count; i++)
+			buffer[i] = value;
+	return count;
+}
+
+nuint forward<T>(in T value, nuint count, prep T[] buffer = default, sizeof(T))
+{
+	return produce<T>(value, count, buffer);
+}
+
+nuint viaGeneric<T>(in T value, sizeof(T))
+{
+	T[] made = produce<T>(value, 3);
+	nuint total = made.length;
+	for (nuint i = 0; i < made.length; i++)
+		made[i] = value;
+	return total;
+}
+
+int run5()
+{
+	Wide[] w = [{1, 2, 3}, {4, 5, 6}, {7, 8, 9}, {10, 11, 12}];
+	Wide l = last<Wide>(w);
+	if (l.a != 10 || l.c != 12) return 1;
+	if (headTwo<Wide>(w).length != 2 || headTwo<Wide>(w)[1].a != 4) return 2;
+	Wide[] r = rest<Wide>(w);
+	if (r.length != 2 || r[0].a != 7 || r[1].c != 12) return 3;
+	Wide* p0 = &w[0];
+	if (addrAt<Wide>(p0, 3).a != 10) return 4;
+	Wide rd = readAt<Wide>(p0, 2);
+	if (rd.a != 7 || rd.c != 9) return 5;
+	Wide single = { 7, 8, 9 };
+	if (ident<Wide>(&single).a != 7 || (*ident<Wide>(&single)).c != 9) return 6;
+	return 0;
+}
+
+int run6()
+{
+	Wide[] w = [{1, 2, 3}, {4, 5, 6}];
+	// A hoisted slot survives millions of iterations; allocating per iteration would overflow the stack.
+	if (sumLoop<Wide>(w, 3000000, weigh) != 1500000L * 6 + 1500000L * 15) return 1;
+	calls = 0;
+	if (initializerEffects<Wide>(w) != 6 || calls != 4) return 2;
+	calls = 0;
+	if (skippedInitializer<Wide>(w, false) != 0 || skippedInitializer<Wide>(w, true) != 1) return 3;
+	return 0;
+}
+
+int run7()
+{
+	Wide value = { 5, 6, 7 };
+	Wide[] r = produce<Wide>(value, 3);
+	if (r.length != 3 || r[0].a != 5 || r[2].c != 7 || r[1].b != 6) return 1;
+	fixed Wide[4] storage = default;
+	Wide[] fixedBuffer = storage;
+	if (produce<Wide>(value, 4, fixedBuffer) != 4 || storage[3].a != 5 || storage[3].c != 7) return 2;
+	Wide[] r2 = forward<Wide>(value, 2);
+	if (r2.length != 2 || r2[1].c != 7) return 3;
+	if (viaGeneric<Wide>(value) != 3) return 4;
+	return 0;
+}
+
+export int main()
+{
+	int r = run1();
+	if (r != 0) return 10 + r;
+	r = run2();
+	if (r != 0) return 30 + r;
+	r = run3();
+	if (r != 0) return 50 + r;
+	r = run4();
+	if (r != 0) return 70 + r;
+	r = run5();
+	if (r != 0) return 90 + r;
+	r = run6();
+	if (r != 0) return 110 + r;
+	r = run7();
+	if (r != 0) return 130 + r;
+	return 0;
+}

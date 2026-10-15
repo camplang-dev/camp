@@ -279,6 +279,11 @@ public class FunctionDefinition : Definition
 	public Expression? InterfaceSlotInitializer { get; set; }
 	public FunctionDefinition? InterfaceSlotInitializerTarget { get; set; }
 	internal FunctionDefinition? VisibilitySourceFunction { get; set; }
+	// A lambda function's view of the enclosing function's capability evidence: the captured slots,
+	// the class whose retained state supplies the rest, and how each is read through the context.
+	internal List<ParameterDefinition> CapturedCapabilities { get; } = [];
+	internal ClassDefinition? CapturedCapabilityOwner { get; set; }
+	internal Dictionary<string, Expression> CapturedCapabilityReads { get; } = new(StringComparer.Ordinal);
 	public List<GenericParameter> GenericParameters { get; } = [];
 	public List<ParameterDefinition> Parameters { get; } = [];
 	public List<UnaryExpression> AwaitSites { get; } = [];

@@ -1,0 +1,66 @@
+extern void* malloc(nuint size);
+extern void free(void* ptr);
+
+interface Reader { int read(); }
+
+// A lambda reads captured evidence through its context; a generator keeps it in state; the prepared
+// array sizes and fills with one evidence value.
+nuint sizeVia<T>(sizeof(T))
+{
+	delegate nuint() read = () => { return sizeof(T); };
+	return read();
+}
+
+void copyVia<T>(T[] values, nuint from, nuint to, sizeof(T))
+{
+	delegate void() move = () => { values[to] = values[from]; };
+	move();
+}
+
+struct iter int retained<T>(T* items, sizeof(T), typenameof(T), vtableof(T: Reader))
+{
+	string name = typenameof(T);
+	yield items.read();
+	yield (int)sizeof(T);
+}
+
+nuint produce<T>(in T value, nuint count, prep T[] buffer = default, sizeof(T))
+{
+	if (buffer.length >= count)
+		for (nuint i = 0; i < count; i++)
+			buffer[i] = value;
+	return count;
+}
+
+nuint prepared<T>(in T value, sizeof(T))
+{
+	T[] made = produce<T>(value, 3);
+	return made.length;
+}
+
+T* identity<T>(T* pointer) => pointer;
+
+class Resumer { void resumeAsync(escaped once void() continuation) { continuation(); } }
+async int tick(int value, @awaitwith Resumer* resumer) { return value; }
+
+class Holder<T>
+{
+	T* slot;
+	Holder(T* slot, sizeof(T)) { this.slot = slot; }
+
+	async int across(@awaitwith Resumer* resumer)
+	{
+		stackalloc T copy = *this.slot;
+		int x = await tick(1, resumer);
+		copy = *this.slot;
+		return x;
+	}
+}
+
+struct Wide { long a; byte b; short c; }
+
+export int main()
+{
+	Wide wide = { 1, 2, 3 };
+	return identity<Wide>(&wide).a == 1 ? 0 : 1;
+}

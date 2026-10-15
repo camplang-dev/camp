@@ -705,6 +705,11 @@ context-free functions.
 delegate int(int value) doubleValue = value => value * 2;
 ```
 
+A lambda inside a generic function can use `sizeof(T)`, `typenameof(T)` and
+`vtableof(T: I)`: the compiler captures the enclosing evidence into the lambda
+context, so give the lambda a `delegate` or `once` target. A plain `fn` target
+reports `Capturing lambdas require a delegate target.`
+
 Escaped lambdas can capture only values safe to store in their generated context.
 When an escaped delegate or once lambda owns generated context, follow the
 language docs and nearby code for `new delegate`, `delete delegate`, allocator,
@@ -1123,6 +1128,12 @@ write `return` inside a generator; reserve `return` for ordinary functions that
 return an `iter T` value produced elsewhere.
 
 ## Async And Postponed Work
+
+In generators over a void-represented `T`, write exact `T` locals as
+`stackalloc T name`; a plain `T name` or `auto` local is rejected because it
+would be lifted into iterator state. A generic iterator over an expanded type
+such as `int?` yields whole `void<A>` storage, and a foreach target reads it
+back intact.
 
 `stackalloc void<V>` is activation-local storage allocated on entry to each
 resumption: after `yield` or `await`, assign it again before reading it. Use a heap-backed `void<V>*` for hidden state
