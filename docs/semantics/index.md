@@ -229,6 +229,7 @@ code. Ordinary Camp users should start with the language guide.
 ## 11. Metadata, API Surface, And Symbols
 
 - API Header Model
+- Generic Contracts Across Compilation Boundaries
 - Metadata View Model
 - Export/Public/All Filtering
 - Generated Versus Source Declarations

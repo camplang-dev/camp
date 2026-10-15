@@ -394,9 +394,9 @@ public sealed partial class BindableNodeAnalyzer
 		return type switch
 		{
 			null => ErrorType,
-			TypeDefinitionReference { Definition: not null } definition => AddTypeArguments(ResolvedNominalTypeName(definition.Definition), definition.TypeArguments),
+			TypeDefinitionReference { Definition: not null } definition => ConstructedName(ResolvedNominalTypeName(definition.Definition), definition.TypeArguments),
 			TypeDefinitionReference definition => definition.ResolvedType ?? AddTypeArguments(definition.Name, definition.TypeArguments),
-			NamedTypeReference named when TryGetNamedTypeDefinition(named, out TypeDefinition? definition) && definition is not null => AddTypeArguments(ResolvedNominalTypeName(definition), named.TypeArguments),
+			NamedTypeReference named when TryGetNamedTypeDefinition(named, out TypeDefinition? definition) && definition is not null => ConstructedName(ResolvedNominalTypeName(definition), named.TypeArguments),
 			ConstOfTypeReference constOf => FormatTypeDeclarator("constof(" + (anchors.TryGetValue(constOf.AnchorName, out string? mapped) ? mapped : constOf.AnchorName) + ")", constOf.Type is null ? null : new RawFormattedTypeReference(FormatSignatureTypeReference(constOf.Type, anchors))),
 			AttributedTypeReference attributed => FormatSignatureTypeReference(attributed.Type, anchors),
 			GenericTypeReference generic => generic.TypeArguments.Count == 0
@@ -420,6 +420,9 @@ public sealed partial class BindableNodeAnalyzer
 			ThrownTypeReference thrown => $"thrown({FormatSignatureTypeReference(thrown.Type, anchors)})",
 			_ => type.ResolvedType ?? FormatTypeReference(type)
 		};
+
+		string ConstructedName(string name, List<TypeReference> arguments) => arguments.Count == 0 ? name
+			: $"{name}<{string.Join(", ", arguments.Select(argument => FormatSignatureTypeReference(argument, anchors)))}>";
 	}
 
 	sealed class RawFormattedTypeReference : TypeReference

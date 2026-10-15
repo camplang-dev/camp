@@ -129,7 +129,7 @@ through the source node that caused the rewrite.
 Analysis uses lexical and semantic scopes. A scope may contain:
 
 - visible declarations and imported names;
-- type parameters and generic constraints;
+- type parameters and generic representations;
 - receiver information;
 - lifetime anchors;
 - `constof` anchors;
@@ -147,7 +147,8 @@ instance-member access, even when the containing class has a field or property
 with that name. Locals and parameters still take precedence as member receivers.
 This lookup also applies when checking calls for omitted `out` results.
 Generic qualifiers represented as call expressions retain full expression
-analysis during that check so written type argument constraints are validated.
+analysis during that check so written type argument eligibility and capability
+obligations are validated.
 
 For an ordinary instance field, visibility of a non-extern class definition
 grants access to its layout, including unmodified fields. This applies in other
@@ -419,7 +420,7 @@ type strings. It also validates source positions for constructs such as:
 - `this` and `classtype`;
 - `sizeof`, `typenameof`, and `vtableof` capability parameters;
 - callable `this` parameters;
-- interface constraints and generic constraints.
+- constructed interface contracts and generic representations.
 
 Type binding must not erase source spelling prematurely. Metadata and diagnostics
 need the original source contract even when C emission uses a simpler or

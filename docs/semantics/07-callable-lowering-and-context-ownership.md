@@ -239,7 +239,7 @@ explicit positional, named, or `default` prep argument selects one full scalar
 call.
 
 This rule applies to direct `fn` values, bound delegates, callable newtypes,
-interface and virtual references, generic constraint members, and imported API
+interface and virtual references, generic witness members, and imported API
 surfaces that carry prep. A non-prep view remains ordinary even if its concrete
 target has a stronger prep declaration. Hidden delegate context and expanded
 receiver components are not source parameters and do not shift the declared

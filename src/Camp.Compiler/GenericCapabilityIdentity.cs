@@ -5,11 +5,13 @@ internal static class GenericCapabilityIdentity
 {
 	public static string? Describe(ParameterDefinition parameter) => parameter switch
 	{
-		SizeOfParameterDefinition => $"sizeof({BindableNodeAnalyzer.FormatTypeReference(parameter.Type)})",
-		NameOfParameterDefinition => $"typenameof({BindableNodeAnalyzer.FormatTypeReference(parameter.Type)})",
-		VTableOfParameterDefinition witness => $"vtableof({BindableNodeAnalyzer.FormatTypeReference(parameter.Type)}: {BindableNodeAnalyzer.FormatTypeReference(witness.InterfaceType)})",
+		SizeOfParameterDefinition => $"sizeof({Operand(parameter.Type)})",
+		NameOfParameterDefinition => $"typenameof({Operand(parameter.Type)})",
+		VTableOfParameterDefinition witness => $"vtableof({Operand(parameter.Type)}: {Operand(witness.InterfaceType)})",
 		_ => null
 	};
+
+	static string Operand(TypeReference? type) => type?.ResolvedType ?? BindableNodeAnalyzer.FormatTypeReference(type);
 
 	public static ParameterDefinition? Parse(string text)
 	{

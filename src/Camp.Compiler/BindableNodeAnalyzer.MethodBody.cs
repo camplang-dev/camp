@@ -4819,11 +4819,18 @@ public sealed partial class BindableNodeAnalyzer
 	bool TryBindCallArgumentToParameter(ArgumentExpression argument, List<ParameterDefinition> callableParameters, bool[] suppliedParameters, SyntaxNode? fallbackSyntax, out int parameterIndex)
 	{
 		parameterIndex = -1;
-		if (implicitCapabilityArguments.TryGetValue(argument, out ParameterDefinition? capability)
-			&& (parameterIndex = callableParameters.IndexOf(capability)) >= 0)
+		if (implicitCapabilityArguments.TryGetValue(argument, out ParameterDefinition? capability))
 		{
-			suppliedParameters[parameterIndex] = true;
-			return true;
+			parameterIndex = callableParameters.IndexOf(capability);
+			// Flattening a delegate reconstructs its parameter objects. Keep an
+			// already checked capability attached to the equivalent operand slot.
+			if (parameterIndex < 0 && GenericCapabilityIdentity.Describe(capability) is string contract)
+				parameterIndex = callableParameters.FindIndex(parameter => GenericCapabilityIdentity.Describe(parameter) == contract);
+			if (parameterIndex >= 0)
+			{
+				suppliedParameters[parameterIndex] = true;
+				return true;
+			}
 		}
 		if (!string.IsNullOrWhiteSpace(argument.Name))
 		{

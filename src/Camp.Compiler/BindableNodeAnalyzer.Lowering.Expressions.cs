@@ -739,7 +739,8 @@ public sealed partial class BindableNodeAnalyzer
 			if (parameter is SizeOfParameterDefinition && argumentsByParameter[parameterIndex] is null)
 				continue;
 			if (argumentsByParameter[parameterIndex] is ArgumentExpression supplied
-				&& !(IsExplicitHiddenArgument(supplied) && IsImplicitOnlyCallParameter(parameter)))
+				&& (!IsExplicitHiddenArgument(supplied) || !IsImplicitOnlyCallParameter(parameter)
+					|| parameter is SizeOfParameterDefinition or NameOfParameterDefinition or VTableOfParameterDefinition))
 			{
 				orderedArguments.Add(supplied);
 				int consumedParameters = CountCallableParametersSatisfiedByArgument(call.Arguments, supplied, callableParameters, parameterIndex);
@@ -1073,6 +1074,11 @@ public sealed partial class BindableNodeAnalyzer
 
 	int CountCallableParametersSatisfiedByArgument(List<ArgumentExpression> arguments, ArgumentExpression argument, List<ParameterDefinition> callableParameters, int parameterIndex)
 	{
+		// Capability operands describe the carried value, not the ABI shape of
+		// the capability. A name for T[] still occupies one string slot.
+		if (parameterIndex < callableParameters.Count
+			&& callableParameters[parameterIndex] is SizeOfParameterDefinition or NameOfParameterDefinition or VTableOfParameterDefinition)
+			return 1;
 		int argumentIndex = arguments.IndexOf(argument);
 		// Rebinding an expanded call must count the call and context separately.
 		// Consuming both slots again shifts subsequent inputs and result storage.

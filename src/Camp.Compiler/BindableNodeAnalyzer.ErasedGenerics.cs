@@ -134,6 +134,9 @@ public sealed partial class BindableNodeAnalyzer
 
 	void AddErasedResultArgument(CallExpression call, DeclarationTarget target)
 	{
+		// Bind support arguments before inserting caller storage into an indirect
+		// call's source arguments, then retain that output in its binding contract.
+		if (!callTargets.ContainsKey(call)) AddImplicitCallableCapabilityArguments(call);
 		int index = call.Arguments.Count;
 		if (callTargets.TryGetValue(call, out FunctionDefinition? pending) && !trailingOutResults.ContainsKey(call) && !materializedGenericReturnParameters.ContainsKey(pending))
 			TryExpandMaterializedGenericReturn(pending);
@@ -146,11 +149,22 @@ public sealed partial class BindableNodeAnalyzer
 		}
 		else if (erasedCallableResults.Contains(call) && TryGetCallableInvocationShape(call.Target?.ResolvedType, out CallableShape callable))
 		{
-			List<string> parameters = GetExpandedCallableParameterTypes(callable.Parameters);
+			List<string> parameters = GetExpandedCallableParameterTypes(GetSourceCallableParameterTypes(callable));
 			int position = CallableShapeService.ResultStorageIndex(parameters);
 			// Delegate rewriting may already expose the lowered output slot.
 			if (callable.ReturnType is "void" or "bool") position--;
 			index = System.Math.Min(index, System.Math.Max(0, position));
+			if (callable.ReturnType is not ("void" or "bool")
+				&& callableInvocationParameters.TryGetValue(call, out List<ParameterDefinition>? sourceParameters))
+			{
+				List<ParameterDefinition> withResult = [.. sourceParameters];
+				withResult.Insert(System.Math.Min(index, withResult.Count), new ParameterDefinition
+				{
+					Name = "__result", Modifier = ParameterModifier.Out, IsErasedResultStorage = true,
+					Type = TypeReferenceForResolvedName(callable.ReturnType), ResolvedType = callable.ReturnType
+				});
+				callableInvocationParameters[call] = withResult;
+			}
 		}
 		call.Arguments.Insert(index, new ArgumentExpression
 		{

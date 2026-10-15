@@ -1014,7 +1014,7 @@ A reference to a generic method has the erasure of its signature: `T` becomes
 `void<A>` for an omitted representation or `R<A>` for an explicit integer
 representation. An existing outer annotation is replaced with the destination R;
 nested nominal arguments remain intact. `numbers.getItem` is `delegate void<int>(nuint)`
-for both `List<int>` and `List<int?>`-style payloads, and `slot.get` of a
+for `List<int>` and `delegate void<int?>(nuint)` for `List<int?>`, and `slot.get` of a
 `Slot<Color>` with `T: long` is `delegate long<Color>()`. A function may write a
 `void<V>` result (`void<int> seven() => 7;`); a call reads it as `V`.
 
@@ -1088,6 +1088,23 @@ export T choose<T>(in T left, in T right, bool useLeft, sizeof(T))
     return right;
 }
 ```
+
+Borrow-only code needs no size: `void borrow<T>(T* value) { }`. For an
+illustrative `interface Reading { int read(); }`, witness and combined forms are:
+
+```camp
+int read<T>(T* value, vtableof(T: Reading)) => value.read();
+int copyAndRead<T>(in T value, sizeof(T), vtableof(T: Reading))
+{
+    stackalloc T local = value;
+    return local.read();
+}
+```
+
+The combined form accepts copyable implementing structs; direct implementing
+classes use witness-only borrowing. Rebuild both sides of a separate-compilation
+boundary after changing representations or capabilities. Generated Camp APIs
+preserve contracts; private capture/retention fields remain implementation state.
 
 Arrays, optionals, delegates, interfaces, and other expanded values may need
 erased storage in generic contexts. Reach for `void<V>` when the

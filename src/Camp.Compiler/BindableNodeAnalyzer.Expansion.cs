@@ -519,11 +519,18 @@ public sealed partial class BindableNodeAnalyzer
 	FunctionDefinition CreateInterfaceAccessorDeclaration(ClassDefinition classDefinition, InterfaceImplementationLowering lowering)
 	{
 		InterfaceDefinition interfaceDefinition = lowering.Interface;
+		string sourceInterface = GetConstructedInterfaces(classDefinition)
+			.First(candidate => ReferenceEquals(candidate.Definition, interfaceDefinition)).Type;
+		TypeDefinitionReference sourceInterfaceType = new()
+		{
+			Definition = interfaceDefinition, Name = interfaceDefinition.Name, ResolvedType = sourceInterface
+		};
+		sourceInterfaceType.TypeArguments.AddRange(ExtractConstructedTypeArguments(sourceInterface).Select(TypeArgumentReference));
 		TypeReference sourceReturnType = PointerTo(new ConstOfTypeReference
 		{
 			AnchorName = "this",
-			Type = InterfaceType(interfaceDefinition),
-			ResolvedType = "const " + interfaceDefinition.Name
+			Type = sourceInterfaceType,
+			ResolvedType = "const " + sourceInterface
 		});
 		FunctionDefinition accessor = generatedDeclarations.Function(GeneratedDeclarationCategory.Interface, "interface accessor", classDefinition);
 		accessor.Name = InterfaceAccessorName(interfaceDefinition);
@@ -543,6 +550,24 @@ public sealed partial class BindableNodeAnalyzer
 		};
 		accessor.EffectiveThisParameter.Attributes.Add(new AttributeConstructor { Name = "const" });
 		return accessor;
+	}
+
+	static TypeReference TypeArgumentReference(string type)
+	{
+		TypeReference reference = TypeReferenceForResolvedName(type);
+		Normalize(reference);
+		BindableNodeTraversal.RewriteChildren(reference, static expression => expression, Normalize, []);
+		return reference;
+
+		static TypeReference Normalize(TypeReference node)
+		{
+			if (node is NamedTypeReference named && ExtractConstructedTypeArguments(named.Name) is { Count: > 0 } arguments)
+			{
+				named.Name = BaseTypeName(named.Name);
+				named.TypeArguments.AddRange(arguments.Select(TypeArgumentReference));
+			}
+			return node;
+		}
 	}
 
 	static bool IsInterfaceExportedForClass(ClassDefinition classDefinition, InterfaceDefinition interfaceDefinition)

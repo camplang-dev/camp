@@ -7563,6 +7563,32 @@ public sealed class CommandLineTests
 			extern escaped void* malloc(nuint size);
 			extern void free(void* pointer);
 
+			export newtype fn T CarrierMap<T: int>(T value);
+			export newtype delegate T CopyOp<T>(in T value, typenameof(T), sizeof(T));
+			export T identity<T: int>(T value): CarrierMap<T> => value;
+			export T copy<T>(in T value, typenameof(T), sizeof(T)) => value;
+			export int<short> invoke(CarrierMap<short> callback, int<short> value) => callback(value);
+			export escaped delegate nuint() sizeReader<T>(sizeof(T))
+			{
+				return within(default) new delegate () => sizeof(T);
+			}
+
+			export interface Transform<T: int> { T apply(T value); }
+			export struct ShortTransform: Transform<short>
+			{
+				int<short> apply(int<short> value): Transform<short> => value;
+			}
+			export class ByteTransform: Transform<byte>
+			{
+				int<byte> apply(int<byte> value): Transform<byte> => value;
+			}
+			export class Retained<T>
+			{
+				T* item;
+				export Retained(T* item, sizeof(T), typenameof(T)) { this.item = item; }
+				export T get() => *this.item;
+			}
+
 			export interface IValue
 			{
 				export int value();
@@ -7570,6 +7596,7 @@ public sealed class CommandLineTests
 
 			export class Counter: IValue
 			{
+				export U copyValue<U>(in U value, typenameof(U), sizeof(U)): CopyOp<U> => value;
 				int value(): IValue
 				{
 					return 1;
@@ -7606,6 +7633,7 @@ public sealed class CommandLineTests
 		File.WriteAllText(app, """
 			#build --nostdlib
 			#build --name interface-app
+			extern void free(void* pointer);
 
 			int readValue(IValue* value)
 			{
@@ -7621,6 +7649,25 @@ public sealed class CommandLineTests
 			{
 				auto counter = new Counter() finally delete;
 				int total = 0;
+				ShortTransform shortTransform = default;
+				Transform<short>* shortView = &shortTransform;
+				if (shortView.apply(-197) != -197) return 27;
+				auto byteTransform = new ByteTransform() finally delete;
+				Transform<byte>* byteView = byteTransform;
+				if (byteView.apply(231) != 231) return 28;
+				int retainedValue = 419;
+				auto retained = new Retained<int>((escaped)&retainedValue) finally delete;
+				if (retained.get() != 419) return 29;
+				if (invoke(identity<short>, -123) != -123) return 30;
+				int[] pair = stackalloc int[2];
+				pair[0] = 17; pair[1] = 29;
+				auto copyCallback = counter.copyValue<int[]>;
+				int[] copied = copyCallback(pair);
+				if (copied.length != 2 || copied[0] != 17 || copied[1] != 29) return 31;
+				auto sizeCallback = sizeReader<int[]>();
+				nuint capturedSize = sizeCallback();
+				within(default) delete sizeCallback;
+				if (capturedSize != sizeof(int[])) return 32;
 				IValue* assigned = counter;
 				total += readValue(assigned);
 				total += readValue((IValue*)counter);
@@ -7655,6 +7702,10 @@ public sealed class CommandLineTests
 		NativeBuildKind libraryKind = referenceKind == "static" ? NativeBuildKind.Static : NativeBuildKind.Shared;
 		string api = File.ReadAllText(Path.Combine(libraryRoot, "bin", ArtifactDirectoryForTarget(target, libraryKind), "interfaces_api.camp"));
 		Assert.Contains("export extern class Counter : IValue", api, StringComparison.Ordinal);
+		Assert.Contains("sizeReader<T>(sizeof(T))", api, StringComparison.Ordinal);
+		Assert.DoesNotContain("lambda", api, StringComparison.OrdinalIgnoreCase);
+		string metadata = File.ReadAllText(Path.Combine(libraryRoot, "bin", ArtifactDirectoryForTarget(target, libraryKind), "interfaces_api.json"));
+		Assert.DoesNotContain("lambda", metadata, StringComparison.OrdinalIgnoreCase);
 		Assert.Contains("export extern constof(this) IValue* getIValue();", api, StringComparison.Ordinal);
 		Assert.Contains("export extern class NativeCounter : IValue", api, StringComparison.Ordinal);
 		Assert.Contains("export extern class NativeDerived : NativeCounter", api, StringComparison.Ordinal);
@@ -7675,9 +7726,15 @@ public sealed class CommandLineTests
 				IValue **instance = Counter_getIValue(counter);
 				int interface_value = (*instance)->value(instance);
 				int generic = readViaWitness(counter, Counter_IValue);
+				int32_t input = -317, callback_result = 0;
+				CopyOp callback = (CopyOp)Counter_copyValue;
+				callback(counter, &input, &callback_result, "int", sizeof(input));
 				Counter_destroy(counter);
 				StructCounter struct_counter = {0};
 				int struct_witness = StructCounter_IValue->value(&struct_counter);
+				int32_t copied = 0;
+				copy(&input, &copied, "int", sizeof(input));
+				if (copied != input || callback_result != input || invoke(identity, -123) != -123) return 3;
 				return witness == 1 && interface_value == 1 && generic == 1 && struct_witness == 2 ? 0 : 2;
 			}
 			""");
@@ -7687,6 +7744,12 @@ public sealed class CommandLineTests
 			? RunProcess("cl", ["/nologo", "/c", "/I" + cHeaderDirectory, "/Fo" + cObject, cConsumer], appRoot)
 			: RunProcess(OperatingSystem.IsMacOS() ? "clang" : "gcc", ["-std=c11", "-O2", "-I", cHeaderDirectory, "-c", cConsumer, "-o", cObject], appRoot);
 		AssertCommandSucceeded(cCompile);
+		// Rebuild the Camp entry point with the compiled C consumer and execute it.
+		string withNative = File.ReadAllText(app).Replace("return total == 12 ? 0 : total;",
+			"return total == 12 ? witness_consumer() : total;", StringComparison.Ordinal);
+		File.WriteAllText(app, withNative + "\nextern int witness_consumer();\n");
+		AssertCommandSucceeded(RunCampc("build", app, "--target", target,
+			"--project-reference", libraryRoot + ":" + referenceKind, "--out-dir", outDir, "-r", cObject));
 		ProcessResult run = RunExecutable(Path.Combine(outDir, ArtifactDirectoryForHost(NativeBuildKind.Exec), "interface-app" + ExecutableExtensionForHost()));
 		Assert.Equal(0, run.ExitCode);
 		Assert.Equal("", run.StdErr);

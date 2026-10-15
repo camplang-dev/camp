@@ -20,7 +20,7 @@ to:
 
 - resolve exported, projected, and artifact-public declarations;
 - resolve static class containers and their visible static members;
-- bind generic parameters and constraints;
+- bind generic parameters, representations and capability obligations;
 - type-check calls, construction, interface dispatch, and `vtableof`;
 - understand callable newtypes and async source shape;
 - see attributes and documentation that belong to the source API;
@@ -35,7 +35,7 @@ length components.
 An exported struct retains its implemented interface list in the Camp API,
 including interfaces moved out of its base list during ABI lowering. Consumers
 use this list to validate implementation markers, interface conversions, and
-generic `implements` constraints.
+typed witness capability obligations.
 Private struct implementation signatures remain extern conformance declarations
 without added visibility. Native headers export the struct's witness table and
 interface dispatch adapters according to the type/interface visibility;
@@ -62,6 +62,39 @@ identity; extern/import/export meaning belongs to the visible member
 declarations. API headers must not synthesize ordinary class constructors,
 destructors, layout, lifecycle helpers, or receiver-bearing members for a static
 class.
+
+## Generic Contracts Across Compilation Boundaries
+
+Source serialization and Camp API declarations preserve generic parameter lists
+on types, callable newtypes and methods. Parameter ownership is the containing
+declaration; ordinal within its list identifies the binder. Import reconstructs
+these scopes before binding signatures. Equal names in unrelated declarations
+never equate binders. Omission means void representation; an explicit integer
+representation, including a resolved alias, retains its meaning on import.
+
+Preserve complete constructed interface markers and callable ascriptions, nested
+nominal arguments, protected erased results, parameter modes, constness, lifetime,
+requirements, calling conventions and target specs. A separately compiled
+`map<byte>` has the same constructed nominal type as its same-source reference.
+Neither read-view stripping nor equal C pointer slots establishes source identity.
+
+Capability parameters retain kind, exact operand/interface and relative order.
+A size slot remains a copyability obligation even when the producer ignores it.
+A constructor's retained capabilities are reconstructed from its source contract;
+private generated fields and lambda capture layouts are not public metadata.
+A returned delegate transports its context through the existing delegate ABI.
+Consumers need its callable contract, not access to that context's fields.
+
+There is one erased implementation per generic declaration. C headers expose
+integer carriers, whole erased result storage and support slots in ABI order;
+they do not substitute the payload's read view. Ordinary expanded arguments
+precede erased result storage, which precedes supplied support slots. Keep
+capability operands associated with those slots through allocator/error lowering.
+
+Changing a representation or capability contract is a source and ABI change.
+Rebuild both producers and consumers. Artifacts using the former default nint or
+plain witness-receiver substitution are not interchangeable with these contracts.
+Visibility projection below still applies, including inside constructed types.
 
 ## Metadata View Model
 
@@ -602,7 +635,7 @@ interfaces, enum values, aliases, and attributes.
 The serializer should preserve:
 
 - class/struct/interface/newtype/enum/params/staticClass kind;
-- generic parameters and constraints;
+- generic parameters and representations;
 - base classes/interfaces;
 - implemented interface metadata;
 - fields, including static, fixed, inline, and constant values;

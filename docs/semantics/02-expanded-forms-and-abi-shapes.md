@@ -177,7 +177,7 @@ An optional is an expanded value with:
 An optional holds one level. Its payload is a non-erased, non-expandable copyable
 type (`int?`, `Color?`), an array (`int[]?`, `T[]?`, `void<int?>[]?`) or a
 delegate shape (`Predicate?`, `delegate int()?`). A payload that is an optional,
-a type parameter of any constraint, `void<V>` or an integer carrier is an error
+a type parameter of any representation, `void<V>` or an integer carrier is an error
 wherever it is written: `int??`, `T?`, `void<V>?` and `long<Color>?`. Because a
 generic declaration cannot write `T?`, substitution never produces a nested
 optional. An optional remains a valid type argument and can be held whole as the

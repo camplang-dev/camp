@@ -48,7 +48,7 @@ public sealed partial class BindableNodeAnalyzer
 				continue;
 
 			// Generated passes revisit declarations whose arguments are not yet bound; read them as written.
-			List<string> written = [.. WrittenTypeArguments(baseType).Select(argument => argument.ResolvedType ?? FormatTypeReference(argument))];
+			List<string> written = [.. WrittenTypeArguments(baseType).Select(argument => FormatSignatureTypeReference(argument, []))];
 			if (substitution is { Count: > 0 })
 				written = [.. written.Select(argument => SubstituteGenericType(argument, substitution))];
 
@@ -119,7 +119,7 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			if (!TryGetNamedTypeDefinition(baseType, out TypeDefinition? definition) || definition is not InterfaceDefinition baseInterface)
 				continue;
-			List<string> written = [.. WrittenTypeArguments(baseType).Select(argument => SubstituteGenericType(argument.ResolvedType ?? FormatTypeReference(argument), chain))];
+			List<string> written = [.. WrittenTypeArguments(baseType).Select(argument => SubstituteGenericType(FormatSignatureTypeReference(argument, []), chain))];
 			if (ConstructedInterfaceArguments(baseInterface, written, target, seen) is List<string> found)
 				return found;
 		}

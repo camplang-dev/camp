@@ -878,6 +878,15 @@ type alone cannot check that pairing. Constructor results are erased to
 `void*` too. These function-pointer casts are validated only for the current
 x64 Clang/macOS, MSVC/Windows, and GCC/Linux Release targets; sanitizer/CFI
 indirect-call checks and other architectures/options are not validated.
+An integer-represented slot crosses this boundary at its carrier width, not its
+payload width. An erased result uses caller-owned whole-value storage, including
+both components of an array or delegate. Use the generated C header for slot
+order and types; a size argument must describe that represented storage.
+
+Rebuild libraries and their Camp or C consumers together after changing a generic
+representation or capability signature. Generated Camp APIs preserve constructed
+callable/interface identities and checked capability obligations. Matching native
+pointer sizes alone does not make two source contracts interchangeable.
 Generics do not create a hidden reflection runtime.
 
 ## Target-Conditioned Imports

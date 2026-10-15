@@ -1,5 +1,6 @@
 using System.IO;
 using System.Linq;
+using System.Text.Json;
 using Camp.Compiler;
 using Xunit;
 
@@ -7,6 +8,79 @@ namespace Camp.Compiler.Tests;
 
 public sealed class ErasedBoundaryTests
 {
+	[Theory]
+	[InlineData(false)]
+	[InlineData(true)]
+	public void Generic_api_round_trip_preserves_constructed_references_and_capability_contracts(bool lower)
+	{
+		const string source = """
+			extern escaped void* malloc(nuint size);
+			export newtype fn T Map<T: int>(T value);
+			export newtype delegate T Copy<T>(in T value, typenameof(T), sizeof(T));
+			export U map<U: int>(U value): Map<U> => value;
+			export interface Check<T: int> { bool check<V>(T value, V* other, typenameof(V)); }
+			export interface Borrowed<T> { void touch(T* value); }
+			export class Nested<W: int>: Borrowed<Map<W>*>
+			{
+				export void touch(void<Map<W>*>* value): Borrowed<Map<W>*> {}
+			}
+			export class Box<W: int>: Check<W>
+			{
+				export Box() {}
+				export bool check<X>(W value, X* other, typenameof(X)): Check<W> => true;
+				export V copy<V>(in V value, typenameof(V), sizeof(V)): Copy<V> => value;
+			}
+			""";
+		// The result uses the method binder, not a coincidentally named newtype binder.
+		string producerSource = source;
+		SemanticCompilation producer = lower ? SemanticCompiler.CompileLowered(producerSource) : SemanticCompiler.CompileDeclarations(producerSource);
+		SemanticCompiler.AssertNoDiagnostics(producer);
+		using StringWriter writer = new();
+		BindableNodeCodeSerializer.Serialize(producer.Compilation.Files[0].BindableTree!, writer, new BindableNodeCodeSerializerOptions { ApiHeader = true });
+		string api = writer.ToString();
+		Assert.Contains("Map<T: int>", api);
+		Assert.Contains("Copy<T>(in T value, typenameof(T), sizeof(T))", api);
+		Assert.Contains(": Check<W>", api);
+		Assert.True(api.Contains("Borrowed<Map<W>*>* getBorrowed"), api);
+		const string use = """
+			void test(Box<short>* box) { auto mapped = map<byte>; auto copied = box.copy<int[]>; }
+			""";
+		foreach (bool imported in new[] { false, true })
+		{
+			SemanticCompilation consumer = imported ? SemanticCompiler.CompileApiConsumer(api, use, lower: false)
+				: SemanticCompiler.CompileDeclarations(producerSource + use);
+			SemanticCompiler.AssertNoDiagnostics(consumer);
+			string?[]? inferred = null;
+			LoweringResult lowered = BindableNodeLowerer.Lower(consumer.Compilation.DeclarationExpansion!, (phase, action) =>
+			{
+				action();
+				if (phase == "method body analysis")
+					inferred = SemanticCompiler.Descendants<DeclarationStatement>(SemanticCompiler.Function(consumer, "test"))
+						.Select(d => d.Target.ResolvedType).ToArray();
+			});
+			Assert.Empty(lowered.Diagnostics);
+			Assert.Equal(new[] { "Map<byte>", "Copy<int[]>" }, inferred);
+			const string bad = "void bad(Box<short>* box) { box.copy<Box<short>>(*box); }";
+			SemanticCompilation invalid = imported ? SemanticCompiler.CompileApiConsumer(api, bad) : SemanticCompiler.CompileLowered(producerSource + bad);
+			Assert.Contains(invalid.Diagnostics, d => d.Contains("copyable"));
+		}
+		using JsonDocument metadata = JsonDocument.Parse(MetadataJsonSerializer.Serialize(producer.Compilation, MetadataVisibility.Export));
+		JsonElement[] definitions = metadata.RootElement.GetProperty("declarations").EnumerateArray().ToArray();
+		JsonElement map = definitions.Single(d => d.GetProperty("name").GetString() == "Map");
+		Assert.Equal("int", map.GetProperty("typeParameters")[0].GetProperty("constraint").GetString());
+		JsonElement copy = definitions.Single(d => d.GetProperty("name").GetString() == "Copy");
+		Assert.Equal("void", copy.GetProperty("typeParameters")[0].GetProperty("constraint").GetString());
+		JsonElement[] capabilities = copy.GetProperty("parameters").EnumerateArray().Where(p => p.TryGetProperty("capability", out _)).ToArray();
+		Assert.Equal(new[] { "typenameof", "sizeof" }, capabilities.Select(p => p.GetProperty("capability").GetString()));
+		Assert.All(capabilities, p => Assert.Equal("T", p.GetProperty("targetType").GetString()));
+		JsonElement box = definitions.Single(d => d.GetProperty("name").GetString() == "Box");
+		JsonElement check = box.GetProperty("functions").EnumerateArray().Single(f => f.GetProperty("name").GetString() == "check");
+		Assert.Equal("Check<W>", lower ? check.GetProperty("interfaceImplementation").GetProperty("interface").GetString()
+			: check.GetProperty("ascription").GetString());
+		Assert.NotEqual(box.GetProperty("typeParameters")[0].GetProperty("id").GetString(),
+			check.GetProperty("typeParameters")[0].GetProperty("id").GetString());
+	}
+
 	[Theory]
 	[InlineData(false, "")]
 	[InlineData(true, "")]

@@ -481,7 +481,7 @@ public static class MetadataJsonSerializer
 			{
 				json.WriteStartObject("interfaceImplementation");
 				WriteReference(json, "interfaceRef", function.InterfaceImplementationInterface);
-				json.WriteString("interface", function.InterfaceImplementationInterface.Name);
+				WriteTypeProperty(json, "interface", function.CallableAscriptionType, function.InterfaceImplementationInterface.Name);
 				if (function.InterfaceImplementationMember is not null)
 				{
 					json.WriteString("slot", SymbolNameService.CallableName(function.InterfaceImplementationMember).Value);
@@ -1060,7 +1060,9 @@ public static class MetadataJsonSerializer
 			json.WriteString("name", "get" + interfaceDefinition.Name);
 			json.WriteString("visibility", "export");
 			json.WriteBoolean("extern", true);
-			json.WriteString("returnType", "constof(this) " + interfaceDefinition.Name + "*");
+			TypeReference sourceInterface = classDefinition.BaseTypes.First(type =>
+				TryGetInterfaceDefinition(type, out InterfaceDefinition? resolved) && ReferenceEquals(resolved, interfaceDefinition));
+			json.WriteString("returnType", "constof(this) " + FormatType(sourceInterface, sourceInterface.ResolvedType) + "*");
 			json.WriteString("propertyName", interfaceDefinition.Name);
 			WriteReference(json, "interfaceRef", interfaceDefinition);
 			json.WriteEndObject();

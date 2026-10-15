@@ -149,8 +149,8 @@ Good diagnostics answer:
 Examples of useful wording patterns:
 
 - "Cannot index `T[]` because element stride for erased type parameter `T` is
-  unavailable. Add `sizeof(T)` to the parameter list or use a representation
-  constraint."
+  unavailable. Add `sizeof(T)` to the parameter list or select a fixed integer
+  representation when that storage contract is intended."
 - "Method `read` does not implement interface member `IReadable.read(...)`
   because it is missing an explicit interface marker."
 - "'Wide' is not a valid carried type for byte<V>: it is 64 bits wide, wider

@@ -193,7 +193,7 @@ error, size, name, and witness slots. Calls read as `A`; their ordinary
 inferred locals never acquire a top-level erased storage type.
 
 A generic declaration cannot write `T?`: an optional payload cannot be a type
-parameter of any constraint, so substitution never produces an optional of an
+parameter of any representation, so substitution never produces an optional of an
 optional. A declaration that would have returned `T?` returns `bool` and writes
 the value through a trailing `out T` (`List.tryGetItem`), and one that accepted
 `T?` takes a nullable `T*` or is redesigned around a `bool`.

@@ -590,7 +590,7 @@ unchanged.
 
 Invocation-time transformation applies through every prep-bearing source
 surface: free, static, instance, and extension functions; generic functions and
-constraint members; interface and virtual methods; `fn`, `delegate`, callable
+witness members; interface and virtual methods; `fn`, `delegate`, callable
 newtypes, and other compatible callable values; and declarations imported from
 Camp API headers. A method reference remains declaration-shaped when read:
 

@@ -10,6 +10,30 @@ namespace Camp.Compiler.Tests;
 public sealed class LanguageServiceTests
 {
 	[Fact]
+	public void Generic_reference_hover_preserves_constructed_identity_and_invalid_reference_range()
+	{
+		string root = CreateTempDirectory("language-service-generic-reference");
+		string source = Path.Combine(root, "main.camp");
+		string text = """
+			newtype fn T Map<T: int>(T value);
+			T map<T: int>(T value): Map<T> => value;
+			void test() { auto mapped = map<byte>; mapped(7); }
+			""";
+		File.WriteAllText(source, text);
+		CampAnalysisSnapshot snapshot = CampLanguageService.Analyze(Request(root, source));
+		Assert.True(snapshot.Success, string.Join(Environment.NewLine, snapshot.Diagnostics.Select(d => d.Message)));
+		CampSymbolQueryService symbols = new(snapshot);
+		CampHover? hover = symbols.GetHover(source, PositionOf(text, "mapped(7)"));
+		Assert.NotNull(hover);
+		Assert.Contains("Map<byte>", hover!.Markdown, StringComparison.Ordinal);
+		string invalid = text.Replace("map<byte>", "map", StringComparison.Ordinal);
+		CampAnalysisSnapshot rejected = CampLanguageService.Analyze(Request(root, source), [new CampSourceOverlay(source, invalid, Version: 1)]);
+		CampSourceDiagnostic diagnostic = Assert.Single(rejected.Diagnostics, d => d.Message.Contains("unresolved type argument"));
+		Assert.NotNull(diagnostic.Range);
+		Assert.Equal(2, diagnostic.Range!.Start.Line);
+	}
+
+	[Fact]
 	public void Specifier_syntax_and_parse_errors_match_cli_across_targets_disk_cache_and_overlays()
 	{
 		string root = CreateTempDirectory("language-service-specifiers");

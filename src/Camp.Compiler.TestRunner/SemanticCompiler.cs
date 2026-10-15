@@ -30,6 +30,13 @@ public static class SemanticCompiler
 		return Compile(source, CompilationPipeline.Lower);
 	}
 
+	public static SemanticCompilation CompileApiConsumer(string api, string source, bool lower = true)
+	{
+		return Compile([("producer_api.camp", api), ("consumer.camp", source)],
+			lower ? CompilationPipeline.Lower : CompilationPipeline.ExpandDeclarations, null,
+			new HashSet<string> { "producer_api.camp" });
+	}
+
 	public static SemanticCompilation CompileLoweredForTarget(string targetName, string source)
 	{
 		return Compile([("semantic_test.camp", source)], CompilationPipeline.Lower, compilation => compilation.Target = LoadTarget(FindRepositoryRoot(), targetName));
@@ -112,7 +119,7 @@ public static class SemanticCompiler
 		return Compile(sources, phase, null);
 	}
 
-	static SemanticCompilation Compile(IReadOnlyList<(string Path, string Text)> sources, Func<Compilation, bool> phase, Action<Compilation>? configure)
+	static SemanticCompilation Compile(IReadOnlyList<(string Path, string Text)> sources, Func<Compilation, bool> phase, Action<Compilation>? configure, IReadOnlySet<string>? apiFiles = null)
 	{
 		string repositoryRoot = FindRepositoryRoot();
 		Compilation compilation = new()
@@ -127,6 +134,7 @@ public static class SemanticCompiler
 			{
 				Path = path,
 				FullPath = Path.Combine(repositoryRoot, path),
+				IsApiHeader = apiFiles?.Contains(path) == true,
 				Text = text
 			});
 		}

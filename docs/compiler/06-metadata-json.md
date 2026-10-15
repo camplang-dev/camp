@@ -479,7 +479,18 @@ target type. For example:
 }
 ```
 
-Generic type parameters include `name`, `constraint`, and `metadata`.
+Generic type parameters include `id`, `name`, `constraint`, and `metadata`.
+The historical JSON field name `constraint` describes the representation:
+`void` for omission, or the written integer representation/alias. It does not
+advertise `any`, `copyable` or `implements` constraints. The enclosing declaration
+and list position identify each binder; names alone are not identities.
+
+Capability parameters remain in declaration order with exact `targetType` and,
+for witnesses, `interfaceType`. Do not replace them with ordinary parameters of
+the same ABI type. Constructed `ascription` and interface markers retain their
+arguments; protected `void<A>` results are not ordinary A or trailing out slots.
+Use generated Camp API declarations to import the contract. Rebuild producer
+and consumer artifacts when representations or capabilities change.
 
 ## Type Strings
 

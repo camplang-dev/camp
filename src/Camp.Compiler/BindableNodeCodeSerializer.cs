@@ -478,6 +478,7 @@ public sealed class BindableNodeCodeSerializer
 			writer.Write(" ");
 		}
 		writer.Write(definition.Name);
+		WriteGenericParameters(definition.GenericParameters);
 		if (callable)
 		{
 			WriteParameterList(definition.UnderlyingType is CallableTypeReference callableSignature
@@ -665,7 +666,9 @@ public sealed class BindableNodeCodeSerializer
 			WriteIndent();
 			WriteApiVisibilityPrefix(definition!);
 			writer.Write("extern ");
-			writer.Write(interfaceDefinition.Name);
+			TypeReference sourceInterface = definition!.BaseTypes.First(type =>
+				ReferenceEquals(ApiInterfaceDefinition(type), interfaceDefinition));
+			WriteType(sourceInterface);
 			writer.Write("* ");
 			writer.Write("get");
 			writer.Write(interfaceDefinition.Name);
@@ -690,20 +693,23 @@ public sealed class BindableNodeCodeSerializer
 		List<InterfaceDefinition> interfaces = [];
 		foreach (TypeReference baseType in definition.BaseTypes)
 		{
-			InterfaceDefinition? interfaceDefinition = baseType switch
-			{
-				TypeDefinitionReference { Definition: InterfaceDefinition typeDefinition } => typeDefinition,
-				TypeDefinitionReference typeDefinition => FindInterfaceDefinition(typeDefinition.ResolvedType ?? typeDefinition.Name),
-				NamedTypeReference named => FindInterfaceDefinition(named.ResolvedType ?? named.Name),
-				_ => null
-			};
-			if (interfaceDefinition?.Export is not null)
+			InterfaceDefinition? interfaceDefinition = ApiInterfaceDefinition(baseType);
+			if (interfaceDefinition?.Export is not null
+				&& !definition.Functions.Any(function => function.Name == "get" + interfaceDefinition.Name))
 			{
 				interfaces.Add(interfaceDefinition);
 			}
 		}
 		return interfaces;
 	}
+
+	InterfaceDefinition? ApiInterfaceDefinition(TypeReference type) => type switch
+	{
+		TypeDefinitionReference { Definition: InterfaceDefinition definition } => definition,
+		TypeDefinitionReference definition => FindInterfaceDefinition(definition.ResolvedType ?? definition.Name),
+		NamedTypeReference named => FindInterfaceDefinition(named.ResolvedType ?? named.Name),
+		_ => null
+	};
 
 	bool ShouldWriteSyntheticApiConstructor(ClassDefinition definition, List<FunctionDefinition> functions)
 	{

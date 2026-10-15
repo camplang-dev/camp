@@ -9235,6 +9235,26 @@ public static class CCodeEmitter
                 return FormatAsyncCallableNewtypeTypedef(callable, parameters, name);
             string returnType = callable.ReturnType?.ResolvedType ?? ResolvedTypeForC(callable.ReturnType, callable.ReturnType?.ResolvedType);
             List<(string Type, string Name)> parameterTypes = GetNamedCallableNewtypeParameterTypesForC(callable, parameters);
+            if (currentAnyGenericTypeNames.Contains(returnType) || ErasedTypeIdentity.TryGetPayload(returnType, out _))
+            {
+                int index = parameterTypes.Count;
+                int ordinal = callable.Kind == CallableKind.Function ? 0 : 1;
+                foreach (ParameterDefinition parameter in parameters)
+                {
+                    if (parameter is ThisParameterDefinition) continue;
+                    string parameterName = CallableParameterName(parameter, ordinal++);
+                    if (parameter is SizeOfParameterDefinition or NameOfParameterDefinition or VTableOfParameterDefinition
+                        || parameter.Modifier is ParameterModifier.Within or ParameterModifier.Thrown)
+                    {
+                        index = parameterTypes.FindIndex(slot => slot.Name == parameterName);
+                        break;
+                    }
+                }
+                parameterTypes.Insert(index, ("void*", "__result"));
+                returnType = "void";
+            }
+            else
+                ExpandResolvedCallableReturnForC(ref returnType, parameterTypes);
             return "typedef " + FormatInlineResolvedFunctionPointer(returnType, parameterTypes, name, callable.TargetSpec ?? GetDefaultTargetTypeSpec(functionPointer: true), callable.CallSpec);
         }
 

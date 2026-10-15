@@ -388,7 +388,8 @@ rather than storage.
 ## Generic Declarations At A Glance
 
 Functions and types can declare generic parameters. A generic parameter is not
-a blank check; its constraints say what operations the declaration can use.
+a blank check; its representation and declared capabilities determine the
+operations the declaration can use.
 
 ```camp
 export int main()
