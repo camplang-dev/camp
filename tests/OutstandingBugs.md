@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-297.
+Next bug number: BUG-298.
 
 ## Bug Template
 
@@ -87,3 +87,70 @@ Any call that passes a `string` value to a `const char[]` parameter followed by
 an explicitly supplied argument and a defaulted parameter. Workaround: remove the
 default, pass an explicit `const char[]` view (for example a local declared as
 `const char[]`), or supply every argument after the string by name.
+
+## BUG-297: Written capability evidence names are matched to the callee's slot names, not to their operands
+
+Date/Time: 2026-10-16 04:50 EDT
+
+Summary:
+A call may supply a capability slot with a written evidence name such as
+`vtableof_T_I`, which the language defines as resolving to the caller's own
+parameter before it is compared with the slot's substituted operand. When a
+generic caller forwards its evidence to a generic callee with the type
+arguments swapped, a name that happens to equal one of the callee's own slot
+names is compared against that callee slot instead of the caller's evidence, so
+the call is rejected with an operand mismatch. The same call written with
+`vtableof(U: I)` expressions, or with caller parameters named differently from
+the callee's, is accepted and returns the correct result.
+
+Steps to Reproduce:
+
+1. Compile and run:
+   ```camp
+   extern void __intrinsic_log_i32(int value);
+   extern escaped void* malloc(nuint size);
+   extern void free(void* ptr);
+   interface Counter { int read(); }
+   struct Cell: Counter
+   {
+       int value;
+       int read(): Counter { return this.value; }
+   }
+   int pair<T, U>(T* first, U* second, vtableof(T: Counter), vtableof(U: Counter))
+   {
+       return first.read() * 100 + second.read();
+   }
+   int swapped<T, U>(T* a, U* b, vtableof(T: Counter), vtableof(U: Counter))
+   {
+       return pair<U, T>(b, a, vtableof_U_Counter, vtableof_T_Counter);
+   }
+   export int main()
+   {
+       Cell x = default;
+       x.value = 3;
+       Cell y = default;
+       y.value = 5;
+       __intrinsic_log_i32(swapped<Cell, Cell>(&x, &y));
+       return 0;
+   }
+   ```
+2. Replace the two evidence names with `vtableof(U: Counter), vtableof(T: Counter)`,
+   or rename the caller's parameters to `A` and `B`, and compile again.
+
+Expected:
+Both forms compile and print 503: the caller's `U` evidence fills the callee's
+first slot and its `T` evidence fills the second, whatever the parameters are
+named.
+
+Actual:
+The named form is rejected: `Argument cannot convert 'vtableof(U: Counter)' to
+'vtableof(T: Counter)'` and `Capability slot 'vtableof_U_Counter' requires
+evidence for exact operand 'T'`. The expression form and the renamed form print
+503.
+
+Known Impact:
+Forwarding evidence by its generated name through a call whose type arguments
+are swapped, when the caller and callee name their parameters alike. Workaround:
+write the evidence as `sizeof(U)`, `typenameof(U)` or `vtableof(U: I)`
+expressions, omit the evidence so it is supplied from the caller, or use
+different parameter names.
