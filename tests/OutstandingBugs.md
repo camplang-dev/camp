@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-298.
+Next bug number: BUG-299.
 
 ## Bug Template
 
@@ -154,3 +154,38 @@ are swapped, when the caller and callee name their parameters alike. Workaround:
 write the evidence as `sizeof(U)`, `typenameof(U)` or `vtableof(U: I)`
 expressions, omit the evidence so it is supplied from the caller, or use
 different parameter names.
+
+## BUG-298: A call through a callable value whose parameter is a pointer-payload `nint` carrier fails in the C compiler
+
+Date/Time: 2026-10-16 21:10 EDT
+
+Summary:
+A generic function with an `nint` representation parameter can be called directly with a data pointer: the argument and result convert between the pointer and the `nint<pointer>` carrier correctly. When the same function is ascribed to a callable newtype constructed over the pointer type and the call goes through the callable value, the generated C passes the `int*` argument where the `intptr_t` carrier is expected and assigns the carrier result to an `int*`. Semantic analysis accepts the program and the native compile then stops with incompatible pointer/integer conversion errors.
+
+Steps to Reproduce:
+
+1. Compile and run this program:
+   ```camp
+   extern void __intrinsic_log_i32(int value);
+   newtype fn U WideId<U: nint>(U value);
+   U pass<U: nint>(U value): WideId<U> => value;
+   export int main()
+   {
+       int value = 77;
+       int* pointer = &value;
+       WideId<int*> f = pass<int*>;
+       int* result = f(pointer);
+       __intrinsic_log_i32(*result);
+       return 0;
+   }
+   ```
+2. Replace the callable-value call with the direct call `int* result = pass<int*>(pointer);` and compile again.
+
+Expected:
+Both forms compile and print 77.
+
+Actual:
+The callable-value form is rejected by the C compiler: `incompatible pointer to integer conversion passing 'int *' to parameter of type 'intptr_t'` and `incompatible integer to pointer conversion initializing 'int *' with an expression of type 'intptr_t'`. The direct call prints 77.
+
+Known Impact:
+Callable values whose parameters or results are pointer-payload `nint` carriers. Workaround: call the generic function directly, or carry an integer payload instead of a pointer.
