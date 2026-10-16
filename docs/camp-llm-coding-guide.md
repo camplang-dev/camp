@@ -75,6 +75,8 @@ High-impact distinctions:
   escape and do not cross `await` or `yield`. Use `fixed T[N]` for small inline
   fixed-size storage. Use `new T[count]` when the storage must outlive the
   current activation or be retained by heap/escaped objects.
+  A generator cannot yield `&local` of a `stackalloc` local (or an alias of it);
+  yield the value instead.
 - Constructor-shaped `Type(args)` constructs into storage already selected by
   the destination. It does not allocate by itself.
 - Prefer return-position `prep` for caller-prepared array results, such as
@@ -449,7 +451,7 @@ full details.
 | `once R(...)` | Callable consumed at most once | Common for continuations and async completion. |
 | `escaped`, `scoped`, `within` | Lifetime and allocation controls | State them when values cross storage or async boundaries. |
 | `void<V>` | One storage object annotated with payload `V`; C form is `void` | Use behind pointers, in dynamic arrays, in/out parameters, results, or stackalloc locals. |
-| `C<V>` for `byte`, `ushort`, `short`, `uint`, `int`, `ulong`, `long`, `nuint`, `nint` | Integer carrier: a value of type `V` stored and passed as the integer `C` | Use when an enum, newtype, narrower integer or (for `nint`/`nuint`) pointer must cross the ABI at a fixed integer width. It has a specified size, so it can be a field, local, parameter or result. It reads as `V`; `V` must be an integer, boolean, character, enum, `float`/`double` or scalar newtype that fits `C` (pointers for `nint`/`nuint`). `==` and `!=` compare every bit of the carrier (so `+0` and `-0` differ); compute on a read local instead. See [Generics And Capabilities](language/13-generics-and-capabilities.md). |
+| `C<V>` for `byte`, `ushort`, `short`, `uint`, `int`, `ulong`, `long`, `nuint`, `nint` | Integer carrier: a value of type `V` stored and passed as the integer `C` | Use when an enum, newtype, narrower integer or (for `nint`/`nuint`) pointer must cross the ABI at a fixed integer width. It has a specified size, so it can be a field, local, parameter or result. It reads as `V`; `V` must be an integer, boolean, character, enum, `float`/`double` or scalar newtype that fits `C` (pointers for `nint`/`nuint` only; fixed-width pointer carriers are rejected under a provisional policy, so do not rely on wider eligibility). `==` and `!=` compare every bit of the carrier (so `+0` and `-0` differ); compute on a read local instead. See [Generics And Capabilities](language/13-generics-and-capabilities.md). |
 | `void*`, `fn*`, `nint`, `nuint`, `untyped` | Raw carriers | Keep raw spans short and reconstruct typed values explicitly. |
 
 ## Variables And Assignment

@@ -45,6 +45,13 @@ struct iter T fixedLocal<T: int>(T first)
 	yield local;
 }
 
+// A pointer to long-lived storage may be yielded; the storage is not the generator's activation.
+struct iter T* sameAddress<T>(escaped T* item, sizeof(T))
+{
+	yield item;
+	yield item;
+}
+
 // Capabilities requested by a generator live in its state across yields.
 struct iter int readAll<T>(T* items, nuint count, sizeof(T), vtableof(T: Reader))
 {
@@ -196,6 +203,13 @@ int run1()
 	int sum = 0;
 	foreach (short s in fixedLocal<short>(-5)) sum += s;
 	if (sum != -10) return 8;
+
+	Wide* shared = new Wide();
+	shared.a = 11;
+	long seen = 0;
+	foreach (Wide* at in sameAddress<Wide>(shared)) seen += at.a;
+	if (seen != 22) return 9;
+	delete shared;
 	return 0;
 }
 

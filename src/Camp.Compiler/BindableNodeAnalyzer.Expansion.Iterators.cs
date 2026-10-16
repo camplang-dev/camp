@@ -254,6 +254,9 @@ public sealed partial class BindableNodeAnalyzer
 			case YieldStatement yieldStatement:
 				hasYield = true;
 				ValidateIteratorGeneratorSourceExpression(yieldStatement.Expression, stackAllocState);
+				// Source locals lift into the iterator frame, but stackalloc storage lives only in one activation.
+				if (stackAllocState.IsStackAddress(yieldStatement.Expression))
+					Report(GetRange(yieldStatement.Expression?.SourceSyntax ?? yieldStatement.SourceSyntax), "Yield expression cannot yield stackalloc-backed storage.");
 				if (!yieldStatement.IsBreak && yieldStatement.Expression is null)
 					Report(GetRange(yieldStatement.SourceSyntax), "Yield statement must yield a value or use 'yield break;'.");
 				stackAllocState.MarkSuspended();

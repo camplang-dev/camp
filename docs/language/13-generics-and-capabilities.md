@@ -127,6 +127,8 @@ a wide carrier does not make an out-of-range byte literal valid.
 
 Eligible arguments are integers, booleans, characters, enums, `float`, `double`,
 scalar newtypes over those, and data pointers or strings for `nint` and `nuint`.
+Fixed-width integer carriers of pointers are rejected for now; that restriction
+is a provisional policy, and broader eligibility is undecided (see semantics 06).
 A signed value sign-extends into a wider carrier and an unsigned, boolean or
 character value zero-extends. A `float` or `double` keeps its exact bits
 (`long<float>` holds the `float`'s 32 bits, zero-filled) and is never converted

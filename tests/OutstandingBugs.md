@@ -43,34 +43,3 @@ Actual:
 Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
-
-## BUG-295: Iterator generators accept yielding the address of stackalloc storage
-
-Date/Time: 2026-10-15 20:20 EDT
-
-Summary:
-A source iterator generator may declare `stackalloc` locals, whose storage lives
-only in a single resume activation and is not lifted into the iterator state.
-Yielding the address of such a local (directly, or through an ordinary local
-pointer that still holds the address) is accepted. The generated `next` function
-stores that activation-stack address into the consumer's result slot and returns,
-so the consumer receives a dangling pointer. Generic (`stackalloc T`) and
-concrete erased (`stackalloc void<V>`) storage are both affected.
-
-Steps to Reproduce:
-
-1. Compile a generator that yields `&local` of a `stackalloc` local, for example
-   `struct iter T* f<T>(const T[] values, sizeof(T)) { stackalloc T local = values[0]; yield &local; }`.
-2. Repeat with an alias: `T* p = &local; yield p;`, and with
-   `stackalloc void<int?> local = 3; yield &local;`.
-
-Expected:
-Each yield is diagnosed, because the storage does not outlive the activation. Yielding the value by copy, or a pointer to storage that outlives the iterator, remains valid.
-
-Actual:
-All of these compile without a diagnostic. The generated code stores an
-`alloca`-backed address into the output slot.
-
-Known Impact:
-Generators over unknown-size or erased storage can silently produce dangling
-pointers. Workaround: yield the value instead of its address.

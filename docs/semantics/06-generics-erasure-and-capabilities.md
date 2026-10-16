@@ -133,10 +133,19 @@ An integer-represented value `R<A>` holds A in the low-order payload-width bits
 of R. Eligible payloads are integers, booleans and characters; enums and scalar
 newtypes over eligible payloads; `float` and `double`; and data pointers
 (including strings and interface-instance pointers) for `nint` and `nuint`
-only, because no other pointer-to-integer transport exists. Width and pointer
-domains follow the selected target: the pointer must fit the natural integer
-width of its own domain, and raw function pointers never qualify. Classify the
-actual underlying category; never classify by spelling.
+only. Width and pointer domains follow the selected target: the pointer must fit
+the natural integer width of its own domain, and raw function pointers never
+qualify. Classify the actual underlying category; never classify by spelling.
+
+Interim policy (a later decision than proposal 026, whose broader fixed-width
+pointer-carrier eligibility discussion is deferred by it): for now, the
+supported integer representations for carrying data pointers are `nint` and
+`nuint`, subject to the existing target-domain and width rules. Compilers may
+require these representations and reject fixed-width integer pointer carriers
+even when the pointer would fit. Broader pointer-carrier eligibility remains
+open for discussion and is not required at present. This is not a claim that
+other representations are fundamentally impossible, and it neither adds
+function-pointer carriage nor waives target restrictions.
 
 Encoding initializes every carrier bit:
 

@@ -58,4 +58,43 @@ struct iter T fixedRepresentation<T: int>(T first)
 	yield value;
 }
 
+// Stackalloc storage lives only in one activation, so its address cannot leave the generator.
+struct iter T* yieldAddress<T>(const T[] values, sizeof(T))
+{
+	stackalloc T local = values[0];
+	yield &local;
+}
+
+struct iter T* yieldAlias<T>(const T[] values, sizeof(T))
+{
+	stackalloc T local = values[0];
+	T* alias = &local;
+	yield alias;
+}
+
+struct iter void<int?>* yieldErasedAddress()
+{
+	stackalloc void<int?> local = 3;
+	yield &local;
+}
+
+struct iter void<int?>* yieldErasedAlias()
+{
+	stackalloc void<int?> local = 3;
+	void<int?>* alias = &local;
+	yield alias;
+}
+
+// Legal: a value copy, and a pointer to storage the caller keeps alive.
+struct iter T copiedValue<T>(const T[] values, sizeof(T))
+{
+	stackalloc T local = values[0];
+	yield local;
+}
+
+struct iter T* longLived<T>(escaped T* item, sizeof(T))
+{
+	yield item;
+}
+
 export int main() { return 0; }

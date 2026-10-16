@@ -4,3 +4,7 @@ tests/Diagnostics/generic_generator_locals_invalid.camp(16,2): error: Erased gen
 tests/Diagnostics/generic_generator_locals_invalid.camp(24,3): error: Erased generic type 'T' requires explicit stackalloc local storage; write 'stackalloc T name'.
 tests/Diagnostics/generic_generator_locals_invalid.camp(34,8): error: Stackalloc value 'value' is unassigned after suspension; assign it before reading it again.
 tests/Diagnostics/generic_generator_locals_invalid.camp(42,23): error: Stackalloc value 'item' is unassigned after suspension; assign it before reading it again.
+tests/Diagnostics/generic_generator_locals_invalid.camp(65,8): error: Yield expression cannot yield stackalloc-backed storage.
+tests/Diagnostics/generic_generator_locals_invalid.camp(72,8): error: Yield expression cannot yield stackalloc-backed storage.
+tests/Diagnostics/generic_generator_locals_invalid.camp(78,8): error: Yield expression cannot yield stackalloc-backed storage.
+tests/Diagnostics/generic_generator_locals_invalid.camp(85,8): error: Yield expression cannot yield stackalloc-backed storage.

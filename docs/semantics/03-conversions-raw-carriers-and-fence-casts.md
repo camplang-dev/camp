@@ -254,6 +254,10 @@ volatile qualifiers, and lifetime information as part of the explicit scalar
 conversion. Recovery uses the target type's written qualifiers and lifetime
 facts.
 
+As integer-carrier representations (`nint<T*>`, `nuint<T*>`), `nint` and `nuint`
+are currently the only supported carriers for data pointers; this is a provisional
+policy, not a settled limit (see semantics 06).
+
 Function pointers do not portably convert through `nint` or `nuint`. Use `fn*`
 for function-pointer erasure or `untyped` for a universal raw scalar escape.
 

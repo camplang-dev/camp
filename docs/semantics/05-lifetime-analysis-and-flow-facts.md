@@ -316,6 +316,11 @@ directly or through one or more local view copies.
 Yield expressions are checked against iterator result lifetimes. Iterator state
 may retain local values across yields, so the analyzer must treat lifted locals
 and current-value slots as generated storage with real lifetime consequences.
+`stackalloc` storage is not lifted: it lives only in one resume activation. A
+yield whose expression is the address of such storage, or of an alias still
+holding that address, is rejected at the yield, including in generic and erased
+code. Yielding the value by copy, or a pointer to storage that outlives the
+iterator (for example an `escaped` parameter), remains legal.
 
 `delete` is both a lifetime and ownership operation. The target value must
 satisfy the free surface of the selected allocator or destructor helper. A

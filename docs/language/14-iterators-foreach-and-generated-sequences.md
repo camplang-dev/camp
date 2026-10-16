@@ -234,6 +234,10 @@ struct iter const char[] firstPart(unscoped const char[] text)
 ```
 
 That works because the yielded slice is tied to the caller-provided `text`.
+
+A generator cannot yield a pointer to its own `stackalloc` local, or to an alias
+of it, because that storage exists only for one resume. Yield the value (a copy)
+instead.
 This does not work:
 
 ```camp
