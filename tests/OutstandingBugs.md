@@ -189,3 +189,39 @@ The callable-value form is rejected by the C compiler: `incompatible pointer to 
 
 Known Impact:
 Callable values whose parameters or results are pointer-payload `nint` carriers. Workaround: call the generic function directly, or carry an integer payload instead of a pointer.
+
+## BUG-299: A consumer that infers a reference to an exported function ascribed to a producer-private callable newtype fails in the C compiler
+
+Date/Time: 2026-10-17 09:40 EDT
+
+Summary:
+A producer exports a function whose ascription names a callable newtype the producer does not export. A separate consumer can call the function directly. When the consumer binds a reference to it with `auto` and calls through the reference, semantic analysis accepts the program and the generated C declares the local with the producer's private newtype name, which the consumer's translation unit never declares. The same program with the newtype exported compiles and runs.
+
+Steps to Reproduce:
+
+1. Producer project, one source file:
+   ```camp
+   newtype fn bool HiddenCheck<U: int>(U value);
+   export bool zeroOf<V: int>(V value): HiddenCheck<V> => value == default;
+   ```
+2. Consumer, referencing the producer as a static project reference:
+   ```camp
+   extern void __intrinsic_log_i32(int value);
+   export int main()
+   {
+       auto zero = zeroOf<byte>;
+       byte none = 0;
+       __intrinsic_log_i32(zero(none) ? 1 : 0);
+       return 0;
+   }
+   ```
+3. Repeat with `export newtype fn bool OpenCheck<U: int>(U value);` in the producer.
+
+Expected:
+Both builds print 1, with the private newtype invisible to the consumer.
+
+Actual:
+The private form stops in the C compiler with `use of undeclared identifier 'HiddenCheck'` at `HiddenCheck zero = (HiddenCheck)zeroOf;` and `call to undeclared function 'zero'`. The exported form prints 1.
+
+Known Impact:
+A consumer inferring a reference to an exported function whose ascribed callable newtype is private to the producer. Workaround: export the newtype, or call the function directly instead of binding a reference.
