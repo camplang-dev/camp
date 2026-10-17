@@ -385,6 +385,10 @@ checked against the slot's substituted operand:
   to the caller's parameter or retained field before it is compared;
 - omission, where the compiler supplies the argument from the caller.
 
+Positional written evidence binds to the next slot of its capability kind in
+source order, like an explicit capability expression. A coincident callee slot
+name does not redirect it; named arguments still select their written slot.
+
 Evidence for another operand, an ordinary `nuint` byte count, a plain string,
 a raw pointer or a witness for a different interface does not satisfy a slot.
 When an omitted slot's operand is the caller's own abstract parameter, the

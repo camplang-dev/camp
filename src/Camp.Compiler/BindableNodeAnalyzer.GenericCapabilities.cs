@@ -6,6 +6,7 @@ namespace Camp.Compiler;
 public sealed partial class BindableNodeAnalyzer
 {
 	readonly System.Collections.Generic.HashSet<CallExpression> preparedCallableCapabilities = [];
+	readonly Dictionary<ArgumentExpression, ParameterDefinition> boundCapabilityArguments = [];
 
 	static bool SameBinder(GenericParameter? left, GenericParameter? right) => left is not null && right is not null
 		&& ReferenceEquals(left.Binder ?? left, right.Binder ?? right) && left.Ordinal == right.Ordinal;

@@ -4670,6 +4670,10 @@ public sealed partial class BindableNodeAnalyzer
 		ArgumentExpression? extraArgument = null;
 		for (int i = 0; i < arguments.Count; i++)
 		{
+			if (arguments[i].Value is NamedExpression { Qualifiers.Count: 0 } evidenceName
+				&& scope.TryLookup(evidenceName.Name, out BodySymbol evidenceSymbol)
+				&& evidenceSymbol.Node is SizeOfParameterDefinition or NameOfParameterDefinition or VTableOfParameterDefinition)
+				BodyAnalyzeExpression(evidenceName, scope, typeScope);
 			ParameterDefinition? parameter = TryBindCallArgumentToParameter(arguments[i], callableParameters, suppliedParameters, fallbackSyntax, out int parameterIndex)
 				? callableParameters[parameterIndex]
 				: null;
@@ -4774,6 +4778,9 @@ public sealed partial class BindableNodeAnalyzer
 			binding.SuppliedParameters = suppliedParameters;
 		}
 		ValidateCapabilityCall(parameters, analyzedLifetimeArguments, genericSubstitutions, scope, typeScope, fallbackSyntax);
+		foreach ((ArgumentExpression argument, ParameterDefinition parameter) in analyzedLifetimeArguments)
+			if (parameter is SizeOfParameterDefinition or NameOfParameterDefinition or VTableOfParameterDefinition)
+				boundCapabilityArguments[argument] = parameter;
 		if (parameters.Count > 0 && TryFindMissingRequiredCallArgument(callableParameters, suppliedParameters, allowOmittedPrepParameter, out ParameterDefinition? missingParameter))
 			Report(GetRange(missingArgumentSyntax ?? fallbackSyntax ?? (arguments.Count > 0 ? arguments[^1].SourceSyntax : null)), MissingRequiredArgumentMessage(missingParameter!, callDisplayName ?? GetCallDisplayName(function, callTarget)));
 		if (extraArgument is not null && (function is not null || parameters.Count > 0))
@@ -4819,7 +4826,8 @@ public sealed partial class BindableNodeAnalyzer
 	bool TryBindCallArgumentToParameter(ArgumentExpression argument, List<ParameterDefinition> callableParameters, bool[] suppliedParameters, SyntaxNode? fallbackSyntax, out int parameterIndex)
 	{
 		parameterIndex = -1;
-		if (implicitCapabilityArguments.TryGetValue(argument, out ParameterDefinition? capability))
+		if (implicitCapabilityArguments.TryGetValue(argument, out ParameterDefinition? capability)
+			|| boundCapabilityArguments.TryGetValue(argument, out capability))
 		{
 			parameterIndex = callableParameters.IndexOf(capability);
 			// Flattening a delegate reconstructs its parameter objects. Keep an
@@ -4847,6 +4855,25 @@ public sealed partial class BindableNodeAnalyzer
 			}
 			suppliedParameters[parameterIndex] = true;
 			return true;
+		}
+
+		// Written evidence names belong to the caller. Bind them by capability kind
+		// and source order, just like capability expressions, before comparing operands.
+		Expression? evidenceValue = argument.Value is { } written && expressionRewrites.TryGetValue(written, out Expression? resolved) ? resolved : argument.Value;
+		ParameterDefinition? evidence = evidenceValue switch
+		{
+			VariableReferenceExpression { Variable: ParameterDefinition slot } => slot,
+			MemberReferenceExpression { Member: FieldDefinition { CapabilitySource: ParameterDefinition slot } } => slot,
+			_ => null
+		};
+		if (evidence is SizeOfParameterDefinition or NameOfParameterDefinition or VTableOfParameterDefinition)
+		{
+			parameterIndex = FindNextUnsuppliedParameter(callableParameters, suppliedParameters, parameter => parameter.GetType() == evidence.GetType());
+			if (parameterIndex >= 0)
+			{
+				suppliedParameters[parameterIndex] = true;
+				return true;
+			}
 		}
 
 		if (argument.Value is SizeOfExpression)
@@ -4941,8 +4968,10 @@ public sealed partial class BindableNodeAnalyzer
 		};
 	}
 
-	static bool IsGeneratedHiddenForwardingArgumentFor(ParameterDefinition parameter, ArgumentExpression argument)
+	bool IsGeneratedHiddenForwardingArgumentFor(ParameterDefinition parameter, ArgumentExpression argument)
 	{
+		if (boundCapabilityArguments.TryGetValue(argument, out ParameterDefinition? bound))
+			return ReferenceEquals(bound, parameter) || GenericCapabilityIdentity.Describe(bound) == GenericCapabilityIdentity.Describe(parameter);
 		return IsGeneratedHiddenForwardingParameter(parameter)
 			&& (GetGeneratedHiddenForwardingArgumentName(argument) == parameter.Name
 				|| parameter is SizeOfParameterDefinition

@@ -3450,6 +3450,8 @@ public sealed partial class BindableNodeAnalyzer
 		};
 		if (implicitCapabilityArguments.TryGetValue(argument, out ParameterDefinition? capability))
 			implicitCapabilityArguments[clone] = capability;
+		if (boundCapabilityArguments.TryGetValue(argument, out ParameterDefinition? boundCapability))
+			boundCapabilityArguments[clone] = boundCapability;
 		return clone;
 	}
 

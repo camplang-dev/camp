@@ -1,0 +1,16 @@
+interface Counter { int read(); }
+struct Cell: Counter { int value; int read(): Counter => this.value; }
+int pair<T, U>(T* first, U* second, sizeof(T), typenameof(T), vtableof(T: Counter), sizeof(U), typenameof(U), vtableof(U: Counter))
+{
+	return first.read() * 100 + second.read();
+}
+int swapped<T, U>(T* a, U* b, sizeof(T), typenameof(T), vtableof(T: Counter), sizeof(U), typenameof(U), vtableof(U: Counter))
+{
+	return pair<U, T>(b, a, sizeof_U, typenameof_U, vtableof_U_Counter, sizeof_T, typenameof_T, vtableof_T_Counter);
+}
+export int main()
+{
+	Cell a = { 3 };
+	Cell b = { 5 };
+	return swapped<Cell, Cell>(&a, &b) == 503 ? 0 : 1;
+}
