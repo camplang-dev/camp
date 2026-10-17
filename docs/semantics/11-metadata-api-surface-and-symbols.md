@@ -189,6 +189,12 @@ The producer retains the annotation for analysis and member access. Private
 annotations must not pull private layout declarations into the public API
 dependency closure.
 
+A callable ascription whose nominal newtype is hidden in the selected API view
+is omitted from that view's Camp API and metadata. It does not pull the private
+newtype into the dependency closure. The function's ordinary signature preserves
+its ABI and supplies the structural type for downstream function references;
+the producer and all-metadata view retain the ascription.
+
 A carrier is projected by the same visibility test with a different result: a view
 that can see `V` retains `C<V>`, and a view that cannot see `V` shows the plain
 carrier `C`. For example, an exported `long<PrivateKind> kind;` field is `long

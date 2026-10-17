@@ -4278,6 +4278,8 @@ public sealed partial class BindableNodeAnalyzer
 		ascribedType = "";
 		if (function.CallableAscriptionNewtype is not NewtypeDefinition newtypeDefinition)
 			return false;
+		if (!IsDefinitionVisible(newtypeDefinition, currentAnalysisFunction?.SourceSyntax ?? currentRewriteFunction?.SourceSyntax))
+			return false;
 
 		string family = GetCallableNewtypeFamily(newtypeDefinition);
 		bool receiverBearing = IsReceiverBearingDeclaration(function);

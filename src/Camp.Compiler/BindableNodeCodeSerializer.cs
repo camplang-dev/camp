@@ -934,7 +934,8 @@ public sealed class BindableNodeCodeSerializer
 
 		WriteGenericParameters(definition.GenericParameters);
 		WriteParameterList(erasedProjection?.FunctionParameters(definition) ?? definition.Parameters);
-		if (definition.CallableAscriptionType is not null)
+		if (definition.CallableAscriptionType is not null
+			&& (!apiHeader || definition.CallableAscriptionNewtype is not NewtypeDefinition ascription || IsVisibleInApiSurface(ascription)))
 		{
 			writer.Write(" : ");
 			WriteType(definition.CallableAscriptionType);

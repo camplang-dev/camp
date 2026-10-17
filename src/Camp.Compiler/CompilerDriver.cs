@@ -2466,7 +2466,9 @@ public static class CompilerDriver
 
                 case FunctionDefinition functionDefinition:
                     CollectApiDependencyTypes(functionDefinition.ReturnType, pending, selected);
-                    CollectApiDependencyTypes(functionDefinition.CallableAscriptionType, pending, selected);
+                    if (functionDefinition.CallableAscriptionNewtype is not NewtypeDefinition ascription
+                        || IsVisibleInApiSurface(ascription, CampApiSurfaceKind.Public))
+                        CollectApiDependencyTypes(functionDefinition.CallableAscriptionType, pending, selected);
                     foreach (ParameterDefinition parameter in functionDefinition.Parameters)
                     {
                         CollectApiDependencyTypes(parameter.Type, pending, selected);

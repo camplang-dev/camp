@@ -362,6 +362,11 @@ as a static member naming an enclosing type parameter, is not also reported as a
 mismatch. The inferred type of a successfully ascribed reference is the complete
 constructed newtype.
 
+Nominal inference requires the ascribed newtype to be visible at the reference
+site. A reference to an exported function with a producer-private ascription
+instead has the function's structural callable type, with the same erased ABI.
+The private type remains usable for nominal references in its own source scope.
+
 A named function accepted through erased/concrete storage compatibility keeps
 its declared C signature. Using that symbol to initialize, assign, pass, or
 return its ascribed `fn` newtype casts it to the checked nominal carrier when

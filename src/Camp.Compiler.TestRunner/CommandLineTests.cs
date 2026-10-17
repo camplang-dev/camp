@@ -6483,6 +6483,39 @@ public sealed class CommandLineTests
 		Assert.Equal(0, RunExecutable(Path.Combine(output, ArtifactDirectoryForTarget(NativeTargetForHost(), NativeBuildKind.Exec), OperatingSystem.IsWindows() ? "consumer.exe" : "consumer")).ExitCode);
 	}
 
+	[Theory]
+	[InlineData("static", false)]
+	[InlineData("static", true)]
+	[InlineData("shared", false)]
+	[InlineData("shared", true)]
+	public void Project_reference_infers_callable_with_producer_private_ascription(string kind, bool exportNewtype)
+	{
+		string root = TempPath("project-reference-callable-visibility-" + kind + "-" + exportNewtype);
+		string library = Path.Combine(root, "library");
+		Directory.CreateDirectory(library);
+		File.WriteAllText(Path.Combine(library, "library.camp"), $$"""
+			{{(exportNewtype ? "export " : "")}}newtype fn bool Check<U: int>(U value);
+			export bool zeroOf<V: int>(V value): Check<V> => value == default;
+			""");
+		File.WriteAllText(Path.Combine(library, "library.campbuild"), "--nostdlib\n--artifact " + kind + "\n--name check\nlibrary.camp\n");
+		string app = Path.Combine(root, "app.camp");
+		File.WriteAllText(app, """
+			export int main()
+			{
+				auto zero = zeroOf<byte>;
+				byte none = 0;
+				return zero(none) && zeroOf<byte>(none) && !zero((byte)3) ? 0 : 1;
+			}
+			""");
+		string output = Path.Combine(root, "output");
+		ProcessResult result = RunCampc("build", app, "--nostdlib", "--name", "consumer", "--out-dir", output,
+			"--project-reference", Path.Combine(library, "library.campbuild") + ":" + kind);
+		AssertCommandSucceeded(result);
+		string api = File.ReadAllText(Path.Combine(library, "bin", ArtifactDirectoryForTarget(NativeTargetForHost(), kind == "static" ? NativeBuildKind.Static : NativeBuildKind.Shared), "check_api.camp"));
+		if (!exportNewtype) Assert.DoesNotContain("Check", api);
+		Assert.Equal(0, RunExecutable(Path.Combine(output, ArtifactDirectoryForTarget(NativeTargetForHost(), NativeBuildKind.Exec), OperatingSystem.IsWindows() ? "consumer.exe" : "consumer")).ExitCode);
+	}
+
 	[Fact]
 	public void Project_api_header_orders_forward_typedefs_before_callable_newtypes_and_struct_layouts()
 	{

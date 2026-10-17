@@ -493,7 +493,8 @@ public static class MetadataJsonSerializer
 				}
 				json.WriteEndObject();
 			}
-			else if (function.CallableAscriptionType is not null)
+			else if (function.CallableAscriptionType is not null
+				&& (function.CallableAscriptionNewtype is not NewtypeDefinition ascription || ShouldEmit(ascription)))
 				WriteTypeProperty(json, "ascription", function.CallableAscriptionType, function.CallableAscriptionType.ResolvedType);
 			WriteInterfaceSlotInitializer(json, function);
 			WritePropertyInfo(json, function);
