@@ -1,0 +1,21 @@
+int measure(const char[] text, int bonus = 1) => (int)text.length + bonus;
+enum Kind { A, B }
+struct Reader
+{
+	int read(int owner, const char[] text, Kind kind, int bonus = 1)
+	{
+		return owner + (int)text.length + (kind == Kind.B ? 10 : 0) + bonus;
+	}
+}
+export int main()
+{
+	string text = "abc";
+	if (measure(text, 5) != 8) return 1;
+	if (measure(text) != 4) return 2;
+	if (measure(text, bonus: 5) != 8) return 3;
+	if (measure(bonus: 5, text: text) != 8) return 4;
+	Reader reader = default;
+	if (reader.read(2, text, Kind.B) != 16) return 5;
+	if (reader.read(2, text, Kind.B, 4) != 19) return 6;
+	return 0;
+}

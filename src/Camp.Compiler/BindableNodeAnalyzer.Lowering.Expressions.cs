@@ -1178,6 +1178,8 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (TryGetFixedArrayShape(type, out _, out _))
 			return true;
+		if (GetPrimitiveStringElementType(type) is not null)
+			return true;
 
 		return false;
 	}

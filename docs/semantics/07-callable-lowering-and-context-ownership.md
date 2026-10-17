@@ -172,6 +172,10 @@ values into ABI components, delegate context calls, interface vtable calls,
 expanded receiver calls, generated `out` storage, `sizeof`, `typenameof`,
 `vtableof`, or `within` arguments.
 
+A primitive string converted to an array supplies both the pointer and length
+slots when defaults are bound against an expanded signature. Later explicit
+arguments keep their source positions; they cannot be consumed as the length.
+
 An inserted optional default retains its source parameter's optional type even
 when the default expression is a plain payload. Expand that payload together
 with a `true` specified component; an optional `default` value supplies an
