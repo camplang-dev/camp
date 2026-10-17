@@ -5113,7 +5113,7 @@ public static class CCodeEmitter
             ParenthesizedExpression parenthesized => GetCarrierValueStorageType(parenthesized.Expression),
             CastExpression { LifetimeCastKind: null } cast when CarrierTypeIdentity.TryGetPayload(cast.Type?.ResolvedType ?? cast.ResolvedType, out _)
                 => StripTypeQualifiers(StripLifetimeOnly(cast.Type?.ResolvedType ?? cast.ResolvedType ?? "")),
-            CallExpression call => TryGetCallFunction(call)?.ResolvedType,
+            CallExpression call => GetCallStorageReturnType(call),
             _ => GetCarrierStorageTypeOf(expression)
         };
 
@@ -5143,8 +5143,8 @@ public static class CCodeEmitter
                 && !ReferenceEquals(expression, carrierStorageRoot)
                 && TryGetBitTransport(GetCarrierStorageTypeOf(expression), out BitTransport readTransport))
                 return DecodeBitTransport(readTransport, text);
-            if (expression is CallExpression call && !ReferenceEquals(expression, carrierStorageRoot) && TryGetCallFunction(call) is FunctionDefinition callee
-                && TryGetBitTransport(callee.ResolvedType, out BitTransport resultTransport))
+            if (expression is CallExpression call && !ReferenceEquals(expression, carrierStorageRoot)
+                && TryGetBitTransport(GetCallStorageReturnType(call), out BitTransport resultTransport))
                 return DecodeBitTransport(resultTransport, text);
             return text;
         }
@@ -5878,17 +5878,23 @@ public static class CCodeEmitter
                     && CallableShapeService.TryParseCallableShape(underlying, out shape))
                 {
                     Dictionary<string, string> substitutions = GetConstructedTypeSubstitutionsForEmitter(type, newtypeDefinition);
+                    // A callable's declaration ABI keeps represented storage even
+                    // though invoking it reads and accepts the carried payload.
+                    foreach (GenericParameter parameter in newtypeDefinition.GenericParameters)
+                        if (GetRepresentationConstraint(parameter) is string representation
+                            && substitutions.TryGetValue(parameter.Name, out string? payload))
+                            substitutions[parameter.Name] = CarrierTypeIdentity.CollapseNested($"{representation}<{payload}>");
                     List<string> parameters = newtypeDefinition.Parameters.Count == 0
                         ? shape.Parameters
                         : [.. GetCallableNewtypeParameterTypeNamesForEmitter(newtypeDefinition.Parameters)];
                     if (substitutions.Count > 0)
                     {
-                        parameters = [.. parameters.Select(parameter => SubstituteGenericTypeTokens(parameter, substitutions) ?? parameter)];
+                        parameters = [.. parameters.Select(parameter => CarrierTypeIdentity.CollapseNested(SubstituteGenericTypeTokens(parameter, substitutions) ?? parameter))];
                         shape = new CallableShape(
                             shape.Kind,
                             shape.Spec,
                             shape.CallSpec,
-                            SubstituteGenericTypeTokens(shape.ReturnType, substitutions) ?? shape.ReturnType,
+                            CarrierTypeIdentity.CollapseNested(SubstituteGenericTypeTokens(shape.ReturnType, substitutions) ?? shape.ReturnType),
                             parameters,
                             shape.This);
                     }
@@ -6445,6 +6451,14 @@ public static class CCodeEmitter
 
             castType = expressionReturnType;
             return true;
+        }
+
+        string? GetCallStorageReturnType(CallExpression call)
+        {
+            if (TryGetCallFunction(call) is FunctionDefinition function)
+                return function.ResolvedType;
+            return TryGetCallableShapeForEmitter(call.Target?.ResolvedType, out CallableShape shape)
+                ? SubstituteCallableShapeForMemberTarget(shape, call.Target).ReturnType : null;
         }
 
         bool IsErasedPointerResult(FunctionDefinition function)

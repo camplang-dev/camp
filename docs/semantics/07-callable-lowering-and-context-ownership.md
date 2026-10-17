@@ -352,6 +352,9 @@ with the written arguments substituted: an integer-represented parameter
 Arguments may be concrete, enclosing-owner or method-owned. The declaration's own
 owner and method parameters are erased with the same rule, so the comparison
 holds for `T` as for `short`.
+Calls through callable values preserve these represented parameter and result
+slots. Encode a pointer or floating payload into its integer carrier on input
+and decode the carrier result on read, just as for a direct generic call.
 The ascription also fixes capability slots (kind, operand, order), protected
 results, receiver shape and specifications. The first difference is diagnosed at
 the ascription; an argument or signature type that already failed binding, such

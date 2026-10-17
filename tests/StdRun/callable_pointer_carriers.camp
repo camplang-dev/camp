@@ -1,0 +1,25 @@
+newtype fn U WideId<U: nint>(U value);
+newtype fn U UnsignedId<U: nuint>(U value);
+U pass<U: nint>(U value): WideId<U> => value;
+U unsignedPass<U: nuint>(U value): UnsignedId<U> => value;
+struct Callbacks { WideId<int*> identity; }
+export int main()
+{
+	int value = 77;
+	int* pointer = &value;
+	WideId<int*> f = pass<int*>;
+	int* result = f(pointer);
+	if (result != pointer || *result != 77) return 1;
+	result = f(f(pointer));
+	if (result != pointer) return 2;
+	UnsignedId<int*> unsignedIdentity = unsignedPass<int*>;
+	result = unsignedIdentity(pointer);
+	if (result != pointer) return 3;
+	Callbacks callbacks = { f };
+	result = callbacks.identity(pointer);
+	if (result != pointer) return 4;
+	WideId<float> floating = pass<float>;
+	float fraction = floating(3.25f);
+	if (fraction != 3.25f) return 5;
+	return 0;
+}
