@@ -44,28 +44,6 @@ Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
 
-## BUG-306: A for statement with an omitted initializer binds its clauses one position early
-
-Date/Time: 2026-10-18 13:53 EDT
-
-Summary:
-When the initializer clause of a `for` is empty and the condition and increment are present, the condition is taken as the initializer and the increment as the condition. The error or behavior then follows the wrong clause.
-
-Steps to Reproduce:
-
-1. Write `int i = 0; int total = 0; for (; i < 3; i++) total += 10;`.
-2. Compile the file.
-3. Repeat with `for (; i < 5;) i += 2;`.
-
-Expected:
-The loop runs three passes with the condition `i < 3` and the increment `i++`; the second form is a loop with no increment that ends when `i` reaches 5.
-
-Actual:
-The first form is rejected with `For condition must be 'bool', not 'int'.` pointing at `i++`. The second form treats the omitted increment as the condition and has no usable test. Loops that omit all clauses, or only the condition, behave correctly.
-
-Known Impact:
-A loop that keeps its counter outside the loop cannot be written with an empty initializer.
-
 ## BUG-307: An else after an unbraced if that is itself the body of a loop is reported as detached
 
 Date/Time: 2026-10-18 13:53 EDT

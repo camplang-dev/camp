@@ -1632,6 +1632,8 @@ public sealed class CampParser
 			index = declarationStart;
 			if (!Is(";") && !Is(")"))
 				syntax.Clauses.Add(new StatementConditionClauseSyntax { Expression = ParseExpression() });
+			else if (Is(";"))
+				syntax.Clauses.Add(new StatementConditionClauseSyntax());
 		}
 
 		while (TakeIf(";") is Token semicolon)

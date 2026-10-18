@@ -177,6 +177,10 @@ the condition, increment, and body, and is unavailable after the loop. Sibling
 loops may declare counters with the same name. Entering this scope preserves
 the enclosing function's return, iterator, and allocation context.
 
+The three semicolon-separated `for` clauses retain their positions when any
+are omitted. An omitted initializer does nothing, an omitted condition permits
+another iteration, and an omitted increment does nothing.
+
 `break` requires an enclosing loop or switch, and `continue` requires an
 enclosing loop. These targets do not cross a lambda boundary. Body analysis
 reports an ineligible transfer at its keyword before native code generation.
