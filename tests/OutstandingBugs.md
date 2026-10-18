@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-304.
+Next bug number: BUG-305.
 
 ## Bug Template
 
@@ -130,3 +130,26 @@ The generated C calls the method as `Index_get(&i).name`: the receiver is droppe
 
 Known Impact:
 A method result's string field cannot be assigned to an array view in this shape. Storing the call result in a local struct first avoids it.
+
+## BUG-304: A for-loop initializer local is scoped to the enclosing block instead of the loop
+
+Date/Time: 2026-10-18 13:53 EDT
+
+Summary:
+A local declared in the initializer of a `for` statement is treated as a local of the enclosing block by name resolution. Two sibling loops that each declare the same counter are rejected, and a use of the counter after the loop is not reported by the front end; the generated C then fails because C scopes the variable to the loop.
+
+Steps to Reproduce:
+
+1. Declare `int total = 0;` and write `for (int i = 0; i < 3; i++) total += i;` followed by a second `for (int i = 10; i < 12; i++) total += i;` in one function.
+2. Compile the file.
+3. Separately, write `for (int index = 0; index < 3; index++) {}` followed by `return index;`.
+4. Compile that file.
+
+Expected:
+Each loop's counter is visible only inside that loop, as a `foreach` variable is, so the two sibling loops compile and the use after the loop is an unresolved-name error.
+
+Actual:
+The sibling loops fail with `Symbol 'i' is already declared in this scope.` The use after the loop passes semantic analysis and the native build fails with `use of undeclared identifier 'index'`.
+
+Known Impact:
+The usual C-style pattern of reusing a counter name across loops in one function does not compile, and a counter used past its loop is reported as a native build error instead of a Camp diagnostic.
