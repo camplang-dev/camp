@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-302.
+Next bug number: BUG-303.
 
 ## Bug Template
 
@@ -87,3 +87,24 @@ The logged value is `inFree`.
 
 Known Impact:
 Library code that logs or asserts with the qualified caller name cannot tell free functions of different namespaces apart. Methods are unaffected.
+
+## BUG-302: Malformed source-capture defaults are reported without a source position
+
+Date/Time: 2026-10-18 09:06 EDT
+
+Summary:
+A parameter default that misuses `sourceof(...)` or `caller(...)` is rejected, but several of the diagnostics carry no line and column. The compiler prints them at `(no line,column)`, so tools cannot place them and the error cannot be compared by location.
+
+Steps to Reproduce:
+
+1. Declare `string bad(string text, string again = sourceof(text, text)) => text;`.
+2. Compile the file. Repeat with `sourceof(text + text)` and with `uint bad(uint line = caller(sourceline, 1)) => line;`.
+
+Expected:
+Each error points at the offending default, as `sourceof(missing)` and an unknown `caller(...)` selector already do.
+
+Actual:
+`(1,1): (no line,column) error: sourceof(...) requires exactly one positional argument.` `... requires a single unqualified parameter name.` and `caller(...) requires exactly one positional argument.` are reported without a position. Separately, a self anchor `string bad(string text = sourceof(text))` is accepted without an error.
+
+Known Impact:
+Editors and tests cannot locate these errors. Wrong arity, a non-name argument and a missing anchor on the first parameter all behave this way.
