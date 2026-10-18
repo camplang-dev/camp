@@ -170,6 +170,13 @@ rediscovering them:
 - omitted trailing `out` result binding must select exactly one callable shape;
 - intentional discard targets must be recognized as write-only storage;
 
+## Loop Initializer Scope
+
+A local declared in a `for` initializer belongs to that loop. It is visible in
+the condition, increment, and body, and is unavailable after the loop. Sibling
+loops may declare counters with the same name. Entering this scope preserves
+the enclosing function's return, iterator, and allocation context.
+
 ## Configuration Queries
 
 `configured(FLAG_EXPRESSION)` is a compiler intrinsic expression. It returns

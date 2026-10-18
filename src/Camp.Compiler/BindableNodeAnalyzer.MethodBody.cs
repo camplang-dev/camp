@@ -386,9 +386,18 @@ public sealed partial class BindableNodeAnalyzer
 				break;
 
 			case ForStatement forStatement:
-				BodyAnalyzeForCondition(forStatement.Condition, scope, typeScope);
-				BodyAnalyzeOptionalLoopStatement(forStatement.Body, scope, typeScope);
+			{
+				BodyScope loopScope = new(scope, scope.CurrentFunction, scope.ContainingType)
+				{
+					CurrentFunctionReturnType = scope.CurrentFunctionReturnType,
+					CurrentFunctionSourceReturnType = scope.CurrentFunctionSourceReturnType,
+					CurrentIteratorElementType = scope.CurrentIteratorElementType,
+					CurrentIteratorThrownType = scope.CurrentIteratorThrownType
+				};
+				BodyAnalyzeForCondition(forStatement.Condition, loopScope, typeScope);
+				BodyAnalyzeOptionalLoopStatement(forStatement.Body, loopScope, typeScope);
 				break;
+			}
 
 			case ForeachStatement foreachStatement:
 				BodyAnalyzeForeachStatement(foreachStatement, scope, typeScope);

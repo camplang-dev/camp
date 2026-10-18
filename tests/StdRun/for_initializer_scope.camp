@@ -1,0 +1,8 @@
+export int main()
+{
+	int total = 0;
+	for (int i = 0; i < 3; i++) total += i;
+	for (int i = 10; i < 12; i++) total += i;
+	int i = 5;
+	return total == 24 && i == 5 ? 0 : 1;
+}
