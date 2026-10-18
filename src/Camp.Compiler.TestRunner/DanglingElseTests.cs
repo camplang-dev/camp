@@ -30,6 +30,7 @@ public sealed class DanglingElseTests
 	[InlineData("while (true) { if (true) break; } else return;")]
 	[InlineData("else return;")]
 	[InlineData("if (true) return; else return; else return;")]
+	[InlineData("do if (true) return; while (false); else return;")]
 	public void Detached_or_duplicate_else_is_located(string body)
 	{
 		SemanticCompilation compilation = SemanticCompiler.CompileLowered("void f() {\n" + body + "\n}");

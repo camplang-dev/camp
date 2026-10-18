@@ -187,8 +187,8 @@ reports an ineligible transfer at its keyword before native code generation.
 
 An `else` attaches to the nearest unmatched `if` in the preceding statement,
 including an `if` reached through unbraced loop bodies or nested `if` bodies.
-Attachment does not cross a braced block boundary. A detached or duplicate
-`else` is diagnosed at its keyword.
+Attachment does not cross a braced block boundary or a `do` loop's closing
+`while` condition. A detached or duplicate `else` is diagnosed at its keyword.
 
 ## Configuration Queries
 

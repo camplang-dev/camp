@@ -254,7 +254,7 @@ public sealed partial class BindableNodeBuilder
 			IfStatement { ElseBody: null } conditional => FindUnmatchedIf(conditional.Body) ?? conditional,
 			IfStatement conditional => FindUnmatchedIf(conditional.ElseBody),
 			WhileStatement loop => FindUnmatchedIf(loop.Body),
-			DoWhileStatement loop => FindUnmatchedIf(loop.Body),
+			DoWhileStatement { Condition: null } loop => FindUnmatchedIf(loop.Body),
 			ForStatement loop => FindUnmatchedIf(loop.Body),
 			ForeachStatement loop => FindUnmatchedIf(loop.Body),
 			_ => null
