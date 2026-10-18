@@ -235,6 +235,9 @@ defaults are being inserted. If a source constructor or destructor body is
 lowered into lifecycle helpers such as `op_initnew` or `op_delete`,
 `caller(functionname)` and `caller(qualifiedname)` still use the visible names
 `create` and `destroy`, not the generated helper names.
+Qualified names use the declaration's effective namespace, including namespace
+blocks and explicit `global` blocks. A file's default namespace must not replace
+that declaration-level namespace.
 
 ## Prep-Bearing Callable Invocation
 

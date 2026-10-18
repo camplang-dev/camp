@@ -44,28 +44,6 @@ Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
 
-## BUG-301: caller(qualifiedname) omits the namespace for a free function in a namespace block
-
-Date/Time: 2026-10-18 09:06 EDT
-
-Summary:
-The language semantics say `caller(qualifiedname)` becomes `[Namespace::][Type.]functionName`. A method of a type inside a namespace includes the namespace, but a free function declared in a `namespace` block reports only its own name.
-
-Steps to Reproduce:
-
-1. Declare `string who(string name = caller(qualifiedname)) => name;` at file scope.
-2. Declare `namespace Outer { void inFree() { log(who()); } }` where `log` writes a string.
-3. Call `Outer::inFree();` from `main` and run.
-
-Expected:
-The logged value is `Outer::inFree`, matching `Outer::Inner.method` for a method of a struct declared in the same namespace.
-
-Actual:
-The logged value is `inFree`.
-
-Known Impact:
-Library code that logs or asserts with the qualified caller name cannot tell free functions of different namespaces apart. Methods are unaffected.
-
 ## BUG-302: Malformed source-capture defaults are reported without a source position
 
 Date/Time: 2026-10-18 09:06 EDT

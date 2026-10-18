@@ -930,12 +930,8 @@ public sealed partial class BindableNodeAnalyzer
 			prefix = function.OutOfScopeOwnerName + ".";
 		else if (containingType is not null)
 			prefix = containingType.Name + ".";
-		string? ns = function.Namespace ?? containingType?.Namespace;
-		if (currentModule is not null
-			&& currentModule.DefinitionSources.TryGetValue(function, out TokenSequence? source)
-			&& source is not null
-			&& currentModule.SourceNamespaces.TryGetValue(source, out string? foundNamespace))
-			ns = foundNamespace;
+		string? ns = function.NamespaceAssigned ? function.Namespace
+			: GetDefinitionNamespace(containingType ?? (Definition)function);
 		return (string.IsNullOrWhiteSpace(ns) ? "" : ns + "::") + prefix + name;
 	}
 
