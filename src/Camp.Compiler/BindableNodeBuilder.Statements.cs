@@ -235,22 +235,30 @@ public sealed partial class BindableNodeBuilder
 
 	void AttachElse(System.Collections.Generic.List<Statement> target, KeywordStatementSyntax syntax)
 	{
-		if (target.Count == 0 || target[^1] is not IfStatement ifStatement)
+		IfStatement? ifStatement = target.Count == 0 ? null : FindUnmatchedIf(target[^1]);
+		if (ifStatement is null)
 		{
-			Report(syntax, "'else' must follow an if statement.");
-			return;
-		}
-
-		while (ifStatement.ElseBody is IfStatement elseIf)
-			ifStatement = elseIf;
-
-		if (ifStatement.ElseBody is not null)
-		{
-			Report(syntax, "If statement already has an else body.");
+			Report(syntax.Keyword?.Range, target.Count > 0 && target[^1] is IfStatement
+				? "If statement already has an else body."
+				: "'else' must follow an if statement.");
 			return;
 		}
 
 		ifStatement.ElseBody = BuildStatementBody(syntax);
+	}
+
+	static IfStatement? FindUnmatchedIf(Statement? statement)
+	{
+		return statement switch
+		{
+			IfStatement { ElseBody: null } conditional => FindUnmatchedIf(conditional.Body) ?? conditional,
+			IfStatement conditional => FindUnmatchedIf(conditional.ElseBody),
+			WhileStatement loop => FindUnmatchedIf(loop.Body),
+			DoWhileStatement loop => FindUnmatchedIf(loop.Body),
+			ForStatement loop => FindUnmatchedIf(loop.Body),
+			ForeachStatement loop => FindUnmatchedIf(loop.Body),
+			_ => null
+		};
 	}
 
 	void AttachDoWhileCondition(DoWhileStatement statement, KeywordStatementSyntax syntax)

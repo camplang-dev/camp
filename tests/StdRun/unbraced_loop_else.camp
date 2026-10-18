@@ -1,0 +1,17 @@
+export int main()
+{
+	int i = 0;
+	int total = 0;
+	while (i < 4) if (i++ == 1) continue; else total += 5;
+	if (total != 15) return 1;
+	for (i = 0; i < 4; i++) if (i == 1) continue; else total += 7;
+	if (total != 36) return 2;
+	auto values = [0, 1, 2];
+	foreach (int value in values) if (value == 1) continue; else total += 11;
+	if (total != 58) return 3;
+	if (true) if (false) total += 1000; else total += 13;
+	if (total != 71) return 4;
+	i = 0;
+	do if (i++ == 1) continue; else total += 3; while (i < 4);
+	return total == 80 ? 0 : 5;
+}

@@ -185,6 +185,11 @@ another iteration, and an omitted increment does nothing.
 enclosing loop. These targets do not cross a lambda boundary. Body analysis
 reports an ineligible transfer at its keyword before native code generation.
 
+An `else` attaches to the nearest unmatched `if` in the preceding statement,
+including an `if` reached through unbraced loop bodies or nested `if` bodies.
+Attachment does not cross a braced block boundary. A detached or duplicate
+`else` is diagnosed at its keyword.
+
 ## Configuration Queries
 
 `configured(FLAG_EXPRESSION)` is a compiler intrinsic expression. It returns
