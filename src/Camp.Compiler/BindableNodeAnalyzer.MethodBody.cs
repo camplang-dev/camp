@@ -881,6 +881,9 @@ public sealed partial class BindableNodeAnalyzer
 			return;
 
 		BodyAnalyzeDeclarationTarget(declaration.Target, scope, typeScope, initialType);
+		if (declaration.Target.Type is AutoTypeReference
+			&& GetCallableSourceType(declaration.InitialValue) is TypeReference callableSource)
+			inferredCallableSourceTypes[declaration.Target] = callableSource;
 		declaration.Target.UnboundSlotReceiverType = GetUnboundSlotReceiverType(declaration.InitialValue);
 		ValidateFixedStorageMarker(declaration.Target.Type, declaration.IsFixedStorage, declaration.Target.Type?.SourceSyntax ?? declaration.Target.SourceSyntax ?? declaration.SourceSyntax);
 		ValidateNoDirectExternClassType(declaration.Target.Type, declaration.Target.Type?.SourceSyntax ?? declaration.Target.SourceSyntax ?? declaration.SourceSyntax, "local variable storage");
@@ -4021,7 +4024,7 @@ public sealed partial class BindableNodeAnalyzer
 
 		List<ParameterDefinition> parameters = TryGetCallableNewtypeParameters(callableType, call.Arguments, out List<ParameterDefinition>? newtypeParameters)
 			? newtypeParameters!
-			: CreateStructuralCallableParameters(GetSourceCallableParameterTypes(callable), callable.Kind == "fn" ? 0 : 1);
+			: CreateStructuralInvocationParameters(call.Target, callable);
 
 		callableInvocationParameters[call] = parameters;
 		CallArgumentBinding binding = new();
@@ -6768,7 +6771,7 @@ public sealed partial class BindableNodeAnalyzer
 
 		List<ParameterDefinition> parameters = TryGetCallableNewtypeParameters(callableType, call.Arguments, out List<ParameterDefinition>? newtypeParameters)
 			? newtypeParameters!
-			: CreateStructuralCallableParameters(GetSourceCallableParameterTypes(callable), callable.Kind == "fn" ? 0 : 1);
+			: CreateStructuralInvocationParameters(call.Target, callable);
 		if (!HasAwaitableCallback(parameters) || !TryGetAwaitableCallbackSuccessType(parameters, out returnType))
 			return false;
 

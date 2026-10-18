@@ -64,6 +64,9 @@ Anonymous callable types may omit formal parameter names, but the compiler still
 assigns source-level names to those parameters. These names are part of the
 callable surface used for named argument binding when a callable value is
 invoked.
+Keep written names on the source type contract through locals, parameters,
+fields and inferred copies. Reconstructing an ABI shape must not replace these
+names with generated defaults; names do not change structural type identity.
 
 For a `fn` type, an unnamed formal parameter is named `argX`, where `X` is the
 zero-based formal parameter index:

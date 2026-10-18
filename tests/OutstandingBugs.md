@@ -44,28 +44,6 @@ Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
 
-## BUG-300: Explicit parameter names in callable types are ignored by named-argument binding
-
-Date/Time: 2026-10-18 08:50 EDT
-
-Summary:
-The language guide says an anonymous callable type keeps explicit parameter names and names only the unnamed ones with `argX`, so `fn bool(int, string text)` has the formal names `arg0` and `text`. A call through a `fn` or `delegate` value rejects the explicit name, and the diagnostic prints the callable type without any names, so the explicit names are dropped when the type is formed.
-
-Steps to Reproduce:
-
-1. Declare `int weigh(int value, int weight) => value * weight;`.
-2. In a function, declare `fn int(int, int scale) cb = weigh;`.
-3. Call `cb(arg0: 7, scale: 3);` and compile.
-
-Expected:
-The call compiles. `scale` names the second parameter and `arg0` names the first, as in the callable surface the guide describes.
-
-Actual:
-`error: No parameter named 'scale' exists for this call.` followed by `error: There is no argument given that corresponds to the required parameter 'arg1' of 'fn int(int, int)()'.` The same happens for a `delegate` type and when the callable is a parameter of another function. Only the generated `argX` names bind.
-
-Known Impact:
-Named arguments through callable values can use only `argX` names. Any explicit name written in the callable type is accepted by the declaration but has no effect at calls. Calling with the `argX` form works.
-
 ## BUG-301: caller(qualifiedname) omits the namespace for a free function in a namespace block
 
 Date/Time: 2026-10-18 09:06 EDT

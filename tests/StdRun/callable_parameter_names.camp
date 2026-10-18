@@ -1,0 +1,20 @@
+int weigh(int value, int weight) => value * weight;
+fn int(int, int scale) factory() => weigh;
+int textSize(const char[] text, int scale) => (int)text.length * scale;
+int apply(fn int(int, int scale) callback) => callback(scale: 3, arg0: 7);
+struct Holder { fn int(int, int scale) callback; }
+export int main()
+{
+	fn int(int, int scale) callback = weigh;
+	if (callback(scale: 3, arg0: 7) != 21) return 1;
+	auto copy = callback;
+	if (copy(arg0: 7, scale: 3) != 21 || apply(callback) != 21) return 2;
+	Holder holder = { callback };
+	if (holder.callback(scale: 3, arg0: 7) != 21) return 3;
+	auto returned = factory();
+	if (returned(scale: 3, arg0: 7) != 21) return 5;
+	fn int(const char[] text, int scale) size = textSize;
+	if (size(scale: 3, text: "abc") != 9) return 6;
+	delegate int(int, int scale) captured = (int value, int weight) => value * weight;
+	return captured(scale: 3, arg1: 7) == 21 ? 0 : 4;
+}
