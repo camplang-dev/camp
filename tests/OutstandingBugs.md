@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-301.
+Next bug number: BUG-302.
 
 ## Bug Template
 
@@ -66,3 +66,24 @@ Actual:
 Known Impact:
 Named arguments through callable values can use only `argX` names. Any explicit name written in the callable type is accepted by the declaration but has no effect at calls. Calling with the `argX` form works.
 
+## BUG-301: caller(qualifiedname) omits the namespace for a free function in a namespace block
+
+Date/Time: 2026-10-18 09:06 EDT
+
+Summary:
+The language semantics say `caller(qualifiedname)` becomes `[Namespace::][Type.]functionName`. A method of a type inside a namespace includes the namespace, but a free function declared in a `namespace` block reports only its own name.
+
+Steps to Reproduce:
+
+1. Declare `string who(string name = caller(qualifiedname)) => name;` at file scope.
+2. Declare `namespace Outer { void inFree() { log(who()); } }` where `log` writes a string.
+3. Call `Outer::inFree();` from `main` and run.
+
+Expected:
+The logged value is `Outer::inFree`, matching `Outer::Inner.method` for a method of a struct declared in the same namespace.
+
+Actual:
+The logged value is `inFree`.
+
+Known Impact:
+Library code that logs or asserts with the qualified caller name cannot tell free functions of different namespaces apart. Methods are unaffected.
