@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-307.
+Next bug number: BUG-308.
 
 ## Bug Template
 
@@ -197,3 +197,25 @@ The first form is rejected with `For condition must be 'bool', not 'int'.` point
 
 Known Impact:
 A loop that keeps its counter outside the loop cannot be written with an empty initializer.
+
+## BUG-307: An else after an unbraced if that is itself the body of a loop is reported as detached
+
+Date/Time: 2026-10-18 13:53 EDT
+
+Summary:
+When the body of a `while` or `for` is an unbraced `if` and that `if` has an `else`, the `else` is not attached to the `if`. The compiler reports it as an `else` with no `if`.
+
+Steps to Reproduce:
+
+1. Write `while (i < 4) if (i++ == 1) continue; else total += 5;` with the declarations it needs.
+2. Compile the file.
+3. Repeat with a `for` loop in place of the `while`.
+
+Expected:
+The `else` belongs to the nearest `if`, as it does inside a braced body.
+
+Actual:
+`(no line,column) error: 'else' must follow an if statement.` is reported with no position, for both loop kinds.
+
+Known Impact:
+Dangling-else bodies that C accepts cannot be written without braces, and the diagnostic has no location.
