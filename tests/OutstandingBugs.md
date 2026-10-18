@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-308.
+Next bug number: BUG-309.
 
 ## Bug Template
 
@@ -43,3 +43,26 @@ Actual:
 Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
+
+## BUG-308: Increment and decrement of a property emit an assignment to the getter call
+
+Date/Time: 2026-10-18 19:22 EDT
+
+Summary:
+A prefix or postfix `++` or `--` applied to a property is lowered to an increment of the getter's call expression instead of a getter read followed by a setter call. The generated native code does not compile, so the program fails at the native build step rather than with a source diagnostic. The language semantics require updates of a property to read the getter once and pass the updated value to the setter, as a compound assignment does.
+
+Steps to Reproduce:
+
+1. Declare `struct Counter { int value; int getValue() { return this.value; } void setValue(int next) { this.value = next; } }`.
+2. In a function, declare `Counter counter = default;` and write `counter.Value++;`. Repeat with `++counter.Value;`, `counter.Value--;` and `int result = counter.Value++;`.
+3. Build and run the program.
+
+Expected:
+Each form compiles. `counter.Value++;` calls `getValue`, adds one, and passes the result to `setValue`; the expression forms produce the value the language defines for postfix and prefix updates. `counter.Value += 1;` already behaves this way.
+
+Actual:
+The native build fails with `expression is not assignable` on the generated `Counter_getValue(&counter)++;` (and `++Counter_getValue(&counter);`). No source diagnostic is reported.
+
+Known Impact:
+Any program that increments or decrements a property fails to build. Writing `counter.Value += 1;` works around it.
+
