@@ -179,6 +179,10 @@ A primitive string converted to an array supplies both the pointer and length
 slots when defaults are bound against an expanded signature. Later explicit
 arguments keep their source positions; they cannot be consumed as the length.
 
+Assigning a primitive string to an array view evaluates the source once for
+both components. Generated capture locals must contain lowered expressions,
+including the receiver of a method whose result supplies the string field.
+
 An inserted optional default retains its source parameter's optional type even
 when the default expression is a plain payload. Expand that payload together
 with a `true` specified component; an optional `default` value supplies an

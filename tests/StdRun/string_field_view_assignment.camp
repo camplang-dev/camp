@@ -1,0 +1,25 @@
+struct Shard { uint document; string name; }
+struct Index
+{
+	fixed Shard[4] files;
+	uint count;
+	uint calls;
+	Shard get(uint i) { this.calls++; return i < this.count ? this.files[i] : default; }
+}
+int find(Index* index)
+{
+	const char[] found = default;
+	for (uint i = 0; i < index.count; i++)
+	{
+		if (index.get(i).document == 2) found = index.get(i).name;
+	}
+	return (int)found.length;
+}
+export int main()
+{
+	Index index = default;
+	index.files[0] = { 1, "one" };
+	index.files[1] = { 2, "two" };
+	index.count = 2;
+	return find(&index) == 3 && index.calls == 3 ? 0 : 1;
+}

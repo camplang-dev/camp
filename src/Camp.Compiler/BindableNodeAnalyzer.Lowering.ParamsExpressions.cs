@@ -1299,6 +1299,23 @@ public sealed partial class BindableNodeAnalyzer
 				|| targetShape.Components.Count != targets.Count)
 				return false;
 
+			// String-to-view expansion captures a shared pointer for its data and
+			// length. Lower the source before putting it in that generated local.
+			if (targetShape.Kind == ParamsComponentShapeKind.Array
+				&& GetPrimitiveStringElementType(assignment.Value?.ResolvedType) is not null)
+			{
+				List<Statement>? previousPrefix = currentStatementPrefix;
+				try
+				{
+					currentStatementPrefix = statements;
+					assignment.Value = LowerExpression(assignment.Value);
+				}
+				finally
+				{
+					currentStatementPrefix = previousPrefix;
+				}
+			}
+
 			CaptureParamsArrayConstructionLength(assignment.Value, targetShape, statements);
 			values = GetParamsComponentInitialValues(assignment.Value, targetShape, deferCurrentAllocator: true, statements)
 				.Where(static value => value is not null)
