@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-303.
+Next bug number: BUG-304.
 
 ## Bug Template
 
@@ -108,3 +108,25 @@ Actual:
 
 Known Impact:
 Editors and tests cannot locate these errors. Wrong arity, a non-name argument and a missing anchor on the first parameter all behave this way.
+
+## BUG-303: Assigning a string field of a method call result to an array view emits a call without its receiver
+
+Date/Time: 2026-10-18 09:19 EDT
+
+Summary:
+Assigning the `string` field of a call result to an existing `const char[]` variable inside a loop emits C for the call with its receiver replaced by the address of the argument. The generated C does not compile. Declaring the `const char[]` with the same initializer compiles correctly.
+
+Steps to Reproduce:
+
+1. Declare `struct Shard { uint document; string name; }` and a struct `Index` with a `fixed Shard[4] files;` field, a `uint count;` field and `Shard get(uint i) => i < this.count ? this.files[i] : default;`.
+2. In a function taking `Index* index`, declare `const char[] found = default;` and loop `for (uint i = 0; i < index.count; i++)` with `if (index.get(i).document == wanted) found = index.get(i).name;`.
+3. Compile and run.
+
+Expected:
+The program compiles and `found` holds the matching shard's name.
+
+Actual:
+The generated C calls the method as `Index_get(&i).name`: the receiver is dropped and the argument's address is passed, so clang reports `too few arguments to function call, expected 2, have 1`.
+
+Known Impact:
+A method result's string field cannot be assigned to an array view in this shape. Storing the call result in a local struct first avoids it.
