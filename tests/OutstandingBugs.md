@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-305.
+Next bug number: BUG-306.
 
 ## Bug Template
 
@@ -153,3 +153,25 @@ The sibling loops fail with `Symbol 'i' is already declared in this scope.` The 
 
 Known Impact:
 The usual C-style pattern of reusing a counter name across loops in one function does not compile, and a counter used past its loop is reported as a native build error instead of a Camp diagnostic.
+
+## BUG-305: break and continue outside any eligible construct are not diagnosed
+
+Date/Time: 2026-10-18 13:53 EDT
+
+Summary:
+A `break` that is not inside a loop or switch, and a `continue` that is not inside a loop, are accepted by the front end. The generated C then fails to compile, so the error appears as a native build failure.
+
+Steps to Reproduce:
+
+1. Write `int f() { break; return 0; }` and `int g() { continue; return 0; }`.
+2. Write a `continue` whose only enclosing construct is a `switch`.
+3. Compile the file.
+
+Expected:
+Each statement is reported as a Camp error at the statement, because `break` leaves the nearest loop or switch and `continue` advances the nearest loop.
+
+Actual:
+The native build fails with `'break' statement not in loop or switch statement` and `'continue' statement not in loop statement`.
+
+Known Impact:
+A misplaced `break` or `continue` has no source location in a Camp diagnostic, so editors and tests cannot point at it.
