@@ -355,10 +355,18 @@ public sealed partial class BindableNodeAnalyzer
 				break;
 
 			case EmptyStatement:
-			case BreakStatement:
-			case ContinueStatement:
 			case DefaultStatement:
 				statement.ResolvedType = "void";
+				break;
+
+			case BreakStatement:
+				if (scope.LoopDepth == 0 && scope.SwitchDepth == 0)
+					Report(GetRange(statement.SourceSyntax), "Break statement requires an enclosing loop or switch.");
+				break;
+
+			case ContinueStatement:
+				if (scope.LoopDepth == 0)
+					Report(GetRange(statement.SourceSyntax), "Continue statement requires an enclosing loop.");
 				break;
 
 			case ExpressionStatement expression:
@@ -404,7 +412,9 @@ public sealed partial class BindableNodeAnalyzer
 				break;
 
 			case SwitchStatement switchStatement:
+				scope.SwitchDepth++;
 				BodyAnalyzeSwitchStatement(switchStatement, scope, typeScope);
+				scope.SwitchDepth--;
 				switchStatement.ResolvedType = "void";
 				break;
 
@@ -3091,6 +3101,8 @@ public sealed partial class BindableNodeAnalyzer
 			CurrentFunctionSourceReturnType = lambdaSourceReturnType,
 			CurrentIteratorElementType = null,
 			CurrentIteratorThrownType = null,
+			LoopDepth = 0,
+			SwitchDepth = 0,
 			ExplicitWithinContextDepth = scope.ExplicitWithinContextDepth,
 			NewDelegateLambdaDepth = scope.NewDelegateLambdaDepth + (lambda.IsNewDelegate ? 1 : 0),
 			Lambda = lambda
@@ -7738,6 +7750,7 @@ public sealed partial class BindableNodeAnalyzer
 		public Dictionary<string, BodyComponentSymbol> ComponentSymbolTypes { get; } = new(StringComparer.Ordinal);
 		public int ExplicitWithinContextDepth { get; set; } = parent?.ExplicitWithinContextDepth ?? 0;
 		public int LoopDepth { get; set; } = parent?.LoopDepth ?? 0;
+		public int SwitchDepth { get; set; } = parent?.SwitchDepth ?? 0;
 		public int NewDelegateLambdaDepth { get; set; } = parent?.NewDelegateLambdaDepth ?? 0;
 		public string? CurrentWithinContextLifetimeFact { get; set; } = parent?.CurrentWithinContextLifetimeFact;
 		public bool AllowClassTypeNameOfDefaultValue { get; set; } = parent?.AllowClassTypeNameOfDefaultValue ?? false;
