@@ -201,6 +201,10 @@ caller(qualifiedname)
 sourceof(argumentName)
 ```
 
+`sourceof` must name another parameter in the selected signature; a default
+cannot capture its own omitted argument. Malformed source-capture defaults carry
+the source range of the offending expression or argument list.
+
 The selector meanings, source text normalization, path policy, and
 not-supplied rule for `caller(propertyname)` are specified in
 [Core Expression, Statement, And Access Semantics](14-core-expression-statement-and-access-semantics.md).

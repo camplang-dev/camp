@@ -2596,7 +2596,11 @@ public sealed partial class BindableNodeAnalyzer
 			.ToHashSet(StringComparer.Ordinal);
 
 		foreach (ParameterDefinition parameter in parameters)
+		{
+			parameterNames.Remove(parameter.Name);
 			ValidateSourceCaptureDefaultValue(parameter.DefaultValue, parameterNames);
+			if (!string.IsNullOrWhiteSpace(parameter.Name)) parameterNames.Add(parameter.Name);
+		}
 	}
 
 	void ValidateSourceCaptureDefaultValue(Expression? expression, HashSet<string> parameterNames)
