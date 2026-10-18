@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-306.
+Next bug number: BUG-307.
 
 ## Bug Template
 
@@ -175,3 +175,25 @@ The native build fails with `'break' statement not in loop or switch statement` 
 
 Known Impact:
 A misplaced `break` or `continue` has no source location in a Camp diagnostic, so editors and tests cannot point at it.
+
+## BUG-306: A for statement with an omitted initializer binds its clauses one position early
+
+Date/Time: 2026-10-18 13:53 EDT
+
+Summary:
+When the initializer clause of a `for` is empty and the condition and increment are present, the condition is taken as the initializer and the increment as the condition. The error or behavior then follows the wrong clause.
+
+Steps to Reproduce:
+
+1. Write `int i = 0; int total = 0; for (; i < 3; i++) total += 10;`.
+2. Compile the file.
+3. Repeat with `for (; i < 5;) i += 2;`.
+
+Expected:
+The loop runs three passes with the condition `i < 3` and the increment `i++`; the second form is a loop with no increment that ends when `i` reaches 5.
+
+Actual:
+The first form is rejected with `For condition must be 'bool', not 'int'.` pointing at `i++`. The second form treats the omitted increment as the condition and has no usable test. Loops that omit all clauses, or only the condition, behave correctly.
+
+Known Impact:
+A loop that keeps its counter outside the loop cannot be written with an empty initializer.
