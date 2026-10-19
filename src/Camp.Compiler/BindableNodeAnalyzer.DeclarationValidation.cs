@@ -1329,7 +1329,7 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		foreach (FunctionDefinition function in functions)
 		{
-			if (function.Modifier == FunctionModifier.Override && BuildMethodSignature(function).Equals(required) && IsAtLeastAsAvailable(function, inherited, ownerRequirement))
+			if (function.Modifier is (FunctionModifier.Override or FunctionModifier.Sealed) && BuildMethodSignature(function).Equals(required) && IsAtLeastAsAvailable(function, inherited, ownerRequirement))
 				return true;
 		}
 
@@ -1418,6 +1418,8 @@ public sealed partial class BindableNodeAnalyzer
 
 	bool IsGeneratedVirtualImplementation(FunctionDefinition function)
 	{
+		if (function.GeneratedInfo is { Category: GeneratedDeclarationCategory.VirtualDispatch, Reason: "virtual implementation thunk" or "class-relative virtual result adapter" })
+			return true;
 		foreach (FunctionDefinition implementation in virtualImplementations.Values)
 		{
 			if (ReferenceEquals(implementation, function))

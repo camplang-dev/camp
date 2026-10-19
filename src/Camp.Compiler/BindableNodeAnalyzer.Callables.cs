@@ -393,6 +393,7 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		return type switch
 		{
+			ClassTypeReference => "classtype",
 			null => ErrorType,
 			TypeDefinitionReference { Definition: not null } definition => ConstructedName(ResolvedNominalTypeName(definition.Definition), definition.TypeArguments),
 			TypeDefinitionReference definition => definition.ResolvedType ?? AddTypeArguments(definition.Name, definition.TypeArguments),

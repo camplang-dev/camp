@@ -3,16 +3,19 @@ namespace Camp.Compiler;
 public sealed partial class BindableNodeAnalyzer
 {
 	string RefineClassTypeCallReturn(FunctionDefinition function, Expression? callTarget, string returnType)
+		=> RefineClassTypeCallType(function, function.ReturnType, callTarget, returnType);
+
+	string RefineClassTypeCallType(FunctionDefinition function, TypeReference? type, Expression? callTarget, string resolvedType)
 	{
-		if (!ContainsClassTypeReference(function.ReturnType)
+		if (!ContainsClassTypeReference(type)
 			|| FindContainingType(function) is not ClassDefinition owner
 			|| !TryGetClassTypeCallSiteName(callTarget, function, out string classTypeName)
-			|| classTypeName == owner.Name && !returnType.Contains("classtype", System.StringComparison.Ordinal))
-			return returnType;
+			|| classTypeName == owner.Name && !resolvedType.Contains("classtype", System.StringComparison.Ordinal))
+			return resolvedType;
 
-		string sourceReturnType = FormatTypeReference(function.ReturnType);
+		string sourceReturnType = FormatTypeReference(type);
 		if (!TryParseTypeShape(sourceReturnType, out TypeShape shape))
-			return returnType;
+			return resolvedType;
 
 		TypeShape substituted = SubstituteClassTypeShape(shape, owner.Name, classTypeName);
 		return TypeShapeParser.Format(substituted);

@@ -4719,6 +4719,8 @@ public sealed partial class BindableNodeAnalyzer
 			}
 
 			string expected = SubstituteStorageType(analysisParameter?.ResolvedType ?? ErrorType, genericSubstitutions);
+			if (function is not null && analysisParameter is not null)
+				expected = RefineClassTypeCallType(function, analysisParameter.Type, callTarget, expected);
 			string storageExpected = expected;
 			bool erasedInStorage = analysisParameter?.Modifier == ParameterModifier.In && ErasedTypeIdentity.TryGetPayload(expected, out _);
 			if (analysisParameter?.Modifier is ParameterModifier.In or ParameterModifier.Out || CarrierTypeIdentity.TryGetPayload(expected, out _))
@@ -4734,6 +4736,8 @@ public sealed partial class BindableNodeAnalyzer
 				InferGenericSubstitutions(analysisParameter.ResolvedType ?? ErrorType, actual, genericSubstitutions, genericParameterNames);
 				NormalizeRepresentationSubstitutions(function, genericSubstitutions, typeScope);
 				expected = SubstituteStorageType(analysisParameter.ResolvedType ?? ErrorType, genericSubstitutions);
+				if (function is not null)
+					expected = RefineClassTypeCallType(function, analysisParameter.Type, callTarget, expected);
 				storageExpected = expected;
 				if (TryGetConstOfActualSlot(analysisParameter, arguments[i], out bool anchorIsConst) && !string.IsNullOrWhiteSpace(analysisParameter.Name))
 					constOfAnchorsInProgress[analysisParameter.Name] = anchorIsConst;

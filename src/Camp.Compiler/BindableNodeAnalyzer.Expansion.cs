@@ -79,6 +79,13 @@ public sealed partial class BindableNodeAnalyzer
 			if (implementation is not null)
 			{
 				generated.Add(implementation);
+				if (GetVirtualImplementationAbiOwner(classDefinition, function) is ClassDefinition abiOwner
+					&& !ReferenceEquals(abiOwner, classDefinition)
+					&& (ContainsClassTypeReference(function.ReturnType) || function.Parameters.Any(parameter => ContainsClassTypeReference(parameter.Type))))
+				{
+					implementation = CreateClassTypeVirtualAdapter(classDefinition, abiOwner, implementation);
+					generated.Add(implementation);
+				}
 				virtualImplementations[function] = implementation;
 			}
 
@@ -155,6 +162,77 @@ public sealed partial class BindableNodeAnalyzer
 		return implementation;
 	}
 
+	FunctionDefinition CreateClassTypeVirtualAdapter(ClassDefinition owner, ClassDefinition abiOwner, FunctionDefinition implementation)
+	{
+		// Keep the slot's exact C signature; adapt covariant results through typed calls.
+		FunctionDefinition adapter = generatedDeclarations.Function(GeneratedDeclarationCategory.VirtualDispatch, "class-relative virtual result adapter", implementation);
+		adapter.Name = implementation.Name + "_abi";
+		adapter.Symbol = implementation.Symbol + "_abi";
+		adapter.ReturnType = CloneVirtualSlotType(implementation.ReturnType, abiOwner);
+		adapter.ResolvedType = FormatTypeReference(adapter.ReturnType);
+		adapter.AbiThisType = CloneType(implementation.AbiThisType);
+		adapter.ImplementationThisType = CloneType(implementation.ImplementationThisType);
+		BlockStatement body = new() { ResolvedType = "void" };
+		adapter.Body = body;
+		CallExpression call = new()
+		{
+			Target = new MemberReferenceExpression
+			{
+				Target = new ThisExpression { ResolvedType = owner.Name + "*" },
+				Name = implementation.Name, Member = implementation,
+				ResolvedType = BuildFunctionValueType(implementation, isInstance: true)
+			},
+			ResolvedType = implementation.ResolvedType
+		};
+		List<Statement> copyBack = [];
+		foreach (ParameterDefinition parameter in implementation.Parameters)
+		{
+			ParameterDefinition forwarded = CloneParameter(parameter);
+			forwarded.Type = CloneVirtualSlotType(parameter.Type, abiOwner);
+			if (ContainsClassTypeReference(parameter.Type))
+				forwarded.ResolvedType = FormatTypeReference(forwarded.Type);
+			adapter.Parameters.Add(forwarded);
+			Expression value = CreateVariableReference(forwarded, forwarded.ResolvedType ?? ErrorType);
+			if (parameter.Modifier == ParameterModifier.Out && ContainsClassTypeReference(parameter.Type))
+			{
+				TypeReference localType = CloneVirtualSlotType(parameter.Type, owner)!;
+				string localTypeName = FormatTypeReference(localType);
+				DeclarationStatement local = CreateGeneratedLocal(NewGeneratedLocalName("classResult"), localTypeName, localType, new DefaultExpression { ResolvedType = localTypeName });
+				body.Statements.Add(local);
+				Expression localValue = CreateVariableReference(local.Target, localTypeName);
+				copyBack.Add(new ExpressionStatement
+				{
+					Expression = new AssignmentExpression
+					{
+						Target = value, Operator = AssignmentOperator.Assign,
+						Value = new CastExpression { Kind = CastKind.Type, Type = CloneType(forwarded.Type), Expression = localValue, ResolvedType = forwarded.ResolvedType },
+						ResolvedType = forwarded.ResolvedType
+					}, ResolvedType = "void"
+				});
+				value = CreateVariableReference(local.Target, localTypeName);
+			}
+			call.Arguments.Add(new ArgumentExpression
+			{
+				Modifier = parameter.Modifier == ParameterModifier.Out ? ArgumentModifier.Out : parameter.Modifier == ParameterModifier.Thrown ? ArgumentModifier.Catch : ArgumentModifier.None,
+				Value = value, ResolvedType = value.ResolvedType
+			});
+		}
+		Expression? result = null;
+		if (FormatTypeReference(implementation.ReturnType) == "void")
+			body.Statements.Add(new ExpressionStatement { Expression = call, ResolvedType = "void" });
+		else
+		{
+			TypeReference resultType = CloneVirtualSlotType(implementation.ReturnType, owner)!;
+			DeclarationStatement local = CreateGeneratedLocal(NewGeneratedLocalName("classReturn"), FormatTypeReference(resultType), resultType, call);
+			body.Statements.Add(local);
+			result = new CastExpression { Kind = CastKind.Type, Type = CloneType(adapter.ReturnType), Expression = CreateVariableReference(local.Target, local.Target.ResolvedType ?? ErrorType), ResolvedType = adapter.ResolvedType };
+		}
+		body.Statements.AddRange(copyBack);
+		if (result is not null)
+			body.Statements.Add(new ReturnStatement { Expression = result, ResolvedType = "void" });
+		return adapter;
+	}
+
 	void ApplyVirtualImplementationThisTypes(FunctionDefinition implementation, ClassDefinition owner, ClassDefinition abiOwner, FunctionDefinition source)
 	{
 		string abiReceiverType = BuildVirtualReceiverType(abiOwner, source);
@@ -203,7 +281,7 @@ public sealed partial class BindableNodeAnalyzer
 		CallableTypeReference callable = new()
 		{
 			Kind = CallableKind.Function,
-			ReturnType = CloneType(function.ReturnType) ?? VoidType(),
+			ReturnType = CloneVirtualSlotType(function.ReturnType, owner) ?? VoidType(),
 			ResolvedType = BuildVirtualSlotCallableType(owner, function)
 		};
 		string receiverType = BuildVirtualReceiverType(owner, function);
@@ -218,8 +296,14 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			if (parameter is ThisParameterDefinition)
 				continue;
-			callable.Parameters.Add(CloneParameter(parameter));
+			ParameterDefinition slotParameter = CloneParameter(parameter);
+			slotParameter.Type = CloneVirtualSlotType(parameter.Type, owner);
+			if (ContainsClassTypeReference(parameter.Type))
+				slotParameter.ResolvedType = FormatTypeReference(slotParameter.Type);
+			callable.Parameters.Add(slotParameter);
 		}
+		if (ContainsClassTypeReference(function.ReturnType) || function.Parameters.Any(parameter => ContainsClassTypeReference(parameter.Type)))
+			callable.ResolvedType = FormatTypeReference(callable);
 
 		FieldDefinition field = generatedDeclarations.Field(GeneratedDeclarationCategory.VirtualDispatch, "virtual slot field", function);
 		field.Name = VirtualSlotName(function);
@@ -228,6 +312,18 @@ public sealed partial class BindableNodeAnalyzer
 		field.ResolvedType = callable.ResolvedType;
 		field.EffectiveRequirement = function.EffectiveRequirement;
 		return field;
+	}
+
+	static TypeReference? CloneVirtualSlotType(TypeReference? type, ClassDefinition owner)
+	{
+		TypeReference? clone = CloneType(type);
+		if (clone is null)
+			return null;
+		if (clone is ClassTypeReference)
+			return TypeReferenceFor(owner);
+		BindableNodeTraversal.RewriteChildren(clone, static expression => expression,
+			reference => reference is ClassTypeReference ? TypeReferenceFor(owner) : reference, []);
+		return clone;
 	}
 
 	BlockStatement CreateVirtualDispatchBody(ClassDefinition owner, FunctionDefinition function, FieldDefinition slotField)

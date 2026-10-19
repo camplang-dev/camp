@@ -80,6 +80,11 @@ allowed only in result positions: the return type and direct `out` parameter
 types. It must not appear in input parameters or nested callable/iterator/async
 types inside the virtual signature. This prevents a derived override from
 pretending that callers through the base slot supplied the derived class type.
+Override matching preserves the source `classtype` contract even though each
+declaration binds it to its own enclosing class. Generated dispatch slots use
+the declaring class's concrete ABI type and do not introduce source field uses
+of `classtype`. Direct `out` arguments rebind to the static receiver just like
+return values.
 
 Values of a `classtype` shape may widen to the enclosing class shape. The
 reverse direction is not implicit. Returning `this` from an instance method is

@@ -1,0 +1,30 @@
+abstract class Root
+{
+	abstract classtype* clone();
+	abstract void peer(out classtype* value);
+}
+virtual class Middle : Root
+{
+	override classtype* clone() { return this; }
+	override void peer(out classtype* value) { value = this; }
+}
+sealed class Leaf : Middle
+{
+	sealed classtype* clone() { return this; }
+	sealed void peer(out classtype* value) { value = this; }
+}
+virtual class Item
+{
+	virtual classtype* self() { return this; }
+}
+export int main()
+{
+	Leaf* leaf = new Leaf() finally delete;
+	Middle* middle = leaf;
+	Root* root = leaf;
+	Leaf* l = leaf.clone(); leaf.peer(out l);
+	Middle* m = middle.clone(); middle.peer(out m);
+	Root* r = root.clone(); root.peer(out r);
+	Item* item = new Item() finally delete;
+	return l == leaf && m == middle && r == root && item.self() == item ? 0 : 1;
+}
