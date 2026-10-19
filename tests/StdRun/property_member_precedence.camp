@@ -1,0 +1,57 @@
+int accessorCalls = 0;
+struct GetterHolder { int Value; int getValue() { accessorCalls++; return 999; } }
+struct SetterHolder { int Value; void setValue(int next) { accessorCalls++; } }
+struct Holder
+{
+	int Value;
+	int getValue() { accessorCalls++; return 999; }
+	void setValue(int next) { accessorCalls++; }
+}
+class Base { int Value; }
+class Derived : Base
+{
+	int getValue() { accessorCalls++; return 999; }
+	void setValue(int next) { accessorCalls++; }
+}
+struct Indexed
+{
+	fixed int[2] Value;
+	int getValue(int index) { accessorCalls++; return 999; }
+	void setValue(int index, int next) { accessorCalls++; }
+}
+struct Callable { fn int(int) Value; int getValue(int input) { accessorCalls++; return 999; } }
+int actual(int input) => input;
+static class Shared
+{
+	static int Value;
+	static int getValue() { accessorCalls++; return 999; }
+	static void setValue(int next) { accessorCalls++; }
+}
+export int main()
+{
+	GetterHolder getter = default;
+	getter.Value = 5;
+	if (getter.Value != 5) return 1;
+	SetterHolder setter = default;
+	setter.Value = 6;
+	if (setter.Value != 6) return 2;
+	Holder holder = default;
+	holder.Value = 5;
+	holder.Value += 1;
+	int old = holder.Value++;
+	int next = ++holder.Value;
+	if (old != 6 || next != 8 || holder.Value != 8) return 3;
+	Derived derived = default;
+	derived.Value = 9;
+	if (derived.Value != 9) return 4;
+	Indexed indexed = default;
+	indexed.Value[0] = 10;
+	indexed.Value[0]++;
+	if (indexed.Value[0] != 11) return 5;
+	Callable callable = default;
+	callable.Value = actual;
+	if (callable.Value(12) != 12) return 6;
+	Shared.Value = 13;
+	Shared.Value++;
+	return Shared.Value == 14 && accessorCalls == 0 ? 0 : 7;
+}

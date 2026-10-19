@@ -2500,8 +2500,14 @@ public sealed partial class BindableNodeAnalyzer
 		return functions;
 	}
 
-	List<BodySymbol> LookupMemberSymbols(string targetType, string name, SyntaxNode? referenceSyntax)
+	List<BodySymbol> LookupMemberSymbols(string targetType, string name, SyntaxNode? referenceSyntax, bool includePropertyGetters = true)
 	{
+		if (includePropertyGetters)
+		{
+			List<BodySymbol> ordinary = LookupMemberSymbols(targetType, name, referenceSyntax, includePropertyGetters: false);
+			if (ordinary.Count > 0)
+				return ordinary;
+		}
 		List<BodySymbol> members = [];
 		if (TryGetParamsComponentShape(null, targetType, "value", out ParamsComponentShape expandedShape))
 		{
@@ -2528,7 +2534,7 @@ public sealed partial class BindableNodeAnalyzer
 			{
 				if ((GetSignatureName(function) == name || function.Name == name) && IsMemberVisible(function, interfaceDefinition, referenceSyntax))
 					members.Add(new BodySymbol(name, BuildBoundFunctionValueType(function, interfaceElement), function));
-				if (function.Name == "get" + name && function.Parameters.Count == 0 && IsMemberVisible(function, interfaceDefinition, referenceSyntax))
+				if (includePropertyGetters && function.Name == "get" + name && function.Parameters.Count == 0 && IsMemberVisible(function, interfaceDefinition, referenceSyntax))
 					members.Add(new BodySymbol(name, GetGetterMemberType(targetType, function, referenceSyntax), function));
 			}
 			return members;
@@ -2538,10 +2544,13 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			foreach (FunctionDefinition function in LookupExtensionFunctions(targetType, name, referenceSyntax))
 				members.Add(new BodySymbol(name, BuildBoundFunctionValueType(function, targetType), function));
-			foreach (FunctionDefinition getter in LookupExtensionFunctions(targetType, "get" + name, referenceSyntax))
+			if (includePropertyGetters)
 			{
-				if (CanCallWithArgumentCount(getter.Parameters, 0))
-					members.Add(new BodySymbol(name, GetGetterMemberType(targetType, getter, referenceSyntax), getter));
+				foreach (FunctionDefinition getter in LookupExtensionFunctions(targetType, "get" + name, referenceSyntax))
+				{
+					if (CanCallWithArgumentCount(getter.Parameters, 0))
+						members.Add(new BodySymbol(name, GetGetterMemberType(targetType, getter, referenceSyntax), getter));
+				}
 			}
 			return members;
 		}
@@ -2617,15 +2626,21 @@ public sealed partial class BindableNodeAnalyzer
 		foreach (FunctionDefinition function in LookupExtensionFunctions(targetType, name, referenceSyntax))
 			members.Add(new BodySymbol(name, BuildBoundFunctionValueType(function, targetType), function));
 
-		foreach (FunctionDefinition getter in LookupTypeFunctions(type, "get" + name, referenceSyntax))
+		if (includePropertyGetters)
 		{
-			if (getter.Parameters.Count == 0 && ReceiverCanCallFunction(targetType, getter, isPropertyGetterSyntax: true))
-				members.Add(new BodySymbol(name, GetGetterMemberType(targetType, getter, referenceSyntax), getter));
+			foreach (FunctionDefinition getter in LookupTypeFunctions(type, "get" + name, referenceSyntax))
+			{
+				if (getter.Parameters.Count == 0 && ReceiverCanCallFunction(targetType, getter, isPropertyGetterSyntax: true))
+					members.Add(new BodySymbol(name, GetGetterMemberType(targetType, getter, referenceSyntax), getter));
+			}
 		}
-		foreach (FunctionDefinition getter in LookupExtensionFunctions(targetType, "get" + name, referenceSyntax))
+		if (includePropertyGetters)
 		{
-			if (CanCallWithArgumentCount(getter.Parameters, 0))
-				members.Add(new BodySymbol(name, GetGetterMemberType(targetType, getter, referenceSyntax), getter));
+			foreach (FunctionDefinition getter in LookupExtensionFunctions(targetType, "get" + name, referenceSyntax))
+			{
+				if (CanCallWithArgumentCount(getter.Parameters, 0))
+					members.Add(new BodySymbol(name, GetGetterMemberType(targetType, getter, referenceSyntax), getter));
+			}
 		}
 
 		return members;
@@ -2725,8 +2740,14 @@ public sealed partial class BindableNodeAnalyzer
 		return SubstituteConstOfResolvedType(getter.ReturnType, getter.ResolvedType ?? ErrorType, constOfAnchors, genericSubstitutions);
 	}
 
-	List<BodySymbol> LookupStaticMemberSymbols(string targetType, string name, SyntaxNode? referenceSyntax)
+	List<BodySymbol> LookupStaticMemberSymbols(string targetType, string name, SyntaxNode? referenceSyntax, bool includePropertyGetters = true)
 	{
+		if (includePropertyGetters)
+		{
+			List<BodySymbol> ordinary = LookupStaticMemberSymbols(targetType, name, referenceSyntax, includePropertyGetters: false);
+			if (ordinary.Count > 0)
+				return ordinary;
+		}
 		List<BodySymbol> members = [];
 		string ownerName = BaseTypeName(targetType);
 		if (typeDefinitions.TryGetValue(ownerName, out TypeDefinition? type))
@@ -2755,10 +2776,13 @@ public sealed partial class BindableNodeAnalyzer
 				if (function.Modifier == FunctionModifier.Static)
 					members.Add(new BodySymbol(name, BuildFunctionValueType(function, isInstance: false, allowCallableAscription: true), function));
 			}
-			foreach (FunctionDefinition getter in LookupTypeFunctions(type, "get" + name, referenceSyntax))
+			if (includePropertyGetters)
 			{
-				if (getter.Modifier == FunctionModifier.Static && getter.Parameters.Count == 0)
-					members.Add(new BodySymbol(name, getter.ResolvedType ?? ErrorType, getter));
+				foreach (FunctionDefinition getter in LookupTypeFunctions(type, "get" + name, referenceSyntax))
+				{
+					if (getter.Modifier == FunctionModifier.Static && getter.Parameters.Count == 0)
+						members.Add(new BodySymbol(name, getter.ResolvedType ?? ErrorType, getter));
+				}
 			}
 		}
 		if (TryGetStaticClassByResolvedName(ownerName, out StaticClassDefinition? staticClassDefinition) && staticClassDefinition is not null)
@@ -2776,13 +2800,16 @@ public sealed partial class BindableNodeAnalyzer
 					&& IsStaticClassMemberVisible(function, staticClassDefinition, referenceSyntax))
 					members.Add(new BodySymbol(name, BuildFunctionValueType(function, isInstance: false, allowCallableAscription: true), function));
 			}
-			foreach (FunctionDefinition getter in staticClassDefinition.Functions)
+			if (includePropertyGetters)
 			{
-				if (getter.Modifier == FunctionModifier.Static
-					&& getter.Parameters.Count == 0
-					&& (getter.Name == "get" + name || GetCallableName(getter) == "get" + name)
-					&& IsStaticClassMemberVisible(getter, staticClassDefinition, referenceSyntax))
-					members.Add(new BodySymbol(name, getter.ResolvedType ?? ErrorType, getter));
+				foreach (FunctionDefinition getter in staticClassDefinition.Functions)
+				{
+					if (getter.Modifier == FunctionModifier.Static
+						&& getter.Parameters.Count == 0
+						&& (getter.Name == "get" + name || GetCallableName(getter) == "get" + name)
+						&& IsStaticClassMemberVisible(getter, staticClassDefinition, referenceSyntax))
+						members.Add(new BodySymbol(name, getter.ResolvedType ?? ErrorType, getter));
+				}
 			}
 		}
 
@@ -2790,10 +2817,13 @@ public sealed partial class BindableNodeAnalyzer
 			members.Add(new BodySymbol(name, variable.ResolvedType ?? ErrorType, variable, IsConstantVariable(variable)));
 		foreach (FunctionDefinition function in LookupOutOfScopeStaticFunctions(ownerName, name, referenceSyntax))
 			members.Add(new BodySymbol(name, BuildFunctionValueType(function, isInstance: false, allowCallableAscription: true), function));
-		foreach (FunctionDefinition getter in LookupOutOfScopeStaticFunctions(ownerName, "get" + name, referenceSyntax))
+		if (includePropertyGetters)
 		{
-			if (getter.Parameters.Count == 0)
-				members.Add(new BodySymbol(name, getter.ResolvedType ?? ErrorType, getter));
+			foreach (FunctionDefinition getter in LookupOutOfScopeStaticFunctions(ownerName, "get" + name, referenceSyntax))
+			{
+				if (getter.Parameters.Count == 0)
+					members.Add(new BodySymbol(name, getter.ResolvedType ?? ErrorType, getter));
+			}
 		}
 		if (members.Count > 0 && type is not null)
 			ReportConstructedGenericStaticMemberAccess(targetType, type, name, referenceSyntax);
@@ -3082,11 +3112,20 @@ public sealed partial class BindableNodeAnalyzer
 		return StripTopLevelValueQualifiers(receiverType) == StripTopLevelValueQualifiers(targetType);
 	}
 
+	bool HasVisibleOrdinaryMember(MemberExpression member, string targetType)
+	{
+		return (IsTypeReferenceExpression(member.Target)
+			? LookupStaticMemberSymbols(targetType, member.Name, member.SourceSyntax, includePropertyGetters: false)
+			: LookupMemberSymbols(targetType, member.Name, member.SourceSyntax, includePropertyGetters: false)).Count > 0;
+	}
+
 	bool TryAnalyzePropertyIndexer(MemberExpression member, List<ArgumentExpression> arguments, BodyScope scope, AnalysisScope typeScope, out string propertyType)
 	{
 		propertyType = ErrorType;
 		string targetType = TryAnalyzeMemberTypeTarget(member.Target, scope, typeScope, out string typeTarget)
 			? typeTarget : BodyAnalyzeExpression(member.Target, scope, typeScope);
+		if (HasVisibleOrdinaryMember(member, targetType))
+			return false;
 		TypeDefinition? type = GetTypeDefinition(targetType);
 
 		List<FunctionDefinition> getters = IsTypeReferenceExpression(member.Target)
@@ -3167,6 +3206,8 @@ public sealed partial class BindableNodeAnalyzer
 		propertyType = ErrorType;
 		string targetType = TryAnalyzeMemberTypeTarget(member.Target, scope, typeScope, out string typeTarget)
 			? typeTarget : BodyAnalyzeExpression(member.Target, scope, typeScope);
+		if (HasVisibleOrdinaryMember(member, targetType))
+			return false;
 		TypeDefinition? type = GetTypeDefinition(targetType);
 
 		List<FunctionDefinition> setters = IsTypeReferenceExpression(member.Target)

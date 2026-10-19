@@ -337,6 +337,12 @@ query and is rejected by the same non-type rule.
 
 ## Property Accessor Binding
 
+Property rewriting is a fallback after visible field/member lookup. If a
+visible member of the written name exists, bind that member and do not consult
+same-named property accessors. This applies to reads, writes, updates, indexing,
+and calls, including static members and inherited fields. An invalid operation
+on that member remains an error; it does not fall back to an accessor.
+
 Property access is syntactic sugar for method calls. A compatible compiler must
 bind the accessor during body analysis and lower the access to a call that
 preserves receiver, argument, generic, lifetime, `within`, `thrown`, and
