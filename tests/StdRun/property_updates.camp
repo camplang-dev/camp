@@ -1,0 +1,55 @@
+int reads = 0;
+int writes = 0;
+int receivers = 0;
+int indices = 0;
+int staticValue = 20;
+struct Counter
+{
+	int value;
+	int getValue() { reads++; return this.value; }
+	void setValue(int next) { writes++; this.value = next; }
+	int getItem(int index) { reads++; return this.value + index; }
+	void setItem(int index, int next) { writes++; this.value = next - index; }
+}
+Counter* receiver(Counter* counter) { receivers++; return counter; }
+int index() { indices++; return 0; }
+int getAmount(const Counter* this) => this.value;
+void setAmount(Counter* this, int next) { this.value = next; }
+static class Values
+{
+	static int getValue() => staticValue;
+	static void setValue(int next) { staticValue = next; }
+}
+export int main()
+{
+	Counter counter = { 10 };
+	int old = counter.Value++;
+	if (old != 10 || counter.value != 11) return 1;
+	int next = ++counter.Value;
+	if (next != 12 || counter.value != 12) return 2;
+	old = counter.Value--;
+	if (old != 12 || counter.value != 11) return 3;
+	next = --counter.Value;
+	if (next != 10 || counter.value != 10) return 4;
+	counter.Value++;
+	++counter.Value;
+	counter.Value--;
+	--counter.Value;
+	if (counter.value != 10 || reads != 8 || writes != 8) return 5;
+	old = receiver(&counter).Item[index()]++;
+	if (old != 10 || counter.value != 11 || receivers != 1 || indices != 1 || reads != 9 || writes != 9) return 6;
+	bool skipped = false && ++receiver(&counter).Value > 0;
+	bool taken = true || receiver(&counter).Value++ > 0;
+	int selected = false ? counter.Value++ : 7;
+	if (skipped || !taken || selected != 7 || receivers != 1 || reads != 9 || writes != 9) return 7;
+	int total = 0;
+	for (; counter.Value++ < 14;) total++;
+	if (total != 3 || counter.value != 15) return 8;
+	while (--counter.Value > 12) total++;
+	if (total != 5 || counter.value != 12) return 9;
+	old = counter.Amount++;
+	if (old != 12 || counter.value != 13) return 10;
+	old = Values.Value++;
+	next = --Values.Value;
+	return old == 20 && next == 20 && staticValue == 20 ? 0 : 11;
+}

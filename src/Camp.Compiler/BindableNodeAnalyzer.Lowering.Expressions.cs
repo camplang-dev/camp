@@ -1389,7 +1389,7 @@ public sealed partial class BindableNodeAnalyzer
 		Expression newValue = CaptureCompoundPropertyValue(operation, "propertyValue");
 		Expression call = RewritePropertySetterCall(setter, capturedArguments, CloneParamsExpansionExpression(newValue));
 		currentStatementPrefix.Add(new ExpressionStatement { SourceSyntax = assignment.SourceSyntax, Expression = call, ResolvedType = "void" });
-		return CloneParamsExpansionExpression(newValue)!;
+		return CloneParamsExpansionExpression(postfixPropertyUpdates.Contains(assignment) ? oldValue : newValue)!;
 	}
 
 	Expression CaptureCompoundPropertyValue(Expression value, string prefix)

@@ -418,6 +418,12 @@ Conditional or short-circuit expressions evaluate accessor captures and calls
 only on the selected path. Captured expanded index arguments preserve all their
 ABI components.
 
+Prefix and postfix property updates use the same single-evaluation read/write
+sequence: capture the receiver and indices, read the getter once, add or
+subtract one, and call the setter once. Prefix produces the stored new value;
+postfix produces the saved old value. Conditional evaluation and loop-header
+evaluation must preserve when these calls occur.
+
 Property access does not make a member field visible. If a real field/member
 access is chosen, it remains field/member access. If a property accessor is
 chosen, all source behavior follows the accessor function.

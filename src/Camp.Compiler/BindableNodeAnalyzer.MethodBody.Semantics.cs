@@ -190,7 +190,7 @@ public sealed partial class BindableNodeAnalyzer
 		RequireMutableWriteTarget(targetType, syntax, context);
 	}
 
-	void RequireWritablePropertyUpdate(Expression? target)
+	bool RequireWritablePropertyUpdate(Expression? target)
 	{
 		while (target is ParenthesizedExpression parenthesized)
 			target = parenthesized.Expression;
@@ -200,14 +200,15 @@ public sealed partial class BindableNodeAnalyzer
 		if (target is not null && expressionRewrites.TryGetValue(target, out Expression? rewrite))
 			target = rewrite;
 		if (target is not MemberReferenceExpression getter || !IsPropertyGetterReference(getter))
-			return;
+			return false;
 		FunctionDefinition function = (FunctionDefinition)getter.Member!;
 		// Indexing a view returned by a parameterless getter writes its elements,
 		// rather than assigning the property itself.
 		if (indexed && GetCallableParameters(function.Parameters).Count == 0)
-			return;
+			return false;
 
-		string receiverType = getter.Target?.ResolvedType ?? ErrorType;
+		string receiverType = getter.Target is not null && expressionRewrites.TryGetValue(getter.Target, out Expression? receiverRewrite)
+			? receiverRewrite.ResolvedType ?? ErrorType : getter.Target?.ResolvedType ?? ErrorType;
 		List<FunctionDefinition> setters = IsTypeReferenceExpression(getter.Target)
 			? LookupStaticMemberFunctions(receiverType, "set" + getter.Name, getter.SourceSyntax)
 			: GetTypeDefinition(receiverType) is TypeDefinition type
@@ -216,6 +217,40 @@ public sealed partial class BindableNodeAnalyzer
 		setters.AddRange(LookupExtensionFunctions(receiverType, "set" + getter.Name, getter.SourceSyntax));
 		if (setters.Count == 0)
 			Report(GetRange(getter.SourceSyntax), $"Property '{getter.Name}' is not writable on type '{receiverType}'.");
+		return setters.Count > 0;
+	}
+
+	void BindPropertyUpdate(Expression update, Expression? target, string operandType, bool increment, BodyScope scope, AnalysisScope typeScope)
+	{
+		if (!IsNumericType(operandType))
+			return;
+		while (target is ParenthesizedExpression parenthesized)
+			target = parenthesized.Expression;
+		MemberExpression? property = target is IndexExpression index ? index.Target as MemberExpression : target as MemberExpression;
+		if (property is null)
+			return;
+		MemberExpression write = new() { SourceSyntax = property.SourceSyntax, Target = property.Target, Name = property.Name };
+		Expression writeTarget = write;
+		if (target is IndexExpression indexed)
+		{
+			IndexExpression writeIndex = new() { SourceSyntax = indexed.SourceSyntax, Target = write, ResolvedType = operandType };
+			writeIndex.Arguments.AddRange(indexed.Arguments);
+			writeTarget = writeIndex;
+		}
+		AssignmentExpression assignment = new()
+		{
+			SourceSyntax = update.SourceSyntax,
+			Target = writeTarget,
+			Operator = increment ? AssignmentOperator.Add : AssignmentOperator.Subtract,
+			Value = new CastExpression { Type = TypeReferenceForResolvedName(operandType), Expression = NumberLiteral("1", "int"), ResolvedType = operandType },
+			ResolvedType = operandType
+		};
+		if (TryAnalyzePropertyAssignment(assignment, scope, typeScope, out _))
+		{
+			expressionRewrites[update] = assignment;
+			if (update is PostfixUpdateExpression)
+				postfixPropertyUpdates.Add(assignment);
+		}
 	}
 
 	bool IsStorageAccessThroughConstReceiver(Expression? expression)
@@ -3050,10 +3085,13 @@ public sealed partial class BindableNodeAnalyzer
 	bool TryAnalyzePropertyIndexer(MemberExpression member, List<ArgumentExpression> arguments, BodyScope scope, AnalysisScope typeScope, out string propertyType)
 	{
 		propertyType = ErrorType;
-		string targetType = BodyAnalyzeExpression(member.Target, scope, typeScope);
+		string targetType = TryAnalyzeMemberTypeTarget(member.Target, scope, typeScope, out string typeTarget)
+			? typeTarget : BodyAnalyzeExpression(member.Target, scope, typeScope);
 		TypeDefinition? type = GetTypeDefinition(targetType);
 
-		List<FunctionDefinition> getters = type is null ? [] : LookupPropertyGetters(type, member.Name, member.SourceSyntax);
+		List<FunctionDefinition> getters = IsTypeReferenceExpression(member.Target)
+			? LookupStaticMemberFunctions(targetType, "get" + member.Name, member.SourceSyntax)
+			: type is null ? [] : LookupPropertyGetters(type, member.Name, member.SourceSyntax);
 		getters.AddRange(LookupExtensionFunctions(targetType, "get" + member.Name, member.SourceSyntax));
 		if (getters.Count > 1 && IsOverloadFamily(getters))
 		{
@@ -3127,10 +3165,13 @@ public sealed partial class BindableNodeAnalyzer
 	bool TryAnalyzePropertySetter(MemberExpression member, List<ArgumentExpression> arguments, Expression? value, BodyScope scope, AnalysisScope typeScope, out string propertyType)
 	{
 		propertyType = ErrorType;
-		string targetType = BodyAnalyzeExpression(member.Target, scope, typeScope);
+		string targetType = TryAnalyzeMemberTypeTarget(member.Target, scope, typeScope, out string typeTarget)
+			? typeTarget : BodyAnalyzeExpression(member.Target, scope, typeScope);
 		TypeDefinition? type = GetTypeDefinition(targetType);
 
-		List<FunctionDefinition> setters = type is null ? [] : LookupPropertySetters(type, member.Name, member.SourceSyntax);
+		List<FunctionDefinition> setters = IsTypeReferenceExpression(member.Target)
+			? LookupStaticMemberFunctions(targetType, "set" + member.Name, member.SourceSyntax)
+			: type is null ? [] : LookupPropertySetters(type, member.Name, member.SourceSyntax);
 		setters.AddRange(LookupExtensionFunctions(targetType, "set" + member.Name, member.SourceSyntax));
 		if (setters.Count > 0)
 			AnalyzeRangeAwareArguments(arguments, GetCallableParameters(setters[0].Parameters), member.Target, scope, typeScope, member.SourceSyntax);

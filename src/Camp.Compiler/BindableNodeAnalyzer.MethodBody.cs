@@ -6665,9 +6665,11 @@ public sealed partial class BindableNodeAnalyzer
 
 			case UnaryOperator.Increment:
 			case UnaryOperator.Decrement:
-				RequireWritablePropertyUpdate(unary.Operand);
+				bool writableProperty = RequireWritablePropertyUpdate(unary.Operand);
 				RequireMutableWriteTarget(unary.Operand, operandType, unary.Operand?.SourceSyntax, "Update target", scope);
 				RequireNumericUpdateOperand(unary.Operand, operandType, typeScope);
+				if (writableProperty)
+					BindPropertyUpdate(unary, unary.Operand, operandType, unary.Operator == UnaryOperator.Increment, scope, typeScope);
 				return operandType;
 
 			default:
@@ -6983,9 +6985,11 @@ public sealed partial class BindableNodeAnalyzer
 	string BodyAnalyzePostfixUpdateExpression(PostfixUpdateExpression postfix, BodyScope scope, AnalysisScope typeScope)
 	{
 		string operandType = BodyAnalyzeExpression(postfix.Expression, scope, typeScope);
-		RequireWritablePropertyUpdate(postfix.Expression);
+		bool writableProperty = RequireWritablePropertyUpdate(postfix.Expression);
 		RequireMutableWriteTarget(postfix.Expression, operandType, postfix.Expression?.SourceSyntax, "Update target", scope);
 		RequireNumericUpdateOperand(postfix.Expression, operandType, typeScope);
+		if (writableProperty)
+			BindPropertyUpdate(postfix, postfix.Expression, operandType, postfix.Operator == UpdateOperator.Increment, scope, typeScope);
 		return operandType;
 	}
 
