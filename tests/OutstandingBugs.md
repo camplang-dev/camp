@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-312.
+Next bug number: BUG-313.
 
 ## Bug Template
 
@@ -124,3 +124,41 @@ the declaration-side conversions are unchecked.
 Known Impact:
 Class-relative contracts can be violated without a cast. The unsafe assertion
 the language asks the programmer to write explicitly is silently implied.
+
+## BUG-312: `classtype` inside a callable type is emitted unlowered in generated C
+
+Date/Time: 2026-10-19 09:56 EDT
+
+Summary:
+`classtype` composes with ordinary type syntax and is replaced by the enclosing
+class type in lowered signatures. When it appears inside a callable type
+(`fn classtype*()`) in a non-virtual method parameter, result or local, the
+generated C still contains the literal name `classtype`, so the native build
+fails. The same `classtype` inside a pointer or array (`classtype*`,
+`classtype*[]`) in the same positions lowers correctly. The semantics only
+forbid callable-nested `classtype` in virtual, abstract, override and sealed
+signatures, so the non-virtual use should either work or be diagnosed in
+source.
+
+Steps to Reproduce:
+
+1. Declare `class Control { int v; void use(fn classtype*() source) { } }`.
+2. In a second program declare
+   `class Control { int v; fn classtype*() make() { return default; } }`.
+3. In a third program declare
+   `class Control { int v; void run() { fn classtype*() f = default; } }`.
+4. Compile each with a native backend.
+
+Expected:
+Each program compiles, with the enclosing class substituted for `classtype` in
+the lowered callable type, or the compiler reports a source diagnostic for the
+unsupported position.
+
+Actual:
+The Camp front end accepts each program without diagnostics. The generated C
+fails to compile with "unknown type name 'classtype'" for steps 1 and 2 and
+"use of undeclared identifier 'classtype'" for step 3.
+
+Known Impact:
+Callable types over a class-relative type cannot be used. The workaround is to
+name the enclosing class instead of `classtype` inside the callable type.
