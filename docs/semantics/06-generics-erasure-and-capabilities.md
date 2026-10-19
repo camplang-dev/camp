@@ -63,6 +63,9 @@ is composable in allowed method-local and signature positions, such as
 `classtype*`, `iter classtype*`, or `out classtype*`.
 
 In lowered ABI signatures, `classtype` is replaced by the enclosing class type.
+Substitution descends through callable results and parameters as well as
+pointer, array, and other composed types. Source metadata retains the written
+`classtype` contract; emitted callable signatures use concrete class names.
 At source call sites, a result or parameter containing `classtype` is rebound
 according to the statically known class type used for the call:
 

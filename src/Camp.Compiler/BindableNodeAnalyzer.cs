@@ -1352,7 +1352,7 @@ public sealed partial class BindableNodeAnalyzer
 			WitnessTypeReference witness => new WitnessTypeIdentity(FormatTypeReference(witness.TargetType), FormatTypeReference(witness.InterfaceType)).ResolvedType,
 			AllocatorTypeReference => AllocatorType,
 			NamedTypeReference named => named.ResolvedType ?? BuildNamedTypeSourceName(named),
-			ClassTypeReference => "classtype",
+			ClassTypeReference classType => classType.ResolvedType ?? "classtype",
 			ThisTypeReference => "this",
 			AttributedTypeReference attributed => FormatTypeReference(attributed.Type),
 			GenericTypeReference generic => generic.TypeArguments.Count == 0

@@ -1,0 +1,28 @@
+class Control
+{
+	int value;
+	void use(fn classtype*() source) { if (source() != null) this.value = 99; }
+	fn classtype*() make() { return default; }
+	void run()
+	{
+		fn classtype*() source = default;
+		fn void(classtype*) sink = default;
+		delegate classtype*() captured = default;
+		once classtype*() consumed = default;
+		fn fn classtype*()() nested = default;
+		fn const classtype*() readonlySource = default;
+		this.use((fn classtype*())empty);
+	}
+}
+class Button : Control {}
+Control* empty() { return null; }
+export int main()
+{
+	Control* control = new Control() finally delete;
+	control.value = 7;
+	control.run();
+	fn Control*() source = control.make();
+	Button* button = new Button() finally delete;
+	fn Button*() derivedSource = button.make();
+	return control.value == 7 && source == null && derivedSource == null ? 0 : 1;
+}
