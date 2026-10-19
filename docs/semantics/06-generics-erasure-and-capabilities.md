@@ -91,6 +91,14 @@ reverse direction is not implicit. Returning `this` from an instance method is
 the special safe producer for `classtype`; other enclosing-class-to-`classtype`
 flows require an explicit cast and must be checked by the conversion
 classifier.
+This distinction also applies to local initializers, assignments, and writes to
+class-relative `out` parameters. A plain enclosing-class local does not acquire
+the contract merely because its ABI type equals the lowered `classtype` type.
+Copies of class-relative parameters and locals preserve the contract; a cast
+to the plain enclosing class discards it. Both branches of a conditional must
+provide the contract. Calls through `this` or another class-relative receiver
+can preserve a class-relative result; a plain base receiver cannot assert it
+for the current class family.
 
 ## Representations And Eligible Arguments
 

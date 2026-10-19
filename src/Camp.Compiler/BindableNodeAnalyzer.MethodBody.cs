@@ -474,6 +474,7 @@ public sealed partial class BindableNodeAnalyzer
 				if (TryExpandErasedPointer(returnStatement.Expression, returnType, returnTargetType) is Expression expandedReturnPointer)
 					returnStatement.Expression = expandedReturnPointer;
 				CheckConstOfProducedResult(scope.CurrentFunction.ReturnType, returnStatement.Expression, returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax, "Return expression");
+				CheckClassTypeProducedResult(scope.CurrentFunction.ReturnType, returnStatement.Expression, returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax, "Return expression");
 				if (scope.CurrentFunctionSourceReturnType is string sourceReturnType
 					&& sourceReturnType != FormatTypeReference(scope.CurrentFunction.ReturnType))
 					CheckConstOfProducedResult(sourceReturnType, returnStatement.Expression, returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax, "Return expression");
@@ -934,6 +935,7 @@ public sealed partial class BindableNodeAnalyzer
 		else if (declaration.InitialValue is not null && !IsValidFixedStorageInitializer(declaration.Target.Type, declaration.InitialValue))
 		{
 			CheckAssignable(ErasedTypeIdentity.ReadType(declaration.Target.ResolvedType ?? ErrorType), initialType, declaration.InitialValue, declaration.InitialValue.SourceSyntax, "Declaration initializer");
+			CheckClassTypeProducedResult(declaration.Target.Type, declaration.InitialValue, declaration.InitialValue.SourceSyntax ?? declaration.SourceSyntax, "Declaration initializer");
 			if (TryExpandErasedPointer(declaration.InitialValue, initialType, declaration.Target.ResolvedType ?? ErrorType) is Expression expandedInitializer)
 				declaration.InitialValue = expandedInitializer;
 			if (ContainsConstOfTypeReference(declaration.Target.Type))
@@ -4761,15 +4763,21 @@ public sealed partial class BindableNodeAnalyzer
 					SyntaxNode? argumentSyntax = GetArgumentDiagnosticSyntax(arguments[i], fallbackSyntax);
 					if (analysisParameter.Modifier == ParameterModifier.Out)
 					{
+						if (ContainsClassTypeReference(GetCallableSourceType(arguments[i].Value))
+							&& (!ContainsClassTypeReference(analysisParameter.Type) || !IsClassRelativeCallReceiver(callTarget))
+							&& callTarget is not MemberReferenceExpression { Member: FieldDefinition { GeneratedInfo: { Category: GeneratedDeclarationCategory.VirtualDispatch } } })
+							Report(GetRange(argumentSyntax), "Out argument cannot implicitly write an enclosing-class value to 'classtype'; use plain class storage and an explicit classtype cast.");
 						CheckCallArgumentAssignable(actual, expected, arguments[i].Value, argumentSyntax, "Out argument", function, genericSubstitutions, genericParameterNames);
 						// An out argument writes the carrier itself, so it cannot adapt storage of another representation.
 						if (CarrierTypeIdentity.TryGetPayload(storageExpected, out _) && !ContainsUnboundGenericParameter(storageExpected, genericSubstitutions, genericParameterNames)
 							&& (!TryGetCarrierStorageType(arguments[i].Value, out string outStorage) || StripTopLevelValueQualifiers(outStorage) != StripTopLevelValueQualifiers(storageExpected)))
 							Report(GetRange(argumentSyntax), $"Out argument requires storage of type '{StripTopLevelValueQualifiers(storageExpected)}', not '{actual}'; an out argument cannot adapt storage of another representation.");
 					}
-					else
-					{
-						string structuralExpected = GetLifetimeStructuralTargetType(expected, arguments[i].Value);
+						else
+						{
+							if (IsClassRelativeCallReceiver(callTarget))
+								CheckClassTypeProducedResult(analysisParameter.Type, arguments[i].Value, argumentSyntax, "Argument");
+							string structuralExpected = GetLifetimeStructuralTargetType(expected, arguments[i].Value);
 						bool deferredEscapedLambda = arguments[i].Value is LambdaExpression
 							&& ((TryGetLambdaCallableShape(expected, out _, out bool expectedEscapedLambda) && expectedEscapedLambda)
 								|| (TryGetLambdaCallableShape(actual, out _, out bool actualEscapedLambda) && actualEscapedLambda));
@@ -7299,8 +7307,11 @@ public sealed partial class BindableNodeAnalyzer
 			CheckAssignable(targetType, valueType, assignment.Value, assignment.Value?.SourceSyntax, "Assignment");
 			if (assignment.Operator == AssignmentOperator.Assign && TryExpandErasedPointer(assignment.Value, valueType, targetType) is Expression expandedValue)
 				assignment.Value = expandedValue;
-			if (TryGetAssignmentTargetConstOfType(assignment.Target, out TypeReference? constOfType))
+			if (TryGetAssignmentTargetSourceType(assignment.Target, out TypeReference? constOfType))
+			{
 				CheckConstOfProducedResult(constOfType, assignment.Value, assignment.Value?.SourceSyntax ?? assignment.SourceSyntax, "Assignment");
+				CheckClassTypeProducedResult(constOfType, assignment.Value, assignment.Value?.SourceSyntax ?? assignment.SourceSyntax, "Assignment");
+			}
 			CheckLifetimeAssignment(assignment.Target, assignment.Value, assignment.Value?.SourceSyntax ?? assignment.SourceSyntax, scope, "Assignment");
 		}
 		UpdateAssignmentLifetimeFact(assignment.Target, GetExpressionLifetimeFact(assignment.Value));
@@ -7347,7 +7358,7 @@ public sealed partial class BindableNodeAnalyzer
 		return field?.GeneratedInfo?.Source is ParameterDefinition { RetainsAllocator: true };
 	}
 
-	bool TryGetAssignmentTargetConstOfType(Expression? target, out TypeReference? type)
+	bool TryGetAssignmentTargetSourceType(Expression? target, out TypeReference? type)
 	{
 		if (target is not null && expressionRewrites.TryGetValue(target, out Expression? rewrite))
 			target = rewrite;
@@ -7361,7 +7372,7 @@ public sealed partial class BindableNodeAnalyzer
 			MemberReferenceExpression { Member: VariableDefinition variable } => variable.Type,
 			_ => null
 		};
-		return ContainsConstOfTypeReference(type);
+		return type is not null;
 	}
 
 	bool IsEscapingLambdaAssignmentTarget(Expression? target)

@@ -44,41 +44,6 @@ Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
 
-## BUG-311: A plain class pointer converts implicitly to `classtype*`
-
-Date/Time: 2026-10-19 09:52 EDT
-
-Summary:
-Inside a class, a value of the enclosing class type may widen to `classtype`,
-but the reverse direction is not implicit: a `classtype*` is more precise than
-the enclosing class pointer, so converting the other way is an unchecked
-assertion that needs an explicit cast. `this` is the one safe implicit
-producer. The compiler accepts the implicit narrowing conversion in a return
-statement and in a local initializer.
-
-Steps to Reproduce:
-
-1. Declare a class `Control` with an `int` field and the methods
-   `classtype* bad(Control* item) { return item; }` and
-   `void local(Control* item) { classtype* x = item; }`.
-2. Add a derived class `Button: Control` and a method
-   `classtype* viaBase(Control* item) { return item; }`.
-3. Compile.
-
-Expected:
-Both `return item;` and `classtype* x = item;` are rejected as conversions that
-cannot be made implicitly. `return (classtype*)item;` and `return this;` are
-accepted.
-
-Actual:
-The program compiles without diagnostics. The same narrowing is rejected when
-it happens at a call site (a `Control*` result assigned to a `Button*`), so only
-the declaration-side conversions are unchecked.
-
-Known Impact:
-Class-relative contracts can be violated without a cast. The unsafe assertion
-the language asks the programmer to write explicitly is silently implied.
-
 ## BUG-312: `classtype` inside a callable type is emitted unlowered in generated C
 
 Date/Time: 2026-10-19 09:56 EDT
