@@ -147,10 +147,10 @@ __foreach_continue14: ;
 __foreach_break15: ;
 	}
 	{
-		Err e;
+		Err _caught19;
 		{
-			fail(&e);
-			if ((e != 0))
+			fail(&_caught19);
+			if ((_caught19 != 0))
 			{
 				goto __catch18;
 			}
@@ -158,9 +158,12 @@ __foreach_break15: ;
 		goto __try_done16;
 __catch18: ;
 		{
-			main_lambdaContext4 *_lambdaContext19 = (main_lambdaContext4 *)(malloc(sizeof(main_lambdaContext4)));
-			_lambdaContext19->capture0_e = e;
-			total = (total + invoke0((int (*)(void *arg0))main_lambda4, _lambdaContext19));
+			Err e = _caught19;
+			{
+				main_lambdaContext4 *_lambdaContext20 = (main_lambdaContext4 *)(malloc(sizeof(main_lambdaContext4)));
+				_lambdaContext20->capture0_e = e;
+				total = (total + invoke0((int (*)(void *arg0))main_lambda4, _lambdaContext20));
+			}
 		}
 		goto __try_done16;
 __try_done16: ;
@@ -191,9 +194,9 @@ static bool filterIter_next(filterIter *this, int *current)
 __iter_resume1: ;
 				;
 			}
-__for_continue20: ;
+__for_continue21: ;
 		}
-__for_break21: ;
+__for_break22: ;
 	}
 	this->__state = -1;
 	return false;
