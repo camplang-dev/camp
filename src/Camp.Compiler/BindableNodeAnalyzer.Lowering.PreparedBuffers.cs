@@ -264,7 +264,7 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			case MemberExpression member:
 			{
-				Expression? loweredTarget = LowerExpression(member.Target) ?? member.Target;
+				Expression? loweredTarget = LowerPreparedInput(member.Target) ?? member.Target;
 				member.Target = loweredTarget is TypeReferenceExpression
 					? loweredTarget
 					: MaterializePreparedValue(loweredTarget, "prepReceiver");
@@ -272,14 +272,14 @@ public sealed partial class BindableNodeAnalyzer
 			}
 			case MemberReferenceExpression member:
 			{
-				Expression? loweredTarget = LowerExpression(member.Target) ?? member.Target;
+				Expression? loweredTarget = LowerPreparedInput(member.Target) ?? member.Target;
 				member.Target = loweredTarget is TypeReferenceExpression
 					? loweredTarget
 					: MaterializePreparedValue(loweredTarget, "prepReceiver");
 				break;
 			}
 			default:
-				call.Target = LowerExpression(call.Target) ?? call.Target;
+				call.Target = LowerPreparedInput(call.Target) ?? call.Target;
 				if (!callTargets.ContainsKey(call))
 					call.Target = MaterializePreparedValue(call.Target, "prepTarget");
 				break;
@@ -313,13 +313,20 @@ public sealed partial class BindableNodeAnalyzer
 			}
 			if (argument.Value is null || argument.Modifier is ArgumentModifier.Out or ArgumentModifier.Catch)
 				continue;
-			Expression lowered = LowerExpression(argument.Value) ?? argument.Value;
+			Expression lowered = LowerPreparedInput(argument.Value) ?? argument.Value;
 			if (MaterializePreparedValue(lowered, "prepArg") is Expression materialized)
 			{
 				argument.Value = materialized;
 				argument.ResolvedType = materialized.ResolvedType ?? argument.ResolvedType;
 			}
 		}
+	}
+
+	Expression? LowerPreparedInput(Expression? value)
+	{
+		return value is not null && ContainsUncaughtThrow(value)
+			? HoistThrowingExpression(value)
+			: LowerExpression(value);
 	}
 
 	Expression? MaterializePreparedValue(Expression? value, string prefix)

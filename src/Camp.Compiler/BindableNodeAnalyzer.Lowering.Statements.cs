@@ -1435,6 +1435,16 @@ public sealed partial class BindableNodeAnalyzer
 				continue;
 			}
 
+			if (statements[i] is DeclarationStatement interpolationDeclaration
+				&& ContainsInterpolatedStringInitializer(interpolationDeclaration.InitialValue)
+				&& TryExpandParamsLocalDeclaration(interpolationDeclaration, out List<Statement>? interpolationRewritten))
+			{
+				statements.RemoveAt(i);
+				statements.InsertRange(i, interpolationRewritten);
+				i += interpolationRewritten.Count - 1;
+				continue;
+			}
+
 			if (statements[i] is DeclarationStatement declaration && (TryRewriteNewDeclaration(declaration, out List<Statement>? rewritten) || TryRewriteInitDeclaration(declaration, out rewritten)))
 			{
 				statements.RemoveAt(i);

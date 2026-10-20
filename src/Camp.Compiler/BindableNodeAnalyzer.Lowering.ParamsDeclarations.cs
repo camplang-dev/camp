@@ -387,6 +387,10 @@ public sealed partial class BindableNodeAnalyzer
 	bool TryExpandParamsLocalDeclaration(DeclarationStatement declaration, out List<Statement> declarations)
 	{
 		declarations = [];
+		// Fallible interpolation needs the lexical handlers and cleanup scopes,
+		// which are not active during the early component-declaration pass.
+		if (currentCleanupScopes.Count == 0 && InterpolationInitializerCanThrow(declaration.InitialValue))
+			return false;
 		if (declaration.Target.Names.Count != 1)
 			return false;
 
@@ -627,6 +631,25 @@ public sealed partial class BindableNodeAnalyzer
 			CastExpression cast => ContainsInterpolatedStringInitializer(cast.Expression),
 			_ => false
 		};
+	}
+
+	bool InterpolationInitializerCanThrow(Expression? expression)
+	{
+		switch (expression)
+		{
+			case InterpolatedStringExpression interpolation:
+				foreach (InterpolatedStringSegment segment in interpolation.Segments)
+					if (segment is InterpolatedStringExpressionSegment hole
+						&& hole.Expression is not null
+						&& (ContainsUncaughtThrow(hole.Expression) || InterpolationInitializerCanThrow(hole.Expression)))
+						return true;
+				return false;
+			case WithinExpression within: return InterpolationInitializerCanThrow(within.Expression);
+			case FinallyCleanupExpression cleanup: return InterpolationInitializerCanThrow(cleanup.Expression);
+			case ParenthesizedExpression parenthesized: return InterpolationInitializerCanThrow(parenthesized.Expression);
+			case CastExpression cast: return InterpolationInitializerCanThrow(cast.Expression);
+			default: return false;
+		}
 	}
 
 	bool TryCreateTargetTypedExpandedReceiverInitialValues(Expression? initialValue, ParamsComponentShape shape, List<Statement> declarations, out List<Expression?>? initialValues)

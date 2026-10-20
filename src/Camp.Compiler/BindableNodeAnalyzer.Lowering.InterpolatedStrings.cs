@@ -132,8 +132,7 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		const string elementType = "char";
 		const string lengthType = "nuint";
-		parts = MaterializePreparedFormatterCalls(parts);
-		parts = MaterializeDirectTextValues(parts);
+		parts = MaterializeInterpolationValues(parts);
 		long constantLength = GetInterpolationLiteralLength(parts, interpolation.SourceSyntax);
 
 		DeclarationStatement required = CreateGeneratedLocal(NewGeneratedLocalName("interpolatedRequired"), lengthType, TypeReferenceForResolvedName(lengthType), NumberLiteral(constantLength.ToString(CultureInfo.InvariantCulture), lengthType));
@@ -300,8 +299,7 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		const string elementType = "char";
 		const string lengthType = "nuint";
-		parts = MaterializePreparedFormatterCalls(parts);
-		parts = MaterializeDirectTextValues(parts);
+		parts = MaterializeInterpolationValues(parts);
 		List<DeclarationStatement> componentSizes = [];
 		foreach (InterpolationPart part in parts)
 		{
@@ -450,41 +448,33 @@ public sealed partial class BindableNodeAnalyzer
 		return directText.Value;
 	}
 
-	List<InterpolationPart> MaterializePreparedFormatterCalls(List<InterpolationPart> parts)
+	List<InterpolationPart> MaterializeInterpolationValues(List<InterpolationPart> parts)
 	{
 		List<InterpolationPart> result = [];
 		foreach (InterpolationPart part in parts)
 		{
-			if (part is PreparedFormatterPart prepared)
+			List<Statement>? previousSuffix = currentStatementSuffix;
+			currentStatementSuffix = [];
+			try
 			{
-				MaterializePreparedCallInputs(prepared.Call);
-				result.Add(prepared);
-			}
-			else
-			{
-				result.Add(part);
-			}
-		}
-		return result;
-	}
-
-	List<InterpolationPart> MaterializeDirectTextValues(List<InterpolationPart> parts)
-	{
-		List<InterpolationPart> result = [];
-		foreach (InterpolationPart part in parts)
-		{
-			if (part is DirectTextPart directText)
-			{
-				if (directText.Kind == DirectTextKind.CharArray)
+				if (part is PreparedFormatterPart prepared)
+					MaterializePreparedCallInputs(prepared.Call);
+				if (part is DirectTextPart directText)
 				{
-					result.Add(MaterializeDirectCharArrayTextValue(directText));
-					continue;
+					result.Add(directText.Kind == DirectTextKind.CharArray
+						? MaterializeDirectCharArrayTextValue(directText)
+						: directText with { Value = MaterializeDirectTextValue(directText) });
 				}
-				Expression value = MaterializeDirectTextValue(directText);
-				result.Add(directText with { Value = value });
+				else
+					result.Add(part);
+				// Expanded results can leave their error check in the suffix. It
+				// belongs to this hole, before later holes, sizing, or allocation.
+				currentStatementPrefix!.AddRange(currentStatementSuffix);
 			}
-			else
-				result.Add(part);
+			finally
+			{
+				currentStatementSuffix = previousSuffix;
+			}
 		}
 		return result;
 	}
@@ -527,7 +517,7 @@ public sealed partial class BindableNodeAnalyzer
 			return value;
 
 		string targetType = value.ResolvedType ?? ErrorType;
-		Expression lowered = LowerExpression(value) ?? value;
+		Expression lowered = ContainsUncaughtThrow(value) ? HoistThrowingExpression(value) : LowerExpression(value) ?? value;
 		DeclarationStatement local = CreateGeneratedLocal(
 			NewGeneratedLocalName("interpolatedValue"),
 			targetType,

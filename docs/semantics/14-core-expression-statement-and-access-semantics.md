@@ -983,6 +983,11 @@ auto message = $"{first()} / {second()}";
 invocation itself has no `thrown` channel; an implementation that must fail
 should fail before it participates in the formatter protocol.
 
+Capture direct text and prepared-formatter inputs in a single source-order
+pass. Check a hole's error immediately after capturing it, including expanded
+array results and throwing formatter receivers or arguments. Do not defer that
+check until later holes, formatter sizing, allocation, or result writes.
+
 Interpolation nodes must be gone before final C expression emission. Runtime
 lowering conceptually proceeds as follows:
 

@@ -1,0 +1,59 @@
+enum Fault { OK = 0, BAD }
+int trace;
+int formatted;
+int cleaned;
+char ok(int value) { trace = trace * 10 + value; return 'x'; }
+char failing(int value, thrown Fault error) { trace = trace * 10 + value; if (value == 2) throw BAD; return 'x'; }
+string textValue(int value, thrown Fault error) { failing(value); return "x"; }
+const char[] arrayValue(int value, thrown Fault error) { failing(value); return "x"; }
+struct Piece
+{
+	prep char[] toString()
+	{
+		formatted++;
+		if (buffer.length > 0) buffer[0] = 'x';
+		return 1;
+	}
+}
+Piece piece(int value, thrown Fault error) { failing(value); return default; }
+
+int build(int mode, int stop, thrown Fault error)
+{
+	finally cleaned++;
+	switch (mode)
+	{
+		case 0: { string text = $"{ok(1)}|{failing(stop)}|{ok(3)}"; break; }
+		case 1: { char[] text = $"{ok(1)}|{failing(stop)}|{ok(3)}"; break; }
+		case 2: { fixed char[4] text = $"{ok(1)}|{failing(stop)}|{ok(3)}"; break; }
+		case 3: { string text = within(default) new $"{ok(1)}|{failing(stop)}|{ok(3)}" finally delete; break; }
+		case 4: { string text = $"{ok(1)}|{piece(stop)}|{ok(3)}"; break; }
+		case 5: { string text = $"{piece(1)}|{failing(stop)}|{ok(3)}"; break; }
+		case 6: { string text = $"{ok(1)}|{arrayValue(stop)}|{ok(3)}"; break; }
+		case 7: { string text = $"{ok(1)}|{textValue(stop)}|{ok(3)}"; break; }
+		case 8: { string text = $"{ok(1)}|{$"{failing(stop)}"}|{ok(3)}"; break; }
+	}
+	return 9;
+}
+
+int handled(int stop)
+{
+	try { char[] text = $"{ok(1)}|{failing(stop)}|{ok(3)}"; }
+	catch (Fault fault) { return (int)fault; }
+	return 0;
+}
+
+export int main()
+{
+	Fault fault = default;
+	for (int mode = 0; mode < 9; mode++)
+	{
+		trace = 0; formatted = 0; cleaned = 0;
+		if (build(mode, 2, catch fault) != 0 || fault != BAD || trace != 12 || formatted != 0 || cleaned != 1) return mode + 1;
+		trace = 0; formatted = 0; cleaned = 0;
+		if (build(mode, 4, catch fault) != 9 || fault != OK || trace != 143 || cleaned != 1) return mode + 11;
+		if ((mode == 4 || mode == 5) && formatted != 2) return 21;
+	}
+	trace = 0;
+	if (handled(2) != 1 || trace != 12) return 22;
+	return 0;
+}
