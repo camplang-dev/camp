@@ -3819,6 +3819,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (callableInvocationParameters.TryGetValue(call, out List<ParameterDefinition>? parameters))
 			callableInvocationParameters[clone] = parameters;
 		if (preparedCallableCapabilities.Contains(call)) preparedCallableCapabilities.Add(clone);
+		if (loweredInterfaceCalls.Contains(call)) loweredInterfaceCalls.Add(clone);
 		if (callGenericSubstitutions.TryGetValue(call, out Dictionary<string, string>? substitutions))
 			callGenericSubstitutions[clone] = new Dictionary<string, string>(substitutions, System.StringComparer.Ordinal);
 		return clone;

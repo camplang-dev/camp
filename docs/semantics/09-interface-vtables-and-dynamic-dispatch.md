@@ -432,6 +432,11 @@ describe class hierarchy dispatch. A class can participate in both.
 
 ### Prepared Dispatch
 
+Protocol calls generated during local expansion retain their lowered dispatch
+identity during statement rewriting. In particular, a generic witness vtable
+carrier is dereferenced for slot selection only once, and the original receiver
+remains the context for both sizing and writing.
+
 When the statically selected interface or virtual source method declares prep
 and the invocation omits that slot, both sizing and writing dispatch through
 that same selected slot. Lowering captures the receiver, vtable carrier, and

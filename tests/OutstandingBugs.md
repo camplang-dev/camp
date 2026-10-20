@@ -44,39 +44,6 @@ Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
 
-## BUG-313: Omitted prep slot on an interface method call through `vtableof` emits invalid C
-
-Date/Time: 2026-10-19 22:10 EDT
-
-Summary:
-A prep-bearing interface method called without its prep slot should transform
-the call, sizing and writing through the same selected interface slot. When the
-call goes through a generic `vtableof(T: Interface)` capability, the Camp front
-end accepts it but the generated C dereferences the vtable carrier one level too
-far, so the native build fails. The same generic call on a non-prep interface
-method compiles and runs correctly.
-
-Steps to Reproduce:
-
-1. Declare `interface Namer { nuint name(prep char[] buffer = default); }` and a
-   struct `Plain: Namer` whose `name` writes up to three characters and returns 3.
-2. Declare `int viaInterface<T>(T* value, vtableof(T: Namer)) { char[] made =
-   value.name(); return (int)made.length; }`.
-3. Call `viaInterface<Plain>(&plain)` from `main` and build with a native backend.
-
-Expected:
-The program compiles and returns the required length 3 from the prepared array,
-dispatching both protocol calls through the `Namer` slot.
-
-Actual:
-The compiler reports no diagnostics, then clang fails with "indirection requires
-pointer operand ('Namer' ... invalid)" at the emitted `(**vtableof_T_Namer)->name`
-sizing and write calls.
-
-Known Impact:
-Prepared results cannot be requested through an interface slot in generic code.
-The workaround is to supply the prep buffer explicitly, which is an ordinary call.
-
 ## BUG-314: Transformed prep call with a `catch` argument fails C emission
 
 Date/Time: 2026-10-19 22:25 EDT

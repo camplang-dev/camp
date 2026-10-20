@@ -5,6 +5,8 @@ namespace Camp.Compiler;
 
 public sealed partial class BindableNodeAnalyzer
 {
+	readonly HashSet<CallExpression> loweredInterfaceCalls = [];
+
 	bool IsPropertyGetterReference(MemberReferenceExpression member)
 	{
 		return member.Member is FunctionDefinition function
@@ -94,6 +96,8 @@ public sealed partial class BindableNodeAnalyzer
 
 	bool LowerInterfaceCall(CallExpression call)
 	{
+		if (loweredInterfaceCalls.Contains(call))
+			return true;
 		if (call.Target is not MemberReferenceExpression { Target: not null, Member: FunctionDefinition function } member)
 			return false;
 		if (FindContainingType(function) is not InterfaceDefinition interfaceDefinition)
@@ -159,6 +163,9 @@ public sealed partial class BindableNodeAnalyzer
 			Value = context,
 			ResolvedType = context.ResolvedType
 		});
+		// Prepared protocol calls can be lowered during local expansion and visited
+		// again during statement rewriting. Their slot receiver is already ABI-shaped.
+		loweredInterfaceCalls.Add(call);
 		return true;
 	}
 
