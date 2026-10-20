@@ -44,27 +44,6 @@ Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
 
-## BUG-318: Returning an implicit scoped interpolated string is not diagnosed
-
-Date/Time: 2026-10-20 00:45 EDT
-
-Summary:
-A runtime interpolation without `new` or `stackalloc` uses compiler-selected scoped storage, and the specification says the result cannot be returned or otherwise escape unless equivalent stack-backed storage could. The compiler rejects returning an explicit `stackalloc $"..."` local but accepts returning a local initialized from an implicit scoped interpolation.
-
-Steps to Reproduce:
-
-1. Declare `string escape(Count count) { string local = $"a{count}"; return local; }` with a `Count` that has a prepared `toString`.
-2. Compile the file.
-
-Expected:
-A diagnostic that the scoped storage cannot be returned, as for `char[] local = stackalloc $"a{count}"; return local;`, which reports "Return expression cannot return stackalloc-backed storage."
-
-Actual:
-No diagnostic. The returned string points into the dead frame.
-
-Known Impact:
-Dangling string results from functions that interpolate. Workaround: use `within (allocator) new $"..."` for results that outlive the function.
-
 ## BUG-319: Inline string constant cannot use another inline string as an interpolation hole
 
 Date/Time: 2026-10-20 00:45 EDT

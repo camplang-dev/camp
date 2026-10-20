@@ -198,6 +198,10 @@ Expression lifetime facts are propagated through body analysis:
   activation segment. Slices, views, casts that preserve carriers, locals, and
   prepared/interpolated results derived from that storage preserve the
   stackalloc-backed origin.
+- Implicit scoped runtime interpolation carries the same stack storage origin
+  as explicit `stackalloc` interpolation. Local copies preserve it, so returning
+  an implicit interpolated local is rejected just like returning explicit stack
+  storage. Constant text and `new` interpolation retain their existing lifetimes.
 - A catch variable of pointer-bearing type receives an `escaped` fact, because a
   thrown value outlives the frame that threw it. A caught pointer may therefore
   be deleted.

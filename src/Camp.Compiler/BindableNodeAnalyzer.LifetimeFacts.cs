@@ -295,7 +295,7 @@ public sealed partial class BindableNodeAnalyzer
 				: interpolation.StackAllocated
 					? MakeLifetimeFact("scoped", null, "stackalloc")
 					: IsLifetimePointerBearingResolvedType(resolvedType, scope)
-						? MakeLifetimeFact("scoped", null, "interpolation")
+						? MakeLifetimeFact("scoped", null, "stackalloc interpolation")
 						: null,
 			ConstructionExpression construction => IsLifetimePointerBearingResolvedType(resolvedType, scope) ? GetConstructionLifetimeFact(construction, resolvedType, scope) : null,
 			WithinExpression within => GetWithinExpressionLifetimeFact(within, resolvedType, scope),

@@ -1791,6 +1791,7 @@ public sealed partial class BindableNodeAnalyzer
 			};
 			string type = GetStringLiteralType(literal, resultType);
 			literal.ResolvedType = type;
+			ApplyExpressionLifetimeFact(literal, type, scope, typeScope);
 			expressionConstants[interpolation] = true;
 			expressionRewrites[interpolation] = literal;
 			return type;
