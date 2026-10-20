@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-325.
+Next bug number: BUG-326.
 
 ## Bug Template
 
@@ -127,3 +127,25 @@ Actual:
 
 Known Impact:
 Side effects of later holes run after an earlier hole failed, and the text is allocated and filled for nothing. Workaround: evaluate each throwing call in its own statement before the interpolation.
+
+## BUG-325: A catch target narrower than the thrown type is accepted
+
+Date/Time: 2026-10-20 17:40 EDT
+
+Summary:
+A `catch` argument supplies the storage that receives a callee's `thrown` value. The compiler accepts a catch target whose type is narrower than the callee's thrown type and rejects one that is wider, which is the opposite of what is safe. The thrown value is written through a pointer to the target, so a wider thrown value overruns a narrower target. `out` arguments are checked in the correct direction.
+
+Steps to Reproduce:
+
+1. Declare `int narrow(thrown int error) { throw 1; }` and `int wide(thrown long error) { throw 1; }`.
+2. Write `int a() { long x = 0; return narrow(catch x); }` and compile it.
+3. Write `int b() { int x = 0; return wide(catch x); }` and compile it.
+
+Expected:
+The first compiles, because a `long` target holds any `int` thrown value. The second is diagnosed, because an `int` target cannot hold every `long` thrown value.
+
+Actual:
+The first is rejected and the second compiles. Running the second with `throw 5000000000` writes eight bytes through the address of the four-byte `int`, clobbering the adjacent local.
+
+Known Impact:
+Memory corruption from a well-typed program. Workaround: declare catch targets with exactly the thrown type.
