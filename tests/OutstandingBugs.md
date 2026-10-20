@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-314.
+Next bug number: BUG-315.
 
 ## Bug Template
 
@@ -76,3 +76,36 @@ sizing and write calls.
 Known Impact:
 Prepared results cannot be requested through an interface slot in generic code.
 The workaround is to supply the prep buffer explicitly, which is an ordinary call.
+
+## BUG-314: Transformed prep call with a `catch` argument fails C emission
+
+Date/Time: 2026-10-19 22:25 EDT
+
+Summary:
+A prep-bearing function that declares a trailing `thrown` slot can be called with
+its prep slot omitted and an explicit `catch` argument. The Camp front end
+accepts the call without diagnostics, but code generation stops with an internal
+"not yet supported" message instead of producing C. The same function called
+with an explicit prep argument (`buffer: default`) and a `catch` argument builds
+and runs.
+
+Steps to Reproduce:
+
+1. Declare `nuint render(int value, prep char[] buffer = default, thrown int
+   error) { return (nuint)value; }`.
+2. In `main`, declare `int caught = 0;` and `char[] ok = render(3, catch caught);`.
+3. Build with a native backend.
+
+Expected:
+The omitted prep slot transforms the call, and the `catch` target is reused for
+both the sizing and the write invocation, as the thrown-handling section of the
+prep semantics requires.
+
+Actual:
+The build reports "C emission does not yet support expression node
+UnaryExpression." with no source location. `catch int declaredError` as the
+target fails the same way.
+
+Known Impact:
+Prepared results cannot be requested from a function that can throw while also
+catching at the call. Writing the prep argument explicitly is the workaround.
