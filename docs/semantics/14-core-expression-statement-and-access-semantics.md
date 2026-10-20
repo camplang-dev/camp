@@ -1210,6 +1210,13 @@ It must not silently rewrite source `goto` into structured cleanup transfer.
 
 ## Error Destinations And Catch Scopes
 
+Each throwing call in a compound expression keeps its own thrown type and
+compatible destination. A handler for another type does not capture it merely
+because an earlier call used that handler. Check each error before evaluating
+later operands or arguments, including inside casts, conditional arms, and
+short-circuit expressions. Native error storage matches the callee's channel;
+an implicit error conversion transfers a value rather than retyping a pointer.
+
 A catch clause introduces its error variable in a handler-local scope. The name
 is available in that handler and nested bodies, and is unavailable in the
 protected body, sibling handlers, the associated finally, and following code.

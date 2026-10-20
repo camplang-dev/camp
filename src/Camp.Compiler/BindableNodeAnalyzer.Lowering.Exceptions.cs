@@ -501,22 +501,7 @@ public sealed partial class BindableNodeAnalyzer
 			if (argument.Value is null || !ContainsUncaughtThrow(argument.Value))
 				continue;
 
-			string thrownType = GetExpressionThrownType(argument.Value) ?? ErrorType;
-			DeclarationTarget errorTarget;
-			if (TryGetImplicitHandlerTarget(thrownType, out DeclarationTarget? handlerTarget))
-			{
-				errorTarget = handlerTarget;
-			}
-			else if (TryGetFunctionThrownTarget(thrownType, out DeclarationTarget? thrownTarget))
-			{
-				errorTarget = thrownTarget;
-			}
-			else
-			{
-				DeclarationStatement errorLocal = CreateErrorLocal(thrownType);
-				currentStatementPrefix.Add(errorLocal);
-				errorTarget = errorLocal.Target;
-			}
+			DeclarationTarget errorTarget = PrepareThrowCaptureTarget(argument.Value);
 			DeclarationTarget? previousCatch = currentImplicitCatchTarget;
 			currentImplicitCatchTarget = errorTarget;
 			Expression? value = LowerExpressionForThrowCapture(argument.Value, errorTarget);
@@ -536,22 +521,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (currentStatementPrefix is null)
 			return LowerExpression(expression) ?? expression;
 
-		string thrownType = GetExpressionThrownType(expression) ?? ErrorType;
-		DeclarationTarget errorTarget;
-		if (TryGetImplicitHandlerTarget(thrownType, out DeclarationTarget? handlerTarget))
-		{
-			errorTarget = handlerTarget;
-		}
-		else if (TryGetFunctionThrownTarget(thrownType, out DeclarationTarget? thrownTarget))
-		{
-			errorTarget = thrownTarget;
-		}
-		else
-		{
-			DeclarationStatement errorLocal = CreateErrorLocal(thrownType);
-			currentStatementPrefix.Add(errorLocal);
-			errorTarget = errorLocal.Target;
-		}
+		DeclarationTarget errorTarget = PrepareThrowCaptureTarget(expression);
 		DeclarationTarget? previousCatch = currentImplicitCatchTarget;
 		currentImplicitCatchTarget = errorTarget;
 		Expression? value = LowerExpressionForThrowCapture(expression, errorTarget);
@@ -563,6 +533,42 @@ public sealed partial class BindableNodeAnalyzer
 		currentStatementPrefix.Add(local);
 		currentStatementPrefix.AddRange(CreateThrowCheck(errorTarget, errorTarget.ResolvedType ?? ErrorType));
 		return CreateVariableReference(local.Target, local.Target.ResolvedType ?? valueType);
+	}
+
+	DeclarationTarget PrepareThrowCaptureTarget(Expression expression)
+	{
+		string thrownType = GetExpressionThrownType(expression) ?? ErrorType;
+		DeclarationTarget target = SelectThrowCaptureTarget(thrownType);
+		if (ContainsDifferentThrownType(expression, thrownType))
+		{
+			// A conditional can choose a different channel without ever calling the
+			// first one. Its aggregate check must see success for that unused slot.
+			currentStatementPrefix?.Add(CreateAssignmentStatement(CreateVariableReference(target, thrownType), new DefaultExpression { ResolvedType = thrownType }, thrownType));
+		}
+		return target;
+	}
+
+	DeclarationTarget SelectThrowCaptureTarget(string thrownType)
+	{
+		// Implicit conversion is valid for transferring an error value, not for
+		// passing the destination's address through a different native pointer type.
+		if (TryGetImplicitHandlerTarget(thrownType, out DeclarationTarget handler) && handler.ResolvedType == thrownType)
+			return handler;
+		if (TryGetFunctionThrownTarget(thrownType, out DeclarationTarget outward) && outward.ResolvedType == thrownType)
+			return outward;
+		DeclarationStatement local = CreateErrorLocal(thrownType);
+		currentStatementPrefix?.Add(local);
+		return local.Target;
+	}
+
+	bool ContainsDifferentThrownType(Expression expression, string thrownType)
+	{
+		if (IsUncaughtThrowingCall(expression, out string? actual) && actual != thrownType)
+			return true;
+		foreach (Expression child in EnumerateChildExpressions(expression))
+			if (ContainsDifferentThrownType(child, thrownType))
+				return true;
+		return false;
 	}
 
 	bool TryGetFunctionThrownTarget(string errorType, out DeclarationTarget target)
@@ -600,6 +606,10 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (expression is null)
 			return null;
+		// A compound expression may contain unrelated thrown types. Capture each
+		// subtree in storage for its own channel, then transfer to its own handler.
+		if (GetExpressionThrownType(expression) is string thrownType && thrownType != errorTarget.ResolvedType)
+			return HoistThrowingExpression(expression);
 		// Prune before throw capture can materialize the unreachable operand.
 		// Evaluate the left expression itself, not a literal, to preserve its effects.
 		if (expression is BinaryExpression shortCircuit && TryGetShortCircuitedLeft(shortCircuit, out Expression? left))
@@ -622,6 +632,10 @@ public sealed partial class BindableNodeAnalyzer
 
 			case ParenthesizedExpression parenthesized:
 				parenthesized.Expression = LowerExpressionForThrowCapture(parenthesized.Expression, errorTarget);
+				return LowerExpression(expression);
+
+			case CastExpression cast:
+				cast.Expression = LowerExpressionForThrowCapture(cast.Expression, errorTarget);
 				return LowerExpression(expression);
 
 			case UnaryExpression unary when unary.Operator != UnaryOperator.Throw:

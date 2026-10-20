@@ -44,27 +44,6 @@ Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
 
-## BUG-322: Calls of different thrown types in one expression share the first call's error destination
-
-Date/Time: 2026-10-20 14:25 EDT
-
-Summary:
-When one expression contains several calls that can throw and their `thrown` types differ, lowering routes every call's error through the destination chosen for the first call. Inside a `try` whose only handler accepts the first call's type, the second call's error is stored through a pointer of the wrong type and is caught by that handler, although the handler does not accept it.
-
-Steps to Reproduce:
-
-1. Declare `enum Low { OK = 0, EMPTY }`, `enum High { OK = 0, BAD }`, `int low(int v, thrown Low e)`, `int high(int v, thrown High e)` where `high` throws `High.BAD`, and `int f(thrown High outward) { try { return low(3) + high(8); } catch (Low inner) { return -5; } }`.
-2. Call `f(catch fault)` with `High fault = default;` and log the result and `(int)fault`.
-
-Expected:
-`high` throws `High.BAD`, which the `Low` handler does not accept, so `f` leaves through its own `thrown` slot: `fault` is `High.BAD` and the result is the default `0`. Writing the two calls as separate statements gives that result.
-
-Actual:
-`-5` with `fault` unchanged. The generated C passes `&inner` (a `Low`) as the `thrown High *` argument of `high` and branches to the `Low` handler.
-
-Known Impact:
-An error of an unrelated type is caught by the wrong handler, or lost, and the C compiler is handed a pointer of the wrong type. Workaround: call each throwing function in its own statement.
-
 ## BUG-323: An error transferring to an outer catch skips the finally of a try nested inside the protected body
 
 Date/Time: 2026-10-20 15:05 EDT
