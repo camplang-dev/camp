@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-320.
+Next bug number: BUG-321.
 
 ## Bug Template
 
@@ -43,3 +43,24 @@ Actual:
 Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
+
+## BUG-320: A `while` condition that propagates a thrown error clears the error
+
+Date/Time: 2026-10-20 01:45 EDT
+
+Summary:
+A call in a `while` condition whose `thrown` slot is forwarded to the caller's own `thrown` slot leaves the loop and returns, but the generated exit writes the default error first. The caller sees success even though the condition's call failed. The same call in an `if` condition, a declaration, or a `return` expression propagates the error unchanged.
+
+Steps to Reproduce:
+
+1. Declare `enum Fault { OK = 0, BAD }`, `int fail(thrown Fault error) { throw Fault.BAD; }`, and `int loop(thrown Fault error) { int count = 0; while (fail() > 0) count += 1; return count; }`.
+2. Call `loop(catch fault)` from `main` with `Fault fault = default;` and log `(int)fault`.
+
+Expected:
+`1`: `fail()` threw `Fault.BAD`, and `loop` passes that error through its own `thrown` slot untouched.
+
+Actual:
+`0`. The generated loop body ends its error check with `(*error) = 0; return 0;`, which erases the error that `fail` stored.
+
+Known Impact:
+Errors raised while evaluating a loop condition are silently dropped. Workaround: call the throwing function before the loop or inside its body and test the result.
