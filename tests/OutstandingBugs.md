@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-324.
+Next bug number: BUG-325.
 
 ## Bug Template
 
@@ -127,3 +127,24 @@ Only `62`. The generated transfer to the handler runs no cleanup for the inner `
 
 Known Impact:
 Cleanup registered by a nested `try`/`finally` is lost when an error is caught by an enclosing handler, so resources it would release stay held. Workaround: put the `catch` on the same `try` as the `finally`, or catch the error inside the inner `try`.
+
+## BUG-324: An error from an interpolation hole does not stop later holes or the result
+
+Date/Time: 2026-10-20 16:20 EDT
+
+Summary:
+When a hole of an interpolated string calls a function whose `thrown` slot is the caller's own, the error is checked only after every hole has been evaluated and the text has been built. Later holes still run, so their side effects happen, and the whole result is produced before the function returns the error. Calls in other expressions, such as the two operands of `a() + b()`, stop at the first error.
+
+Steps to Reproduce:
+
+1. Declare `enum Fault { OK = 0, BAD }`, `char ok(int v)` and `char failing(int v, thrown Fault error)` that each append `v` to a global `trace` (`trace = trace * 10 + v`), with `failing` throwing `Fault.BAD` when `v == 2`.
+2. Write `int build(int stop, thrown Fault error) { string text = $"{ok(1)}|{failing(stop)}|{ok(3)}"; return 0; }` and call `build(2, catch fault)` with `trace = 0`.
+
+Expected:
+`trace` is `12`: `ok(3)` is not evaluated and no text is built once `failing(2)` has reported its error.
+
+Actual:
+`trace` is `123`. The generated function evaluates `ok(1)`, `failing(stop, error)` and `ok(3)` into temporaries, builds the text, and only then tests `(*error) != 0`.
+
+Known Impact:
+Side effects of later holes run after an earlier hole failed, and the text is allocated and filled for nothing. Workaround: evaluate each throwing call in its own statement before the interpolation.
