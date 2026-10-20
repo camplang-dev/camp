@@ -96,6 +96,13 @@ public sealed class CompilerResult
 
 public static class CompilerDriver
 {
+    // Project-reference reuse must use the same content validation as a direct
+    // native build. Callers separately verify the required outputs/archive shape.
+    public static bool IsArtifactCacheCurrent(CompilerRequest request, TargetDefinition target, string cachePath)
+    {
+        return !request.EmitDebugInfo && CampArtifactCache.TryReadValidated(cachePath, request, target, out _, out _);
+    }
+
     public static CompilerResult Execute(CompilerRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -1455,10 +1462,15 @@ public static class CompilerDriver
                     yield return path!;
             foreach (string path in ResolveInputPaths(request.NativeSourceFiles))
                 yield return path;
-            foreach (string path in packageLibraries)
-                yield return path;
-            foreach (string path in request.References.Select(reference => ResolveNativeReference(reference, compilation.Target!)))
-                yield return path;
+            // Static archives contain only this project's objects. Transitive
+            // libraries are link inputs of the eventual executable/shared library.
+            if (request.BuildKind != NativeBuildKind.Static)
+            {
+                foreach (string path in packageLibraries)
+                    yield return path;
+                foreach (string path in request.References.Select(reference => ResolveNativeReference(reference, compilation.Target!)))
+                    yield return path;
+            }
             foreach (string path in preparedPackageCacheInputs)
                 yield return path;
             yield return compilation.Target!.Path;

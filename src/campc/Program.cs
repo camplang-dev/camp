@@ -1369,6 +1369,8 @@ sealed class CampCli
                     return false;
             }
         }
+        if (requireLibrary)
+            return CompilerDriver.IsArtifactCacheCurrent(projectRequest, target, Path.Combine(outputDirectory, projectName + ".camp-artifact-cache.json"));
         if (freshnessOutputs.Count == 0)
             freshnessOutputs.AddRange(requiredOutputs);
         List<string> inputs;

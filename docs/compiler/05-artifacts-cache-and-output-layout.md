@@ -90,6 +90,12 @@ Camp compilations. The C API header is for native consumers.
 
 ## Build Intermediates
 
+Native project references validate the recorded compiler, request, outputs,
+and input contents using the native artifact cache. Touching an unchanged
+source, including setting a future timestamp, does not require a child rebuild.
+Changing source contents invalidates the reference even if its timestamp stays
+the same. Required API files and static archive membership are still checked.
+
 Native object files are written under:
 
 ```text

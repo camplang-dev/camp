@@ -2215,7 +2215,7 @@ public sealed class CommandLineTests
 		Assert.Equal(1, CountOccurrences(rebuild.StdOut, "project reference alpha_static_a: rebuilding"));
 		Assert.Contains("project reference alpha_static_a: reused", rebuild.StdOut, StringComparison.Ordinal);
 		Assert.True(File.GetLastWriteTimeUtc(aArchive) > oldAArchiveTime, "Expected changed upstream project A to rebuild its archive.");
-		Assert.Equal(oldBArchiveTime, File.GetLastWriteTimeUtc(bArchive));
+		Assert.True(oldBArchiveTime == File.GetLastWriteTimeUtc(bArchive), build.StdOut + "\nSECOND BUILD:\n" + rebuild.StdOut);
 		if (!futureOutputTimestamp)
 			Assert.True(File.GetLastWriteTimeUtc(appExecutable) > oldAppTime, "Expected final executable to relink when upstream project A changes.");
 		ProcessResult rerun = RunExecutable(appExecutable);
@@ -2225,8 +2225,24 @@ public sealed class CommandLineTests
 		Thread.Sleep(1200);
 		ProcessResult current = RunCampcIn(appRoot, "build", "app.campbuild", "--nostdlib", "--target", target, "--verbose");
 		AssertCommandSucceeded(current);
-		Assert.DoesNotContain("rebuilding", current.StdOut, StringComparison.Ordinal);
+		Assert.False(current.StdOut.Contains("rebuilding", StringComparison.Ordinal), current.StdOut);
 		Assert.Equal(rebuiltAppTime, File.GetLastWriteTimeUtc(appExecutable));
+		if (futureOutputTimestamp)
+		{
+			DateTime futureSourceTime = DateTime.UtcNow.AddMinutes(2);
+			File.SetLastWriteTimeUtc(aSource, futureSourceTime);
+			ProcessResult touched = RunCampcIn(appRoot, "build", "app.campbuild", "--nostdlib", "--target", target, "--verbose");
+			AssertCommandSucceeded(touched);
+			Assert.DoesNotContain("rebuilding", touched.StdOut, StringComparison.Ordinal);
+			Assert.Equal(rebuiltAppTime, File.GetLastWriteTimeUtc(appExecutable));
+
+			File.WriteAllText(aSource, File.ReadAllText(aSource).Replace("return 3;", "return 4;", StringComparison.Ordinal));
+			File.SetLastWriteTimeUtc(aSource, futureSourceTime);
+			ProcessResult changed = RunCampcIn(appRoot, "build", "app.campbuild", "--nostdlib", "--target", target, "--verbose");
+			AssertCommandSucceeded(changed);
+			Assert.Contains("project reference alpha_static_a: rebuilding", changed.StdOut, StringComparison.Ordinal);
+			Assert.Equal(58, RunExecutable(appExecutable).ExitCode);
+		}
 	}
 
 	[Fact]
