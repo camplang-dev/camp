@@ -1215,6 +1215,15 @@ It must not silently rewrite source `goto` into structured cleanup transfer.
 
 ## Error Destinations And Catch Scopes
 
+An explicit catch target must accept every value of the callee's thrown type.
+Check conversion from the thrown value to the target, as for an output, rather
+than from the target to the parameter. For address-based thrown slots with
+different storage types, capture
+the target address once, receive into storage of the exact thrown type, and
+convert and assign the value after the call completes. Never pass a narrower
+target's address to a callee that writes a wider error.
+Async completion converts and assigns the error value after resumption instead.
+
 Each throwing call in a compound expression keeps its own thrown type and
 compatible destination. A handler for another type does not capture it merely
 because an earlier call used that handler. Check each error before evaluating

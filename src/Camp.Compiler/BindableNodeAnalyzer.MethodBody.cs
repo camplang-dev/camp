@@ -4792,7 +4792,17 @@ public sealed partial class BindableNodeAnalyzer
 					if (analysisParameter.Modifier != ParameterModifier.Thrown && arguments[i].Modifier == ArgumentModifier.Catch)
 						Report(GetRange(arguments[i].SourceSyntax ?? fallbackSyntax), "Only thrown parameters may use a 'catch' argument.");
 					SyntaxNode? argumentSyntax = GetArgumentDiagnosticSyntax(arguments[i], fallbackSyntax);
-					if (analysisParameter.Modifier == ParameterModifier.Out)
+					if (analysisParameter.Modifier == ParameterModifier.Thrown)
+					{
+						CheckCallArgumentAssignable(actual, expected, arguments[i].Value, argumentSyntax, "Catch argument", function, genericSubstitutions, genericParameterNames);
+						// Async completion assigns an error value after resumption;
+						// it does not pass this catch target as native error storage.
+						bool asyncCatch = function?.IsAsync == true
+							|| TryGetCallableInvocationShape(callTarget?.ResolvedType, out CallableShape catchShape) && catchShape.Kind == "async";
+						if (actual != expected && !asyncCatch)
+							arguments[i].CatchStorageType = expected;
+					}
+					else if (analysisParameter.Modifier == ParameterModifier.Out)
 					{
 						if (ContainsClassTypeReference(GetCallableSourceType(arguments[i].Value))
 							&& (!ContainsClassTypeReference(analysisParameter.Type) || !IsClassRelativeCallReceiver(callTarget))

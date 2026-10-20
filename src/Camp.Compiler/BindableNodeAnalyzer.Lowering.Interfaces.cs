@@ -1118,6 +1118,19 @@ public sealed partial class BindableNodeAnalyzer
 			return argument;
 
 		argument.Value = LowerExpression(argument.Value);
+		if (argument.Modifier == ArgumentModifier.Catch
+			&& argument.CatchStorageType is string catchType
+			&& argument.Value is not null
+			&& currentStatementPrefix is not null && currentStatementSuffix is not null)
+		{
+			Expression target = CaptureCopyBackTarget(argument.Value);
+			DeclarationStatement storage = CreateErrorLocal(catchType);
+			currentStatementPrefix.Add(storage);
+			QueueErasedArgumentCopyBack(CreateAssignmentStatement(target, CreateVariableReference(storage.Target, catchType), target.ResolvedType ?? ErrorType));
+			argument.Value = CreateVariableReference(storage.Target, catchType);
+			argument.ResolvedType = catchType;
+			argument.CatchStorageType = null;
+		}
 		if (argument.Value is not null && (string.IsNullOrWhiteSpace(argument.ResolvedType) || argument.ResolvedType == ErrorType))
 			argument.ResolvedType = argument.Value.ResolvedType;
 		return argument;

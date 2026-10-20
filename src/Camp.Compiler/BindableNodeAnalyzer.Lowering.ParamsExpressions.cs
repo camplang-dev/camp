@@ -3463,7 +3463,8 @@ public sealed partial class BindableNodeAnalyzer
 			Type = CloneType(argument.Type),
 			Target = argument.Target,
 			Value = CloneParamsExpansionExpression(argument.Value),
-			ResolvedType = argument.ResolvedType
+			ResolvedType = argument.ResolvedType,
+			CatchStorageType = argument.CatchStorageType
 		};
 		if (implicitCapabilityArguments.TryGetValue(argument, out ParameterDefinition? capability))
 			implicitCapabilityArguments[clone] = capability;

@@ -223,6 +223,7 @@ public class LambdaParameter : BindableNode
 
 public class ArgumentExpression : Expression
 {
+	public string? CatchStorageType { get; set; }
 	public string? Name { get; set; }
 	public ArgumentModifier Modifier { get; set; }
 	public TypeReference? Type { get; set; }

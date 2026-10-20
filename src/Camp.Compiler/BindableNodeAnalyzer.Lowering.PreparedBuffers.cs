@@ -486,6 +486,7 @@ public sealed partial class BindableNodeAnalyzer
 			Value = CloneParamsExpansionExpression(argument.Value),
 			ResolvedType = argument.ResolvedType,
 			MaterializedInitializerAddressType = argument.MaterializedInitializerAddressType,
+			CatchStorageType = argument.CatchStorageType,
 			MaterializedInitializerAddressResultType = argument.MaterializedInitializerAddressResultType
 		};
 	}

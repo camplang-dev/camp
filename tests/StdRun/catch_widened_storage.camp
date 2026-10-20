@@ -1,0 +1,42 @@
+int calls;
+int next() { calls++; return 0; }
+int fail(thrown int error) { throw -7; }
+int succeed(thrown int error) { return 3; }
+char[] arrayFail(thrown int error) { throw 7; }
+int returned(long* error) { return fail(catch *error); }
+long asyncObserved;
+class Resumer { void resumeAsync(escaped once void() continuation) { continuation(); } }
+async int failAsync(@awaitwith Resumer* resumer, thrown int error) { throw 7; }
+async int parentAsync(@awaitwith Resumer* resumer)
+{
+	int result = await failAsync(resumer, catch long error);
+	asyncObserved = error;
+	return result;
+}
+void complete(void* context, int result) { }
+export int main()
+{
+	long error = 5000000000;
+	if (fail(catch error) != 0 || error != -7) return 1;
+	error = 5000000000;
+	if (succeed(catch error) != 3 || error != 0) return 2;
+	fn int(thrown int) function = fail;
+	function(catch error);
+	if (error != -7) return 3;
+	delegate int(thrown int) callback = fail;
+	callback(catch long declared);
+	if (declared != -7) return 4;
+	fixed long[1] slots = [5000000000];
+	fail(catch slots[next()]);
+	if (slots[0] != -7 || calls != 1) return 5;
+	error = 5000000000;
+	if (returned(&error) != 0 || error != -7) return 6;
+	while (fail(catch error) > 0) return 7;
+	if (error != -7) return 8;
+	char[] values = arrayFail(catch error);
+	if (error != 7 || values.elements != null) return 9;
+	Resumer resumer = default;
+	parentAsync(&resumer, complete, null);
+	if (asyncObserved != 7) return 10;
+	return 0;
+}
