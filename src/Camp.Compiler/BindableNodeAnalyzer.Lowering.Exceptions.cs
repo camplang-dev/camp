@@ -795,21 +795,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (currentStatementPrefix is null || currentStatementSuffix is null)
 			return call;
 
-		DeclarationTarget errorTarget;
-		if (TryGetImplicitHandlerTarget(thrownType ?? ErrorType, out DeclarationTarget? handlerTarget))
-		{
-			errorTarget = handlerTarget;
-		}
-		else if (TryGetFunctionThrownTarget(thrownType ?? ErrorType, out DeclarationTarget? thrownTarget))
-		{
-			errorTarget = thrownTarget;
-		}
-		else
-		{
-			DeclarationStatement errorLocal = CreateErrorLocal(thrownType ?? ErrorType);
-			currentStatementPrefix.Add(errorLocal);
-			errorTarget = errorLocal.Target;
-		}
+		DeclarationTarget errorTarget = SelectThrowCaptureTarget(thrownType ?? ErrorType);
 		Expression result = call;
 		if (usesThrownReturn)
 		{

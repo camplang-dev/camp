@@ -4,6 +4,8 @@ int fail(thrown int error) { throw -7; }
 int succeed(thrown int error) { return 3; }
 char[] arrayFail(thrown int error) { throw 7; }
 int returned(long* error) { return fail(catch *error); }
+void forwarded(thrown long error) { fail(); }
+int handled() { try { fail(); } catch (long error) { return error == -7 ? 1 : -1; } return 0; }
 long asyncObserved;
 class Resumer { void resumeAsync(escaped once void() continuation) { continuation(); } }
 async int failAsync(@awaitwith Resumer* resumer, thrown int error) { throw 7; }
@@ -38,5 +40,8 @@ export int main()
 	Resumer resumer = default;
 	parentAsync(&resumer, complete, null);
 	if (asyncObserved != 7) return 10;
+	error = 5000000000;
+	forwarded(catch error);
+	if (error != -7 || handled() != 1) return 11;
 	return 0;
 }
