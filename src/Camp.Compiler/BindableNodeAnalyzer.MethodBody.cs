@@ -2083,11 +2083,30 @@ public sealed partial class BindableNodeAnalyzer
 
 	bool TryAppendConstantInterpolationHole(Expression? expression, string holeType, StringBuilder value)
 	{
+		if (expression is ParenthesizedExpression parenthesized)
+			return TryAppendConstantInterpolationHole(parenthesized.Expression, holeType, value);
 		if (!IsConstant(expression))
 			return false;
 
 		if (expressionRewrites.TryGetValue(expression!, out Expression? rewritten))
 			expression = rewritten;
+		ConstantValue? constant = expression switch
+		{
+			VariableReferenceExpression { Variable: VariableDefinition variable } => variable.ConstantValue,
+			VariableReferenceExpression { Variable: FieldDefinition field } => field.ConstantValue,
+			MemberReferenceExpression { Member: FieldDefinition field } => field.ConstantValue,
+			_ => null
+		};
+		if (constant is ConstantValue.String stringConstant)
+		{
+			value.Append(stringConstant.Value);
+			return true;
+		}
+		if (constant is ConstantValue.Character characterConstant)
+		{
+			value.Append(characterConstant.Value);
+			return true;
+		}
 
 		switch (expression)
 		{

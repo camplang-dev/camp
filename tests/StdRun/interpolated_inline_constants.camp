@@ -1,0 +1,10 @@
+inline string PREFIX = $"a{"bc"}";
+inline string BOTH = $"{PREFIX}-x";
+inline string NESTED = $"{$"{PREFIX}"}-x";
+
+export int main()
+{
+	if (BOTH[0] != 'a' || BOTH[1] != 'b' || BOTH[2] != 'c' || BOTH[3] != '-' || BOTH[4] != 'x') return 1;
+	if (NESTED[0] != 'a' || NESTED[3] != '-' || NESTED[4] != 'x') return 2;
+	return 0;
+}

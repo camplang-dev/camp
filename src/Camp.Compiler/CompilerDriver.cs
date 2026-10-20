@@ -2660,7 +2660,7 @@ public static class CompilerDriver
             if (range is TokenRange tokenRange)
             {
                 foreach (SourceFile file in compilation.Files)
-                    if (ReferenceEquals(file.Tokens, tokenRange.Sequence))
+                    if (ReferenceEquals(file.Tokens, tokenRange.Sequence.SourceSequence))
                         return file.Path;
             }
             return compilation.Files.Count == 0 ? "" : compilation.Files[0].Path;

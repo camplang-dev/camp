@@ -18,8 +18,14 @@ public class TokenSequence : IReadOnlyList<Token>
 	}
 
 	public TokenSequence(IEnumerable<TokenValue> values, int startLineNumber, int startColumn)
+		: this(values, startLineNumber, startColumn, null)
+	{
+	}
+
+	public TokenSequence(IEnumerable<TokenValue> values, int startLineNumber, int startColumn, TokenSequence? sourceSequence)
 	{
 		ArgumentNullException.ThrowIfNull(values);
+		SourceSequence = sourceSequence?.SourceSequence ?? this;
 
 		int lineNumber = startLineNumber;
 		int column = startColumn;
@@ -37,6 +43,8 @@ public class TokenSequence : IReadOnlyList<Token>
 	}
 
 	public IReadOnlyList<TokenValue> Values => values;
+	// Interpolation holes have separate token indices but retain their enclosing file identity.
+	public TokenSequence SourceSequence { get; }
 	public IReadOnlyList<LinePosition> LinePositions => linePositions;
 	public int Count => values.Count;
 

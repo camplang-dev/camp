@@ -522,6 +522,11 @@ public sealed partial class BindableNodeAnalyzer
 					return true;
 				}
 		}
+		if (named.Qualifiers.Count > 0 && LookupGlobalStorageSymbol(named, named.SourceSyntax) is BodySymbol global)
+		{
+			node = global.Node;
+			return node is VariableDefinition or FieldDefinition;
+		}
 		return false;
 	}
 

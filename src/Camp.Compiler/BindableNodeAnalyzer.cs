@@ -328,7 +328,7 @@ public sealed partial class BindableNodeAnalyzer
 			return true;
 
 		TokenRange? referenceRange = GetRange(referenceSyntax);
-		if (referenceRange is not TokenRange range || ReferenceEquals(range.Sequence, definitionSource))
+		if (referenceRange is not TokenRange range || ReferenceEquals(range.Sequence.SourceSequence, definitionSource.SourceSequence))
 			return true;
 
 		if (CurrentFunctionCanSeeSourceDefinition(definitionSource))
@@ -356,11 +356,11 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			if (currentModule.DefinitionSources.TryGetValue(function, out TokenSequence? functionSource))
 			{
-				if (ReferenceEquals(functionSource, definitionSource))
+				if (functionSource is not null && ReferenceEquals(functionSource.SourceSequence, definitionSource.SourceSequence))
 					return true;
 			}
 			else if (GetRange(function.SourceSyntax) is TokenRange currentRange
-				&& ReferenceEquals(currentRange.Sequence, definitionSource))
+				&& ReferenceEquals(currentRange.Sequence.SourceSequence, definitionSource.SourceSequence))
 			{
 				return true;
 			}
@@ -405,7 +405,7 @@ public sealed partial class BindableNodeAnalyzer
 			return true;
 
 		TokenRange? referenceRange = GetRange(referenceSyntax);
-		if (referenceRange is not TokenRange range || ReferenceEquals(range.Sequence, definitionSource))
+		if (referenceRange is not TokenRange range || ReferenceEquals(range.Sequence.SourceSequence, definitionSource.SourceSequence))
 			return true;
 
 		if (CurrentFunctionCanSeeSourceDefinition(definitionSource))
@@ -499,7 +499,7 @@ public sealed partial class BindableNodeAnalyzer
 			return GetDefinitionNamespace(currentAnalysisContainingType);
 		}
 		return currentModule is not null
-			&& currentModule.SourceNamespaces.TryGetValue(referenceSource, out string? referenceNamespace)
+			&& currentModule.SourceNamespaces.TryGetValue(referenceSource.SourceSequence, out string? referenceNamespace)
 			? referenceNamespace
 			: null;
 	}
@@ -664,7 +664,7 @@ public sealed partial class BindableNodeAnalyzer
 		foreach (UsingDeclaration usingDeclaration in currentModule?.Usings ?? [])
 		{
 			TokenRange? range = GetRange(usingDeclaration.SourceSyntax);
-			if (range is TokenRange usingRange && ReferenceEquals(usingRange.Sequence, source))
+			if (range is TokenRange usingRange && ReferenceEquals(usingRange.Sequence.SourceSequence, source.SourceSequence))
 				yield return usingDeclaration;
 		}
 	}
@@ -697,7 +697,7 @@ public sealed partial class BindableNodeAnalyzer
 			return true;
 
 		TokenRange? referenceRange = GetRange(referenceSyntax);
-		if (referenceRange is not TokenRange range || ReferenceEquals(range.Sequence, definitionSource))
+		if (referenceRange is not TokenRange range || ReferenceEquals(range.Sequence.SourceSequence, definitionSource.SourceSequence))
 			return true;
 
 		return CurrentFunctionCanSeeSourceDefinition(definitionSource);

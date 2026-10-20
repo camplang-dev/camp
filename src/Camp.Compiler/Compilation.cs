@@ -325,7 +325,7 @@ public static class CompilationPipeline
 
 		foreach (SourceFile file in compilation.Files)
 		{
-			if (!ReferenceEquals(file.Tokens, range.Sequence))
+			if (!ReferenceEquals(file.Tokens, range.Sequence.SourceSequence))
 				continue;
 			compilation.DefinitionOwners[definition] = file;
 			compilation.SharedModule!.DefinitionSources[definition] = file.Tokens;

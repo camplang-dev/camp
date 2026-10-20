@@ -239,9 +239,9 @@ public sealed class CampCoverageMapBuilder
 
 	bool TryGetSourceFile(TokenRange range, out SourceFile? file)
 	{
-		if (module.SourceFiles.TryGetValue(range.Sequence, out file))
+		if (module.SourceFiles.TryGetValue(range.Sequence.SourceSequence, out file))
 			return true;
-		file = compilation.Files.FirstOrDefault(candidate => ReferenceEquals(candidate.Tokens, range.Sequence));
+		file = compilation.Files.FirstOrDefault(candidate => ReferenceEquals(candidate.Tokens, range.Sequence.SourceSequence));
 		return file is not null;
 	}
 

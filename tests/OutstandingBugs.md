@@ -43,24 +43,3 @@ Actual:
 Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
-
-## BUG-319: Inline string constant cannot use another inline string as an interpolation hole
-
-Date/Time: 2026-10-20 00:45 EDT
-
-Summary:
-An interpolated inline string folds constant text and character holes. A hole that names another inline string constant in the same file is rejected as if the symbol came from another file.
-
-Steps to Reproduce:
-
-1. Write `inline string PREFIX = $"a{"bc"}";` and `inline string BOTH = $"{PREFIX}-x";` in one file with a trivial `main`.
-2. Compile the file.
-
-Expected:
-`BOTH` folds to `abc-x`; a hole naming an inline string is constant text.
-
-Actual:
-`error: Symbol 'PREFIX' is declared in another file but is not exported.`
-
-Known Impact:
-Constant text cannot be built from other constants. Workaround: repeat the text.

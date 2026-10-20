@@ -4632,7 +4632,7 @@ public static class CCodeEmitter
 
         bool TryGetSourceFile(TokenRange range, out SourceFile? sourceFile)
         {
-            sourceFile = compilation.Files.FirstOrDefault(file => ReferenceEquals(file.Tokens, range.Sequence));
+            sourceFile = compilation.Files.FirstOrDefault(file => ReferenceEquals(file.Tokens, range.Sequence.SourceSequence));
             return sourceFile is not null;
         }
 

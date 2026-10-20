@@ -2218,7 +2218,7 @@ public sealed class CampParser
 
 	ExpressionSyntax? ParseInterpolatedHoleExpression(string expressionText, Token token, int expressionStartOffset)
 	{
-		TokenSequence holeTokens = new(CampTokenizer.Tokenize(expressionText), token.LineNumber, token.Column + expressionStartOffset);
+		TokenSequence holeTokens = new(CampTokenizer.Tokenize(expressionText), token.LineNumber, token.Column + expressionStartOffset, token.Sequence);
 		CampParser parser = new(holeTokens);
 		ExpressionSyntax? expression = parser.ParseExpressionItem();
 

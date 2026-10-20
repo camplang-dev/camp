@@ -10,6 +10,23 @@ namespace Camp.Compiler.Tests;
 public sealed class LanguageServiceTests
 {
 	[Fact]
+	public void Interpolation_hole_diagnostics_retain_the_enclosing_source_path()
+	{
+		string root = CreateTempDirectory("language-service-interpolation-source");
+		string first = Path.Combine(root, "first.camp");
+		string second = Path.Combine(root, "second.camp");
+		File.WriteAllText(first, "inline string PREFIX = \"abc\";");
+		string text = "inline string BOTH = $\"{PREFIX}-x\";";
+		File.WriteAllText(second, text);
+		CompilerRequest request = Request(root, first);
+		request.Files.Add("second.camp");
+		CampAnalysisSnapshot snapshot = CampLanguageService.Analyze(request);
+		CampSourceDiagnostic diagnostic = Assert.Single(snapshot.Diagnostics, d => d.Message.Contains("another file but is not exported"));
+		Assert.Equal(second, diagnostic.Path);
+		Assert.Equal(PositionOf(text, "PREFIX"), diagnostic.Range!.Start);
+	}
+
+	[Fact]
 	public void Generic_reference_hover_preserves_constructed_identity_and_invalid_reference_range()
 	{
 		string root = CreateTempDirectory("language-service-generic-reference");

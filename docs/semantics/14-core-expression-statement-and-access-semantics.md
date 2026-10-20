@@ -814,6 +814,12 @@ inline string PREFIX = "Camp";
 inline string TITLE = $"{PREFIX} compiler";
 ```
 
+Hole tokens retain the identity of their enclosing source file, including through
+nested interpolation. Inline text and character references fold from their
+constant values after ordinary visibility, namespace, and import checks; a hole
+does not gain access to private declarations in another file. Diagnostics retain
+the enclosing file path and the hole's original source position.
+
 User `toString` methods are not executed during constant evaluation. Numeric,
 enum, newtype, aggregate, and other non-text constants therefore prevent
 constant-text folding unless they are already represented as string-like or

@@ -807,7 +807,7 @@ public static class CampLanguageService
 	{
 		if (range is not TokenRange tokenRange)
 			return null;
-		return compilation.Files.FirstOrDefault(file => ReferenceEquals(file.Tokens, tokenRange.Sequence));
+		return compilation.Files.FirstOrDefault(file => ReferenceEquals(file.Tokens, tokenRange.Sequence.SourceSequence));
 	}
 
 	static bool TryGetDefinitionPathAndRange(Compilation compilation, Definition definition, out string path, out CampTextRange range)
