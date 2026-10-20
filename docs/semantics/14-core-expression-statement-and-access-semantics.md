@@ -662,6 +662,9 @@ thrown slot and its `catch` behavior are reused consistently for both calls.
 An explicit catch declaration is introduced once, and a catch storage target
 with side effects is captured once before sizing. Generated protocol calls have
 the declaration's scalar return type, rather than the transformed array type.
+The complete callable signature, including omitted thrown slots, is retained
+for ordinary error propagation. A sizing failure transfers control before
+allocation and writing.
 Likewise, lowering does not invent storage for required `out` arguments or an
 allocator where ordinary call rules would require one. Runtime arithmetic
 overflow or allocation failure occurs before writing through the target's

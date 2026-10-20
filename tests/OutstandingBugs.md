@@ -44,38 +44,6 @@ Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
 
-## BUG-315: Transformed prep call propagating `thrown` passes arguments in the wrong order
-
-Date/Time: 2026-10-19 22:27 EDT
-
-Summary:
-When a caller with a compatible `thrown` slot calls a prep-bearing function that
-has its own trailing `thrown` slot, omitting the prep slot should transform the
-call and propagate the error. The front end accepts the program, but the
-generated sizing and write calls pass the length, error and buffer arguments in
-the wrong order, so the native build fails.
-
-Steps to Reproduce:
-
-1. Declare `nuint render(int value, prep char[] buffer = default, thrown int
-   error) { if (value < 0) throw 7; return (nuint)value; }`.
-2. Declare `int wrapper(thrown int error) { char[] ok = render(3); return
-   (int)ok.length; }`.
-3. Call `wrapper(catch caught)` from `main` and build with a native backend.
-
-Expected:
-The program compiles and returns 3. Both protocol calls forward the caller's
-`thrown` slot, and no write follows a sizing failure.
-
-Actual:
-clang rejects the generated C: `render(3, NULL, error, 0)` passes the error
-pointer where the buffer length belongs, and the prepared result is assigned
-from a scalar return type. The front end reports no diagnostics.
-
-Known Impact:
-Prepared results cannot be requested from a throwing prep function through
-propagation. Writing the prep argument explicitly is the workaround.
-
 ## BUG-316: A scoped prepared result can be stored into a field without a diagnostic
 
 Date/Time: 2026-10-19 22:30 EDT

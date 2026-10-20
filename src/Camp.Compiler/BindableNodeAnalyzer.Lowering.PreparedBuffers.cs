@@ -460,7 +460,8 @@ public sealed partial class BindableNodeAnalyzer
 			ResolvedType = prepBuffer.ResolvedType
 		});
 
-		callableInvocationParameters[call] = callableParameters;
+		// CloneCallExpression retains the complete callable signature, including
+		// omitted thrown slots needed by ordinary propagation lowering.
 		if (callGenericSubstitutions.TryGetValue(sourceCall, out Dictionary<string, string>? substitutions))
 			callGenericSubstitutions[call] = new Dictionary<string, string>(substitutions, StringComparer.Ordinal);
 		return call;

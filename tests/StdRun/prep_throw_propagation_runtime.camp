@@ -1,0 +1,36 @@
+struct Tracker { int sizes; int writes; }
+
+nuint render(Tracker* tracker, int value, prep char[] buffer = default, thrown int error)
+{
+	if (buffer.length < 1) tracker.sizes++; else tracker.writes++;
+	if (value < 0) throw 7;
+	if (buffer.length > 0) buffer[0] = 'x';
+	return (nuint)value;
+}
+
+int direct(Tracker* tracker, int value, thrown int error)
+{
+	char[] text = render(tracker, value);
+	return text.length == (nuint)value && text[0] == 'x' ? value : 99;
+}
+
+int indirect(Tracker* tracker, int value, thrown int error)
+{
+	fn nuint(Tracker*, int, prep char[], thrown int) writer = render;
+	char[] text = writer(tracker, value);
+	return text.length == (nuint)value && text[0] == 'x' ? value : 99;
+}
+
+export int main()
+{
+	Tracker tracker = default;
+	int error = 0;
+	if (direct(&tracker, 3, catch error) != 3 || error != 0 || tracker.sizes != 1 || tracker.writes != 1) return 1;
+	tracker = default;
+	if (direct(&tracker, -1, catch error) != 0 || error != 7 || tracker.sizes != 1 || tracker.writes != 0) return 2;
+	tracker = default;
+	if (indirect(&tracker, 2, catch error) != 2 || error != 0 || tracker.sizes != 1 || tracker.writes != 1) return 3;
+	tracker = default;
+	if (indirect(&tracker, -1, catch error) != 0 || error != 7 || tracker.sizes != 1 || tracker.writes != 0) return 4;
+	return 0;
+}
