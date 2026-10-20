@@ -1,0 +1,31 @@
+nuint render(int value, prep char[] buffer = default, thrown int error)
+{
+	if (value < 0) throw 7;
+	if (buffer.length > 0) buffer[0] = 'x';
+	return (nuint)value;
+}
+
+struct Errors { int code; int evaluations; }
+Errors* select(Errors* errors)
+{
+	errors.evaluations++;
+	return errors;
+}
+
+export int main()
+{
+	int caught = 0;
+	char[] text = render(3, catch caught);
+	if (caught != 0 || text.length != 3 || text[0] != 'x') return 1;
+	char[] declared = render(2, catch int declaredError);
+	if (declaredError != 0 || declared.length != 2 || declared[0] != 'x') return 2;
+	fn nuint(int, prep char[], thrown int) writer = render;
+	char[] indirect = writer(1, catch caught);
+	if (caught != 0 || indirect.length != 1 || indirect[0] != 'x') return 3;
+	char[] indirectDeclared = writer(2, catch int indirectError);
+	if (indirectError != 0 || indirectDeclared.length != 2) return 4;
+	Errors errors = default;
+	char[] selected = render(1, catch select(&errors).code);
+	if (errors.code != 0 || errors.evaluations != 1 || selected[0] != 'x') return 5;
+	return 0;
+}

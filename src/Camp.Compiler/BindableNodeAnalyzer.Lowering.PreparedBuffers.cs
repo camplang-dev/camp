@@ -235,6 +235,8 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			bool includeExplicitThis = IncludeExplicitThisArgumentForSourceBinding(sourceCall.Target, function);
 			callableParameters = GetCallableParametersForCall(function, includeExplicitThis);
+			if (HasExplicitHiddenArgument(sourceCall.Arguments))
+				AddExplicitHiddenParameters(function.Parameters, callableParameters);
 			return true;
 		}
 
@@ -242,6 +244,8 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			function = null;
 			callableParameters = GetCallableParameters(foundParameters);
+			if (HasExplicitHiddenArgument(sourceCall.Arguments))
+				AddExplicitHiddenParameters(foundParameters, callableParameters);
 			return true;
 		}
 
@@ -283,6 +287,30 @@ public sealed partial class BindableNodeAnalyzer
 
 		foreach (ArgumentExpression argument in call.Arguments)
 		{
+			if (argument.Modifier == ArgumentModifier.Catch)
+			{
+				// A catch declaration belongs to the source invocation, not each
+				// generated protocol call.
+				LowerArgument(argument);
+				if (argument.Value is Expression target && !IsRepeatableArrayLengthExpression(target))
+				{
+					Expression address = new UnaryExpression
+					{
+						SourceSyntax = target.SourceSyntax,
+						Operator = UnaryOperator.AddressOf,
+						Operand = target,
+						ResolvedType = target.ResolvedType + "*"
+					};
+					argument.Value = new UnaryExpression
+					{
+						SourceSyntax = target.SourceSyntax,
+						Operator = UnaryOperator.PointerDereference,
+						Operand = MaterializePreparedValue(address, "prepCatch"),
+						ResolvedType = target.ResolvedType
+					};
+				}
+				continue;
+			}
 			if (argument.Value is null || argument.Modifier is ArgumentModifier.Out or ArgumentModifier.Catch)
 				continue;
 			Expression lowered = LowerExpression(argument.Value) ?? argument.Value;
@@ -328,6 +356,7 @@ public sealed partial class BindableNodeAnalyzer
 		call.PreparedMode = PreparedCallMode.Full;
 		call.PreparedResultType = null;
 		call.PreparedConvertedResultType = null;
+		call.ResolvedType = function.ResolvedType;
 		call.Arguments.Clear();
 
 		Expression? interfaceContext = TryGetInterfacePreparedCallContext(sourceCall, function);
@@ -347,7 +376,7 @@ public sealed partial class BindableNodeAnalyzer
 			{
 				if (ReferenceEquals(callableParameters[parameterIndex], prepParameter))
 					continue;
-				if (string.IsNullOrWhiteSpace(argument.Name) && !string.IsNullOrWhiteSpace(callableParameters[parameterIndex].Name))
+				if (argument.Modifier != ArgumentModifier.Catch && string.IsNullOrWhiteSpace(argument.Name) && !string.IsNullOrWhiteSpace(callableParameters[parameterIndex].Name))
 					argument.Name = callableParameters[parameterIndex].Name;
 			}
 			call.Arguments.Add(argument);
@@ -404,6 +433,8 @@ public sealed partial class BindableNodeAnalyzer
 		call.PreparedResultType = null;
 		call.PreparedConvertedResultType = null;
 		call.Arguments.Clear();
+		if (TryGetCallableShape(sourceCall.Target?.ResolvedType, out CallableShape callableShape))
+			call.ResolvedType = callableShape.ReturnType;
 
 		bool[] supplied = new bool[callableParameters.Count];
 		foreach (ArgumentExpression sourceArgument in sourceCall.Arguments)
@@ -415,7 +446,7 @@ public sealed partial class BindableNodeAnalyzer
 			{
 				if (ReferenceEquals(callableParameters[parameterIndex], prepParameter))
 					continue;
-				if (string.IsNullOrWhiteSpace(argument.Name) && !string.IsNullOrWhiteSpace(callableParameters[parameterIndex].Name))
+				if (argument.Modifier != ArgumentModifier.Catch && string.IsNullOrWhiteSpace(argument.Name) && !string.IsNullOrWhiteSpace(callableParameters[parameterIndex].Name))
 					argument.Name = callableParameters[parameterIndex].Name;
 			}
 			call.Arguments.Add(argument);

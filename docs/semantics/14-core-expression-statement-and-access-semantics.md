@@ -659,6 +659,9 @@ result; the behavioral contract requires it to agree with sizing.
 
 Thrown handling is not invented or discarded. An explicit or propagated
 thrown slot and its `catch` behavior are reused consistently for both calls.
+An explicit catch declaration is introduced once, and a catch storage target
+with side effects is captured once before sizing. Generated protocol calls have
+the declaration's scalar return type, rather than the transformed array type.
 Likewise, lowering does not invent storage for required `out` arguments or an
 allocator where ordinary call rules would require one. Runtime arithmetic
 overflow or allocation failure occurs before writing through the target's
