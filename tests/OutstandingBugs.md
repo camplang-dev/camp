@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-327.
+Next bug number: BUG-328.
 
 ## Bug Template
 
@@ -43,3 +43,32 @@ Actual:
 Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
+
+## BUG-327: Project-reference freshness disagrees with the content artifact cache
+
+Date/Time: 2026-10-20 04:59 EDT
+
+Summary:
+Project-reference reuse checks timestamps even though native artifact reuse
+validates content fingerprints. When unchanged source inputs have newer
+timestamps than a valid archive, the reference is repeatedly marked rebuilding
+and the child compiler then reports every output unchanged.
+
+Steps to Reproduce:
+
+1. Build a consumer of a static project reference with `--verbose`.
+2. Advance the referenced source file's timestamp without changing its content.
+3. Build the consumer twice more with `--verbose`.
+
+Expected:
+The recorded compiler, request, outputs, and input contents validate the current
+reference, including when a timestamp is in the future.
+
+Actual:
+The reference repeatedly reports rebuilding while the child reports unchanged
+outputs. The static project-reference graph regression also fails its final
+unchanged-build assertion on affected artifacts.
+
+Known Impact:
+Unnecessary child builds and inconsistent incremental-build behavior. Repeated
+builds do not repair a timestamp that remains newer than the unchanged output.
