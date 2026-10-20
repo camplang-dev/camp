@@ -44,27 +44,6 @@ Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
 
-## BUG-323: An error transferring to an outer catch skips the finally of a try nested inside the protected body
-
-Date/Time: 2026-10-20 15:05 EDT
-
-Summary:
-When a `throw`, or a call that fails, inside a `try`/`finally` that is itself nested in the body of an outer `try`/`catch` transfers control to the outer handler, the inner `finally` body does not run. The inner `try` is exited by the transfer, and the language reference says a `finally` block runs when control leaves its `try` by a caught error. The same `finally` runs on normal completion, `return`, `break`, `continue` and a propagated error.
-
-Steps to Reproduce:
-
-1. Declare `enum Fault { OK = 0, RANGE }`.
-2. Write `void f() { try { try { throw Fault.RANGE; } finally { log(51); } } catch (Fault fault) { log(62); } }` and call it.
-
-Expected:
-`51` then `62`: the inner `finally` runs as the throw leaves its `try`, then the handler runs.
-
-Actual:
-Only `62`. The generated transfer to the handler runs no cleanup for the inner `try`.
-
-Known Impact:
-Cleanup registered by a nested `try`/`finally` is lost when an error is caught by an enclosing handler, so resources it would release stay held. Workaround: put the `catch` on the same `try` as the `finally`, or catch the error inside the inner `try`.
-
 ## BUG-324: An error from an interpolation hole does not stop later holes or the result
 
 Date/Time: 2026-10-20 16:20 EDT

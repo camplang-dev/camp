@@ -475,7 +475,9 @@ public sealed partial class BindableNodeAnalyzer
 		for (int i = currentCleanupScopes.Count - 1; i >= start; i--)
 		{
 			CleanupScope cleanupScope = currentCleanupScopes[i];
-			if (!includeCatchExitCleanups && !cleanupScope.RunBeforeCatch)
+			// Only the destination try's finally waits until after its catch.
+			// Nested tries are being exited and must run their finally now.
+			if (!includeCatchExitCleanups && i == start && !cleanupScope.RunBeforeCatch)
 				continue;
 			if (!includeContinueCleanups && !cleanupScope.RunBeforeContinue)
 				continue;

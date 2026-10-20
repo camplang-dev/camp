@@ -1,0 +1,48 @@
+enum Fault { OK = 0, BAD }
+int trace;
+void mark(int value) { trace = trace * 10 + value; }
+void fail(thrown Fault error) { throw BAD; }
+
+void run(int mode)
+{
+	try
+	{
+		try
+		{
+			try
+			{
+				finally mark(1);
+				if (mode == 0) throw Fault.BAD;
+				if (mode == 1) fail();
+				try { fail(); }
+				catch (Fault inner) { mark(2); throw inner; }
+				finally { mark(3); }
+			}
+			finally { mark(4); }
+		}
+		finally { mark(5); }
+	}
+	catch (Fault fault) { if (fault == BAD) mark(6); }
+	finally { mark(7); }
+}
+
+void sameTry()
+{
+	try { fail(); }
+	catch (Fault fault) { mark(8); }
+	finally { mark(9); }
+}
+
+export int main()
+{
+	for (int mode = 0; mode < 3; mode++)
+	{
+		trace = 0;
+		run(mode);
+		if (trace != (mode == 2 ? 2314567 : 14567)) return 1;
+	}
+	trace = 0;
+	sameTry();
+	if (trace != 89) return 2;
+	return 0;
+}

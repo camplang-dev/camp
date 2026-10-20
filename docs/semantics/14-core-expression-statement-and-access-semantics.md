@@ -1222,6 +1222,11 @@ is available in that handler and nested bodies, and is unavailable in the
 protected body, sibling handlers, the associated finally, and following code.
 Each handler may reuse a name independently of those other scopes.
 
+Transfer to a handler runs cleanup for every inner scope and try being exited,
+from innermost to outermost. Only the destination try's own finally is deferred
+until its catch completes. This applies to explicit throws and implicit error
+checks on calls, including errors rethrown from an inner handler.
+
 ## Conditions And Truth Values
 
 An uncaught error while evaluating a loop condition exits through the active
