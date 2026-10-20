@@ -43,26 +43,3 @@ Actual:
 Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
-
-
-## BUG-326: The documentation does not describe a body that assigns its own thrown slot
-
-Date/Time: 2026-10-20 17:50 EDT
-
-Summary:
-The language reference says successful paths write the default error value to a function's `thrown` slot automatically. The compiler skips that automatic write when the function body assigns its own `thrown` parameter directly or passes it as a `catch` target, so the value the body stored is what the caller sees. The behavior is intentional and tests depend on it, but no document states it.
-
-Steps to Reproduce:
-
-1. Declare `enum Fault { OK = 0, BAD }` and `void inner(thrown Fault error) { throw Fault.BAD; }`.
-2. Write `void outer(thrown Fault error) { inner(catch error); }` and call it with `outer(catch fault)`.
-3. Read the error-handling chapter of the language reference for what `fault` holds afterwards.
-
-Expected:
-The reference states that a body which assigns its own `thrown` slot, or passes it as a `catch` target, takes over the slot: the automatic success write is not performed after it, so the stored value is what the caller observes.
-
-Actual:
-The reference describes only the automatic success write. `fault` is `BAD` at run time, which the reference does not explain.
-
-Known Impact:
-Implementers of other compilers cannot tell from the reference whether a trailing automatic write must overwrite the value the body stored. Workaround: none needed for users, since the behavior is consistent.

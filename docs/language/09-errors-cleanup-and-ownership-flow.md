@@ -98,6 +98,24 @@ Successful paths write the default error value. You normally do not spell that
 yourself; the language supplies the success behavior around the source
 construct.
 
+If a body directly assigns its own `thrown` parameter, or passes that parameter
+as a `catch` target, the body takes responsibility for the slot's final value.
+The compiler then omits automatic success writes throughout that body, both at
+explicit returns and at fall-through. The caller observes the stored value:
+
+```camp
+void relayPortError(const char[] text, thrown ParseError error)
+{
+	parsePort(text, catch error);
+}
+```
+
+If `parsePort` reports an error, returning from `relayPortError` preserves it.
+A body that manages its slot must arrange a default value on paths that should
+report success, or deliberately preserve a value already supplied by its caller.
+Ordinary `throw` and implicit propagation still use automatic success handling
+on successful paths; they do not by themselves take over the slot.
+
 ## Propagation
 
 If the caller also has a compatible `thrown` slot, an uncaught error can

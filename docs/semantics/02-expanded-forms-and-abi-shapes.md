@@ -330,6 +330,14 @@ Lowering must preserve:
 Do not treat thrown slots as ordinary output values for `constof` variance or
 ordinary return covariance.
 
+A body that directly assigns its own thrown parameter, or uses that parameter
+directly as a catch argument, manages the final slot value itself. Suppress
+automatic default-error writes for the entire body, at explicit success returns
+and implicit fall-through alike. Preserve whatever value the body or its caller
+stored on paths without another write. Source `throw` and implicit propagation
+do not trigger this rule merely because lowering generates assignments for
+them; otherwise successful paths clear the slot automatically.
+
 ## Erased Storage With `void<V>`
 
 `void<V>` annotates one storage object containing `V`. It retains `V` for Camp
