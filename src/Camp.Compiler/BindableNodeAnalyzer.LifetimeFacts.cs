@@ -289,9 +289,7 @@ public sealed partial class BindableNodeAnalyzer
 				?? GetExpressionLifetimeFact(cast.Expression),
 			PreparedBufferExpression prepared => prepared.HeapAllocated
 				? MakeLifetimeFact("escaped", null, "new")
-				: prepared.StackAllocated
-					? MakeLifetimeFact("scoped", null, "stackalloc")
-					: MakeLifetimeFact("scoped", null, "init"),
+				: MakeLifetimeFact("scoped", null, "stackalloc"),
 			InterpolatedStringExpression interpolation => interpolation.HeapAllocated
 				? MakeLifetimeFact("escaped", null, "new")
 				: interpolation.StackAllocated

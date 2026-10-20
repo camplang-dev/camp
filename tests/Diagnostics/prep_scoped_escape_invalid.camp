@@ -1,0 +1,11 @@
+struct Holder { char[] kept; }
+
+nuint render(int value, prep char[] buffer = default)
+{
+	return (nuint)value;
+}
+
+void store(Holder* holder)
+{
+	holder.kept = render(3);
+}

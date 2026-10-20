@@ -454,7 +454,8 @@ public sealed partial class BindableNodeAnalyzer
 					Report(GetRange(returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax), "A method returning 'this' must return 'this' or a chain of 'this'-returning instance calls on 'this'.");
 				if (IsDirectCapturingLambda(returnStatement.Expression, scope) && !IsEscapedDelegateLambdaTarget(scope.CurrentFunctionReturnType))
 					Report(GetRange(returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax), "Capturing scoped lambdas cannot be returned.");
-				if (ContainsScopedPreparedBuffer(returnStatement.Expression))
+				bool scopedPreparedEscape = ContainsScopedPreparedBuffer(returnStatement.Expression);
+				if (scopedPreparedEscape)
 					Report(GetRange(returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax), "Return expression cannot return a scoped prepared result; use '(new)' for heap-allocated prepared storage.");
 				if (RequiresAnyGenericCopy(scope.CurrentFunctionReturnType, returnStatement.Expression, scope))
 					ReportAnyGenericCopy(returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax);
@@ -478,7 +479,7 @@ public sealed partial class BindableNodeAnalyzer
 				if (scope.CurrentFunctionSourceReturnType is string sourceReturnType
 					&& sourceReturnType != FormatTypeReference(scope.CurrentFunction.ReturnType))
 					CheckConstOfProducedResult(sourceReturnType, returnStatement.Expression, returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax, "Return expression");
-				if (!fixedArraySpanEscape)
+				if (!fixedArraySpanEscape && !scopedPreparedEscape)
 					CheckLifetimeResult(returnStatement.Expression, returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax, scope, "Return expression");
 				break;
 			}
@@ -3824,7 +3825,8 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			SourceSyntax = call.SourceSyntax,
 			Expression = call,
-			ResolvedType = prepType
+			ResolvedType = prepType,
+			ValueLifetimeFact = MakeLifetimeFact("scoped", null, "stackalloc")
 		};
 		expressionRewrites[call] = prepared;
 		preparedBufferCalls[prepared] = call;

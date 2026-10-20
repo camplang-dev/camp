@@ -252,6 +252,10 @@ A transformed prep call without `(new)` produces storage equivalent to a scoped
 initialized array. Its value fact must prevent escape through returns, fields,
 captured delegates, async frames, iterator frames, conditional joins, loop-carried
 state, or other storage that would reject the equivalent scoped array.
+This fact is attached when the transformed call is registered, before an
+assignment checks the result, and copies retain its stack storage provenance.
+Local storage in the same activation may retain the result. A field reached
+through a parameter cannot retain that scoped result.
 
 `(new)` on a direct transformed prep call uses ordinary allocated lifetime and
 ownership. Its fact comes from the selected `within` allocator and existing
