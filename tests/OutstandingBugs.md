@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-321.
+Next bug number: BUG-322.
 
 ## Bug Template
 
@@ -64,3 +64,24 @@ Actual:
 
 Known Impact:
 Errors raised while evaluating a loop condition are silently dropped. Workaround: call the throwing function before the loop or inside its body and test the result.
+
+## BUG-321: A catch variable used after its handler is not diagnosed
+
+Date/Time: 2026-10-20 14:10 EDT
+
+Summary:
+The variable of a `catch (T name)` clause is scoped to the catch body, but a use of that name after the handler passes semantic analysis. The failure only appears when the generated C is compiled, as an undeclared identifier, so the user sees a native build error instead of a Camp diagnostic.
+
+Steps to Reproduce:
+
+1. Declare `enum Fault { OK = 0, EMPTY }`, `int checked(int value, thrown Fault error) { if (value == 0) throw Fault.EMPTY; return value; }`, and a function whose body is `try { checked(1); } catch (Fault fault) { } log((int)fault);`.
+2. Build an executable that calls it.
+
+Expected:
+A Camp diagnostic that `fault` is not declared at the use after the handler, as for any other local used outside its scope.
+
+Actual:
+`Native build command failed ... error: use of undeclared identifier 'fault'`. No Camp diagnostic is reported.
+
+Known Impact:
+Misuse of a catch variable is reported by the C compiler rather than the Camp compiler. No workaround is needed beyond not using the variable outside its handler.
