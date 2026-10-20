@@ -424,9 +424,10 @@ public sealed partial class BindableNodeAnalyzer
 		currentStatementPrefix = previousPrefix;
 		currentStatementSuffix = previousSuffix;
 
-		BlockStatement body = new() { ResolvedType = "void" };
-		body.Statements.AddRange(conditionStatements);
-		body.Statements.Add(new IfStatement
+		string continueLabel = NewGeneratedLabelName("while_continue");
+		string breakLabel = NewGeneratedLabelName("while_break");
+		BlockStatement body = (BlockStatement)RewriteLoopBody(whileStatement.Body ?? CreateBlock([]), continueLabel, breakLabel);
+		conditionStatements.Add(new IfStatement
 		{
 			ResolvedType = "void",
 			Condition = new UnaryExpression
@@ -435,15 +436,14 @@ public sealed partial class BindableNodeAnalyzer
 				Operand = loweredCondition,
 				ResolvedType = "bool"
 			},
-			Body = new BreakStatement { ResolvedType = "void" }
+			Body = new GotoStatement { TargetName = breakLabel, ResolvedType = "void" }
 		});
-		if (whileStatement.Body is not null)
-			body.Statements.Add(whileStatement.Body);
+		// The condition prefix is already lowered. Rewriting its error return as a
+		// source return would clear the forwarded thrown slot and repeat cleanup.
+		body.Statements.InsertRange(0, conditionStatements);
 
 		whileStatement.Condition = new LiteralExpression { Kind = LiteralKind.True, Text = "true", Value = true, ResolvedType = "bool" };
-		string continueLabel = NewGeneratedLabelName("while_continue");
-		string breakLabel = NewGeneratedLabelName("while_break");
-		whileStatement.Body = RewriteLoopBody(body, continueLabel, breakLabel);
+		whileStatement.Body = body;
 		return WrapLoopWithBreakLabel(whileStatement, breakLabel);
 	}
 

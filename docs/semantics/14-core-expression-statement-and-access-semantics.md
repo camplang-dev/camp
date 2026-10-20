@@ -1210,6 +1210,11 @@ It must not silently rewrite source `goto` into structured cleanup transfer.
 
 ## Conditions And Truth Values
 
+An uncaught error while evaluating a loop condition exits through the active
+compatible handler or the function's thrown channel before the body runs.
+Forwarding the error preserves its value and runs exited scopes' cleanup once;
+it must not take the success-return path that clears a thrown slot.
+
 Conditions use `bool`. The compiler should not treat integers, pointers,
 enums, optionals, or raw carriers as implicitly truthy merely because the C
 emitter could spell such a condition. If a conversion is required, it must be

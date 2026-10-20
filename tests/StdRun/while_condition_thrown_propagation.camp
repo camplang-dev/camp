@@ -1,0 +1,45 @@
+enum Fault { OK = 0, BAD }
+int calls;
+int cleanups;
+
+int next(int stop, thrown Fault error)
+{
+	calls++;
+	if (calls == stop) throw BAD;
+	return calls < 4 ? 1 : 0;
+}
+
+int loop(int stop, thrown Fault error)
+{
+	finally cleanups++;
+	int count = 0;
+	while (next(stop) > 0)
+	{
+		finally cleanups += 10;
+		count++;
+		if (count == 1) continue;
+		if (count == 3) break;
+	}
+	return count;
+}
+
+int handled()
+{
+	try { while (next(2) > 0) { } }
+	catch (Fault fault) { return (int)fault; }
+	return -1;
+}
+
+export int main()
+{
+	Fault fault = default;
+	calls = 0; cleanups = 0;
+	if (loop(1, catch fault) != 0 || fault != BAD || calls != 1 || cleanups != 1) return 1;
+	calls = 0; cleanups = 0;
+	if (loop(3, catch fault) != 0 || fault != BAD || calls != 3 || cleanups != 21) return 2;
+	calls = 0; cleanups = 0;
+	if (loop(0, catch fault) != 3 || fault != OK || calls != 3 || cleanups != 31) return 3;
+	calls = 0;
+	if (handled() != 1 || calls != 2) return 4;
+	return 0;
+}
