@@ -550,15 +550,24 @@ public sealed partial class BindableNodeAnalyzer
 				break;
 
 			case CatchStatement catchStatement:
-				BodyAnalyzeDeclarationTarget(catchStatement.Target, scope, typeScope, targetType: ErrorType);
+			{
+				BodyScope catchScope = new(scope, scope.CurrentFunction, scope.ContainingType)
+				{
+					CurrentFunctionReturnType = scope.CurrentFunctionReturnType,
+					CurrentFunctionSourceReturnType = scope.CurrentFunctionSourceReturnType,
+					CurrentIteratorElementType = scope.CurrentIteratorElementType,
+					CurrentIteratorThrownType = scope.CurrentIteratorThrownType
+				};
+				BodyAnalyzeDeclarationTarget(catchStatement.Target, catchScope, typeScope, targetType: ErrorType);
 				// A thrown value outlives the frame that threw it, so a caught pointer-bearing value is escaped.
 				if (IsLifetimePointerBearingResolvedType(catchStatement.Target.ResolvedType, scope))
 				{
 					catchStatement.Target.SlotLifetimeFact = MakeLifetimeFact("escaped", null, "catch");
 					catchStatement.Target.ValueLifetimeFact = catchStatement.Target.SlotLifetimeFact;
 				}
-				BodyAnalyzeOptionalStatement(catchStatement.Body, scope, typeScope);
+				BodyAnalyzeOptionalStatement(catchStatement.Body, catchScope, typeScope);
 				break;
+			}
 
 			case FinallyStatement finallyStatement:
 				BodyAnalyzeOptionalStatement(finallyStatement.Body, scope, typeScope);

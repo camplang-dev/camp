@@ -19,8 +19,7 @@ public sealed partial class BindableNodeAnalyzer
 			DeclarationStatement caught = new() { ResolvedType = "void" };
 			caught.Target.Type = CloneType(catchStatement.Target.Type);
 			caught.Target.ResolvedType = catchStatement.Target.ResolvedType;
-			foreach (string name in catchStatement.Target.Names)
-				caught.Target.Names.Add(name);
+			caught.Target.Names.Add(NewGeneratedLocalName("caught"));
 			statements.Add(caught);
 			handlers.Add(new ThrowHandler(catchStatement.Target.ResolvedType ?? ErrorType, caught.Target, label, tryCleanupScopeStart));
 		}
@@ -65,8 +64,15 @@ public sealed partial class BindableNodeAnalyzer
 			currentThrowHandlers.AddRange(previousHandlers);
 			if (finallyCleanups.Count > 0)
 				currentCleanupScopes.Add(tryCleanupScope);
+			BlockStatement handlerBody = CreateBlock([]);
+			DeclarationStatement catchLocal = new() { ResolvedType = "void", InitialValue = CreateVariableReference(handler.ErrorTarget, handler.ErrorType) };
+			catchLocal.Target.Type = CloneType(catchStatement.Target.Type);
+			catchLocal.Target.ResolvedType = catchStatement.Target.ResolvedType;
+			catchLocal.Target.Names.AddRange(catchStatement.Target.Names);
+			handlerBody.Statements.Add(catchLocal);
 			if (catchStatement.Body is not null)
-				statements.Add(RewriteStatement(catchStatement.Body));
+				handlerBody.Statements.Add(RewriteStatement(catchStatement.Body));
+			statements.Add(handlerBody);
 			if (finallyCleanups.Count > 0)
 				currentCleanupScopes.RemoveAt(currentCleanupScopes.Count - 1);
 			currentThrowHandlers.Clear();

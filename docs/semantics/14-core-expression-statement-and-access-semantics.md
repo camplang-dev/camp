@@ -1208,6 +1208,13 @@ region can bypass the `finally` body. A compiler that wants to warn about this
 should do so during flow analysis, while the source structure is still visible.
 It must not silently rewrite source `goto` into structured cleanup transfer.
 
+## Error Destinations And Catch Scopes
+
+A catch clause introduces its error variable in a handler-local scope. The name
+is available in that handler and nested bodies, and is unavailable in the
+protected body, sibling handlers, the associated finally, and following code.
+Each handler may reuse a name independently of those other scopes.
+
 ## Conditions And Truth Values
 
 An uncaught error while evaluating a loop condition exits through the active

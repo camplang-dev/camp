@@ -59,30 +59,33 @@ int propagate(thrown Err error)
 int handledFinally()
 {
 	{
-		Err e;
-		int __local4 = default;
+		Err __local4;
+		int __local5 = default;
 		{
-			int __local5 = mightThrow(0, catch e);
-			if (e != default)
+			int __local6 = mightThrow(0, catch __local4);
+			if (__local4 != default)
 			{
 				goto __catch6;
 			}
 			{
-				__local4 = __local5;
+				__local5 = __local6;
 				{
 					cleanup();
 				}
-				return __local4;
+				return __local5;
 			}
 		}
 		__catch6:
 		{
+			Err e = __local4;
 			{
-				__local4 = 42;
 				{
-					cleanup();
+					__local5 = 42;
+					{
+						cleanup();
+					}
+					return __local5;
 				}
-				return __local4;
 			}
 		}
 	}
