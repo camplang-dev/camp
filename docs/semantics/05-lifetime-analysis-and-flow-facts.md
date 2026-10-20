@@ -202,6 +202,8 @@ Expression lifetime facts are propagated through body analysis:
   as explicit `stackalloc` interpolation. Local copies preserve it, so returning
   an implicit interpolated local is rejected just like returning explicit stack
   storage. Constant text and `new` interpolation retain their existing lifetimes.
+  A conditional retains stack storage provenance from either arm, including when
+  the other arm is constant text or allocated storage.
 - A catch variable of pointer-bearing type receives an `escaped` fact, because a
   thrown value outlives the frame that threw it. A caught pointer may therefore
   be deleted.

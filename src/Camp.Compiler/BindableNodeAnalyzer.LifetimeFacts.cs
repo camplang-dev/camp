@@ -310,12 +310,25 @@ public sealed partial class BindableNodeAnalyzer
 				? MakeLifetimeFact(lambdaLifetime, null, "lambda")
 				: MakeLifetimeFact("scoped", null, "lambda"),
 			AssignmentExpression assignment => GetExpressionLifetimeFact(assignment.Value),
-			ConditionalExpression conditional => GetExpressionLifetimeFact(conditional.WhenTrue) ?? GetExpressionLifetimeFact(conditional.WhenFalse),
+			ConditionalExpression conditional => GetConditionalLifetimeFact(conditional),
 			_ => null
 		};
 
 		if (fact is not null)
 			expression.ValueLifetimeFact = fact;
+	}
+
+	string? GetConditionalLifetimeFact(ConditionalExpression conditional)
+	{
+		string? first = GetExpressionLifetimeFact(conditional.WhenTrue);
+		string? second = GetExpressionLifetimeFact(conditional.WhenFalse);
+		// Either arm can select activation-local storage, including when the other
+		// arm is an escaped constant or an allocated interpolation.
+		if (TryParseLifetimeFact(first, out LifetimeFact firstFact) && IsStackAllocLifetimeFact(firstFact))
+			return first;
+		if (TryParseLifetimeFact(second, out LifetimeFact secondFact) && IsStackAllocLifetimeFact(secondFact))
+			return second;
+		return first ?? second;
 	}
 
 	string GetLifetimeStructuralTargetType(string targetType, Expression? expression)

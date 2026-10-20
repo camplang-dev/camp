@@ -23,6 +23,10 @@ public sealed class InterpolatedStringLifetimeTests
 	[InlineData("char[] bad(Count count) { char[] local = $\"a{count}\"; return local; }")]
 	[InlineData("const char[] bad(Count count) { const char[] local = $\"a{count}\"; return local; }")]
 	[InlineData("string bad(Count count, bool choose) { string local = choose ? $\"a{count}\" : $\"b{count}\"; return local; }")]
+	[InlineData("string bad(Count count, bool choose) { string local = choose ? $\"constant\" : $\"a{count}\"; return local; }")]
+	[InlineData("string bad(Count count, bool choose) { string local = choose ? \"constant\" : $\"a{count}\"; return local; }")]
+	[InlineData("string bad(Count count, bool choose) { string local = choose ? $\"a{count}\" : $\"constant\"; return local; }")]
+	[InlineData("string bad(Count count, bool choose) { string local = choose ? $\"a{count}\" : \"constant\"; return local; }")]
 	public void Implicit_scoped_interpolation_cannot_be_returned(string source)
 	{
 		var compilation = SemanticCompiler.CompileLowered(Declarations + source);
@@ -36,6 +40,8 @@ public sealed class InterpolatedStringLifetimeTests
 	[InlineData("void good(Count count) { string local = $\"a{count}\"; }")]
 	[InlineData("string good() { string local = $\"a{\"b\"}\"; return local; }")]
 	[InlineData("string good() { return $\"a{\"b\"}\"; }")]
+	[InlineData("string good(bool choose) { string local = choose ? $\"a\" : $\"b\"; return local; }")]
+	[InlineData("string good(Count count, bool choose) { return choose ? (within(default) new $\"a{count}\") : $\"constant\"; }")]
 	[InlineData("struct Holder { string kept; } void good(Count count) { Holder local = default; local.kept = $\"a{count}\"; }")]
 	public void Allocated_constant_and_local_results_remain_valid(string source)
 	{
