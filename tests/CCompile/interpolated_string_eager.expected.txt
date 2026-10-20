@@ -30,17 +30,28 @@ static void make(int value)
 {
 	uintptr_t _ir0 = 1;
 	uintptr_t _ips1 = Int_toString(&value, NULL, 0);
-	_ir0 = (_ir0 + _ips1);
-	uintptr_t _ibl2 = (_ir0 + 1);
-	char *_ibe3 = (char *)(__builtin_alloca((sizeof(char) * _ibl2)));
-	uintptr_t _io4 = 0;
-	__builtin_memcpy((void*)((_ibe3 + _io4)), (const void*)("x"), 1 * sizeof(char));
-	_io4 = (_io4 + 1);
-	uintptr_t _is5 = ((_io4 < _ibl2) ? _io4 : _ibl2);
-	Int_toString(&value, &_ibe3[_is5], (_ibl2 - _is5));
-	_io4 = (_io4 + _ips1);
-	_ibe3[_ir0] = '\0';
-	const char *text = (const char*)(_ibe3);
+	uintptr_t _interpolatedCheckedLength2 = (_ir0 + _ips1);
+	if ((_interpolatedCheckedLength2 < _ir0))
+	{
+		{ extern void abort(void); abort(); }
+	}
+	_ir0 = _interpolatedCheckedLength2;
+	uintptr_t _ibl3 = _ir0;
+	uintptr_t _interpolatedCheckedLength4 = (_ibl3 + 1);
+	if ((_interpolatedCheckedLength4 < _ibl3))
+	{
+		{ extern void abort(void); abort(); }
+	}
+	_ibl3 = _interpolatedCheckedLength4;
+	char *_ibe5 = (char *)(__builtin_alloca((sizeof(char) * _ibl3)));
+	uintptr_t _io6 = 0;
+	__builtin_memcpy((void*)((_ibe5 + _io6)), (const void*)("x"), 1 * sizeof(char));
+	_io6 = (_io6 + 1);
+	uintptr_t _is7 = ((_io6 < _ibl3) ? _io6 : _ibl3);
+	Int_toString(&value, &_ibe5[_is7], (_ibl3 - _is7));
+	_io6 = (_io6 + _ips1);
+	_ibe5[_ir0] = '\0';
+	const char *text = (const char*)(_ibe5);
 	const char *__discard3;
 	__discard3 = text;
 }
@@ -49,26 +60,42 @@ static void copyTwice(int value, char *buffer, uintptr_t buffer_length)
 {
 	if ((buffer_length > 0))
 	{
-		uintptr_t _ir6 = 0;
-		uintptr_t _r7 = Int_toString(&value, NULL, 0);
-		uintptr_t _ips8 = _r7;
-		_ir6 = (_ir6 + _ips8);
+		uintptr_t _ir8 = 0;
 		uintptr_t _r9 = Int_toString(&value, NULL, 0);
 		uintptr_t _ips10 = _r9;
-		_ir6 = (_ir6 + _ips10);
-		uintptr_t _ibl11 = (_ir6 + 1);
-		char *_ibe12 = (char *)(__builtin_alloca((sizeof(char) * _ibl11)));
-		uintptr_t _io13 = 0;
-		uintptr_t _is14 = ((_io13 < _ibl11) ? _io13 : _ibl11);
-		uintptr_t _r15 = Int_toString(&value, &_ibe12[_is14], (_ibl11 - _is14));
-		_r15;
-		_io13 = (_io13 + _ips8);
-		uintptr_t _is16 = ((_io13 < _ibl11) ? _io13 : _ibl11);
-		uintptr_t _r17 = Int_toString(&value, &_ibe12[_is16], (_ibl11 - _is16));
-		_r17;
-		_io13 = (_io13 + _ips10);
-		_ibe12[_ir6] = '\0';
-		CharArray_copyTo((const char*)(_ibe12), _ir6, buffer, buffer_length);
+		uintptr_t _interpolatedCheckedLength11 = (_ir8 + _ips10);
+		if ((_interpolatedCheckedLength11 < _ir8))
+		{
+			{ extern void abort(void); abort(); }
+		}
+		_ir8 = _interpolatedCheckedLength11;
+		uintptr_t _r12 = Int_toString(&value, NULL, 0);
+		uintptr_t _ips13 = _r12;
+		uintptr_t _interpolatedCheckedLength14 = (_ir8 + _ips13);
+		if ((_interpolatedCheckedLength14 < _ir8))
+		{
+			{ extern void abort(void); abort(); }
+		}
+		_ir8 = _interpolatedCheckedLength14;
+		uintptr_t _ibl15 = _ir8;
+		uintptr_t _interpolatedCheckedLength16 = (_ibl15 + 1);
+		if ((_interpolatedCheckedLength16 < _ibl15))
+		{
+			{ extern void abort(void); abort(); }
+		}
+		_ibl15 = _interpolatedCheckedLength16;
+		char *_ibe17 = (char *)(__builtin_alloca((sizeof(char) * _ibl15)));
+		uintptr_t _io18 = 0;
+		uintptr_t _is19 = ((_io18 < _ibl15) ? _io18 : _ibl15);
+		uintptr_t _r20 = Int_toString(&value, &_ibe17[_is19], (_ibl15 - _is19));
+		_r20;
+		_io18 = (_io18 + _ips10);
+		uintptr_t _is21 = ((_io18 < _ibl15) ? _io18 : _ibl15);
+		uintptr_t _r22 = Int_toString(&value, &_ibe17[_is21], (_ibl15 - _is21));
+		_r22;
+		_io18 = (_io18 + _ips13);
+		_ibe17[_ir8] = '\0';
+		CharArray_copyTo((const char*)(_ibe17), _ir8, buffer, buffer_length);
 	}
 }
 

@@ -1035,6 +1035,11 @@ public sealed class BindableNodeCodeSerializer
 				writer.WriteLine(";");
 				break;
 
+			case BoundsFailureStatement:
+				WriteIndent();
+				writer.WriteLine("/* bounds failure */");
+				break;
+
 			case LiteralCopyStatement copy:
 				WriteIndent();
 				writer.Write("/* copy literal ");

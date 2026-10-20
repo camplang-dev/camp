@@ -4409,6 +4409,10 @@ public static class CCodeEmitter
                     WriteIndent(writer, indent);
                     writer.WriteLine(";");
                     break;
+                case BoundsFailureStatement:
+                    WriteIndent(writer, indent);
+                    writer.WriteLine("{ extern void abort(void); abort(); }");
+                    break;
                 case BlockStatement block:
                     WriteBlock(writer, block, indent, forceBraces: true);
                     break;

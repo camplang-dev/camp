@@ -1015,6 +1015,10 @@ The arithmetic uses `nuint`, matching the standard `char[]` length component.
 Compile-time-known unrepresentable totals are errors. Runtime overflow must
 fail before allocation or buffer writing through the target's ordinary
 bounds-failure mechanism; interpolation does not add a `thrown` result.
+Every runtime size addition and the primitive string's extra terminator element
+is checked. Fixed destinations also validate the complete required length before
+writing their clamped prefix. The C backend terminates on bounds failure through
+the C runtime's `abort`, without requiring a source declaration or stdlib import.
 
 Async functions and generator methods receive no special interpolation rules.
 A non-`new` interpolation that requires scoped result storage follows the same

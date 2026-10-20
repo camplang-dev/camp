@@ -1630,6 +1630,42 @@ public sealed class CommandLineTests
 		Assert.DoesNotContain("invalid allocator free", result.StdOut, StringComparison.Ordinal);
 	}
 
+	[Theory]
+	[InlineData("string result = $\"ab{value}cd\";")]
+	[InlineData("char[] result = $\"ab{value}cd\";")]
+	[InlineData("fixed char[8] result = $\"ab{value}cd\";")]
+	[InlineData("string result = within(default) new $\"ab{value}cd\";")]
+	[InlineData("string result = $\"{value}\";")]
+	public void Interpolation_overflow_fails_before_allocation_or_writing(string destination)
+	{
+		string source = CreateTempCase("interpolation-overflow/main.camp", """
+			extern void exit(int code);
+			requires (OS_WIN32)
+			@symbol("_set_abort_behavior")
+			extern uint setAbortBehavior(uint flags, uint mask);
+			escaped void* malloc(nuint size) { exit(91); return null; }
+			struct Huge
+			{
+				nuint required;
+				prep char[] toString()
+				{
+					if (buffer.length > 0) { exit(92); buffer[0] = 'x'; }
+					return this.required;
+				}
+			}
+			export int main()
+			{
+				if (configured(OS_WIN32)) setAbortBehavior(0, 3);
+				Huge value = { (nuint)0 - 1 };
+			""" + destination + " return 93; }");
+		string output = TempPath("interpolation-overflow-output");
+		AssertCommandSucceeded(RunCampc("build", source, "--nostdlib", "--target", NativeTargetForHost(),
+			"--out-dir", output, "--name", "interpolation_overflow"));
+		string executable = Path.Combine(output, ArtifactDirectoryForHost(NativeBuildKind.Exec), "interpolation_overflow" + ExecutableExtensionForHost());
+		ProcessResult run = RunExecutable(executable);
+		Assert.Equal(OperatingSystem.IsWindows() ? 3 : 134, run.ExitCode);
+	}
+
 	[Fact]
 	public void Static_project_api_header_preserves_array_parameters()
 	{

@@ -15,6 +15,10 @@ public class EmptyStatement : Statement
 {
 }
 
+public class BoundsFailureStatement : Statement
+{
+}
+
 public class ExpressionStatement : Statement
 {
 	public Expression? Expression { get; set; }

@@ -42,7 +42,6 @@ public sealed partial class BindableNodeAnalyzer
 			SourceSyntax = declaration.SourceSyntax,
 			ResolvedType = declaration.Target.ResolvedType
 		};
-		statements.Add(declaration);
 
 		List<Statement>? previousStatementPrefix = currentStatementPrefix;
 		try
@@ -54,7 +53,8 @@ public sealed partial class BindableNodeAnalyzer
 				interpolation,
 				CreateVariableReference(declaration.Target, declaration.Target.ResolvedType ?? ErrorType, interpolation.SourceSyntax),
 				NumberLiteral(length.ToString(CultureInfo.InvariantCulture), "nuint"),
-				parts);
+				parts,
+				declaration);
 		}
 		finally
 		{
@@ -134,10 +134,7 @@ public sealed partial class BindableNodeAnalyzer
 		const string lengthType = "nuint";
 		parts = MaterializePreparedFormatterCalls(parts);
 		parts = MaterializeDirectTextValues(parts);
-		long constantLength = 0;
-		foreach (InterpolationPart part in parts)
-			if (part is LiteralTextPart text)
-				constantLength += StringLiteralEncoding.GetElementCount(text.Text, elementType);
+		long constantLength = GetInterpolationLiteralLength(parts, interpolation.SourceSyntax);
 
 		DeclarationStatement required = CreateGeneratedLocal(NewGeneratedLocalName("interpolatedRequired"), lengthType, TypeReferenceForResolvedName(lengthType), NumberLiteral(constantLength.ToString(CultureInfo.InvariantCulture), lengthType));
 		currentStatementPrefix!.Add(required);
@@ -166,11 +163,7 @@ public sealed partial class BindableNodeAnalyzer
 						directTextSizeExpression);
 					currentStatementPrefix.Add(directTextSize);
 					componentSizes.Add(directTextSize);
-					currentStatementPrefix.Add(Assign(
-						Required(),
-						Add(Required(), CreateVariableReference(directTextSize.Target, lengthType), lengthType),
-						lengthType,
-						part.SourceSyntax));
+					AddCheckedInterpolationLength(required.Target, CreateVariableReference(directTextSize.Target, lengthType), part.SourceSyntax);
 					break;
 
 				case PreparedFormatterPart prepared:
@@ -183,20 +176,15 @@ public sealed partial class BindableNodeAnalyzer
 						preparedSizeCall);
 					currentStatementPrefix.Add(preparedSize);
 					componentSizes.Add(preparedSize);
-					currentStatementPrefix.Add(Assign(
-						Required(),
-						Add(Required(), CreateVariableReference(preparedSize.Target, prepared.Shape.LengthType), lengthType),
-						lengthType,
-						part.SourceSyntax));
+					AddCheckedInterpolationLength(required.Target, CreateVariableReference(preparedSize.Target, prepared.Shape.LengthType), part.SourceSyntax);
 					break;
 			}
 		}
 
-		Expression allocationLength = interpolation.NullTerminated
-			? Add(Required(), NumberLiteral("1", lengthType), lengthType)
-			: Required();
-		DeclarationStatement bufferLength = CreateGeneratedLocal(NewGeneratedLocalName("interpolatedBufferLength"), lengthType, TypeReferenceForResolvedName(lengthType), allocationLength);
+		DeclarationStatement bufferLength = CreateGeneratedLocal(NewGeneratedLocalName("interpolatedBufferLength"), lengthType, TypeReferenceForResolvedName(lengthType), Required());
 		currentStatementPrefix.Add(bufferLength);
+		if (interpolation.NullTerminated)
+			AddCheckedInterpolationLength(bufferLength.Target, NumberLiteral("1", lengthType), interpolation.SourceSyntax);
 		Expression BufferLengthValue() => CreateVariableReference(bufferLength.Target, lengthType);
 
 		TypeReference charType = TypeReferenceForResolvedName(elementType);
@@ -308,7 +296,7 @@ public sealed partial class BindableNodeAnalyzer
 		return interpolation;
 	}
 
-	void LowerInterpolatedStringIntoFixedArrayStorage(InterpolatedStringExpression interpolation, Expression bufferElements, Expression bufferLength, List<InterpolationPart> parts)
+	void LowerInterpolatedStringIntoFixedArrayStorage(InterpolatedStringExpression interpolation, Expression bufferElements, Expression bufferLength, List<InterpolationPart> parts, DeclarationStatement destination)
 	{
 		const string elementType = "char";
 		const string lengthType = "nuint";
@@ -346,6 +334,14 @@ public sealed partial class BindableNodeAnalyzer
 			currentStatementPrefix!.Add(size);
 			componentSizes.Add(size);
 		}
+
+		DeclarationStatement required = CreateGeneratedLocal(NewGeneratedLocalName("interpolatedRequired"), lengthType,
+			TypeReferenceForResolvedName(lengthType), NumberLiteral(GetInterpolationLiteralLength(parts, interpolation.SourceSyntax).ToString(CultureInfo.InvariantCulture), lengthType));
+		currentStatementPrefix!.Add(required);
+		foreach (DeclarationStatement size in componentSizes)
+			AddCheckedInterpolationLength(required.Target, CreateVariableReference(size.Target, size.Target.ResolvedType ?? lengthType), interpolation.SourceSyntax);
+		// Even zero-initializing the fixed destination follows validation of the size pass.
+		currentStatementPrefix.Add(destination);
 
 		DeclarationStatement offset = CreateGeneratedLocal(NewGeneratedLocalName("interpolatedOffset"), lengthType, TypeReferenceForResolvedName(lengthType), NumberLiteral("0", lengthType));
 		currentStatementPrefix!.Add(offset);
@@ -401,6 +397,40 @@ public sealed partial class BindableNodeAnalyzer
 					break;
 			}
 		}
+	}
+
+	long GetInterpolationLiteralLength(List<InterpolationPart> parts, SyntaxNode? syntax)
+	{
+		long length = 0;
+		foreach (InterpolationPart part in parts)
+			if (part is LiteralTextPart text)
+				length += StringLiteralEncoding.GetElementCount(text.Text, "char");
+		if (TryGetIntegerTypeBounds("nuint", out _, out var maximum) && length > maximum)
+			Report(GetRange(syntax), "Interpolated string length exceeds the target's nuint range.");
+		return length;
+	}
+
+	void AddCheckedInterpolationLength(DeclarationTarget total, Expression amount, SyntaxNode? syntax)
+	{
+		const string type = "nuint";
+		DeclarationStatement next = CreateGeneratedLocal(NewGeneratedLocalName("interpolatedCheckedLength"), type,
+			TypeReferenceForResolvedName(type), Add(CreateVariableReference(total, type), amount, type));
+		currentStatementPrefix!.Add(next);
+		// Unsigned addition is defined to wrap; reject that wrap before storage or writes.
+		currentStatementPrefix.Add(new IfStatement
+		{
+			SourceSyntax = syntax,
+			ResolvedType = "void",
+			Condition = new BinaryExpression
+			{
+				Operator = BinaryOperator.LessThan,
+				Left = CreateVariableReference(next.Target, type),
+				Right = CreateVariableReference(total, type),
+				ResolvedType = "bool"
+			},
+			Body = new BoundsFailureStatement { SourceSyntax = syntax, ResolvedType = "void" }
+		});
+		currentStatementPrefix.Add(Assign(CreateVariableReference(total, type), CreateVariableReference(next.Target, type), type, syntax));
 	}
 
 	Expression DirectTextSourceExpression(DirectTextPart directText)
