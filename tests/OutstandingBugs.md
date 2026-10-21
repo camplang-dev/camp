@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-328.
+Next bug number: BUG-329.
 
 ## Bug Template
 
@@ -43,3 +43,28 @@ Actual:
 Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
+
+## BUG-328: A `foreach` loop variable is not scoped to the loop
+
+Date/Time: 2026-10-21 11:15 EDT
+
+Summary:
+The loop variable declared in a `foreach` header stays visible after the loop
+ends, so a second `foreach` in the same function that reuses the name is
+rejected as a redeclaration. The language reference states that the loop
+variable is scoped to the loop body.
+
+Steps to Reproduce:
+
+1. In one function, write `foreach (int v in a) use(v);` over an array.
+2. After it, in the same function, write a second `foreach (int v in a) use(v);`.
+3. Compile.
+
+Expected:
+Both loops compile; each `v` exists only within its own loop.
+
+Actual:
+The second header reports `Symbol 'v' is already declared in this scope.`
+
+Known Impact:
+Sequential loops in one function must use distinct variable names.
