@@ -3989,7 +3989,8 @@ public sealed partial class BindableNodeAnalyzer
 			binding: binding,
 			implicitConstOfAnchors: boundAnchors);
 		returnType = ReadErasedValueType(SubstituteCallableConstOfReturnType(callableType, callable.ReturnType, constOfAnchors));
-		if (sourceCallable is not null && (boundAnchors is not null || !TypeReferencesConstOfAnchor(sourceCallable.ReturnType, "this")))
+		if (sourceCallable is not null && ContainsConstOfTypeReference(sourceCallable.ReturnType)
+			&& (boundAnchors is not null || !TypeReferencesConstOfAnchor(sourceCallable.ReturnType, "this")))
 			returnType = ReadErasedValueType(SubstituteConstOfResolvedType(sourceCallable.ReturnType, FormatTypeReference(sourceCallable.ReturnType), constOfAnchors));
 		PreparedBufferExpression? preparedResult = null;
 		if (TryGetOmittedPrepParameter(binding, out ParameterDefinition? prepParameter))

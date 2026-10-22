@@ -47,6 +47,15 @@ public class ConstOfCallableValueTests
 	}
 
 	[Fact]
+	public void Ordinary_generic_function_value_keeps_its_constructed_result()
+	{
+		SemanticCompiler.AssertNoDiagnostics(SemanticCompiler.CompileLowered("""
+			T* identity<T>(T* value) { return value; }
+			void run(byte* item) { auto callback = identity<byte>; byte* result = callback(item); }
+			"""));
+	}
+
+	[Fact]
 	public void Bound_delegate_initializer_checks_its_signature()
 	{
 		SemanticCompiler.AssertNoDiagnostics(SemanticCompiler.CompileLowered("""

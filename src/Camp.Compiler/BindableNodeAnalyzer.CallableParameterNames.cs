@@ -19,7 +19,8 @@ public sealed partial class BindableNodeAnalyzer
 				for (int i = 0; i < parameters.Count; i++)
 				{
 					parameters[i].Name = parameters[i].Symbol = written[i].Name;
-					parameters[i].Type = CloneType(written[i].Type);
+					if (ContainsConstOfTypeReference(source))
+						parameters[i].Type = CloneType(written[i].Type);
 				}
 		}
 		return parameters;
