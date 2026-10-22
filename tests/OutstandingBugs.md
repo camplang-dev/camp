@@ -132,36 +132,42 @@ Known Impact:
 A caller cannot receive a dependent-const `out` result into a `const` local
 when the anchor is mutable. Declaring a mutable local avoids it.
 
-## BUG-333: A callable-typed declaration with a `constof` signature rejects a function of the identical signature
+## BUG-333: A callable-typed value with a `constof` signature rejects a function of the identical signature and does not substitute its results
 
 Date/Time: 2026-10-22 12:10 EDT
 
 Summary:
 Assigning or converting a function to an `fn` type uses callable compatibility,
 and a function declared with `constof(anchor)` slots is compatible with an `fn`
-type written with the same slots. A declaration whose type is such an `fn` is
-instead checked as if the initializer were a data value that must be derived
-from the anchor, and the initializer is rejected. Passing the same function as
-an argument, or assigning it to an existing variable, is accepted.
+type written with the same slots. The compiler instead checks a declaration or
+assignment whose type is such an `fn` as if the initializer were a data value
+that must be derived from the anchor, and rejects it. Passing the function as an
+argument for a parameter of that `fn` type is rejected as well, because the
+parameter type has lost its dependent slot. Calling a value of such an `fn` type
+does not substitute the result from the anchor argument, so a mutable argument
+still yields a `const` result.
 
 Steps to Reproduce:
 
 1. Declare `constof(source) byte* first(const byte[] source)` returning `source.elements`.
-2. Declare `fn constof(source) byte*(const byte[] source) callback = first;` as a global, and again as a local in a function.
-3. Compile.
+2. Declare `fn constof(source) byte*(const byte[] source) callback = first;` as a global, and again as a local in a function; also declare it with a `null` initializer and then assign `callback = first;`.
+3. Declare `void take(fn constof(source) byte*(const byte[] source) callback)` and call `take(first);`.
+4. In a function with `byte[] items`, call `byte* result = callback(items);` on a value of that `fn` type.
+5. Compile.
 
 Expected:
-Both declarations are accepted: the function and the `fn` type have the same
-dependent-const signature.
+All of these are accepted: the function and the `fn` type have the same
+dependent-const signature, and the call result is substituted to a mutable
+`byte*` for the mutable `items`.
 
 Actual:
-Each initializer is rejected with `Global initializer with constof(source) must be derived from 'source' or use an explicit constof(source) cast.` (or the `Declaration initializer` form for the local).
+Each initializer or assignment is rejected with `Global initializer with constof(source) must be derived from 'source' or use an explicit constof(source) cast.` (or the `Declaration initializer` / `Assignment` form). The argument is rejected with `Argument cannot convert 'fn const byte*(const byte[])' to 'fn byte*(const byte[])'`. The call through the value is rejected with `Call result cannot convert 'const byte*' to 'byte*'.`
 
 Known Impact:
-A callable with a `constof` signature cannot be bound at its declaration, so
-the variable has to be declared with a `null` initializer and assigned afterwards.
-The same check blocks a `delegate` declaration with a `constof(this)` result
-initialized from a bound method.
+A callable value with a `constof` signature cannot be created, stored, passed or
+called with its dependent result; only callable newtype ascription carries such a
+signature. The same check blocks a `delegate` declaration with a `constof(this)`
+result initialized from a bound method.
 
 ## BUG-334: A bound method reference does not substitute `constof(this)` from the bound receiver
 
