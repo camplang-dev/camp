@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-331.
+Next bug number: BUG-332.
 
 ## Bug Template
 
@@ -100,3 +100,39 @@ Known Impact:
 Generic invariance can be bypassed through any derived class, so a base view
 with the wrong type arguments reaches code that assumes the other construction.
 Writing the exact base (`Box<int>*`) avoids it.
+
+## BUG-331: Changing a callable's lifetime with a cast does not require `unsafe`
+
+Date/Time: 2026-10-22 09:28 EDT
+
+Summary:
+The language semantics treat a change to a callable value's lifetime as unsafe,
+because a callable lifetime can describe a hidden context, a receiver lifetime,
+result provenance and argument relationships. A cast that changes a delegate's
+lifetime, for example to `escaped`, is classified as an ordinary explicit
+conversion instead: it needs no `unsafe`, and writing `unsafe` reports that it
+is not required. The callable's lifetime is ignored when the cast is classified.
+
+Steps to Reproduce:
+
+1. Declare `int twice(int x) => x * 2;` and a function
+   `int apply(escaped delegate int(int) callback, int x)` that calls `callback(x)`.
+2. In `main`, write `delegate int(int) plain = twice;`.
+3. Call `apply((escaped delegate int(int))plain, 3)`.
+4. Change the cast to `(unsafe escaped delegate int(int))plain`.
+5. Compile each version.
+
+Expected:
+The ordinary cast in step 3 is rejected with a message that `unsafe` is
+required to change the callable's lifetime, and the `unsafe` cast in step 4
+compiles without a warning. An `fn*` fence, which erases the signature and its
+lifetime, remains an alternative.
+
+Actual:
+Step 3 compiles and runs without a diagnostic. Step 4 compiles with the warning
+that `unsafe` is not required for this cast.
+
+Known Impact:
+A delegate with a scoped context can be presented as `escaped` with no
+acknowledgement, so lifetime checks downstream of the cast trust the written
+lifetime. A data pointer lifetime cast is correctly an ordinary explicit cast.
