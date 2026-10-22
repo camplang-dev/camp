@@ -8,7 +8,7 @@ public class Holder
 	Catalog* catalog;
 	public Catalog* getCatalog() => this.catalog;
 	public static int make() { return Catalog.begin(); }
-	public static int read() { return Catalog.read(); }
+	public static int read() { int value; Catalog.read(out value); return value; }
 }
 static class Service { public static int begin() => 3; }
 public class ServiceHolder
