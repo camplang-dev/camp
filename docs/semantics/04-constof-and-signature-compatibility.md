@@ -268,6 +268,9 @@ callable newtype ascription, metadata, and language-service display.
 Callable compatibility may still apply its ordinary variance and `constof`
 rules to compatible parameter slots, but it must not move the overload selector
 or silently match an ordinary declaration against an overload-family entry.
+Callable newtype ascription uses the same selector-contract check as interface
+implementation and virtual overrides, substituting constructed newtype
+arguments before comparing the pre-selector parameter types.
 
 For a prep-bearing overload family, the selector must precede the prep slot.
 The modifiers are mutually exclusive and selectors cannot default, while every

@@ -2033,6 +2033,13 @@ public sealed partial class BindableNodeAnalyzer
 		CallableShape sourceShape = ErasedFunctionCallableShape(definition, BuildFunctionSourceCallableShape(definition, receiverBearing, family));
 		bool sourceShapeAvailable = true;
 		bool targetShapeAvailable = TryBuildConstructedNewtypeCallableShape(newtypeDefinition, definition.CallableAscriptionType.ResolvedType, out CallableShape targetShape);
+		Dictionary<string, string> selectorSubstitutions = [];
+		AddConstructedTypeGenericSubstitutions(definition.CallableAscriptionType.ResolvedType ?? newtypeDefinition.Name, selectorSubstitutions);
+		if (!OverloadSelectorShapeCompatible(GetCallableParameters(definition.Parameters), GetCallableParameters(newtypeDefinition.Parameters), out string selectorMismatch, selectorSubstitutions))
+		{
+			Report(GetRange(syntax), $"Callable ascription to '{newtypeDefinition.Name}' on declaration '{declarationName}' must preserve the target's {selectorMismatch}.");
+			return;
+		}
 		if (!sourceShapeAvailable
 			|| !targetShapeAvailable
 			|| !CallableShapesCompatibleWithConstOfVariance(sourceShape, targetShape, compareThis: false, expandParams: false))

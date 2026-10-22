@@ -262,10 +262,15 @@ public sealed partial class BindableNodeAnalyzer
 	}
 
 	bool OverloadSelectorShapeCompatible(FunctionDefinition declared, FunctionDefinition required, out string message)
+		=> OverloadSelectorShapeCompatible(GetCallableParameters(declared.Parameters), GetCallableParameters(required.Parameters), out message);
+
+	bool OverloadSelectorShapeCompatible(List<ParameterDefinition> declared, List<ParameterDefinition> required, out string message, Dictionary<string, string>? requiredSubstitutions = null)
 	{
 		message = "";
-		bool declaredOverload = HasOverloadSelector(declared);
-		bool requiredOverload = HasOverloadSelector(required);
+		int declaredIndex = declared.FindIndex(static parameter => parameter.IsOverloadSelector);
+		int requiredIndex = required.FindIndex(static parameter => parameter.IsOverloadSelector);
+		bool declaredOverload = declaredIndex >= 0;
+		bool requiredOverload = requiredIndex >= 0;
 		if (declaredOverload != requiredOverload)
 		{
 			message = "overload spelling";
@@ -274,32 +279,23 @@ public sealed partial class BindableNodeAnalyzer
 		if (!declaredOverload)
 			return true;
 
-		OverloadSelectorFacts? declaredFacts = GetOverloadSelectorFacts(declared);
-		OverloadSelectorFacts? requiredFacts = GetOverloadSelectorFacts(required);
-		if (declaredFacts is null || requiredFacts is null)
-			return true;
-
-		if (declaredFacts.Selector.Name != requiredFacts.Selector.Name)
+		if (declared[declaredIndex].Name != required[requiredIndex].Name)
 		{
 			message = "overload selector name";
 			return false;
 		}
-		if (declaredFacts.SelectorCallableIndex != requiredFacts.SelectorCallableIndex)
+		if (declaredIndex != requiredIndex)
 		{
 			message = "overload selector position";
 			return false;
 		}
 
-		List<OverloadParameterShape> declaredPreSelector = BuildPreSelectorShape(declared, declaredFacts.SelectorCallableIndex);
-		List<OverloadParameterShape> requiredPreSelector = BuildPreSelectorShape(required, requiredFacts.SelectorCallableIndex);
-		if (declaredPreSelector.Count != requiredPreSelector.Count)
+		for (int i = 0; i < declaredIndex; i++)
 		{
-			message = "pre-selector parameter shape";
-			return false;
-		}
-		for (int i = 0; i < declaredPreSelector.Count; i++)
-		{
-			if (declaredPreSelector[i] == requiredPreSelector[i])
+			OverloadParameterShape requiredShape = BuildOverloadParameterShape(required[i]);
+			if (requiredSubstitutions is not null)
+				requiredShape = requiredShape with { Type = SubstituteStorageType(requiredShape.Type, requiredSubstitutions) };
+			if (BuildOverloadParameterShape(declared[i]) == requiredShape)
 				continue;
 			message = "pre-selector parameter shape";
 			return false;
