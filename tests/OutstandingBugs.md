@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-332.
+Next bug number: BUG-333.
 
 ## Bug Template
 
@@ -100,3 +100,35 @@ Known Impact:
 Generic invariance can be bypassed through any derived class, so a base view
 with the wrong type arguments reaches code that assumes the other construction.
 Writing the exact base (`Box<int>*`) avoids it.
+
+## BUG-332: An `out` argument for a `constof` result is held to input equality instead of being checked after substitution
+
+Date/Time: 2026-10-22 12:05 EDT
+
+Summary:
+The language semantics treat a `constof(anchor)` slot in an `out` parameter as
+an output position: the caller-visible type is substituted from the anchor
+argument, and the `out` target is then checked by ordinary storage conversion,
+so a mutable result may be stored into a `const` target. The anchor-equality
+rule applies only to non-output parameters. An `out` argument whose target is
+`const` is rejected when the anchor argument is mutable.
+
+Steps to Reproduce:
+
+1. Declare `void first(const byte[] source, out constof(source) byte* result)` with a body that assigns `result = source.elements;`.
+2. In a function, declare a mutable `byte[] mutableBytes` and a local `const byte* constResult = null;`.
+3. Write `first(mutableBytes, out constResult);`.
+4. Compile.
+
+Expected:
+The call is accepted, as the semantics document shows for this exact shape
+("OK by widening"): the substituted result is `byte*` and widens to the `const`
+target.
+
+Actual:
+The call is rejected with `Argument constness is const, but constof anchor 'source' requires mutable.`
+
+Known Impact:
+A caller cannot receive a dependent-const `out` result into a `const` local
+when the anchor is mutable. Declaring a mutable local avoids it.
+
