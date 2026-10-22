@@ -24,12 +24,12 @@ static class TestToolPaths
 
 	public static ProcessStartInfo CreateLspStartInfo(string repositoryRoot)
 	{
-		return CreateStartInfo(Environment.GetEnvironmentVariable("CAMP_TEST_LSP"), Path.Combine(repositoryRoot, "src", "camp-lsp", "bin", "Debug", "net10.0", "camp-lsp.dll"));
+		return CreateStartInfo(Environment.GetEnvironmentVariable("CAMP_TEST_LSP"), Path.Combine(repositoryRoot, "bin", "camp-lsp.dll"));
 	}
 
 	public static ProcessStartInfo CreateDapStartInfo(string repositoryRoot)
 	{
-		ProcessStartInfo info = CreateStartInfo(Environment.GetEnvironmentVariable("CAMP_TEST_DAP"), Path.Combine(repositoryRoot, "src", "camp-dap", "bin", "Debug", "net10.0", "camp-dap.dll"));
+		ProcessStartInfo info = CreateStartInfo(Environment.GetEnvironmentVariable("CAMP_TEST_DAP"), Path.Combine(repositoryRoot, "bin", "camp-dap.dll"));
 		if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("CAMP_TEST_CAMPC"))
 			&& string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("CAMP_DAP_CAMPC")))
 		{

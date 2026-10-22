@@ -34,13 +34,18 @@ dotnet build src/camplang.sln
 
 This Debug build leaves the shared `bin/` compiler unchanged. Run a Debug
 compiler directly from `src/campc/bin/Debug/net10.0/` when debugging the
-compiler. To deploy the optimized development compiler used by `bin/campc`,
-build `campc` in Release configuration:
+compiler. To deploy the optimized development tools used by `bin/campc`,
+`bin/camp-lsp` and `bin/camp-dap`, build in Release configuration:
 
 ```sh
-dotnet build src/campc/campc.csproj -c Release
+dotnet build src/camplang.sln -c Release
 bin/campc --version
 ```
+
+Only Release builds write to `bin/`. The command-line, LSP and DAP integration
+tests run the tools from `bin/`, so a Release solution build must precede a full
+test run on a fresh checkout. A Release build of a single project updates only
+that tool.
 
 Each C# project folder should keep a local `README.md` with basic usage, setup,
 testing, and coding instructions. Project READMEs should link to shared docs
@@ -116,7 +121,7 @@ Common commands:
 
 ```sh
 dotnet build src/camplang.sln
-dotnet build src/campc/campc.csproj -c Release
+dotnet build src/camplang.sln -c Release
 scripts/run-tests.sh
 dotnet msbuild src/publish-tools.proj -p:RuntimeIdentifier=osx-x64
 dotnet msbuild src/test-fast.proj
