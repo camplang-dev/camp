@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-330.
+Next bug number: BUG-331.
 
 ## Bug Template
 
@@ -68,3 +68,35 @@ The second header reports `Symbol 'v' is already declared in this scope.`
 
 Known Impact:
 Sequential loops in one function must use distinct variable names.
+
+## BUG-330: A class derived from one construction of a generic class converts to another construction of it
+
+Date/Time: 2026-10-22 09:28 EDT
+
+Summary:
+Constructed generic class types are invariant, so a pointer to `Box<int>` does
+not convert to a pointer to `Box<uint>`. That rule holds for a pointer to the
+construction itself, but not for a pointer to a class derived from that
+construction: the derived class pointer converts implicitly to a pointer to a
+different construction of the same generic base.
+
+Steps to Reproduce:
+
+1. Declare `class Box<T> { int tag; }` and `class IntBox: Box<int> { int extra; }`.
+2. In a function, write `IntBox* derived = stackalloc IntBox();`.
+3. Write `Box<uint>* wrong = derived;`.
+4. Compile.
+
+Expected:
+The declaration is rejected, as `Box<int>* signed = ...; Box<uint>* wrong = signed;`
+is, because the generic arguments differ and the class relationship is only to
+`Box<int>`.
+
+Actual:
+The program compiles and runs; `wrong` points at the `IntBox` object as if it
+were a `Box<uint>`.
+
+Known Impact:
+Generic invariance can be bypassed through any derived class, so a base view
+with the wrong type arguments reaches code that assumes the other construction.
+Writing the exact base (`Box<int>*`) avoids it.
