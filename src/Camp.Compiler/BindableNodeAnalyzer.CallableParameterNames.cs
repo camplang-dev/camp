@@ -16,7 +16,10 @@ public sealed partial class BindableNodeAnalyzer
 			List<ParameterDefinition> written = source.Parameters.Where(parameter => parameter is not ThisParameterDefinition).ToList();
 			if (written.Count == parameters.Count)
 				for (int i = 0; i < parameters.Count; i++)
+				{
 					parameters[i].Name = parameters[i].Symbol = written[i].Name;
+					parameters[i].Type = CloneType(written[i].Type);
+				}
 		}
 		return parameters;
 	}
@@ -37,6 +40,8 @@ public sealed partial class BindableNodeAnalyzer
 			};
 		return expression switch
 		{
+			MethodReferenceExpression { Candidates.Count: 1 } method => FunctionCallableSourceType(method.Candidates[0], false),
+			MemberReferenceExpression { Member: FunctionDefinition function } => FunctionCallableSourceType(function, true),
 			VariableReferenceExpression variable => StorageType(variable.Variable),
 			MemberReferenceExpression member => StorageType(member.Member),
 			ParenthesizedExpression parenthesized => GetCallableSourceType(parenthesized.Expression, depth + 1),
@@ -44,5 +49,19 @@ public sealed partial class BindableNodeAnalyzer
 			CallExpression call when callTargets.TryGetValue(call, out FunctionDefinition? function) => function.ReturnType,
 			_ => null
 		};
+	}
+
+	static CallableTypeReference FunctionCallableSourceType(FunctionDefinition function, bool bound)
+	{
+		CallableTypeReference callable = new()
+		{
+			Kind = bound ? CallableKind.Delegate : CallableKind.Function,
+			CallSpec = function.CallSpec,
+			ReturnType = CloneType(function.ReturnType)
+		};
+		foreach (ParameterDefinition parameter in function.Parameters)
+			if (!bound || parameter is not ThisParameterDefinition)
+				callable.Parameters.Add(CloneParameter(parameter));
+		return callable;
 	}
 }

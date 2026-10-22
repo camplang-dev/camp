@@ -1,0 +1,25 @@
+constof(source) byte* first(const byte[] source) { return source.elements; }
+fn constof(input) byte*(const byte[] input) globalCallback = first;
+
+byte* invoke(fn constof(input) byte*(const byte[] input) callback, byte[] items)
+{
+	return callback(items);
+}
+
+export int main()
+{
+	byte[] items = [1, 2];
+	const byte[] readonly = items;
+	fn constof(input) byte*(const byte[] input) local = first;
+	fn constof(input) byte*(const byte[] input) assigned = null;
+	assigned = first;
+	auto inferred = first;
+	byte* a = local(items);
+	byte* b = assigned(items);
+	byte* c = globalCallback(items);
+	byte* d = invoke(first, items);
+	byte* e = inferred(items);
+	const byte* f = local(readonly);
+	*a = 9;
+	return (int)*b == 9 && (int)*c == 9 && (int)*d == 9 && (int)*e == 9 && (int)*f == 9 ? 0 : 1;
+}

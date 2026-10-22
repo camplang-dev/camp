@@ -413,7 +413,7 @@ public sealed partial class BindableNodeAnalyzer
 			ScopedTypeReference scoped => FormatTypeDeclarator(BuildAnchoredDeclarator("scoped", scoped.Anchors), scoped.Type is null ? null : new RawFormattedTypeReference(FormatSignatureTypeReference(scoped.Type, anchors))),
 			UnscopedTypeReference unscoped => FormatTypeDeclarator(BuildAnchoredDeclarator("unscoped", unscoped.Anchors), unscoped.Type is null ? null : new RawFormattedTypeReference(FormatSignatureTypeReference(unscoped.Type, anchors))),
 			TargetTypeSpecTypeReference targetSpec => FormatSignatureTypeReference(targetSpec.Type, anchors) + FormatCallSpec(targetSpec.Specifier),
-			CallableTypeReference callable => $"{GetCallableKindName(callable.Kind)}{FormatCallSpec(callable.TargetSpec)}{FormatCallSpec(callable.CallSpec)} {FormatSignatureTypeReference(callable.ReturnType, anchors)}({string.Join(", ", callable.Parameters.Select(parameter => FormatSignatureParameter(parameter, anchors)))})",
+			CallableTypeReference callable => FormatCallableSignature(callable),
 			IterTypeReference iter => $"{(iter.IsAsync ? "async iter" : "iter")}({string.Join(", ", iter.Parameters.Select(parameter => FormatSignatureParameter(parameter, anchors)))})",
 			GroupedParamsTypeReference grouped => $"params({FormatSignatureTypeReference(grouped.StructType, anchors)})",
 			ErasedTypeReference erased => $"void<{FormatSignatureTypeReference(erased.ParamsType, anchors)}>",
@@ -424,6 +424,12 @@ public sealed partial class BindableNodeAnalyzer
 
 		string ConstructedName(string name, List<TypeReference> arguments) => arguments.Count == 0 ? name
 			: $"{name}<{string.Join(", ", arguments.Select(argument => FormatSignatureTypeReference(argument, anchors)))}>";
+	}
+
+	string FormatCallableSignature(CallableTypeReference callable)
+	{
+		Dictionary<string, string> anchors = BuildSignatureAnchorMap(callable.Parameters);
+		return $"{GetCallableKindName(callable.Kind)}{FormatCallSpec(callable.TargetSpec)}{FormatCallSpec(callable.CallSpec)} {FormatSignatureTypeReference(callable.ReturnType, anchors)}({string.Join(", ", callable.Parameters.Select(parameter => FormatSignatureParameter(parameter, anchors)))})";
 	}
 
 	sealed class RawFormattedTypeReference : TypeReference

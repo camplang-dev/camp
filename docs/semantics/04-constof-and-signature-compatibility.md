@@ -241,6 +241,13 @@ Apply these rules to:
 Do not apply them blindly to every type comparison. Ordinary storage conversion
 and call-site dependent-const equality have separate rules.
 
+A stored callable's dependent slots belong to its own signature, not to the
+value holding it. Initializing or assigning that value checks callable
+compatibility without requiring the value to be derived from its signature's
+anchor. Invocation retains the written parameter anchors and substitutes its
+result and output slots from the actual arguments, including through globals,
+locals, inferred function values, and callable parameters.
+
 ## Overload Selector Shape
 
 When a callable surface participates in overload-family compatibility, the

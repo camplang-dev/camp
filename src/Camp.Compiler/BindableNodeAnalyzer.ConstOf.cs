@@ -443,12 +443,32 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (targetType is null || expression is null || !ContainsConstOfTypeReference(targetType))
 			return;
-		foreach (string anchor in GetConstOfAnchorNames(targetType).Distinct(System.StringComparer.Ordinal))
+		if (TryGetCallableTypeReference(targetType, out CallableTypeReference? callable) && callable is not null)
+		{
+			CheckConstOfCallableValue(callable, expression, syntax, context);
+			return;
+		}
+		foreach (string anchor in GetConstOfAnchorNames(targetType, includeCallableSignatures: false).Distinct(System.StringComparer.Ordinal))
 		{
 			if (!ExpressionSatisfiesConstOfAnchor(expression, anchor)
 				&& !ExpressionProvidesMutableConstOfSlot(targetType, expression, anchor))
 					Report(GetRange(syntax), $"{context} with constof({anchor}) must be derived from '{anchor}' or use an explicit constof({anchor}) cast.");
 			}
+	}
+
+	void CheckConstOfCallableValue(CallableTypeReference targetType, Expression expression, SyntaxNode? syntax, string context)
+	{
+		if (UnwrapParenthesizedExpression(expression) is DefaultExpression or LiteralExpression { Kind: LiteralKind.Null } or LambdaExpression)
+			return;
+		TypeReference? sourceType = GetCallableSourceType(expression);
+		string source = sourceType is null ? expression.ResolvedType ?? ErrorType : FormatSignatureTypeReference(sourceType, []);
+		if (!TryGetCallableShape(source, out CallableShape sourceShape)
+			|| !TryGetCallableShape(FormatSignatureTypeReference(targetType, []), out CallableShape targetShape))
+			return;
+		if (sourceShape.Kind == "fn" && targetShape.Kind == "delegate" && UnwrapParenthesizedExpression(expression) is MethodReferenceExpression)
+			sourceShape = sourceShape with { Kind = "delegate" };
+		if (!CallableShapesCompatibleWithConstOfVariance(sourceShape, targetShape))
+			Report(GetRange(syntax), $"{context} does not preserve the callable's constof signature.");
 	}
 
 	void CheckConstOfProducedResult(string? targetType, Expression? expression, SyntaxNode? syntax, string context)
@@ -509,102 +529,104 @@ public sealed partial class BindableNodeAnalyzer
 		}
 	}
 
-	static IEnumerable<string> GetConstOfAnchorNames(TypeReference? type)
+	static IEnumerable<string> GetConstOfAnchorNames(TypeReference? type, bool includeCallableSignatures = true)
 	{
 		if (type is null)
 			yield break;
 		switch (type)
 		{
+			case CallableTypeReference or IterTypeReference when !includeCallableSignatures:
+				yield break;
 			case ConstOfTypeReference constOf:
 				yield return constOf.AnchorName;
-				foreach (string anchor in GetConstOfAnchorNames(constOf.Type))
+				foreach (string anchor in GetConstOfAnchorNames(constOf.Type, includeCallableSignatures))
 					yield return anchor;
 				break;
 			case AttributedTypeReference attributed:
-				foreach (string anchor in GetConstOfAnchorNames(attributed.Type))
+				foreach (string anchor in GetConstOfAnchorNames(attributed.Type, includeCallableSignatures))
 					yield return anchor;
 				break;
 			case GenericTypeReference generic:
-				foreach (string anchor in GetConstOfAnchorNames(generic.Type))
+				foreach (string anchor in GetConstOfAnchorNames(generic.Type, includeCallableSignatures))
 					yield return anchor;
 				foreach (TypeReference argument in generic.TypeArguments)
-					foreach (string anchor in GetConstOfAnchorNames(argument))
+					foreach (string anchor in GetConstOfAnchorNames(argument, includeCallableSignatures))
 						yield return anchor;
 				break;
 			case ArrayTypeReference array:
-				foreach (string anchor in GetConstOfAnchorNames(array.ElementType))
+				foreach (string anchor in GetConstOfAnchorNames(array.ElementType, includeCallableSignatures))
 					yield return anchor;
 				break;
 			case FixedArrayTypeReference fixedArray:
-				foreach (string anchor in GetConstOfAnchorNames(fixedArray.ElementType))
+				foreach (string anchor in GetConstOfAnchorNames(fixedArray.ElementType, includeCallableSignatures))
 					yield return anchor;
 				break;
 			case OptionalTypeReference optional:
-				foreach (string anchor in GetConstOfAnchorNames(optional.ElementType))
+				foreach (string anchor in GetConstOfAnchorNames(optional.ElementType, includeCallableSignatures))
 					yield return anchor;
 				break;
 			case PointerTypeReference pointer:
-				foreach (string anchor in GetConstOfAnchorNames(pointer.ElementType))
+				foreach (string anchor in GetConstOfAnchorNames(pointer.ElementType, includeCallableSignatures))
 					yield return anchor;
 				break;
 			case ConstTypeReference constant:
-				foreach (string anchor in GetConstOfAnchorNames(constant.Type))
+				foreach (string anchor in GetConstOfAnchorNames(constant.Type, includeCallableSignatures))
 					yield return anchor;
 				break;
 			case VolatileTypeReference vol:
-				foreach (string anchor in GetConstOfAnchorNames(vol.Type))
+				foreach (string anchor in GetConstOfAnchorNames(vol.Type, includeCallableSignatures))
 					yield return anchor;
 				break;
 			case EscapedTypeReference escaped:
-				foreach (string anchor in GetConstOfAnchorNames(escaped.Type))
+				foreach (string anchor in GetConstOfAnchorNames(escaped.Type, includeCallableSignatures))
 					yield return anchor;
 				break;
 			case ScopedTypeReference scoped:
-				foreach (string anchor in GetConstOfAnchorNames(scoped.Type))
+				foreach (string anchor in GetConstOfAnchorNames(scoped.Type, includeCallableSignatures))
 					yield return anchor;
 				break;
 			case UnscopedTypeReference unscoped:
-				foreach (string anchor in GetConstOfAnchorNames(unscoped.Type))
+				foreach (string anchor in GetConstOfAnchorNames(unscoped.Type, includeCallableSignatures))
 					yield return anchor;
 				break;
 			case TargetTypeSpecTypeReference targetSpec:
-				foreach (string anchor in GetConstOfAnchorNames(targetSpec.Type))
+				foreach (string anchor in GetConstOfAnchorNames(targetSpec.Type, includeCallableSignatures))
 					yield return anchor;
 				break;
 			case CallableTypeReference callable:
-				foreach (string anchor in GetConstOfAnchorNames(callable.ReturnType))
+				foreach (string anchor in GetConstOfAnchorNames(callable.ReturnType, includeCallableSignatures))
 					yield return anchor;
 				foreach (ParameterDefinition parameter in callable.Parameters)
-					foreach (string anchor in GetConstOfAnchorNames(parameter.Type))
+					foreach (string anchor in GetConstOfAnchorNames(parameter.Type, includeCallableSignatures))
 						yield return anchor;
 				break;
 			case IterTypeReference iter:
-				foreach (string anchor in GetConstOfAnchorNames(iter.ElementType))
+				foreach (string anchor in GetConstOfAnchorNames(iter.ElementType, includeCallableSignatures))
 					yield return anchor;
 				foreach (ParameterDefinition parameter in iter.Parameters)
-					foreach (string anchor in GetConstOfAnchorNames(parameter.Type))
+					foreach (string anchor in GetConstOfAnchorNames(parameter.Type, includeCallableSignatures))
 						yield return anchor;
 				break;
 			case GroupedParamsTypeReference grouped:
-				foreach (string anchor in GetConstOfAnchorNames(grouped.StructType))
+				foreach (string anchor in GetConstOfAnchorNames(grouped.StructType, includeCallableSignatures))
 					yield return anchor;
 				break;
 			case MaterializedStructTypeReference materialized:
-				foreach (string anchor in GetConstOfAnchorNames(materialized.ParamsType))
+				foreach (string anchor in GetConstOfAnchorNames(materialized.ParamsType, includeCallableSignatures))
 					yield return anchor;
 				break;
 			case ThrownTypeReference thrown:
-				foreach (string anchor in GetConstOfAnchorNames(thrown.Type))
+				foreach (string anchor in GetConstOfAnchorNames(thrown.Type, includeCallableSignatures))
 					yield return anchor;
 				break;
 			case TypeDefinitionReference definition:
 				foreach (TypeReference argument in definition.TypeArguments)
-					foreach (string anchor in GetConstOfAnchorNames(argument))
+					foreach (string anchor in GetConstOfAnchorNames(argument, includeCallableSignatures))
 						yield return anchor;
 				break;
 			case NamedTypeReference named:
 				foreach (TypeReference argument in named.TypeArguments)
-					foreach (string anchor in GetConstOfAnchorNames(argument))
+					foreach (string anchor in GetConstOfAnchorNames(argument, includeCallableSignatures))
 						yield return anchor;
 				break;
 		}
@@ -701,7 +723,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	string SubstituteConstOfResolvedType(TypeReference? sourceType, string resolvedType, Dictionary<string, bool> anchors, Dictionary<string, string>? genericSubstitutions = null)
 	{
-		if (sourceType is null || !ContainsConstOfTypeReference(sourceType))
+		if (sourceType is null || !GetConstOfAnchorNames(sourceType, includeCallableSignatures: false).Any())
 			return resolvedType;
 		TypeReference substituted = SubstituteConstOfTypeReference(sourceType, anchors);
 		return SubstituteGenericType(FormatTypeReference(substituted), genericSubstitutions ?? []);

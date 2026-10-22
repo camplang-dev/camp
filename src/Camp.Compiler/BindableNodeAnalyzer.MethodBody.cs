@@ -3985,6 +3985,9 @@ public sealed partial class BindableNodeAnalyzer
 			callTarget: call.Target,
 			binding: binding);
 		returnType = ReadErasedValueType(SubstituteCallableConstOfReturnType(callableType, callable.ReturnType, constOfAnchors));
+		if (TryGetCallableTypeReference(GetCallableSourceType(call.Target), out CallableTypeReference? sourceCallable) && sourceCallable is not null
+			&& !TypeReferencesConstOfAnchor(sourceCallable.ReturnType, "this"))
+			returnType = ReadErasedValueType(SubstituteConstOfResolvedType(sourceCallable.ReturnType, returnType, constOfAnchors));
 		PreparedBufferExpression? preparedResult = null;
 		if (TryGetOmittedPrepParameter(binding, out ParameterDefinition? prepParameter))
 		{
@@ -4711,6 +4714,8 @@ public sealed partial class BindableNodeAnalyzer
 							if (IsClassRelativeCallReceiver(callTarget))
 								CheckClassTypeProducedResult(analysisParameter.Type, arguments[i].Value, argumentSyntax, "Argument");
 							string structuralExpected = GetLifetimeStructuralTargetType(expected, arguments[i].Value);
+							if (arguments[i].Value is not null && TryGetCallableTypeReference(analysisParameter.Type, out CallableTypeReference? callableParameter) && callableParameter is not null && ContainsConstOfTypeReference(callableParameter))
+								CheckConstOfCallableValue(callableParameter, arguments[i].Value!, argumentSyntax, "Argument");
 						bool deferredEscapedLambda = arguments[i].Value is LambdaExpression
 							&& ((TryGetLambdaCallableShape(expected, out _, out bool expectedEscapedLambda) && expectedEscapedLambda)
 								|| (TryGetLambdaCallableShape(actual, out _, out bool actualEscapedLambda) && actualEscapedLambda));
