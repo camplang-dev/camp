@@ -7,7 +7,6 @@ namespace Camp.Compiler;
 public sealed partial class BindableNodeAnalyzer
 {
 	readonly HashSet<CallExpression> erasedCallableResults = [];
-	readonly Dictionary<CallExpression, ParameterDefinition> trailingOutResults = [];
 	readonly HashSet<Statement> erasedArgumentCopyBackStatements = [];
 
 	// TypeShape is a comparison view: it omits explicit scoped annotations and
@@ -75,7 +74,6 @@ public sealed partial class BindableNodeAnalyzer
 
 	bool IsErasedResultCall(CallExpression call)
 	{
-		if (trailingOutResults.ContainsKey(call)) return true;
 		if (erasedCallableResults.Contains(call)) return true;
 		if (callTargets.TryGetValue(call, out FunctionDefinition? function)) return IsMaterializedGenericReturnFunction(function);
 		if (!TryGetCallableInvocationShape(call.Target?.ResolvedType, out CallableShape shape)) return false;
@@ -138,10 +136,10 @@ public sealed partial class BindableNodeAnalyzer
 		// call's source arguments, then retain that output in its binding contract.
 		if (!callTargets.ContainsKey(call)) AddImplicitCallableCapabilityArguments(call);
 		int index = call.Arguments.Count;
-		if (callTargets.TryGetValue(call, out FunctionDefinition? pending) && !trailingOutResults.ContainsKey(call) && !materializedGenericReturnParameters.ContainsKey(pending))
+		if (callTargets.TryGetValue(call, out FunctionDefinition? pending) && !materializedGenericReturnParameters.ContainsKey(pending))
 			TryExpandMaterializedGenericReturn(pending);
 		if (callTargets.TryGetValue(call, out FunctionDefinition? function)
-			&& (trailingOutResults.TryGetValue(call, out ParameterDefinition? result) || materializedGenericReturnParameters.TryGetValue(function, out result)))
+			&& materializedGenericReturnParameters.TryGetValue(function, out ParameterDefinition? result))
 		{
 			List<ParameterDefinition> parameters = GetCallableParametersForCall(function, IncludeExplicitThisArgument(call.Target, function));
 			int position = parameters.IndexOf(result);

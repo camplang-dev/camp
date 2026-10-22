@@ -27,7 +27,6 @@ Every expression has a static type after binding.
 | Array literal `[a, b]` | Requires or infers an array element type |
 | Initializer list `{ ... }` | Requires a target aggregate, fixed array, optional, or other initializer-compatible type |
 | Lambda | Requires or infers a callable target |
-| Omitted trailing `out` result | Reconstructed only at an immediate binding or supported component selection |
 | Method reference | Has the callable type or callable newtype implied by the referenced method |
 | `auto` local initializer | Infers one fixed static type |
 
@@ -316,29 +315,6 @@ writer.write(42);
 The `overload` keyword belongs to the declaration. The call site uses the
 ordinary argument expression, and the selector keeps the overload family small
 and ABI-visible.
-
-## Trailing `out` Result Binding
-
-Trailing `out` parameters may be omitted only when the call result is
-immediately bound or selected in a supported result form.
-
-```camp
-void getBounds(out int width, out int height);
-
-auto (width, height) = getBounds();
-```
-
-Equivalent explicit shape:
-
-```camp
-int width;
-int height;
-getBounds(out width, out height);
-```
-
-This is not a general tuple system. Use explicit `out` storage or a named
-struct when a result needs to be stored, returned, or passed around as one
-value.
 
 ## Method References And Callable Invocation
 

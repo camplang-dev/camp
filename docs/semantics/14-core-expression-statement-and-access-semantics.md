@@ -167,7 +167,6 @@ rediscovering them:
 - property and indexer access must resolve to a concrete accessor call;
 - `@index` and `@range` arguments must be validated against the selected
   callable parameter list;
-- omitted trailing `out` result binding must select exactly one callable shape;
 - intentional discard targets must be recognized as write-only storage;
 
 ## Loop Initializer Scope
@@ -1144,10 +1143,10 @@ source files would produce the same relative sourcefile string, the compiler
 diagnoses the collision. `--sourcefile-paths absolute` emits absolute paths and
 ignores `--sourcefile-root`.
 
-## Omitted Trailing `out` Result Binding
+## Erased Result And Argument Caller Storage
 
-Erased results use caller storage independently of omitted source `out`
-binding. A substituted erased result reads as its annotated value.
+A substituted erased result uses caller storage and reads as its annotated
+value.
 
 For erased reference arguments, pass existing single-object storage directly.
 Pack ordinary expandable arguments into a temporary and copy `out` components
@@ -1156,26 +1155,9 @@ expression. Capture destination addresses once before the call. Packing and
 copy-back preserve the existing argument/default binding order, branch
 selection, and cleanup paths.
 
-Camp allows certain calls with trailing `out` parameters to bind as values at
-the call site. This is not tuple return. It is caller-storage synthesis for
-trailing `out` slots whose values are immediately consumed by a supported
-source form.
-
-The compiler may synthesize omitted trailing `out` storage when the call is
-used by:
-
-- a declaration target;
-- a deconstruction declaration target;
-- a supported immediate member/component selection over the call result.
-
-The target callable must be unambiguous after overload resolution and generic
-inference. If more than one callable could explain the omitted `out` storage,
-the compiler must diagnose rather than guessing.
-
-Lowering creates local storage for each omitted trailing `out` slot, supplies
-that storage to the call, and rewrites the surrounding source form to read the
-generated storage. The generated locals inherit the slot types, lifetimes,
-`constof` results, and cleanup requirements of the callee signature.
+Every declared source `out` parameter receives an argument. Omitting trailing
+`out` arguments to bind them at the call site, and `auto (a, b)` deconstruction
+declarations, were a former feature and are no longer supported.
 
 `thrown` parameters are not ordinary `out` results. They participate in the
 error path described in the error/cleanup and expanded-forms supplements.
@@ -1184,8 +1166,7 @@ error path described in the error/cleanup and expanded-forms supplements.
 
 `_` is an intentional discard target, not a readable local variable. It may
 appear where the language expects write-only storage, such as an assignment
-target, an `out` argument target, or a catch/deconstruction target that ignores
-one produced value.
+target, or an `out` argument target.
 
 Each discard use lowers to fresh generated storage. Generated names such as
 `__discard0` are implementation details; they must not become source-visible
@@ -1283,7 +1264,7 @@ Metadata records property accessor facts structurally:
 
 The metadata model should preserve source accessor declarations rather than
 inventing field declarations. `@index` and `@range` remain parameter attributes
-on the source callable surface. Omitted `out` locals, range temporaries,
+on the source callable surface. Range temporaries,
 discard locals, and cleanup labels are lowering artifacts and should not appear
 as ordinary source metadata declarations.
 
@@ -1309,8 +1290,6 @@ Important diagnostic categories include:
 - `@range` not followed by an integral count parameter;
 - range syntax used against a parameter that is not `@range`;
 - from-end syntax used without an accessible receiver length;
-- omitted trailing `out` result binding is ambiguous or unsupported in the
-  surrounding form;
 - attempt to read an intentional discard target;
 - aggregate initializer passed directly to a mutable pointer parameter;
 - invalid prep declaration shape or following required parameter;
@@ -1325,7 +1304,7 @@ Important diagnostic categories include:
 
 Diagnostics should point at the source syntax that introduced the special
 meaning: the property access, assignment target, attribute, range expression,
-from-end expression, omitted call result, discard target, aggregate
+from-end expression, discard target, aggregate
 initializer, or source `goto`.
 
 ## Test Surface
@@ -1349,7 +1328,6 @@ Changes here should cover:
   selection, and constant-text interpolation participation;
 - bare and explicit `toString`, alternate prepared formatters, direct text,
   UTF-8 result targets, and direct-to-destination interpolation lowering;
-- omitted trailing `out` declaration and deconstruction binding;
 - intentional discard lowering and invalid discard reads;
 - source `goto` interaction with `try`/`finally` cleanup.
 
@@ -1363,8 +1341,7 @@ Primary implementation points include:
   assignment, and index lowering;
 - `BindableNodeAnalyzer.Lowering.Slices.cs` for `@index`, `@range`,
   from-end, and range argument lowering;
-- `BindableNodeAnalyzer.MethodBody.cs` for omitted trailing `out` result
-  binding, prep call modes, `(new)`, discard recognition, delete/transfer
+- `BindableNodeAnalyzer.MethodBody.cs` for prep call modes, `(new)`, discard recognition, delete/transfer
   analysis, and diagnostics;
 - `BindableNodeAnalyzer.Declarations.cs` for prep declaration validation;
 - `BindableNodeAnalyzer.Lowering.PreparedBuffers.cs` for prepared sizing,

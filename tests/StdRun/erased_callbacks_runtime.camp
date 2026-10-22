@@ -3,7 +3,6 @@ int peek(in int? value) => value.specified ? value.value : -1;
 int peekErased(in void<int?> value, sizeof(int?)) => value.specified ? value.value : -1;
 int read<T>(in T value, delegate int(in T, sizeof(T)) f, sizeof(T)) => f(value);
 int seven() => 7;
-void sevenOut(out int result) { result = 7; }
 void pointOut(out Point result) { Point value = { 3, 4 }; result = value; }
 Point makePoint() { Point value = { 5, 6 }; return value; }
 T produce<T>(delegate T() make, sizeof(T)) => make();
@@ -35,8 +34,6 @@ export int main()
 	int? value = 4;
 	if (read<int?>(value, peekErased) != 4 || read<int?>(value, x => peek(x)) != 4) return 1;
 	if (produce<int>(sevenWritten) != 7 || produce<int>(() => seven()) != 7) return 2;
-	int bound = sevenOut();
-	if (bound != 7) return 5;
 	Point point = produce<Point>(pointWritten);
 	if (point.x != 3 || point.y != 4) return 3;
 	Point lambdaPoint = produce<Point>(() => makePoint());

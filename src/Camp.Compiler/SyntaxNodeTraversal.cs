@@ -210,7 +210,6 @@ public static class SyntaxNodeTraversal
 				if (syntax.CallSpec is not null) yield return syntax.CallSpec;
 				foreach (SyntaxNode child in syntax.AdditionalCallSpecs ?? []) yield return child;
 				if (syntax.Type is not null) yield return syntax.Type;
-				if (syntax.IdentifierList is not null) yield return syntax.IdentifierList;
 				break;
 			case DeclarationStatementSyntax syntax:
 				if (syntax.Target is not null) yield return syntax.Target;
@@ -750,9 +749,6 @@ public static class SyntaxNodeTraversal
 				foreach (Token token in Tokens(syntax.Identifier)) yield return token;
 				foreach (Token token in Tokens(syntax.AutoKeyword)) yield return token;
 				foreach (Token token in Tokens(syntax.AutoIdentifier)) yield return token;
-				foreach (Token token in Tokens(syntax.OpenParenToken)) yield return token;
-				if (syntax.IdentifierList is not null) foreach (Token token in Tokens(syntax.IdentifierList)) yield return token;
-				foreach (Token token in Tokens(syntax.CloseParenToken)) yield return token;
 				break;
 			case DeclarationStatementSyntax syntax:
 				if (syntax.Target is not null) foreach (Token token in Tokens(syntax.Target)) yield return token;

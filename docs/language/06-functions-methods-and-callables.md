@@ -805,9 +805,8 @@ Callable types are compared in the conversion view. `P` matches `void<P>` in
 `void<V>` result is never stripped, and a carrier is nominal: a plain
 `int seven()` does not fill `delegate void<int>()`, and `slot.get` does not fill
 `delegate Color()`. A trailing `out` parameter is never read as a result: a
-function `void sevenOut(out int result)` does not fill `delegate void<int>()`,
-although `int value = sevenOut();` still binds its single trailing output as an
-ordinary call. Use a lambda to adapt, such as `() => seven()` or
+function `void sevenOut(out int result)` does not fill `delegate void<int>()`.
+Use a lambda to adapt, such as `() => seven()` or
 `() => slot.get()`, or declare the function with a `void<V>` result. Likewise
 `in int?` cannot fill an `in void<int?>` slot. Callable newtype ascription,
 lambdas and interface implementation use the same matching; virtual overrides

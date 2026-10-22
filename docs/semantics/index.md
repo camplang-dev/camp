@@ -306,7 +306,7 @@ code. Ordinary Camp users should start with the language guide.
 - Accessors, Ranges, And Generic Arrays
 - Caller-Prepared Array Results
 - Interpolated Strings
-- Omitted Trailing `out` Result Binding
+- Erased Result And Argument Caller Storage
 - Intentional Discard
 - Labels, `goto`, And Cleanup
 - Conditions And Truth Values

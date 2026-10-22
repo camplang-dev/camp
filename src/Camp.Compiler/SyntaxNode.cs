@@ -511,9 +511,6 @@ public class DeclarationTargetSyntax : SyntaxNode
 
 	public Token? AutoKeyword { get; set; }
 	public Token? AutoIdentifier { get; set; }
-	public Token? OpenParenToken { get; set; }
-	public IdentListSyntax? IdentifierList { get; set; }
-	public Token? CloseParenToken { get; set; }
 }
 
 public class DeclarationStatementSyntax : SyntaxNode

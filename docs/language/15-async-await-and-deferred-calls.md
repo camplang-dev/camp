@@ -590,7 +590,6 @@ Camp async is intentionally small. The language does not add:
 - a built-in task object;
 - a hidden global event loop;
 - runtime exception handling;
-- multi-result await deconstruction;
 - automatic lifetime extension for values used after suspension.
 
 Libraries can build task abstractions, event loops, request schedulers, and UI

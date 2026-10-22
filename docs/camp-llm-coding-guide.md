@@ -1024,10 +1024,13 @@ Erased generic callbacks must match those signatures in the conversion view.
 `in int?` cannot fill `in void<int?>`; use a lambda with implicit parameters or
 an explicitly erased parameter. A plain result such as `int seven()` cannot fill
 `delegate void<int>()`: use `() => seven()` or write `void<int> seven()`. A
-function with a trailing `out int` is not a result and never fills such a slot,
-although `int value = sevenOut();` still binds its single trailing output as an
-ordinary call. Ordinary function-to-delegate context adaptation still applies
-once the signature matches.
+function with a trailing `out int` is not a result and never fills such a slot.
+Ordinary function-to-delegate context adaptation still applies once the
+signature matches.
+
+Every declared source `out` parameter needs an argument. Omitting trailing `out`
+arguments to bind them as call results, and `auto (a, b)` deconstruction, were a
+former feature and are no longer supported.
 
 For non-expandable `P`, `P` and `void<P>` are compatible in `in`, `out`, pointer
 and array slots. A `void<V>` result and a carrier are nominal. These rules apply

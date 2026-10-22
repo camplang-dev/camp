@@ -45,12 +45,6 @@ public sealed partial class BindableNodeAnalyzer
 		if (target.AutoIdentifier?.Value == name)
 			return target.AutoIdentifier.Value.Range;
 
-		foreach (Token identifier in target.IdentifierList?.Identifiers ?? [])
-		{
-			if (identifier.Value == name)
-				return identifier.Range;
-		}
-
 		return GetRange(syntax);
 	}
 

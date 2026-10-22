@@ -163,9 +163,6 @@ first(constBytes, out constResult);     // OK
 first(constBytes, out mutableResult);   // error
 ```
 
-An omitted trailing `out` binding should infer the substituted result type, not
-an unresolved `constof(...)` type.
-
 ## Annotated Types In Signature Comparison
 
 Signature and callable comparison classify types in the conversion view defined
@@ -369,7 +366,7 @@ issue is a dependent-const relationship.
 - anchor binding and unresolved anchors;
 - call-site equality for ordinary parameters and receivers;
 - storage conversion lattice;
-- return and explicit/omitted `out` results;
+- return and explicit `out` results;
 - callable newtype ascription;
 - target-typed lambdas;
 - interface implementation and default slot targets;

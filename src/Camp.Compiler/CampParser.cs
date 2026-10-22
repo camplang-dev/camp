@@ -1675,17 +1675,7 @@ public sealed class CampParser
 		{
 			DeclarationTargetSyntax syntax = new() { FixedKeyword = fixedKeyword, StackAllocKeyword = stackAllocKeyword, AutoKeyword = Take() };
 
-			if (Is("("))
-			{
-				syntax.OpenParenToken = Take();
-				syntax.IdentifierList = ParseIdentList(")");
-				syntax.CloseParenToken = Expect(")");
-			}
-			else
-			{
-				syntax.AutoIdentifier = ExpectIdentifier();
-			}
-
+			syntax.AutoIdentifier = ExpectIdentifier();
 			return syntax;
 		}
 

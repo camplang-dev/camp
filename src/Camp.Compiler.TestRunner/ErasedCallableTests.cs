@@ -183,15 +183,13 @@ public sealed class ErasedCallableTests
 	}
 
 	[Fact]
-	public void Written_results_fill_a_callable_but_a_trailing_out_does_not()
+	public void Written_results_fill_a_callable()
 	{
 		SemanticCompiler.AssertNoDiagnostics(SemanticCompiler.CompileLowered("""
 			void<int> seven() => 7;
-			void sevenOut(out int result) { result = 7; }
 			void test() {
 				delegate void<int>() made = seven;
 				fn void<int>() same = seven;
-				int viaOut = sevenOut();
 				int viaCall = made();
 			}
 			"""));

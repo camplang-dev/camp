@@ -145,7 +145,6 @@ declaration with the same name unless the language rule explicitly permits it.
 An unqualified type name used as a static member qualifier is not an implicit
 instance-member access, even when the containing class has a field or property
 with that name. Locals and parameters still take precedence as member receivers.
-This lookup also applies when checking calls for omitted `out` results.
 Generic qualifiers represented as call expressions retain full expression
 analysis during that check so written type argument eligibility and capability
 obligations are validated.
@@ -487,7 +486,6 @@ Body analysis resolves expression and statement semantics:
 - assignment, call, return, yield, throw, catch, and delete checks;
 - property and indexer accessor binding;
 - `@index`/`@range`, from-end, and range-argument checks;
-- omitted trailing `out` result binding and deconstruction;
 - intentional discard target recognition;
 - conversion classification;
 - lifetime fact propagation and storage checks;
@@ -541,7 +539,6 @@ Lowering rewrites the accepted semantic tree into simpler Camp-like operations:
 - `new` and `delete` thread allocation contexts;
 - lambdas become callable targets and context values;
 - property, indexer, and range access become ordinary calls/arguments;
-- omitted trailing `out` results become generated caller storage;
 - intentional discards become generated write-only locals;
 - structured transfers run generated cleanup, while source `goto` keeps its
   source-level low-level behavior;

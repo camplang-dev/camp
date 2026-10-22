@@ -869,7 +869,6 @@ public sealed partial class BindableNodeAnalyzer
 		// ValidateStackAllocAllowed and cannot survive in retained state.
 		AnalyzeOptionalType(declaration.Target.Type, typeScope);
 		ValidateNoLifetimeAnnotation(declaration.Target.Type, declaration.Target.Type?.SourceSyntax ?? declaration.Target.SourceSyntax ?? declaration.SourceSyntax, "local variable types");
-		TryRewriteOmittedOutDeconstruction(declaration, scope, typeScope);
 		string targetType = declaration.Target.Type is AutoTypeReference or null
 			? TargetType
 			: declaration.Target.Type.ResolvedType ?? ErrorType;
@@ -907,9 +906,6 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			Report(GetRange(declaration.InitialValue.SourceSyntax ?? declaration.SourceSyntax), "Fixed-size arrays cannot be inferred by value; declare a span, pointer, or fixed storage target explicitly.");
 		}
-		if (declaration.Target.Names.Count > 1 && TryAnalyzeDeconstructionTarget(declaration.Target, initialType, scope))
-			return;
-
 		BodyAnalyzeDeclarationTarget(declaration.Target, scope, typeScope, initialType);
 		if (declaration.Target.Type is AutoTypeReference
 			&& GetCallableSourceType(declaration.InitialValue) is TypeReference callableSource)
@@ -1317,140 +1313,6 @@ public sealed partial class BindableNodeAnalyzer
 			IndexExpression index when TryParseTypeShape(index.ResolvedType, out TypeShape indexShape) && indexShape.Kind == TypeShapeKind.Array => ReferencesLocalFixedArrayStorage(index.Target),
 			_ => false
 		};
-	}
-
-	bool TryAnalyzeDeconstructionTarget(DeclarationTarget target, string initialType, BodyScope scope)
-	{
-		if (target.Names.Count <= 1)
-			return false;
-
-		Report(GetRange(target.SourceSyntax), "Declaration deconstruction is only supported for omitted out/async/iter result slots.");
-		return true;
-	}
-
-	bool TryRewriteOmittedOutDeconstruction(DeclarationStatement declaration, BodyScope scope, AnalysisScope typeScope)
-	{
-		if (declaration.Target.Names.Count <= 1 || declaration.InitialValue is not CallExpression call)
-			return false;
-
-		FunctionDefinition? function = ResolveCallTargetAllowingOmittedOut(call, declaration.Target.Names.Count, scope, typeScope);
-		if (function is null)
-			return false;
-
-		List<ParameterDefinition> callableParameters = GetCallableParameters(function.Parameters);
-		int providedCount = call.Arguments.Count;
-		List<ParameterDefinition> omittedOut = [];
-		for (int i = providedCount; i < callableParameters.Count; i++)
-		{
-			if (callableParameters[i].Modifier != ParameterModifier.Out)
-				return false;
-			omittedOut.Add(callableParameters[i]);
-		}
-
-		bool hasReturnValue = (function.ResolvedType ?? "void") != "void";
-		int expectedNames = omittedOut.Count + (hasReturnValue ? 1 : 0);
-		if (expectedNames != declaration.Target.Names.Count)
-			return false;
-
-		int nameIndex = hasReturnValue ? 1 : 0;
-		foreach (ParameterDefinition parameter in omittedOut)
-		{
-			string name = declaration.Target.Names[nameIndex++];
-			DeclarationTarget target = new()
-			{
-				SourceSyntax = declaration.Target.SourceSyntax,
-				Type = CloneType(parameter.Type),
-				ResolvedType = parameter.ResolvedType
-			};
-			target.Names.Add(name);
-			call.Arguments.Add(new ArgumentExpression
-			{
-				SourceSyntax = declaration.SourceSyntax,
-				Modifier = ArgumentModifier.Out,
-				Target = target,
-				ResolvedType = parameter.ResolvedType
-			});
-		}
-
-		if (hasReturnValue)
-		{
-			string returnName = declaration.Target.Names[0];
-			declaration.Target.Names.Clear();
-			declaration.Target.Names.Add(returnName);
-			return true;
-		}
-
-		Report(GetRange(declaration.SourceSyntax), "Void calls with only omitted out values cannot be bound with a declaration target yet.");
-		return false;
-	}
-
-	FunctionDefinition? ResolveCallTargetAllowingOmittedOut(CallExpression call, int resultCount, BodyScope scope, AnalysisScope typeScope, bool singleVoidResult = false)
-	{
-		List<FunctionDefinition> candidates;
-		if (call.Target is MemberExpression member)
-		{
-			// Generic call-shaped qualifiers need expression analysis to validate their type arguments.
-			string receiverType = member.Target is not CallExpression
-				&& TryAnalyzeMemberTypeTarget(member.Target, scope, typeScope, out string typeTarget)
-				? typeTarget
-				: BodyAnalyzeExpression(member.Target, scope, typeScope);
-			candidates = IsTypeReferenceExpression(member.Target)
-				? LookupStaticMemberFunctions(receiverType, member.Name, member.SourceSyntax)
-				: LookupMemberFunctions(receiverType, member.Name, member.SourceSyntax);
-		}
-		else
-			candidates = call.Target switch
-		{
-			NamedExpression named => LookupFunctions(named, scope),
-			MemberReferenceExpression { Member: FunctionDefinition function } => [function],
-			MethodReferenceExpression method => method.Candidates,
-			_ => []
-		};
-
-		List<FunctionDefinition> matches = [];
-		foreach (FunctionDefinition function in candidates)
-		{
-			EnsureFunctionSignatureAnalyzed(function, typeScope);
-			if (singleVoidResult && (function.ResolvedType != "void" || GetCallableParameters(function.Parameters).LastOrDefault()?.Modifier != ParameterModifier.Out))
-				continue;
-			if (CanBindOmittedOutDeconstruction(function, call.Arguments.Count, resultCount))
-				matches.Add(function);
-		}
-
-		if (matches.Count == 1)
-			return matches[0];
-		if (matches.Count > 1)
-			Report(GetRange(call.Target?.SourceSyntax ?? call.SourceSyntax), "Multiple candidates found for omitted out deconstruction.");
-		return null;
-	}
-
-	static bool CanBindOmittedOutDeconstruction(FunctionDefinition function, int providedArgumentCount, int resultCount)
-	{
-		List<ParameterDefinition> callableParameters = GetCallableParameters(function.Parameters);
-		if (providedArgumentCount > callableParameters.Count)
-			return false;
-
-		int omittedOutCount = 0;
-		for (int i = providedArgumentCount; i < callableParameters.Count; i++)
-		{
-			if (callableParameters[i].Modifier != ParameterModifier.Out)
-				return false;
-			omittedOutCount++;
-		}
-
-		bool hasReturnValue = (function.ResolvedType ?? "void") != "void";
-		return omittedOutCount + (hasReturnValue ? 1 : 0) == resultCount;
-	}
-
-	static DeclarationTarget CreateDeconstructedTarget(DeclarationTarget source, string name, string type)
-	{
-		DeclarationTarget target = new()
-		{
-			SourceSyntax = source.SourceSyntax,
-			ResolvedType = type
-		};
-		target.Names.Add(name);
-		return target;
 	}
 
 	void BodyAnalyzeDeclarationTarget(DeclarationTarget target, BodyScope scope, AnalysisScope typeScope, string targetType, bool allowDiscard = false)
@@ -3607,15 +3469,9 @@ public sealed partial class BindableNodeAnalyzer
 		if (TryAnalyzeSpecializedReference(call, scope, typeScope, out string specializedType))
 			return specializedType;
 
-		FunctionDefinition? trailing = targetType is not null ? ResolveCallTargetAllowingOmittedOut(call, 1, scope, typeScope, singleVoidResult: true) : null;
-		if (trailing is not null && trailing.ResolvedType == "void")
-		{
-			trailingOutResults[call] = GetCallableParameters(trailing.Parameters)[^1];
-			BodyAnalyzeExpression(call.Target, scope, typeScope);
-		}
 		FunctionDefinition? function = callTargets.TryGetValue(call, out FunctionDefinition? existingTarget)
 			? existingTarget
-			: trailingOutResults.ContainsKey(call) ? trailing : ResolveCallTarget(call.Target, scope, typeScope, call.Arguments);
+			: ResolveCallTarget(call.Target, scope, typeScope, call.Arguments);
 		if (function is not null && DeclarationParticipation.IsTest(function))
 			Report(GetRange(GetCallTargetNameDiagnosticSyntax(call.Target) ?? call.SourceSyntax), "@test functions are invoked only by the built-in test runner and may not be called explicitly.");
 		Dictionary<string, string> genericSubstitutions = [];
@@ -3670,8 +3526,6 @@ public sealed partial class BindableNodeAnalyzer
 		if (function is not null)
 			ValidateExplicitAsyncCallShape(function, call, includeExplicitThisArgument);
 		List<ParameterDefinition> analysisParameters = function is null ? [] : GetAsyncAwareCallParameters(function, call, includeExplicitThisArgument);
-		if (trailingOutResults.TryGetValue(call, out ParameterDefinition? trailingResult))
-			analysisParameters.Remove(trailingResult);
 		CallArgumentBinding binding = new();
 		Dictionary<string, bool> constOfAnchors = AnalyzeCallArguments(
 			call.Arguments,
@@ -3703,10 +3557,8 @@ public sealed partial class BindableNodeAnalyzer
 			callGenericSubstitutions[call] = new Dictionary<string, string>(genericSubstitutions, StringComparer.Ordinal);
 
 		string returnType = SubstituteGenericReturnType(function?.ResolvedType, call.TypeArguments, genericSubstitutions);
-		if (trailingResult is not null)
-			returnType = ReadErasedValueType(SubstituteStorageType(trailingResult.ResolvedType ?? ErrorType, genericSubstitutions));
 		if (function is not null)
-			returnType = trailingResult is not null ? returnType : ReadErasedValueType(SubstituteStorageType(function.ResolvedType ?? ErrorType, genericSubstitutions));
+			returnType = ReadErasedValueType(SubstituteStorageType(function.ResolvedType ?? ErrorType, genericSubstitutions));
 		if (function is not null)
 			returnType = SubstituteConstOfResolvedType(function.ReturnType, returnType, constOfAnchors, genericSubstitutions);
 		if (function is not null)

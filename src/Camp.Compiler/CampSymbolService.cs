@@ -2527,9 +2527,6 @@ public sealed class CampSymbolQueryService(CampAnalysisSnapshot snapshot)
 			return Assign(syntax.Identifier.Value.Range, out range);
 		if (syntax.AutoIdentifier?.Value == name)
 			return Assign(syntax.AutoIdentifier.Value.Range, out range);
-		foreach (Token identifier in syntax.IdentifierList?.Identifiers ?? [])
-			if (identifier.Value == name)
-				return Assign(identifier.Range, out range);
 		return false;
 	}
 

@@ -482,14 +482,7 @@ public sealed partial class BindableNodeBuilder
 			target.Type = new AutoTypeReference { SourceSyntax = syntax };
 
 			if (syntax.AutoIdentifier is not null)
-			{
 				target.Names.Add(syntax.AutoIdentifier.Value.Value);
-			}
-			else
-			{
-				foreach (Token identifier in syntax.IdentifierList?.Identifiers ?? [])
-					target.Names.Add(identifier.Value);
-			}
 
 			if (target.Names.Count == 0)
 				Report(syntax, $"{context} auto declaration is missing a name.");
