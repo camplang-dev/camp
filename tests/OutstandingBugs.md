@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-335.
+Next bug number: BUG-336.
 
 ## Bug Template
 
@@ -195,4 +195,40 @@ a `const this` receiver.
 Known Impact:
 A bound `constof(this)` method loses the mutable result for a mutable receiver.
 Calling the method directly instead of binding it avoids it.
+
+## BUG-335: Callable ascription does not preserve the overload selector name or the pre-selector shape
+
+Date/Time: 2026-10-22 12:20 EDT
+
+Summary:
+For a callable surface that participates in an overload family, the semantics
+require a compatible candidate to preserve whether the declaration is an
+overload-family entry, the selector parameter name, the selector position, and
+the pre-selector shape including parameter names. Virtual overrides enforce the
+selector name and the family category, but callable newtype ascription does not:
+a candidate with a renamed selector, with an ordinary parameter in the selector
+position, or with renamed pre-selector parameters is accepted. A moved selector
+and a changed pre-selector type are rejected.
+
+Steps to Reproduce:
+
+1. Declare `newtype fn void Setter(const char[] key, overload int value);`.
+2. Declare `void renamedSelector(const char[] key, overload int other) : Setter {}`.
+3. Declare `void ordinaryEntry(const char[] key, int value) : Setter {}`.
+4. Declare `void renamedBefore(const char[] name, overload int value) : Setter {}`.
+5. Compile.
+
+Expected:
+Each of steps 2 to 4 is rejected: the selector is renamed, the declaration is
+not an overload-family entry, and the pre-selector parameter name changed.
+
+Actual:
+All three declarations are accepted. An override that renames the selector is
+rejected with `Override 'setInt' must preserve the base declaration's overload selector name.`
+
+Known Impact:
+A callable newtype for an overload family can be satisfied by a declaration
+with a different selector contract, so the shared keys and metadata the
+selector is meant to keep stable can differ between the target and the
+candidate.
 
