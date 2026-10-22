@@ -120,17 +120,23 @@ Steps to Reproduce:
 2. In `main`, write `delegate int(int) plain = twice;`.
 3. Call `apply((escaped delegate int(int))plain, 3)`.
 4. Change the cast to `(unsafe escaped delegate int(int))plain`.
-5. Compile each version.
+5. Repeat steps 3 and 4 with the bare lifetime cast forms `(escaped)plain` and
+   `(unsafe escaped)plain`.
+6. Compile each version.
 
 Expected:
 The ordinary cast in step 3 is rejected with a message that `unsafe` is
 required to change the callable's lifetime, and the `unsafe` cast in step 4
-compiles without a warning. An `fn*` fence, which erases the signature and its
-lifetime, remains an alternative.
+compiles without a warning. The bare forms behave the same as the full forms:
+`(escaped)plain` is rejected and `(unsafe escaped)plain` compiles. An `fn*`
+fence, which erases the signature and its lifetime, remains an alternative.
 
 Actual:
 Step 3 compiles and runs without a diagnostic. Step 4 compiles with the warning
-that `unsafe` is not required for this cast.
+that `unsafe` is not required for this cast. The bare `(escaped)plain` also
+compiles without a diagnostic, and the bare `(unsafe escaped)plain` compiles
+with no warning at all, so the two bare forms are inconsistent with the full
+forms as well as with the semantics.
 
 Known Impact:
 A delegate with a scoped context can be presented as `escaped` with no
