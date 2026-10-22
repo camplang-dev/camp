@@ -1411,6 +1411,15 @@ public sealed partial class BindableNodeAnalyzer
 		if (TryGetArrayElementType(sourceType) is not null)
 			RequireGenericArrayElementStride(sourceType, scope, statement.Source?.SourceSyntax, "enumerate T[]");
 		string elementType = GetForeachElementType(statement, sourceType, statement.Source?.SourceSyntax);
+		// The source binds outside the loop variable's scope, including when it
+		// uses an enclosing variable with the same name as the loop target.
+		scope = new BodyScope(scope, scope.CurrentFunction, scope.ContainingType)
+		{
+			CurrentFunctionReturnType = scope.CurrentFunctionReturnType,
+			CurrentFunctionSourceReturnType = scope.CurrentFunctionSourceReturnType,
+			CurrentIteratorElementType = scope.CurrentIteratorElementType,
+			CurrentIteratorThrownType = scope.CurrentIteratorThrownType
+		};
 		if (statement.Target.Names.Count != 1)
 			Report(GetRange(statement.Target.SourceSyntax ?? statement.SourceSyntax), "Foreach statement must declare exactly one loop variable.");
 		BodyAnalyzeDeclarationTarget(statement.Target, scope, typeScope, elementType);

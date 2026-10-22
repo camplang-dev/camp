@@ -351,6 +351,9 @@ loop.
 
 The loop variable is scoped to the loop body. `continue` advances to the next
 item. `break` exits the loop and still runs iterator cleanup.
+Sequential or nested loops may reuse the variable name. The source expression
+is bound before that variable enters scope, so it may refer to an enclosing
+variable with the same name.
 
 With a failing iterator, `foreach` participates in ordinary thrown flow:
 

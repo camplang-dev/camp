@@ -44,31 +44,6 @@ Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
 
-## BUG-328: A `foreach` loop variable is not scoped to the loop
-
-Date/Time: 2026-10-21 11:15 EDT
-
-Summary:
-The loop variable declared in a `foreach` header stays visible after the loop
-ends, so a second `foreach` in the same function that reuses the name is
-rejected as a redeclaration. The language reference states that the loop
-variable is scoped to the loop body.
-
-Steps to Reproduce:
-
-1. In one function, write `foreach (int v in a) use(v);` over an array.
-2. After it, in the same function, write a second `foreach (int v in a) use(v);`.
-3. Compile.
-
-Expected:
-Both loops compile; each `v` exists only within its own loop.
-
-Actual:
-The second header reports `Symbol 'v' is already declared in this scope.`
-
-Known Impact:
-Sequential loops in one function must use distinct variable names.
-
 ## BUG-330: A class derived from one construction of a generic class converts to another construction of it
 
 Date/Time: 2026-10-22 09:28 EDT
@@ -237,4 +212,3 @@ A callable newtype for an overload family can be satisfied by a declaration
 with a different selector contract, so the shared keys and metadata the
 selector is meant to keep stable can differ between the target and the
 candidate.
-
