@@ -37,6 +37,6 @@ void main(Date date)
 	void* bound_context = (void*)&date;
 	auto value = DateFormatter_plusOne(bound, bound_context);
 	Point* point = null;
-	fn nuint(void*, char*, nuint) formatter = Point_formatCharArray;
+	fn nuint(void*, char*, nuint) formatter = Point_format;
 	void* formatter_context = (void*)point;
 }

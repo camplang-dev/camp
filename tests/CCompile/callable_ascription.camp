@@ -24,7 +24,7 @@ class Date
 
 class Point
 {
-	nuint format(overload char[] buffer) : TextFormatter
+	nuint format(char[] buffer) : TextFormatter
 	{
 		return buffer.length;
 	}

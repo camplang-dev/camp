@@ -7,7 +7,7 @@ struct View
 
 extern const char[] asStringEscaped(in View this);
 
-nuint unescapedFormat(const char[] this, overload char[] buffer) : TextFormatter
+nuint unescapedFormat(const char[] this, char[] buffer) : TextFormatter
 {
 	nuint required = this.length + 1;
 	if (buffer.length >= required)
