@@ -337,10 +337,29 @@ public sealed partial class BindableNodeAnalyzer
 			|| targetType is not ClassDefinition targetClass)
 			return false;
 
-		for (ClassDefinition? current = GetDirectBaseClass(sourceClass); current is not null; current = GetDirectBaseClass(current))
+		string constructed = source.Name;
+		HashSet<ClassDefinition> seen = [];
+		for (ClassDefinition? current = sourceClass; current is not null && seen.Add(current);)
 		{
-			if (ReferenceEquals(current, targetClass))
-				return true;
+			Dictionary<string, string> substitutions = [];
+			AddConstructedTypeGenericSubstitutions(constructed, substitutions);
+			ClassDefinition? baseClass = GetDirectBaseClass(current);
+			if (baseClass is null)
+				break;
+			TypeReference? baseReference = null;
+			foreach (TypeReference declaredBase in current.BaseTypes)
+			{
+				if (TryGetNamedTypeDefinition(declaredBase, out TypeDefinition? definition) && ReferenceEquals(definition, baseClass))
+				{
+					baseReference = declaredBase;
+					break;
+				}
+			}
+			constructed = baseReference is null ? ResolvedNominalTypeName(baseClass)
+				: SubstituteGenericType(baseReference.ResolvedType ?? FormatTypeReference(baseReference), substitutions);
+			if (ReferenceEquals(baseClass, targetClass))
+				return constructed == target.Name;
+			current = baseClass;
 		}
 
 		return false;

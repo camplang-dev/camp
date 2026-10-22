@@ -350,6 +350,8 @@ Control* control = button;
 ```
 
 Generic constructed class types are invariant. `Box<int>*` is not a
+`Box<uint>*`. Walking a derived class's base chain substitutes the actual type
+arguments at every step; deriving from `Box<int>` does not permit conversion to
 `Box<uint>*`. Downcasts and casts across a common class base require unsafe when
 the class relationship exists. If no class relationship exists, use a raw fence
 when target policy permits it.

@@ -44,38 +44,6 @@ Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
 
-## BUG-330: A class derived from one construction of a generic class converts to another construction of it
-
-Date/Time: 2026-10-22 09:28 EDT
-
-Summary:
-Constructed generic class types are invariant, so a pointer to `Box<int>` does
-not convert to a pointer to `Box<uint>`. That rule holds for a pointer to the
-construction itself, but not for a pointer to a class derived from that
-construction: the derived class pointer converts implicitly to a pointer to a
-different construction of the same generic base.
-
-Steps to Reproduce:
-
-1. Declare `class Box<T> { int tag; }` and `class IntBox: Box<int> { int extra; }`.
-2. In a function, write `IntBox* derived = stackalloc IntBox();`.
-3. Write `Box<uint>* wrong = derived;`.
-4. Compile.
-
-Expected:
-The declaration is rejected, as `Box<int>* signed = ...; Box<uint>* wrong = signed;`
-is, because the generic arguments differ and the class relationship is only to
-`Box<int>`.
-
-Actual:
-The program compiles and runs; `wrong` points at the `IntBox` object as if it
-were a `Box<uint>`.
-
-Known Impact:
-Generic invariance can be bypassed through any derived class, so a base view
-with the wrong type arguments reaches code that assumes the other construction.
-Writing the exact base (`Box<int>*`) avoids it.
-
 ## BUG-332: An `out` argument for a `constof` result is held to input equality instead of being checked after substitution
 
 Date/Time: 2026-10-22 12:05 EDT

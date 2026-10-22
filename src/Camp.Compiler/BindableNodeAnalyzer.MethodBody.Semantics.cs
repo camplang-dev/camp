@@ -758,11 +758,9 @@ public sealed partial class BindableNodeAnalyzer
 		if (IsConstReceiverType(source) && !IsConstReceiverType(target))
 			return false;
 
-		return typeDefinitions.TryGetValue(BaseTypeName(StripTopLevelValueQualifiers(sourceElement)), out TypeDefinition? sourceType)
-			&& sourceType is ClassDefinition sourceClass
-			&& typeDefinitions.TryGetValue(BaseTypeName(StripTopLevelValueQualifiers(targetElement)), out TypeDefinition? targetType)
-			&& targetType is ClassDefinition targetClass
-			&& ClassInheritsFrom(sourceClass, targetClass);
+		return TryParseTypeShape(sourceElement, out TypeShape sourceShape)
+			&& TryParseTypeShape(targetElement, out TypeShape targetShape)
+			&& IsDerivedClassType(sourceShape, targetShape);
 	}
 
 	bool ClassInheritsFrom(ClassDefinition source, ClassDefinition target)
