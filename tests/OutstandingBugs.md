@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-333.
+Next bug number: BUG-334.
 
 ## Bug Template
 
@@ -131,4 +131,35 @@ The call is rejected with `Argument constness is const, but constof anchor 'sour
 Known Impact:
 A caller cannot receive a dependent-const `out` result into a `const` local
 when the anchor is mutable. Declaring a mutable local avoids it.
+
+## BUG-333: A callable-typed declaration with a `constof` signature rejects a function of the identical signature
+
+Date/Time: 2026-10-22 12:10 EDT
+
+Summary:
+Assigning or converting a function to an `fn` type uses callable compatibility,
+and a function declared with `constof(anchor)` slots is compatible with an `fn`
+type written with the same slots. A declaration whose type is such an `fn` is
+instead checked as if the initializer were a data value that must be derived
+from the anchor, and the initializer is rejected. Passing the same function as
+an argument, or assigning it to an existing variable, is accepted.
+
+Steps to Reproduce:
+
+1. Declare `constof(source) byte* first(const byte[] source)` returning `source.elements`.
+2. Declare `fn constof(source) byte*(const byte[] source) callback = first;` as a global, and again as a local in a function.
+3. Compile.
+
+Expected:
+Both declarations are accepted: the function and the `fn` type have the same
+dependent-const signature.
+
+Actual:
+Each initializer is rejected with `Global initializer with constof(source) must be derived from 'source' or use an explicit constof(source) cast.` (or the `Declaration initializer` form for the local).
+
+Known Impact:
+A callable with a `constof` signature cannot be bound at its declaration, so
+the variable has to be declared with a `null` initializer and assigned afterwards.
+The same check blocks a `delegate` declaration with a `constof(this)` result
+initialized from a bound method.
 
