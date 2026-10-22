@@ -38,6 +38,7 @@ internal static class CampArtifactCache
 	public static CampArtifactCacheRecord Create(
 		CompilerRequest request,
 		TargetDefinition target,
+		string outputDirectory,
 		IEnumerable<CampArtifactCacheOutput> outputs,
 		IEnumerable<string> inputPaths)
 	{
@@ -55,7 +56,7 @@ internal static class CampArtifactCache
 		return new CampArtifactCacheRecord(
 			SchemaVersion,
 			GetCompilerFingerprint(),
-			GetRequestFingerprint(request, target),
+			GetRequestFingerprint(request, target, outputDirectory),
 			normalizedOutputs,
 			inputs);
 	}
@@ -99,7 +100,7 @@ internal static class CampArtifactCache
 				reason = "the compiler changed";
 				return false;
 			}
-			if (!string.Equals(record.RequestFingerprint, GetRequestFingerprint(request, target), StringComparison.Ordinal))
+			if (!string.Equals(record.RequestFingerprint, GetRequestFingerprint(request, target, Path.GetDirectoryName(Path.GetFullPath(path))!), StringComparison.Ordinal))
 			{
 				reason = "the request, target, or configuration changed";
 				return false;
@@ -144,7 +145,7 @@ internal static class CampArtifactCache
 		return File.Exists(assemblyPath) ? GetFileFingerprint(assemblyPath) : "unknown";
 	}
 
-	static string GetRequestFingerprint(CompilerRequest request, TargetDefinition target)
+	static string GetRequestFingerprint(CompilerRequest request, TargetDefinition target, string outputDirectory)
 	{
 		StringBuilder text = new();
 		text.Append(request.CommandMode).Append('\n');
@@ -158,8 +159,9 @@ internal static class CampArtifactCache
 		text.Append(request.EmitMetadata).Append('\n');
 		text.Append(request.WithinAllocationPolicy).Append('\n');
 		text.Append(request.SourcefilePathMode).Append('\n');
-		text.Append(request.OutDirIsDirect).Append('\n');
-		AppendValue(text, request.OutDir);
+		// Prefix and direct-directory requests share an identity when the driver
+		// resolves them to the same artifact directory. Keep other locations distinct.
+		AppendValue(text, Path.GetFullPath(outputDirectory));
 		AppendValue(text, request.TestOutputDir);
 		AppendValue(text, request.ProjectName);
 		AppendValue(text, request.SubsystemName);

@@ -383,6 +383,20 @@ public sealed class CommandLineTests
 		AssertCommandSucceeded(reuse);
 		Assert.DoesNotContain("load sources and APIs", reuse.StdErr, StringComparison.Ordinal);
 
+		ProcessResult direct = RunCampc("build", source, "--nostdlib", "--target", target, "--artifact", "static", "--out-dir", Path.Combine(artifactDirectory, "."), "--name", "artifact_cache", "--timing");
+		AssertCommandSucceeded(direct);
+		Assert.DoesNotContain("load sources and APIs", direct.StdErr, StringComparison.Ordinal);
+
+		// Even a copied cache record cannot make a different output directory
+		// reuse the original directory's artifacts.
+		string otherDirectory = TempPath("artifact-cache-other");
+		Directory.CreateDirectory(otherDirectory);
+		File.Copy(cachePath, Path.Combine(otherDirectory, Path.GetFileName(cachePath)), overwrite: true);
+		ProcessResult relocated = RunCampc("build", source, "--nostdlib", "--target", target, "--artifact", "static", "--out-dir", Path.Combine(otherDirectory, "."), "--name", "artifact_cache", "--timing");
+		AssertCommandSucceeded(relocated);
+		Assert.Contains("load sources and APIs", relocated.StdErr, StringComparison.Ordinal);
+		Assert.True(File.Exists(NativeArtifactPathForTarget(target, NativeBuildKind.Static, otherDirectory, "artifact_cache")));
+
 		string cacheBeforeEdit = File.ReadAllText(cachePath);
 		File.AppendAllText(source, "\n// invalidate reusable artifact\n");
 		ProcessResult stale = RunCampc("build", source, "--nostdlib", "--target", target, "--artifact", "static", "--out-dir", outDir, "--name", "artifact_cache", "--timing");

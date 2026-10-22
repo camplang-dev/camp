@@ -43,31 +43,3 @@ Actual:
 Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
-
-## BUG-336: Equivalent output-directory forms invalidate a native artifact cache
-
-Date/Time: 2026-10-22 14:28 EDT
-
-Summary:
-A library built directly is rebuilt when later consumed as a project reference,
-even when its sources, configuration, compiler, and resolved output directory
-are unchanged. Cache identity includes the original output prefix and whether
-it was treated as a direct directory instead of the resolved artifact directory.
-
-Steps to Reproduce:
-
-1. Build a static library with its ordinary output prefix.
-2. Consume that library as a static project reference from a shared library.
-3. Build the consumer without changing any library input.
-
-Expected:
-The existing library artifact is reused when both requests resolve to the same
-artifact directory. Different resolved output directories remain distinct.
-
-Actual:
-The request fingerprint changes and the static archive is regenerated. Both
-profiles of `Shared_project_reference_absorbs_static_dependency` reproduce it.
-
-Known Impact:
-Unchanged static dependencies are rebuilt when switching between standalone
-and project-reference builds.

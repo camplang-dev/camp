@@ -1450,7 +1450,7 @@ public static class CompilerDriver
 
         void TryWriteTopLevelArtifactCache(string outputDirectory, string projectName, NativeBuildOptions buildOptions, Compilation compilation, IReadOnlyList<string> packageLibraries)
         {
-            CampArtifactCacheRecord cache = CampArtifactCache.Create(request, compilation.Target!, GetTopLevelCacheOutputs(buildOptions), GetArtifactCacheInputs(compilation, packageLibraries));
+            CampArtifactCacheRecord cache = CampArtifactCache.Create(request, compilation.Target!, outputDirectory, GetTopLevelCacheOutputs(buildOptions), GetArtifactCacheInputs(compilation, packageLibraries));
             if (!CampArtifactCache.TryWrite(GetArtifactCachePath(outputDirectory, projectName), cache, out string? error))
                 ErrorLine("top-level artifact cache: " + error);
         }
@@ -1759,7 +1759,7 @@ public static class CompilerDriver
             ];
             if (request.EmitDebugInfo)
                 outputs.Add(new CampArtifactCacheOutput("debug-info", Path.Combine(outputDirectory, projectName + ".campdebug.json")));
-            CampArtifactCacheRecord cache = CampArtifactCache.Create(request, compilation.Target!,
+            CampArtifactCacheRecord cache = CampArtifactCache.Create(request, compilation.Target!, outputDirectory,
             outputs,
             GetArtifactCacheInputs(compilation, packageLibraries));
             if (!CampArtifactCache.TryWrite(GetTestArtifactCachePath(outputDirectory, projectName), cache, out string? error))
