@@ -1,0 +1,16 @@
+void test()
+{
+	int value = 3;
+	const int* readonlyValue = &value;
+	volatile int* observed = &value;
+	void* a = (void*)readonlyValue;
+	void* b = (void*)observed;
+	void* c = readonlyValue;
+	const void* readonlyRaw = readonlyValue;
+	void* d = (void*)readonlyRaw;
+	int* e = (int*)(void*)readonlyValue;
+	int* f = (int*)readonlyValue;
+	volatile void* observedRaw = observed;
+	void* g = observedRaw;
+	void* h = (unsafe void*)readonlyValue;
+}

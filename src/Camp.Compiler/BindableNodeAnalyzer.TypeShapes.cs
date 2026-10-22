@@ -73,8 +73,13 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (source.Kind == TypeShapeKind.Pointer
 			&& target.Kind == TypeShapeKind.Pointer
-			&& target.Element is TypeShape { Kind: TypeShapeKind.Named, Name: "void" })
-			return true;
+			&& target.Element is TypeShape { Kind: TypeShapeKind.Named, Name: "void" } voidTarget)
+		{
+			// Converting through void* cannot remove const or volatile from the pointee.
+			TypeQualifiers sourcePointee = source.Element?.Qualifiers ?? TypeQualifiers.None;
+			return (!sourcePointee.IsConst || voidTarget.Qualifiers.IsConst || protectedByConstTarget)
+				&& (!sourcePointee.IsVolatile || voidTarget.Qualifiers.IsVolatile);
+		}
 
 		if (source.Kind == target.Kind)
 		{

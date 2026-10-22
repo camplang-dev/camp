@@ -1,0 +1,7 @@
+tests/Diagnostics/qualified_pointer_to_void_invalid.camp(6,12): error: Cast removes const; write '(unsafe T*)' to acknowledge mutable access.
+tests/Diagnostics/qualified_pointer_to_void_invalid.camp(7,12): error: Cast removes volatile; write 'unsafe' to acknowledge volatile access removal.
+tests/Diagnostics/qualified_pointer_to_void_invalid.camp(8,12): error: Declaration initializer cannot convert 'const int*' to 'void*'.
+tests/Diagnostics/qualified_pointer_to_void_invalid.camp(10,12): error: Cast removes const; write '(unsafe T*)' to acknowledge mutable access.
+tests/Diagnostics/qualified_pointer_to_void_invalid.camp(11,17): error: Cast removes const; write '(unsafe T*)' to acknowledge mutable access.
+tests/Diagnostics/qualified_pointer_to_void_invalid.camp(12,11): error: Cast removes const; write '(unsafe T*)' to acknowledge mutable access.
+tests/Diagnostics/qualified_pointer_to_void_invalid.camp(14,12): error: Declaration initializer cannot convert 'volatile void*' to 'void*'.
