@@ -4350,7 +4350,14 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		Dictionary<string, string> substitutions = [];
 		AddReceiverTypeGenericSubstitutions(receiverType, function, substitutions);
-		return SubstituteStorageType(BuildFunctionValueType(function, isInstance: true, allowCallableAscription: true), substitutions);
+		string type = BuildFunctionValueType(function, isInstance: true, allowCallableAscription: true);
+		if (TryParseCallableShape(type, out _)
+			&& (TypeReferencesConstOfAnchor(function.ReturnType, "this") || function.Parameters.Exists(parameter => parameter is not ThisParameterDefinition && TypeReferencesConstOfAnchor(parameter.Type, "this"))))
+		{
+			CallableTypeReference source = FunctionCallableSourceType(function, true, receiverType, freezeReceiver: true);
+			type = ErasedCallableSignatureType(FormatTypeReference(source), name => FunctionErasureWrapper(function, name));
+		}
+		return SubstituteStorageType(type, substitutions);
 	}
 
 	bool TryGetCallableAscriptionReferenceType(FunctionDefinition function, bool isInstanceReference, out string ascribedType)

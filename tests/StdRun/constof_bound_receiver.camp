@@ -1,0 +1,30 @@
+constof(this) byte* head(const byte[] this) { return this.elements; }
+constof(this) byte* select(const byte[] this, constof(this) byte[] other) { return this.elements; }
+struct Buffer
+{
+	byte[] items;
+	constof(this) byte* head(const this) { return this.items.elements; }
+}
+
+export int main()
+{
+	byte[] items = [1, 2];
+	const byte[] readonly = items;
+	Buffer buffer = { items };
+	const Buffer* readonlyBuffer = &buffer;
+	auto bound = items.head;
+	auto copy = bound;
+	auto constBound = readonly.head;
+	auto method = buffer.head;
+	auto constMethod = readonlyBuffer.head;
+	auto mutableSelect = items.select;
+	auto constSelect = readonly.select;
+	byte* a = copy();
+	byte* b = method();
+	const byte* c = constBound();
+	const byte* d = constMethod();
+	byte* e = mutableSelect(items);
+	const byte* f = constSelect(readonly);
+	*a = 7;
+	return (int)*b == 7 && (int)*c == 7 && (int)*d == 7 && (int)*e == 7 && (int)*f == 7 ? 0 : 1;
+}

@@ -341,6 +341,9 @@ expansion and bound method references.
 When forming a bound method reference, receiver constness contributes the
 call-site anchor fact. If the target callable requires a `constof(this)` result,
 the bound receiver determines whether callers see mutable or const output.
+This fact is fixed when the reference is formed and survives an inferred
+callable copy. Dependence on the method's remaining arguments is still
+substituted when that bound callable is invoked.
 
 ## Metadata And API Output
 

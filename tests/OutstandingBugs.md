@@ -44,39 +44,6 @@ Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
 
-## BUG-334: A bound method reference does not substitute `constof(this)` from the bound receiver
-
-Date/Time: 2026-10-22 12:15 EDT
-
-Summary:
-The semantics state that forming a bound method reference makes the receiver's
-constness the call-site anchor fact, so the bound receiver decides whether the
-callable's `constof(this)` result is mutable or const. A reference bound to a
-mutable receiver still yields a callable whose result is `const`, although
-calling the method directly on the same receiver yields a mutable result.
-
-Steps to Reproduce:
-
-1. Declare `constof(this) byte* head(const byte[] this)` returning `this.elements`.
-2. In a function, declare a mutable `byte[] items`.
-3. Write `byte* direct = items.head();`, which compiles.
-4. Write `auto bound = items.head;` and then `byte* viaBound = bound();`.
-5. Compile.
-
-Expected:
-Step 4 compiles: the receiver is mutable, so the bound callable returns `byte*`.
-A reference bound to a `const byte[]` receiver returns `const byte*`.
-
-Actual:
-Step 4 is rejected with `Call result cannot convert 'const byte*' to 'byte*'.`
-The bound callable's type is `delegate const byte*()` for a mutable receiver,
-and the same happens for a method of a struct declared with `constof(this)` and
-a `const this` receiver.
-
-Known Impact:
-A bound `constof(this)` method loses the mutable result for a mutable receiver.
-Calling the method directly instead of binding it avoids it.
-
 ## BUG-335: Callable ascription does not preserve the overload selector name or the pre-selector shape
 
 Date/Time: 2026-10-22 12:20 EDT

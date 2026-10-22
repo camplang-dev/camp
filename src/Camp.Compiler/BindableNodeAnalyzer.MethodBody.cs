@@ -3973,6 +3973,9 @@ public sealed partial class BindableNodeAnalyzer
 
 		callableInvocationParameters[call] = parameters;
 		CallArgumentBinding binding = new();
+		TryGetCallableTypeReference(GetCallableSourceType(call.Target), out CallableTypeReference? sourceCallable);
+		Dictionary<string, bool>? boundAnchors = sourceCallable is not null && boundCallableReceiverConstness.TryGetValue(sourceCallable, out bool receiverConst)
+			? new() { ["this"] = receiverConst } : null;
 		Dictionary<string, bool> constOfAnchors = AnalyzeCallArguments(
 			call.Arguments,
 			parameters,
@@ -3983,11 +3986,11 @@ public sealed partial class BindableNodeAnalyzer
 			callDisplayName: GetCallableInvocationDisplayName(call.Target),
 			allowOmittedPrepParameter: true,
 			callTarget: call.Target,
-			binding: binding);
+			binding: binding,
+			implicitConstOfAnchors: boundAnchors);
 		returnType = ReadErasedValueType(SubstituteCallableConstOfReturnType(callableType, callable.ReturnType, constOfAnchors));
-		if (TryGetCallableTypeReference(GetCallableSourceType(call.Target), out CallableTypeReference? sourceCallable) && sourceCallable is not null
-			&& !TypeReferencesConstOfAnchor(sourceCallable.ReturnType, "this"))
-			returnType = ReadErasedValueType(SubstituteConstOfResolvedType(sourceCallable.ReturnType, returnType, constOfAnchors));
+		if (sourceCallable is not null && (boundAnchors is not null || !TypeReferencesConstOfAnchor(sourceCallable.ReturnType, "this")))
+			returnType = ReadErasedValueType(SubstituteConstOfResolvedType(sourceCallable.ReturnType, FormatTypeReference(sourceCallable.ReturnType), constOfAnchors));
 		PreparedBufferExpression? preparedResult = null;
 		if (TryGetOmittedPrepParameter(binding, out ParameterDefinition? prepParameter))
 		{
@@ -4604,7 +4607,7 @@ public sealed partial class BindableNodeAnalyzer
 		return implementation;
 	}
 
-	Dictionary<string, bool> AnalyzeCallArguments(List<ArgumentExpression> arguments, List<ParameterDefinition> parameters, BodyScope scope, AnalysisScope typeScope, SyntaxNode? fallbackSyntax = null, bool includeExplicitThis = false, Dictionary<string, string>? genericSubstitutions = null, HashSet<string>? genericParameterNames = null, FunctionDefinition? function = null, Expression? callTarget = null, SyntaxNode? missingArgumentSyntax = null, string? callDisplayName = null, bool allowOmittedPrepParameter = false, CallArgumentBinding? binding = null)
+	Dictionary<string, bool> AnalyzeCallArguments(List<ArgumentExpression> arguments, List<ParameterDefinition> parameters, BodyScope scope, AnalysisScope typeScope, SyntaxNode? fallbackSyntax = null, bool includeExplicitThis = false, Dictionary<string, string>? genericSubstitutions = null, HashSet<string>? genericParameterNames = null, FunctionDefinition? function = null, Expression? callTarget = null, SyntaxNode? missingArgumentSyntax = null, string? callDisplayName = null, bool allowOmittedPrepParameter = false, CallArgumentBinding? binding = null, Dictionary<string, bool>? implicitConstOfAnchors = null)
 	{
 		genericSubstitutions ??= [];
 		genericParameterNames ??= [];
@@ -4617,6 +4620,8 @@ public sealed partial class BindableNodeAnalyzer
 		List<(ArgumentExpression Argument, ParameterDefinition Parameter)> analyzedLifetimeArguments = [];
 		List<(ArgumentExpression Argument, ParameterDefinition Parameter)> analyzedConstOfArguments = [];
 		Dictionary<string, bool> constOfAnchorsInProgress = new(System.StringComparer.Ordinal);
+		if (implicitConstOfAnchors is not null)
+			foreach ((string anchor, bool isConst) in implicitConstOfAnchors) constOfAnchorsInProgress[anchor] = isConst;
 		bool[] suppliedParameters = new bool[callableParameters.Count];
 		ArgumentExpression? extraArgument = null;
 		for (int i = 0; i < arguments.Count; i++)
@@ -4762,6 +4767,8 @@ public sealed partial class BindableNodeAnalyzer
 		if (function is not null)
 			CheckLifetimeCallArguments(function, callTarget, analyzedLifetimeArguments, scope, fallbackSyntax, genericSubstitutions);
 		Dictionary<string, bool> constOfAnchors = BuildConstOfCallAnchorFacts(analyzedConstOfArguments);
+		if (implicitConstOfAnchors is not null)
+			foreach ((string anchor, bool isConst) in implicitConstOfAnchors) constOfAnchors[anchor] = isConst;
 		// Output targets use storage conversion after all anchor actuals are known,
 		// even when the output parameter precedes its anchor.
 		foreach ((ArgumentExpression argument, ParameterDefinition parameter) in analyzedConstOfArguments)

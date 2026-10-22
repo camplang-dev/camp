@@ -7,6 +7,7 @@ public sealed partial class BindableNodeAnalyzer
 {
 	// Names are a source call contract, not part of structural callable identity.
 	readonly Dictionary<BindableNode, TypeReference> inferredCallableSourceTypes = [];
+	readonly Dictionary<TypeReference, bool> boundCallableReceiverConstness = [];
 
 	List<ParameterDefinition> CreateStructuralInvocationParameters(Expression? target, CallableShape shape)
 	{
@@ -41,7 +42,7 @@ public sealed partial class BindableNodeAnalyzer
 		return expression switch
 		{
 			MethodReferenceExpression { Candidates.Count: 1 } method => FunctionCallableSourceType(method.Candidates[0], false),
-			MemberReferenceExpression { Member: FunctionDefinition function } => FunctionCallableSourceType(function, true),
+			MemberReferenceExpression { Member: FunctionDefinition function } member => FunctionCallableSourceType(function, true, member.Target?.ResolvedType),
 			VariableReferenceExpression variable => StorageType(variable.Variable),
 			MemberReferenceExpression member => StorageType(member.Member),
 			ParenthesizedExpression parenthesized => GetCallableSourceType(parenthesized.Expression, depth + 1),
@@ -51,7 +52,7 @@ public sealed partial class BindableNodeAnalyzer
 		};
 	}
 
-	static CallableTypeReference FunctionCallableSourceType(FunctionDefinition function, bool bound)
+	CallableTypeReference FunctionCallableSourceType(FunctionDefinition function, bool bound, string? receiverType = null, bool freezeReceiver = false)
 	{
 		CallableTypeReference callable = new()
 		{
@@ -62,6 +63,40 @@ public sealed partial class BindableNodeAnalyzer
 		foreach (ParameterDefinition parameter in function.Parameters)
 			if (!bound || parameter is not ThisParameterDefinition)
 				callable.Parameters.Add(CloneParameter(parameter));
+		if (bound && receiverType is not null)
+		{
+			bool isConst = IsConstReceiverType(receiverType) || IsPrimitiveStringType(receiverType)
+				|| new TypeShapeParser(receiverType).TryParse(out TypeShape shape) && shape.Kind is TypeShapeKind.Array or TypeShapeKind.FixedArray && shape.Element?.Qualifiers.IsConst == true;
+			boundCallableReceiverConstness[callable] = isConst;
+			if (freezeReceiver)
+			{
+				callable.ReturnType = BindReceiverConstOf(callable.ReturnType, isConst);
+				foreach (ParameterDefinition parameter in callable.Parameters)
+				{
+					parameter.Type = BindReceiverConstOf(parameter.Type, isConst);
+					parameter.ResolvedType = FormatTypeReference(parameter.Type);
+				}
+			}
+		}
 		return callable;
+	}
+
+	// Freeze only this declaration's receiver dependence. Nested callable types
+	// introduce their own receiver and retain their own signature contract.
+	static TypeReference? BindReceiverConstOf(TypeReference? type, bool isConst)
+	{
+		if (type is null) return null;
+		HashSet<BindableNode> visited = [];
+		TypeReference Rewrite(TypeReference current)
+		{
+			if (current is CallableTypeReference or IterTypeReference)
+				visited.Add(current);
+			if (current is ConstOfTypeReference { AnchorName: "this", Type: not null } dependent)
+				return isConst ? new ConstTypeReference { Type = dependent.Type } : dependent.Type;
+			return current;
+		}
+		TypeReference result = Rewrite(CloneType(type)!);
+		BindableNodeTraversal.RewriteChildren(result, static expression => expression, Rewrite, visited);
+		return result;
 	}
 }
