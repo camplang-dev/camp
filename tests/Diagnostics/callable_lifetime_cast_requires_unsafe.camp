@@ -1,0 +1,16 @@
+int twice(int x) => x * 2;
+
+int apply(escaped delegate int(int) callback, int x) => callback(x);
+
+int main()
+{
+	delegate int(int) plain = twice;
+	int a = apply((escaped delegate int(int))plain, 3);
+	int b = apply((unsafe escaped delegate int(int))plain, 3);
+	int c = apply((escaped)plain, 3);
+	int d = apply((unsafe escaped)plain, 3);
+	int value = 1;
+	int* pointer = &value;
+	int* retained = (escaped int*)pointer;
+	return a + b + c + d;
+}

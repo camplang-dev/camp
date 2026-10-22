@@ -1,0 +1,2 @@
+tests/Diagnostics/callable_lifetime_cast_requires_unsafe.camp(8,16): error: Cast changes callable lifetime contract; write 'unsafe' to acknowledge the hidden context/result lifetime change.
+tests/Diagnostics/callable_lifetime_cast_requires_unsafe.camp(10,16): error: Cast changes callable lifetime contract; write 'unsafe' to acknowledge the hidden context/result lifetime change.

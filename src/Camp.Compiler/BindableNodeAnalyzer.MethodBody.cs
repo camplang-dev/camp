@@ -2738,6 +2738,12 @@ public sealed partial class BindableNodeAnalyzer
 			cast.LifetimeBinding = lifetimeBinding;
 		}
 
+		// A callable's lifetime can describe hidden context, receiver lifetime and result
+		// provenance, so changing it needs unsafe even though data pointer lifetime casts do not.
+		bool changesCallableLifetime = ChangesCallableValueLifetime(cast, sourceType, targetType);
+		if (changesCallableLifetime && !cast.Unsafe)
+			Report(GetRange(cast.SourceSyntax), "Cast changes callable lifetime contract; write 'unsafe' to acknowledge the hidden context/result lifetime change.");
+
 		if ((cast.Type is null && cast.Kind != CastKind.Type) || cast.LifetimeCastKind is not null)
 			targetType = sourceType;
 		else if (TryCheckInterfacePointerConversion(structuralTargetType, sourceType, cast.Expression, cast.SourceSyntax, "Cast"))
@@ -2764,7 +2770,7 @@ public sealed partial class BindableNodeAnalyzer
 					Report(GetRange(cast.SourceSyntax), conversion.Diagnostic ?? $"Invalid cast from '{sourceType}' to '{targetType}'.");
 				}
 			}
-			else if (cast.Unsafe && conversion.IsOrdinary)
+			else if (cast.Unsafe && conversion.IsOrdinary && !changesCallableLifetime)
 			{
 				Warn(cast.SourceSyntax, "unsafe is not required for this cast; the conversion is ordinary explicit.");
 			}
@@ -2772,6 +2778,30 @@ public sealed partial class BindableNodeAnalyzer
 
 		expressionConstants[cast] = IsConstant(cast.Expression);
 		return targetType;
+	}
+
+	bool ChangesCallableValueLifetime(CastExpression cast, string sourceType, string targetType)
+	{
+		if (!TryGetCallableShape(sourceType, out _))
+			return false;
+
+		string? written = cast.LifetimeCastKind is not null
+			? cast.LifetimeCastKind + (cast.LifetimeCastAnchors.Count > 0 ? "(" + string.Join(",", cast.LifetimeCastAnchors) + ")" : "")
+			: cast.Type is not null && ContainsLifetimeAnnotation(cast.Type) ? LeadingLifetimeQualifier(targetType) : null;
+		if (written is null)
+			return false;
+
+		return written.Replace(" ", "") != (LeadingLifetimeQualifier(sourceType) ?? "").Replace(" ", "");
+	}
+
+	static string? LeadingLifetimeQualifier(string type)
+	{
+		string trimmed = type.Trim();
+		while (trimmed.StartsWith("const ", StringComparison.Ordinal) || trimmed.StartsWith("volatile ", StringComparison.Ordinal))
+			trimmed = trimmed[(trimmed.IndexOf(' ') + 1)..].TrimStart();
+		return TryStripLeadingLifetimeQualifier(trimmed, out string stripped)
+			? trimmed[..^stripped.Length].Trim()
+			: null;
 	}
 
 	string BodyAnalyzeConstructionExpression(ConstructionExpression construction, BodyScope scope, AnalysisScope typeScope, string? targetExpressionType)
