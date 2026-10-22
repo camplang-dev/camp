@@ -149,7 +149,10 @@ byte* mutableFirst = first(mutableBytes);
 const byte* constFirst = first(constBytes);
 ```
 
-Explicit `out` targets are checked after substitution:
+Explicit `out` targets are checked after substitution.
+Their constness does not participate in the input-equality rule. All anchor
+arguments are collected before checking the output storage, including when
+the output parameter precedes its anchor.
 
 ```camp
 void first(byte[] source, out constof(source) byte* result);

@@ -1,0 +1,24 @@
+void first(const byte[] source, out constof(source) byte* result)
+{
+	result = source.elements;
+}
+
+void firstOut(out constof(source) byte* result, const byte[] source)
+{
+	result = source.elements;
+}
+
+export int main()
+{
+	byte[] items = [1, 2, 3];
+	const byte[] readonly = items;
+	byte* mutable = null;
+	const byte* widened = null;
+	const byte* retained = null;
+	first(items, out mutable);
+	first(items, out widened);
+	first(readonly, out retained);
+	firstOut(out mutable, items);
+	firstOut(out widened, items);
+	return (int)*mutable == 1 && (int)*widened == 1 && (int)*retained == 1 ? 0 : 1;
+}

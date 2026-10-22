@@ -4699,7 +4699,8 @@ public sealed partial class BindableNodeAnalyzer
 							&& (!ContainsClassTypeReference(analysisParameter.Type) || !IsClassRelativeCallReceiver(callTarget))
 							&& callTarget is not MemberReferenceExpression { Member: FieldDefinition { GeneratedInfo: { Category: GeneratedDeclarationCategory.VirtualDispatch } } })
 							Report(GetRange(argumentSyntax), "Out argument cannot implicitly write an enclosing-class value to 'classtype'; use plain class storage and an explicit classtype cast.");
-						CheckCallArgumentAssignable(actual, expected, arguments[i].Value, argumentSyntax, "Out argument", function, genericSubstitutions, genericParameterNames);
+						if (!ContainsConstOfTypeReference(analysisParameter.Type))
+							CheckCallArgumentAssignable(actual, expected, arguments[i].Value, argumentSyntax, "Out argument", function, genericSubstitutions, genericParameterNames);
 						// An out argument writes the carrier itself, so it cannot adapt storage of another representation.
 						if (CarrierTypeIdentity.TryGetPayload(storageExpected, out _) && !ContainsUnboundGenericParameter(storageExpected, genericSubstitutions, genericParameterNames)
 							&& (!TryGetCarrierStorageType(arguments[i].Value, out string outStorage) || StripTopLevelValueQualifiers(outStorage) != StripTopLevelValueQualifiers(storageExpected)))
@@ -4756,6 +4757,18 @@ public sealed partial class BindableNodeAnalyzer
 		if (function is not null)
 			CheckLifetimeCallArguments(function, callTarget, analyzedLifetimeArguments, scope, fallbackSyntax, genericSubstitutions);
 		Dictionary<string, bool> constOfAnchors = BuildConstOfCallAnchorFacts(analyzedConstOfArguments);
+		// Output targets use storage conversion after all anchor actuals are known,
+		// even when the output parameter precedes its anchor.
+		foreach ((ArgumentExpression argument, ParameterDefinition parameter) in analyzedConstOfArguments)
+		{
+			if (parameter.Modifier != ParameterModifier.Out || !ContainsConstOfTypeReference(parameter.Type))
+				continue;
+			string expected = SubstituteStorageType(parameter.ResolvedType ?? ErrorType, genericSubstitutions);
+			if (function is not null)
+				expected = RefineClassTypeCallType(function, parameter.Type, callTarget, expected);
+			expected = ReadErasedValueType(SubstituteConstOfResolvedType(parameter.Type, expected, constOfAnchors, genericSubstitutions));
+			CheckCallArgumentAssignable(argument.ResolvedType ?? ErrorType, expected, argument.Value, GetArgumentDiagnosticSyntax(argument, fallbackSyntax), "Out argument", function, genericSubstitutions, genericParameterNames);
+		}
 		CheckConstOfCallArguments(analyzedConstOfArguments, constOfAnchors, fallbackSyntax);
 		return constOfAnchors;
 	}

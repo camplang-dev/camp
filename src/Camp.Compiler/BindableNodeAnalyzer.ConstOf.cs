@@ -272,7 +272,8 @@ public sealed partial class BindableNodeAnalyzer
 	void CheckConstOfCallArguments(List<(ArgumentExpression Argument, ParameterDefinition Parameter)> arguments, Dictionary<string, bool> anchors, SyntaxNode? fallbackSyntax)
 	{
 		foreach ((ArgumentExpression argument, ParameterDefinition parameter) in arguments)
-			CheckConstOfCallArgument(parameter.Type, argument, anchors, fallbackSyntax);
+			if (parameter.Modifier != ParameterModifier.Out)
+				CheckConstOfCallArgument(parameter.Type, argument, anchors, fallbackSyntax);
 	}
 
 	void CheckConstOfCallArgument(TypeReference? expectedType, ArgumentExpression argument, Dictionary<string, bool> anchors, SyntaxNode? fallbackSyntax)
