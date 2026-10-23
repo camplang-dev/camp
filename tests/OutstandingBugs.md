@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-338.
+Next bug number: BUG-339.
 
 ## Bug Template
 
@@ -65,3 +65,24 @@ The global assignment reports "Assignment cannot store a non-escaped pointer-bea
 
 Known Impact:
 A dangling pointer to a parameter or local can be left in static storage without a diagnostic.
+
+## BUG-338: `new` of a class does not check pointer-bearing constructor arguments against what the constructor retains
+
+Date/Time: 2026-10-22 21:46 EDT
+
+Summary:
+A constructor parameter written `unscoped` may be stored in a field. Value construction retains the argument's lifetime fact, so returning the constructed value is rejected. Heap construction with `new` yields an escaped value but does not check the arguments, so a heap object can hold a pointer to local storage.
+
+Steps to Reproduce:
+
+1. Declare `class Keeper { const char[] text; Keeper(unscoped const char[] input) { this.text = input; } ~Keeper() { } }`.
+2. In a function, declare `fixed char[8] buffer = $"abc";` and write `Keeper* made = new Keeper(buffer[..]); return made;`.
+
+Expected:
+The construction is rejected, because the escaped object would retain a view of local storage. `semantics/05` (Construction And Retention) says this analysis "prevents code from constructing a heap object that stores a pointer to local stack storage".
+
+Actual:
+No diagnostic is reported for the `new` expression or the return.
+
+Known Impact:
+Heap objects can retain pointers to local or parameter storage that ends before the object does. The documentation does not currently state the `new` form of the rule; it should be added alongside the fix.
