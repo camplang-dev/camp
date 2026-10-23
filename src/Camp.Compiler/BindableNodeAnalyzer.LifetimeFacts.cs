@@ -1112,14 +1112,23 @@ public sealed partial class BindableNodeAnalyzer
 	LifetimeFact? GetPointerArgumentContentFact(ArgumentExpression argument, LifetimeFact address, BodyScope scope)
 	{
 		string? element = TryGetPointerElementType(argument.Value?.ResolvedType ?? argument.ResolvedType);
-		if (element is null || TryGetPointerElementType(element) is not null || TryGetArrayElementType(element) is not null
-			|| !IsLifetimePointerBearingResolvedType(element, scope)
+		if (element is null || !HasRetainedPointerContent(element, scope)
 			|| address is not { Kind: "scoped", Anchors.Count: 1 }
 			|| !scope.TryLookup(address.Anchors[0], out BodySymbol symbol)
 			|| symbol.Node is not DeclarationTarget local
 			|| StripTopLevelValueQualifiers(StripLifetimeQualifiers(local.ResolvedType ?? "")) != StripTopLevelValueQualifiers(StripLifetimeQualifiers(element)))
 			return null;
 		return TryParseLifetimeFact(local.ValueLifetimeFact, out LifetimeFact content) ? content : null;
+	}
+
+	bool HasRetainedPointerContent(string type, BodyScope scope)
+	{
+		// Only infer content for aggregates whose physical local value is known.
+		// Opaque foreign instances and expanded/raw pointer transports keep their address facts.
+		return TryParseTypeShape(type, out TypeShape shape) && shape.Kind == TypeShapeKind.Named
+			&& TryGetTypeDefinitionByResolvedName(type, out TypeDefinition? definition)
+			&& definition is StructDefinition or ClassDefinition { Extern: null }
+			&& IsLifetimePointerBearingResolvedType(type, scope);
 	}
 
 	bool TryGetArgumentLifetimeFact(ArgumentExpression argument, out LifetimeFact fact)
@@ -1702,7 +1711,10 @@ public sealed partial class BindableNodeAnalyzer
 				return FindAddress(rewritten);
 			return expression switch
 			{
-				UnaryExpression { Operator: UnaryOperator.AddressOf, Operand: not (NamedExpression or VariableReferenceExpression) } address => FindStorageRoot(address.Operand),
+				// Erased-pointer expansion also creates &*value. Only source-written
+				// addresses borrow pointee storage; ABI transport preserves its input fact.
+				UnaryExpression { Operator: UnaryOperator.AddressOf, Operand: not (NamedExpression or VariableReferenceExpression), SourceSyntax: UnaryPrefixSyntax prefix } address
+					when prefix.OperatorOrKeyword?.Value == "&" => FindStorageRoot(address.Operand),
 				IndexExpression index when TryGetArrayElementType(index.ResolvedType) is not null && TryGetFixedArrayShape(index.Target?.ResolvedType, out _, out _) => FindStorageRoot(index.Target),
 				InitializerExpression initializer => initializer.Items.Select(item => FindAddress(item.Expression)).FirstOrDefault(parameter => parameter is not null),
 				ParenthesizedExpression parenthesized => FindAddress(parenthesized.Expression),
@@ -1710,7 +1722,16 @@ public sealed partial class BindableNodeAnalyzer
 				_ => null
 			};
 		}
-		if (FindAddress(value) is ParameterDefinition input
+		ParameterDefinition? input = FindAddress(value);
+		if (input is null && TryGetPointerElementType(value?.ResolvedType) is not null
+			&& TryParseLifetimeFact(GetExpressionLifetimeFact(value), out LifetimeFact fact) && fact.Kind == "scoped")
+			input = scope.CurrentFunction.Parameters.FirstOrDefault(parameter => fact.Anchors.Contains(parameter.Name)
+				&& TryGetPointerElementType(parameter.ResolvedType) is string element
+				&& (fact.Source.Contains(":address relation", StringComparison.Ordinal)
+					|| !fact.Source.Contains(":member", StringComparison.Ordinal)
+						&& StripLifetimeQualifiers(value?.ResolvedType ?? "") == StripLifetimeQualifiers(parameter.ResolvedType ?? "")
+						&& HasRetainedPointerContent(element, scope)));
+		if (input is not null
 			&& !IsEscapedStorage(input) && (template.Anchors.Count == 0 || template.Anchors.Contains(input.Name)))
 			Report(GetRange(syntax), $"Result points into pointer parameter '{input.Name}', rather than data it retains. Declare the result `scoped({input.Name})`, or return retained data or a copy.");
 	}

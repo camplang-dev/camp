@@ -24,7 +24,7 @@ void getFirstElement(const int[] source, out constof(source) int* result)
 	result = &source[0];
 }
 
-constof(source) int* pairValue(const Pair* source)
+scoped(source) constof(source) int* pairValue(const Pair* source)
 {
 	return &source.value;
 }

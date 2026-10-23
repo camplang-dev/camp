@@ -253,15 +253,15 @@
               </Value>
             </Expression>
           </ExpressionStatement>
-          <DeclarationStatement ResolvedType="void" SlotLifetimeFact="scoped(same):slot" ValueLifetimeFact="escaped:call">
-            <Target Type="DeclarationTarget" ResolvedType="char*" SlotLifetimeFact="scoped(same):slot" ValueLifetimeFact="escaped:call">
+          <DeclarationStatement ResolvedType="void" SlotLifetimeFact="scoped(same):slot" ValueLifetimeFact="escaped:call:address relation">
+            <Target Type="DeclarationTarget" ResolvedType="char*" SlotLifetimeFact="scoped(same):slot" ValueLifetimeFact="escaped:call:address relation">
               <Names>
                 <Value>same</Value>
               </Names>
             </Target>
           </DeclarationStatement>
-          <DeclarationStatement ResolvedType="void" SlotLifetimeFact="scoped(same):slot" ValueLifetimeFact="escaped:call">
-            <Target Type="DeclarationTarget" ResolvedType="nuint" SlotLifetimeFact="scoped(same):slot" ValueLifetimeFact="escaped:call">
+          <DeclarationStatement ResolvedType="void" SlotLifetimeFact="scoped(same):slot" ValueLifetimeFact="escaped:call:address relation">
+            <Target Type="DeclarationTarget" ResolvedType="nuint" SlotLifetimeFact="scoped(same):slot" ValueLifetimeFact="escaped:call:address relation">
               <Names>
                 <Value>same_length</Value>
               </Names>
@@ -269,8 +269,8 @@
           </DeclarationStatement>
           <ExpressionStatement ResolvedType="void">
             <Expression Type="AssignmentExpression" Operator="Assign" ResolvedType="char*">
-              <Target Type="VariableReferenceExpression" Variable="same" ResolvedType="char*" SlotLifetimeFact="scoped(same):slot" ValueLifetimeFact="escaped:call" />
-              <Value Type="CallExpression" ResolvedType="scoped char[]" ValueLifetimeFact="escaped:call">
+              <Target Type="VariableReferenceExpression" Variable="same" ResolvedType="char*" SlotLifetimeFact="scoped(same):slot" ValueLifetimeFact="escaped:call:address relation" />
+              <Value Type="CallExpression" ResolvedType="scoped char[]" ValueLifetimeFact="escaped:call:address relation">
                 <Target Type="MethodReferenceExpression" ResolvedType="fn scoped char[](char[])">
                   <Candidates>
                     <Function Name="identity" ResolvedType="scoped char*" />
@@ -284,21 +284,21 @@
                     <Value Type="VariableReferenceExpression" Variable="heap_length" ResolvedType="nuint" SlotLifetimeFact="scoped(heap):slot" ValueLifetimeFact="escaped:call" />
                   </ArgumentExpression>
                   <ArgumentExpression Modifier="Out" ResolvedType="nuint">
-                    <Value Type="VariableReferenceExpression" Variable="same_length" ResolvedType="nuint" SlotLifetimeFact="scoped(same):slot" ValueLifetimeFact="escaped:call" />
+                    <Value Type="VariableReferenceExpression" Variable="same_length" ResolvedType="nuint" SlotLifetimeFact="scoped(same):slot" ValueLifetimeFact="escaped:call:address relation" />
                   </ArgumentExpression>
                 </Arguments>
               </Value>
             </Expression>
           </ExpressionStatement>
-          <DeclarationStatement ResolvedType="void" SlotLifetimeFact="scoped(scopedAnchored):slot" ValueLifetimeFact="escaped:call">
-            <Target Type="DeclarationTarget" ResolvedType="char*" SlotLifetimeFact="scoped(scopedAnchored):slot" ValueLifetimeFact="escaped:call">
+          <DeclarationStatement ResolvedType="void" SlotLifetimeFact="scoped(scopedAnchored):slot" ValueLifetimeFact="escaped:call:address relation">
+            <Target Type="DeclarationTarget" ResolvedType="char*" SlotLifetimeFact="scoped(scopedAnchored):slot" ValueLifetimeFact="escaped:call:address relation">
               <Names>
                 <Value>scopedAnchored</Value>
               </Names>
             </Target>
           </DeclarationStatement>
-          <DeclarationStatement ResolvedType="void" SlotLifetimeFact="scoped(scopedAnchored):slot" ValueLifetimeFact="escaped:call">
-            <Target Type="DeclarationTarget" ResolvedType="nuint" SlotLifetimeFact="scoped(scopedAnchored):slot" ValueLifetimeFact="escaped:call">
+          <DeclarationStatement ResolvedType="void" SlotLifetimeFact="scoped(scopedAnchored):slot" ValueLifetimeFact="escaped:call:address relation">
+            <Target Type="DeclarationTarget" ResolvedType="nuint" SlotLifetimeFact="scoped(scopedAnchored):slot" ValueLifetimeFact="escaped:call:address relation">
               <Names>
                 <Value>scopedAnchored_length</Value>
               </Names>
@@ -306,8 +306,8 @@
           </DeclarationStatement>
           <ExpressionStatement ResolvedType="void">
             <Expression Type="AssignmentExpression" Operator="Assign" ResolvedType="char*">
-              <Target Type="VariableReferenceExpression" Variable="scopedAnchored" ResolvedType="char*" SlotLifetimeFact="scoped(scopedAnchored):slot" ValueLifetimeFact="escaped:call" />
-              <Value Type="CallExpression" ResolvedType="scoped(owner) char[]" ValueLifetimeFact="escaped:call">
+              <Target Type="VariableReferenceExpression" Variable="scopedAnchored" ResolvedType="char*" SlotLifetimeFact="scoped(scopedAnchored):slot" ValueLifetimeFact="escaped:call:address relation" />
+              <Value Type="CallExpression" ResolvedType="scoped(owner) char[]" ValueLifetimeFact="escaped:call:address relation">
                 <Target Type="MethodReferenceExpression" ResolvedType="fn scoped(owner) char[](char[], char[])">
                   <Candidates>
                     <Function Name="scopedTo" ResolvedType="scoped(owner) char*" />
@@ -327,7 +327,7 @@
                     <Value Type="VariableReferenceExpression" Variable="heap_length" ResolvedType="nuint" SlotLifetimeFact="scoped(heap):slot" ValueLifetimeFact="escaped:call" />
                   </ArgumentExpression>
                   <ArgumentExpression Modifier="Out" ResolvedType="nuint">
-                    <Value Type="VariableReferenceExpression" Variable="scopedAnchored_length" ResolvedType="nuint" SlotLifetimeFact="scoped(scopedAnchored):slot" ValueLifetimeFact="escaped:call" />
+                    <Value Type="VariableReferenceExpression" Variable="scopedAnchored_length" ResolvedType="nuint" SlotLifetimeFact="scoped(scopedAnchored):slot" ValueLifetimeFact="escaped:call:address relation" />
                   </ArgumentExpression>
                 </Arguments>
               </Value>

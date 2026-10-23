@@ -212,3 +212,8 @@ struct AliasOutputReader
 		return true;
 	}
 }
+
+PointerInput* missingIdentityRelation(PointerInput* input) => input;
+PointerInput* missingAliasRelation(PointerInput* input) { auto borrowed = input; return borrowed; }
+int* missingCallRelation(PointerInput* input) => pointerField(input);
+scoped(input) PointerInput* scopedIdentity(PointerInput* input) => input;
