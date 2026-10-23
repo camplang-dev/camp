@@ -69,31 +69,6 @@ Signatures with meaningless lifetime relations are accepted, and later call chec
 Documentation:
 `semantics/05-lifetime-analysis-and-flow-facts.md` (Invalid anchor uses) says anchors on `within` parameters are rejected "when they are not valid lifetime sources" without saying which are valid. Define it there: list which anchors a `within`, `thrown` and `out` slot may name, and which anchor combinations count as circular.
 
-## BUG-341: Lifetime checks are skipped for members of generic classes
-
-Date/Time: 2026-10-22 21:46 EDT
-
-Summary:
-A method or constructor of a generic class is not lifetime-checked, so a scoped parameter can be stored in a field tied to the receiver. The identical body in a non-generic class is rejected.
-
-Steps to Reproduce:
-
-1. Declare `interface Source { int read(); }`.
-2. Declare `class Generic<T> { Source* source; void set(Source* other) { this.source = other; } }`.
-3. Declare the same class without the type parameter.
-
-Expected:
-Both stores are rejected: a scoped parameter cannot be stored in a field tied to `this`.
-
-Actual:
-The non-generic class reports "Assignment cannot store a scoped pointer-bearing value in storage tied to 'this'.". The generic class reports nothing.
-
-Known Impact:
-Generic containers can retain dangling pointers without a diagnostic. Checking should still treat values of the type parameter conservatively as `semantics/05` (Generic Boundaries) describes, but pointer-bearing fields and parameters of known type should be checked.
-
-Documentation:
-Update `semantics/05-lifetime-analysis-and-flow-facts.md` (Generic Boundaries) to say that members of a generic type are lifetime-checked like members of any other type, and that only values whose type is a type parameter are treated conservatively.
-
 ## BUG-342: A retained allocator is not required to outlive the object that keeps it
 
 Date/Time: 2026-10-22 21:46 EDT

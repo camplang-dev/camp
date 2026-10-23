@@ -1198,7 +1198,9 @@ public sealed partial class BindableNodeAnalyzer
 		string? valueFactText = GetExpressionLifetimeFact(value);
 		if (!TryParseLifetimeFact(valueFactText, out LifetimeFact valueFact))
 			return;
-		if (IsInsideGenericBody(scope) && !IsInParameterTransportFact(valueFact, scope))
+		if (IsInsideGenericBody(scope)
+			&& FindBodyGenericParameter(scope, StripTopLevelValueQualifiers(value.ResolvedType ?? "")) is not null
+			&& !IsInParameterTransportFact(valueFact, scope))
 			return;
 
 		if (valueFact.Kind == "escaped")

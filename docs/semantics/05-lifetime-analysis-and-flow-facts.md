@@ -407,6 +407,11 @@ Important restrictions include:
 
 ## Generic Boundaries
 
+Members of generic types are lifetime-checked like other members. Conservative
+treatment applies to values whose type is a type parameter, not to every value
+in a generic body. Known pointer-bearing fields, parameters, and local values
+must satisfy the usual storage and receiver lifetime checks.
+
 Named `stackalloc` storage, including `stackalloc void<V>`, is unassigned after
 each `yield` or `await`. Assigning it again permits subsequent reads. Its storage
 is allocated once on entry to each resume activation and must not become a
