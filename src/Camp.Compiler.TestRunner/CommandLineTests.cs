@@ -7684,7 +7684,7 @@ public sealed class CommandLineTests
 			export class Retained<T>
 			{
 				T* item;
-				export Retained(T* item, sizeof(T), typenameof(T)) { this.item = item; }
+				export Retained(unscoped T* item, sizeof(T), typenameof(T)) { this.item = item; }
 				export T get() => *this.item;
 			}
 
