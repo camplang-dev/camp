@@ -359,6 +359,14 @@ current allocation policy. `within` is not a call-argument modifier; write
 allocation, calls that need a within argument must diagnose instead of silently
 inserting fallback.
 
+A bare `within` parameter (`within allocator`) has the type `Allocator*`, where
+`Allocator` is the type of that name visible at the declaration. Name lookup
+decides which type that is: it is usually the standard library's `Allocator`
+interface, but a program or test that declares its own `Allocator` type binds
+to that one instead. Compiler passes that need the allocator type for an
+implicit `within` slot or a `within` carrier must resolve `Allocator` by name in
+the same way and must not assume the standard library's declaration.
+
 In `within (context) expression`, analyze the allocator context independently
 of the destination type of `expression`. The destination type applies only to
 the wrapped expression, so an allocator selector call is not required to return
