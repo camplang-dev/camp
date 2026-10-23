@@ -88,7 +88,10 @@ Actual:
 No diagnostic is reported for the `new` expression or the return.
 
 Known Impact:
-Heap objects can retain pointers to local or parameter storage that ends before the object does. The documentation does not currently state the `new` form of the rule; it should be added alongside the fix.
+Heap objects can retain pointers to local or parameter storage that ends before the object does. 
+
+Documentation:
+Update `semantics/05-lifetime-analysis-and-flow-facts.md` (Construction And Retention) to state the `new` form explicitly: the arguments a constructor retains must be escaped when the object is created with `new`, because the result is escaped. Mention that retained facts are combined the same way for value construction and heap construction.
 
 ## BUG-339: Bound method references are not checked for the lifetime of their receiver
 
