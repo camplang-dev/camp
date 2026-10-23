@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-341.
+Next bug number: BUG-342.
 
 ## Bug Template
 
@@ -130,3 +130,25 @@ No diagnostic is reported for any of them.
 
 Known Impact:
 Signatures with meaningless lifetime relations are accepted, and later call checks may behave unpredictably.
+
+## BUG-341: Lifetime checks are skipped for members of generic classes
+
+Date/Time: 2026-10-22 21:46 EDT
+
+Summary:
+A method or constructor of a generic class is not lifetime-checked, so a scoped parameter can be stored in a field tied to the receiver. The identical body in a non-generic class is rejected.
+
+Steps to Reproduce:
+
+1. Declare `interface Source { int read(); }`.
+2. Declare `class Generic<T> { Source* source; void set(Source* other) { this.source = other; } }`.
+3. Declare the same class without the type parameter.
+
+Expected:
+Both stores are rejected: a scoped parameter cannot be stored in a field tied to `this`.
+
+Actual:
+The non-generic class reports "Assignment cannot store a scoped pointer-bearing value in storage tied to 'this'.". The generic class reports nothing.
+
+Known Impact:
+Generic containers can retain dangling pointers without a diagnostic. Checking should still treat values of the type parameter conservatively as `semantics/05` (Generic Boundaries) describes, but pointer-bearing fields and parameters of known type should be checked.
