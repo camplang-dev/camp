@@ -17,9 +17,10 @@ escaped class App
 	}
 }
 
+App app = {};
+
 export int main()
 {
-	App app = {};
 	Button* button = default;
 	app.wire(button);
 	return 0;

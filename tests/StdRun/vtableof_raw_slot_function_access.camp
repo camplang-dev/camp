@@ -37,10 +37,11 @@ class RefThing: IRefCount
 	}
 }
 
+int retains;
+int releases;
+
 export int main()
 {
-	int retains = 0;
-	int releases = 0;
 	auto thing = new RefThing(&retains, &releases) finally delete;
 	captureRelease<RefThing>(thing);
 	Console.writeLine(retains);

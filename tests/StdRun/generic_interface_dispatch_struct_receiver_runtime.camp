@@ -27,7 +27,7 @@ class Holder<T>
 {
 	T* target;
 
-	Holder(T* target, vtableof(T: Reader))
+	Holder(unscoped T* target, vtableof(T: Reader))
 	{
 		this.target = target;
 	}
@@ -60,9 +60,8 @@ export int main()
 	if (viaInterface.read() != 27)
 		return 4;
 
-	Holder<Value>* holder = within (default) new Holder<Value>(stacked);
+	Holder<Value> holder = within (default) Holder<Value>(stacked);
 	int held = holder.read();
-	within (default) delete holder;
 	if (held != 28)
 		return 5;
 	return 0;

@@ -65,6 +65,9 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (IsEscapedValueType(resolvedType))
 			return MakeLifetimeFact("escaped", null, "escaped type");
+		if (IsEscapedCallableTarget(resolvedType)
+			|| TryGetCallableShape(resolvedType, out CallableShape callable) && callable.This.IsEscaped && callable.Kind is "delegate" or "once" or "async")
+			return MakeLifetimeFact("escaped", null, "callable context contract");
 		if (IsEscapedFunctionPointerType(type, resolvedType, isFixedStorage, typeScope))
 			return MakeLifetimeFact("escaped", null, "function pointer");
 
@@ -342,10 +345,20 @@ public sealed partial class BindableNodeAnalyzer
 
 	string GetBoundMethodLifetimeFact(Expression receiver, BodyScope scope)
 	{
+		if (receiver is ThisExpression)
+		{
+			if (TryParseLifetimeFact(GetExpressionLifetimeFact(receiver), out LifetimeFact thisFact))
+				return FormatLifetimeFact(thisFact.Kind == "scoped" && thisFact.Anchors.Count == 0 ? thisFact with { Anchors = ["this"] } : thisFact);
+			return MakeLifetimeFact("scoped", "this", "receiver");
+		}
 		if ((TryGetPointerElementType(receiver.ResolvedType) is not null || IsPrimitiveStringType(receiver.ResolvedType ?? "")
 			|| TryGetArrayElementType(receiver.ResolvedType) is not null)
 			&& GetExpressionLifetimeFact(receiver) is string fact)
 			return fact;
+		if (expressionRewrites.TryGetValue(receiver, out Expression? rewrittenReceiver) && !ReferenceEquals(receiver, rewrittenReceiver))
+			return GetBoundMethodLifetimeFact(rewrittenReceiver, scope);
+		if (receiver is MemberReferenceExpression { Member: FieldDefinition { Modifier: not FieldModifier.Static }, Target: not null } fieldReceiver)
+			return GetBoundMethodLifetimeFact(fieldReceiver.Target, scope);
 		if (TryGetStorageNode(receiver, out BindableNode? storage))
 		{
 			if (storage is ParameterDefinition parameter)
@@ -357,7 +370,10 @@ public sealed partial class BindableNodeAnalyzer
 
 	void CheckCallableContextLifetime(Expression expression, string? targetType)
 	{
-		if (expression is LambdaExpression || expression.ResolvedType == ErrorType || !IsEscapedCallableTarget(targetType))
+		bool escapedReceiver = TryGetCallableShape(targetType, out CallableShape callable) && callable.This.IsEscaped
+			&& callable.Kind is "delegate" or "once" or "async";
+		if (expression.ResolvedType == ErrorType || (!IsEscapedCallableTarget(targetType) && !escapedReceiver)
+			|| expression is LambdaExpression && !escapedReceiver)
 			return;
 		if (TryParseLifetimeFact(GetExpressionLifetimeFact(expression), out LifetimeFact fact)
 			&& fact.Kind is not ("escaped" or "null" or "default"))

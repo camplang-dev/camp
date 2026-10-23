@@ -5,7 +5,9 @@
 void Button_setClick(Button *this, ClickHandler click, void *click_context);
 static void App_wire(App *this, Button *button);
 static void App_handle(App *this, Button *sender);
+static App app;
 
+static App app = { 0 };
 static void App_wire(App *this, Button *button)
 {
 	Button_setClick(button, (void (*)(void *arg0, Button *arg1))App_handle, this);
@@ -17,7 +19,6 @@ static void App_handle(App *this, Button *sender)
 
 int main(void)
 {
-	App app = (App){ 0 };
 	Button *button = 0;
 	App_wire(&app, button);
 	return 0;

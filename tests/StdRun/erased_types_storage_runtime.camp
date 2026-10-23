@@ -88,13 +88,13 @@ void fillArray(int[]?* target, int[] data) { *target = data; }
 void<int?>* countedPointer(void<int?>* slot) { pointerCalls++; return slot; }
 int sameStorageAcrossLoop<T>(T[] values, sizeof(T))
 {
-	T* previous = null;
+	nuint previous = 0;
 	for (nuint i = 0; i < values.length; i++)
 	{
 		stackalloc T scratch = values[i];
 		T* address = &scratch;
-		if (i > 0 && address != previous) return 0;
-		previous = address;
+		if (i > 0 && (nuint)address != previous) return 0;
+		previous = (nuint)address;
 	}
 	return 1;
 }

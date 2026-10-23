@@ -3447,7 +3447,9 @@ public sealed partial class BindableNodeAnalyzer
 			return argument.ResolvedType;
 		}
 
-		string valueType = BodyAnalyzeExpression(argument.Value, scope, typeScope, argument.Type?.ResolvedType ?? targetType);
+		// Write arguments name storage; their previous value need not satisfy the output contract.
+		string valueType = BodyAnalyzeExpression(argument.Value, scope, typeScope,
+			argument.Modifier is ArgumentModifier.Out or ArgumentModifier.Catch ? null : argument.Type?.ResolvedType ?? targetType);
 		if (ReportEscapedExpandedReceiverArgument(argument.Value, targetType))
 			valueType = ErrorType;
 		else if (ReportInvalidScalarDelegateReceiverArgument(argument.Value, targetType))

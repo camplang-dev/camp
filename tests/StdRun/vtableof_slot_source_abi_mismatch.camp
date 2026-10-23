@@ -39,9 +39,10 @@ class RefThing: IRefCount
 	}
 }
 
+int releases;
+
 export int main()
 {
-	int releases = 0;
 	releaseFunctions = new fn void(RefThing*)[1];
 	auto thing = new RefThing(&releases) finally delete;
 	fn void(RefThing*) release = null;

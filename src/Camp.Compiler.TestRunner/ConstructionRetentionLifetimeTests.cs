@@ -32,4 +32,27 @@ public sealed class ConstructionRetentionLifetimeTests
 	{
 		SemanticCompiler.AssertNoDiagnostics(SemanticCompiler.CompileLowered(Keeper + source));
 	}
+
+	[Fact]
+	public void Escaped_callable_context_contract_is_preserved_when_read_from_a_field()
+	{
+		SemanticCompiler.AssertNoDiagnostics(SemanticCompiler.CompileLowered("""
+			extern escaped void* malloc(nuint size);
+			newtype delegate bool Callback(escaped this, int value);
+			struct Options { Callback callback; }
+			class Target { Target(unscoped Callback callback) { } }
+			Target* make(Options options) { return new Target(options.callback); }
+			"""));
+	}
+
+	[Fact]
+	public void Escaped_callable_context_field_cannot_receive_a_frame_closure()
+	{
+		var compilation = SemanticCompiler.CompileLowered("""
+			newtype delegate int Callback(escaped this);
+			struct Options { Callback callback; }
+			void use() { int value = 3; Options options = default; options.callback = () => value; }
+			""");
+		Assert.Contains(compilation.AnalysisDiagnostics, diagnostic => diagnostic.Message.Contains("escaped callable context lifetime"));
+	}
 }

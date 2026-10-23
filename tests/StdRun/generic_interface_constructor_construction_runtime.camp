@@ -159,7 +159,7 @@ int roundTrip<T>(Allocator* allocator, int start, vtableof(T: CountedChild))
 
 export int main()
 {
-	CountingAllocator* counting = stackalloc CountingAllocator();
+	CountingAllocator* counting = within (default) new CountingAllocator() finally delete;
 	Allocator* allocator = counting;
 	CountedBox* box = createCounted<CountedBox>(allocator, 41);
 	if (box == null)
