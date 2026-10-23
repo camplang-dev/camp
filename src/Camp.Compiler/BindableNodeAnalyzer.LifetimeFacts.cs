@@ -1363,6 +1363,7 @@ public sealed partial class BindableNodeAnalyzer
 		return target switch
 		{
 			VariableReferenceExpression { Variable: VariableDefinition } => true,
+			VariableReferenceExpression { Variable: FieldDefinition { Modifier: FieldModifier.Static } } => true,
 			MemberReferenceExpression { Member: FieldDefinition { Modifier: FieldModifier.Static } } => true,
 			MemberReferenceExpression { Member: FieldDefinition field } when IsEscapedStorage(field) => true,
 			_ => false
