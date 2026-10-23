@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-342.
+Next bug number: BUG-343.
 
 ## Bug Template
 
@@ -152,3 +152,24 @@ The non-generic class reports "Assignment cannot store a scoped pointer-bearing 
 
 Known Impact:
 Generic containers can retain dangling pointers without a diagnostic. Checking should still treat values of the type parameter conservatively as `semantics/05` (Generic Boundaries) describes, but pointer-bearing fields and parameters of known type should be checked.
+
+## BUG-342: A retained allocator is not checked against the lifetime of the object that keeps it
+
+Date/Time: 2026-10-22 21:46 EDT
+
+Summary:
+A class constructor written `within this.allocator` keeps the allocator it is given so the object can free itself. When the object is created with `new` inside a scoped allocator context, the object is escaped but the allocator it keeps may end sooner.
+
+Steps to Reproduce:
+
+1. Declare an `Allocator` interface and `class Owner { int value; Owner(within this.allocator) { this.value = 1; } ~Owner() { } }`.
+2. Declare `Owner* make(Allocator* arena) { return within (arena) new Owner(); }`.
+
+Expected:
+The construction is rejected, because the returned object retains `arena`, which is scoped to the call. `semantics/10-construction-destruction-and-allocation.md` (Allocator Lifetime) says analysis must reject allocator values that cannot outlive the generated storage that needs them.
+
+Actual:
+No diagnostic is reported. Only async functions with an unscoped `within` parameter and `new delegate` lambdas that capture a non-escaped allocator are rejected.
+
+Known Impact:
+An object can outlive the allocator it needs for cleanup.
