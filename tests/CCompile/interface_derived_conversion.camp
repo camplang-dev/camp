@@ -23,7 +23,7 @@ int readValue(IValue* value)
 	return value.value();
 }
 
-IValue* asValue(DerivedCounter* value)
+scoped(value) IValue* asValue(DerivedCounter* value)
 {
 	return value;
 }

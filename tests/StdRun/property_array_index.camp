@@ -8,7 +8,7 @@ class Holder
 	int[] getItems() { getterCalls++; return this.items; }
 }
 
-Holder* pick(Holder* holder) { receiverCalls++; return holder; }
+scoped(holder) Holder* pick(Holder* holder) { receiverCalls++; return holder; }
 nuint index() { indexCalls++; return 0; }
 
 class Indexed

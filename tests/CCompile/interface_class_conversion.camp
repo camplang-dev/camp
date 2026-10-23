@@ -37,7 +37,7 @@ int readTransformed(IValue* counter)
 	return counter.transform(5, value => value + 1);
 }
 
-IValue* asValue(Counter* counter)
+scoped(counter) IValue* asValue(Counter* counter)
 {
 	return counter;
 }

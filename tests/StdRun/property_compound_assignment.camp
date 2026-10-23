@@ -17,7 +17,7 @@ class Holder
 	void setSelection(int[] indices, int value) { this.value = value - indices[0] - (int)indices.length; }
 }
 
-Holder* receiver(Holder* holder) { receiverCalls++; trace = trace * 10 + 1; return holder; }
+scoped(holder) Holder* receiver(Holder* holder) { receiverCalls++; trace = trace * 10 + 1; return holder; }
 int index() { indexCalls++; trace = trace * 10 + 2; return 0; }
 int operand(Holder* holder) { valueCalls++; trace = trace * 10 + 4; holder.value = 100; return 1; }
 int conditional(Holder* holder, bool change) => change ? (holder.Mask ^= 1) : 23;
