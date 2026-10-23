@@ -349,6 +349,12 @@ provenance.
 ## Assignment And Storage
 
 Assignment checks whether a value fact can be stored in the target slot fact.
+An inline field of an `out` struct parameter is checked against the parameter's
+output relation, just like assigning the whole struct. The default method
+output relation and explicit `out unscoped(this)` both allow receiver-retained
+data to be written field by field. Data from an unrelated input needs an
+appropriate output annotation; a view into the receiver's own memory needs
+`out scoped(this)`.
 The common high-risk case is storing a non-escaped value into escaped storage:
 
 ```camp

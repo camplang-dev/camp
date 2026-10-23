@@ -32,6 +32,13 @@ struct ResultReader
 {
 	const byte[] bytes;
 	bool read(out ReadResult part) { part = { this.bytes, 7 }; return true; }
+	bool readFields(out ReadResult part)
+	{
+		part = default;
+		part.payload = this.bytes;
+		part.code = 9;
+		return true;
+	}
 }
 
 ReadResult readOut(const byte[] image)
@@ -48,6 +55,14 @@ ReadResult fromPointer(const byte[] image)
 {
 	ResultReader reader = { image };
 	return readPointer(&reader);
+}
+
+ReadResult fromFields(const byte[] image)
+{
+	ResultReader reader = { image };
+	ReadResult part = default;
+	reader.readFields(out part);
+	return part;
 }
 
 export int main(string[] args)
@@ -76,5 +91,8 @@ export int main(string[] args)
 	ReadResult fromInput = fromPointer(image);
 	if (fromInput.payload.length != 5 || (int)fromInput.payload[0] != 1 || fromInput.code != 8)
 		return 8;
+	ReadResult fromOutputFields = fromFields(image);
+	if (fromOutputFields.payload.length != 5 || (int)fromOutputFields.payload[1] != 2 || fromOutputFields.code != 9)
+		return 9;
 	return 0;
 }

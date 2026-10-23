@@ -141,3 +141,74 @@ int* badPointerAddress(const byte[] image)
 	PointerInput input = { image, 0 };
 	return pointerField(&input);
 }
+
+struct FieldReader
+{
+	const byte[] bytes;
+	fixed byte[8] scratch;
+	bool read(out const byte[] result) { result = this.bytes; return true; }
+	bool whole(out Result dependency) { dependency = { this.bytes, 0 }; return true; }
+	bool fromField(out Result dependency) { dependency = default; dependency.data = this.bytes; return true; }
+	bool viaOut(out Result dependency)
+	{
+		dependency = default;
+		const byte[] identity;
+		if (!this.read(out identity)) return false;
+		dependency.data = identity;
+		return true;
+	}
+	bool viaCast(out Result dependency)
+	{
+		dependency = default;
+		const byte[] identity;
+		if (!this.read(out identity)) return false;
+		dependency.data = (unscoped(this))identity;
+		return true;
+	}
+	bool related(const byte[] source, out unscoped(source) Result dependency)
+	{
+		dependency = default;
+		dependency.data = source;
+		return true;
+	}
+	bool unrelated(const byte[] source, out Result dependency)
+	{
+		dependency = default;
+		dependency.data = source;
+		return true;
+	}
+	bool own(out scoped(this) Result dependency)
+	{
+		dependency = default;
+		dependency.data = this.scratch[..];
+		return true;
+	}
+	bool badOwn(out Result dependency)
+	{
+		dependency = default;
+		dependency.data = this.scratch[..];
+		return true;
+	}
+}
+
+Result returnFields(const byte[] image)
+{
+	FieldReader reader = { image, default };
+	Result dependency = default;
+	reader.fromField(out dependency);
+	return dependency;
+}
+
+struct AliasOutputReader
+{
+	fixed byte[8] scratch;
+	bool own(out scoped(this) Result part) { part = { this.scratch[..], 0 }; return true; }
+	bool badAlias(out Result dependency)
+	{
+		Result part = default;
+		this.own(out part);
+		dependency = default;
+		dependency.data = part.data;
+		return true;
+	}
+}

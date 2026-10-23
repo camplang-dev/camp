@@ -1232,6 +1232,8 @@ public sealed partial class BindableNodeAnalyzer
 		// scoped relations and input retention checks still use storage addresses.
 		if (template.Kind == "unscoped")
 			context = context with { Anchors = context.RetainedAnchors, ScopedInputs = context.RetainedInputs };
+		else if (template.Kind == "scoped")
+			source += ":address relation";
 		return template.Kind switch
 		{
 			"escaped" => new LifetimeFact("escaped", [], source),
@@ -1452,6 +1454,8 @@ public sealed partial class BindableNodeAnalyzer
 			Report(GetRange(syntax), $"{context} cannot store a non-escaped pointer-bearing value in escaped storage.");
 			return;
 		}
+		if (CheckOutParameterFieldLifetime(target, value, valueFact, syntax, scope))
+			return;
 
 		if (TryGetReceiverAnchoredStorageTarget(target, out string? anchor))
 		{
@@ -1474,6 +1478,51 @@ public sealed partial class BindableNodeAnalyzer
 				Report(GetRange(syntax), $"{context} cannot store a scoped pointer-bearing value in storage tied to '{anchor}'.{detail}");
 			}
 		}
+	}
+
+	bool CheckOutParameterFieldLifetime(Expression target, Expression value, LifetimeFact valueFact, SyntaxNode? syntax, BodyScope scope)
+	{
+		ParameterDefinition? FindOutRoot(Expression? expression, bool field = false)
+		{
+			if (expression is null)
+				return null;
+			if (expressionRewrites.TryGetValue(expression, out Expression? rewritten) && !ReferenceEquals(expression, rewritten))
+				return FindOutRoot(rewritten, field);
+			return expression switch
+			{
+				VariableReferenceExpression { Variable: ParameterDefinition { Modifier: ParameterModifier.Out } parameter } when field => parameter,
+				NamedExpression { Qualifiers.Count: 0 } named when field && scope.TryLookup(named.Name, out BodySymbol symbol)
+					&& symbol.Node is ParameterDefinition { Modifier: ParameterModifier.Out } parameter => parameter,
+				MemberReferenceExpression { Member: FieldDefinition { Modifier: not FieldModifier.Static }, Target: Expression owner }
+					when TryGetPointerElementType(owner.ResolvedType) is null => FindOutRoot(owner, true),
+				ParenthesizedExpression parenthesized => FindOutRoot(parenthesized.Expression, field),
+				IndexExpression index when TryGetFixedArrayShape(index.Target?.ResolvedType, out _, out _) => FindOutRoot(index.Target, true),
+				_ => null
+			};
+		}
+		if (FindOutRoot(target) is not ParameterDefinition parameter)
+			return false;
+		LifetimeFact required = GetOutParameterLifetimeTemplate(scope.CurrentFunction, parameter, parameter.ResolvedType ?? ErrorType);
+		LifetimeFact actual = valueFact;
+		bool receiverStorage = PointsIntoReceiverMemory(value) is not null;
+		if (actual.Kind == "scoped" && actual.Anchors.Count == 0 && (actual.Source.Contains("default receiver", StringComparison.Ordinal) || receiverStorage))
+			actual = actual with { Anchors = ["this"] };
+		bool addressRelation = required.Kind == "unscoped" && actual.Source.Contains(":address relation", StringComparison.Ordinal);
+		bool pointsIntoReceiver = required.Kind == "unscoped" && required.Anchors.Contains("this") && receiverStorage;
+		bool satisfies = ValueOutlivesFact(actual, required);
+		if (required is { Kind: "unscoped", Anchors.Count: 0 } && actual.Kind == "scoped")
+			satisfies = actual.Anchors.Count > 0 && actual.Anchors.All(anchor => IsParameterLifetimeAnchor(anchor, scope));
+		if (!satisfies || pointsIntoReceiver || addressRelation)
+		{
+			string source = actual.Anchors.FirstOrDefault() ?? "the source";
+			string annotation = pointsIntoReceiver || addressRelation ? $"scoped({source})" : $"unscoped({source})";
+			string remedy = source == "this" || IsParameterLifetimeAnchor(source, scope)
+				? $"Declare it `out {annotation} {StripLifetimeQualifiers(parameter.ResolvedType ?? ErrorType)} {parameter.Name}`, or store data that satisfies its declared relation."
+				: "Use storage that outlives the output, or copy the data.";
+			Report(GetRange(syntax), $"Cannot store a value tied to '{source}' in '{SpannedExpressionText(target)}': out parameter '{parameter.Name}' requires '{FormatLifetimeRequirement(required)}'. "
+				+ remedy);
+		}
+		return true;
 	}
 
 	void CheckLocalStorageLifetime(Expression target, LifetimeFact valueFact, SyntaxNode? syntax, BodyScope scope, string context)
@@ -1610,7 +1659,7 @@ public sealed partial class BindableNodeAnalyzer
 				+ $"which retains local storage ('{localAnchor}'). Return a copy, or build '{pointerCall.Local}' from storage that outlives this function.");
 		else if (localAnchor is not null)
 			Report(GetRange(syntax), $"{context} cannot return a pointer-bearing value tied to local storage '{localAnchor}'."
-				+ (valueFact.Source == "out" ? " The value came from an out argument. Return a copy, or fill it from data that outlives this function." : ""));
+				+ (valueFact.Source.StartsWith("out", StringComparison.Ordinal) ? " The value came from an out argument. Return a copy, or fill it from data that outlives this function." : ""));
 		string? inParameterAnchor = IsInParameterTransportFact(valueFact, scope)
 			? valueFact.Anchors.FirstOrDefault(anchor => IsInParameterLifetimeAnchor(anchor, scope)) : null;
 		if (inParameterAnchor is not null)
