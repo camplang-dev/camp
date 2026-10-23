@@ -2603,6 +2603,11 @@ public sealed partial class BindableNodeAnalyzer
 	void CheckInitializerFieldAssignable(string expected, InitializerItem item)
 	{
 		string actual = item.ResolvedType ?? ErrorType;
+		if (TryGetFixedArrayShape(expected, out _, out _) && !IsValidFixedStorageAssignmentValue(expected, item.Expression))
+		{
+			Report(GetRange(item.Expression?.SourceSyntax ?? item.SourceSyntax), "Fixed-size arrays cannot be copied by value; assign from an array literal, string literal, or default.");
+			return;
+		}
 		if (IsExpandedDelegateStorageCompatible(expected, actual))
 			return;
 		CheckAssignable(expected, actual, item.Expression, item.Expression?.SourceSyntax ?? item.SourceSyntax, "Initializer field");

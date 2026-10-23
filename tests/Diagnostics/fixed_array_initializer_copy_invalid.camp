@@ -1,0 +1,43 @@
+struct Source
+{
+	fixed char[16] characters;
+	uint length;
+}
+
+struct Copy
+{
+	fixed char[16] characters;
+	uint length;
+}
+
+void literal(Copy* destination, Source* source)
+{
+	*destination = { source.characters, source.length };
+}
+
+Copy declared(Source* source)
+{
+	Copy copy = { source.characters, source.length };
+	return copy;
+}
+
+Copy named(Source* source)
+{
+	Copy copy = { .characters = source.characters, .length = 1 };
+	return copy;
+}
+
+void assign(Copy* destination, Source* source)
+{
+	destination.characters = source.characters;
+}
+
+Copy valid()
+{
+	Copy text = { "hello", 5 };
+	Copy cleared = { .characters = default, .length = 0 };
+	Copy bytes = { ['a', 'b'], 2 };
+	return text;
+}
+
+export int main() { return 0; }

@@ -1,0 +1,4 @@
+tests/Diagnostics/fixed_array_initializer_copy_invalid.camp(15,26): error: Fixed-size arrays cannot be copied by value; assign from an array literal, string literal, or default.
+tests/Diagnostics/fixed_array_initializer_copy_invalid.camp(20,23): error: Fixed-size arrays cannot be copied by value; assign from an array literal, string literal, or default.
+tests/Diagnostics/fixed_array_initializer_copy_invalid.camp(26,37): error: Fixed-size arrays cannot be copied by value; assign from an array literal, string literal, or default.
+tests/Diagnostics/fixed_array_initializer_copy_invalid.camp(32,34): error: Fixed-size arrays cannot be copied by value; assign from an array literal, string literal, or default.
