@@ -215,6 +215,9 @@ Actual:
 Known Impact:
 Whether a lifetime error is reported depends on the spelling of variable names.
 
+Documentation:
+No update needed; the `unscoped(anchor)` argument rule is already defined in `semantics/05-lifetime-analysis-and-flow-facts.md`.
+
 ## BUG-344: `within scoped allocator` can be stored in a field of the receiver
 
 Date/Time: 2026-10-22 22:20 EDT
