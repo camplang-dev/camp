@@ -65,6 +65,18 @@ ReadResult fromFields(const byte[] image)
 	return part;
 }
 
+void collectResults(unscoped(destination) ReadResult[] source, ReadResult[] destination)
+{
+	destination[0] = source[0];
+}
+
+bool collectParameterResults(ReadResult[] source)
+{
+	fixed ReadResult[2] destination = default;
+	collectResults(source, destination[..]);
+	return destination[0].payload.length == 3 && destination[0].code == 1;
+}
+
 export int main(string[] args)
 {
 	const byte[] image = [1, 2, 3, 4, 5];
@@ -94,5 +106,7 @@ export int main(string[] args)
 	ReadResult fromOutputFields = fromFields(image);
 	if (fromOutputFields.payload.length != 5 || (int)fromOutputFields.payload[1] != 2 || fromOutputFields.code != 9)
 		return 9;
+	if (!collectParameterResults(entries[..]))
+		return 10;
 	return 0;
 }

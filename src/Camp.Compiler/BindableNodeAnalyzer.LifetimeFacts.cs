@@ -908,9 +908,7 @@ public sealed partial class BindableNodeAnalyzer
 				continue;
 			if (ValueOutlivesFact(actual, required) || LocalLifetimeOutlives(actual, required, scope))
 				continue;
-			// Anything that is not a local of this function outlives the function's locals.
-			if (required.Anchors.Count > 0 && required.Anchors.All(name => IsLocalLifetimeAnchor(name, scope))
-				&& !actual.Anchors.Any(name => IsLocalLifetimeAnchor(name, scope)))
+			if (NonLocalLifetimeOutlivesLocal(actual, required, scope))
 				continue;
 
 			string name = function.Name;
@@ -952,8 +950,21 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			if (required.Kind == "unknown")
 				continue;
-			if (!ValueOutlivesFact(actualFact, required) && !LocalLifetimeOutlives(actualFact, required, scope))
-				Report(GetRange(GetArgumentDiagnosticSyntax(argument, fallbackSyntax)), $"Argument cannot satisfy parameter lifetime '{FormatLifetimeRequirement(template)}'.");
+			if (ValueOutlivesFact(actualFact, required) || LocalLifetimeOutlives(actualFact, required, scope)
+				|| NonLocalLifetimeOutlivesLocal(actualFact, required, scope))
+				continue;
+			string detail = "";
+			if (template is { Kind: "unscoped", Anchors.Count: > 0 })
+			{
+				string source = SpannedExpressionText(argument.Value!) ?? parameter.Name;
+				string destination = required.Anchors.FirstOrDefault() ?? template.Anchors[0];
+				string? local = actualFact.Anchors.FirstOrDefault(anchor => IsLocalLifetimeAnchor(anchor, scope));
+				detail = $" Argument '{source}' for '{parameter.Name}' does not outlive destination '{destination}'. "
+					+ (local is not null
+						? $"Declare local '{local}' where it outlives the destination, use a shorter-lived destination, or copy the data."
+						: $"Relate the source to the destination with `unscoped({destination})`, use a shorter-lived destination, or copy the data.");
+			}
+			Report(GetRange(GetArgumentDiagnosticSyntax(argument, fallbackSyntax)), $"Argument cannot satisfy parameter lifetime '{FormatLifetimeRequirement(template)}'.{detail}");
 		}
 	}
 
@@ -1205,6 +1216,14 @@ public sealed partial class BindableNodeAnalyzer
 			}
 		}
 		return true;
+	}
+
+	bool NonLocalLifetimeOutlivesLocal(LifetimeFact actual, LifetimeFact required, BodyScope scope)
+	{
+		// Parameters and other non-local inputs survive every local of this activation.
+		return required.Kind == "scoped" && required.Anchors.Count > 0
+			&& required.Anchors.All(anchor => IsLocalLifetimeAnchor(anchor, scope))
+			&& !actual.Anchors.Any(anchor => IsLocalLifetimeAnchor(anchor, scope));
 	}
 
 	static BodyScope? FindLocalAnchorScope(string anchor, BodyScope scope)

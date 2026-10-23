@@ -259,6 +259,13 @@ inputs can satisfy a receiver's retention requirement when their lexical scope
 contains the receiver's scope. An inner local cannot satisfy the requirement of
 an outer receiver.
 
+The same retention rule applies to ordinary arguments declared
+`unscoped(anchor)`. An input that is not a local of the calling function
+outlives that function's local destinations. This includes parameter values,
+fields of by-value or pointer parameters, and copies that preserve their
+provenance. Two unrelated parameter values still need an explicit relation;
+an inner local still cannot be retained by an outer local destination.
+
 A result substitutes the receiver according to what the result declares. A
 `scoped(this)` result takes the receiver's address, so a result that points into
 a local receiver cannot outlive that local. A default or `unscoped(this)` result

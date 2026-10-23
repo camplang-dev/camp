@@ -44,57 +44,6 @@ Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
 
-## BUG-358: A parameter argument for unscoped(destination) is rejected when the destination is a local
-
-Date/Time: 2026-10-23 17:52 EDT
-
-Summary:
-A parameter (or a field of a by-value or pointer parameter) passed as an argument
-for a parameter declared `unscoped(destination)` is rejected when the destination
-argument is a local of the calling function. The same call is accepted when the
-value is a local, and the equivalent receiver form (`unscoped(destination) this`
-with a parameter receiver) is also accepted. A parameter's content outlives every
-local of the calling function, so the argument form should accept it, as the
-receiver form does. Related: BUG-351 (receiver lifetime enforcement).
-
-Steps to Reproduce:
-
-1. Declare `struct Atom { const char[] name; }` and `struct Opts { Atom[] items; uint n; }`.
-2. Declare `bool collectDirect(unscoped(destination) Atom[] source, Atom[] destination) { destination[0] = source[0]; return true; }`.
-3. Declare callers, each with a local `fixed Atom[4] d = default;` passed as `d[..]`:
-   - `void callerSlice(Atom[] items) { ...; collectDirect(items, d[..]); }`
-   - `void callerField(Opts options) { ...; collectDirect(options.items, d[..]); }`
-   - `void callerPtr(Opts* options) { ...; collectDirect(options.items, d[..]); }`
-4. For comparison declare `struct Box { fixed Atom[4] atoms; uint n; uint copyViews(unscoped(destination) this, Atom[] destination) { destination[0] = this.atoms[0]; return this.n; } }` and
-   `void callerReceiverParam(Box* box) { fixed Atom[4] d = default; box.copyViews(d[..]); }`,
-   plus a caller whose source is a local `fixed Atom[4] s` passed to `collectDirect`.
-5. Compile.
-
-Expected:
-All callers compile. The local destination is retained only for the calling
-function's activation, and the parameter content outlives that activation.
-Two unrelated parameters (`collectDirect(items, dest)` with both parameters)
-remain rejected, because no relation is known.
-
-Actual:
-The three parameter-argument callers are rejected with "Argument cannot satisfy
-parameter lifetime 'unscoped(destination)'". The receiver form and the
-local-source form compile. `CheckLifetimeReceiverRetention` has the rule
-"anything that is not a local of this function outlives the function's locals";
-`CheckLifetimeParameterArgument` has no equivalent. The message names neither the
-argument nor the destination and gives no suggestion.
-
-Known Impact:
-Beta `compileProject` passes `options.definitions` (a field of a by-value
-parameter) to a helper that copies elements into a local `fixed` array, and cannot
-compile. There is no annotation that fixes the caller.
-
-Documentation:
-`docs/semantics/05-lifetime-analysis-and-flow-facts.md`: state that arguments
-that are not locals of the calling function satisfy `unscoped(anchor)` with a
-local anchor argument. The diagnostic should read like the receiver one: name the
-argument and the destination and say what to change.
-
 ## BUG-359: unscoped(destination) does not permit interior views of the retained input
 
 Date/Time: 2026-10-23 17:52 EDT

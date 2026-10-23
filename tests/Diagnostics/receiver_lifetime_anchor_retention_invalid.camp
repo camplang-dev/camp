@@ -60,3 +60,62 @@ uint outerReceiver()
 }
 
 export int main() { return 0; }
+
+struct ViewOptions { NameView[] entries; }
+
+bool collectViews(unscoped(destination) NameView[] source, NameView[] destination)
+{
+	destination[0] = source[0];
+	return true;
+}
+
+void fromSliceParameter(NameView[] input)
+{
+	fixed NameView[4] views = default;
+	collectViews(input, views[..]);
+}
+
+void fromValueParameter(ViewOptions options)
+{
+	fixed NameView[4] views = default;
+	collectViews(options.entries, views[..]);
+}
+
+void fromPointerParameter(ViewOptions* options)
+{
+	fixed NameView[4] views = default;
+	collectViews(options.entries, views[..]);
+}
+
+void fromCopiedParameter(ViewOptions options)
+{
+	fixed NameView[4] views = default;
+	auto input = options.entries;
+	collectViews(input, views[..]);
+}
+
+void fromLocalSource()
+{
+	fixed NameView[4] source = default;
+	fixed NameView[4] views = default;
+	collectViews(source[..], views[..]);
+}
+
+void fromRelatedParameters(unscoped(output) NameView[] input, NameView[] output)
+{
+	collectViews(input, output);
+}
+
+void fromUnrelatedParameters(NameView[] input, NameView[] output)
+{
+	collectViews(input, output);
+}
+
+void fromInnerSource()
+{
+	fixed NameView[4] views = default;
+	{
+		fixed NameView[4] source = default;
+		collectViews(source[..], views[..]);
+	}
+}
