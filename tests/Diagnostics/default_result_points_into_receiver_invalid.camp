@@ -1,0 +1,25 @@
+struct Holder
+{
+	int value;
+	fixed char[8] chars;
+	const byte[] outside;
+	int* link;
+
+	int* defaultAddress() => &this.value;
+	const char[] defaultChars() => this.chars[..];
+	char* defaultElement() => &this.chars[1];
+	Holder* defaultSelf() => this;
+	scoped(this) int* scopedAddress() => &this.value;
+	scoped(this) const char[] scopedChars() => this.chars[..];
+	const char[] defaultViaCall() => this.scopedChars();
+	const byte[] defaultContent() => this.outside;
+	int* defaultLink() => this.link;
+}
+
+class Fluent
+{
+	this chain() => this;
+	classtype* self() => this;
+}
+
+export int main() { return 0; }

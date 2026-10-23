@@ -84,14 +84,17 @@ source anchor. A plain local address often becomes a scoped value. A parameter
 defaults to a scoped value anchored to the parameter name unless its type or
 annotation says otherwise.
 
-`scoped(anchor)` means the value may be used as long as `anchor` remains valid.
-For example, a slice derived from `buffer` should stay tied to `buffer`, and a
-method result may be tied to `this`.
+`scoped(anchor)` means the value points into the anchor's own memory: it may be
+used only as long as `anchor` remains valid. For example, a slice derived from
+`buffer` stays tied to `buffer`, and a method result that points into the
+receiver's inline storage is `scoped(this)`.
 
-`unscoped(anchor)` is the signature-level escape valve for values that are not
-restricted to the default scoped relationship. It does not mean "safe forever";
-it means the value is not constrained by the omitted default relation except
-where the anchor list says otherwise.
+`unscoped(anchor)` means the value is something the anchor retains: it was
+stored in the anchor, so it lasts as long as the anchor's content does, not as
+long as the anchor's own memory. A pointer or slice held in a field of the
+receiver is `unscoped(this)`. It does not mean "safe forever"; it means the value
+is not constrained by the default scoped relation except where the anchor list
+says otherwise.
 
 `default` and `null` are benign values for many lifetime checks. They should not
 make a retained aggregate become scoped.
@@ -247,16 +250,31 @@ template. Return checks substitute the return template through the same context.
 `out` arguments are storage writes, so the target slot receives a value fact
 compatible with the callee's `out` parameter relation.
 
-A value receiver borrows its storage for the call; its current value fact does
-not replace that storage lifetime. Scoped local inputs can satisfy a receiver's
-retention requirement when their lexical scope contains the receiver's scope.
-An inner local cannot satisfy the requirement of an outer receiver.
+A value receiver borrows its storage for the call. For input retention checks
+its current value fact does not replace that storage lifetime. Scoped local
+inputs can satisfy a receiver's retention requirement when their lexical scope
+contains the receiver's scope. An inner local cannot satisfy the requirement of
+an outer receiver.
 
-The return default for receiver-bearing declarations is important: an ordinary
-method returning a pointer-bearing value without an explicit lifetime relation
-is treated as tied to `this`, not as escaped. This protects fluent and accessor
-patterns from accidentally returning references to short-lived receiver state
-through a global-looking type.
+A result substitutes the receiver according to what the result declares. A
+`scoped(this)` result takes the receiver's address, so a result that points into
+a local receiver cannot outlive that local. A default or `unscoped(this)` result
+takes the receiver's content fact, which for a local struct is fixed by what it
+was initialized from: a view held in a field that came from a caller-provided
+value keeps that lifetime when read through an accessor, exactly as reading the
+field directly does. Methods that return `this` or `classtype*` name the receiver
+itself and keep the receiver's own lifetime.
+
+The return default for receiver-bearing declarations is `unscoped(this)`: an
+ordinary method returning a pointer-bearing value without an explicit lifetime
+relation is treated as returning something the receiver retains, not as escaped.
+The body is checked against that promise. A result that points into the
+receiver's own memory, such as the address of a field, a slice or element of an
+inline fixed-size field, the receiver's own address, or the `scoped(this)` result
+of a call on the receiver or its inline fields, is rejected unless the method
+declares the result `scoped(this)`. This protects fluent and accessor patterns
+from accidentally returning references to short-lived receiver state through a
+global-looking type.
 
 The same substitution machinery handles interface conversions. A struct-to-
 interface conversion that materializes a scoped temporary carrier cannot produce

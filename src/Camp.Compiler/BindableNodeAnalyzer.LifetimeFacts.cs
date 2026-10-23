@@ -734,10 +734,61 @@ public sealed partial class BindableNodeAnalyzer
 			LifetimeFact template = GetReturnLifetimeTemplate(function, resolvedType);
 			List<ParameterDefinition> callableParameters = GetCallableParameters(function.Parameters, IncludeExplicitThisArgument(call.Target, function));
 			LifetimeCallContext context = BuildLifetimeCallContext(function, call.Target, callableParameters, ZipCallArguments(call.Arguments, callableParameters), substitutions: null, scope);
+			// `unscoped(this)` is what the receiver retains, so a local value receiver contributes its content, not its address.
+			if (template is { Kind: "unscoped", Anchors: ["this"] } && !ReturnsReceiverItself(function) && GetLocalValueReceiverContentFact(call.Target) is LifetimeFact content)
+				context.Anchors["this"] = content;
 			return SubstituteLifetimeTemplate(template, context, "call") is LifetimeFact fact ? FormatLifetimeFact(fact) : null;
 		}
 
 		return MakeLifetimeFact("unknown", null, "call");
+	}
+
+	// The lifetime of the values a local struct holds, fixed by what it was initialized from.
+	LifetimeFact? GetLocalValueReceiverContentFact(Expression? callTarget)
+	{
+		Expression? receiver = callTarget switch
+		{
+			MemberExpression member => member.Target,
+			MemberReferenceExpression member => member.Target,
+			_ => null
+		};
+		while (receiver is not null)
+		{
+			if (expressionRewrites.TryGetValue(receiver, out Expression? rewritten) && !ReferenceEquals(rewritten, receiver))
+				receiver = rewritten;
+			else if (receiver is ParenthesizedExpression parenthesized)
+				receiver = parenthesized.Expression;
+			else
+				break;
+		}
+		if (receiver is null || TryGetPointerElementType(receiver.ResolvedType) is not null || IsEscapedValueType(receiver.ResolvedType))
+			return null;
+		bool localRooted = receiver switch
+		{
+			VariableReferenceExpression { Variable: DeclarationTarget } => true,
+			MemberReferenceExpression { Member: FieldDefinition { Modifier: not FieldModifier.Static } } member => IsLocalValueRoot(member.Target),
+			_ => false
+		};
+		return localRooted && TryParseLifetimeFact(GetExpressionLifetimeFact(receiver), out LifetimeFact fact) ? fact : null;
+	}
+
+	bool IsLocalValueRoot(Expression? expression)
+	{
+		while (expression is not null)
+		{
+			if (expressionRewrites.TryGetValue(expression, out Expression? rewritten) && !ReferenceEquals(rewritten, expression))
+				expression = rewritten;
+			else if (expression is ParenthesizedExpression parenthesized)
+				expression = parenthesized.Expression;
+			else
+				break;
+		}
+		return expression switch
+		{
+			VariableReferenceExpression { Variable: DeclarationTarget } => TryGetPointerElementType(expression.ResolvedType) is null,
+			MemberReferenceExpression { Member: FieldDefinition { Modifier: not FieldModifier.Static }, Target: Expression target } => TryGetPointerElementType(target.ResolvedType) is null && IsLocalValueRoot(target),
+			_ => false
+		};
 	}
 
 	string? GetConstructorCallLifetimeFact(CallExpression call, string resolvedType, BodyScope scope)
@@ -1477,7 +1528,10 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		string? localAnchor = valueFact.Anchors.FirstOrDefault(anchor => IsLocalLifetimeAnchor(anchor, scope));
-		if (localAnchor is not null)
+		if (localAnchor is not null && FindScopedThisCall(value) is CallExpression scopedThisCall && SpannedExpressionText(scopedThisCall) is string callText)
+			Report(GetRange(syntax), $"Cannot return the result of '{callText}'. Its declared lifetime is `scoped(this)`: it points into '{localAnchor}', "
+				+ "a local that ends when this function returns. Return a copy, or take the value from storage that outlives the function.");
+		else if (localAnchor is not null)
 			Report(GetRange(syntax), $"{context} cannot return a pointer-bearing value tied to local storage '{localAnchor}'.");
 		string? inParameterAnchor = IsInParameterTransportFact(valueFact, scope)
 			? valueFact.Anchors.FirstOrDefault(anchor => IsInParameterLifetimeAnchor(anchor, scope)) : null;
@@ -1485,6 +1539,157 @@ public sealed partial class BindableNodeAnalyzer
 			Report(GetRange(syntax), $"{context} cannot return a pointer-bearing value tied to in-parameter transport '{inParameterAnchor}'.");
 		else if (valueFact.Source.Contains("parameter address", StringComparison.Ordinal))
 			Report(GetRange(syntax), $"{context} cannot return a callable tied to parameter storage.");
+	}
+
+	// `this` and `classtype*` results name the receiver itself, so they keep the receiver's own lifetime.
+	static bool ReturnsReceiverItself(FunctionDefinition function)
+	{
+		TypeReference? type = function.ReturnType;
+		while (type is PointerTypeReference pointer)
+			type = pointer.ElementType;
+		return type is ThisTypeReference or ClassTypeReference;
+	}
+
+	// A default method result is `unscoped(this)`: something the receiver retains. A result that points into the
+	// receiver's own memory ends with the receiver, so the signature has to say `scoped(this)`.
+	void CheckDefaultResultPointsIntoReceiver(Expression? value, SyntaxNode? syntax, BodyScope scope)
+	{
+		FunctionDefinition function = scope.CurrentFunction;
+		if (value is null || function.GeneratedInfo is not null || !IsReceiverBearingDeclaration(function) || ReturnsReceiverItself(function)
+			|| GetExplicitThisParameter(function) is not null)
+			return;
+		if (!TryParseLifetimeFact(function.ReceiverLifetimeBinding, out LifetimeFact receiver) || receiver.Kind == "escaped")
+			return;
+		if (!IsLifetimePointerBearingResolvedType(value.ResolvedType, scope))
+			return;
+		LifetimeFact template = GetReturnLifetimeTemplate(function, value.ResolvedType ?? ErrorType);
+		if (template is not { Kind: "unscoped", Source: "return default" } || template.Anchors.Count != 1 || template.Anchors[0] != "this")
+			return;
+		if (PointsIntoReceiverMemory(value) is not Expression offending)
+			return;
+
+		string expressionText = SpannedExpressionText(offending) ?? "the result";
+		string declaration = (function.ReturnType is not null ? FormatTypeReference(function.ReturnType) : "") + " " + function.Name + (GetCallableParameters(function.Parameters).Count == 0 ? "()" : "(...)");
+		Report(GetRange(syntax), $"Method '{function.Name}' returns `{expressionText}`, which points into the receiver's own memory, but its result has the default lifetime `unscoped(this)`. "
+			+ "The default means 'something the receiver retains'. Memory inside the receiver ends when the receiver does. "
+			+ $"Declare the result `scoped(this)`: `scoped(this) {declaration.Trim()}`.");
+	}
+
+	// A unary or index expression's own syntax covers only its operator, so the text spans its operands too.
+	static string? SpannedExpressionText(Expression expression)
+	{
+		TokenRange? span = null;
+		void Include(Expression? part)
+		{
+			if (part is null)
+				return;
+			if (GetFullSourceRange(part.SourceSyntax) is TokenRange range)
+			{
+				if (span is not TokenRange current)
+					span = range;
+				else if (ReferenceEquals(current.Sequence, range.Sequence))
+				{
+					int start = Math.Min(current.Index, range.Index);
+					int end = Math.Max(current.Index + current.Count, range.Index + range.Count);
+					span = new TokenRange(current.Sequence, start, end - start);
+				}
+			}
+			switch (part)
+			{
+				case UnaryExpression unary: Include(unary.Operand); break;
+				case IndexExpression index:
+					Include(index.Target);
+					foreach (ArgumentExpression argument in index.Arguments)
+						Include(argument.Value);
+					break;
+				case MemberReferenceExpression member: Include(member.Target); break;
+				case MemberExpression member: Include(member.Target); break;
+				case ParenthesizedExpression parenthesized: Include(parenthesized.Expression); break;
+				case CastExpression cast: Include(cast.Expression); break;
+				case CallExpression call:
+					Include(call.Target);
+					foreach (ArgumentExpression argument in call.Arguments)
+						Include(argument.Value);
+					break;
+			}
+		}
+		Include(expression);
+		return span is TokenRange result ? NormalizeSourceCaptureText(result) : null;
+	}
+
+	Expression? PointsIntoReceiverMemory(Expression? expression)
+	{
+		if (expression is null)
+			return null;
+		if (expressionRewrites.TryGetValue(expression, out Expression? rewritten) && !ReferenceEquals(rewritten, expression))
+			return PointsIntoReceiverMemory(rewritten) is not null ? expression : null;
+
+		switch (expression)
+		{
+			case ParenthesizedExpression parenthesized:
+				return PointsIntoReceiverMemory(parenthesized.Expression) is not null ? expression : null;
+			case CastExpression { LifetimeCastKind: null } cast:
+				return PointsIntoReceiverMemory(cast.Expression) is not null ? expression : null;
+			case ConditionalExpression conditional:
+				return PointsIntoReceiverMemory(conditional.WhenTrue) ?? PointsIntoReceiverMemory(conditional.WhenFalse);
+			case ThisExpression:
+				return expression;
+			case UnaryExpression { Operator: UnaryOperator.AddressOf } address:
+				return IsInlineReceiverStorage(address.Operand) ? expression : null;
+			case IndexExpression index when TryParseTypeShape(index.ResolvedType, out TypeShape shape) && shape.Kind == TypeShapeKind.Array:
+				return TryGetFixedArrayShape(index.Target?.ResolvedType, out _, out _) && IsInlineReceiverStorage(index.Target) ? expression : null;
+			case CallExpression call when callTargets.TryGetValue(call, out FunctionDefinition? callee)
+				&& GetReturnLifetimeTemplate(callee, call.ResolvedType ?? ErrorType) is { Kind: "scoped", Anchors: [ "this" ] }:
+			{
+				Expression? receiver = call.Target switch
+				{
+					MemberReferenceExpression member => member.Target,
+					MemberExpression member => member.Target,
+					_ => null
+				};
+				return receiver is ThisExpression || IsInlineReceiverStorage(receiver) ? expression : null;
+			}
+			default:
+				return null;
+		}
+	}
+
+	// True when the expression names storage that lives inside the receiver itself, not storage the receiver points at.
+	bool IsInlineReceiverStorage(Expression? expression)
+	{
+		if (expression is null)
+			return false;
+		if (expressionRewrites.TryGetValue(expression, out Expression? rewritten) && !ReferenceEquals(rewritten, expression))
+			return IsInlineReceiverStorage(rewritten);
+
+		return expression switch
+		{
+			ParenthesizedExpression parenthesized => IsInlineReceiverStorage(parenthesized.Expression),
+			MemberReferenceExpression { Member: FieldDefinition { Modifier: not FieldModifier.Static }, Target: ThisExpression } => true,
+			MemberReferenceExpression { Member: FieldDefinition { Modifier: not FieldModifier.Static }, Target: Expression target }
+				=> TryGetPointerElementType(target.ResolvedType) is null && IsInlineReceiverStorage(target),
+			IndexExpression { Target: Expression target } index when !(TryParseTypeShape(index.ResolvedType, out TypeShape shape) && shape.Kind == TypeShapeKind.Array)
+				=> TryGetFixedArrayShape(target.ResolvedType, out _, out _) && IsInlineReceiverStorage(target),
+			UnaryExpression { Operator: UnaryOperator.PointerDereference, Operand: ThisExpression } => true,
+			_ => false
+		};
+	}
+
+	// The call, directly or inside an initializer, whose declared `scoped(this)` result ties the value to its receiver.
+	CallExpression? FindScopedThisCall(Expression? expression)
+	{
+		if (expression is null)
+			return null;
+		if (expressionRewrites.TryGetValue(expression, out Expression? rewritten) && !ReferenceEquals(rewritten, expression))
+			return FindScopedThisCall(rewritten);
+		return expression switch
+		{
+			ParenthesizedExpression parenthesized => FindScopedThisCall(parenthesized.Expression),
+			CallExpression call when callTargets.TryGetValue(call, out FunctionDefinition? callee)
+				&& GetReturnLifetimeTemplate(callee, call.ResolvedType ?? ErrorType) is { Kind: "scoped", Anchors: ["this"] } => call,
+			InitializerExpression initializer => initializer.Items.Select(item => FindScopedThisCall(item.Expression)).FirstOrDefault(found => found is not null),
+			_ => null
+		};
 	}
 
 	void CheckLifetimeYield(Expression? value, SyntaxNode? syntax, BodyScope scope)

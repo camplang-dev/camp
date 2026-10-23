@@ -115,6 +115,28 @@ The returned view uses the method output default, `unscoped(this)`. That
 matches the way a reader would describe the method in plain language: "give me
 a view of this store's data."
 
+The default means "something the receiver retains", such as a pointer or slice
+stored in one of its fields. A result that points into the receiver's own memory
+is a different promise: it is valid only as long as the receiver is. Write
+`scoped(this)` for it, as for a name stored in a fixed character field:
+
+```camp
+struct Entry
+{
+	fixed char[16] characters;
+	uint length;
+
+	scoped(this) const char[] name()
+	{
+		return this.characters[..this.length];
+	}
+}
+```
+
+The compiler rejects `name` without the annotation, because `this.characters`
+lives inside the receiver. A caller cannot return `entry.name()` from a function
+where `entry` is a local, while it can return a view the local only retains.
+
 ## `escaped`
 
 `escaped` means the value may be retained somewhere that outlives the immediate

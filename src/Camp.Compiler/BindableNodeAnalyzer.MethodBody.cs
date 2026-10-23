@@ -481,6 +481,7 @@ public sealed partial class BindableNodeAnalyzer
 					CheckConstOfProducedResult(sourceReturnType, returnStatement.Expression, returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax, "Return expression");
 				if (!fixedArraySpanEscape && !scopedPreparedEscape)
 					CheckLifetimeResult(returnStatement.Expression, returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax, scope, "Return expression");
+				CheckDefaultResultPointsIntoReceiver(returnStatement.Expression, returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax, scope);
 				break;
 			}
 

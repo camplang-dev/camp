@@ -1,0 +1,54 @@
+struct SectionView
+{
+	const byte[] image;
+	nuint offset;
+	nuint size;
+
+	const byte[] content() => this.image;
+	scoped(this) const byte[] payload() => this.image[this.offset..this.offset + this.size];
+}
+
+struct Result
+{
+	const byte[] data;
+	int code;
+}
+
+const byte[] fromField(const byte[] image)
+{
+	SectionView section = { image, 4, 8 };
+	return section.image;
+}
+
+const byte[] fromMethod(const byte[] image)
+{
+	SectionView section = { image, 4, 8 };
+	return section.content();
+}
+
+Result fromInitializer(const byte[] image)
+{
+	SectionView section = { image, 4, 8 };
+	return { section.content(), 0 };
+}
+
+const byte[] fromScopedMethod(const byte[] image)
+{
+	SectionView section = { image, 4, 8 };
+	return section.payload();
+}
+
+Result fromScopedInitializer(const byte[] image)
+{
+	SectionView section = { image, 4, 8 };
+	return { section.payload(), 0 };
+}
+
+const byte[] fromLocalBuffer()
+{
+	fixed byte[16] buffer;
+	SectionView section = { buffer[..], 4, 8 };
+	return section.content();
+}
+
+export int main() { return 0; }
