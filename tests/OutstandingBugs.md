@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-339.
+Next bug number: BUG-340.
 
 ## Bug Template
 
@@ -86,3 +86,25 @@ No diagnostic is reported for the `new` expression or the return.
 
 Known Impact:
 Heap objects can retain pointers to local or parameter storage that ends before the object does. The documentation does not currently state the `new` form of the rule; it should be added alongside the fix.
+
+## BUG-339: Bound method references are not checked for the lifetime of their receiver
+
+Date/Time: 2026-10-22 21:46 EDT
+
+Summary:
+A bound method reference such as `c.get` carries its receiver. Passing one to an `escaped delegate` parameter, or returning it as an escaped delegate, is accepted even when the receiver is a local value or a parameter. The only enforced case is an expanded receiver bound to an escaped delegate.
+
+Steps to Reproduce:
+
+1. Declare `struct Counter { int n; int get() => this.n; }` and `void takeEscaped(escaped delegate int() callback) {}`.
+2. In a function, declare a local `Counter c` and call `takeEscaped(c.get)`.
+3. Also call `takeEscaped(counter.get)` where `counter` is a `Counter*` parameter, and `return counter.get;` from a function returning `escaped delegate int()`.
+
+Expected:
+A bound method reference cannot retain a receiver beyond the receiver's lifetime, so each of these is rejected.
+
+Actual:
+None of them reports a diagnostic.
+
+Known Impact:
+A delegate that outlives its receiver can be created without a diagnostic. The semantic documentation does not state the rule for bound references; `semantics/05` (Delegates And Captures) should be extended to cover them as part of the fix.
