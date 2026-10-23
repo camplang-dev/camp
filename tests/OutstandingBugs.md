@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-347.
+Next bug number: BUG-348.
 
 ## Bug Template
 
@@ -108,3 +108,57 @@ Fields, Escaped Types, and the interface conversion paragraph),
 chapters 05, 07, 12, and 16 now describe this rule. Not yet decided: by-value
 fields of an escaped type inside a struct, by-value parameters of an escaped
 type, and a non-escaped class derived from an escaped class.
+
+## BUG-347: Escaped class and escaped interface hierarchies and by-value struct fields are not checked
+
+Date/Time: 2026-10-23 08:05 EDT
+
+Summary:
+Escapedness is fixed at the root of a type hierarchy. An escaped class must be
+declared `escaped` at its root, and every class derived from an escaped class
+must also be declared `escaped`. An escaped interface may inherit non-escaped
+interfaces, but only an escaped interface may inherit an escaped interface. A
+struct is never escaped and cannot declare a by-value field of an escaped type.
+The compiler checks none of these rules: a non-escaped class may derive from an
+escaped class, an escaped class may derive from a non-escaped base, a
+non-escaped interface may inherit an escaped interface, and a struct may hold an
+escaped class by value.
+
+Steps to Reproduce:
+
+1. Declare `virtual escaped class Control { int id; }` and
+   `sealed class Button: Control { int pressed; }`.
+2. Declare `virtual class Base { int id; }` and
+   `sealed escaped class Derived: Base { int extra; }`.
+3. Declare `escaped interface Task { void run(); }` and
+   `interface Runner: Task { void go(); }`.
+4. Declare `interface Plain { void stop(); }` and
+   `escaped interface Job: Plain { void work(); }`.
+5. Declare `escaped class Widget { int value; }` and
+   `struct Holder { Widget widget; }`.
+6. Compile.
+
+Expected:
+Step 1 is rejected at `Button`: a class derived from an escaped class must be
+declared `escaped`. Step 2 is rejected at `Derived`: an escaped class must be
+escaped at the root of its hierarchy, so it cannot derive from a non-escaped
+base. Step 3 is rejected at `Runner`: only an escaped interface may inherit an
+escaped interface. Step 4 compiles: an escaped interface may inherit a
+non-escaped interface. Step 5 is rejected at the `widget` field: a struct cannot
+hold an escaped type by value.
+
+Actual:
+All five steps compile without diagnostics.
+
+Known Impact:
+A non-escaped derived class or interface can carry an escaped base, so a scoped
+pointer to the derived type can convert to a pointer of the escaped base that
+the type promises is never bound to the call stack. A struct holding an escaped
+class by value puts an instance of an escaped type in a frame whenever the
+struct is a local. Related to BUG-346, which makes pointers to escaped types
+escaped by type; these declaration rules keep that promise sound.
+
+Documentation:
+The rules are not yet in the docs. The lifetime analysis supplement (Escaped
+Types) and the language chapters on classes and interfaces need the hierarchy
+rules and the struct field rule.
