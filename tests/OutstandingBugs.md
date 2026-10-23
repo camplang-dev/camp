@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-343.
+Next bug number: BUG-344.
 
 ## Bug Template
 
@@ -173,3 +173,25 @@ No diagnostic is reported. Only async functions with an unscoped `within` parame
 
 Known Impact:
 An object can outlive the allocator it needs for cleanup.
+
+## BUG-343: The unscoped(...) argument check is satisfied when argument and parameter names match
+
+Date/Time: 2026-10-22 21:46 EDT
+
+Summary:
+A call checks that an argument for a parameter written `unscoped(owner)` outlives the argument bound to `owner`. The check is skipped when the caller's own variables have the same names as the callee's parameters.
+
+Steps to Reproduce:
+
+1. Declare `void store(const char[] owner, unscoped(owner) const char[] view) {}`.
+2. Declare `void sameNames(const char[] owner, const char[] view) { store(owner, view); }`.
+3. Declare `void otherNames(const char[] alpha, const char[] beta) { store(alpha, beta); }`.
+
+Expected:
+Both calls are rejected: the second argument is a parameter of the caller and is not known to outlive the first.
+
+Actual:
+`otherNames` reports "Argument cannot satisfy parameter lifetime 'unscoped(owner)'.". `sameNames` reports nothing.
+
+Known Impact:
+Whether a lifetime error is reported depends on the spelling of variable names.
