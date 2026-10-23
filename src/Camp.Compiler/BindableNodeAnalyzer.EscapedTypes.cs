@@ -16,6 +16,21 @@ public sealed partial class BindableNodeAnalyzer
 		return TryGetPointerElementType(StripTopLevelValueQualifiers(type ?? "")) is string element && IsEscapedType(element);
 	}
 
+	bool IsEscapedInterfaceValueType(string? type)
+	{
+		return IsEscapedType(type) && typeDefinitions.TryGetValue(BaseTypeName(type!), out TypeDefinition? definition)
+			&& definition is InterfaceDefinition;
+	}
+
+	bool IsEscapedValueType(string? type) => IsEscapedPointerType(type) || IsEscapedInterfaceValueType(type);
+
+	bool ContainsEscapedClassStorage(string? type)
+	{
+		if (IsEscapedType(type) && !IsEscapedInterfaceValueType(type))
+			return true;
+		return TryGetFixedArrayShape(type ?? "", out string element, out _) && ContainsEscapedClassStorage(element);
+	}
+
 	bool ContainsEscapedValueStorage(string? type)
 	{
 		if (IsEscapedType(type))
@@ -25,8 +40,8 @@ public sealed partial class BindableNodeAnalyzer
 
 	void ValidateEscapedPointerAnnotation(string? type, string kind, SyntaxNode? syntax)
 	{
-		if (kind != "escaped" && IsEscapedPointerType(type))
-			Report(GetRange(syntax), "A pointer to an escaped type cannot have a scoped or unscoped lifetime annotation.");
+		if (kind != "escaped" && IsEscapedValueType(type))
+			Report(GetRange(syntax), "A value of an escaped type cannot have a scoped or unscoped lifetime annotation.");
 	}
 
 	void CheckEscapedTypeConversion(string expected, string actual, Expression? value, SyntaxNode? syntax)
@@ -48,6 +63,8 @@ public sealed partial class BindableNodeAnalyzer
 			return GetEscapedConversionStorageFact(rewritten);
 		if (expression is ParenthesizedExpression parenthesized && parenthesized.Expression is not null)
 			return GetEscapedConversionStorageFact(parenthesized.Expression);
+		if (TryGetStorageNode(expression, out BindableNode? localStorage) && localStorage is DeclarationTarget or ParameterDefinition)
+			return MakeLifetimeFact("scoped", GetStorageLifetimeAnchor(localStorage), "frame storage");
 		if (expression is VariableReferenceExpression { Variable: VariableDefinition or FieldDefinition { Modifier: FieldModifier.Static } }
 			or MemberReferenceExpression { Member: FieldDefinition { Modifier: FieldModifier.Static } })
 			return MakeLifetimeFact("escaped", null, "static storage");

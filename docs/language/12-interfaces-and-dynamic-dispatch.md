@@ -624,6 +624,13 @@ escaped interface Job: Stoppable { void work(); }
 interface Runner: BackgroundTask { void go(); } // ERROR: must be escaped
 ```
 
+A by-value escaped interface, such as `BackgroundTask table`, is implicitly a
+pointer to a vtable and is escaped too. It can be copied, retained, or passed to
+an escaped parameter without another annotation. This differs from a
+`BackgroundTask*` instance pointer, which also carries the implementing object
+context. Define an escaped vtable's backing initializer in static storage;
+local variables can copy its value or hold `default`.
+
 The standard library's `Allocator` is an escaped interface for this reason; the
 lifetimes chapter shows what that means for `within`.
 

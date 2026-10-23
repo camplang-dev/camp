@@ -53,7 +53,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	string? CreateDeclarationSlotLifetimeFact(string? name, TypeReference? type, string? resolvedType, bool isFixedStorage, AnalysisScope typeScope)
 	{
-		if (IsEscapedPointerType(resolvedType))
+		if (IsEscapedValueType(resolvedType))
 			return MakeLifetimeFact("escaped", null, "escaped type");
 		if (!IsLifetimeTrackedType(type, resolvedType, isFixedStorage, typeScope))
 			return null;
@@ -63,7 +63,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	string? CreateDeclarationValueLifetimeFact(TypeReference? type, string? resolvedType, bool isFixedStorage, AnalysisScope typeScope)
 	{
-		if (IsEscapedPointerType(resolvedType))
+		if (IsEscapedValueType(resolvedType))
 			return MakeLifetimeFact("escaped", null, "escaped type");
 		if (IsEscapedFunctionPointerType(type, resolvedType, isFixedStorage, typeScope))
 			return MakeLifetimeFact("escaped", null, "function pointer");
@@ -202,7 +202,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (!IsLifetimeTrackedType(parameter.Type, parameter.ResolvedType, isFixedStorage: false, typeScope))
 			return;
 
-		string fact = IsEscapedPointerType(parameter.ResolvedType) ? MakeLifetimeFact("escaped", null, "escaped type")
+		string fact = IsEscapedValueType(parameter.ResolvedType) ? MakeLifetimeFact("escaped", null, "escaped type")
 			: parameter.LifetimeBinding ?? MakeLifetimeFact("scoped", parameter.Name, "parameter");
 		if (!string.IsNullOrWhiteSpace(parameter.Name)
 			&& TryParseLifetimeFact(fact, out LifetimeFact parsed)
@@ -271,7 +271,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	void ApplyExpressionLifetimeFact(Expression expression, string resolvedType, BodyScope scope, AnalysisScope typeScope)
 	{
-		if (IsEscapedPointerType(resolvedType))
+		if (IsEscapedValueType(resolvedType))
 		{
 			expression.ValueLifetimeFact = MakeLifetimeFact("escaped", null, "escaped type");
 			return;
@@ -612,7 +612,7 @@ public sealed partial class BindableNodeAnalyzer
 				return MakeLifetimeFact("scoped", parameter.Name, "parameter address");
 			if (unary.Operand is not null && TryGetStorageNode(unary.Operand, out BindableNode? addressStorage)
 				&& addressStorage is DeclarationTarget localStorage)
-				return IsEscapedPointerType(localStorage.ResolvedType) ? MakeLifetimeFact("scoped", GetStorageLifetimeAnchor(localStorage), "address-of")
+				return IsEscapedValueType(localStorage.ResolvedType) ? MakeLifetimeFact("scoped", GetStorageLifetimeAnchor(localStorage), "address-of")
 					: localStorage.SlotLifetimeFact ?? MakeLifetimeFact("scoped", GetStorageLifetimeAnchor(localStorage), "address-of");
 			if (GetExpressionLifetimeFact(unary.Operand) is string operandFact)
 				return operandFact;
@@ -761,7 +761,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	LifetimeFact GetReturnLifetimeTemplate(FunctionDefinition function, string resolvedType)
 	{
-		if (IsEscapedPointerType(resolvedType))
+		if (IsEscapedValueType(resolvedType))
 			return new LifetimeFact("escaped", [], "escaped type");
 		if (function.ReturnType?.LifetimeBinding is string explicitReturn
 			&& TryParseLifetimeFact(explicitReturn, out LifetimeFact explicitFact))
@@ -788,7 +788,7 @@ public sealed partial class BindableNodeAnalyzer
 	void CheckLifetimeCallArguments(FunctionDefinition function, Expression? callTarget, List<(ArgumentExpression Argument, ParameterDefinition Parameter)> arguments, BodyScope scope, SyntaxNode? fallbackSyntax, Dictionary<string, string>? substitutions)
 	{
 		if (GetWithinParameter(function) is ParameterDefinition allocatorParameter
-			&& IsEscapedPointerType(SubstituteGenericType(allocatorParameter.ResolvedType ?? ErrorType, substitutions ?? []))
+			&& IsEscapedValueType(SubstituteGenericType(allocatorParameter.ResolvedType ?? ErrorType, substitutions ?? []))
 			&& TryParseLifetimeFact(scope.CurrentWithinContextLifetimeFact, out LifetimeFact allocatorFact)
 			&& allocatorFact.Kind is not ("escaped" or "null" or "default"))
 			Report(GetRange(fallbackSyntax), "A within parameter of an escaped type requires escaped allocator storage.");
@@ -870,7 +870,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	LifetimeFact GetOutParameterLifetimeTemplate(FunctionDefinition function, ParameterDefinition parameter, string effectiveType)
 	{
-		if (IsEscapedPointerType(effectiveType))
+		if (IsEscapedValueType(effectiveType))
 			return new LifetimeFact("escaped", [], "escaped type");
 		if (parameter.LifetimeBinding is string explicitLifetime
 			&& TryParseLifetimeFact(explicitLifetime, out LifetimeFact explicitFact))
@@ -887,7 +887,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	LifetimeFact GetParameterLifetimeTemplate(ParameterDefinition parameter, string? effectiveType = null)
 	{
-		if (IsEscapedPointerType(effectiveType ?? parameter.ResolvedType))
+		if (IsEscapedValueType(effectiveType ?? parameter.ResolvedType))
 			return new LifetimeFact("escaped", [], "escaped type");
 		if (parameter.LifetimeBinding is string explicitLifetime
 			&& TryParseLifetimeFact(explicitLifetime, out LifetimeFact explicitFact))

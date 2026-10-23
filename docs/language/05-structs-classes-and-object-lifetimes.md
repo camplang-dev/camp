@@ -258,8 +258,9 @@ void draw()
 }
 ```
 
-A struct cannot hold an escaped class or escaped interface by value. Store a
-pointer instead; a pointer to an escaped type is itself escaped.
+A struct or ordinary class cannot hold an escaped class by value. Store a
+pointer instead; a pointer to an escaped type is itself escaped. An escaped
+class may contain another escaped class by value.
 
 Escapedness starts at the root of a class hierarchy. Every class derived from
 an escaped class must also say `escaped`, and an escaped class cannot derive

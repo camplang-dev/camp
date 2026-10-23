@@ -1,0 +1,30 @@
+escaped interface Sink { void put(int value); }
+
+int observed;
+void put(Sink* sink, int value) { observed = value; }
+Sink table = { .put = put };
+Sink kept;
+
+void keepValue(escaped Sink value) { kept = value; }
+void storeValue(Sink value) { kept = value; }
+void passValue(Sink value) { keepValue(value); }
+
+escaped class Widget { int value; }
+escaped class Panel { Widget widget; }
+
+export int main()
+{
+	Sink copy = table;
+	storeValue(copy);
+	Sink* view = &kept;
+	view.put(17);
+	if (observed != 17) return 1;
+	passValue(copy);
+	view.put(29);
+	if (observed != 29) return 2;
+	Panel* panel = new Panel();
+	panel.widget.value = 41;
+	if (panel.widget.value != 41) return 3;
+	delete panel;
+	return 0;
+}

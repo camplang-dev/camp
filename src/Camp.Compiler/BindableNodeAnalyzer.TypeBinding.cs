@@ -302,7 +302,7 @@ public sealed partial class BindableNodeAnalyzer
 				type.ResolvedType = ErrorType;
 				break;
 		}
-		if (IsEscapedPointerType(type.ResolvedType) && TryGetLifetimeAnnotation(type, out string lifetimeKind, out _, out _))
+		if (IsEscapedValueType(type.ResolvedType) && TryGetLifetimeAnnotation(type, out string lifetimeKind, out _, out _))
 			ValidateEscapedPointerAnnotation(type.ResolvedType, lifetimeKind, type.SourceSyntax);
 	}
 

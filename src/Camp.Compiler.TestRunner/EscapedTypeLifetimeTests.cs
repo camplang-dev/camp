@@ -36,7 +36,6 @@ public sealed class EscapedTypeLifetimeTests
 	[InlineData("void use() { Widget local = default; }")]
 	[InlineData("void use() { Widget* local = stackalloc Widget(); }")]
 	[InlineData("void use() { fixed Widget[2] local = default; }")]
-	[InlineData("void use() { Sink local = default; }")]
 	[InlineData("void use() { StackSink local = default; Sink* view = local; }")]
 	[InlineData("void use(StackSink* local) { Sink* view = local; }")]
 	[InlineData("void accept(Sink* view) { } void use() { StackSink local = default; accept(local); }")]
@@ -79,5 +78,29 @@ public sealed class EscapedTypeLifetimeTests
 	{
 		var compilation = SemanticCompiler.CompileLowered(Declarations + source);
 		Assert.Contains(compilation.AnalysisDiagnostics, diagnostic => diagnostic.Message.Contains("non-escaped pointer-bearing value"));
+	}
+
+	[Theory]
+	[InlineData("escaped interface Sink { void put(int value); } Sink kept; void store(Sink value) { kept = value; }")]
+	[InlineData("escaped interface Sink { void put(int value); } void keep(escaped Sink value) { } void pass(Sink value) { keep(value); }")]
+	[InlineData("escaped class Widget { } escaped class Panel { Widget widget; }")]
+	[InlineData("escaped interface Sink { void put(int value); } void use() { Sink value = default; }")]
+	[InlineData("escaped interface Sink { void put(int value); } struct Holder { Sink value; } class Box { Sink value; }")]
+	public void Escaped_vtable_values_and_escaped_class_fields_are_valid(string source)
+	{
+		SemanticCompiler.AssertNoDiagnostics(SemanticCompiler.CompileLowered(source));
+	}
+
+	[Theory]
+	[InlineData("escaped class Widget { } class Box { Widget widget; }")]
+	[InlineData("escaped class Widget { } class Box { fixed Widget[2] widgets; }")]
+	[InlineData("interface Sink { void put(int value); } Sink kept; void store(Sink value) { kept = value; }")]
+	[InlineData("escaped interface Sink { void put(int value); } void use(Sink value) { Sink* pointer = &value; }")]
+	[InlineData("escaped interface Sink { void put(int value); } void use() { Sink value = default; Sink* pointer = &value; }")]
+	[InlineData("escaped interface Sink { void put(int value); } void use(scoped Sink value) { }")]
+	public void Frame_owned_class_fields_and_ordinary_interface_values_remain_restricted(string source)
+	{
+		var compilation = SemanticCompiler.CompileLowered(source);
+		Assert.NotEmpty(compilation.AnalysisDiagnostics);
 	}
 }

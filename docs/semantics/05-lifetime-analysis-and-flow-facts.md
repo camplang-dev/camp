@@ -163,6 +163,8 @@ Default facts are assigned during declaration analysis:
 - globals and static fields of tracked types use escaped slot facts;
 - pointers to an escaped class or escaped interface type use escaped slot and
   value facts wherever they appear, without annotation (see Escaped Types);
+- a by-value escaped interface also uses escaped facts: its representation is
+  a pointer to a vtable, even though its source type has no `*`;
 - class instance fields in escaped classes use escaped slot facts;
 - instance receivers in escaped classes default to escaped receiver facts, and
   escaped interface contracts require implementation receiver lifetimes that
@@ -352,20 +354,29 @@ The analyzer applies three rules:
   `escaped` on such a type is accepted and redundant. Writing `scoped` or
   `unscoped(anchor)` on it is rejected, because the type already fixes the
   lifetime.
+  A by-value escaped interface value has the same rule: it is implicitly a
+  pointer to an escaped vtable. Copying or passing that value does not copy
+  vtable storage into an activation frame. Taking its address also exposes the
+  slot holding that pointer, so the slot itself must be escaped storage.
 - **Conversions need an escaped source.** A conversion that produces a pointer
   to an escaped type, such as a struct converted to an escaped interface it
   implements or a class pointer converted to an escaped interface or escaped
   base class, is rejected when the source is not escaped. A struct adapter over
   local storage is the usual example: it cannot become an escaped interface
   pointer. A global struct or an instance allocated with `new` can.
-- **Instances are not declared in a frame.** Storage of an escaped type itself
+- **Instances are not declared in a frame.** Storage of an escaped class itself
   cannot be declared in an activation frame. A local or `fixed` local of an
-  escaped class or escaped interface type, and `stackalloc` of one, are rejected
-  at the declaration. Static storage and `new` are the valid homes.
+  escaped class, and `stackalloc` of an escaped class or interface, are rejected
+  at the declaration. A local escaped interface value may copy an existing
+  escaped vtable pointer or hold `default`; an inline vtable initializer would
+  create frame-owned backing storage and is rejected. Define that vtable in
+  static storage instead.
 
-A struct cannot declare a by-value field of an escaped class or escaped
-interface, including an element of fixed inline storage. Pointer fields are
-allowed, and static fields do not place an instance inside the struct.
+A struct or non-escaped class cannot declare a by-value field of an escaped
+class, including an element of fixed inline storage. Only an escaped class may
+contain an escaped class by value. Pointer fields and escaped interface values
+are allowed, and static fields do not place an instance inside the containing
+object.
 
 Escapedness is fixed at the root of a class hierarchy. A class derived from an
 escaped class must also be declared `escaped`, and an escaped class cannot

@@ -1377,8 +1377,9 @@ public sealed partial class BindableNodeAnalyzer
 			Report(GetNameRange(definition), "Erased generic type parameters cannot be stored directly in fields; use pointer, span, or explicit erased storage instead.");
 		definition.ResolvedType = definition.Type?.ResolvedType ?? ErrorType;
 		InitializeFieldLifetimeFacts(definition, scope, containingType);
-		if (containingType is StructDefinition && definition.Modifier != FieldModifier.Static && ContainsEscapedValueStorage(definition.ResolvedType))
-			Report(GetNameRange(definition), "A struct cannot hold an escaped type by value; use a pointer instead.");
+		if ((containingType is StructDefinition or ClassDefinition { IsEscaped: false, IsShadow: false })
+			&& definition.Modifier != FieldModifier.Static && ContainsEscapedClassStorage(definition.ResolvedType))
+			Report(GetNameRange(definition), "Only an escaped class can hold an escaped class by value; use a pointer instead.");
 		if (definition.Modifier == FieldModifier.Static && definition.InitialValue is not null)
 		{
 			FunctionDefinition initializerContext = new()
@@ -2724,7 +2725,7 @@ public sealed partial class BindableNodeAnalyzer
 			: definition.Type?.ResolvedType ?? GetImplicitParameterType(definition);
 			if (definition.LifetimeBinding is null && definition is not SizeOfParameterDefinition and not NameOfParameterDefinition and not VTableOfParameterDefinition)
 			{
-				if (IsEscapedPointerType(definition.ResolvedType))
+				if (IsEscapedValueType(definition.ResolvedType))
 					BindParameterLifetime(definition, "escaped", [], "escaped type");
 				else if (definition.RetainsAllocator)
 					BindParameterLifetime(definition, "unscoped", ["this"], "retained allocator");

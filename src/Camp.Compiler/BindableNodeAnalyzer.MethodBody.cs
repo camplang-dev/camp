@@ -868,7 +868,7 @@ public sealed partial class BindableNodeAnalyzer
 		// for definite assignment after suspension. Dynamic stack views still use
 		// ValidateStackAllocAllowed and cannot survive in retained state.
 		AnalyzeOptionalType(declaration.Target.Type, typeScope);
-		if (!IsEscapedPointerType(declaration.Target.Type?.ResolvedType))
+		if (!IsEscapedValueType(declaration.Target.Type?.ResolvedType))
 			ValidateNoLifetimeAnnotation(declaration.Target.Type, declaration.Target.Type?.SourceSyntax ?? declaration.Target.SourceSyntax ?? declaration.SourceSyntax, "local variable types");
 		string targetType = declaration.Target.Type is AutoTypeReference or null
 			? TargetType
@@ -908,7 +908,8 @@ public sealed partial class BindableNodeAnalyzer
 			Report(GetRange(declaration.InitialValue.SourceSyntax ?? declaration.SourceSyntax), "Fixed-size arrays cannot be inferred by value; declare a span, pointer, or fixed storage target explicitly.");
 		}
 		BodyAnalyzeDeclarationTarget(declaration.Target, scope, typeScope, initialType);
-		if (ContainsEscapedValueStorage(declaration.Target.ResolvedType))
+		if (ContainsEscapedClassStorage(declaration.Target.ResolvedType)
+			|| IsEscapedInterfaceValueType(declaration.Target.ResolvedType) && declaration.InitialValue is InitializerExpression)
 			Report(GetRange(declaration.Target.SourceSyntax ?? declaration.SourceSyntax), "Storage of an escaped type cannot be declared in an activation frame; use static storage or new.");
 		if (declaration.Target.Type is AutoTypeReference
 			&& GetCallableSourceType(declaration.InitialValue) is TypeReference callableSource)
@@ -6620,6 +6621,9 @@ public sealed partial class BindableNodeAnalyzer
 				return unary.ResolvedType ?? ErrorType;
 
 			case UnaryOperator.AddressOf:
+				if (IsEscapedInterfaceValueType(operandType) && unary.Operand is not null
+					&& (!TryParseLifetimeFact(GetEscapedConversionStorageFact(unary.Operand), out LifetimeFact interfaceSlot) || interfaceSlot.Kind != "escaped"))
+					Report(GetRange(unary.SourceSyntax), "Taking the address of an escaped interface value requires escaped slot storage.");
 				if (unary.Operand is ThisExpression && GetExplicitThisParameter(scope.CurrentFunction) is ThisParameterDefinition erasedThis
 					&& ErasedTypeIdentity.TryGetPayload(erasedThis.ResolvedType, out _))
 					return erasedThis.ResolvedType + "*";
