@@ -113,7 +113,10 @@ Actual:
 None of them reports a diagnostic.
 
 Known Impact:
-A delegate that outlives its receiver can be created without a diagnostic. The semantic documentation does not state the rule for bound references; `semantics/05` (Delegates And Captures) should be extended to cover them as part of the fix.
+A delegate that outlives its receiver can be created without a diagnostic. 
+
+Documentation:
+The semantic documentation does not state the rule for bound references. Extend `semantics/05-lifetime-analysis-and-flow-facts.md` (Delegates And Captures) so that a bound method reference carries the lifetime of its receiver as the hidden context of the callable, and state the receiver lifetime a target delegate type accepts.
 
 ## BUG-340: Invalid lifetime anchors on `within` and `thrown` parameters and circular anchors are accepted
 
