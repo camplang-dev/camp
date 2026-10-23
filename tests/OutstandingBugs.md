@@ -190,6 +190,9 @@ No diagnostic is reported for any of them. Only async functions with an unscoped
 Known Impact:
 An object can outlive the allocator it needs for cleanup.
 
+Documentation:
+`semantics/10-construction-destruction-and-allocation.md` now states the rule (within parameter lifetimes and the implicit lifetime of retained allocators). Also add a sentence to Allocator Lifetime in the same file naming a retained allocator as one of the generated storage uses that must be checked at each construction.
+
 ## BUG-343: The unscoped(...) argument check is satisfied when argument and parameter names match
 
 Date/Time: 2026-10-22 21:46 EDT
