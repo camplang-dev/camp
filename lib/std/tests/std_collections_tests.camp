@@ -1,7 +1,7 @@
 namespace Std;
 
 @test
-void listOptionalLookupAndBorrowedRange(within Allocator* allocator, thrown Assertion* assertion)
+void listOptionalLookupAndBorrowedRange(within escaped Allocator* allocator, thrown Assertion* assertion)
 {
 	auto values = within (allocator) new List<int?>() finally delete;
 	values.add(5);
@@ -20,7 +20,7 @@ void listOptionalLookupAndBorrowedRange(within Allocator* allocator, thrown Asse
 }
 
 @test
-void listArrayOptionalStorageAndLookup(within Allocator* allocator, thrown Assertion* assertion)
+void listArrayOptionalStorageAndLookup(within escaped Allocator* allocator, thrown Assertion* assertion)
 {
 	auto arrays = within (allocator) new List<int[]?>() finally delete;
 	int[] data = [3, 4, 5];
@@ -40,7 +40,7 @@ void listArrayOptionalStorageAndLookup(within Allocator* allocator, thrown Asser
 }
 
 @test
-void hashMapSetAndListCollectionsBehaveAcrossGrowthCopyAndRemoval(within Allocator* allocator, thrown Assertion* assertion)
+void hashMapSetAndListCollectionsBehaveAcrossGrowthCopyAndRemoval(within escaped Allocator* allocator, thrown Assertion* assertion)
 {
 	auto map = within (allocator) new HashMap<string, int>(string.HASH_POLICY) finally delete;
 	map.Item["one"] = 1;

@@ -136,6 +136,10 @@ tracked pointer, fail as memory errors. Allocations made through `within
 (default)`, direct allocator instances, custom non-interface allocators, or
 foreign allocation APIs are not tracked by this built-in detector.
 
+Lifetime annotations on the allocator slot are accepted. A test that uses `new`
+for an object retaining its allocator must request `within escaped Allocator*
+allocator`, so that construction can satisfy the escaped allocator requirement.
+
 The tracking allocator fills fresh allocations and a `realloc` growth tail with
 a deterministic nonzero pattern. This makes accidental reads of uninitialized
 test-owned storage more likely to fail predictably; it is not an exact

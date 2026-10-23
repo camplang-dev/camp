@@ -1,7 +1,7 @@
 namespace Std;
 
 @test
-void listCharWriterComposesTextNumbersAndRawBuffers(within Allocator* allocator, thrown Assertion* assertion)
+void listCharWriterComposesTextNumbersAndRawBuffers(within escaped Allocator* allocator, thrown Assertion* assertion)
 {
 	auto chars = within (allocator) new List<char>() finally delete;
 	CharWriter writer = chars.CharWriter;

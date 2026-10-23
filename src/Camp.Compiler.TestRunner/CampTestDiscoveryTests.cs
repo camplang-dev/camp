@@ -127,10 +127,14 @@ public sealed class CampTestDiscoveryTests
 		Assert.Equal(8, json.RootElement.GetProperty("tests").GetArrayLength());
 	}
 
-	[Fact]
-	public void Discovery_accepts_interface_allocator_within_test_signature()
+	[Theory]
+	[InlineData("")]
+	[InlineData("escaped ")]
+	[InlineData("scoped ")]
+	[InlineData("unscoped ")]
+	public void Discovery_accepts_interface_allocator_within_test_signature(string lifetime)
 	{
-		SemanticCompilation compilation = SemanticCompiler.CompileLoweredTestModule(("tests/interface_allocator_test_manifest.camp", """
+		SemanticCompilation compilation = SemanticCompiler.CompileLoweredTestModule(("tests/interface_allocator_test_manifest.camp", $$"""
 			namespace InterfaceAllocatorTests;
 
 			struct Assertion
@@ -145,7 +149,7 @@ public sealed class CampTestDiscoveryTests
 			}
 
 			@test
-			void allocatorExplicit(within Allocator* allocator, thrown Assertion* assertion)
+			void allocatorExplicit(within {{lifetime}}Allocator* allocator, thrown Assertion* assertion)
 			{
 			}
 			"""));

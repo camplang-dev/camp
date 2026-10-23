@@ -278,7 +278,7 @@ public static class CampTestDiscovery
 		allocatorShape = null;
 		if (parameter.Modifier != ParameterModifier.Within && parameter is not WithinParameterDefinition)
 			return false;
-		if (parameter.Type is not PointerTypeReference pointer)
+		if (UnwrapAllocatorLifetime(parameter.Type) is not PointerTypeReference pointer)
 			return false;
 		TypeDefinition? allocatorType = GetAllocatorTypeDefinition(module, pointer.ElementType);
 		if (allocatorType is null
@@ -365,6 +365,7 @@ public static class CampTestDiscovery
 
 	static TypeDefinition? GetAllocatorTypeDefinition(Module module, TypeReference? type)
 	{
+		type = UnwrapAllocatorLifetime(type);
 		TypeDefinition? definition = type switch
 		{
 			TypeDefinitionReference reference => reference.Definition,
@@ -376,6 +377,17 @@ public static class CampTestDiscovery
 		return definition is not null && string.Equals(definition.Name, "Allocator", StringComparison.Ordinal)
 			? definition
 			: null;
+	}
+
+	static TypeReference? UnwrapAllocatorLifetime(TypeReference? type)
+	{
+		return type switch
+		{
+			EscapedTypeReference escaped => UnwrapAllocatorLifetime(escaped.Type),
+			ScopedTypeReference scoped => UnwrapAllocatorLifetime(scoped.Type),
+			UnscopedTypeReference unscoped => UnwrapAllocatorLifetime(unscoped.Type),
+			_ => type
+		};
 	}
 
 	static TypeDefinition? FindTypeByResolvedName(Module module, string resolved)

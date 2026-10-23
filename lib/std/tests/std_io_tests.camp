@@ -59,7 +59,7 @@ void deleteStdIoTestDirectoryLink(string linkPath, thrown IoError error)
 }
 
 @test
-void environmentFilesystemAndFileHandleRoundTrips(within Allocator* allocator, thrown Assertion* assertion)
+void environmentFilesystemAndFileHandleRoundTrips(within escaped Allocator* allocator, thrown Assertion* assertion)
 {
 	IoError error = default;
 	string root = "tmp/camp-stdlib-env-fs-test";
@@ -163,7 +163,7 @@ void fileOpenReportsNotFound(thrown Assertion* assertion)
 }
 
 @test
-void directoryIterationAndNoFollowProbes(within Allocator* allocator, thrown Assertion* assertion)
+void directoryIterationAndNoFollowProbes(within escaped Allocator* allocator, thrown Assertion* assertion)
 {
 	IoError error = default;
 	string root = "tmp/camp-stdlib-directory-iteration-test";

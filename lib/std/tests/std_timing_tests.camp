@@ -18,7 +18,7 @@ void stdTimingTick(TimerHandle handle)
 }
 
 @test
-void sleepAsyncTimersAndCancellationSmoke(within Allocator* allocator, thrown Assertion* assertion)
+void sleepAsyncTimersAndCancellationSmoke(within escaped Allocator* allocator, thrown Assertion* assertion)
 {
 	stdTimingAsyncDone = 0;
 	stdTimingTicks = 0;
