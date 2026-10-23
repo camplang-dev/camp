@@ -2718,7 +2718,9 @@ public sealed partial class BindableNodeAnalyzer
 			: definition.Type?.ResolvedType ?? GetImplicitParameterType(definition);
 			if (definition.LifetimeBinding is null && definition is not SizeOfParameterDefinition and not NameOfParameterDefinition and not VTableOfParameterDefinition)
 			{
-				if (definition is WithinParameterDefinition)
+				if (definition.RetainsAllocator)
+					BindParameterLifetime(definition, "unscoped", ["this"], "retained allocator");
+				else if (definition is WithinParameterDefinition)
 					BindParameterLifetime(definition, "scoped", [], "default within");
 				else
 					BindDefaultParameterLifetime(definition, "default parameter");

@@ -404,6 +404,10 @@ Allocator values may be retained in generated contexts, async frames, iterator
 states, or lambda/postpone contexts. Lifetime analysis must reject allocator
 values that cannot outlive the generated storage that needs them.
 
+Retained allocator fields are another generated storage use: every construction
+checks that the selected allocator outlives the object, including construction
+into local storage and escaped construction with `new`.
+
 Async bodies have a special hazard: a within allocator used for frame
 deallocation may be needed after suspension. An unscoped allocator that cannot
 be retained must be rejected for await-capable async code.

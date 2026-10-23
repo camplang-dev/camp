@@ -486,7 +486,21 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		AddInitializerRetainedLifetimeFacts(construction.Initializer, resolvedType, scope, retainedFacts);
+		if (ConstructionRetainsAllocator(construction, resolvedType))
+			retainedFacts.Add(TryParseLifetimeFact(scope.CurrentWithinContextLifetimeFact, out LifetimeFact allocator)
+				? allocator : new LifetimeFact("escaped", [], "default allocator"));
 		return retainedFacts;
+	}
+
+	bool ConstructionRetainsAllocator(ConstructionExpression construction, string resolvedType)
+	{
+		string name = BaseConstructedType(construction.Type?.ResolvedType ?? resolvedType);
+		HashSet<ClassDefinition> seen = [];
+		if (typeDefinitions.TryGetValue(name, out TypeDefinition? definition))
+			for (ClassDefinition? current = definition as ClassDefinition; current is not null && seen.Add(current); current = GetDirectBaseClass(current))
+				if (LifecycleAllocatorPolicy.RetainsAllocator(current.Functions))
+					return true;
+		return false;
 	}
 
 	string? GetInitializerLifetimeFact(InitializerExpression initializer, string resolvedType, BodyScope scope)
@@ -567,6 +581,9 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			if (TryGetInParameterAnchor(unary.Operand, scope, out string inParameterAnchor))
 				return MakeLifetimeFact("scoped", inParameterAnchor, "in parameter address");
+			if (unary.Operand is not null && TryGetStorageNode(unary.Operand, out BindableNode? addressStorage)
+				&& addressStorage is DeclarationTarget localStorage)
+				return localStorage.SlotLifetimeFact ?? MakeLifetimeFact("scoped", GetStorageLifetimeAnchor(localStorage), "address-of");
 			if (GetExpressionLifetimeFact(unary.Operand) is string operandFact)
 				return operandFact;
 			if (unary.Operand is not null
@@ -649,6 +666,19 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (callTargets.TryGetValue(call, out FunctionDefinition? function))
 		{
+			if (generatedCreateHelpers.Contains(function) && FindContainingType(function) is TypeDefinition owner)
+			{
+				ConstructionExpression allocation = new()
+				{
+					Kind = ConstructionKind.New,
+					Type = TypeReferenceFor(owner),
+					SourceSyntax = call.SourceSyntax
+				};
+				allocation.Arguments.AddRange(call.Arguments);
+				if (function.GeneratedInfo?.Source is FunctionDefinition constructor)
+					constructionTargets[allocation] = constructor;
+				return GetNewConstructionLifetimeFact(allocation, resolvedType, scope);
+			}
 			if (function.Modifier == FunctionModifier.Constructor || function.Name == InitNewMethodName)
 				return GetConstructorCallLifetimeFact(call, resolvedType, scope);
 
@@ -1209,6 +1239,7 @@ public sealed partial class BindableNodeAnalyzer
 			return;
 		if (valueFact.Kind is "default" or "null")
 			return;
+		CheckLocalStorageLifetime(target, valueFact, syntax, scope, context);
 
 		if (TryGetEscapedStorageTarget(target))
 		{
@@ -1231,6 +1262,52 @@ public sealed partial class BindableNodeAnalyzer
 				return;
 			if (!ValueOutlivesAnchor(valueFact, anchor) && !IsExplicitScopedWithinAllocatorFact(valueFact))
 				Report(GetRange(syntax), $"{context} cannot store a scoped pointer-bearing value in storage tied to '{anchor}'.");
+		}
+	}
+
+	void CheckLocalStorageLifetime(Expression target, LifetimeFact valueFact, SyntaxNode? syntax, BodyScope scope, string context)
+	{
+		if (expressionRewrites.TryGetValue(target, out Expression? rewritten) && !ReferenceEquals(rewritten, target))
+		{
+			CheckLocalStorageLifetime(rewritten, valueFact, syntax, scope, context);
+			return;
+		}
+		Expression? owner = target switch
+		{
+			MemberReferenceExpression member => member.Target,
+			IndexExpression index => index.Target,
+			ParenthesizedExpression parenthesized => parenthesized.Expression,
+			_ => null
+		};
+		if (owner is not null)
+		{
+			CheckLocalStorageLifetime(owner, valueFact, syntax, scope, context);
+			return;
+		}
+		if (target is not VariableReferenceExpression { Variable: DeclarationTarget storage })
+			return;
+		BodyScope? targetScope = null;
+		for (BodyScope? candidate = scope; candidate is not null; candidate = candidate.Parent)
+			if (candidate.Symbols.Values.Any(symbol => ReferenceEquals(symbol.Node, storage)))
+			{
+				targetScope = candidate;
+				break;
+			}
+		if (targetScope is null)
+			return;
+		foreach (string anchor in valueFact.Anchors)
+		{
+			BodyScope? anchorScope = scope;
+			while (anchorScope is not null && !anchorScope.Symbols.ContainsKey(anchor))
+				anchorScope = anchorScope.Parent;
+			if (anchorScope is null || ReferenceEquals(anchorScope, targetScope))
+				continue;
+			for (BodyScope? parent = anchorScope.Parent; parent is not null; parent = parent.Parent)
+				if (ReferenceEquals(parent, targetScope))
+				{
+					Report(GetRange(syntax), $"{context} cannot store a value in storage that outlives its lifetime anchor '{anchor}'.");
+					return;
+				}
 		}
 	}
 

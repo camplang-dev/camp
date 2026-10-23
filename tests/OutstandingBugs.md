@@ -44,31 +44,6 @@ Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
 
-## BUG-342: A retained allocator is not required to outlive the object that keeps it
-
-Date/Time: 2026-10-22 21:46 EDT
-
-Summary:
-A class constructor written `within this.allocator` keeps the allocator it is given so the object can free itself. The retained allocator parameter is implicitly `unscoped` relative to the object under construction (`semantics/10-construction-destruction-and-allocation.md`, Within parameter lifetimes), so the allocator passed at a construction must outlive the constructed object. No call site is checked against that rule. In particular `new` yields an escaped object, so the allocator it is constructed with must be escaped.
-
-Steps to Reproduce:
-
-1. Declare an `Allocator` interface and `class Owner { int value; Owner(within this.allocator) { this.value = 1; } ~Owner() { } }`.
-2. Declare `Owner* make(Allocator* arena) { return within (arena) new Owner(); }`.
-3. Also construct an `Owner` in a local whose lifetime outlasts a scoped allocator.
-
-Expected:
-Each construction is rejected when the allocator does not outlive the constructed object. In step 2 `arena` is scoped to the call while the returned object is escaped, so it is rejected. Constructing with an escaped allocator is accepted.
-
-Actual:
-No diagnostic is reported for any of them. Only async functions with an unscoped `within` parameter and `new delegate` lambdas that capture a non-escaped allocator are rejected.
-
-Known Impact:
-An object can outlive the allocator it needs for cleanup.
-
-Documentation:
-`semantics/10-construction-destruction-and-allocation.md` now states the rule (within parameter lifetimes and the implicit lifetime of retained allocators). Also add a sentence to Allocator Lifetime in the same file naming a retained allocator as one of the generated storage uses that must be checked at each construction.
-
 ## BUG-343: The unscoped(...) argument check is satisfied when argument and parameter names match
 
 Date/Time: 2026-10-22 21:46 EDT
