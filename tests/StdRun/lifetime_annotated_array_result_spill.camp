@@ -1,0 +1,40 @@
+using Std;
+
+struct ReadResult
+{
+	const byte[] payload;
+	int code;
+}
+
+unscoped(image) const byte[] unscopedSlice(const byte[] image, nuint size) => image[0..size];
+
+scoped(image) const byte[] scopedSlice(const byte[] image, nuint size) => image[0..size];
+
+escaped const char[] escapedSlice(escaped const char[] text, nuint size) => text[0..size];
+
+nuint length(const byte[] data) => data.length;
+
+nuint textLength(const char[] text) => text.length;
+
+
+ReadResult unscopedResult(const byte[] image) => { unscopedSlice(image, 3), 1 };
+
+ReadResult scopedResult(const byte[] image) => { scopedSlice(image, 2), 2 };
+
+export int main(string[] args)
+{
+	const byte[] image = [1, 2, 3, 4, 5];
+	if (length(unscopedSlice(image, 4)) != 4)
+		return 1;
+	if (length(scopedSlice(image, 2)) != 2)
+		return 2;
+	if (textLength(escapedSlice("abc", 1)) != 1)
+		return 3;
+	ReadResult first = unscopedResult(image);
+	if (first.payload.length != 3 || first.code != 1)
+		return 4;
+	ReadResult second = scopedResult(image);
+	if (second.payload.length != 2 || second.code != 2)
+		return 5;
+	return 0;
+}

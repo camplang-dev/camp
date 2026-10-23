@@ -9788,19 +9788,9 @@ public static class CCodeEmitter
                     type = type[9..].TrimStart();
                     continue;
                 }
-                if (type.StartsWith("escaped ", StringComparison.Ordinal))
+                if (TryTakeLeadingLifetime(type, out _, out string? withoutLifetime) && withoutLifetime is not null)
                 {
-                    type = type[8..].TrimStart();
-                    continue;
-                }
-                if (type.StartsWith("scoped ", StringComparison.Ordinal))
-                {
-                    type = type[7..].TrimStart();
-                    continue;
-                }
-                if (type.StartsWith("unscoped ", StringComparison.Ordinal))
-                {
-                    type = type[9..].TrimStart();
+                    type = withoutLifetime;
                     continue;
                 }
                 break;

@@ -44,59 +44,6 @@ Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
 
-## BUG-352: A call whose array result has an explicit `scoped` or `unscoped` annotation emits C that does not compile
-
-Date/Time: 2026-10-23 13:07 EDT
-
-Summary:
-When a function result is an array or slice, the call is spilled into a temporary
-pair of pointer and length variables before it is used in an argument list or in
-an initializer. If the function's result type carries an explicit `scoped(...)`
-or `unscoped(...)` annotation, the pointer temporary is declared with the Camp
-element type name (`byte *`) instead of the C type, so the generated C fails to
-compile. The same call with an `escaped` result, or with no annotation, emits
-correct C.
-
-Steps to Reproduce:
-
-1. Declare `unscoped(image) const byte[] slice(const byte[] image, nuint size) => image[0..size];`.
-2. Declare `nuint length(const byte[] data) => data.length;`.
-3. Declare `nuint asArgument(const byte[] image) { return length(slice(image, 4)); }`.
-4. Declare `export int main() { return 0; }` and build an executable.
-5. Repeat with `scoped(image)` on the result, and with a struct
-   `struct ReadResult { const byte[] payload; int code; }` and
-   `return { slice(image, 4), 0 };` in place of the argument use.
-
-Expected:
-The program builds. The temporary has the same C type as the callee's result
-element, whatever lifetime annotation is written on it. The front end reports no
-diagnostic, so the emitted C should be valid.
-
-Actual:
-The front end succeeds and the C compiler fails on the emitted code:
-
-```
-static uintptr_t asArgument(const uint8_t *image, uintptr_t image_length)
-{
-	byte *_elements0;
-	uintptr_t _length1;
-	_elements0 = slice(image, image_length, 4, &_length1);
-	return length(_elements0, _length1);
-}
-```
-
-with "use of undeclared identifier 'byte'" and "use of undeclared identifier
-'_elements0'". The call with `escaped const byte[]` as its result, and the call
-with no annotation, build correctly.
-
-Known Impact:
-A function that returns a slice with an explicit lifetime relation cannot be used
-inside an argument list, a struct initializer, or a declaration initializer. The
-workaround is to store the result in a local first, which avoids the temporary.
-
-Documentation:
-No documentation change is needed.
-
 ## BUG-353: An initializer list copying a fixed-size array by value is accepted and emits uncompilable C
 
 Date/Time: 2026-10-23 13:07 EDT
