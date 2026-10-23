@@ -44,31 +44,6 @@ Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
 
-## BUG-340: Invalid lifetime anchors on `within` and `thrown` parameters and circular anchors are accepted
-
-Date/Time: 2026-10-22 21:46 EDT
-
-Summary:
-`semantics/05-lifetime-analysis-and-flow-facts.md` (Invalid anchor uses) says anchors on `within` parameters that are not valid lifetime sources, anchors to thrown slots that cannot observe them, and dependent anchors that would require circular substitution must be diagnosed at the annotation. Missing names are diagnosed, but these three forms are not.
-
-Steps to Reproduce:
-
-1. Declare `void circular(unscoped(second) const char[] first, unscoped(first) const char[] second) {}`.
-2. Declare `void withinAnchor(const char[] owner, within unscoped(owner) Allocator* allocator) {}` with an `Allocator` in scope.
-3. Declare `void thrownAnchor(const char[] owner, thrown unscoped(owner) int* error) {}`.
-
-Expected:
-Each annotation is rejected where it is written.
-
-Actual:
-No diagnostic is reported for any of them.
-
-Known Impact:
-Signatures with meaningless lifetime relations are accepted, and later call checks may behave unpredictably. The `within` repro uses the typed form because the bare form `within unscoped(owner) allocator` does not parse (see BUG-344).
-
-Documentation:
-`semantics/05-lifetime-analysis-and-flow-facts.md` (Invalid anchor uses) says anchors on `within` parameters are rejected "when they are not valid lifetime sources" without saying which are valid. Define it there: list which anchors a `within`, `thrown` and `out` slot may name, and which anchor combinations count as circular.
-
 ## BUG-342: A retained allocator is not required to outlive the object that keeps it
 
 Date/Time: 2026-10-22 21:46 EDT

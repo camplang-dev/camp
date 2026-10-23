@@ -121,6 +121,15 @@ parameters when they are not valid lifetime sources, anchors to thrown slots in
 positions that cannot observe them, missing names, and dependent anchors that
 would require circular substitution.
 
+Ordinary, `in`, `out`, and `within` parameters may name ordinary input values,
+`in` inputs (including their address), or an available `this` receiver. Neither
+`out`, `thrown`, nor `within` slots may themselves serve as anchors: their values
+are output or hidden allocation channels rather than observed lifetime inputs.
+Thrown slots cannot name activation-bound anchors, because thrown values must
+outlive the throwing activation. A dependency cycle, including an explicit
+self-reference, is circular and is rejected on each participating annotation.
+An acyclic chain of dependencies on ordinary inputs is valid.
+
 ## Slot Facts And Value Facts
 
 The compiler tracks slot facts and value facts separately.

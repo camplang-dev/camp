@@ -246,6 +246,7 @@ public sealed partial class BindableNodeAnalyzer
 				ValidateCallableSpec(callable);
 				ValidateCallableUponParameters(callable);
 				NormalizeAnonymousCallableParameterNames(callable.Parameters, callable.Kind == CallableKind.Function ? 0 : 1);
+				RegisterParameterLifetimeAnchors(callable.Parameters, scope);
 				AnalyzeOptionalType(callable.ReturnType, scope);
 				ValidateWrittenErasedType(callable.ReturnType, callable.ReturnType?.SourceSyntax ?? callable.SourceSyntax, "a callable return type");
 				ValidateNoDirectFixedArrayType(callable.ReturnType, callable.ReturnType?.SourceSyntax ?? callable.SourceSyntax, "a callable return type");
@@ -254,6 +255,7 @@ public sealed partial class BindableNodeAnalyzer
 					AnalyzeParameterDefinition(parameter, scope);
 					ValidateNoDirectFixedArrayType(parameter.Type, parameter.Type?.SourceSyntax ?? parameter.SourceSyntax, "a callable parameter type");
 				}
+				ValidateParameterLifetimeRelations(callable.Parameters);
 				ValidateAnonymousCallableParameterNames(callable.Parameters, callable.Kind != CallableKind.Function);
 				ValidatePrepParameterList(callable.Parameters, callable.ReturnType, callable.SourceSyntax, "callable signature", callable.Kind == CallableKind.Once);
 				type.ResolvedType = ErasedCallableSignatureType(FormatTypeReference(type),

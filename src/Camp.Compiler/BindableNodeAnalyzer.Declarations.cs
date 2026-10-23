@@ -842,6 +842,7 @@ public sealed partial class BindableNodeAnalyzer
 			if (ContainsThisTypeReference(parameter.Type))
 				Report(GetRange(parameter.Type?.SourceSyntax ?? parameter.SourceSyntax), "'this' may be used only as a plain method return type.");
 		}
+		ValidateParameterLifetimeRelations(definition.Parameters);
 		ValidateSourceCaptureDefaultValues(definition.Parameters);
 		ValidateCallableNewtypeThisParameter(definition);
 		ValidateCallableNewtypeUponParameters(definition);
@@ -1623,6 +1624,7 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			AnalyzeParameterDefinition(definition.Parameters[i], scope, allowThisName: IsExtensionThisParameter(definition, containingType, i), asyncContext: definition.IsAsync);
 		}
+		ValidateParameterLifetimeRelations(definition.Parameters);
 		ValidateSourceCaptureDefaultValues(definition.Parameters);
 		foreach (ParameterDefinition parameter in definition.Parameters)
 			if (ContainsThisTypeReference(parameter.Type))
