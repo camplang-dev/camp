@@ -52,3 +52,53 @@ const byte[] fromLocalBuffer()
 }
 
 export int main() { return 0; }
+
+struct OutView
+{
+	const byte[] bytes;
+	bool find(out Result part) { part = { this.bytes, 1 }; return true; }
+	bool annotated(out unscoped(this) Result part) { part = { this.bytes, 2 }; return true; }
+	bool own(out scoped(this) Result part) { part = { this.bytes, 3 }; return true; }
+}
+struct NestedOutView { OutView view; }
+
+Result viaOut(const byte[] image)
+{
+	OutView view = { image };
+	Result part = default;
+	view.find(out part);
+	return part;
+}
+
+Result viaNestedOut(const byte[] image)
+{
+	NestedOutView wrapper = { { image } };
+	Result part = default;
+	wrapper.view.find(out part);
+	return part;
+}
+
+Result viaAnnotatedOut(const byte[] image)
+{
+	OutView view = { image };
+	Result part = default;
+	view.annotated(out part);
+	return part;
+}
+
+Result badOwnOut(const byte[] image)
+{
+	OutView view = { image };
+	Result part = default;
+	view.own(out part);
+	return part;
+}
+
+Result badLocalOut()
+{
+	fixed byte[8] buffer;
+	OutView view = { buffer[..] };
+	Result part = default;
+	view.find(out part);
+	return part;
+}

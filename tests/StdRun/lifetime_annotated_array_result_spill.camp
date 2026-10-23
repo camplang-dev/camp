@@ -28,6 +28,20 @@ void shiftResults(ReadResult[] entries)
 	entries[0] = current;
 }
 
+struct ResultReader
+{
+	const byte[] bytes;
+	bool read(out ReadResult part) { part = { this.bytes, 7 }; return true; }
+}
+
+ReadResult readOut(const byte[] image)
+{
+	ResultReader reader = { image };
+	ReadResult part = default;
+	reader.read(out part);
+	return part;
+}
+
 export int main(string[] args)
 {
 	const byte[] image = [1, 2, 3, 4, 5];
@@ -48,5 +62,8 @@ export int main(string[] args)
 	shiftResults(entries[..]);
 	if (entries[1].payload.length != 3 || entries[0].code != 1)
 		return 6;
+	ReadResult fromOut = readOut(image);
+	if (fromOut.payload.length != 5 || (int)fromOut.payload[4] != 5 || fromOut.code != 7)
+		return 7;
 	return 0;
 }

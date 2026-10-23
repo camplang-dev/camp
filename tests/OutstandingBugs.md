@@ -44,53 +44,6 @@ Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
 
-## BUG-355: An out argument written by a method on a local value receiver is tied to the receiver's address
-
-Date/Time: 2026-10-23 15:10 EDT
-
-Summary:
-A method result with the default lifetime now means "what the receiver
-retains", so a result taken from a local struct that was built from a caller's
-data can be returned. An `out` parameter of a method does not follow the same
-rule. The value written to an `out` argument by a method on a local value
-receiver is treated as tied to the receiver's own memory, so the caller cannot
-return it, although the same data returned as a result can be. An explicit
-`out unscoped(this)` annotation on the parameter is accepted and has no effect.
-
-Steps to Reproduce:
-
-1. Declare `struct Part { const byte[] data; }` and
-   `struct View { const byte[] bytes; Part direct() => { this.bytes }; bool findOut(out Part part) { part = { this.bytes }; return true; } }`.
-2. Declare `Part viaResult(const byte[] image) { View view = { image }; return view.direct(); }`.
-3. Declare `Part viaOut(const byte[] image) { View view = { image }; Part part = default; view.findOut(out part); return part; }`.
-4. Declare `struct Wrapper { View view; }` and
-   `Part viaNested(const byte[] image) { Wrapper wrapper = { { image } }; Part part = default; wrapper.view.findOut(out part); return part; }`.
-5. Add a method `bool findAnnotated(out unscoped(this) Part part)` with the same body and call it as in step 3.
-6. Compile.
-
-Expected:
-Steps 2, 3 and 4 compile: the view was initialized from a caller-provided value,
-and an `out` value that the receiver retains has that lifetime. A method that
-writes the address of the receiver's own memory into an `out` argument declares
-that parameter `scoped(this)`, and its callers cannot return the value from a
-local receiver. The annotation in step 5 has the meaning it states.
-
-Actual:
-Step 2 compiles. Steps 3 and 4 are rejected with "Return expression cannot
-return a pointer-bearing value tied to local storage 'view'" (and `'wrapper'`).
-The annotated form in step 5 is rejected the same way. The message does not say
-that the value came from an `out` argument or what to change.
-
-Known Impact:
-Reader types that fill an `out` view of their retained data cannot have that view
-returned by the function that builds the reader locally. The workaround is a
-lifetime cast on the returned value, which claims more than is true.
-
-Documentation:
-`docs/semantics/05-lifetime-analysis-and-flow-facts.md`, Call-Site Relation
-Solving: say that `out` parameters follow the same address-versus-content rule as
-results.
-
 ## BUG-356: A result derived from the content of a pointer-to-local argument is tied to the local's address
 
 Date/Time: 2026-10-23 15:11 EDT

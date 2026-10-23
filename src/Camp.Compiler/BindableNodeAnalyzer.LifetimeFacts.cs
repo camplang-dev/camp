@@ -7,7 +7,8 @@ namespace Camp.Compiler;
 public sealed partial class BindableNodeAnalyzer
 {
 	sealed record LifetimeFact(string Kind, IReadOnlyList<string> Anchors, string Source);
-	sealed record LifetimeCallContext(Dictionary<string, LifetimeFact> Anchors, List<LifetimeFact> ScopedInputs, LifetimeFact? Receiver, Dictionary<string, List<LifetimeFact>> GenericInputs);
+	sealed record LifetimeCallContext(Dictionary<string, LifetimeFact> Anchors, List<LifetimeFact> ScopedInputs, LifetimeFact? Receiver, Dictionary<string, List<LifetimeFact>> GenericInputs,
+		Dictionary<string, LifetimeFact> RetainedAnchors, List<LifetimeFact> RetainedInputs);
 
 	static string MakeLifetimeFact(string kind, string? anchor, string source)
 	{
@@ -739,9 +740,8 @@ public sealed partial class BindableNodeAnalyzer
 			LifetimeFact template = GetReturnLifetimeTemplate(function, resolvedType);
 			List<ParameterDefinition> callableParameters = GetCallableParameters(function.Parameters, IncludeExplicitThisArgument(call.Target, function));
 			LifetimeCallContext context = BuildLifetimeCallContext(function, call.Target, callableParameters, ZipCallArguments(call.Arguments, callableParameters), substitutions: null, scope);
-			// `unscoped(this)` is what the receiver retains, so a local value receiver contributes its content, not its address.
-			if (template is { Kind: "unscoped", Anchors: ["this"] } && !ReturnsReceiverItself(function) && GetLocalValueReceiverContentFact(call.Target) is LifetimeFact content)
-				context.Anchors["this"] = content;
+			if (ReturnsReceiverItself(function))
+				context = context with { RetainedAnchors = context.Anchors, RetainedInputs = context.ScopedInputs };
 			return SubstituteLifetimeTemplate(template, context, "call") is LifetimeFact fact ? FormatLifetimeFact(fact) : null;
 		}
 
@@ -774,7 +774,14 @@ public sealed partial class BindableNodeAnalyzer
 			MemberReferenceExpression { Member: FieldDefinition { Modifier: not FieldModifier.Static } } member => IsLocalValueRoot(member.Target),
 			_ => false
 		};
-		return localRooted && TryParseLifetimeFact(GetExpressionLifetimeFact(receiver), out LifetimeFact fact) ? fact : null;
+		if (!localRooted)
+			return null;
+		// A field used only to select a method may be prebound without a read fact.
+		// Its inline value still retains the content of the containing local.
+		while (GetExpressionLifetimeFact(receiver) is null
+			&& receiver is MemberReferenceExpression { Member: FieldDefinition { Modifier: not FieldModifier.Static }, Target: Expression owner })
+			receiver = owner;
+		return TryParseLifetimeFact(GetExpressionLifetimeFact(receiver), out LifetimeFact fact) ? fact : null;
 	}
 
 	bool IsLocalValueRoot(Expression? expression)
@@ -981,7 +988,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (IsEscapedValueType(effectiveType))
 			return new LifetimeFact("escaped", [], "escaped type");
 		if (parameter.LifetimeBinding is string explicitLifetime
-			&& TryParseLifetimeFact(explicitLifetime, out LifetimeFact explicitFact))
+			&& TryParseLifetimeFact(explicitLifetime, out LifetimeFact explicitFact) && explicitFact.Source != "default parameter")
 			return explicitFact;
 		if (TryGetResolvedTypeLifetime(effectiveType, out string lifetimeKind)
 			|| TryGetResolvedTypeLifetime(parameter.ResolvedType, out lifetimeKind))
@@ -1085,7 +1092,15 @@ public sealed partial class BindableNodeAnalyzer
 			facts.Add(actualFact);
 		}
 
-		return new LifetimeCallContext(anchors, scopedInputs, receiverFact, genericInputs);
+		Dictionary<string, LifetimeFact> retainedAnchors = new(anchors, StringComparer.Ordinal);
+		List<LifetimeFact> retainedInputs = [.. scopedInputs];
+		if (GetLocalValueReceiverContentFact(callTarget) is LifetimeFact content)
+		{
+			retainedAnchors["this"] = content;
+			if (receiverFact is not null && IsReceiverScopedInput(function))
+				retainedInputs[0] = content;
+		}
+		return new LifetimeCallContext(anchors, scopedInputs, receiverFact, genericInputs, retainedAnchors, retainedInputs);
 	}
 
 	bool TryGetArgumentLifetimeFact(ArgumentExpression argument, out LifetimeFact fact)
@@ -1194,6 +1209,10 @@ public sealed partial class BindableNodeAnalyzer
 
 	static LifetimeFact? SubstituteLifetimeTemplate(LifetimeFact template, LifetimeCallContext context, string source)
 	{
+		// Results and out values use retained content for unscoped relations;
+		// scoped relations and input retention checks still use storage addresses.
+		if (template.Kind == "unscoped")
+			context = context with { Anchors = context.RetainedAnchors, ScopedInputs = context.RetainedInputs };
 		return template.Kind switch
 		{
 			"escaped" => new LifetimeFact("escaped", [], source),
@@ -1567,7 +1586,8 @@ public sealed partial class BindableNodeAnalyzer
 			Report(GetRange(syntax), $"Cannot return the result of '{callText}'. Its declared lifetime is `scoped(this)`: it points into '{localAnchor}', "
 				+ "a local that ends when this function returns. Return a copy, or take the value from storage that outlives the function.");
 		else if (localAnchor is not null)
-			Report(GetRange(syntax), $"{context} cannot return a pointer-bearing value tied to local storage '{localAnchor}'.");
+			Report(GetRange(syntax), $"{context} cannot return a pointer-bearing value tied to local storage '{localAnchor}'."
+				+ (valueFact.Source == "out" ? " The value came from an out argument. Return a copy, or fill it from data that outlives this function." : ""));
 		string? inParameterAnchor = IsInParameterTransportFact(valueFact, scope)
 			? valueFact.Anchors.FirstOrDefault(anchor => IsInParameterLifetimeAnchor(anchor, scope)) : null;
 		if (inParameterAnchor is not null)

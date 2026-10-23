@@ -268,6 +268,12 @@ value keeps that lifetime when read through an accessor, exactly as reading the
 field directly does. Methods that return `this` or `classtype*` name the receiver
 itself and keep the receiver's own lifetime.
 
+`out` values follow the same address-versus-content rule as results. A default
+or `out unscoped(this)` parameter receives what the receiver retains; a
+`out scoped(this)` parameter receives a value tied to the receiver's storage.
+Calling either form on a local value or one of its inline fields preserves
+that distinction. Retained local backing storage still cannot escape.
+
 An explicit receiver lifetime overrides the default receiver fact. `unscoped(anchor)
 this` declares that the receiver is retained by `anchor`, a parameter of the same
 method, so the receiver must outlive whatever is passed for `anchor`:
