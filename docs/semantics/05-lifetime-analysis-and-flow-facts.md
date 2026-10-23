@@ -202,7 +202,11 @@ Expression lifetime facts are propagated through body analysis:
   unrelated array requires a relation such as `unscoped(destination)` on the
   source. This does not extend the lifetime of local backing storage.
 - Member access should keep the target fact unless the member is known escaped
-  storage.
+  storage. A fixed inline field instead borrows its containing storage, even
+  when the field's elements contain no pointers. Slices of that field and
+  `scoped(this)` calls on array elements keep the owner's relation. A retained
+  input declared `unscoped(destination)` may therefore supply interior views
+  to that destination; local backing storage still cannot escape.
 - Casts with explicit lifetime forms apply the cast fact; ordinary casts keep
   the operand fact unless the conversion supplement says the carrier discards
   lifetime.

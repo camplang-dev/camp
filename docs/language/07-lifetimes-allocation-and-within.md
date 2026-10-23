@@ -125,6 +125,7 @@ struct Entry
 {
 	fixed char[16] characters;
 	uint length;
+	bool enabled;
 
 	scoped(this) const char[] name()
 	{
@@ -142,6 +143,12 @@ so on the receiver with `unscoped(anchor) this`. The receiver is retained by the
 anchor, so it must outlive the array it is stored into:
 
 ```camp
+struct NameView
+{
+	const char[] name;
+	bool enabled;
+}
+
 struct Settings
 {
 	fixed Entry[8] entries;
@@ -158,6 +165,21 @@ struct Settings
 
 The body may store the views because the receiver outlives `destination`. A caller
 that passes a local `Settings` and an array that outlives it is rejected.
+
+An array input can state the same relation. Both a direct view of an element's
+inline storage and its `scoped(this)` accessor keep the array's lifetime:
+
+```camp
+void copyEntryViews(unscoped(destination) Entry[] entries, NameView[] destination)
+{
+	destination[0] = { entries[0].characters[..entries[0].length], entries[0].enabled };
+	destination[1] = { entries[0].name(), entries[0].enabled };
+}
+```
+
+Parameter data may be copied into a local destination because the data outlives
+the caller's locals. Two unrelated parameter arrays need an explicit relation,
+and a source local in an inner block cannot supply views to an outer destination.
 
 ## `escaped`
 

@@ -119,3 +119,58 @@ void fromInnerSource()
 		collectViews(source[..], views[..]);
 	}
 }
+
+struct RawSettings
+{
+	fixed NameEntry[4] entries;
+	uint count;
+	uint copyViews(unscoped(destination) this, NameView[] destination)
+	{
+		for (uint i = 0; i < this.count; i++)
+			destination[i] = { this.entries[i].characters[..this.entries[i].length], this.entries[i].enabled };
+		return this.count;
+	}
+}
+
+bool collectInlineViews(unscoped(destination) NameEntry[] source, NameView[] destination)
+{
+	destination[0] = { source[0].characters[..source[0].length], source[0].enabled };
+	return true;
+}
+
+bool collectMethodViews(unscoped(destination) NameEntry[] source, NameView[] destination)
+{
+	destination[0] = { source[0].name(), source[0].enabled };
+	return true;
+}
+
+bool collectUnrelatedViews(NameEntry[] source, NameView[] destination)
+{
+	destination[0] = { source[0].characters[..source[0].length], source[0].enabled };
+	destination[1] = { source[0].name(), source[0].enabled };
+	return true;
+}
+
+void fromInlineParameter(NameEntry[] source)
+{
+	fixed NameView[4] destination = default;
+	collectInlineViews(source, destination[..]);
+	collectMethodViews(source, destination[..]);
+}
+
+void fromUnrelatedInlineParameters(NameEntry[] source, NameView[] destination)
+{
+	collectInlineViews(source, destination);
+}
+
+const char[] localInlineReturn()
+{
+	NameEntry entry = default;
+	return entry.characters[..];
+}
+
+const char[] localElementReturn()
+{
+	fixed NameEntry[2] entries = default;
+	return entries[0].characters[..];
+}

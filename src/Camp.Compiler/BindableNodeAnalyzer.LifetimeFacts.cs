@@ -348,7 +348,7 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (receiver is ThisExpression)
 		{
-			if (TryParseLifetimeFact(GetExpressionLifetimeFact(receiver), out LifetimeFact thisFact))
+			if (TryParseLifetimeFact(GetExpressionLifetimeFact(receiver) ?? scope.CurrentFunction.ReceiverLifetimeBinding, out LifetimeFact thisFact))
 				return FormatLifetimeFact(thisFact.Kind == "scoped" && thisFact.Anchors.Count == 0 ? thisFact with { Anchors = ["this"] } : thisFact);
 			return MakeLifetimeFact("scoped", "this", "receiver");
 		}
@@ -360,7 +360,7 @@ public sealed partial class BindableNodeAnalyzer
 			return GetBoundMethodLifetimeFact(rewrittenReceiver, scope);
 		if (receiver is MemberReferenceExpression { Member: FieldDefinition { Modifier: not FieldModifier.Static }, Target: not null } fieldReceiver)
 			return GetBoundMethodLifetimeFact(fieldReceiver.Target, scope);
-		if (receiver is IndexExpression { Target: Expression indexedStorage } element && TryGetFixedArrayShape(indexedStorage.ResolvedType, out _, out _))
+		if (receiver is IndexExpression { Target: Expression indexedStorage } && TryGetArrayElementType(indexedStorage.ResolvedType) is not null)
 			return GetBoundMethodLifetimeFact(indexedStorage, scope);
 		if (TryGetStorageNode(receiver, out BindableNode? storage))
 		{
@@ -689,12 +689,16 @@ public sealed partial class BindableNodeAnalyzer
 	// Prebound field reads still need the receiver's lifetime, including generated iterator state reads.
 	string? GetFieldReferenceLifetimeFact(MemberReferenceExpression reference, FieldDefinition field, string resolvedType, BodyScope scope)
 	{
-		if (!IsLifetimePointerBearingResolvedType(resolvedType, scope))
+		bool inlineStorage = TryGetFixedArrayShape(resolvedType, out _, out _);
+		if (!inlineStorage && !IsLifetimePointerBearingResolvedType(resolvedType, scope))
 			return null;
 		if (IsEscapedStorage(field))
 			return MakeLifetimeFact("escaped", field.Name, "field");
 
-		string? targetFact = GetExpressionLifetimeFact(reference.Target);
+		// A fixed field is physical storage in its owner, even if its elements
+		// contain no pointers. Its views borrow the owner's address, not its content.
+		string? targetFact = inlineStorage && reference.Target is not null
+			? GetBoundMethodLifetimeFact(reference.Target, scope) : GetExpressionLifetimeFact(reference.Target);
 		if (targetFact is null && reference.Target is ThisExpression
 			&& scope.ContainingType?.GeneratedInfo is { Category: GeneratedDeclarationCategory.Iterator })
 			targetFact = MakeLifetimeFact("scoped", "this", "iterator state");
@@ -703,14 +707,16 @@ public sealed partial class BindableNodeAnalyzer
 
 	string? GetMemberLifetimeFact(MemberExpression member, string resolvedType, BodyScope scope)
 	{
-		if (!IsLifetimePointerBearingResolvedType(resolvedType, scope))
+		bool inlineStorage = TryGetFixedArrayShape(resolvedType, out _, out _);
+		if (!inlineStorage && !IsLifetimePointerBearingResolvedType(resolvedType, scope))
 			return null;
 		if (expressionRewrites.TryGetValue(member, out Expression? rewritten)
 			&& rewritten is MemberReferenceExpression { Member: FieldDefinition field }
 			&& IsEscapedStorage(field))
 			return MakeLifetimeFact("escaped", field.Name, "field");
 
-		string? targetFact = GetExpressionLifetimeFact(member.Target);
+		string? targetFact = inlineStorage && member.Target is not null
+			? GetBoundMethodLifetimeFact(member.Target, scope) : GetExpressionLifetimeFact(member.Target);
 		return targetFact is not null ? targetFact + ":member" : MakeLifetimeFact("scoped", null, "member");
 	}
 

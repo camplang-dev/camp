@@ -77,6 +77,47 @@ bool collectParameterResults(ReadResult[] source)
 	return destination[0].payload.length == 3 && destination[0].code == 1;
 }
 
+struct InlineName
+{
+	fixed byte[8] bytes;
+	nuint length;
+	scoped(this) const byte[] view() => this.bytes[..this.length];
+}
+
+void collectInline(unscoped(destination) InlineName[] source, ReadResult[] destination)
+{
+	destination[0] = { source[0].bytes[..source[0].length], 11 };
+	destination[1] = { source[0].view(), 12 };
+}
+
+struct InlineSettings
+{
+	fixed InlineName[2] names;
+	void collect(unscoped(destination) this, ReadResult[] destination)
+	{
+		destination[0] = { this.names[0].bytes[..this.names[0].length], 13 };
+		destination[1] = { this.names[0].view(), 14 };
+	}
+}
+
+bool checkInlineViews()
+{
+	fixed InlineName[2] names = default;
+	names[0].bytes[0] = 42;
+	names[0].length = 1;
+	fixed ReadResult[2] destination = default;
+	collectInline(names[..], destination[..]);
+	if ((int)destination[0].payload[0] != 42 || (int)destination[1].payload[0] != 42
+		|| destination[0].code != 11 || destination[1].code != 12)
+		return false;
+	InlineSettings settings = default;
+	settings.names[0].bytes[0] = 24;
+	settings.names[0].length = 1;
+	settings.collect(destination[..]);
+	return (int)destination[0].payload[0] == 24 && (int)destination[1].payload[0] == 24
+		&& destination[0].code == 13 && destination[1].code == 14;
+}
+
 export int main(string[] args)
 {
 	const byte[] image = [1, 2, 3, 4, 5];
@@ -108,5 +149,7 @@ export int main(string[] args)
 		return 9;
 	if (!collectParameterResults(entries[..]))
 		return 10;
+	if (!checkInlineViews())
+		return 11;
 	return 0;
 }
