@@ -31,4 +31,20 @@ public sealed class PreparedResultLifetimeTests
 	{
 		SemanticCompiler.AssertNoDiagnostics(SemanticCompiler.CompileLowered(Declarations + source));
 	}
+
+	[Theory]
+	[InlineData("for (int i = 0; i < 2; i++) { char[] text = (new) render(3); }")]
+	[InlineData("char[] text = default; for (int i = 0; i < 2; i++) { text = (new) render(3); }")]
+	[InlineData("while (repeat) { char[] text = (new) render(3); repeat = false; }")]
+	public void Heap_prepared_results_are_allowed_inside_loops(string body)
+	{
+		SemanticCompiler.AssertNoDiagnostics(SemanticCompiler.CompileLowered(Declarations + " void use(bool repeat) { " + body + " }"));
+	}
+
+	[Fact]
+	public void Implicit_prepared_results_still_require_storage_outside_loops()
+	{
+		var compilation = SemanticCompiler.CompileLowered(Declarations + " void use() { for (int i = 0; i < 2; i++) { char[] text = render(3); } }");
+		Assert.Contains(compilation.AnalysisDiagnostics, diagnostic => diagnostic.Message.Contains("implicit dynamic stack allocation inside a loop"));
+	}
 }

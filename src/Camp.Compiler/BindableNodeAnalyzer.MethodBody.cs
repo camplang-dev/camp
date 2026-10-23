@@ -1546,7 +1546,7 @@ public sealed partial class BindableNodeAnalyzer
 			return ErrorType;
 		}
 
-		string prepType = BodyAnalyzeCallExpression(call, scope, typeScope, targetType: null);
+		string prepType = BodyAnalyzeCallExpression(call, scope, typeScope, targetType: null, implicitPreparedStorage: false);
 		call.ResolvedType = prepType;
 		if (!expressionRewrites.Remove(call, out Expression? rewrite) || rewrite is not PreparedBufferExpression implicitPrepared)
 		{
@@ -3492,7 +3492,7 @@ public sealed partial class BindableNodeAnalyzer
 		return true;
 	}
 
-	string BodyAnalyzeCallExpression(CallExpression call, BodyScope scope, AnalysisScope typeScope, string? targetType)
+	string BodyAnalyzeCallExpression(CallExpression call, BodyScope scope, AnalysisScope typeScope, string? targetType, bool implicitPreparedStorage = true)
 	{
 		if (TryAnalyzeConfiguredIntrinsic(call, out string configuredType))
 			return configuredType;
@@ -3615,7 +3615,8 @@ public sealed partial class BindableNodeAnalyzer
 			returnType = SubstituteGenericType(prepParameter!.ResolvedType ?? ErrorType, genericSubstitutions);
 			returnType = SubstituteConstOfResolvedType(prepParameter.Type, returnType, constOfAnchors, genericSubstitutions);
 			preparedResult = RegisterImplicitPreparedCall(call, returnType);
-			ValidateImplicitDynamicStackAllocationCycle(call.SourceSyntax ?? GetExpressionDiagnosticSyntax(call.Target), scope, "Prepared result");
+			if (implicitPreparedStorage)
+				ValidateImplicitDynamicStackAllocationCycle(call.SourceSyntax ?? GetExpressionDiagnosticSyntax(call.Target), scope, "Prepared result");
 		}
 		else if (function is not null && binding.Parameters.Any(static parameter => parameter.Modifier == ParameterModifier.Prep))
 		{

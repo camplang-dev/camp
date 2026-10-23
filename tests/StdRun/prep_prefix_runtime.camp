@@ -34,6 +34,13 @@ export int main()
 	if (heapText.length != 2 || heapText[0] != 'C' || heapText[1] != 'a')
 		return 8;
 	delete heapText.elements;
+	for (int i = 0; i < 2; i++)
+	{
+		char[] loopText = (new) writeWord(i + 1);
+		if (loopText.length != (nuint)(i + 1) || loopText[0] != 'C')
+			return 9;
+		delete loopText.elements;
+	}
 
 	return 0;
 }
