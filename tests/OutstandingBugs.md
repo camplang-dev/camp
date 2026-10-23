@@ -153,23 +153,24 @@ The non-generic class reports "Assignment cannot store a scoped pointer-bearing 
 Known Impact:
 Generic containers can retain dangling pointers without a diagnostic. Checking should still treat values of the type parameter conservatively as `semantics/05` (Generic Boundaries) describes, but pointer-bearing fields and parameters of known type should be checked.
 
-## BUG-342: A retained allocator is not checked against the lifetime of the object that keeps it
+## BUG-342: A retained allocator is not required to outlive the object that keeps it
 
 Date/Time: 2026-10-22 21:46 EDT
 
 Summary:
-A class constructor written `within this.allocator` keeps the allocator it is given so the object can free itself. When the object is created with `new` inside a scoped allocator context, the object is escaped but the allocator it keeps may end sooner.
+A class constructor written `within this.allocator` keeps the allocator it is given so the object can free itself. The retained allocator parameter is implicitly `unscoped` relative to the object under construction (`semantics/10-construction-destruction-and-allocation.md`, Within parameter lifetimes), so the allocator passed at a construction must outlive the constructed object. No call site is checked against that rule. In particular `new` yields an escaped object, so the allocator it is constructed with must be escaped.
 
 Steps to Reproduce:
 
 1. Declare an `Allocator` interface and `class Owner { int value; Owner(within this.allocator) { this.value = 1; } ~Owner() { } }`.
 2. Declare `Owner* make(Allocator* arena) { return within (arena) new Owner(); }`.
+3. Also construct an `Owner` in a local whose lifetime outlasts a scoped allocator.
 
 Expected:
-The construction is rejected, because the returned object retains `arena`, which is scoped to the call. `semantics/10-construction-destruction-and-allocation.md` (Allocator Lifetime) says analysis must reject allocator values that cannot outlive the generated storage that needs them.
+Each construction is rejected when the allocator does not outlive the constructed object. In step 2 `arena` is scoped to the call while the returned object is escaped, so it is rejected. Constructing with an escaped allocator is accepted.
 
 Actual:
-No diagnostic is reported. Only async functions with an unscoped `within` parameter and `new delegate` lambdas that capture a non-escaped allocator are rejected.
+No diagnostic is reported for any of them. Only async functions with an unscoped `within` parameter and `new delegate` lambdas that capture a non-escaped allocator are rejected.
 
 Known Impact:
 An object can outlive the allocator it needs for cleanup.
