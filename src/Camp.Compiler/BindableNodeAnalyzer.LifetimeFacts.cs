@@ -359,6 +359,8 @@ public sealed partial class BindableNodeAnalyzer
 			return GetBoundMethodLifetimeFact(rewrittenReceiver, scope);
 		if (receiver is MemberReferenceExpression { Member: FieldDefinition { Modifier: not FieldModifier.Static }, Target: not null } fieldReceiver)
 			return GetBoundMethodLifetimeFact(fieldReceiver.Target, scope);
+		if (receiver is IndexExpression { Target: Expression indexedStorage } element && TryGetFixedArrayShape(indexedStorage.ResolvedType, out _, out _))
+			return GetBoundMethodLifetimeFact(indexedStorage, scope);
 		if (TryGetStorageNode(receiver, out BindableNode? storage))
 		{
 			if (storage is ParameterDefinition parameter)
@@ -867,6 +869,7 @@ public sealed partial class BindableNodeAnalyzer
 
 		List<ParameterDefinition> callableParameters = GetCallableParameters(function.Parameters, IncludeExplicitThisArgument(callTarget, function));
 		LifetimeCallContext context = BuildLifetimeCallContext(function, callTarget, callableParameters, arguments, substitutions, scope);
+		CheckLifetimeReceiverRetention(function, context, scope, fallbackSyntax);
 		foreach ((ArgumentExpression argument, ParameterDefinition parameter) in arguments)
 		{
 			if (parameter.Modifier == ParameterModifier.Out)
@@ -878,6 +881,38 @@ public sealed partial class BindableNodeAnalyzer
 				continue;
 
 			CheckLifetimeParameterArgument(function, argument, parameter, context, scope, fallbackSyntax, substitutions);
+		}
+	}
+
+	// `unscoped(destination) this` says the receiver is retained by `destination`, so it must outlive what is passed there.
+	void CheckLifetimeReceiverRetention(FunctionDefinition function, LifetimeCallContext context, BodyScope scope, SyntaxNode? syntax)
+	{
+		if (context.Receiver is not LifetimeFact actual
+			|| !TryParseLifetimeFact(function.ReceiverLifetimeBinding, out LifetimeFact template)
+			|| template is not { Kind: "unscoped", Source: "explicit receiver" } || template.Anchors.Count == 0)
+			return;
+
+		foreach (string anchor in template.Anchors)
+		{
+			if (!context.Anchors.TryGetValue(anchor, out LifetimeFact? required) || required.Kind == "unknown")
+				continue;
+			if (ValueOutlivesFact(actual, required) || LocalLifetimeOutlives(actual, required, scope))
+				continue;
+			// Anything that is not a local of this function outlives the function's locals.
+			if (required.Anchors.Count > 0 && required.Anchors.All(name => IsLocalLifetimeAnchor(name, scope))
+				&& !actual.Anchors.Any(name => IsLocalLifetimeAnchor(name, scope)))
+				continue;
+
+			string name = function.Name;
+			string? local = actual.Anchors.FirstOrDefault(candidate => IsLocalLifetimeAnchor(candidate, scope));
+			string reason = local is not null
+				? $"'{local}' is a local that ends before the value passed for '{anchor}'"
+				: $"the receiver does not outlive the value passed for '{anchor}'";
+			string remedy = local is not null
+				? $"Declare '{local}' where it outlives the destination, or pass a destination that does not outlive it."
+				: "Pass a receiver that outlives the destination, or a destination that does not outlive the receiver.";
+			Report(GetRange(syntax), $"Cannot call '{name}': it requires the receiver to outlive '{anchor}' (`unscoped({anchor}) this`), but {reason}. {remedy}");
+			return;
 		}
 	}
 
@@ -1159,28 +1194,20 @@ public sealed partial class BindableNodeAnalyzer
 		return template.Kind switch
 		{
 			"escaped" => new LifetimeFact("escaped", [], source),
-			"scoped" => SubstituteScopedTemplate(template, context, source),
-			"unscoped" => SubstituteUnscopedTemplate(template, context, source),
+			"scoped" or "unscoped" => SubstituteAnchoredTemplate(template, context, source),
 			"unknown" => new LifetimeFact("unknown", [], source),
 			_ => null
 		};
 	}
 
-	static LifetimeFact SubstituteScopedTemplate(LifetimeFact template, LifetimeCallContext context, string source)
+	static LifetimeFact SubstituteAnchoredTemplate(LifetimeFact template, LifetimeCallContext context, string source)
 	{
 		if (template.Anchors.Count > 0)
-			return CombineAnchorFacts(template.Anchors, context, source, preserveUnscoped: false);
+			return CombineAnchorFacts(template.Anchors, context, source);
 		return CombineScopedInputs(context.ScopedInputs, source);
 	}
 
-	static LifetimeFact SubstituteUnscopedTemplate(LifetimeFact template, LifetimeCallContext context, string source)
-	{
-		if (template.Anchors.Count > 0)
-			return CombineAnchorFacts(template.Anchors, context, source, preserveUnscoped: true);
-		return CombineScopedInputs(context.ScopedInputs, source);
-	}
-
-	static LifetimeFact CombineAnchorFacts(IReadOnlyList<string> anchors, LifetimeCallContext context, string source, bool preserveUnscoped)
+	static LifetimeFact CombineAnchorFacts(IReadOnlyList<string> anchors, LifetimeCallContext context, string source)
 	{
 		List<LifetimeFact> facts = [];
 		foreach (string anchor in anchors)
@@ -1190,7 +1217,7 @@ public sealed partial class BindableNodeAnalyzer
 			facts.Add(fact);
 		}
 		if (facts.Count == 1)
-			return NormalizeSubstitutedFact(facts[0], source, preserveUnscoped);
+			return NormalizeSubstitutedFact(facts[0], source);
 		return CombineScopedInputs(facts, source);
 	}
 
@@ -1202,7 +1229,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (useful.All(fact => fact.Kind == "escaped"))
 			return new LifetimeFact("escaped", [], source);
 		if (useful.Count == 1)
-			return NormalizeSubstitutedFact(useful[0], source, preserveUnscoped: false);
+			return NormalizeSubstitutedFact(useful[0], source);
 
 		List<string> localAnchors = useful
 			.Where(fact => fact.Kind == "scoped" && fact.Anchors.Count == 1)
@@ -1214,13 +1241,13 @@ public sealed partial class BindableNodeAnalyzer
 		return new LifetimeFact("unknown", [], source);
 	}
 
-	static LifetimeFact NormalizeSubstitutedFact(LifetimeFact fact, string source, bool preserveUnscoped)
+	static LifetimeFact NormalizeSubstitutedFact(LifetimeFact fact, string source)
 	{
 		return fact.Kind switch
 		{
 			"escaped" => new LifetimeFact("escaped", [], source),
-			"unscoped" when preserveUnscoped => new LifetimeFact("unscoped", fact.Anchors, source),
-			"unscoped" when fact.Anchors.Count == 0 => new LifetimeFact("unscoped", [], source),
+			// A value that points into something an anchor retains outlives that anchor too.
+			"unscoped" => new LifetimeFact("unscoped", fact.Anchors, source),
 			"scoped" => new LifetimeFact("scoped", fact.Anchors, source),
 			"unknown" => new LifetimeFact("unknown", [], source),
 			_ => new LifetimeFact("unknown", [], source)

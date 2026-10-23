@@ -137,6 +137,28 @@ The compiler rejects `name` without the annotation, because `this.characters`
 lives inside the receiver. A caller cannot return `entry.name()` from a function
 where `entry` is a local, while it can return a view the local only retains.
 
+A method that stores views of its own storage in a caller-provided array says
+so on the receiver with `unscoped(anchor) this`. The receiver is retained by the
+anchor, so it must outlive the array it is stored into:
+
+```camp
+struct Settings
+{
+	fixed Entry[8] entries;
+	uint count;
+
+	uint copyViews(unscoped(destination) this, NameView[] destination)
+	{
+		for (uint i = 0; i < this.count; i++)
+			destination[i] = { this.entries[i].name(), this.entries[i].enabled };
+		return this.count;
+	}
+}
+```
+
+The body may store the views because the receiver outlives `destination`. A caller
+that passes a local `Settings` and an array that outlives it is rejected.
+
 ## `escaped`
 
 `escaped` means the value may be retained somewhere that outlives the immediate

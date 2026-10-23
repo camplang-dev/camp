@@ -1201,7 +1201,8 @@ public sealed partial class BindableNodeAnalyzer
 		string source = string.IsNullOrWhiteSpace(contract.Lifetime)
 			? kind == "escaped" ? "default escaped receiver" : "default receiver"
 			: "explicit receiver";
-		definition.ReceiverLifetimeBinding = new BoundLifetime(kind, [], source).ToString();
+		List<string> anchors = string.IsNullOrWhiteSpace(contract.Lifetime) ? [] : GetThisLifetimeAnchors(thisParameter);
+		definition.ReceiverLifetimeBinding = new BoundLifetime(kind, anchors, source).ToString();
 
 		if (thisParameter is not null && thisParameter.LifetimeBinding is null)
 			BindDefaultReceiverLifetime(thisParameter, kind, source);
@@ -2707,7 +2708,13 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			ThisContract contract = GetThisContract(thisParameter);
 			if (!string.IsNullOrWhiteSpace(contract.Lifetime))
-				BindParameterLifetime(thisParameter, contract.Lifetime, [], "explicit receiver");
+			{
+				List<string> anchors = GetThisLifetimeAnchors(thisParameter);
+				foreach (string anchor in anchors)
+					if (!scope.ContainsLifetimeAnchor(anchor))
+						Report(GetRange(definition.SourceSyntax), $"Lifetime anchor '{anchor}' could not be resolved.");
+				BindParameterLifetime(thisParameter, contract.Lifetime, anchors, "explicit receiver");
+			}
 		}
 
 		if (definition.Modifier == ParameterModifier.Thrown && string.IsNullOrWhiteSpace(definition.Name))

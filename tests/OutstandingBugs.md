@@ -44,64 +44,6 @@ Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
 
-## BUG-351: An explicit lifetime on the receiver is accepted but not enforced
-
-Date/Time: 2026-10-23 12:59 EDT
-
-Summary:
-A method can state that its receiver is retained by one of its parameters, with
-an explicit receiver lifetime such as `unscoped(destination) this`. The syntax is
-accepted, but it has no effect. Inside the method, values derived from the
-receiver are still rejected when stored into the parameter named as the anchor,
-and at call sites the receiver is not checked against that parameter, so a
-receiver that dies before the destination is accepted.
-
-Steps to Reproduce:
-
-1. Declare `struct NameView { const char[] name; bool enabled; }`.
-2. Declare a struct `NameEntry` with `fixed char[16] characters;`, `uint length;`,
-   `bool enabled;` and `const char[] name() => this.characters[..this.length];`
-   declared `scoped(this)`.
-3. Declare a struct `Settings` with `fixed NameEntry[8] entries;` and `uint count;`
-   and the method `uint copyViews(unscoped(destination) this, NameView[] destination)`
-   whose body stores `{ this.entries[i].name(), this.entries[i].enabled }` into
-   `destination[i]`.
-4. Declare a global `Settings` value and a function that fills a local
-   `fixed NameView[8]` from a pointer to it with `settings.copyViews(views[..])`.
-5. Declare a function taking a parameter `NameView[] longLived`, creating a local
-   `Settings local = default;` and calling `local.copyViews(longLived)`.
-6. Compile.
-
-Expected:
-The method body in step 3 compiles: the receiver is declared retained by
-`destination`, so views derived from it may be stored there. The call in step 4
-compiles, because the receiver outlives the local destination. The call in step
-5 is rejected, because the receiver is a local that ends before the destination
-that retains views of it.
-
-The diagnostic for step 5 names the call, the receiver and the destination, and
-says what to do. For example: "Cannot call 'copyViews': it requires the receiver
-to outlive 'destination' (`unscoped(destination) this`), but 'local' is a local
-that ends before the value passed for 'destination'. Declare 'local' where it
-outlives the destination, or pass a destination that does not outlive it."
-
-Actual:
-Step 3 is rejected with "Assignment cannot store a scoped pointer-bearing value
-in storage tied to 'destination'." Steps 4 and 5 compile without diagnostics, so
-the annotation neither permits the store nor constrains the callers.
-
-Known Impact:
-There is no way to write a method that copies views of its own inline storage
-into a caller-provided array. The remaining options are to copy the underlying
-data instead of storing views, or to annotate the destination parameter
-`unscoped`, which moves the error to every caller that passes local storage.
-
-Documentation:
-`docs/semantics/05-lifetime-analysis-and-flow-facts.md` already says an explicit
-receiver lifetime overrides the default receiver fact. Add the meaning of
-`unscoped(anchor) this` (the receiver is retained by the anchor, so it must
-outlive it) and an example, and describe the body and call-site checks.
-
 ## BUG-352: A call whose array result has an explicit `scoped` or `unscoped` annotation emits C that does not compile
 
 Date/Time: 2026-10-23 13:07 EDT

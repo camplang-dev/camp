@@ -265,6 +265,23 @@ value keeps that lifetime when read through an accessor, exactly as reading the
 field directly does. Methods that return `this` or `classtype*` name the receiver
 itself and keep the receiver's own lifetime.
 
+An explicit receiver lifetime overrides the default receiver fact. `unscoped(anchor)
+this` declares that the receiver is retained by `anchor`, a parameter of the same
+method, so the receiver must outlive whatever is passed for `anchor`:
+
+```camp
+uint copyViews(unscoped(destination) this, NameView[] destination);
+```
+
+Inside the body, `this` carries `unscoped(destination)`. A value that points into
+the receiver, such as the `scoped(this)` result of a call on one of its inline
+fields, therefore outlives `destination` and may be stored into it. At a call
+site the receiver's fact is compared with the fact of the argument passed for the
+anchor, as for an `unscoped(anchor)` parameter: a receiver that is a local
+ending before the destination is rejected, a receiver that outlives the
+destination is accepted. The anchor must name an input parameter of the method;
+an unresolved or circular anchor is rejected at the declaration.
+
 The return default for receiver-bearing declarations is `unscoped(this)`: an
 ordinary method returning a pointer-bearing value without an explicit lifetime
 relation is treated as returning something the receiver retains, not as escaped.

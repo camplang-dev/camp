@@ -1,0 +1,62 @@
+struct NameView
+{
+	const char[] name;
+	bool enabled;
+}
+
+struct NameEntry
+{
+	fixed char[16] characters;
+	uint length;
+	bool enabled;
+
+	scoped(this) const char[] name() => this.characters[..this.length];
+}
+
+struct Settings
+{
+	fixed NameEntry[8] entries;
+	uint count;
+
+	uint copyViews(unscoped(destination) this, NameView[] destination)
+	{
+		for (uint i = 0; i < this.count; i++)
+			destination[i] = { this.entries[i].name(), this.entries[i].enabled };
+		return this.count;
+	}
+}
+
+Settings global;
+
+void fromGlobal()
+{
+	fixed NameView[8] views;
+	Settings* settings = &global;
+	settings.copyViews(views[..]);
+}
+
+uint fromLocal(NameView[] longLived)
+{
+	Settings local = default;
+	return local.copyViews(longLived);
+}
+
+uint innerReceiver()
+{
+	fixed NameView[8] views;
+	Settings* escapedSettings = &global;
+	{
+		Settings local = default;
+		local.copyViews(views[..]);
+	}
+	return escapedSettings.copyViews(views[..]);
+}
+
+uint outerReceiver()
+{
+	Settings local = default;
+	fixed NameView[8] views;
+	return local.copyViews(views[..]);
+}
+
+export int main() { return 0; }

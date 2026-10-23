@@ -477,6 +477,17 @@ public sealed partial class BindableNodeAnalyzer
 		return new ThisContract(true, isConst, isVolatile, lifetime);
 	}
 
+	// The anchors written on an explicit receiver lifetime, as in `unscoped(destination) this`.
+	static List<string> GetThisLifetimeAnchors(ThisParameterDefinition? parameter)
+	{
+		List<string> anchors = [];
+		if (parameter?.SourceSyntax is ThisParameterSyntax { Declarators: not null } syntax)
+			foreach (TypeDeclaratorSyntax declarator in syntax.Declarators)
+				if (declarator.Keyword?.Value is "escaped" or "scoped" or "unscoped" && declarator.AnchorList?.Identifiers is { } identifiers)
+					anchors.AddRange(identifiers.Select(identifier => identifier.Value));
+		return anchors;
+	}
+
 	static bool HasInternalThisDeclarator(ThisParameterDefinition parameter, string name)
 	{
 		foreach (AttributeConstructor attribute in parameter.Attributes)

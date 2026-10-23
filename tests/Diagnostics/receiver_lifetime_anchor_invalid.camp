@@ -1,0 +1,8 @@
+struct Settings
+{
+	uint count;
+
+	void missing(unscoped(absent) this, int* destination) {}
+	void circular(unscoped(this) this, int* destination) {}
+	void valid(unscoped(destination) this, int* destination) {}
+}

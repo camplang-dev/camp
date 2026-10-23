@@ -1,0 +1,2 @@
+tests/Diagnostics/receiver_lifetime_anchor_invalid.camp(5,32): error: Lifetime anchor 'absent' could not be resolved.
+tests/Diagnostics/receiver_lifetime_anchor_invalid.camp(6,31): error: Circular lifetime anchors on parameter 'this' require circular substitution.
