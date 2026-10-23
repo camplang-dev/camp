@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-344.
+Next bug number: BUG-345.
 
 ## Bug Template
 
@@ -196,3 +196,25 @@ Actual:
 
 Known Impact:
 Whether a lifetime error is reported depends on the spelling of variable names.
+
+## BUG-344: `within scoped allocator` can be stored in a field of the receiver
+
+Date/Time: 2026-10-22 22:20 EDT
+
+Summary:
+An unannotated `within` parameter is `scoped` like any other parameter, so it cannot be stored in a field tied to the receiver. Writing `within scoped allocator` only states that default, so it must behave identically. The bare form is instead exempted from the receiver-storage check.
+
+Steps to Reproduce:
+
+1. Declare an `Allocator` interface and `class Holder { Allocator* allocator; }` with two methods.
+2. Write `void viaDefault(within allocator) { this.allocator = allocator; }` and `void viaScoped(within scoped allocator) { this.allocator = allocator; }`.
+3. Compare with `within unscoped allocator` and `within escaped allocator` bodies that store the same way, and with the typed form `within scoped Allocator* allocator`.
+
+Expected:
+`viaDefault` and `viaScoped` are both rejected with "Assignment cannot store a scoped pointer-bearing value in storage tied to 'this'." The unscoped and escaped forms are accepted.
+
+Actual:
+`viaDefault` and the typed `within scoped Allocator* allocator` form are rejected. The bare `within scoped allocator` form is accepted.
+
+Known Impact:
+A receiver can keep a call-scoped allocator past the call. The existing `tests/CCompile/within_allocator_lifetime_parameters.camp` compiles `ScopedHolder` with this store, and must change with the fix. The older unified spec (v28) described this behavior as intended; `semantics/10` now states the default.
