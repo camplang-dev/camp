@@ -375,6 +375,9 @@ public sealed partial class BindableNodeAnalyzer
 		if (expression.ResolvedType == ErrorType || (!IsEscapedCallableTarget(targetType) && !escapedReceiver)
 			|| expression is LambdaExpression && !escapedReceiver)
 			return;
+		if (expression.SourceSyntax is not null && diagnostics.Any(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error
+			&& Equals(diagnostic.Range, GetRange(expression.SourceSyntax))))
+			return;
 		if (TryParseLifetimeFact(GetExpressionLifetimeFact(expression), out LifetimeFact fact)
 			&& fact.Kind is not ("escaped" or "null" or "default"))
 			Report(GetRange(expression.SourceSyntax), "Expression cannot satisfy escaped callable context lifetime.");
