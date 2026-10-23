@@ -367,6 +367,20 @@ to that one instead. Compiler passes that need the allocator type for an
 implicit `within` slot or a `within` carrier must resolve `Allocator` by name in
 the same way and must not assume the standard library's declaration.
 
+A `within` parameter has the lifetime of any other parameter. Unannotated, it is
+`scoped`, so a plain `within allocator` cannot be stored in a field tied to the
+receiver or in escaped storage. Writing `within scoped allocator` states that
+default and changes nothing. `within unscoped allocator` and
+`within escaped allocator` request the corresponding lifetimes, and the value
+may then be stored where those lifetimes allow.
+
+The retained allocator parameter `within this.allocator` is the exception: it is
+always implicitly `unscoped` relative to the object under construction, because
+the object keeps the allocator for its own cleanup. The allocator supplied at a
+construction must outlive the constructed object. For `new`, which yields an
+escaped object, the allocator must be escaped. An explicit lifetime on a
+retained allocator parameter is rejected, since the lifetime is fixed.
+
 In `within (context) expression`, analyze the allocator context independently
 of the destination type of `expression`. The destination type applies only to
 the wrapped expression, so an allocator selector call is not required to return
