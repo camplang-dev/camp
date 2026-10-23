@@ -66,6 +66,9 @@ The global assignment reports "Assignment cannot store a non-escaped pointer-bea
 Known Impact:
 A dangling pointer to a parameter or local can be left in static storage without a diagnostic.
 
+Documentation:
+No update needed; `semantics/05-lifetime-analysis-and-flow-facts.md` already states that static fields are escaped storage.
+
 ## BUG-338: `new` of a class does not check pointer-bearing constructor arguments against what the constructor retains
 
 Date/Time: 2026-10-22 21:46 EDT
