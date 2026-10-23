@@ -370,9 +370,10 @@ the same way and must not assume the standard library's declaration.
 A `within` parameter has the lifetime of any other parameter. Unannotated, it is
 `scoped`, so a plain `within allocator` cannot be stored in a field tied to the
 receiver or in escaped storage. Writing `within scoped allocator` states that
-default and changes nothing. `within unscoped allocator` and
-`within escaped allocator` request the corresponding lifetimes, and the value
-may then be stored where those lifetimes allow.
+default and changes nothing. `within unscoped allocator`,
+`within unscoped(x) allocator` and `within escaped allocator` request the
+corresponding lifetimes, with anchors named as for any other parameter, and the
+value may then be stored where those lifetimes allow.
 
 The retained allocator parameter `within this.allocator` is the exception: it is
 always implicitly `unscoped` relative to the object under construction, because
