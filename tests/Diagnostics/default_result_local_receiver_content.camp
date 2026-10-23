@@ -102,3 +102,42 @@ Result badLocalOut()
 	view.find(out part);
 	return part;
 }
+
+struct PointerInput { const byte[] data; int flags; }
+Result emitPointer(PointerInput* input) => { input.data, 0 };
+Result emitPointerValue(PointerInput input) => { input.data, 0 };
+unscoped(input) Result emitPointerAnnotated(PointerInput* input) => { input.data, 0 };
+scoped(input) int* pointerField(PointerInput* input) => &input.flags;
+int* missingPointerRelation(PointerInput* input) => &input.flags;
+
+Result viaPointer(const byte[] image)
+{
+	PointerInput input = { image, 0 };
+	return emitPointer(&input);
+}
+
+Result viaPointerAlias(const byte[] image)
+{
+	PointerInput input = { image, 0 };
+	PointerInput* pointer = &input;
+	return emitPointerAnnotated(pointer);
+}
+
+Result viaPointerValue(const byte[] image)
+{
+	PointerInput input = { image, 0 };
+	return emitPointerValue(input);
+}
+
+Result badPointerContent()
+{
+	fixed byte[8] buffer = default;
+	PointerInput input = { buffer[..], 0 };
+	return emitPointer(&input);
+}
+
+int* badPointerAddress(const byte[] image)
+{
+	PointerInput input = { image, 0 };
+	return pointerField(&input);
+}

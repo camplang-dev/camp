@@ -274,6 +274,14 @@ or `out unscoped(this)` parameter receives what the receiver retains; a
 Calling either form on a local value or one of its inline fields preserves
 that distinction. Retained local backing storage still cannot escape.
 
+The same rule applies to any pointer argument. Passing the address of a local
+struct to an unscoped result or output relation contributes the struct's
+retained content fact, rather than the lifetime of its address. Passing a
+pointer alias preserves this rule. A result pointing into the pointee's own
+memory, such as `&input.flags`, must declare `scoped(input)` and keeps the
+argument's address lifetime. A pointee retaining a local buffer cannot make
+that buffer escape through an unscoped result.
+
 An explicit receiver lifetime overrides the default receiver fact. `unscoped(anchor)
 this` declares that the receiver is retained by `anchor`, a parameter of the same
 method, so the receiver must outlive whatever is passed for `anchor`:

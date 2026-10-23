@@ -1044,13 +1044,20 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		Dictionary<string, LifetimeFact> anchors = new(StringComparer.Ordinal);
 		List<LifetimeFact> scopedInputs = [];
+		Dictionary<string, LifetimeFact> retainedAnchors = new(StringComparer.Ordinal);
+		List<LifetimeFact> retainedInputs = [];
 		Dictionary<string, List<LifetimeFact>> genericInputs = new(StringComparer.Ordinal);
 		LifetimeFact? receiverFact = GetReceiverLifetimeFact(callTarget, scope);
 		if (receiverFact is not null)
 		{
 			anchors["this"] = receiverFact;
+			LifetimeFact content = GetLocalValueReceiverContentFact(callTarget) ?? receiverFact;
+			retainedAnchors["this"] = content;
 			if (IsReceiverScopedInput(function))
+			{
 				scopedInputs.Add(receiverFact);
+				retainedInputs.Add(content);
+			}
 		}
 
 		List<ArgumentExpression> arguments = analyzedArguments.Select(pair => pair.Argument).ToList();
@@ -1063,10 +1070,17 @@ public sealed partial class BindableNodeAnalyzer
 				continue;
 			if (!TryGetArgumentLifetimeFact(argument, out LifetimeFact actualFact))
 				continue;
+			LifetimeFact retained = GetPointerArgumentContentFact(argument, actualFact, scope) ?? actualFact;
 			if (!string.IsNullOrWhiteSpace(parameter.Name))
+			{
 				anchors[parameter.Name] = actualFact;
+				retainedAnchors[parameter.Name] = retained;
+			}
 			if (GetParameterLifetimeTemplate(parameter).Kind == "scoped")
+			{
 				scopedInputs.Add(actualFact);
+				retainedInputs.Add(retained);
+			}
 		}
 
 		foreach ((ArgumentExpression argument, ParameterDefinition parameter) in analyzedArguments)
@@ -1092,15 +1106,20 @@ public sealed partial class BindableNodeAnalyzer
 			facts.Add(actualFact);
 		}
 
-		Dictionary<string, LifetimeFact> retainedAnchors = new(anchors, StringComparer.Ordinal);
-		List<LifetimeFact> retainedInputs = [.. scopedInputs];
-		if (GetLocalValueReceiverContentFact(callTarget) is LifetimeFact content)
-		{
-			retainedAnchors["this"] = content;
-			if (receiverFact is not null && IsReceiverScopedInput(function))
-				retainedInputs[0] = content;
-		}
 		return new LifetimeCallContext(anchors, scopedInputs, receiverFact, genericInputs, retainedAnchors, retainedInputs);
+	}
+
+	LifetimeFact? GetPointerArgumentContentFact(ArgumentExpression argument, LifetimeFact address, BodyScope scope)
+	{
+		string? element = TryGetPointerElementType(argument.Value?.ResolvedType ?? argument.ResolvedType);
+		if (element is null || TryGetPointerElementType(element) is not null || TryGetArrayElementType(element) is not null
+			|| !IsLifetimePointerBearingResolvedType(element, scope)
+			|| address is not { Kind: "scoped", Anchors.Count: 1 }
+			|| !scope.TryLookup(address.Anchors[0], out BodySymbol symbol)
+			|| symbol.Node is not DeclarationTarget local
+			|| StripTopLevelValueQualifiers(StripLifetimeQualifiers(local.ResolvedType ?? "")) != StripTopLevelValueQualifiers(StripLifetimeQualifiers(element)))
+			return null;
+		return TryParseLifetimeFact(local.ValueLifetimeFact, out LifetimeFact content) ? content : null;
 	}
 
 	bool TryGetArgumentLifetimeFact(ArgumentExpression argument, out LifetimeFact fact)
@@ -1559,6 +1578,7 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (!IsLifetimePointerBearingResolvedType(value?.ResolvedType, scope))
 			return;
+		CheckResultPointsIntoPointerInput(value, syntax, scope);
 
 		string? valueFactText = GetExpressionLifetimeFact(value);
 		if (!TryParseLifetimeFact(valueFactText, out LifetimeFact valueFact))
@@ -1585,6 +1605,9 @@ public sealed partial class BindableNodeAnalyzer
 		if (localAnchor is not null && FindScopedThisCall(value) is CallExpression scopedThisCall && SpannedExpressionText(scopedThisCall) is string callText)
 			Report(GetRange(syntax), $"Cannot return the result of '{callText}'. Its declared lifetime is `scoped(this)`: it points into '{localAnchor}', "
 				+ "a local that ends when this function returns. Return a copy, or take the value from storage that outlives the function.");
+		else if (localAnchor is not null && FindPointerContentCall(value, scope) is { } pointerCall)
+			Report(GetRange(syntax), $"Cannot return the result of '{SpannedExpressionText(pointerCall.Call)}'. It is derived from '{pointerCall.Local}', "
+				+ $"which retains local storage ('{localAnchor}'). Return a copy, or build '{pointerCall.Local}' from storage that outlives this function.");
 		else if (localAnchor is not null)
 			Report(GetRange(syntax), $"{context} cannot return a pointer-bearing value tied to local storage '{localAnchor}'."
 				+ (valueFact.Source == "out" ? " The value came from an out argument. Return a copy, or fill it from data that outlives this function." : ""));
@@ -1594,6 +1617,72 @@ public sealed partial class BindableNodeAnalyzer
 			Report(GetRange(syntax), $"{context} cannot return a pointer-bearing value tied to in-parameter transport '{inParameterAnchor}'.");
 		else if (valueFact.Source.Contains("parameter address", StringComparison.Ordinal))
 			Report(GetRange(syntax), $"{context} cannot return a callable tied to parameter storage.");
+	}
+
+	void CheckResultPointsIntoPointerInput(Expression? value, SyntaxNode? syntax, BodyScope scope)
+	{
+		for (BodyScope? enclosing = scope; enclosing is not null; enclosing = enclosing.Parent)
+			if (enclosing.Lambda is not null)
+				return;
+		LifetimeFact template = GetReturnLifetimeTemplate(scope.CurrentFunction, value?.ResolvedType ?? ErrorType);
+		if (template.Kind != "unscoped" || scope.CurrentFunction.GeneratedInfo is not null)
+			return;
+		ParameterDefinition? FindStorageRoot(Expression? expression)
+		{
+			if (expression is null)
+				return null;
+			if (expressionRewrites.TryGetValue(expression, out Expression? rewritten) && !ReferenceEquals(expression, rewritten))
+				return FindStorageRoot(rewritten);
+			return expression switch
+			{
+				VariableReferenceExpression { Variable: ParameterDefinition parameter } when TryGetPointerElementType(parameter.ResolvedType) is not null => parameter,
+				NamedExpression { Qualifiers.Count: 0 } named when scope.TryLookup(named.Name, out BodySymbol symbol)
+					&& symbol.Node is ParameterDefinition parameter && TryGetPointerElementType(parameter.ResolvedType) is not null => parameter,
+				MemberReferenceExpression { Member: FieldDefinition { Modifier: not FieldModifier.Static }, Target: Expression owner }
+					when owner is NamedExpression or VariableReferenceExpression { Variable: ParameterDefinition } || TryGetPointerElementType(owner.ResolvedType) is null => FindStorageRoot(owner),
+				ParenthesizedExpression parenthesized => FindStorageRoot(parenthesized.Expression),
+				UnaryExpression { Operator: UnaryOperator.PointerDereference } dereference => FindStorageRoot(dereference.Operand),
+				_ => null
+			};
+		}
+		ParameterDefinition? FindAddress(Expression? expression)
+		{
+			if (expression is null)
+				return null;
+			if (expressionRewrites.TryGetValue(expression, out Expression? rewritten) && !ReferenceEquals(expression, rewritten))
+				return FindAddress(rewritten);
+			return expression switch
+			{
+				UnaryExpression { Operator: UnaryOperator.AddressOf, Operand: not (NamedExpression or VariableReferenceExpression) } address => FindStorageRoot(address.Operand),
+				IndexExpression index when TryGetArrayElementType(index.ResolvedType) is not null && TryGetFixedArrayShape(index.Target?.ResolvedType, out _, out _) => FindStorageRoot(index.Target),
+				InitializerExpression initializer => initializer.Items.Select(item => FindAddress(item.Expression)).FirstOrDefault(parameter => parameter is not null),
+				ParenthesizedExpression parenthesized => FindAddress(parenthesized.Expression),
+				CastExpression { LifetimeCastKind: null } cast => FindAddress(cast.Expression),
+				_ => null
+			};
+		}
+		if (FindAddress(value) is ParameterDefinition input
+			&& !IsEscapedStorage(input) && (template.Anchors.Count == 0 || template.Anchors.Contains(input.Name)))
+			Report(GetRange(syntax), $"Result points into pointer parameter '{input.Name}', rather than data it retains. Declare the result `scoped({input.Name})`, or return retained data or a copy.");
+	}
+
+	(CallExpression Call, string Local)? FindPointerContentCall(Expression? value, BodyScope scope)
+	{
+		if (value is null)
+			return null;
+		if (expressionRewrites.TryGetValue(value, out Expression? rewritten) && !ReferenceEquals(value, rewritten))
+			return FindPointerContentCall(rewritten, scope);
+		if (value is CallExpression call && callTargets.TryGetValue(call, out FunctionDefinition? function)
+			&& GetReturnLifetimeTemplate(function, call.ResolvedType ?? ErrorType).Kind == "unscoped")
+			foreach (ArgumentExpression argument in call.Arguments)
+				if (TryGetArgumentLifetimeFact(argument, out LifetimeFact address)
+					&& GetPointerArgumentContentFact(argument, address, scope) is not null)
+					return (call, address.Anchors[0]);
+		if (value is InitializerExpression initializer)
+			foreach (InitializerItem item in initializer.Items)
+				if (FindPointerContentCall(item.Expression, scope) is { } found)
+					return found;
+		return value is ParenthesizedExpression parenthesized ? FindPointerContentCall(parenthesized.Expression, scope) : null;
 	}
 
 	// `this` and `classtype*` results name the receiver itself, so they keep the receiver's own lifetime.

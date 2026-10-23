@@ -42,6 +42,14 @@ ReadResult readOut(const byte[] image)
 	return part;
 }
 
+ReadResult readPointer(ResultReader* reader) => { reader.bytes, 8 };
+
+ReadResult fromPointer(const byte[] image)
+{
+	ResultReader reader = { image };
+	return readPointer(&reader);
+}
+
 export int main(string[] args)
 {
 	const byte[] image = [1, 2, 3, 4, 5];
@@ -65,5 +73,8 @@ export int main(string[] args)
 	ReadResult fromOut = readOut(image);
 	if (fromOut.payload.length != 5 || (int)fromOut.payload[4] != 5 || fromOut.code != 7)
 		return 7;
+	ReadResult fromInput = fromPointer(image);
+	if (fromInput.payload.length != 5 || (int)fromInput.payload[0] != 1 || fromInput.code != 8)
+		return 8;
 	return 0;
 }
