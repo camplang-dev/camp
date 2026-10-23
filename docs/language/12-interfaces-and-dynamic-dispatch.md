@@ -563,8 +563,11 @@ escaped interface BackgroundTask
 ```
 
 An escaped interface is designed for interface pointers that may be stored or
-called later. A class-backed implementation is the usual fit, but the concrete
-class must be able to supply the escaped receiver contract too:
+called later. The lifetime belongs to the type: every `BackgroundTask*` is
+escaped, exactly as if it were written `escaped BackgroundTask*`, so APIs that
+take or store one need no lifetime annotation. A class-backed implementation is
+the usual fit, but the concrete class must be able to supply the escaped
+receiver contract too:
 
 ```camp
 escaped class TimerTask: BackgroundTask
@@ -575,7 +578,7 @@ escaped class TimerTask: BackgroundTask
 	}
 }
 
-void schedule(escaped BackgroundTask* task);
+void schedule(BackgroundTask* task); // escaped: BackgroundTask is an escaped interface
 
 void startTimer()
 {
@@ -586,7 +589,8 @@ void startTimer()
 
 Because `TimerTask` is an `escaped class`, its instance methods default to an
 escaped receiver. That matches the escaped receiver expected by
-`BackgroundTask.run`.
+`BackgroundTask.run`. A `TimerTask*` is escaped by type in the same way a
+`BackgroundTask*` is.
 
 A struct implementation may satisfy the interface for scoped use, but its
 automatic interface adapter is scoped storage:
@@ -602,12 +606,17 @@ struct StackTask: BackgroundTask
 void badSchedule()
 {
 	StackTask task = default;
-	schedule(task); // ERROR: scoped adapter cannot satisfy escaped interface pointer
+	schedule(task); // ERROR: a scoped struct adapter cannot become an escaped interface pointer
 }
 ```
 
-Use a class-backed implementation or another explicitly owned adapter when the
-interface pointer must escape.
+The error is at the conversion: any `BackgroundTask*` is escaped, and a struct on
+the stack cannot produce one. A struct in static storage, or one allocated with
+`new`, can. Use a class-backed implementation or another explicitly owned
+adapter when the interface pointer must escape.
+
+The standard library's `Allocator` is an escaped interface for this reason; the
+lifetimes chapter shows what that means for `within`.
 
 ## Interface Conversions
 

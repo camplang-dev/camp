@@ -221,6 +221,48 @@ generated private fields for virtual and interface dispatch. Those generated
 fields support the source contract; ordinary source code should reason from the
 class declaration, not from generated storage names.
 
+### Escaped Classes
+
+An `escaped class` is an object type whose instances are not bound to the call
+stack. It fits objects whose lifetime is managed some other way: UI and
+graphics objects, reference-counted or garbage-collected objects, and objects
+that live in static storage.
+
+```camp
+escaped class Window
+{
+	string title;
+}
+
+Window* mainWindow;
+
+void show(Window* window)
+{
+	mainWindow = window; // fine: every Window* is escaped
+}
+```
+
+The lifetime belongs to the type. Every `Window*` is escaped, as if written
+`escaped Window*`, so parameters, fields, and results that hold one need no
+lifetime annotation. Fields of an escaped class are escaped storage, and its
+instance methods default to an escaped receiver.
+
+Because the instance is not bound to the stack, you cannot declare one there:
+
+```camp
+void draw()
+{
+	Window local = default;               // ERROR: escaped class storage in a frame
+	Window* scratch = stackalloc Window(); // ERROR: same rule
+	Window* window = new Window();         // fine
+}
+```
+
+Escaped does not mean someone else owns the object. It only says the object's
+lifetime is not tied to a call. Deleting it, releasing it, or keeping it alive
+is still the program's job. Interfaces can be escaped in the same way; the
+interfaces chapter covers `escaped interface`.
+
 ## Static Classes Are Not Objects
 
 A `static class` is a named container for static members. It is useful for APIs

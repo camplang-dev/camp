@@ -158,13 +158,17 @@ entry itself instead.
 The standard library defines the common allocator surface:
 
 ```camp
-interface Allocator
+escaped interface Allocator
 {
-	void* alloc(nuint size);
-	void* realloc(void* ptr, nuint newSize);
+	escaped void* alloc(nuint size);
+	escaped void* realloc(void* ptr, nuint newSize);
 	void free(void* ptr);
 }
 ```
+
+`Allocator` is an escaped interface: every `Allocator*` is escaped, so APIs
+can retain one without a lifetime annotation, and allocator implementations
+live in static storage or on the heap rather than on the stack.
 
 `HeapAllocator` is the default heap-backed allocator value, and the library
 also exports native allocation functions such as `malloc`, `realloc`, and

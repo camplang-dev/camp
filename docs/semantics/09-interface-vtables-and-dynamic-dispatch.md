@@ -230,8 +230,12 @@ A struct-to-interface conversion therefore produces a scoped interface carrier
 unless the source form explicitly provides some other valid storage. It cannot
 be used as an escaped interface pointer merely because the vtable itself is
 static: the context inside the carrier points at the struct storage being
-viewed. Escaped interface contracts require an implementation receiver
-lifetime that can safely outlive the use site.
+viewed. Every pointer to an escaped interface is escaped by type, so converting
+scoped struct storage to an escaped interface is rejected at the conversion; a
+global struct or a `new` allocation can convert. Escaped interface contracts
+also require an implementation receiver lifetime that can safely outlive the
+use site. See Escaped Types in
+[Lifetime Analysis And Flow Facts](05-lifetime-analysis-and-flow-facts.md#escaped-types).
 
 ## Class Conformance
 
@@ -255,7 +259,8 @@ implementation according to the language rules.
 Unlike a struct conversion, a class conversion can usually produce the address
 of an interface slot stored in object state. The produced interface pointer is
 still only as durable as the class receiver. A scoped class receiver produces a
-scoped interface pointer; an escaped class receiver can satisfy escaped
+scoped interface pointer, so it cannot convert to an escaped interface; a
+pointer to an escaped class is escaped by type and can satisfy escaped
 interface storage when the implemented method signatures also satisfy the
 interface lifetime contract.
 

@@ -161,6 +161,8 @@ Default facts are assigned during declaration analysis:
   `unscoped` for receiverless declarations unless a more specific relation is
   written or implied by the feature;
 - globals and static fields of tracked types use escaped slot facts;
+- pointers to an escaped class or escaped interface type use escaped slot and
+  value facts wherever they appear, without annotation (see Escaped Types);
 - class instance fields in escaped classes use escaped slot facts;
 - instance receivers in escaped classes default to escaped receiver facts, and
   escaped interface contracts require implementation receiver lifetimes that
@@ -255,12 +257,13 @@ patterns from accidentally returning references to short-lived receiver state
 through a global-looking type.
 
 The same substitution machinery handles interface conversions. A struct-to-
-interface conversion that materializes a scoped temporary carrier cannot satisfy
-an escaped interface pointer unless the implementation surface itself provides a
-valid escaped receiver relation. A class interface conversion can usually
-produce a stable interface pointer through stored class state, but the class
-receiver lifetime still determines whether the produced interface pointer may
-escape.
+interface conversion that materializes a scoped temporary carrier cannot produce
+an escaped interface pointer, so converting scoped struct storage to an escaped
+interface is rejected at the conversion. A class interface conversion can
+usually produce a stable interface pointer through stored class state, but the
+class receiver lifetime still determines whether the produced interface pointer
+may escape, and only an escaped source can produce a pointer to an escaped
+interface.
 For a struct witness default method, the generated adapter may create such a
 scoped carrier for the duration of the default call. That carrier must not
 escape through the default's receiver or result. A class witness default uses
@@ -327,7 +330,46 @@ original lexical scope does not remain meaningful.
 
 Class fields in an escaped class are escaped storage even without explicit
 field-level annotations. Static fields are escaped storage. Ordinary struct
-fields derive their behavior from the storage containing the struct.
+fields derive their behavior from the storage containing the struct. A field
+whose type is a pointer to an escaped type is escaped storage in any containing
+type, because every value it can hold is escaped.
+
+## Escaped Types
+
+`escaped class` and `escaped interface` put the lifetime on the type instead of
+on each declaration that mentions it. Escaped does not mean the instance lives
+on the heap or outlives any particular value; it means the instance's lifetime
+is not bound to the call stack. Static storage, heap allocation, reference
+counting, and other ownership policies all qualify. Ownership itself (when the
+instance is deleted, released, or reset) stays the program's responsibility, as
+it does for every escaped value.
+
+The analyzer applies three rules:
+
+- **Pointers are escaped by type.** A parameter, local, result, field, or
+  generic substitution of type `T*`, where `T` is an escaped class or escaped
+  interface, carries an escaped fact as if written `escaped T*`. Writing
+  `escaped` on such a type is accepted and redundant. Writing `scoped` or
+  `unscoped(anchor)` on it is rejected, because the type already fixes the
+  lifetime.
+- **Conversions need an escaped source.** A conversion that produces a pointer
+  to an escaped type, such as a struct converted to an escaped interface it
+  implements or a class pointer converted to an escaped interface or escaped
+  base class, is rejected when the source is not escaped. A struct adapter over
+  local storage is the usual example: it cannot become an escaped interface
+  pointer. A global struct or an instance allocated with `new` can.
+- **Instances are not declared in a frame.** Storage of an escaped type itself
+  cannot be declared in an activation frame. A local or `fixed` local of an
+  escaped class or escaped interface type, and `stackalloc` of one, are rejected
+  at the declaration. Static storage and `new` are the valid homes.
+
+The standard library's `Allocator` is an escaped interface. Every
+`Allocator*`, including the implicit type of `within allocator`, is therefore
+escaped, and a heap construction that retains its allocator needs no lifetime
+annotation on the `within` parameter. A custom allocator lives in static
+storage or is allocated with `new`; an arena on the stack would hand out
+pointers into a frame while claiming they are escaped, so it cannot convert to
+`Allocator*`.
 
 ## Return, Yield, And Delete
 

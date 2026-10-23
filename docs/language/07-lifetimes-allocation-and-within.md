@@ -151,6 +151,12 @@ const char[] temporary = scratch[..]; // scoped to this block
 That distinction is why copying a pointer into a local variable does not make
 it safe to store forever. The value still points where it pointed before.
 
+A type can carry the lifetime instead of each declaration. Every pointer to an
+`escaped class` or `escaped interface` is escaped without an annotation,
+because instances of those types are never declared on the stack. Escaped
+still means only "not bound to the call stack"; it does not say the value lives
+on the heap or who deletes it.
+
 ## `scoped`
 
 `scoped` is the borrowed side of the story. A scoped value can be used during
@@ -349,6 +355,22 @@ interface. You can write an explicit allocator type when an API really needs
 one, but most APIs should not. Custom allocators normally participate by
 implementing `Allocator`, so callers can supply them through the ordinary
 `within allocator` contract.
+
+`Allocator` is an escaped interface, so every `Allocator*` is escaped. A
+`within` parameter has no lifetime rule of its own; its type does the work.
+That is what lets a function construct an object that keeps its allocator:
+
+```camp
+void collect(within allocator)
+{
+	auto names = new List<string>() finally delete; // the list retains allocator
+}
+```
+
+An allocator implementation must therefore not live on the stack, where it
+would hand out pointers into a frame while promising escaped storage. Declare a
+custom arena in static storage, or allocate it with `new`, and convert that to
+`Allocator*`.
 
 This flow also affects generated storage for some source constructs. A
 capturing `new delegate` may allocate hidden context. If an API accepts a
