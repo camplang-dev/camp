@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-337.
+Next bug number: BUG-338.
 
 ## Bug Template
 
@@ -43,3 +43,25 @@ Actual:
 Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
+
+## BUG-337: Assignments to static fields skip escaped-storage lifetime checks
+
+Date/Time: 2026-10-22 21:46 EDT
+
+Summary:
+Static fields of a class are escaped storage, but storing a scoped pointer-bearing value into one is accepted. The same store into a global variable is rejected.
+
+Steps to Reproduce:
+
+1. Declare a class with a `static` field of a pointer-bearing type (for example `static const char[] lastName;`).
+2. In a static method of that class, assign a parameter, or a view of a fixed-size local array, to the field.
+3. Compare with assigning the same value to a global variable.
+
+Expected:
+Both stores are rejected with the escaped-storage diagnostic, because static fields are escaped storage (`semantics/05-lifetime-analysis-and-flow-facts.md`, Slot Facts And Value Facts and the storage rule list).
+
+Actual:
+The global assignment reports "Assignment cannot store a non-escaped pointer-bearing value in escaped storage.". The static field assignments report nothing.
+
+Known Impact:
+A dangling pointer to a parameter or local can be left in static storage without a diagnostic.
