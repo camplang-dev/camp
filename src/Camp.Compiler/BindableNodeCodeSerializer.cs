@@ -588,7 +588,7 @@ public sealed class BindableNodeCodeSerializer
 	void WriteApiStructMembers(List<FieldDefinition> fields, List<FunctionDefinition> functions)
 	{
 		List<FieldDefinition> apiFields = FilterExpandedApiFields(fields
-			.Where(field => field.Modifier != FieldModifier.Static || IsVisibleInApiSurface(field))
+			.Where(field => field.GeneratedInfo?.Reason != "escaped interface carrier" && (field.Modifier != FieldModifier.Static || IsVisibleInApiSurface(field)))
 			.ToList());
 		foreach (FieldDefinition field in apiFields)
 		{

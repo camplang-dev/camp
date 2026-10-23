@@ -1377,6 +1377,8 @@ public sealed partial class BindableNodeAnalyzer
 			Report(GetNameRange(definition), "Erased generic type parameters cannot be stored directly in fields; use pointer, span, or explicit erased storage instead.");
 		definition.ResolvedType = definition.Type?.ResolvedType ?? ErrorType;
 		InitializeFieldLifetimeFacts(definition, scope, containingType);
+		if (containingType is StructDefinition && definition.Modifier != FieldModifier.Static && ContainsEscapedValueStorage(definition.ResolvedType))
+			Report(GetNameRange(definition), "A struct cannot hold an escaped type by value; use a pointer instead.");
 		if (definition.Modifier == FieldModifier.Static && definition.InitialValue is not null)
 		{
 			FunctionDefinition initializerContext = new()
@@ -2722,13 +2724,18 @@ public sealed partial class BindableNodeAnalyzer
 			: definition.Type?.ResolvedType ?? GetImplicitParameterType(definition);
 			if (definition.LifetimeBinding is null && definition is not SizeOfParameterDefinition and not NameOfParameterDefinition and not VTableOfParameterDefinition)
 			{
-				if (definition.RetainsAllocator)
+				if (IsEscapedPointerType(definition.ResolvedType))
+					BindParameterLifetime(definition, "escaped", [], "escaped type");
+				else if (definition.RetainsAllocator)
 					BindParameterLifetime(definition, "unscoped", ["this"], "retained allocator");
 				else if (definition is WithinParameterDefinition)
 					BindParameterLifetime(definition, "scoped", [], "default within");
 				else
 					BindDefaultParameterLifetime(definition, "default parameter");
 			}
+			if (definition is WithinParameterDefinition && !ContainsLifetimeAnnotation(definition.Type)
+				&& TryParseLifetimeFact(definition.LifetimeBinding, out LifetimeFact impliedWithin))
+				ValidateEscapedPointerAnnotation(definition.ResolvedType, impliedWithin.Kind, definition.SourceSyntax);
 			if ((definition is WithinParameterDefinition || definition.Modifier == ParameterModifier.Within) && definition.DefaultValue is not null)
 				Report(GetRange(definition.DefaultValue.SourceSyntax ?? definition.SourceSyntax), "within parameters cannot have default values; their value is supplied by an explicit within context or explicit within argument.");
 			ValidateGenericArgumentUse(definition.Type);

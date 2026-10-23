@@ -232,9 +232,11 @@ be used as an escaped interface pointer merely because the vtable itself is
 static: the context inside the carrier points at the struct storage being
 viewed. Every pointer to an escaped interface is escaped by type, so converting
 scoped struct storage to an escaped interface is rejected at the conversion; a
-global struct or a `new` allocation can convert. Escaped interface contracts
-also require an implementation receiver lifetime that can safely outlive the
-use site. See Escaped Types in
+global struct or a `new` allocation can convert. For an escaped interface, the
+compiler stores the carrier in the implementing struct and uses a static object
+vtable, so neither part refers to the conversion's stack frame. Escaped
+interface contracts also require an implementation receiver lifetime that can
+safely outlive the use site. See Escaped Types in
 [Lifetime Analysis And Flow Facts](05-lifetime-analysis-and-flow-facts.md#escaped-types).
 
 ## Class Conformance

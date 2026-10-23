@@ -74,6 +74,7 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (TryReportInvalidCharacterLiteralTarget(expected, value, syntax, context))
 			return;
+		CheckEscapedTypeConversion(expected, actual, value, syntax);
 
 		if (TryCheckInterfacePointerConversion(expected, actual, value, syntax, context))
 			return;

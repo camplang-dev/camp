@@ -615,6 +615,15 @@ the stack cannot produce one. A struct in static storage, or one allocated with
 `new`, can. Use a class-backed implementation or another explicitly owned
 adapter when the interface pointer must escape.
 
+An escaped interface may inherit an ordinary interface. An interface inheriting
+an escaped interface must also be declared `escaped`:
+
+```camp
+interface Stoppable { void stop(); }
+escaped interface Job: Stoppable { void work(); }
+interface Runner: BackgroundTask { void go(); } // ERROR: must be escaped
+```
+
 The standard library's `Allocator` is an escaped interface for this reason; the
 lifetimes chapter shows what that means for `within`.
 

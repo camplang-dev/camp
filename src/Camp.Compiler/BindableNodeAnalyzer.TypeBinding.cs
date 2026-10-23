@@ -302,6 +302,8 @@ public sealed partial class BindableNodeAnalyzer
 				type.ResolvedType = ErrorType;
 				break;
 		}
+		if (IsEscapedPointerType(type.ResolvedType) && TryGetLifetimeAnnotation(type, out string lifetimeKind, out _, out _))
+			ValidateEscapedPointerAnnotation(type.ResolvedType, lifetimeKind, type.SourceSyntax);
 	}
 
 	void NormalizeAnonymousCallableParameterNames(List<ParameterDefinition> parameters, int firstSourceIndex)

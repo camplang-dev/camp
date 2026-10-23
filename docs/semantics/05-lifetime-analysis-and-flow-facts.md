@@ -363,6 +363,21 @@ The analyzer applies three rules:
   escaped class or escaped interface type, and `stackalloc` of one, are rejected
   at the declaration. Static storage and `new` are the valid homes.
 
+A struct cannot declare a by-value field of an escaped class or escaped
+interface, including an element of fixed inline storage. Pointer fields are
+allowed, and static fields do not place an instance inside the struct.
+
+Escapedness is fixed at the root of a class hierarchy. A class derived from an
+escaped class must also be declared `escaped`, and an escaped class cannot
+derive from a non-escaped Camp class. Existing extern and shadow class boundary
+rules still apply. An escaped interface may inherit ordinary interfaces, but an
+interface inheriting an escaped interface must itself be declared `escaped`.
+
+A struct conversion to an escaped interface uses a carrier stored in the
+implementing struct and a static object vtable. The carrier therefore shares
+the source storage lifetime; it does not point into the conversion's activation
+frame. Conversion does not allocate or transfer ownership of the source.
+
 The standard library's `Allocator` is an escaped interface. Every
 `Allocator*`, including the implicit type of `within allocator`, is therefore
 escaped, and a heap construction that retains its allocator needs no lifetime

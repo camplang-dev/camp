@@ -1,7 +1,7 @@
 namespace Std;
 
 @test
-void arrayHelpersCopySortSearchAndOverlap(within escaped Allocator* allocator, thrown Assertion* assertion)
+void arrayHelpersCopySortSearchAndOverlap(within Allocator* allocator, thrown Assertion* assertion)
 {
 	int[] source = [3, 1, 2, 4];
 	int[] destination = [0, 0, 0, 0];

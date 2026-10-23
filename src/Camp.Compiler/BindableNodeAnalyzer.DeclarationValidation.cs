@@ -59,6 +59,10 @@ public sealed partial class BindableNodeAnalyzer
 			{
 				case ClassDefinition baseClass:
 					baseClassCount++;
+					if (owner is ClassDefinition derived && derived.IsEscaped != baseClass.IsEscaped && !derived.IsShadow && baseClass.Extern is null)
+						Report(GetNameRange(derived), baseClass.IsEscaped
+							? $"Class '{derived.Name}' derives from an escaped class and must be declared escaped."
+							: $"An escaped class must be escaped at the root; '{derived.Name}' cannot derive from non-escaped class '{baseClass.Name}'.");
 					if (baseClassCount > 1)
 						Report(GetRange(baseType.SourceSyntax), $"{ownerKind} '{owner.Name}' may only declare one base class.");
 					if (owner is ClassDefinition ownerClass && ownerClass.Extern is not null && baseClass.Extern is null)
@@ -83,6 +87,8 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			if (TryGetNamedTypeDefinition(baseType, out TypeDefinition? definition) && definition is not InterfaceDefinition)
 				Report(GetRange(baseType.SourceSyntax), $"Interface '{owner.Name}' may only derive from interfaces.");
+			else if (!owner.IsEscaped && definition is InterfaceDefinition { IsEscaped: true })
+				Report(GetNameRange(owner), $"Interface '{owner.Name}' inherits an escaped interface and must be declared escaped.");
 		}
 
 		foreach (FunctionDefinition function in owner.Functions)

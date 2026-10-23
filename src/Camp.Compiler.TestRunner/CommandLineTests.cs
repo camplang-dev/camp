@@ -3030,7 +3030,7 @@ public sealed class CommandLineTests
 			@symbol("free")
 			export extern void free(void* ptr);
 
-			interface Allocator
+			escaped interface Allocator
 			{
 				escaped void* alloc(nuint size);
 				void free(void* ptr);
@@ -3240,6 +3240,8 @@ public sealed class CommandLineTests
 		Assert.True(File.Exists(harnessSource), harnessSource);
 		string harness = File.ReadAllText(harnessSource);
 		Assert.Contains("camp_test_memory_find_live", harness, StringComparison.Ordinal);
+		Assert.Matches(@"(?m)^static .* camp_test_allocator_storage = \{", harness);
+		Assert.Contains("*camp_test_allocator_pointer = &camp_test_allocator_storage;", harness, StringComparison.Ordinal);
 		Assert.Contains("camp_test_memory_find_any", harness, StringComparison.Ordinal);
 		Assert.Contains("CampTestAllocation *record = camp_test_memory_find_live(ptr);", harness, StringComparison.Ordinal);
 		Assert.Contains("CampTestAllocation *history = camp_test_memory_find_any(ptr);", harness, StringComparison.Ordinal);
@@ -6547,6 +6549,40 @@ public sealed class CommandLineTests
 		string api = File.ReadAllText(Path.Combine(library, "bin", ArtifactDirectoryForTarget(NativeTargetForHost(), NativeBuildKind.Static), "reader_api.camp"));
 		Assert.Contains("struct Cell : Reader", api);
 		Assert.Equal(0, RunExecutable(Path.Combine(output, ArtifactDirectoryForTarget(NativeTargetForHost(), NativeBuildKind.Exec), OperatingSystem.IsWindows() ? "consumer.exe" : "consumer")).ExitCode);
+	}
+
+	[Theory]
+	[InlineData("static")]
+	[InlineData("shared")]
+	public void Project_reference_preserves_escaped_struct_interface_storage(string kind)
+	{
+		string root = TempPath("project-reference-escaped-struct-interface-" + kind);
+		string library = Path.Combine(root, "library");
+		Directory.CreateDirectory(library);
+		File.WriteAllText(Path.Combine(library, "library.camp"), """
+			export escaped interface Reader { int read(); }
+			export struct Cell: Reader
+			{
+				int value;
+				int read(): Reader => this.value;
+			}
+			""");
+		File.WriteAllText(Path.Combine(library, "library.campbuild"), "--nostdlib\n--artifact " + kind + "\n--name reader\nlibrary.camp\n");
+		string app = Path.Combine(root, "app.camp");
+		File.WriteAllText(app, """
+			Cell cell;
+			Reader* view() { return cell; }
+			export int main()
+			{
+				cell.value = 37;
+				Reader* reader = view();
+				return reader.read() == 37 ? 0 : 1;
+			}
+			""");
+		string output = Path.Combine(root, "output");
+		AssertCommandSucceeded(RunCampc("build", app, "--nostdlib", "--name", "consumer", "--out-dir", output,
+			"--project-reference", Path.Combine(library, "library.campbuild") + ":" + kind));
+		AssertCommandSucceeded(RunExecutable(Path.Combine(output, ArtifactDirectoryForHost(NativeBuildKind.Exec), "consumer" + ExecutableExtensionForHost())));
 	}
 
 	[Theory]

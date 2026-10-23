@@ -584,7 +584,7 @@ public sealed partial class BindableNodeAnalyzer
 					CurrentIteratorElementType = scope.CurrentIteratorElementType,
 					CurrentIteratorThrownType = scope.CurrentIteratorThrownType,
 					ExplicitWithinContextDepth = scope.ExplicitWithinContextDepth + 1,
-					CurrentWithinContextLifetimeFact = withinStatement.Allocator is DefaultWithinContextExpression ? null : GetExpressionLifetimeFact(withinStatement.Allocator)
+					CurrentWithinContextLifetimeFact = withinStatement.Allocator is DefaultWithinContextExpression ? null : GetAllocatorContextLifetimeFact(withinStatement.Allocator)
 				};
 				BodyAnalyzeOptionalStatement(withinStatement.Body, withinScope, typeScope);
 				break;
@@ -868,7 +868,8 @@ public sealed partial class BindableNodeAnalyzer
 		// for definite assignment after suspension. Dynamic stack views still use
 		// ValidateStackAllocAllowed and cannot survive in retained state.
 		AnalyzeOptionalType(declaration.Target.Type, typeScope);
-		ValidateNoLifetimeAnnotation(declaration.Target.Type, declaration.Target.Type?.SourceSyntax ?? declaration.Target.SourceSyntax ?? declaration.SourceSyntax, "local variable types");
+		if (!IsEscapedPointerType(declaration.Target.Type?.ResolvedType))
+			ValidateNoLifetimeAnnotation(declaration.Target.Type, declaration.Target.Type?.SourceSyntax ?? declaration.Target.SourceSyntax ?? declaration.SourceSyntax, "local variable types");
 		string targetType = declaration.Target.Type is AutoTypeReference or null
 			? TargetType
 			: declaration.Target.Type.ResolvedType ?? ErrorType;
@@ -907,6 +908,8 @@ public sealed partial class BindableNodeAnalyzer
 			Report(GetRange(declaration.InitialValue.SourceSyntax ?? declaration.SourceSyntax), "Fixed-size arrays cannot be inferred by value; declare a span, pointer, or fixed storage target explicitly.");
 		}
 		BodyAnalyzeDeclarationTarget(declaration.Target, scope, typeScope, initialType);
+		if (ContainsEscapedValueStorage(declaration.Target.ResolvedType))
+			Report(GetRange(declaration.Target.SourceSyntax ?? declaration.SourceSyntax), "Storage of an escaped type cannot be declared in an activation frame; use static storage or new.");
 		if (declaration.Target.Type is AutoTypeReference
 			&& GetCallableSourceType(declaration.InitialValue) is TypeReference callableSource)
 			inferredCallableSourceTypes[declaration.Target] = callableSource;
@@ -2600,7 +2603,7 @@ public sealed partial class BindableNodeAnalyzer
 		string actual = item.ResolvedType ?? ErrorType;
 		if (IsExpandedDelegateStorageCompatible(expected, actual))
 			return;
-		CheckAssignable(expected, actual, item.Expression?.SourceSyntax ?? item.SourceSyntax, "Initializer field");
+		CheckAssignable(expected, actual, item.Expression, item.Expression?.SourceSyntax ?? item.SourceSyntax, "Initializer field");
 		if (TryExpandErasedPointer(item.Expression, actual, expected) is Expression pointer)
 		{
 			item.Expression = pointer;
@@ -2735,6 +2738,11 @@ public sealed partial class BindableNodeAnalyzer
 			: targetType;
 		string? expressionTargetType = cast.Expression is InitializerExpression or ArrayExpression ? structuralTargetType : null;
 		string sourceType = BodyAnalyzeExpression(cast.Expression, scope, typeScope, expressionTargetType);
+		if (cast.LifetimeCastKind is null && !ContainsLifetimeAnnotation(cast.Type)
+			&& (IsClassPointerUpcast(sourceType, targetType) || IsClassToInterfaceConversion(sourceType, targetType)
+				|| IsStructPointerToInterfaceConversion(sourceType, targetType) || IsStructToInterfaceConversion(sourceType, targetType)
+				|| IsInterfaceUpcast(sourceType, targetType)))
+			CheckEscapedTypeConversion(targetType, sourceType, cast.Expression, cast.SourceSyntax);
 		if (cast.LifetimeCastKind is not null)
 		{
 			if (cast.LifetimeCastKind == "unscoped" && cast.LifetimeCastAnchors.Count == 0)
@@ -2822,6 +2830,8 @@ public sealed partial class BindableNodeAnalyzer
 			AnalyzeType(construction.Type, typeScope);
 
 		string targetType = construction.Type?.ResolvedType ?? TargetType;
+		if (construction.Kind == ConstructionKind.StackAlloc && ContainsEscapedValueStorage(targetType))
+			Report(GetRange(construction.SourceSyntax ?? construction.Type?.SourceSyntax), "An escaped type cannot be allocated on the stack; use static storage or new.");
 		if (construction.Kind == ConstructionKind.Init)
 			Report(GetRange(construction.SourceSyntax), "`init` is no longer a Camp allocation keyword. Use stackalloc for dynamic stack storage, new for allocator-backed storage, fixed for fixed-size local storage, or Type(args) for construction into existing storage.");
 		if (construction.Kind == ConstructionKind.New)
@@ -2938,7 +2948,7 @@ public sealed partial class BindableNodeAnalyzer
 			CurrentIteratorElementType = scope.CurrentIteratorElementType,
 			CurrentIteratorThrownType = scope.CurrentIteratorThrownType,
 			ExplicitWithinContextDepth = scope.ExplicitWithinContextDepth + 1,
-			CurrentWithinContextLifetimeFact = within.Context is DefaultWithinContextExpression ? null : GetExpressionLifetimeFact(within.Context)
+			CurrentWithinContextLifetimeFact = within.Context is DefaultWithinContextExpression ? null : GetAllocatorContextLifetimeFact(within.Context)
 		};
 		return BodyAnalyzeExpression(within.Expression, withinScope, typeScope, targetType);
 	}
@@ -5194,6 +5204,7 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (expected == ErrorType || actual == ErrorType || expected == TargetType || actual == TargetType)
 			return;
+		CheckEscapedTypeConversion(expected, actual, value, syntax);
 		if (TryCheckInterfacePointerConversion(expected, actual, value, syntax, context))
 			return;
 		if (CanTargetTypeDirectFunctionAsDelegate(expected, actual, value))

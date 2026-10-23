@@ -16,7 +16,7 @@ public extern void free(void* ptr);
 
 /// Common allocation interface used by `within`, collection storage, and
 /// other standard-library APIs that need caller-selected allocation.
-public interface Allocator
+public escaped interface Allocator
 {
 	escaped void* alloc(nuint size);
 	escaped void* realloc(void* ptr, nuint newSize);

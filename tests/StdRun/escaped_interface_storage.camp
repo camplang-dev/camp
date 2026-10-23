@@ -1,0 +1,37 @@
+escaped interface Sink
+{
+	int read();
+}
+
+struct Counter: Sink
+{
+	int value;
+	int read(): Sink { return this.value; }
+}
+
+Counter first;
+Counter second;
+Sink* kept;
+
+Sink* viewFirst() { return first; }
+Sink* viewSecond() { return second; }
+Sink* viewHeap(escaped Counter* counter) { return counter; }
+
+export int main()
+{
+	first.value = 17;
+	second.value = 29;
+	Sink* a = viewFirst();
+	Sink* b = viewSecond();
+	Counter* heap = new Counter();
+	heap.value = 41;
+	kept = viewHeap(heap);
+	if (a.read() != 17 || b.read() != 29 || kept.read() != 41)
+		return 1;
+	// Repeated conversions must preserve both existing views and object identity.
+	Sink* again = viewFirst();
+	if (again.read() != 17 || a.read() != 17 || b.read() != 29)
+		return 2;
+	delete heap;
+	return 0;
+}

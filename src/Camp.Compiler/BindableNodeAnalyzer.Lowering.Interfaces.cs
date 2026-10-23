@@ -762,6 +762,55 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (currentStatementPrefix is null)
 			return value;
+		if (escapedStructInterfaceCarriers.TryGetValue((structDefinition, targetInterface), out var carrier))
+		{
+			// Keep the carrier in the implementing object, so it has the source's
+			// lifetime and needs neither a temporary frame nor a separate allocation.
+			string pointerType = source == StructInterfaceConversionSource.Pointer ? value.ResolvedType! : value.ResolvedType + "*";
+			Expression address = source == StructInterfaceConversionSource.Pointer ? value : new UnaryExpression
+			{
+				Operator = UnaryOperator.AddressOf, Operand = value, ResolvedType = pointerType
+			};
+			DeclarationStatement owner = CreateGeneratedLocal(NewGeneratedLocalName("iface_owner"), pointerType, TypeReferenceForResolvedName(pointerType), address);
+			currentStatementPrefix.Add(owner);
+			Expression ownerReference = CreateVariableReference(owner.Target, pointerType);
+			MemberReferenceExpression vtableField = new()
+			{
+				Target = ownerReference, Member = carrier.VTableField, Name = carrier.VTableField.Name, ResolvedType = carrier.VTableField.ResolvedType
+			};
+			currentStatementPrefix.Add(new ExpressionStatement
+			{
+				ResolvedType = "void",
+				Expression = new AssignmentExpression
+				{
+					Target = vtableField, Operator = AssignmentOperator.Assign, ResolvedType = vtableField.ResolvedType,
+					Value = new UnaryExpression
+					{
+						Operator = UnaryOperator.AddressOf,
+						Operand = new VariableReferenceExpression { Variable = carrier.VTable, ResolvedType = carrier.VTable.ResolvedType },
+						ResolvedType = vtableField.ResolvedType
+					}
+				}
+			});
+			currentStatementPrefix.Add(new ExpressionStatement
+			{
+				ResolvedType = "void",
+				Expression = new AssignmentExpression
+				{
+					Target = new MemberReferenceExpression
+					{
+						Target = ownerReference, Member = carrier.ContextField, Name = carrier.ContextField.Name, ResolvedType = pointerType
+					},
+					Operator = AssignmentOperator.Assign, Value = ownerReference, ResolvedType = pointerType
+				}
+			});
+			return new CastExpression
+			{
+				Kind = CastKind.Type, Type = PointerTo(PointerTo(InterfaceType(targetInterface))),
+				Expression = new UnaryExpression { Operator = UnaryOperator.AddressOf, Operand = vtableField, ResolvedType = vtableField.ResolvedType + "*" },
+				ResolvedType = $"{InterfaceResolvedName(targetInterface)}**"
+			};
+		}
 
 		string localName = NewGeneratedLocalName("iface");
 		TypeReference indirectType = InterfaceIndirectType(targetInterface, structDefinition);

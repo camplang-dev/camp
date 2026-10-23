@@ -1,0 +1,83 @@
+using Xunit;
+
+namespace Camp.Compiler.Tests;
+
+public sealed class EscapedTypeLifetimeTests
+{
+	const string Declarations = """
+		extern escaped void* malloc(nuint size);
+		escaped class Widget { int value; }
+		escaped interface Sink { void put(int value); }
+		struct StackSink: Sink { void put(int value): Sink { } }
+		Widget* kept;
+		Sink* keptSink;
+		StackSink globalSink;
+		void keep(escaped Widget* widget) { kept = widget; }
+		""";
+
+	[Theory]
+	[InlineData("void use(Widget* widget) { kept = widget; keep(widget); }")]
+	[InlineData("void use(Sink* sink) { keptSink = sink; }")]
+	[InlineData("Widget* use(Widget* widget) { auto copy = widget; return copy; }")]
+	[InlineData("struct Box { Widget* value; void set(Widget* value) { this.value = value; } }")]
+	[InlineData("void use() { Sink* view = globalSink; keptSink = view; }")]
+	[InlineData("void use() { StackSink* source = new StackSink(); Sink* view = source; keptSink = view; }")]
+	[InlineData("void use(escaped Widget* widget) { kept = widget; }")]
+	[InlineData("void use(Widget* widget) { escaped Widget* copy = widget; keep(copy); }")]
+	[InlineData("T* echo<T>(T* value) { return value; } void use(Widget* value) { keep(echo<Widget>(value)); }")]
+	[InlineData("escaped interface Allocator { } struct Arena: Allocator { } Arena arena; void borrow(within allocator) { } void use() { within (arena) borrow(); }")]
+	[InlineData("escaped interface Allocator { } struct Arena: Allocator { } void borrow(within allocator) { } void use() { auto arena = new Arena(); within (arena) borrow(); }")]
+	public void Escaped_pointer_types_supply_escaped_contracts(string source)
+	{
+		SemanticCompiler.AssertNoDiagnostics(SemanticCompiler.CompileLowered(Declarations + source));
+	}
+
+	[Theory]
+	[InlineData("void use() { Widget local = default; }")]
+	[InlineData("void use() { Widget* local = stackalloc Widget(); }")]
+	[InlineData("void use() { fixed Widget[2] local = default; }")]
+	[InlineData("void use() { Sink local = default; }")]
+	[InlineData("void use() { StackSink local = default; Sink* view = local; }")]
+	[InlineData("void use(StackSink* local) { Sink* view = local; }")]
+	[InlineData("void accept(Sink* view) { } void use() { StackSink local = default; accept(local); }")]
+	[InlineData("Sink* use() { StackSink local = default; return local; }")]
+	[InlineData("void use(scoped Widget* widget) { }")]
+	[InlineData("void use(int* owner, unscoped(owner) Widget* widget) { }")]
+	[InlineData("escaped interface Allocator { } void use(within scoped allocator) { }")]
+	[InlineData("escaped interface Allocator { } struct Arena: Allocator { } void borrow(within allocator) { } void use() { Arena local = default; within (local) borrow(); }")]
+	public void Escaped_types_reject_frame_storage_and_shorter_contracts(string source)
+	{
+		var compilation = SemanticCompiler.CompileLowered(Declarations + source);
+		Assert.Contains(compilation.AnalysisDiagnostics, diagnostic => diagnostic.Message.Contains("escaped type") || diagnostic.Message.Contains("escaped interface"));
+	}
+
+	[Theory]
+	[InlineData("virtual escaped class Root { } sealed class Derived: Root { }")]
+	[InlineData("virtual class Root { } sealed escaped class Derived: Root { }")]
+	[InlineData("escaped interface Root { void run(); } interface Derived: Root { }")]
+	[InlineData("escaped class Item { } struct Holder { Item item; }")]
+	[InlineData("escaped class Item { } struct Holder { fixed Item[2] items; }")]
+	public void Escaped_hierarchies_and_by_value_struct_fields_are_checked(string source)
+	{
+		var compilation = SemanticCompiler.CompileLowered(source);
+		Assert.Contains(compilation.AnalysisDiagnostics, diagnostic => diagnostic.Message.Contains("escaped"));
+	}
+
+	[Theory]
+	[InlineData("virtual escaped class Root { } sealed escaped class Derived: Root { }")]
+	[InlineData("interface Plain { void stop(); } escaped interface Job: Plain { void run(); }")]
+	[InlineData("escaped class Item { } struct Holder { Item* item; static Item storage; }")]
+	public void Valid_escaped_hierarchies_and_pointer_fields_remain_valid(string source)
+	{
+		SemanticCompiler.AssertNoDiagnostics(SemanticCompiler.CompileLowered(source));
+	}
+
+	[Theory]
+	[InlineData("Widget** keptSlot; void use(Widget* value) { keptSlot = &value; }")]
+	[InlineData("Widget** keptSlot; void use(Widget* value) { Widget* copy = value; keptSlot = &copy; }")]
+	public void An_escaped_pointer_value_does_not_make_its_frame_slot_escaped(string source)
+	{
+		var compilation = SemanticCompiler.CompileLowered(Declarations + source);
+		Assert.Contains(compilation.AnalysisDiagnostics, diagnostic => diagnostic.Message.Contains("non-escaped pointer-bearing value"));
+	}
+}

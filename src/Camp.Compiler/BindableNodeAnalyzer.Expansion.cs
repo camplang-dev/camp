@@ -769,6 +769,35 @@ public sealed partial class BindableNodeAnalyzer
 			InterfaceImplementationLowering lowering = new(structDefinition, interfaceDefinition, Field: null, vtable, vtableStorage, ObjectVTableStorage: null, DirectEntries: false, IsStruct: true);
 			implementations.Add(lowering);
 			GenerateInterfaceThunks(module, lowering, interfaceDefinition, interfaces);
+			foreach (InterfaceDefinition entryInterface in GetInterfaceAndBaseInterfaces(interfaceDefinition, interfaces))
+			{
+				if (!entryInterface.IsEscaped || escapedStructInterfaceCarriers.ContainsKey((structDefinition, entryInterface)))
+					continue;
+				FieldDefinition carrierVTable = generatedDeclarations.Field(GeneratedDeclarationCategory.Interface, "escaped interface carrier", structDefinition);
+				carrierVTable.Name = carrierVTable.Symbol = InterfaceFieldName(entryInterface);
+				carrierVTable.Type = PointerTo(new ConstTypeReference { Type = InterfaceType(entryInterface), ResolvedType = "const " + entryInterface.Name });
+				carrierVTable.ResolvedType = "const " + entryInterface.Name + "*";
+				FieldDefinition carrierContext = generatedDeclarations.Field(GeneratedDeclarationCategory.Interface, "escaped interface carrier", structDefinition);
+				carrierContext.Name = carrierContext.Symbol = carrierVTable.Name + "__ctx";
+				carrierContext.Type = PointerTo(InterfaceType(structDefinition));
+				carrierContext.ResolvedType = structDefinition.Name + "*";
+				ApplyCombinedRequirement(carrierVTable, structDefinition, entryInterface);
+				ApplyCombinedRequirement(carrierContext, structDefinition, entryInterface);
+				structDefinition.Fields.Add(carrierVTable);
+				structDefinition.Fields.Add(carrierContext);
+				VariableDefinition objectVTable = generatedDeclarations.Variable(GeneratedDeclarationCategory.Interface, "escaped struct interface object vtable", structDefinition);
+				objectVTable.Name = objectVTable.Symbol = InterfaceVTableName(structDefinition, entryInterface) + "__object_storage";
+				objectVTable.Export = structDefinition.Export is not null && entryInterface.Export is not null ? "export" : null;
+				objectVTable.Public = GetCombinedArtifactVisibility(structDefinition, entryInterface);
+				objectVTable.Internal = GetCombinedInternalVisibility(structDefinition, entryInterface);
+				objectVTable.Extern = structDefinition.IsApiHeader ? "extern" : null;
+				objectVTable.Type = new ConstTypeReference { Type = InterfaceType(entryInterface), ResolvedType = "const " + entryInterface.Name };
+				objectVTable.ResolvedType = "const " + entryInterface.Name;
+				ApplyCombinedRequirement(objectVTable, structDefinition, entryInterface);
+				module.Definitions.Add(objectVTable);
+				generatedInterfaceDefinitions.Add(objectVTable);
+				escapedStructInterfaceCarriers[(structDefinition, entryInterface)] = (carrierVTable, carrierContext, objectVTable, lowering);
+			}
 		}
 
 		if (implementations.Count > 0)
@@ -987,6 +1016,10 @@ public sealed partial class BindableNodeAnalyzer
 					lowering.VTableStorage.InitialValue = CreateInterfaceVTableInitializer(lowering, lowering.Interface, directEntries: true);
 			}
 		}
+
+		foreach (var entry in escapedStructInterfaceCarriers)
+			if (!entry.Key.Item1.IsApiHeader)
+				entry.Value.VTable.InitialValue = CreateInterfaceVTableInitializer(entry.Value.Lowering, entry.Key.Item2, directEntries: false);
 
 		foreach ((FunctionDefinition thunk, InterfaceThunkLowering lowering) in interfaceThunkLowerings)
 			if (thunk.Extern is null)

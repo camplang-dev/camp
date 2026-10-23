@@ -258,6 +258,19 @@ void draw()
 }
 ```
 
+A struct cannot hold an escaped class or escaped interface by value. Store a
+pointer instead; a pointer to an escaped type is itself escaped.
+
+Escapedness starts at the root of a class hierarchy. Every class derived from
+an escaped class must also say `escaped`, and an escaped class cannot derive
+from a non-escaped Camp class:
+
+```camp
+virtual escaped class Control { }
+sealed escaped class Button: Control { }
+sealed class Label: Control { } // ERROR: must be declared escaped
+```
+
 Escaped does not mean someone else owns the object. It only says the object's
 lifetime is not tied to a call. Deleting it, releasing it, or keeping it alive
 is still the program's job. Interfaces can be escaped in the same way; the
