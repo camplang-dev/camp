@@ -1260,7 +1260,7 @@ public sealed partial class BindableNodeAnalyzer
 				&& valueFact.Anchors.Count > 0 && valueFact.Anchors.All(valueAnchor => valueAnchor == anchor)
 				&& !IsStackAllocLifetimeFact(valueFact))
 				return;
-			if (!ValueOutlivesAnchor(valueFact, anchor) && !IsExplicitScopedWithinAllocatorFact(valueFact))
+			if (!ValueOutlivesAnchor(valueFact, anchor))
 				Report(GetRange(syntax), $"{context} cannot store a scoped pointer-bearing value in storage tied to '{anchor}'.");
 		}
 	}
@@ -1354,13 +1354,6 @@ public sealed partial class BindableNodeAnalyzer
 			ParenthesizedExpression parenthesized => ReferencesGeneratedShadowStorage(parenthesized.Expression),
 			_ => false
 		};
-	}
-
-	static bool IsExplicitScopedWithinAllocatorFact(LifetimeFact valueFact)
-	{
-		return valueFact.Kind == "scoped"
-			&& valueFact.Anchors.Count == 0
-			&& valueFact.Source == "explicit within";
 	}
 
 	static bool IsInsideGenericBody(BodyScope scope)

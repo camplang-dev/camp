@@ -8,7 +8,7 @@ class ScopedHolder
 
 	void keep(within scoped allocator)
 	{
-		this.allocator = allocator;
+		Allocator* borrowed = allocator;
 	}
 }
 

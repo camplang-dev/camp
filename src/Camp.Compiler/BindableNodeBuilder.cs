@@ -2216,7 +2216,9 @@ public sealed partial class BindableNodeBuilder
 					RetainedAllocatorFieldName = within.ThisKeyword is null ? null : within.Identifier?.Value,
 					LifetimeBinding = within.LifetimeKeyword is null
 						? null
-						: within.LifetimeKeyword.Value.Value + ":explicit within"
+						: within.LifetimeKeyword.Value.Value
+							+ (within.AnchorList?.Identifiers is { Count: > 0 } anchors ? "(" + string.Join(",", anchors.ConvertAll(token => token.Value)) + ")" : "")
+							+ ":explicit within"
 				};
 
 			case ThisParameterSyntax thisParameter:

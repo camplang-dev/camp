@@ -574,6 +574,9 @@ public static class SyntaxNodeTraversal
 			case WithinParameterSyntax syntax:
 				foreach (Token token in Tokens(syntax.WithinKeyword)) yield return token;
 				foreach (Token token in Tokens(syntax.LifetimeKeyword)) yield return token;
+				foreach (Token token in Tokens(syntax.OpenParenToken)) yield return token;
+				if (syntax.AnchorList is not null) foreach (Token token in Tokens(syntax.AnchorList)) yield return token;
+				foreach (Token token in Tokens(syntax.CloseParenToken)) yield return token;
 				foreach (Token token in Tokens(syntax.Identifier)) yield return token;
 				break;
 			case ThisParameterSyntax syntax:

@@ -375,6 +375,11 @@ default and changes nothing. `within unscoped allocator`,
 corresponding lifetimes, with anchors named as for any other parameter, and the
 value may then be stored where those lifetimes allow.
 
+Both `within unscoped(x) allocator` and `within scoped(x) allocator` accept anchor
+lists, just like their typed forms. They may name ordinary or `in` inputs and an
+available `this` receiver; they may not name out, thrown, or other within slots,
+or introduce a circular lifetime dependency (see the lifetime-analysis supplement).
+
 The retained allocator parameter `within this.allocator` is the exception: it is
 always implicitly `unscoped` relative to the object under construction, because
 the object keeps the allocator for its own cleanup. The allocator supplied at a

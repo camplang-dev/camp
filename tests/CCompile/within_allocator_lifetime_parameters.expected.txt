@@ -10,7 +10,7 @@ static int main(void);
 
 static void ScopedHolder_keep(ScopedHolder *this, Allocator *allocator)
 {
-	this->allocator = allocator;
+	Allocator *borrowed = allocator;
 }
 
 static void UnscopedUser_use(UnscopedUser *this, Allocator *allocator)

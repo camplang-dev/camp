@@ -2681,6 +2681,10 @@ public sealed partial class BindableNodeAnalyzer
 			definition.LifetimeBinding = explicitLifetime;
 		else if (TryGetLifetimeAnnotation(definition.Type, out _, out _, out string? nestedLifetime) && nestedLifetime is not null)
 			definition.LifetimeBinding = nestedLifetime;
+		if (definition is WithinParameterDefinition && TryParseLifetimeFact(definition.LifetimeBinding, out LifetimeFact withinFact))
+			foreach (string anchor in withinFact.Anchors)
+				if (!scope.ContainsLifetimeAnchor(anchor))
+					Report(GetRange(definition.SourceSyntax), $"Lifetime anchor '{anchor}' could not be resolved.");
 		if (definition is not VTableOfParameterDefinition)
 		{
 			ValidateNoDirectFixedArrayType(definition.Type, definition.Type?.SourceSyntax ?? definition.SourceSyntax, "a parameter type");
