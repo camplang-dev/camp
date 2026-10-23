@@ -165,6 +165,9 @@ The non-generic class reports "Assignment cannot store a scoped pointer-bearing 
 Known Impact:
 Generic containers can retain dangling pointers without a diagnostic. Checking should still treat values of the type parameter conservatively as `semantics/05` (Generic Boundaries) describes, but pointer-bearing fields and parameters of known type should be checked.
 
+Documentation:
+Update `semantics/05-lifetime-analysis-and-flow-facts.md` (Generic Boundaries) to say that members of a generic type are lifetime-checked like members of any other type, and that only values whose type is a type parameter are treated conservatively.
+
 ## BUG-342: A retained allocator is not required to outlive the object that keeps it
 
 Date/Time: 2026-10-22 21:46 EDT
