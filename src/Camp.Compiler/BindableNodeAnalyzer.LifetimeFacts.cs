@@ -377,7 +377,7 @@ public sealed partial class BindableNodeAnalyzer
 		return construction.Kind switch
 		{
 			ConstructionKind.New when IsGenericConstructedType(construction, resolvedType, scope) => MakeLifetimeFact("escaped", null, "new"),
-			ConstructionKind.New => GetNewConstructionLifetimeFact(construction),
+			ConstructionKind.New => GetNewConstructionLifetimeFact(construction, resolvedType, scope),
 			ConstructionKind.StackAlloc => MakeLifetimeFact("scoped", null, "stackalloc"),
 			ConstructionKind.Init or ConstructionKind.Selected => GetInitConstructionLifetimeFact(construction, resolvedType, scope),
 			_ => null
@@ -394,8 +394,14 @@ public sealed partial class BindableNodeAnalyzer
 		return false;
 	}
 
-	string? GetNewConstructionLifetimeFact(ConstructionExpression construction)
+	string? GetNewConstructionLifetimeFact(ConstructionExpression construction, string resolvedType, BodyScope scope)
 	{
+		foreach (LifetimeFact retained in GetConstructionRetainedLifetimeFacts(construction, resolvedType, scope, heap: true))
+			if (retained.Kind is not ("escaped" or "null" or "default"))
+			{
+				Report(GetRange(construction.SourceSyntax), "Heap construction cannot retain a non-escaped pointer-bearing value.");
+				break;
+			}
 		return MakeLifetimeFact("escaped", null, "new");
 	}
 
@@ -423,6 +429,13 @@ public sealed partial class BindableNodeAnalyzer
 
 	string? GetInitConstructionLifetimeFact(ConstructionExpression construction, string resolvedType, BodyScope scope)
 	{
+		return CombineRetainedLifetimeFacts(GetConstructionRetainedLifetimeFacts(construction, resolvedType, scope)) is LifetimeFact retained
+			? FormatLifetimeFact(new LifetimeFact(retained.Kind, retained.Anchors, "init"))
+			: null;
+	}
+
+	List<LifetimeFact> GetConstructionRetainedLifetimeFacts(ConstructionExpression construction, string resolvedType, BodyScope scope, bool heap = false)
+	{
 		List<LifetimeFact> retainedFacts = [];
 		if (!constructionTargets.TryGetValue(construction, out FunctionDefinition? constructor))
 			constructor = FindConstructionInitNew(construction, resolvedType);
@@ -437,6 +450,9 @@ public sealed partial class BindableNodeAnalyzer
 			int count = Math.Min(parameters.Count, construction.Arguments.Count);
 			for (int i = 0; i < count; i++)
 			{
+				// Scoped inputs cannot be retained by a constructor's source contract.
+				if (heap && GetParameterLifetimeTemplate(parameters[i]).Kind == "scoped")
+					continue;
 				if (!IsLifetimePointerBearingResolvedType(parameters[i].ResolvedType, scope)
 					&& GetExpressionLifetimeFact(construction.Arguments[i].Value) is null)
 					continue;
@@ -446,9 +462,7 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		AddInitializerRetainedLifetimeFacts(construction.Initializer, resolvedType, scope, retainedFacts);
-		return CombineRetainedLifetimeFacts(retainedFacts) is LifetimeFact retained
-			? FormatLifetimeFact(new LifetimeFact(retained.Kind, retained.Anchors, "init"))
-			: null;
+		return retainedFacts;
 	}
 
 	string? GetInitializerLifetimeFact(InitializerExpression initializer, string resolvedType, BodyScope scope)

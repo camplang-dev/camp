@@ -353,6 +353,11 @@ This is what prevents code from constructing a heap object that stores a pointer
 to local stack storage unless an explicit and valid lifetime conversion appears
 at the right boundary.
 
+For `new`, every retained argument and initializer fact must be escaped (or a
+benign null/default value), because the constructed object is escaped. Retained
+facts are collected and combined as for value construction; an ordinary scoped
+constructor input cannot be retained and does not impose this heap requirement.
+
 ## Delegates And Captures
 
 Delegate and once values carry a hidden context pointer. Lifetime annotations on

@@ -44,30 +44,6 @@ Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
 
-## BUG-338: `new` of a class does not check pointer-bearing constructor arguments against what the constructor retains
-
-Date/Time: 2026-10-22 21:46 EDT
-
-Summary:
-A constructor parameter written `unscoped` may be stored in a field. Value construction retains the argument's lifetime fact, so returning the constructed value is rejected. Heap construction with `new` yields an escaped value but does not check the arguments, so a heap object can hold a pointer to local storage.
-
-Steps to Reproduce:
-
-1. Declare `class Keeper { const char[] text; Keeper(unscoped const char[] input) { this.text = input; } ~Keeper() { } }`.
-2. In a function, declare `fixed char[8] buffer = $"abc";` and write `Keeper* made = new Keeper(buffer[..]); return made;`.
-
-Expected:
-The construction is rejected, because the escaped object would retain a view of local storage. `semantics/05` (Construction And Retention) says this analysis "prevents code from constructing a heap object that stores a pointer to local stack storage".
-
-Actual:
-No diagnostic is reported for the `new` expression or the return.
-
-Known Impact:
-Heap objects can retain pointers to local or parameter storage that ends before the object does. 
-
-Documentation:
-Update `semantics/05-lifetime-analysis-and-flow-facts.md` (Construction And Retention) to state the `new` form explicitly: the arguments a constructor retains must be escaped when the object is created with `new`, because the result is escaped. Mention that retained facts are combined the same way for value construction and heap construction.
-
 ## BUG-339: Bound method references are not checked for the lifetime of their receiver
 
 Date/Time: 2026-10-22 21:46 EDT
