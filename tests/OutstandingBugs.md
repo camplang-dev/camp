@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-350.
+Next bug number: BUG-351.
 
 ## Bug Template
 
@@ -102,3 +102,66 @@ need to agree: the default means what the receiver retains, and a result that
 points into the receiver's own memory is `scoped(this)`. The definition of
 `scoped(anchor)` (the anchor's own memory) and `unscoped(anchor)` (what the
 anchor retains) should be stated once and used by `docs/language/07` as well.
+
+## BUG-350: A default method result on a local value receiver is tied to the receiver's address instead of what it holds
+
+Date/Time: 2026-10-23 12:59 EDT
+
+Summary:
+A local struct has two lifetimes: its own memory, which for a local ends with
+the function, and the lifetime of the values it holds, which is fixed by what it
+was initialized from. A method result with the default `unscoped(this)` means
+"something the receiver retains", so its lifetime should be the receiver's
+content, not its address. The compiler substitutes the receiver's own storage
+for the default result, so a result that is only a view of data the struct
+points at is reported as tied to the local and cannot be returned, even though
+reading the same field directly can. This depends on BUG-349: until a method
+that returns an interior pointer must be declared `scoped(this)`, taking the
+content fact for the default result would accept dangling results.
+
+Steps to Reproduce:
+
+1. Declare `struct SectionView { const byte[] image; nuint offset; nuint size;
+   const byte[] payload() => this.image[this.offset..this.offset + this.size]; }`.
+2. Declare `const byte[] fromField(const byte[] image)` that writes
+   `SectionView section = { image, 4, 8 }; return section.image;`.
+3. Declare `const byte[] fromMethod(const byte[] image)` that writes the same
+   initializer and `return section.payload();`.
+4. Declare `struct Result { const byte[] data; int code; }` and a function that
+   writes the same initializer and `return { section.payload(), 0 };`.
+5. Declare a function that fills a `fixed byte[16]` local, builds
+   `SectionView section = { buffer[..], 4, 8 };` and returns `section.payload()`.
+6. Compile.
+
+Expected:
+Steps 2, 3 and 4 compile: the struct was initialized from a caller-provided
+value, so its content, and any result retained from it, has that lifetime. Step
+5 is rejected, because its content is a local buffer. The same holds when the
+struct is built by a constructor call or returned from another function.
+
+For a result declared `scoped(this)` the call keeps using the receiver's
+address, so a local receiver still cannot have it returned.
+
+Actual:
+Step 2 compiles. Steps 3 and 4 are rejected with "Return expression cannot
+return a pointer-bearing value tied to local storage 'section'." Step 5 is
+rejected correctly. The message does not say that the result comes from a method
+or why the local is involved. It should name the call, give the result's declared
+lifetime, and suggest a remedy: "Cannot return the result of 'section.payload()'.
+Its declared lifetime is `scoped(this)`: it points into 'section', a local that
+ends when this function returns. Return a copy, or take the value from storage
+that outlives the function."
+
+Known Impact:
+View-like structs that hold a slice or pointer to caller data and expose it
+through accessor methods cannot return those views from a function that builds
+the struct locally. The only workarounds are lifetime casts that claim more than
+is true, or turning the accessor into a free function.
+
+Documentation:
+`docs/semantics/05-lifetime-analysis-and-flow-facts.md`: the sentence "A value
+receiver borrows its storage for the call; its current value fact does not
+replace that storage lifetime" applies to input retention checks; say so, and
+state that a default result takes the receiver's content fact while a
+`scoped(this)` result takes its address. Define `unscoped(anchor)` consistently
+with `docs/language/07`.
