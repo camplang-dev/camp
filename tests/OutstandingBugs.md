@@ -218,24 +218,28 @@ Whether a lifetime error is reported depends on the spelling of variable names.
 Documentation:
 No update needed; the `unscoped(anchor)` argument rule is already defined in `semantics/05-lifetime-analysis-and-flow-facts.md`.
 
-## BUG-344: `within scoped allocator` can be stored in a field of the receiver
+## BUG-344: Bare `within` parameter lifetime forms: `within scoped allocator` is storable and `within unscoped(x) allocator` does not parse
 
 Date/Time: 2026-10-22 22:20 EDT
 
 Summary:
-An unannotated `within` parameter is `scoped` like any other parameter, so it cannot be stored in a field tied to the receiver. Writing `within scoped allocator` only states that default, so it must behave identically. The bare form is instead exempted from the receiver-storage check.
+An unannotated `within` parameter is `scoped` like any other parameter, so it cannot be stored in a field tied to the receiver. Two problems affect the bare shorthand forms with a lifetime. `within scoped allocator` only states the default, so it must behave identically, but it is exempted from the receiver-storage check. `within unscoped(x) allocator`, with an anchor list, must be accepted like the anchored forms of other parameters, but the parser consumes only the lifetime keyword and then reads `allocator` as a type name.
 
 Steps to Reproduce:
 
-1. Declare an `Allocator` interface and `class Holder { Allocator* allocator; }` with two methods.
+1. Declare an `Allocator` interface and `class Holder { Allocator* allocator; }` with the methods below.
 2. Write `void viaDefault(within allocator) { this.allocator = allocator; }` and `void viaScoped(within scoped allocator) { this.allocator = allocator; }`.
 3. Compare with `within unscoped allocator` and `within escaped allocator` bodies that store the same way, and with the typed form `within scoped Allocator* allocator`.
+4. Declare `void anchored(const char[] owner, within unscoped(owner) allocator) {}`.
 
 Expected:
-`viaDefault` and `viaScoped` are both rejected with "Assignment cannot store a scoped pointer-bearing value in storage tied to 'this'." The unscoped and escaped forms are accepted.
+`viaDefault` and `viaScoped` are both rejected with "Assignment cannot store a scoped pointer-bearing value in storage tied to 'this'." The unscoped and escaped forms are accepted. The declaration in step 4 is accepted, with the anchor resolved against the parameters of the declaration.
 
 Actual:
-`viaDefault` and the typed `within scoped Allocator* allocator` form are rejected. The bare `within scoped allocator` form is accepted.
+`viaDefault` and the typed `within scoped Allocator* allocator` form are rejected. The bare `within scoped allocator` form is accepted. The declaration in step 4 reports "Unknown type 'allocator'.", and the typed form `within unscoped(owner) Allocator* allocator` is the only way to write an anchor.
 
 Known Impact:
-A receiver can keep a call-scoped allocator past the call. The existing `tests/CCompile/within_allocator_lifetime_parameters.camp` compiles `ScopedHolder` with this store, and must change with the fix. The older unified spec (v28) described this behavior as intended; `semantics/10` now states the default.
+A receiver can keep a call-scoped allocator past the call, and an anchored `within` parameter cannot be written in the shorthand. The existing `tests/CCompile/within_allocator_lifetime_parameters.camp` compiles `ScopedHolder` with the store, and must change with the fix. The older unified spec (v28) described the store as intended.
+
+Documentation:
+`semantics/10-construction-destruction-and-allocation.md` now states the default and the explicit forms. When the anchored shorthand is implemented, extend that paragraph to say that `within unscoped(x) allocator` and `within scoped(x) allocator` take anchor lists as other parameters do, and which anchors a `within` parameter may name (see BUG-340).
