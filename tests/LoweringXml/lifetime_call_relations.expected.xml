@@ -12,8 +12,8 @@
     <FunctionDefinition InvokerName="identity" Name="identity" Symbol="identity" ResolvedType="scoped char*">
       <ReturnType Type="NamedTypeReference" Name="scoped char[]" ResolvedType="scoped char*" />
       <Parameters>
-        <ParameterDefinition Name="value" Symbol="value" ResolvedType="char*" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="scoped:default parameter" />
-        <ParameterDefinition Name="value_length" Symbol="value_length" ResolvedType="nuint" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="scoped:default parameter" />
+        <ParameterDefinition Name="value" Symbol="value" ResolvedType="char*" SlotLifetimeFact="scoped(value):default parameter" ValueLifetimeFact="scoped(value):default parameter" />
+        <ParameterDefinition Name="value_length" Symbol="value_length" ResolvedType="nuint" SlotLifetimeFact="scoped(value):default parameter" ValueLifetimeFact="scoped(value):default parameter" />
         <ParameterDefinition Modifier="Out" Name="result_length" Symbol="result_length" ResolvedType="nuint">
           <Type Type="NamedTypeReference" Name="nuint" ResolvedType="nuint" />
         </ParameterDefinition>
@@ -25,7 +25,7 @@
               <ExpressionStatement ResolvedType="void">
                 <Expression Type="AssignmentExpression" Operator="Assign" ResolvedType="nuint">
                   <Target Type="VariableReferenceExpression" Variable="result_length" ResolvedType="nuint" />
-                  <Value Type="VariableReferenceExpression" Variable="value_length" ResolvedType="nuint" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="scoped:default parameter" />
+                  <Value Type="VariableReferenceExpression" Variable="value_length" ResolvedType="nuint" SlotLifetimeFact="scoped(value):default parameter" ValueLifetimeFact="scoped(value):default parameter" />
                 </Expression>
               </ExpressionStatement>
               <ReturnStatement ResolvedType="void">
@@ -33,7 +33,7 @@
                   <Type Type="PointerTypeReference" ResolvedType="char*">
                     <ElementType Type="Char" ResolvedType="char" />
                   </Type>
-                  <Expression Type="VariableReferenceExpression" Variable="value" ResolvedType="char*" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="scoped:default parameter" />
+                  <Expression Type="VariableReferenceExpression" Variable="value" ResolvedType="char*" SlotLifetimeFact="scoped(value):default parameter" ValueLifetimeFact="scoped(value):default parameter" />
                 </Expression>
               </ReturnStatement>
             </Statements>
@@ -44,10 +44,10 @@
     <FunctionDefinition InvokerName="scopedTo" Name="scopedTo" Symbol="scopedTo" ResolvedType="scoped(owner) char*">
       <ReturnType Type="NamedTypeReference" Name="scoped char[]" ResolvedType="scoped(owner) char*" />
       <Parameters>
-        <ParameterDefinition Name="owner" Symbol="owner" ResolvedType="char*" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="scoped:default parameter" />
-        <ParameterDefinition Name="owner_length" Symbol="owner_length" ResolvedType="nuint" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="scoped:default parameter" />
-        <ParameterDefinition Name="value" Symbol="value" ResolvedType="char*" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="scoped:default parameter" />
-        <ParameterDefinition Name="value_length" Symbol="value_length" ResolvedType="nuint" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="scoped:default parameter" />
+        <ParameterDefinition Name="owner" Symbol="owner" ResolvedType="char*" SlotLifetimeFact="scoped(owner):default parameter" ValueLifetimeFact="scoped(owner):default parameter" />
+        <ParameterDefinition Name="owner_length" Symbol="owner_length" ResolvedType="nuint" SlotLifetimeFact="scoped(owner):default parameter" ValueLifetimeFact="scoped(owner):default parameter" />
+        <ParameterDefinition Name="value" Symbol="value" ResolvedType="char*" SlotLifetimeFact="scoped(value):default parameter" ValueLifetimeFact="scoped(value):default parameter" />
+        <ParameterDefinition Name="value_length" Symbol="value_length" ResolvedType="nuint" SlotLifetimeFact="scoped(value):default parameter" ValueLifetimeFact="scoped(value):default parameter" />
         <ParameterDefinition Modifier="Out" Name="result_length" Symbol="result_length" ResolvedType="nuint">
           <Type Type="NamedTypeReference" Name="nuint" ResolvedType="nuint" />
         </ParameterDefinition>
@@ -59,7 +59,7 @@
               <ExpressionStatement ResolvedType="void">
                 <Expression Type="AssignmentExpression" Operator="Assign" ResolvedType="nuint">
                   <Target Type="VariableReferenceExpression" Variable="result_length" ResolvedType="nuint" />
-                  <Value Type="VariableReferenceExpression" Variable="value_length" ResolvedType="nuint" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="scoped(owner):explicit cast" />
+                  <Value Type="VariableReferenceExpression" Variable="value_length" ResolvedType="nuint" SlotLifetimeFact="scoped(value):default parameter" ValueLifetimeFact="scoped(owner):explicit cast" />
                 </Expression>
               </ExpressionStatement>
               <ReturnStatement ResolvedType="void">
@@ -67,7 +67,7 @@
                   <Type Type="PointerTypeReference" ResolvedType="char*">
                     <ElementType Type="Char" ResolvedType="char" />
                   </Type>
-                  <Expression Type="VariableReferenceExpression" Variable="value" ResolvedType="char*" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="scoped(owner):explicit cast" />
+                  <Expression Type="VariableReferenceExpression" Variable="value" ResolvedType="char*" SlotLifetimeFact="scoped(value):default parameter" ValueLifetimeFact="scoped(owner):explicit cast" />
                 </Expression>
               </ReturnStatement>
             </Statements>
@@ -78,10 +78,10 @@
     <FunctionDefinition InvokerName="unscopedTo" Name="unscopedTo" Symbol="unscopedTo" ResolvedType="unscoped(owner) char*">
       <ReturnType Type="NamedTypeReference" Name="unscoped char[]" ResolvedType="unscoped(owner) char*" />
       <Parameters>
-        <ParameterDefinition Name="owner" Symbol="owner" ResolvedType="char*" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="scoped:default parameter" />
-        <ParameterDefinition Name="owner_length" Symbol="owner_length" ResolvedType="nuint" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="scoped:default parameter" />
-        <ParameterDefinition Name="value" Symbol="value" ResolvedType="char*" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="scoped:default parameter" />
-        <ParameterDefinition Name="value_length" Symbol="value_length" ResolvedType="nuint" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="scoped:default parameter" />
+        <ParameterDefinition Name="owner" Symbol="owner" ResolvedType="char*" SlotLifetimeFact="scoped(owner):default parameter" ValueLifetimeFact="scoped(owner):default parameter" />
+        <ParameterDefinition Name="owner_length" Symbol="owner_length" ResolvedType="nuint" SlotLifetimeFact="scoped(owner):default parameter" ValueLifetimeFact="scoped(owner):default parameter" />
+        <ParameterDefinition Name="value" Symbol="value" ResolvedType="char*" SlotLifetimeFact="scoped(value):default parameter" ValueLifetimeFact="scoped(value):default parameter" />
+        <ParameterDefinition Name="value_length" Symbol="value_length" ResolvedType="nuint" SlotLifetimeFact="scoped(value):default parameter" ValueLifetimeFact="scoped(value):default parameter" />
         <ParameterDefinition Modifier="Out" Name="result_length" Symbol="result_length" ResolvedType="nuint">
           <Type Type="NamedTypeReference" Name="nuint" ResolvedType="nuint" />
         </ParameterDefinition>
@@ -93,7 +93,7 @@
               <ExpressionStatement ResolvedType="void">
                 <Expression Type="AssignmentExpression" Operator="Assign" ResolvedType="nuint">
                   <Target Type="VariableReferenceExpression" Variable="result_length" ResolvedType="nuint" />
-                  <Value Type="VariableReferenceExpression" Variable="value_length" ResolvedType="nuint" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="unscoped(owner):explicit cast" />
+                  <Value Type="VariableReferenceExpression" Variable="value_length" ResolvedType="nuint" SlotLifetimeFact="scoped(value):default parameter" ValueLifetimeFact="unscoped(owner):explicit cast" />
                 </Expression>
               </ExpressionStatement>
               <ReturnStatement ResolvedType="void">
@@ -101,7 +101,7 @@
                   <Type Type="PointerTypeReference" ResolvedType="unscoped char*">
                     <ElementType Type="Char" ResolvedType="unscoped char" />
                   </Type>
-                  <Expression Type="VariableReferenceExpression" Variable="value" ResolvedType="char*" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="unscoped(owner):explicit cast" />
+                  <Expression Type="VariableReferenceExpression" Variable="value" ResolvedType="char*" SlotLifetimeFact="scoped(value):default parameter" ValueLifetimeFact="unscoped(owner):explicit cast" />
                 </Expression>
               </ReturnStatement>
             </Statements>
@@ -188,8 +188,8 @@
             </Attributes>
           </EffectiveThisParameter>
           <Parameters>
-            <ParameterDefinition Modifier="Out" Name="result" Symbol="result" ResolvedType="char*" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="scoped:default receiver:member" />
-            <ParameterDefinition Modifier="Out" Name="result_length" Symbol="result_length" ResolvedType="nuint" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="scoped:default receiver:member" />
+            <ParameterDefinition Modifier="Out" Name="result" Symbol="result" ResolvedType="char*" SlotLifetimeFact="scoped(result):default parameter" ValueLifetimeFact="scoped:default receiver:member" />
+            <ParameterDefinition Modifier="Out" Name="result_length" Symbol="result_length" ResolvedType="nuint" SlotLifetimeFact="scoped(result):default parameter" ValueLifetimeFact="scoped:default receiver:member" />
           </Parameters>
           <Body Type="BlockStatement" ResolvedType="void">
             <Statements>
@@ -197,7 +197,7 @@
                 <Statements>
                   <ExpressionStatement ResolvedType="void">
                     <Expression Type="AssignmentExpression" Operator="Assign" ResolvedType="char*">
-                      <Target Type="VariableReferenceExpression" Variable="result" ResolvedType="char*" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="scoped:default receiver:member" />
+                      <Target Type="VariableReferenceExpression" Variable="result" ResolvedType="char*" SlotLifetimeFact="scoped(result):default parameter" ValueLifetimeFact="scoped:default receiver:member" />
                       <Value Type="MemberReferenceExpression" Name="items" Member="items" ResolvedType="char*">
                         <Target Type="ThisExpression" ResolvedType="const Buffer*" />
                       </Value>
@@ -205,7 +205,7 @@
                   </ExpressionStatement>
                   <ExpressionStatement ResolvedType="void">
                     <Expression Type="AssignmentExpression" Operator="Assign" ResolvedType="nuint">
-                      <Target Type="VariableReferenceExpression" Variable="result_length" ResolvedType="nuint" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="scoped:default receiver:member" />
+                      <Target Type="VariableReferenceExpression" Variable="result_length" ResolvedType="nuint" SlotLifetimeFact="scoped(result):default parameter" ValueLifetimeFact="scoped:default receiver:member" />
                       <Value Type="MemberReferenceExpression" Name="items_length" Member="items_length" ResolvedType="nuint">
                         <Target Type="ThisExpression" ResolvedType="const Buffer*" />
                       </Value>

@@ -199,6 +199,10 @@ public sealed partial class BindableNodeAnalyzer
 			return;
 
 		string fact = parameter.LifetimeBinding ?? MakeLifetimeFact("scoped", parameter.Name, "parameter");
+		if (!string.IsNullOrWhiteSpace(parameter.Name)
+			&& TryParseLifetimeFact(fact, out LifetimeFact parsed)
+			&& parsed.Kind == "scoped" && parsed.Anchors.Count == 0)
+			fact = FormatLifetimeFact(new LifetimeFact(parsed.Kind, [parameter.Name], parsed.Source));
 		parameter.SlotLifetimeFact = fact;
 		parameter.ValueLifetimeFact = CreateDeclarationValueLifetimeFact(parameter.Type, parameter.ResolvedType, isFixedStorage: false, typeScope) ?? fact;
 	}
@@ -782,10 +786,6 @@ public sealed partial class BindableNodeAnalyzer
 		if (argument.Value is VariableReferenceExpression { Variable: ParameterDefinition argumentParameter }
 			&& ReferenceEquals(argumentParameter, parameter))
 			return;
-		if (argument.Value is NamedExpression { Qualifiers.Count: 0 } namedArgument
-			&& namedArgument.Name == parameter.Name)
-			return;
-
 		if (!TryParseLifetimeFact(GetExpressionLifetimeFact(argument.Value), out LifetimeFact actualFact))
 			return;
 		if (actualFact.Kind == "unknown")
