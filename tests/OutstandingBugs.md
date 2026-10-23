@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-340.
+Next bug number: BUG-341.
 
 ## Bug Template
 
@@ -108,3 +108,25 @@ None of them reports a diagnostic.
 
 Known Impact:
 A delegate that outlives its receiver can be created without a diagnostic. The semantic documentation does not state the rule for bound references; `semantics/05` (Delegates And Captures) should be extended to cover them as part of the fix.
+
+## BUG-340: Invalid lifetime anchors on `within` and `thrown` parameters and circular anchors are accepted
+
+Date/Time: 2026-10-22 21:46 EDT
+
+Summary:
+`semantics/05-lifetime-analysis-and-flow-facts.md` (Invalid anchor uses) says anchors on `within` parameters that are not valid lifetime sources, anchors to thrown slots that cannot observe them, and dependent anchors that would require circular substitution must be diagnosed at the annotation. Missing names are diagnosed, but these three forms are not.
+
+Steps to Reproduce:
+
+1. Declare `void circular(unscoped(second) const char[] first, unscoped(first) const char[] second) {}`.
+2. Declare `void withinAnchor(const char[] owner, within unscoped(owner) Allocator* allocator) {}` with an `Allocator` in scope.
+3. Declare `void thrownAnchor(const char[] owner, thrown unscoped(owner) int* error) {}`.
+
+Expected:
+Each annotation is rejected where it is written.
+
+Actual:
+No diagnostic is reported for any of them.
+
+Known Impact:
+Signatures with meaningless lifetime relations are accepted, and later call checks may behave unpredictably.
