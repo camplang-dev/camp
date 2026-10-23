@@ -138,7 +138,10 @@ Actual:
 No diagnostic is reported for any of them.
 
 Known Impact:
-Signatures with meaningless lifetime relations are accepted, and later call checks may behave unpredictably.
+Signatures with meaningless lifetime relations are accepted, and later call checks may behave unpredictably. The `within` repro uses the typed form because the bare form `within unscoped(owner) allocator` does not parse (see BUG-344).
+
+Documentation:
+`semantics/05-lifetime-analysis-and-flow-facts.md` (Invalid anchor uses) says anchors on `within` parameters are rejected "when they are not valid lifetime sources" without saying which are valid. Define it there: list which anchors a `within`, `thrown` and `out` slot may name, and which anchor combinations count as circular.
 
 ## BUG-341: Lifetime checks are skipped for members of generic classes
 
