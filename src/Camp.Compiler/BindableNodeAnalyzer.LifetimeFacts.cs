@@ -1582,6 +1582,10 @@ public sealed partial class BindableNodeAnalyzer
 	void CheckDefaultResultPointsIntoReceiver(Expression? value, SyntaxNode? syntax, BodyScope scope)
 	{
 		FunctionDefinition function = scope.CurrentFunction;
+		// A lambda body returns its own result, not the enclosing method's.
+		for (BodyScope? enclosing = scope; enclosing is not null; enclosing = enclosing.Parent)
+			if (enclosing.Lambda is not null)
+				return;
 		if (value is null || function.GeneratedInfo is not null || !IsReceiverBearingDeclaration(function) || ReturnsReceiverItself(function)
 			|| GetExplicitThisParameter(function) is not null)
 			return;

@@ -23,3 +23,14 @@ class Fluent
 }
 
 export int main() { return 0; }
+
+struct WithLambda
+{
+	int value;
+
+	int read()
+	{
+		delegate int*() address = () => { return &this.value; };
+		return *address();
+	}
+}
