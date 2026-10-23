@@ -1313,7 +1313,8 @@ public sealed partial class BindableNodeAnalyzer
 
 	bool IsInParameterTransportFact(LifetimeFact fact, BodyScope scope)
 	{
-		return fact.Anchors.Any(anchor => IsInParameterLifetimeAnchor(anchor, scope));
+		return fact.Source.Contains("in parameter address", StringComparison.Ordinal)
+			&& fact.Anchors.Any(anchor => IsInParameterLifetimeAnchor(anchor, scope));
 	}
 
 	bool IsGeneratedShadowDataExpression(Expression? expression)
@@ -1391,7 +1392,8 @@ public sealed partial class BindableNodeAnalyzer
 		string? localAnchor = valueFact.Anchors.FirstOrDefault(anchor => IsLocalLifetimeAnchor(anchor, scope));
 		if (localAnchor is not null)
 			Report(GetRange(syntax), $"{context} cannot return a pointer-bearing value tied to local storage '{localAnchor}'.");
-		string? inParameterAnchor = valueFact.Anchors.FirstOrDefault(anchor => IsInParameterLifetimeAnchor(anchor, scope));
+		string? inParameterAnchor = IsInParameterTransportFact(valueFact, scope)
+			? valueFact.Anchors.FirstOrDefault(anchor => IsInParameterLifetimeAnchor(anchor, scope)) : null;
 		if (inParameterAnchor is not null)
 			Report(GetRange(syntax), $"{context} cannot return a pointer-bearing value tied to in-parameter transport '{inParameterAnchor}'.");
 	}

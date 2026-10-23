@@ -77,7 +77,7 @@ public sealed class MutableWriteTargetTests
 	public void Array_of_const_pointees_can_replace_pointer_elements()
 	{
 		SemanticCompiler.AssertNoDiagnostics(SemanticCompiler.CompileLowered("""
-			void replace(const int*[] items, const int* next)
+			void replace(const int*[] items, unscoped(items) const int* next)
 			{
 				items[0] = next;
 			}
