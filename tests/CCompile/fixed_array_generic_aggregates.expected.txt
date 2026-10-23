@@ -27,18 +27,10 @@ int main(void)
 		*refValue = (RefType){0};
 	}
 	refValue->value = 13;
-	PointerBox *byteBox = (PointerBox *)(malloc(sizeof(PointerBox)));
-	if ((byteBox != NULL))
-	{
-		*byteBox = (PointerBox){0};
-	}
-	PointerBox_set(byteBox, bytesPointer);
-	PointerBox *fixedBox = (PointerBox *)(malloc(sizeof(PointerBox)));
-	if ((fixedBox != NULL))
-	{
-		*fixedBox = (PointerBox){0};
-	}
-	PointerBox_set(fixedBox, &fixedValue);
+	PointerBox byteBox = (PointerBox){0};
+	PointerBox_set(&byteBox, bytesPointer);
+	PointerBox fixedBox = (PointerBox){0};
+	PointerBox_set(&fixedBox, &fixedValue);
 	PointerBox *refBox = (PointerBox *)(malloc(sizeof(PointerBox)));
 	if ((refBox != NULL))
 	{

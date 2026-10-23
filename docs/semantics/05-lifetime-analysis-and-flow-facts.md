@@ -243,6 +243,11 @@ template. Return checks substitute the return template through the same context.
 `out` arguments are storage writes, so the target slot receives a value fact
 compatible with the callee's `out` parameter relation.
 
+A value receiver borrows its storage for the call; its current value fact does
+not replace that storage lifetime. Scoped local inputs can satisfy a receiver's
+retention requirement when their lexical scope contains the receiver's scope.
+An inner local cannot satisfy the requirement of an outer receiver.
+
 The return default for receiver-bearing declarations is important: an ordinary
 method returning a pointer-bearing value without an explicit lifetime relation
 is treated as tied to `this`, not as escaped. This protects fluent and accessor
@@ -420,6 +425,11 @@ Members of generic types are lifetime-checked like other members. Conservative
 treatment applies to values whose type is a type parameter, not to every value
 in a generic body. Known pointer-bearing fields, parameters, and local values
 must satisfy the usual storage and receiver lifetime checks.
+
+Copying an `in T` value is distinct from taking the address of its parameter
+storage. Preserve that address origin for escape checks without rejecting
+ordinary generic copies. A slot's written lifetime does not become part of its
+generic payload or change the operand of its layout capability.
 
 Named `stackalloc` storage, including `stackalloc void<V>`, is unassigned after
 each `yield` or `await`. Assigning it again permits subsequent reads. Its storage

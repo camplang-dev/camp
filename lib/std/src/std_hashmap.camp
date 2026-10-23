@@ -21,7 +21,7 @@ public class HashMap<K, V>
 	nuint firstFree;
 
 	/// Initializes an empty map with a key hash policy and remembers the allocator used for storage.
-	public HashMap(HashPolicy<K> policy, within this.allocator, sizeof(K), sizeof(V))
+	public HashMap(unscoped HashPolicy<K> policy, within this.allocator, sizeof(K), sizeof(V))
 	{
 		this.policy = policy;
 	}

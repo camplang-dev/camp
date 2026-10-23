@@ -20,7 +20,7 @@ public class HashSet<K>
 	nuint firstFree;
 
 	/// Initializes an empty set with a hash policy and remembers the allocator used for storage.
-	public HashSet(HashPolicy<K> policy, within this.allocator, sizeof(K))
+	public HashSet(unscoped HashPolicy<K> policy, within this.allocator, sizeof(K))
 	{
 		this.policy = policy;
 	}

@@ -9,7 +9,7 @@ class Box<T>
 
 	T* item;
 
-	int useInstanceType(T* value)
+	int useInstanceType(unscoped T* value)
 	{
 		this.item = value;
 		return Box.DEFAULT;

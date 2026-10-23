@@ -1,1 +1,1 @@
-tests/Diagnostics/prep_scoped_escape_invalid.camp(10,22): error: Assignment cannot store a scoped pointer-bearing value in storage tied to 'this'.
+tests/Diagnostics/prep_scoped_escape_invalid.camp(10,22): error: Assignment cannot store a scoped pointer-bearing value in storage tied to 'holder'.

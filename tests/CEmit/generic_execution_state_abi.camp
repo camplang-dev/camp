@@ -46,7 +46,7 @@ async int tick(int value, @awaitwith Resumer* resumer) { return value; }
 class Holder<T>
 {
 	T* slot;
-	Holder(T* slot, sizeof(T)) { this.slot = slot; }
+	Holder(unscoped T* slot, sizeof(T)) { this.slot = slot; }
 
 	async int across(@awaitwith Resumer* resumer)
 	{

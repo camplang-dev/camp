@@ -20,7 +20,7 @@ class PointerBox<T>
 {
 	T* value;
 
-	void set(T* value)
+	void set(unscoped T* value)
 	{
 		this.value = value;
 	}
@@ -40,10 +40,10 @@ export int main()
 	RefType* refValue = new RefType();
 	refValue.value = 13;
 
-	auto byteBox = new PointerBox<byte[4]>();
+	PointerBox<byte[4]> byteBox = default;
 	byteBox.set(bytesPointer);
 
-	auto fixedBox = new PointerBox<FixedValue>();
+	PointerBox<FixedValue> fixedBox = default;
 	fixedBox.set(&fixedValue);
 
 	auto refBox = new PointerBox<RefType>();

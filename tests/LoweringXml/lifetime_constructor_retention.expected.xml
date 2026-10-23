@@ -151,13 +151,13 @@
     <FunctionDefinition InvokerName="facts" Name="facts" Symbol="facts" ResolvedType="void">
       <ReturnType Type="Void" ResolvedType="void" />
       <Parameters>
-        <ParameterDefinition Name="input" Symbol="input" ResolvedType="const char*" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="scoped:default parameter" />
-        <ParameterDefinition Name="input_length" Symbol="input_length" ResolvedType="nuint" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="scoped:default parameter" />
+        <ParameterDefinition Name="input" Symbol="input" ResolvedType="const char*" SlotLifetimeFact="scoped(input):default parameter" ValueLifetimeFact="scoped(input):default parameter" />
+        <ParameterDefinition Name="input_length" Symbol="input_length" ResolvedType="nuint" SlotLifetimeFact="scoped(input):default parameter" ValueLifetimeFact="scoped(input):default parameter" />
       </Parameters>
       <Body Type="BlockStatement" ResolvedType="void">
         <Statements>
-          <DeclarationStatement ResolvedType="void" SlotLifetimeFact="scoped(retained):slot" ValueLifetimeFact="scoped:init">
-            <Target Type="DeclarationTarget" ResolvedType="View" SlotLifetimeFact="scoped(retained):slot" ValueLifetimeFact="scoped:init">
+          <DeclarationStatement ResolvedType="void" SlotLifetimeFact="scoped(retained):slot" ValueLifetimeFact="scoped(input):init">
+            <Target Type="DeclarationTarget" ResolvedType="View" SlotLifetimeFact="scoped(retained):slot" ValueLifetimeFact="scoped(input):init">
               <Type Type="TypeDefinitionReference" Name="View" Definition="View" ResolvedType="View" />
               <Names>
                 <Value>retained</Value>
@@ -174,26 +174,26 @@
               <Arguments>
                 <ArgumentExpression ResolvedType="View*">
                   <Value Type="UnaryExpression" Operator="AddressOf" ResolvedType="View*">
-                    <Operand Type="VariableReferenceExpression" Variable="retained" ResolvedType="View" SlotLifetimeFact="scoped(retained):slot" ValueLifetimeFact="scoped:init" />
+                    <Operand Type="VariableReferenceExpression" Variable="retained" ResolvedType="View" SlotLifetimeFact="scoped(retained):slot" ValueLifetimeFact="scoped(input):init" />
                   </Value>
                 </ArgumentExpression>
                 <ArgumentExpression ResolvedType="const char*">
-                  <Value Type="VariableReferenceExpression" Variable="input" ResolvedType="const char*" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="scoped:default parameter" />
+                  <Value Type="VariableReferenceExpression" Variable="input" ResolvedType="const char*" SlotLifetimeFact="scoped(input):default parameter" ValueLifetimeFact="scoped(input):default parameter" />
                 </ArgumentExpression>
                 <ArgumentExpression ResolvedType="nuint">
-                  <Value Type="VariableReferenceExpression" Variable="input_length" ResolvedType="nuint" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="scoped:default parameter" />
+                  <Value Type="VariableReferenceExpression" Variable="input_length" ResolvedType="nuint" SlotLifetimeFact="scoped(input):default parameter" ValueLifetimeFact="scoped(input):default parameter" />
                 </ArgumentExpression>
               </Arguments>
             </Expression>
           </ExpressionStatement>
-          <DeclarationStatement ResolvedType="void" SlotLifetimeFact="scoped(aggregate):slot" ValueLifetimeFact="scoped:initializer">
-            <Target Type="DeclarationTarget" ResolvedType="View" SlotLifetimeFact="scoped(aggregate):slot" ValueLifetimeFact="scoped:initializer">
+          <DeclarationStatement ResolvedType="void" SlotLifetimeFact="scoped(aggregate):slot" ValueLifetimeFact="scoped(input):initializer">
+            <Target Type="DeclarationTarget" ResolvedType="View" SlotLifetimeFact="scoped(aggregate):slot" ValueLifetimeFact="scoped(input):initializer">
               <Type Type="TypeDefinitionReference" Name="View" Definition="View" ResolvedType="View" />
               <Names>
                 <Value>aggregate</Value>
               </Names>
             </Target>
-            <InitialValue Type="InitializerExpression" ResolvedType="View" ValueLifetimeFact="scoped:initializer">
+            <InitialValue Type="InitializerExpression" ResolvedType="View" ValueLifetimeFact="scoped(input):initializer">
               <Items>
                 <InitializerItem ResolvedType="const char*">
                   <Target Type="InitializerTarget" ResolvedType="#TARGET">
@@ -201,7 +201,7 @@
                       <InitializerTargetPart Name="text" ResolvedType="#TARGET" />
                     </Parts>
                   </Target>
-                  <Expression Type="VariableReferenceExpression" Variable="input" ResolvedType="const char*" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="scoped:default parameter" />
+                  <Expression Type="VariableReferenceExpression" Variable="input" ResolvedType="const char*" SlotLifetimeFact="scoped(input):default parameter" ValueLifetimeFact="scoped(input):default parameter" />
                 </InitializerItem>
                 <InitializerItem ResolvedType="nuint">
                   <Target Type="InitializerTarget" ResolvedType="#TARGET">
@@ -209,7 +209,7 @@
                       <InitializerTargetPart Name="text_length" ResolvedType="#TARGET" />
                     </Parts>
                   </Target>
-                  <Expression Type="VariableReferenceExpression" Variable="input_length" ResolvedType="nuint" SlotLifetimeFact="scoped:default parameter" ValueLifetimeFact="scoped:default parameter" />
+                  <Expression Type="VariableReferenceExpression" Variable="input_length" ResolvedType="nuint" SlotLifetimeFact="scoped(input):default parameter" ValueLifetimeFact="scoped(input):default parameter" />
                 </InitializerItem>
               </Items>
             </InitialValue>

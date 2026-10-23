@@ -271,6 +271,10 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			if (GetExpressionLifetimeFact(rewritten) is string rewrittenFact)
 				expression.ValueLifetimeFact = rewrittenFact;
+			else if (rewritten is MethodReferenceExpression)
+				expression.ValueLifetimeFact = MakeLifetimeFact("escaped", null, "function pointer");
+			else if (rewritten is VariableReferenceExpression variableReference)
+				expression.ValueLifetimeFact = GetStorageValueLifetimeFact(variableReference.Variable);
 			else if (rewritten is MemberReferenceExpression { Member: FieldDefinition field } fieldReference
 				&& GetFieldReferenceLifetimeFact(fieldReference, field, resolvedType, scope) is string fieldFact)
 				expression.ValueLifetimeFact = fieldFact;
@@ -333,13 +337,17 @@ public sealed partial class BindableNodeAnalyzer
 			&& GetExpressionLifetimeFact(receiver) is string fact)
 			return fact;
 		if (TryGetStorageNode(receiver, out BindableNode? storage))
+		{
+			if (storage is ParameterDefinition parameter)
+				return MakeLifetimeFact("scoped", parameter.Name, parameter.Modifier == ParameterModifier.In ? "in parameter address:bound receiver" : "parameter address:bound receiver");
 			return storage?.SlotLifetimeFact ?? MakeLifetimeFact("scoped", GetStorageLifetimeAnchor(storage), "bound receiver");
+		}
 		return MakeLifetimeFact("scoped", null, "bound receiver");
 	}
 
 	void CheckCallableContextLifetime(Expression expression, string? targetType)
 	{
-		if (expression is LambdaExpression || !IsEscapedCallableTarget(targetType))
+		if (expression is LambdaExpression || expression.ResolvedType == ErrorType || !IsEscapedCallableTarget(targetType))
 			return;
 		if (TryParseLifetimeFact(GetExpressionLifetimeFact(expression), out LifetimeFact fact)
 			&& fact.Kind is not ("escaped" or "null" or "default"))
@@ -527,7 +535,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	void AddInitializerRetainedLifetimeFacts(InitializerExpression? initializer, string resolvedType, BodyScope scope, List<LifetimeFact> retainedFacts)
 	{
-		if (initializer is null || !typeDefinitions.TryGetValue(BaseTypeName(resolvedType), out TypeDefinition? definition))
+		if (initializer is null || !typeDefinitions.TryGetValue(BaseConstructedType(resolvedType), out TypeDefinition? definition))
 			return;
 
 		List<FieldDefinition> fields = definition switch
@@ -780,6 +788,8 @@ public sealed partial class BindableNodeAnalyzer
 
 	void CheckLifetimeParameterArgument(FunctionDefinition function, ArgumentExpression argument, ParameterDefinition parameter, LifetimeCallContext context, BodyScope scope, SyntaxNode? fallbackSyntax, Dictionary<string, string>? substitutions)
 	{
+		if (argument.ResolvedType == ErrorType || argument.Value?.ResolvedType == ErrorType)
+			return;
 		string effectiveParameterType = SubstituteGenericType(parameter.ResolvedType ?? parameter.Type?.ResolvedType ?? ErrorType, substitutions ?? []);
 		if (!IsLifetimePointerBearingResolvedType(argument.ResolvedType, scope) && !IsLifetimePointerBearingResolvedType(effectiveParameterType, scope))
 			return;
@@ -802,7 +812,7 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			if (required.Kind == "unknown")
 				continue;
-			if (!ValueOutlivesFact(actualFact, required))
+			if (!ValueOutlivesFact(actualFact, required) && !LocalLifetimeOutlives(actualFact, required, scope))
 				Report(GetRange(GetArgumentDiagnosticSyntax(argument, fallbackSyntax)), $"Argument cannot satisfy parameter lifetime '{FormatLifetimeRequirement(template)}'.");
 		}
 	}
@@ -891,7 +901,7 @@ public sealed partial class BindableNodeAnalyzer
 		Dictionary<string, LifetimeFact> anchors = new(StringComparer.Ordinal);
 		List<LifetimeFact> scopedInputs = [];
 		Dictionary<string, List<LifetimeFact>> genericInputs = new(StringComparer.Ordinal);
-		LifetimeFact? receiverFact = GetReceiverLifetimeFact(callTarget);
+		LifetimeFact? receiverFact = GetReceiverLifetimeFact(callTarget, scope);
 		if (receiverFact is not null)
 		{
 			anchors["this"] = receiverFact;
@@ -985,7 +995,7 @@ public sealed partial class BindableNodeAnalyzer
 		return true;
 	}
 
-	LifetimeFact? GetReceiverLifetimeFact(Expression? callTarget)
+	LifetimeFact? GetReceiverLifetimeFact(Expression? callTarget, BodyScope scope)
 	{
 		Expression? receiver = callTarget switch
 		{
@@ -993,7 +1003,36 @@ public sealed partial class BindableNodeAnalyzer
 			MemberReferenceExpression member => member.Target,
 			_ => null
 		};
-		return TryParseLifetimeFact(GetExpressionLifetimeFact(receiver), out LifetimeFact fact) ? fact : null;
+		return receiver is not null && TryParseLifetimeFact(GetBoundMethodLifetimeFact(receiver, scope), out LifetimeFact fact) ? fact : null;
+	}
+
+	static bool LocalLifetimeOutlives(LifetimeFact actual, LifetimeFact required, BodyScope scope)
+	{
+		if (actual.Kind != "scoped" || required.Kind != "scoped" || actual.Anchors.Count == 0 || required.Anchors.Count == 0)
+			return false;
+		foreach (string actualAnchor in actual.Anchors)
+		{
+			BodyScope? actualScope = FindLocalAnchorScope(actualAnchor, scope);
+			if (actualScope is null)
+				return false;
+			foreach (string requiredAnchor in required.Anchors)
+			{
+				BodyScope? requiredScope = FindLocalAnchorScope(requiredAnchor, scope);
+				while (requiredScope is not null && !ReferenceEquals(requiredScope, actualScope))
+					requiredScope = requiredScope.Parent;
+				if (requiredScope is null)
+					return false;
+			}
+		}
+		return true;
+	}
+
+	static BodyScope? FindLocalAnchorScope(string anchor, BodyScope scope)
+	{
+		for (BodyScope? current = scope; current is not null; current = current.Parent)
+			if (current.Symbols.TryGetValue(anchor, out BodySymbol symbol))
+				return symbol.Node is DeclarationTarget or DeclarationStatement ? current : null;
+		return null;
 	}
 
 	static List<LifetimeFact> GetRequiredArgumentLifetimeFacts(LifetimeFact template, LifetimeCallContext context)
@@ -1396,6 +1435,8 @@ public sealed partial class BindableNodeAnalyzer
 			? valueFact.Anchors.FirstOrDefault(anchor => IsInParameterLifetimeAnchor(anchor, scope)) : null;
 		if (inParameterAnchor is not null)
 			Report(GetRange(syntax), $"{context} cannot return a pointer-bearing value tied to in-parameter transport '{inParameterAnchor}'.");
+		else if (valueFact.Source.Contains("parameter address", StringComparison.Ordinal))
+			Report(GetRange(syntax), $"{context} cannot return a callable tied to parameter storage.");
 	}
 
 	void CheckLifetimeYield(Expression? value, SyntaxNode? syntax, BodyScope scope)

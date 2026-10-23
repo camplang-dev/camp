@@ -5346,7 +5346,12 @@ public sealed partial class BindableNodeAnalyzer
 		if (pattern.Kind == TypeShapeKind.Named && genericParameterNames.Contains(pattern.Name))
 		{
 			if (!substitutions.ContainsKey(pattern.Name))
-				substitutions[pattern.Name] = TypeShapeParser.Format(actual);
+			{
+				// The written lifetime belongs to the slot, not its generic payload.
+				TypeShape payload = pattern.Qualifiers.Lifetime == LifetimeKind.Scoped ? actual
+					: actual with { Qualifiers = actual.Qualifiers with { Lifetime = LifetimeKind.Scoped } };
+				substitutions[pattern.Name] = TypeShapeParser.Format(payload);
+			}
 			return;
 		}
 

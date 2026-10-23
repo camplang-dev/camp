@@ -19,7 +19,7 @@ class HashSet<K>
 {
 	HashPolicy<K> policy;
 
-	HashSet(HashPolicy<K> policy, sizeof(K))
+	HashSet(unscoped HashPolicy<K> policy, sizeof(K))
 	{
 		this.policy = policy;
 	}
