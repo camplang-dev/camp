@@ -375,6 +375,13 @@ and are not tied to local storage.
 The callable-lowering supplement describes the generated context layout and
 deletion rules.
 
+A bound method reference carries its receiver as the callable's hidden context.
+Its value fact preserves the receiver's lifetime through inferred and explicit
+copies. An escaped delegate target requires an escaped receiver; a scoped target
+may borrow the receiver only within its lifetime. An unscoped target must satisfy
+the same anchor relations as other context-bearing values. Taking a method on a
+local value borrows that local's storage, even when the value contains no pointers.
+
 ## Async And Iterator Frames
 
 Async state machines and iterator generators lift values into generated frames.

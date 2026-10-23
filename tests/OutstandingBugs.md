@@ -44,31 +44,6 @@ Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
 
-## BUG-339: Bound method references are not checked for the lifetime of their receiver
-
-Date/Time: 2026-10-22 21:46 EDT
-
-Summary:
-A bound method reference such as `c.get` carries its receiver. Passing one to an `escaped delegate` parameter, or returning it as an escaped delegate, is accepted even when the receiver is a local value or a parameter. The only enforced case is an expanded receiver bound to an escaped delegate.
-
-Steps to Reproduce:
-
-1. Declare `struct Counter { int n; int get() => this.n; }` and `void takeEscaped(escaped delegate int() callback) {}`.
-2. In a function, declare a local `Counter c` and call `takeEscaped(c.get)`.
-3. Also call `takeEscaped(counter.get)` where `counter` is a `Counter*` parameter, and `return counter.get;` from a function returning `escaped delegate int()`.
-
-Expected:
-A bound method reference cannot retain a receiver beyond the receiver's lifetime, so each of these is rejected.
-
-Actual:
-None of them reports a diagnostic.
-
-Known Impact:
-A delegate that outlives its receiver can be created without a diagnostic. 
-
-Documentation:
-The semantic documentation does not state the rule for bound references. Extend `semantics/05-lifetime-analysis-and-flow-facts.md` (Delegates And Captures) so that a bound method reference carries the lifetime of its receiver as the hidden context of the callable, and state the receiver lifetime a target delegate type accepts.
-
 ## BUG-340: Invalid lifetime anchors on `within` and `thrown` parameters and circular anchors are accepted
 
 Date/Time: 2026-10-22 21:46 EDT

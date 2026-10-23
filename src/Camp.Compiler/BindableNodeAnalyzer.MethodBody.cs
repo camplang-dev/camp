@@ -1524,6 +1524,7 @@ public sealed partial class BindableNodeAnalyzer
 			type = ErrorType;
 		expression.ResolvedType = type;
 		ApplyExpressionLifetimeFact(expression, type, scope, typeScope);
+		CheckCallableContextLifetime(expression, targetType);
 		return type;
 	}
 

@@ -270,6 +270,8 @@ public sealed partial class BindableNodeAnalyzer
 			else if (rewritten is MemberReferenceExpression { Member: FieldDefinition field } fieldReference
 				&& GetFieldReferenceLifetimeFact(fieldReference, field, resolvedType, scope) is string fieldFact)
 				expression.ValueLifetimeFact = fieldFact;
+			else if (rewritten is MemberReferenceExpression { Member: FunctionDefinition, Target: not null } methodReference)
+				expression.ValueLifetimeFact = GetBoundMethodLifetimeFact(methodReference.Target, scope);
 			return;
 		}
 
@@ -304,6 +306,8 @@ public sealed partial class BindableNodeAnalyzer
 			IndexExpression index => GetIndexLifetimeFact(index, resolvedType),
 			MemberExpression member => GetMemberLifetimeFact(member, resolvedType, scope),
 			MemberReferenceExpression { Member: FieldDefinition field } member => GetFieldReferenceLifetimeFact(member, field, resolvedType, scope),
+			MemberReferenceExpression { Member: FunctionDefinition, Target: not null } member => GetBoundMethodLifetimeFact(member.Target, scope),
+			MethodReferenceExpression => MakeLifetimeFact("escaped", null, "function pointer"),
 			CallExpression call => GetCallLifetimeFact(call, resolvedType, scope),
 			LambdaExpression lambda when !LambdaHasCaptures(lambda, scope.CurrentFunction, scope.ContainingType) => MakeLifetimeFact("escaped", null, "lambda"),
 			LambdaExpression lambda => TryGetResolvedTypeLifetime(lambda.ResolvedType, out string lambdaLifetime)
@@ -316,6 +320,26 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (fact is not null)
 			expression.ValueLifetimeFact = fact;
+	}
+
+	string GetBoundMethodLifetimeFact(Expression receiver, BodyScope scope)
+	{
+		if ((TryGetPointerElementType(receiver.ResolvedType) is not null || IsPrimitiveStringType(receiver.ResolvedType ?? "")
+			|| TryGetArrayElementType(receiver.ResolvedType) is not null)
+			&& GetExpressionLifetimeFact(receiver) is string fact)
+			return fact;
+		if (TryGetStorageNode(receiver, out BindableNode? storage))
+			return storage?.SlotLifetimeFact ?? MakeLifetimeFact("scoped", GetStorageLifetimeAnchor(storage), "bound receiver");
+		return MakeLifetimeFact("scoped", null, "bound receiver");
+	}
+
+	void CheckCallableContextLifetime(Expression expression, string? targetType)
+	{
+		if (expression is LambdaExpression || !IsEscapedCallableTarget(targetType))
+			return;
+		if (TryParseLifetimeFact(GetExpressionLifetimeFact(expression), out LifetimeFact fact)
+			&& fact.Kind is not ("escaped" or "null" or "default"))
+			Report(GetRange(expression.SourceSyntax), "Expression cannot satisfy escaped callable context lifetime.");
 	}
 
 	string? GetConditionalLifetimeFact(ConditionalExpression conditional)
