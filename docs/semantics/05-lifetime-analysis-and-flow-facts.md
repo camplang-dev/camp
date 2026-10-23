@@ -197,7 +197,10 @@ Expression lifetime facts are propagated through body analysis:
 - Address-of produces a scoped fact tied to the storage or `in` parameter being
   addressed when that anchor is available.
 - Indexing a slice should keep the target fact and mark the source as an element
-  or slice view.
+  or slice view. An element read is retained by that array and may be stored
+  back into the same array, including through a local copy. Storing it into an
+  unrelated array requires a relation such as `unscoped(destination)` on the
+  source. This does not extend the lifetime of local backing storage.
 - Member access should keep the target fact unless the member is known escaped
   storage.
 - Casts with explicit lifetime forms apply the cast fact; ordinary casts keep

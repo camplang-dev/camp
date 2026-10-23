@@ -41,3 +41,21 @@ void goodDeleteEscapedParameter(escaped Widget* owned)
 {
 	delete owned;
 }
+
+struct Entry { const char[] path; int order; }
+
+void shift(Entry[] entries) { entries[1] = entries[0]; }
+void restore(Entry[] entries) { Entry current = entries[1]; entries[0] = current; }
+void between(Entry[] to, Entry[] from) { to[0] = from[0]; }
+void related(Entry[] to, unscoped(to) Entry[] from) { to[0] = from[0]; }
+struct Plain { int a; int b; }
+void plainShift(Plain[] items) { items[1] = items[0]; }
+
+Entry localElement()
+{
+	fixed char[4] text = "abc";
+	fixed Entry[2] entries = default;
+	entries[0] = { text[..], 0 };
+	Entry copy = entries[..][0];
+	return copy;
+}

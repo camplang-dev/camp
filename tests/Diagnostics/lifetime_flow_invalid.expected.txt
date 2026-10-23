@@ -3,3 +3,5 @@ tests/Diagnostics/lifetime_flow_invalid.camp(16,15): error: Assignment cannot st
 tests/Diagnostics/lifetime_flow_invalid.camp(22,14): error: Cannot return a span view to local fixed-size array storage.
 tests/Diagnostics/lifetime_flow_invalid.camp(32,9): error: Delete target must be an escaped pointer.
 tests/Diagnostics/lifetime_flow_invalid.camp(37,9): error: Delete target must be an escaped pointer.
+tests/Diagnostics/lifetime_flow_invalid.camp(49,54): error: Assignment cannot store a scoped pointer-bearing value in storage tied to 'to'. The element is retained by 'from', which is not related to 'to'. Declare the source `unscoped(to)`, or copy the element's data.
+tests/Diagnostics/lifetime_flow_invalid.camp(60,9): error: Return expression cannot return a pointer-bearing value tied to local storage 'entries'.

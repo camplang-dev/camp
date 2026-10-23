@@ -21,6 +21,13 @@ ReadResult unscopedResult(const byte[] image) => { unscopedSlice(image, 3), 1 };
 
 ReadResult scopedResult(const byte[] image) => { scopedSlice(image, 2), 2 };
 
+void shiftResults(ReadResult[] entries)
+{
+	entries[1] = entries[0];
+	ReadResult current = entries[1];
+	entries[0] = current;
+}
+
 export int main(string[] args)
 {
 	const byte[] image = [1, 2, 3, 4, 5];
@@ -36,5 +43,10 @@ export int main(string[] args)
 	ReadResult second = scopedResult(image);
 	if (second.payload.length != 2 || second.code != 2)
 		return 5;
+	fixed ReadResult[2] entries = default;
+	entries[0] = first;
+	shiftResults(entries[..]);
+	if (entries[1].payload.length != 3 || entries[0].code != 1)
+		return 6;
 	return 0;
 }

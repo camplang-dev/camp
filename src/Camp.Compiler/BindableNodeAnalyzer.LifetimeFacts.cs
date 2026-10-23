@@ -679,7 +679,10 @@ public sealed partial class BindableNodeAnalyzer
 		string? targetFact = GetExpressionLifetimeFact(index.Target);
 		if (TryGetArrayElementType(resolvedType) is not null)
 			return targetFact is not null ? targetFact + ":slice" : MakeLifetimeFact("scoped", null, "slice");
-		return targetFact is not null ? targetFact + ":element" : null;
+		// A view's element is retained by the view. Inline fixed storage instead
+		// belongs to its containing slot and must keep that address lifetime.
+		string source = TryGetArrayElementType(index.Target?.ResolvedType) is not null ? ":retained element" : ":element";
+		return targetFact is not null ? targetFact + source : null;
 	}
 
 	// Prebound field reads still need the receiver's lifetime, including generated iterator state reads.
@@ -1426,7 +1429,12 @@ public sealed partial class BindableNodeAnalyzer
 				&& !IsStackAllocLifetimeFact(valueFact))
 				return;
 			if (!ValueOutlivesAnchor(valueFact, anchor))
-				Report(GetRange(syntax), $"{context} cannot store a scoped pointer-bearing value in storage tied to '{anchor}'.");
+			{
+				string detail = valueFact.Source.Contains(":retained element", StringComparison.Ordinal) && valueFact.Anchors.Count == 1
+					? $" The element is retained by '{valueFact.Anchors[0]}', which is not related to '{anchor}'. Declare the source `unscoped({anchor})`, or copy the element's data."
+					: "";
+				Report(GetRange(syntax), $"{context} cannot store a scoped pointer-bearing value in storage tied to '{anchor}'.{detail}");
+			}
 		}
 	}
 
@@ -1863,7 +1871,9 @@ public sealed partial class BindableNodeAnalyzer
 	static bool ValueOutlivesAnchor(LifetimeFact valueFact, string anchor)
 	{
 		return valueFact.Kind == "escaped"
-			|| valueFact.Kind == "unscoped" && (valueFact.Anchors.Count == 0 || valueFact.Anchors.Contains(anchor));
+			|| valueFact.Kind == "unscoped" && (valueFact.Anchors.Count == 0 || valueFact.Anchors.Contains(anchor))
+			|| valueFact.Kind == "scoped" && valueFact.Anchors.Count == 1 && valueFact.Anchors[0] == anchor
+				&& valueFact.Source.Contains(":retained element", StringComparison.Ordinal);
 	}
 
 	bool IsLocalLifetimeAnchor(string anchor, BodyScope scope)
