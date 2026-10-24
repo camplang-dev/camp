@@ -299,8 +299,13 @@ Data pointer lifetime changes are lifetime casts, not runtime conversions:
 
 ```camp
 Widget* pointer;
-escaped Widget* retained = (escaped Widget*)pointer;
+Widget* retained = (escaped Widget*)pointer;
 ```
+
+The cast is the only place a lifetime is written on a local value. A local
+variable's type carries no `scoped`, `unscoped(...)` or `escaped` annotation,
+and the same holds for `auto` locals, `for` initializers and `foreach`
+variables: the lifetime of a local is inferred from the values stored in it.
 
 Callable lifetime changes are more restrictive because callable lifetimes may
 describe hidden context, receiver lifetime, result provenance, and parameter

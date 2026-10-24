@@ -533,9 +533,13 @@ remain valid.
 Lifetime casts are proof boundaries:
 
 ```camp
-escaped const char[] retained = (escaped const char[])text;
-unscoped(owner) const char[] anchored = (unscoped(owner))text;
+const char[] retained = (escaped const char[])text;
+const char[] anchored = (unscoped(owner))text;
 ```
+
+The lifetime is written on the cast, not on the local variable. A local never
+carries `scoped`, `unscoped(...)` or `escaped` on its own type; the compiler
+infers its lifetime from the value stored in it.
 
 They do not copy storage, allocate memory, or extend a stack frame. They tell
 the compiler that the program has a proof it could not infer from the local
