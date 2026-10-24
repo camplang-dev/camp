@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-366.
+Next bug number: BUG-367.
 
 ## Bug Template
 
@@ -181,3 +181,51 @@ reports only the type name, so the local name error appears only after the type 
 
 Known Impact:
 A file with several reserved names needs one compile per category of name to find them all.
+
+## BUG-366: A failed conversion to an escaped pointer type is reported a second time at its use
+
+Date/Time: 2026-10-24 16:53 EDT
+
+Summary:
+Converting a pointer that is not escaped to a pointer to an escaped type (an escaped interface or class) is
+rejected because the source must be escaped. When the converted value is then passed as an argument or stored
+in escaped storage, the compiler reports a second error on the same range for the same fault, that the
+argument cannot satisfy the parameter's escaped lifetime or that the assignment cannot store a non-escaped
+value in escaped storage. The conversion error already names the cause, and the converted pointer is escaped
+by its type, so the second error repeats it and gives the author nothing more to fix.
+
+Steps to Reproduce:
+
+1. Compile the following program:
+
+   ```camp
+   escaped interface Task { void run(); }
+   class PlainTask: Task { int n; void run(escaped this): Task { } }
+   void schedule(Task* task) { }
+   Task* kept;
+   void argument(PlainTask* task) { schedule(task); }
+   void store(PlainTask* task) { kept = task; }
+   export int main() { return 0; }
+   ```
+
+Expected:
+One error for each of the two uses, the conversion error:
+
+```text
+error: Conversion from 'PlainTask*' to 'Task*', a pointer to an escaped type, requires escaped source storage.
+```
+
+Actual:
+Each use reports the conversion error and a second error on the same range:
+
+```text
+(5,43): error: Conversion from 'PlainTask*' to 'Task*', a pointer to an escaped type, requires escaped source storage.
+(5,43): error: Argument cannot satisfy parameter lifetime 'escaped'.
+(6,38): error: Conversion from 'PlainTask*' to 'Task*', a pointer to an escaped type, requires escaped source storage.
+(6,38): error: Assignment cannot store a non-escaped pointer-bearing value in escaped storage.
+```
+
+Known Impact:
+Two errors are reported for a single mistake, and one of them points the author at the use instead of the
+conversion. A direct escaped-lifetime violation that involves no failed conversion, such as passing a
+non-escaped pointer for an `escaped T*` parameter, must still report the lifetime error.
