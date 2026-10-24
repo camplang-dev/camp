@@ -46,7 +46,7 @@ Known Impact:
 
 ## BUG-361: Method of a constructed generic base class is rejected on a derived-class pointer
 
-Date/Time: 2026-10-24 12:20 EDT
+Date/Time: 2026-10-24 12:16 EDT
 
 Summary:
 A class derived from a constructed generic base class (for example `Derived: Base<int>`) cannot call an
@@ -96,7 +96,7 @@ Workaround: convert to the base construction first (`GBox<int>* b = g; b.other()
 
 ## BUG-362: Lifetime annotations are accepted on loop, out and catch variable declarations
 
-Date/Time: 2026-10-24 13:05 EDT
+Date/Time: 2026-10-24 14:32 EDT
 
 Summary:
 A lifetime annotation (`scoped`, `unscoped(...)` or `escaped`) is rejected on the type of an ordinary local
