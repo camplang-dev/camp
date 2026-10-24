@@ -187,6 +187,12 @@ Default facts are assigned during declaration analysis:
 When a declaration has an initializer, the slot fact still describes the storage
 and the initializer determines the initial value fact where possible.
 
+Every source local declaration uses the same annotation validation, including
+loop variables and `out`/`catch` targets. Reject written lifetime annotations
+before resolving the local type, including annotated `auto`, with the local
+variable lifetime diagnostic and a suggestion to use an explicit lifetime cast.
+Do not replace that diagnostic with an unknown-`auto` or conversion error.
+
 ## Expression Facts
 
 Expression lifetime facts are propagated through body analysis:
@@ -428,7 +434,8 @@ The analyzer applies three rules:
 - **Pointers are escaped by type.** A parameter, local, result, field, or
   generic substitution of type `T*`, where `T` is an escaped class or escaped
   interface, carries an escaped fact as if written `escaped T*`. Writing
-  `escaped` on such a type is accepted and redundant. Writing `scoped` or
+  `escaped` on such a type in a contract position is accepted and redundant;
+  local declarations still reject every written lifetime annotation. Writing `scoped` or
   `unscoped(anchor)` on it is rejected, because the type already fixes the
   lifetime.
   A by-value escaped interface value has the same rule: it is implicitly a

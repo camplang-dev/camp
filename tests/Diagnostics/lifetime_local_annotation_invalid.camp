@@ -2,3 +2,52 @@ void test()
 {
 	scoped char[] localText = default;
 }
+
+struct Name { const char[] text; }
+struct Fault { int code; }
+void produce(out Name result, thrown Fault fault) { result = default; }
+
+void escapedLocals(Name[] items)
+{
+	escaped Name plain = items[0];
+	escaped auto inferred = items[0];
+	for (escaped int index = 0; false;) { }
+	foreach (escaped Name item in items) { }
+	foreach (escaped auto item in items) { }
+	produce(out escaped Name made, catch escaped Fault fault);
+	produce(out escaped auto madeAuto, catch escaped auto faultAuto);
+	try { produce(out Name inner, catch Fault ignored); } catch (escaped Fault caught) { }
+	try { produce(out Name inner, catch Fault ignored); } catch (escaped auto caughtAuto) { }
+}
+
+void scopedLocals(Name[] items)
+{
+	scoped Name plain = items[0];
+	scoped auto inferred = items[0];
+	for (scoped int index = 0; false;) { }
+	foreach (scoped Name item in items) { }
+	foreach (scoped auto item in items) { }
+	produce(out scoped Name made, catch scoped Fault fault);
+	produce(out scoped auto madeAuto, catch scoped auto faultAuto);
+	try { produce(out Name inner, catch Fault ignored); } catch (scoped Fault caught) { }
+	try { produce(out Name inner, catch Fault ignored); } catch (scoped auto caughtAuto) { }
+}
+
+void anchoredLocals(Name[] items)
+{
+	unscoped(items) Name plain = items[0];
+	unscoped(items) auto inferred = items[0];
+	for (unscoped(items) int index = 0; false;) { }
+	foreach (unscoped(items) Name item in items) { }
+	foreach (unscoped(items) auto item in items) { }
+	produce(out unscoped(items) Name made, catch unscoped(items) Fault fault);
+	produce(out unscoped(items) auto madeAuto, catch unscoped(items) auto faultAuto);
+	try { produce(out Name inner, catch Fault ignored); } catch (unscoped(items) Fault caught) { }
+	try { produce(out Name inner, catch Fault ignored); } catch (unscoped(items) auto caughtAuto) { }
+}
+
+escaped class Widget { }
+void redundantPointerAnnotation(Widget* value)
+{
+	escaped Widget* copy = value;
+}

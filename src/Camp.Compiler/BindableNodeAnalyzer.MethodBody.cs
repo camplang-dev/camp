@@ -868,9 +868,8 @@ public sealed partial class BindableNodeAnalyzer
 		// Named stack storage is recreated in each resume activation and is checked
 		// for definite assignment after suspension. Dynamic stack views still use
 		// ValidateStackAllocAllowed and cannot survive in retained state.
-		AnalyzeOptionalType(declaration.Target.Type, typeScope);
-		if (!IsEscapedValueType(declaration.Target.Type?.ResolvedType))
-			ValidateNoLifetimeAnnotation(declaration.Target.Type, declaration.Target.Type?.SourceSyntax ?? declaration.Target.SourceSyntax ?? declaration.SourceSyntax, "local variable types");
+		if (ValidateLocalVariableType(declaration.Target))
+			AnalyzeOptionalType(declaration.Target.Type, typeScope);
 		string targetType = declaration.Target.Type is AutoTypeReference or null
 			? TargetType
 			: declaration.Target.Type.ResolvedType ?? ErrorType;
@@ -1323,7 +1322,8 @@ public sealed partial class BindableNodeAnalyzer
 	void BodyAnalyzeDeclarationTarget(DeclarationTarget target, BodyScope scope, AnalysisScope typeScope, string targetType, bool allowDiscard = false)
 	{
 		ValidateLeadingSpecs(target.SourceSyntax, allowed: false);
-		AnalyzeOptionalType(target.Type, typeScope);
+		if (ValidateLocalVariableType(target))
+			AnalyzeOptionalType(target.Type, typeScope);
 
 		if (target.Type is AutoTypeReference)
 			target.ResolvedType = targetType == TargetType ? ErrorType : targetType;

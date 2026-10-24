@@ -27,7 +27,7 @@ public sealed class EscapedTypeLifetimeTests
 	[InlineData("void use() { ExplicitSink* source = new ExplicitSink(); Sink* view = source; view.put(1); }")]
 	[InlineData("void use(DefaultSink* source) { Sink* view = source; view.put(1); }")]
 	[InlineData("void use(escaped Widget* widget) { kept = widget; }")]
-	[InlineData("void use(Widget* widget) { escaped Widget* copy = widget; keep(copy); }")]
+	[InlineData("void use(Widget* widget) { Widget* copy = (escaped Widget*)widget; keep(copy); }")]
 	[InlineData("T* echo<T>(T* value) { return value; } void use(Widget* value) { keep(echo<Widget>(value)); }")]
 	[InlineData("escaped interface Allocator { } struct Arena: Allocator { } Arena arena; void borrow(within allocator) { } void use() { within (arena) borrow(); }")]
 	[InlineData("escaped interface Allocator { } struct Arena: Allocator { } void borrow(within allocator) { } void use() { auto arena = new Arena(); within (arena) borrow(); }")]

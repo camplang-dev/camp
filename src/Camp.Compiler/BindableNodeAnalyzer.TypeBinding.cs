@@ -583,6 +583,21 @@ public sealed partial class BindableNodeAnalyzer
 		Report(GetRange(syntax ?? type?.SourceSyntax), $"Lifetime annotations are not valid on {context}; use an explicit lifetime cast instead.");
 	}
 
+	readonly HashSet<DeclarationTarget> invalidLocalLifetimeDeclarations = [];
+
+	bool ValidateLocalVariableType(DeclarationTarget target)
+	{
+		if (!ContainsLifetimeAnnotation(target.Type))
+			return true;
+		if (invalidLocalLifetimeDeclarations.Add(target))
+			ValidateNoLifetimeAnnotation(target.Type, target.Type?.SourceSyntax ?? target.SourceSyntax, "local variable types");
+		// Do not bind an invalid annotation, including a wrapped `auto`, as a type.
+		// Recover as an error to avoid unknown-type and argument conversion cascades.
+		target.Type!.ResolvedType = ErrorType;
+		target.ResolvedType = ErrorType;
+		return false;
+	}
+
 	void BindLifetime(TypeReference type, string kind, IReadOnlyList<string> anchors, string source, AnalysisScope scope)
 	{
 		foreach (string anchor in anchors)

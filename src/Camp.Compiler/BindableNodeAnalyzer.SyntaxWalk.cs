@@ -123,7 +123,8 @@ public sealed partial class BindableNodeAnalyzer
 	void AnalyzeDeclarationTarget(DeclarationTarget target, AnalysisScope scope)
 	{
 		ValidateLeadingSpecs(target.SourceSyntax, allowed: false);
-		AnalyzeOptionalType(target.Type, scope);
+		if (ValidateLocalVariableType(target))
+			AnalyzeOptionalType(target.Type, scope);
 		target.ResolvedType = target.Type?.ResolvedType ?? ErrorType;
 
 		foreach (string name in target.Names)
