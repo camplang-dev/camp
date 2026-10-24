@@ -304,8 +304,9 @@ Widget* retained = (escaped Widget*)pointer;
 
 The cast is the only place a lifetime is written on a local value. A local
 variable's type carries no `scoped`, `unscoped(...)` or `escaped` annotation,
-and the same holds for `auto` locals and `for` initializers: the lifetime of a
-local is inferred from the values stored in it.
+wherever the local is declared: ordinary declarations, `auto` locals, `for`
+initializers, `foreach` variables, `out` declarations and `catch` declarations.
+The lifetime of a local is inferred from the values stored in it.
 
 Callable lifetime changes are more restrictive because callable lifetimes may
 describe hidden context, receiver lifetime, result provenance, and parameter

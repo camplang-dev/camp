@@ -538,7 +538,8 @@ const char[] anchored = (unscoped(owner))text;
 ```
 
 The lifetime is written on the cast, not on the local variable. A local never
-carries `scoped`, `unscoped(...)` or `escaped` on its own type; the compiler
+carries `scoped`, `unscoped(...)` or `escaped` on its own type, wherever it is
+declared (including `foreach`, `out` and `catch` declarations); the compiler
 infers its lifetime from the value stored in it.
 
 They do not copy storage, allocate memory, or extend a stack frame. They tell
