@@ -143,13 +143,40 @@ pointer, `stackalloc` instance or local struct is rejected at the conversion; a 
 method reference to a callable newtype with `escaped this` needs an escaped
 receiver.
 
+Call sites are part of the same requirement and are also unchecked today. A call
+to a method that requires an escaped receiver is diagnosed at the call when the
+receiver is not escaped, whether the call is direct or goes through an interface
+pointer:
+```camp
+class C { void keep(escaped this) { } void plain() { } }
+interface Mixed { void keep(escaped this); void plain(); }
+class G: Mixed { void keep(escaped this): Mixed { } void plain(): Mixed { } }
+void direct(C* p) { p.plain(); p.keep(); }                         // p.keep(): rejected
+void directLocal() { C local = default; local.keep(); }            // rejected
+void directNew() { C* n = new C(); n.keep(); }                     // accepted
+void viaScoped(G* p) { Mixed* m = p; m.plain(); m.keep(); }        // m.plain(): accepted; m.keep(): rejected
+void viaLocal() { G local = default; Mixed* m = &local; m.keep(); }  // rejected at m.keep()
+void viaNew() { G* n = new G(); Mixed* m = n; m.keep(); }          // accepted
+```
+The conversions to `Mixed*` are accepted by design: converting to an ordinary
+interface pointer keeps the lifetime of the source, so the pointer from a scoped
+source is scoped, and calling a member that requires an escaped receiver through it
+is what is rejected. Today every call above compiles. The diagnostic at the call
+names the method, says that it requires an escaped receiver and that the receiver
+(a parameter, a local or a pointer from an interface conversion of one) is not
+escaped, and suggests passing an escaped receiver such as a `new` allocation, or
+declaring the method without `escaped this` if it does not retain its receiver.
+
 Actual:
 Rows B, D and H are rejected although they are valid, rows A, K and O are accepted
 although they are invalid, and the rejection message gives no cause and no suggestion.
 The bootstrap appears to require the written receiver of the implementation to
 equal the written receiver of the member, instead of checking that the implementation
 can satisfy the member's receiver lifetime. In particular `escaped interface`
-members are treated as having an ordinary receiver.
+members are treated as having an ordinary receiver. Calls to a method that requires
+an escaped receiver compile with a scoped receiver, directly and through an interface
+pointer; the only call-like check that exists is the bound method reference to a
+callable newtype with `escaped this`.
 
 Known Impact:
 A class that is not escaped cannot implement an escaped interface in the valid form
@@ -160,9 +187,41 @@ cannot port the rule faithfully while the bootstrap accepts and rejects the wron
 forms.
 
 Documentation:
-`docs/language/12-interfaces-and-dynamic-dispatch.md` (escaped interfaces) and
-`docs/semantics/09-interface-vtables-and-dynamic-dispatch.md`: state that every
-member of an escaped interface requires an escaped receiver, that implementations in
-a class that is not escaped write `escaped this`, and that escaped classes default to
-it. `docs/language/06-functions-methods-and-callables.md` (callable newtype
-ascription): state the same receiver requirement for a newtype with `escaped this`.
+Describe these semantics precisely in the semantic docs; this is part of the fix.
+Add a section "Receiver Lifetime Requirements" to
+`docs/semantics/09-interface-vtables-and-dynamic-dispatch.md` that states:
+
+1. A member requires an escaped receiver when it belongs to an `escaped interface`
+   (every member, without writing it), when it is declared with explicit
+   `escaped this` in any interface, or when it is the signature of a callable
+   newtype with an `escaped this` receiver. A method also requires one when it
+   declares `escaped this` itself, which the escaped class default supplies.
+2. What each implementation must write: in an escaped class the receiver is escaped
+   by default, so `run()` and `run(escaped this)` both satisfy the member; in a
+   class that is not escaped the method must write `escaped this`; a default
+   receiver there is rejected; a struct keeps its default receiver and the scoped
+   adapter is rejected at the conversion, not at the declaration.
+3. Over-demand is rejected: an implementation or ascribed method that declares
+   `escaped this` against a member whose receiver is ordinary is rejected, because
+   the caller may pass a scoped receiver. The rule is the same for interface members
+   and callable newtypes.
+4. Conversions: converting to an interface pointer keeps the lifetime of the
+   source. For an `escaped interface` the pointer is escaped by type, the generated
+   `getInterface()` conversion has an `escaped this` receiver, and a source that is
+   not escaped is rejected at the conversion. For an ordinary interface the
+   conversion is accepted from any source and produces a scoped pointer when the
+   source is scoped, even if the interface has members that require an escaped
+   receiver.
+5. Calls: calling a method that requires an escaped receiver, directly or through
+   an interface pointer, needs an escaped receiver value; a scoped receiver is
+   diagnosed at the call site. A bound method reference to a callable newtype with
+   `escaped this` follows the same rule.
+6. The diagnostics above, with the cause and suggestion each carries.
+
+Cross-reference the section from Escaped Types in
+`docs/semantics/05-lifetime-analysis-and-flow-facts.md` (instance receivers in
+escaped classes default to escaped receiver facts; escaped interface contracts and
+member requirements are checked as described), and give the user-level statement of
+rules 1 to 3 with the `Task` examples of this report in
+`docs/language/12-interfaces-and-dynamic-dispatch.md`, and the callable newtype
+case in `docs/language/06-functions-methods-and-callables.md` (ascription).
