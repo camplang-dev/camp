@@ -43,3 +43,5 @@ void directParameter(DirectCalls* parameter) { parameter.plain(); parameter.keep
 void directLocal() { DirectCalls local = default; local.keep(); }
 void interfaceParameter(MixedCalls* parameter) { Mixed* view = parameter; view.plain(); view.keep(); }
 void interfaceLocal() { MixedCalls local = default; Mixed* view = &local; view.keep(); }
+extern class NativeCalls { extern void keep(escaped this); extern void plain(); }
+void nativeParameter(NativeCalls* parameter) { parameter.plain(); parameter.keep(); }

@@ -33,7 +33,7 @@ class Holder
 
 class Formatter
 {
-	void format() : EscapedCallback
+	void format(escaped this) : EscapedCallback
 	{
 	}
 }

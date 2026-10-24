@@ -84,6 +84,7 @@ public sealed class EscapedTypeLifetimeTests
 	[InlineData("virtual escaped class Root { } sealed escaped class Derived: Root { }")]
 	[InlineData("interface Plain { void stop(); } escaped interface Job: Plain { void run(); }")]
 	[InlineData("escaped class Item { } struct Holder { Item* item; static Item storage; }")]
+	[InlineData("extern class Native { extern void run(); } void use(Native* value) { value.run(); }")]
 	public void Valid_escaped_hierarchies_and_pointer_fields_remain_valid(string source)
 	{
 		SemanticCompiler.AssertNoDiagnostics(SemanticCompiler.CompileLowered(source));

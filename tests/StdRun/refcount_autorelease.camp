@@ -35,11 +35,11 @@ export void emptyAutoreleasePool()
 
 class Thing: IRefCount
 {
-	void retain(): IRefCount
+	void retain(escaped this): IRefCount
 	{
 	}
 
-	void release(): IRefCount
+	void release(escaped this): IRefCount
 	{
 		released++;
 	}

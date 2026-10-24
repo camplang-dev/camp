@@ -91,7 +91,9 @@
               <ThisParameterDefinition LifetimeBinding="escaped:explicit receiver" Name="this" Symbol="this" ResolvedType="#THIS" />
             </Parameters>
           </CallableAscriptionNewtype>
-          <EffectiveThisParameter Type="ThisParameterDefinition" LifetimeBinding="escaped:explicit receiver" Name="this" Symbol="this" ResolvedType="Formatter* escaped" />
+          <Parameters>
+            <ThisParameterDefinition LifetimeBinding="escaped:explicit receiver" Name="this" Symbol="this" ResolvedType="Formatter* escaped" />
+          </Parameters>
           <Body Type="BlockStatement" ResolvedType="#UNRESOLVED" />
         </FunctionDefinition>
       </Functions>

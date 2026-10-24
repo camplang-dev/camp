@@ -1212,7 +1212,10 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (containingType is null || !typeDefinitions.TryGetValue(containingType, out TypeDefinition? definition))
 			return false;
-		return HasEscapedReceiverDefault(definition);
+		// Native and shadow method bodies assume external storage. That internal
+		// fact does not add an escaped receiver requirement to their source contracts.
+		return HasEscapedReceiverDefault(definition)
+			|| definition is ClassDefinition { IsShadow: true } or ClassDefinition { Extern: not null };
 	}
 
 	AnalysisScope CreateTypeScope(TypeDefinition definition, AnalysisScope parentScope)

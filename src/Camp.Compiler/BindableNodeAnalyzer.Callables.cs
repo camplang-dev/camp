@@ -521,8 +521,7 @@ public sealed partial class BindableNodeAnalyzer
 	}
 
 	static bool HasEscapedReceiverDefault(TypeDefinition? owner) =>
-		owner is ClassDefinition { IsEscaped: true } or ClassDefinition { IsShadow: true }
-			or ClassDefinition { Extern: not null } or InterfaceDefinition { IsEscaped: true };
+		owner is ClassDefinition { IsEscaped: true } or InterfaceDefinition { IsEscaped: true };
 
 	bool ValidateReceiverLifetimeImplementation(FunctionDefinition function, TypeDefinition? owner, bool required, string member, bool allowStructDefault = false)
 	{
