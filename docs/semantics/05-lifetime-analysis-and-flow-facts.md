@@ -177,7 +177,7 @@ Default facts are assigned during declaration analysis:
 - local tracked slots default to a scoped fact anchored to the local name when
   one exists, and their value facts are inferred from what is stored in them:
   lifetime annotations are rejected on the type of a local variable (including
-  `auto`, `for` initializers and `foreach` variables), and a lifetime cast on
+  `auto` locals and `for` initializers), and a lifetime cast on
   the stored value is the explicit proof;
 - function pointer values default to escaped value facts because function
   symbols are not stack-owned closure contexts;
