@@ -7510,8 +7510,8 @@ public sealed class CommandLineTests
 
 			export class RefThing: IRefCount
 			{
-				void retain(): IRefCount {}
-				void release(): IRefCount {}
+				void retain(escaped this): IRefCount {}
+				void release(escaped this): IRefCount {}
 			}
 			""");
 		string secondSource = Path.Combine(root, "consumer.camp");
