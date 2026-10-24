@@ -3336,6 +3336,12 @@ public sealed partial class BindableNodeAnalyzer
 			receiverType = ErasedTypeIdentity.ReadType(receiverType);
 		string actualType = StripLifetimeQualifiers(StripTopLevelConstForReceiver(targetType));
 		receiverType = StripLifetimeQualifiers(receiverType);
+		// Class upcasts select the declaring base, but must not discard receiver qualifiers.
+		if (TryParseTypeShape(actualType, out TypeShape actualShape) && actualShape.Kind == TypeShapeKind.Pointer
+			&& TryParseTypeShape(receiverType, out TypeShape receiverShape) && receiverShape.Kind == TypeShapeKind.Pointer
+			&& actualShape.Element is not null && receiverShape.Element is not null
+			&& !QualifiersCanConvert(actualShape.Element.Qualifiers, receiverShape.Element.Qualifiers, false, 1))
+			return false;
 		if (WouldDecayFixedArrayStorageToPointerReceiver(actualType, receiverType))
 			return false;
 		if (CanImplicitlyConvert(actualType, receiverType))
@@ -3467,6 +3473,8 @@ public sealed partial class BindableNodeAnalyzer
 		string ownerTypeName = ResolvedNominalTypeName(owner);
 		if (owner is NewtypeDefinition)
 			return StripTopLevelValueQualifiers(TypeNamesSameDefinition(targetType, owner) ? targetType : ownerTypeName);
+		if (owner is ClassDefinition ownerClass && ConstructedClassType(targetType, ownerClass) is string constructedClass)
+			return $"{constructedClass}*";
 		if (TryGetPointerElementType(targetType) is string elementType && TypeNamesSameDefinition(elementType, owner))
 			return $"{StripTopLevelValueQualifiers(elementType)}*";
 		if (TypeNamesSameDefinition(targetType, owner))

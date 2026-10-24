@@ -4286,6 +4286,8 @@ public sealed partial class BindableNodeAnalyzer
 
 		List<string> typeArguments = containingType is InterfaceDefinition owningInterface
 			? ConstructedInterfaceArguments(receiverType, owningInterface) ?? ExtractConstructedTypeArguments(receiverType)
+			: containingType is ClassDefinition owningClass && ConstructedClassType(receiverType, owningClass) is string constructedClass
+			? ExtractConstructedTypeArguments(constructedClass)
 			: ExtractConstructedTypeArguments(receiverType);
 		int count = Math.Min(containingType.GenericParameters.Count, typeArguments.Count);
 		for (int i = 0; i < count; i++)

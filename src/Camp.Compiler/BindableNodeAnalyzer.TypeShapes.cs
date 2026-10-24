@@ -331,16 +331,31 @@ public sealed partial class BindableNodeAnalyzer
 		if (source.Kind != TypeShapeKind.Named || target.Kind != TypeShapeKind.Named || source.Name == target.Name)
 			return false;
 
-		if (!typeDefinitions.TryGetValue(BaseTypeName(source.Name), out TypeDefinition? sourceType)
-			|| sourceType is not ClassDefinition sourceClass
-			|| !typeDefinitions.TryGetValue(BaseTypeName(target.Name), out TypeDefinition? targetType)
+		if (!typeDefinitions.TryGetValue(BaseTypeName(target.Name), out TypeDefinition? targetType)
 			|| targetType is not ClassDefinition targetClass)
 			return false;
+		return ConstructedClassType(source.Name, targetClass) == target.Name;
+	}
 
-		string constructed = source.Name;
+	// Project a receiver onto its declaring class, substituting each base construction
+	// along the chain. The result is shared by conversions and inherited member binding.
+	string? ConstructedClassType(string receiverType, ClassDefinition owner)
+	{
+		if (!TryParseTypeShape(StripLifetimeQualifiers(receiverType), out TypeShape shape))
+			return null;
+		if (shape.Kind == TypeShapeKind.Pointer && shape.Element is not null)
+			shape = shape.Element;
+		if (shape.Kind != TypeShapeKind.Named
+			|| !TryGetTypeDefinitionByResolvedName(shape.Name, out TypeDefinition? definition)
+			|| definition is not ClassDefinition sourceClass)
+			return null;
+
+		string constructed = shape.Name;
 		HashSet<ClassDefinition> seen = [];
 		for (ClassDefinition? current = sourceClass; current is not null && seen.Add(current);)
 		{
+			if (ReferenceEquals(current, owner))
+				return constructed;
 			Dictionary<string, string> substitutions = [];
 			AddConstructedTypeGenericSubstitutions(constructed, substitutions);
 			ClassDefinition? baseClass = GetDirectBaseClass(current);
@@ -349,7 +364,7 @@ public sealed partial class BindableNodeAnalyzer
 			TypeReference? baseReference = null;
 			foreach (TypeReference declaredBase in current.BaseTypes)
 			{
-				if (TryGetNamedTypeDefinition(declaredBase, out TypeDefinition? definition) && ReferenceEquals(definition, baseClass))
+				if (TryGetNamedTypeDefinition(declaredBase, out TypeDefinition? baseDefinition) && ReferenceEquals(baseDefinition, baseClass))
 				{
 					baseReference = declaredBase;
 					break;
@@ -357,12 +372,10 @@ public sealed partial class BindableNodeAnalyzer
 			}
 			constructed = baseReference is null ? ResolvedNominalTypeName(baseClass)
 				: SubstituteGenericType(baseReference.ResolvedType ?? FormatTypeReference(baseReference), substitutions);
-			if (ReferenceEquals(baseClass, targetClass))
-				return constructed == target.Name;
 			current = baseClass;
 		}
 
-		return false;
+		return null;
 	}
 
 	string? TryGetArrayElementTypeFromShape(string? type)

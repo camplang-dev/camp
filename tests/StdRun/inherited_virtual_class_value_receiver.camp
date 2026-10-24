@@ -9,7 +9,20 @@ export int main()
 	heapValue.touch();
 	int result = heapValue.getCount();
 	delete heapValue;
-	return result - 1;
+	if (result != 1) return 2;
+	GenericLeaf* leaf = stackalloc GenericLeaf();
+	GenericBase<int>* baseView = leaf;
+	leaf.touch();
+	leaf.touchExplicit();
+	if (leaf.Count != 2 || baseView.getCount() != 2 || leaf.inside() != 2) return 3;
+	delegate int() read = leaf.getCount;
+	if (read() != 2) return 4;
+	int value = 17;
+	if (leaf.echo(&value) != &value) return 5;
+	GenericLeaf local = GenericLeaf();
+	local.touch();
+	if (local.getCount() != 1) return 6;
+	return 0;
 }
 
 public virtual class Base
@@ -34,4 +47,19 @@ public virtual class Base
 
 public virtual class Derived: Base
 {
+}
+
+class GenericBase<T>
+{
+	int count;
+	GenericBase() { this.count = 0; }
+	void touch() { this.count++; }
+	void touchExplicit(this) { this.count++; }
+	int getCount() { return this.count; }
+	unscoped(value) T* echo(T* value) { return value; }
+}
+class GenericMid<U>: GenericBase<U> { }
+class GenericLeaf: GenericMid<int>
+{
+	int inside() { return this.getCount(); }
 }

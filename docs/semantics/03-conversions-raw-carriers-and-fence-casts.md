@@ -362,6 +362,15 @@ arguments at every step; deriving from `Box<int>` does not permit conversion to
 the class relationship exists. If no class relationship exists, use a raw fence
 when target policy permits it.
 
+Inherited method receivers use the same exact base construction as pointer
+conversions. A `Derived: Base<int>` receiver calls `Base<T>` members as members
+of `Base<int>`, including explicit receivers, property accessors, bound method
+references, and calls through `this` inside the derived class. Resolve each
+base construction along the inheritance chain before substituting owner type
+parameters in argument and result types; the derived class's own argument list
+is not necessarily the declaring base's argument list. Receiver constness and
+pointer depth still constrain the call.
+
 Hidden generic capabilities do not change cast category. They affect whether the
 resulting program is semantically correct, not which cast syntax is accepted.
 
