@@ -615,6 +615,31 @@ the stack cannot produce one. A struct in static storage, or one allocated with
 `new`, can. Use a class-backed implementation or another explicitly owned
 adapter when the interface pointer must escape.
 
+Every member of an escaped interface requires an escaped receiver. An ordinary
+interface can place that requirement on just one member with `escaped this`.
+An escaped class supplies it by default; a class that is not escaped must
+declare it explicitly:
+
+```camp
+escaped interface Task { void run(); }
+class ExplicitTask: Task { void run(escaped this): Task { } }
+escaped class DefaultTask: Task { void run(): Task { } }
+escaped class ExplicitEscapedTask: Task { void run(escaped this): Task { } }
+struct StackTask: Task { void run(): Task { } }
+// class MissingReceiver: Task { void run(): Task { } } // ERROR: needs escaped this
+```
+
+A struct keeps its default receiver; converting scoped struct storage to an
+escaped interface is rejected as shown above. An implementation must not
+explicitly demand `escaped this` when the interface member has an ordinary
+receiver, since that member's callers may pass scoped receivers. An escaped
+class's implicit receiver default can still implement ordinary members.
+
+Converting to an ordinary interface preserves the source lifetime, even if some
+members require escaped receivers. Ordinary members remain callable through a
+scoped view; calling an escaped-receiver member requires an escaped value,
+just as a direct call does. Use an escaped receiver such as a `new` allocation.
+
 An escaped interface may inherit an ordinary interface. An interface inheriting
 an escaped interface must also be declared `escaped`:
 

@@ -3,6 +3,30 @@
 
 /* Private file declarations. */
 void *malloc(uintptr_t size);
+static void ExplicitTask_run(ExplicitTask *this);
+static Task **ExplicitTask_getTask(const ExplicitTask *this);
+static void ExplicitTask_op_initnew(ExplicitTask *this);
+static void DefaultTask_run(DefaultTask *this);
+static Task **DefaultTask_getTask(const DefaultTask *this);
+static void DefaultTask_op_initnew(DefaultTask *this);
+static void ExplicitEscapedTask_run(ExplicitEscapedTask *this);
+static Task **ExplicitEscapedTask_getTask(const ExplicitEscapedTask *this);
+static void ExplicitEscapedTask_op_initnew(ExplicitEscapedTask *this);
+static void StructTask_run(StructTask *this);
+static void ExplicitMixed_keep(ExplicitMixed *this);
+static void ExplicitMixed_plain(ExplicitMixed *this);
+static Mixed **ExplicitMixed_getMixed(const ExplicitMixed *this);
+static void ExplicitMixed_op_initnew(ExplicitMixed *this);
+static void DefaultMixed_keep(DefaultMixed *this);
+static void DefaultMixed_plain(DefaultMixed *this);
+static Mixed **DefaultMixed_getMixed(const DefaultMixed *this);
+static void DefaultMixed_op_initnew(DefaultMixed *this);
+static void EscapedMixed_keep(EscapedMixed *this);
+static void EscapedMixed_plain(EscapedMixed *this);
+static Mixed **EscapedMixed_getMixed(const EscapedMixed *this);
+static void EscapedMixed_op_initnew(EscapedMixed *this);
+static void ExplicitCallable_run(ExplicitCallable *this);
+static void ExplicitValueCallable_run(ExplicitValueCallable *this);
 static uintptr_t Date_format(const Date *this, char *buffer, uintptr_t buffer_length);
 static void Test_increment(Test *this);
 static void Test_incrementExplicit(Test *this);
@@ -10,11 +34,150 @@ static void Test_normal(Test *this);
 static int Counter_readCount(Counter *this);
 static ICounterReader **Counter_getICounterReader(const Counter *this);
 static void Counter_op_initnew(Counter *this);
+static void StructTask_Task_run(Task **ctx);
+static const Task ExplicitTask_Task__storage;
+static const Task *ExplicitTask_Task;
+static const Task DefaultTask_Task__storage;
+static const Task *DefaultTask_Task;
+static const Task ExplicitEscapedTask_Task__storage;
+static const Task *ExplicitEscapedTask_Task;
+static const Task StructTask_Task__storage;
+static const Task *StructTask_Task;
+static const Task StructTask_Task__object_storage;
+static const Mixed ExplicitMixed_Mixed__storage;
+static const Mixed *ExplicitMixed_Mixed;
+static const Mixed DefaultMixed_Mixed__storage;
+static const Mixed *DefaultMixed_Mixed;
+static const Mixed EscapedMixed_Mixed__storage;
+static const Mixed *EscapedMixed_Mixed;
 static const ICounterReader Counter_ICounterReader__storage;
 static const ICounterReader *Counter_ICounterReader;
 
+static const Task ExplicitTask_Task__storage = { .run = (void (*)(void* arg0))ExplicitTask_run };
+static const Task *ExplicitTask_Task = &ExplicitTask_Task__storage;
+static const Task DefaultTask_Task__storage = { .run = (void (*)(void* arg0))DefaultTask_run };
+static const Task *DefaultTask_Task = &DefaultTask_Task__storage;
+static const Task ExplicitEscapedTask_Task__storage = { .run = (void (*)(void* arg0))ExplicitEscapedTask_run };
+static const Task *ExplicitEscapedTask_Task = &ExplicitEscapedTask_Task__storage;
+static const Task StructTask_Task__storage = { .run = (void (*)(void* arg0))StructTask_run };
+static const Task *StructTask_Task = &StructTask_Task__storage;
+static const Task StructTask_Task__object_storage = { .run = (void (*)(void* arg0))StructTask_Task_run };
+static const Mixed ExplicitMixed_Mixed__storage = { .keep = (void (*)(void* arg0))ExplicitMixed_keep, .plain = (void (*)(void* arg0))ExplicitMixed_plain };
+static const Mixed *ExplicitMixed_Mixed = &ExplicitMixed_Mixed__storage;
+static const Mixed DefaultMixed_Mixed__storage = { .keep = (void (*)(void* arg0))DefaultMixed_keep, .plain = (void (*)(void* arg0))DefaultMixed_plain };
+static const Mixed *DefaultMixed_Mixed = &DefaultMixed_Mixed__storage;
+static const Mixed EscapedMixed_Mixed__storage = { .keep = (void (*)(void* arg0))EscapedMixed_keep, .plain = (void (*)(void* arg0))EscapedMixed_plain };
+static const Mixed *EscapedMixed_Mixed = &EscapedMixed_Mixed__storage;
 static const ICounterReader Counter_ICounterReader__storage = { .readCount = (int (*)(void* arg0))Counter_readCount };
 static const ICounterReader *Counter_ICounterReader = &Counter_ICounterReader__storage;
+static void ExplicitTask_run(ExplicitTask *this)
+{
+}
+
+static Task **ExplicitTask_getTask(const ExplicitTask *this)
+{
+	return (Task **)(&this->_vt_Task);
+}
+
+static void ExplicitTask_op_initnew(ExplicitTask *this)
+{
+	this->_vt_Task = ExplicitTask_Task;
+}
+
+static void DefaultTask_run(DefaultTask *this)
+{
+}
+
+static Task **DefaultTask_getTask(const DefaultTask *this)
+{
+	return (Task **)(&this->_vt_Task);
+}
+
+static void DefaultTask_op_initnew(DefaultTask *this)
+{
+	this->_vt_Task = DefaultTask_Task;
+}
+
+static void ExplicitEscapedTask_run(ExplicitEscapedTask *this)
+{
+}
+
+static Task **ExplicitEscapedTask_getTask(const ExplicitEscapedTask *this)
+{
+	return (Task **)(&this->_vt_Task);
+}
+
+static void ExplicitEscapedTask_op_initnew(ExplicitEscapedTask *this)
+{
+	this->_vt_Task = ExplicitEscapedTask_Task;
+}
+
+static void StructTask_run(StructTask *this)
+{
+}
+
+static void ExplicitMixed_keep(ExplicitMixed *this)
+{
+}
+
+static void ExplicitMixed_plain(ExplicitMixed *this)
+{
+}
+
+static Mixed **ExplicitMixed_getMixed(const ExplicitMixed *this)
+{
+	return (Mixed **)(&this->_vt_Mixed);
+}
+
+static void ExplicitMixed_op_initnew(ExplicitMixed *this)
+{
+	this->_vt_Mixed = ExplicitMixed_Mixed;
+}
+
+static void DefaultMixed_keep(DefaultMixed *this)
+{
+}
+
+static void DefaultMixed_plain(DefaultMixed *this)
+{
+}
+
+static Mixed **DefaultMixed_getMixed(const DefaultMixed *this)
+{
+	return (Mixed **)(&this->_vt_Mixed);
+}
+
+static void DefaultMixed_op_initnew(DefaultMixed *this)
+{
+	this->_vt_Mixed = DefaultMixed_Mixed;
+}
+
+static void EscapedMixed_keep(EscapedMixed *this)
+{
+}
+
+static void EscapedMixed_plain(EscapedMixed *this)
+{
+}
+
+static Mixed **EscapedMixed_getMixed(const EscapedMixed *this)
+{
+	return (Mixed **)(&this->_vt_Mixed);
+}
+
+static void EscapedMixed_op_initnew(EscapedMixed *this)
+{
+	this->_vt_Mixed = EscapedMixed_Mixed;
+}
+
+static void ExplicitCallable_run(ExplicitCallable *this)
+{
+}
+
+static void ExplicitValueCallable_run(ExplicitValueCallable *this)
+{
+}
+
 static uintptr_t Date_format(const Date *this, char *buffer, uintptr_t buffer_length)
 {
 	int y = this->year;
@@ -84,6 +247,13 @@ int main(void)
 	return (reader(reader_context) - 7);
 }
 
+static void StructTask_Task_run(Task **ctx)
+{
+	Task_Indirect *indirect = (Task_Indirect *)(ctx);
+	StructTask *instance = indirect->ctx;
+	StructTask_run(instance);
+}
+
 // file: callable_this_ascription.h
 #ifndef CALLABLE_THIS_ASCRIPTION_H_
 #define CALLABLE_THIS_ASCRIPTION_H_
@@ -102,10 +272,22 @@ int main(void);
 #include <stdbool.h>
 
 /* Forward declarations. */
+typedef struct Task Task;
+typedef struct Mixed Mixed;
+typedef struct ExplicitTask ExplicitTask;
+typedef struct DefaultTask DefaultTask;
+typedef struct ExplicitEscapedTask ExplicitEscapedTask;
+typedef struct StructTask StructTask;
+typedef struct ExplicitMixed ExplicitMixed;
+typedef struct DefaultMixed DefaultMixed;
+typedef struct EscapedMixed EscapedMixed;
+typedef struct ExplicitCallable ExplicitCallable;
+typedef struct ExplicitValueCallable ExplicitValueCallable;
 typedef struct Date Date;
 typedef struct Test Test;
 typedef struct ICounterReader ICounterReader;
 typedef struct Counter Counter;
+typedef struct Task_Indirect Task_Indirect;
 
 /* Enums. */
 
@@ -116,9 +298,60 @@ typedef void (* NormalDelegate)(void *context);
 typedef int (* CounterReader)(void *context);
 
 /* Layouts. */
+struct Task
+{
+	void (* run)(void* ctx);
+};
+struct Mixed
+{
+	void (* keep)(void* ctx);
+	void (* plain)(void* ctx);
+};
+struct StructTask
+{
+	const Task *_vt_Task;
+	StructTask *_vt_Task__ctx;
+};
+struct ExplicitValueCallable
+{
+	char _camp_empty;
+};
 struct ICounterReader
 {
 	int (* readCount)(void* ctx);
+};
+struct Task_Indirect
+{
+	const Task *_vt;
+	void *ctx;
+};
+struct ExplicitTask
+{
+	const Task *_vt_Task;
+};
+struct DefaultTask
+{
+	const Task *_vt_Task;
+};
+struct ExplicitEscapedTask
+{
+	const Task *_vt_Task;
+};
+struct ExplicitMixed
+{
+	const Mixed *_vt_Mixed;
+};
+struct DefaultMixed
+{
+	const Mixed *_vt_Mixed;
+};
+struct EscapedMixed
+{
+	const Mixed *_vt_Mixed;
+};
+struct ExplicitCallable
+{
+	char _camp_empty;
 };
 struct Date
 {

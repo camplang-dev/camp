@@ -865,6 +865,28 @@ of reducing the value to only its raw delegate shape.
 When a method reference crosses an API boundary, prefer a named callable
 newtype so the callback's role is clear.
 
+A callable newtype with `escaped this` requires its ascribed method to have an
+escaped receiver. An escaped class supplies that default; other classes must
+write it explicitly. A bound reference must also capture an escaped value:
+
+```camp
+newtype delegate void StoredAction(escaped this);
+class Worker { void run(escaped this): StoredAction { } }
+escaped class Service { void run(): StoredAction { } }
+void use()
+{
+	Worker* worker = new Worker();
+	StoredAction action = worker.run;
+	delete worker;
+}
+```
+
+An ascribed method cannot explicitly demand `escaped this` against a callable
+newtype with an ordinary receiver, because callers may supply scoped receivers.
+An escaped class's implicit receiver default can ascribe an ordinary callable.
+See [Receiver Lifetime Requirements](../semantics/09-interface-vtables-and-dynamic-dispatch.md#receiver-lifetime-requirements)
+for the matching interface rules.
+
 ## Overloads And Overload Selectors
 
 Camp supports a deliberately limited overload model. It is not trying to be

@@ -25,7 +25,7 @@ escaped class Service
 	{
 	}
 
-	void runExplicit(escaped this) : Callback
+	void runExplicit(escaped this) : EscapedCallback
 	{
 	}
 

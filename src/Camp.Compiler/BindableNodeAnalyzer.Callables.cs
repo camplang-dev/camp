@@ -452,7 +452,7 @@ public sealed partial class BindableNodeAnalyzer
 
 		bool isConst = parameter.Modifier == ParameterModifier.In || HasInternalThisDeclarator(parameter, "const") || IsConstQualified(parameter.ResolvedType ?? parameter.Type?.ResolvedType);
 		bool isVolatile = false;
-		string lifetime = "";
+		string lifetime = HasInternalThisDeclarator(parameter, "escaped") ? "escaped" : "";
 		if (parameter.SourceSyntax is ThisParameterSyntax { Declarators: not null } syntax)
 		{
 			foreach (TypeDeclaratorSyntax declarator in syntax.Declarators)
@@ -511,6 +511,41 @@ public sealed partial class BindableNodeAnalyzer
 	static bool HasEscapedThisContract(FunctionDefinition function)
 	{
 		return GetThisContract(GetExplicitThisParameter(function) ?? function.EffectiveThisParameter).IsEscaped;
+	}
+
+	bool RequiresEscapedReceiver(FunctionDefinition function)
+	{
+		ThisContract contract = GetThisContract(GetExplicitThisParameter(function) ?? function.EffectiveThisParameter);
+		return contract.IsEscaped || string.IsNullOrWhiteSpace(contract.Lifetime)
+			&& IsReceiverBearingDeclaration(function) && HasEscapedReceiverDefault(FindContainingType(function));
+	}
+
+	static bool HasEscapedReceiverDefault(TypeDefinition? owner) =>
+		owner is ClassDefinition { IsEscaped: true } or ClassDefinition { IsShadow: true }
+			or ClassDefinition { Extern: not null } or InterfaceDefinition { IsEscaped: true };
+
+	bool ValidateReceiverLifetimeImplementation(FunctionDefinition function, TypeDefinition? owner, bool required, string member, bool allowStructDefault = false)
+	{
+		bool explicitEscaped = HasEscapedThisContract(function);
+		bool defaultEscaped = string.IsNullOrWhiteSpace(GetThisContract(GetExplicitThisParameter(function)).Lifetime)
+			&& HasEscapedReceiverDefault(owner);
+		bool structDefault = allowStructDefault && owner is StructDefinition
+			&& string.IsNullOrWhiteSpace(GetThisContract(GetExplicitThisParameter(function)).Lifetime);
+		if (required && !explicitEscaped && !defaultEscaped && !structDefault)
+		{
+			string reason = owner is ClassDefinition && !HasEscapedReceiverDefault(owner)
+				? $"class '{owner.Name}' is not escaped and the method does not declare one"
+				: "the method's receiver is not escaped";
+			string remedy = owner is ClassDefinition ? " or make the class 'escaped'" : "";
+			Report(GetNameRange(function), $"Method '{function.Name}' implements '{member}', which requires an escaped receiver, but {reason}. Declare '{function.Name}(escaped this)'{remedy}.");
+			return false;
+		}
+		if (!required && explicitEscaped)
+		{
+			Report(GetNameRange(function), $"Method '{function.Name}' requires an escaped receiver, but '{member}' provides an ordinary one, so a caller may pass a scoped receiver. Remove 'escaped this' from the method, or declare the member 'escaped this'.");
+			return false;
+		}
+		return true;
 	}
 
 	bool IsInstanceFunction(FunctionDefinition function)

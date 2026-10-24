@@ -9,6 +9,8 @@ public sealed class EscapedTypeLifetimeTests
 		escaped class Widget { int value; }
 		escaped interface Sink { void put(int value); }
 		struct StackSink: Sink { void put(int value): Sink { } }
+		class ExplicitSink: Sink { void put(escaped this, int value): Sink { } }
+		escaped class DefaultSink: Sink { void put(int value): Sink { } }
 		Widget* kept;
 		Sink* keptSink;
 		StackSink globalSink;
@@ -22,6 +24,8 @@ public sealed class EscapedTypeLifetimeTests
 	[InlineData("struct Box { Widget* value; void set(Widget* value) { this.value = value; } }")]
 	[InlineData("void use() { Sink* view = globalSink; keptSink = view; }")]
 	[InlineData("void use() { StackSink* source = new StackSink(); Sink* view = source; keptSink = view; }")]
+	[InlineData("void use() { ExplicitSink* source = new ExplicitSink(); Sink* view = source; view.put(1); }")]
+	[InlineData("void use(DefaultSink* source) { Sink* view = source; view.put(1); }")]
 	[InlineData("void use(escaped Widget* widget) { kept = widget; }")]
 	[InlineData("void use(Widget* widget) { escaped Widget* copy = widget; keep(copy); }")]
 	[InlineData("T* echo<T>(T* value) { return value; } void use(Widget* value) { keep(echo<Widget>(value)); }")]
@@ -38,6 +42,9 @@ public sealed class EscapedTypeLifetimeTests
 	[InlineData("void use() { fixed Widget[2] local = default; }")]
 	[InlineData("void use() { StackSink local = default; Sink* view = local; }")]
 	[InlineData("void use(StackSink* local) { Sink* view = local; }")]
+	[InlineData("void use(ExplicitSink* local) { Sink* view = local; }")]
+	[InlineData("void use() { ExplicitSink local = default; Sink* view = &local; }")]
+	[InlineData("void use() { ExplicitSink* local = stackalloc ExplicitSink(); Sink* view = local; }")]
 	[InlineData("void accept(Sink* view) { } void use() { StackSink local = default; accept(local); }")]
 	[InlineData("Sink* use() { StackSink local = default; return local; }")]
 	[InlineData("void use(scoped Widget* widget) { }")]
@@ -48,6 +55,17 @@ public sealed class EscapedTypeLifetimeTests
 	{
 		var compilation = SemanticCompiler.CompileLowered(Declarations + source);
 		Assert.Contains(compilation.AnalysisDiagnostics, diagnostic => diagnostic.Message.Contains("escaped type") || diagnostic.Message.Contains("escaped interface"));
+	}
+
+	[Fact]
+	public void Escaped_interface_accessor_requires_an_escaped_receiver()
+	{
+		var compilation = SemanticCompiler.CompileLowered(Declarations);
+		SemanticCompiler.AssertNoDiagnostics(compilation);
+		var owner = Assert.Single(SemanticCompiler.Descendants<ClassDefinition>(compilation.Module), type => type.Name == "ExplicitSink");
+		var accessor = Assert.Single(owner.Functions, method => method.Name == "getSink");
+		Assert.StartsWith("escaped", accessor.ReceiverLifetimeBinding);
+		Assert.StartsWith("escaped", accessor.EffectiveThisParameter!.LifetimeBinding);
 	}
 
 	[Theory]

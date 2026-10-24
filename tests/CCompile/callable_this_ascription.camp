@@ -5,6 +5,18 @@ newtype delegate int CounterReader();
 
 extern escaped void* malloc(nuint size);
 
+escaped interface Task { void run(); }
+interface Mixed { void keep(escaped this); void plain(); }
+class ExplicitTask: Task { void run(escaped this): Task { } }
+escaped class DefaultTask: Task { void run(): Task { } }
+escaped class ExplicitEscapedTask: Task { void run(escaped this): Task { } }
+struct StructTask: Task { void run(): Task { } }
+class ExplicitMixed: Mixed { void keep(escaped this): Mixed { } void plain(): Mixed { } }
+escaped class DefaultMixed: Mixed { void keep(): Mixed { } void plain(): Mixed { } }
+escaped class EscapedMixed: Mixed { void keep(escaped this): Mixed { } void plain(): Mixed { } }
+class ExplicitCallable { void run(escaped this): EscapedDelegate { } }
+struct ExplicitValueCallable { void run(escaped this): EscapedDelegate { } }
+
 class Date
 {
 	int year;

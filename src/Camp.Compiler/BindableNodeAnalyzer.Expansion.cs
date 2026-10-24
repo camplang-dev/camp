@@ -645,6 +645,12 @@ public sealed partial class BindableNodeAnalyzer
 			ResolvedType = "const " + classDefinition.Name + "*"
 		};
 		accessor.EffectiveThisParameter.Attributes.Add(new AttributeConstructor { Name = "const" });
+		if (interfaceDefinition.IsEscaped)
+		{
+			accessor.EffectiveThisParameter.Attributes.Add(new AttributeConstructor { Name = "escaped" });
+			BindDefaultReceiverLifetime(accessor.EffectiveThisParameter, "escaped", "escaped interface conversion");
+			accessor.ReceiverLifetimeBinding = new BoundLifetime("escaped", [], "escaped interface conversion").ToString();
+		}
 		return accessor;
 	}
 
@@ -1922,9 +1928,18 @@ public sealed partial class BindableNodeAnalyzer
 		ConstructedInterface? constructed = FindContainingType(function) is TypeDefinition owner
 			? FindConstructedInterface(owner, interfaceDefinition, null)
 			: null;
+		MethodSignature declared = BuildBinderMappedSignature(function, lifecycle, null);
+		MethodSignature required = BuildBinderMappedSignature(interfaceMember, lifecycle, constructed?.Owner);
+		// Declaration validation already checked effective receiver lifetimes. Imported
+		// or rebound markers must use that same compatibility when selecting a thunk.
+		if (!lifecycle)
+		{
+			declared = declared with { ReceiverContract = StripEscapedReceiver(declared.ReceiverContract) };
+			required = required with { ReceiverContract = StripEscapedReceiver(required.ReceiverContract) };
+		}
 		return MethodSignatureCompatibleWithConstOfVariance(
-			BuildBinderMappedSignature(function, lifecycle, null),
-			BuildBinderMappedSignature(interfaceMember, lifecycle, constructed?.Owner),
+			declared,
+			required,
 			compareName: function.InterfaceImplementationSlotName is null);
 	}
 

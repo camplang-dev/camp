@@ -88,6 +88,46 @@ explicit marker rather than turning it into omission. Virtual overrides retain
 their existing signature and availability requirements. Effective ABI
 normalization must not erase declared intent before contract validation.
 
+## Receiver Lifetime Requirements
+
+Every member of an `escaped interface` requires an escaped receiver, even
+without a written receiver parameter. An individual member of an ordinary
+interface can require one with `escaped this`. A callable newtype signature
+with `escaped this` imposes the same requirement on ascribed methods. A method
+declaring `escaped this` also requires an escaped receiver for direct calls.
+Instance receivers in escaped classes are escaped by default.
+
+An escaped class implementation may write either `run()` or
+`run(escaped this)` to satisfy an escaped-receiver member. A class that is not
+escaped must write `escaped this` explicitly. A struct implementation keeps
+its default receiver; the conversion checks the lifetime of its storage.
+An implementation or ascribed method must not explicitly demand `escaped this`
+when the interface member or callable newtype provides an ordinary receiver:
+callers of that contract may supply scoped receivers. An escaped class's
+implicit default does not impose this explicit demand on an ordinary contract.
+Other receiver qualifiers and signature requirements still apply.
+
+Interface conversions preserve the source lifetime. For an escaped interface,
+the resulting pointer is escaped by type and the generated `getInterface()`
+conversion requires `escaped this`; non-escaped sources are rejected at that
+conversion. For an ordinary interface, conversion accepts scoped sources and
+produces a scoped pointer, including when individual members require escaped
+receivers. This permits ordinary members to be called through that view.
+
+Direct calls and interface calls to an escaped-receiver member require an
+escaped receiver value. A bound method reference to a callable newtype with
+`escaped this` has the same requirement. A scoped parameter, local, or interface
+view converted from one cannot supply it; a `new` allocation can.
+
+Diagnostics for missing implementation requirements name the method, required
+member and class, explain that the class and receiver are not escaped, and
+suggest declaring `escaped this` or making the class escaped. Over-demand
+diagnostics name both contracts, explain that callers may pass scoped receivers,
+and suggest removing `escaped this` or strengthening the member contract.
+Call-site diagnostics name the method and scoped receiver, explain its lifetime
+source, and suggest an escaped receiver such as a `new` allocation, or removing
+the method's requirement if it does not retain its receiver.
+
 ## Required Slots
 
 Required slots must be supplied by implementing structs and classes.

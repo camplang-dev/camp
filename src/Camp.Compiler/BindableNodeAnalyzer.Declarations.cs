@@ -1212,7 +1212,7 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (containingType is null || !typeDefinitions.TryGetValue(containingType, out TypeDefinition? definition))
 			return false;
-		return definition is ClassDefinition { IsEscaped: true } or ClassDefinition { IsShadow: true } or ClassDefinition { Extern: not null } or InterfaceDefinition { IsEscaped: true };
+		return HasEscapedReceiverDefault(definition);
 	}
 
 	AnalysisScope CreateTypeScope(TypeDefinition definition, AnalysisScope parentScope)
@@ -2176,6 +2176,9 @@ public sealed partial class BindableNodeAnalyzer
 		ThisParameterDefinition? explicitThis = GetExplicitThisParameter(definition);
 		ThisContract callableContract = GetThisContract(callableThis);
 		ThisContract explicitContract = GetThisContract(explicitThis);
+		TypeDefinition? owner = containingType is not null && typeDefinitions.TryGetValue(containingType, out TypeDefinition? type) ? type : null;
+		if (!ValidateReceiverLifetimeImplementation(definition, owner, callableContract.IsEscaped, newtypeDefinition.Name))
+			return;
 		if (explicitThis is not null
 			&& callableContract.IsConst
 			&& !explicitContract.IsConst
@@ -2184,7 +2187,9 @@ public sealed partial class BindableNodeAnalyzer
 			explicitContract = explicitContract with { IsConst = true };
 		}
 
-		if (callableThis is not null && explicitThis is not null && callableContract != explicitContract)
+		if (callableThis is not null && explicitThis is not null
+			&& callableContract with { Lifetime = callableContract.IsEscaped ? "" : callableContract.Lifetime }
+				!= explicitContract with { Lifetime = explicitContract.IsEscaped ? "" : explicitContract.Lifetime })
 		{
 			Report(GetRange(explicitThis.SourceSyntax ?? syntax), $"Explicit this qualifiers on declaration '{declarationName}' do not match callable ascription target '{newtypeDefinition.Name}'.");
 			return;

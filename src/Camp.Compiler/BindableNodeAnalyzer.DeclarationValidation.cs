@@ -597,6 +597,15 @@ public sealed partial class BindableNodeAnalyzer
 			MethodSignature requiredMapped = BuildBinderMappedSignature(member, IsInterfaceLifecycleMember(member), constructed.Owner);
 			if (ReportGenericContractMismatch(function, member, interfaceDefinition, declared, required, declaredMapped, requiredMapped))
 				continue;
+			if (!IsInterfaceLifecycleMember(member))
+			{
+				if (!ValidateReceiverLifetimeImplementation(function, implementation, RequiresEscapedReceiver(member), $"{constructed.Type}.{member.Name}",
+					allowStructDefault: FindContainingType(member) is InterfaceDefinition { IsEscaped: true }))
+					continue;
+				// Escaped receiver compatibility is checked above using the effective owner default.
+				declaredMapped = declaredMapped with { ReceiverContract = StripEscapedReceiver(declaredMapped.ReceiverContract) };
+				requiredMapped = requiredMapped with { ReceiverContract = StripEscapedReceiver(requiredMapped.ReceiverContract) };
+			}
 			if (!MethodSignatureCompatibleWithConstOfVariance(declaredMapped, requiredMapped, compareName: function.InterfaceImplementationSlotName is null))
 			{
 				Report(GetNameRange(function), $"Method '{declared.DisplayName}' is not compatible with interface member '{constructed.Type}.{required.DisplayName}'.");
@@ -1322,6 +1331,8 @@ public sealed partial class BindableNodeAnalyzer
 				return slot.Modifier is "" or "None" ? slot.Type : slot.Modifier.ToLowerInvariant() + " " + slot.Type; }).ToList());
 		return CallableShapesCompatibleWithConstOfVariance(Shape(candidate), Shape(target));
 	}
+
+	static string StripEscapedReceiver(string contract) => string.Join(" ", contract.Split(' ').Where(part => part != "escaped"));
 
 	static CallableSlot ParseMethodSignatureSlot(string text)
 	{

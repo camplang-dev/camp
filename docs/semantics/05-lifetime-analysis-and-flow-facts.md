@@ -407,6 +407,11 @@ type, because every value it can hold is escaped.
 
 ## Escaped Types
 
+Instance receivers in escaped classes default to escaped receiver facts.
+Escaped interface contracts, explicit member receiver requirements, implementation
+compatibility, conversions and calls follow
+[Receiver Lifetime Requirements](09-interface-vtables-and-dynamic-dispatch.md#receiver-lifetime-requirements).
+
 `escaped class` and `escaped interface` put the lifetime on the type instead of
 on each declaration that mentions it. Escaped does not mean the instance lives
 on the heap or outlives any particular value; it means the instance's lifetime

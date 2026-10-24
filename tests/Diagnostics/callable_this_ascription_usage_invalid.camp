@@ -35,3 +35,11 @@ int main()
 	EscapedCallback cb2 = w.run;
 	return 0;
 }
+
+interface Mixed { void keep(escaped this); void plain(); }
+class DirectCalls { void keep(escaped this) { } void plain() { } }
+class MixedCalls: Mixed { void keep(escaped this): Mixed { } void plain(): Mixed { } }
+void directParameter(DirectCalls* parameter) { parameter.plain(); parameter.keep(); }
+void directLocal() { DirectCalls local = default; local.keep(); }
+void interfaceParameter(MixedCalls* parameter) { Mixed* view = parameter; view.plain(); view.keep(); }
+void interfaceLocal() { MixedCalls local = default; Mixed* view = &local; view.keep(); }

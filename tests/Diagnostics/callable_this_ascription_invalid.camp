@@ -60,3 +60,13 @@ int main()
 	EscapedCallback cb2 = w.run;
 	return 0;
 }
+
+escaped interface Task { void run(); }
+interface Mixed { void keep(escaped this); void plain(); }
+
+class MissingTaskReceiver: Task { void run(): Task { } }
+class MissingMixedReceiver: Mixed { void keep(): Mixed { } void plain(): Mixed { } }
+class OverdemandingMixed: Mixed { void keep(escaped this): Mixed { } void plain(escaped this): Mixed { } }
+class MissingCallableReceiver { void run(): EscapedCallback { } }
+class OverdemandingCallable { void run(escaped this): Callback { } }
+struct MissingValueCallable { void run(): EscapedCallback { } }

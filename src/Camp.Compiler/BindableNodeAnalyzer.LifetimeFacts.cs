@@ -885,6 +885,15 @@ public sealed partial class BindableNodeAnalyzer
 
 		List<ParameterDefinition> callableParameters = GetCallableParameters(function.Parameters, IncludeExplicitThisArgument(callTarget, function));
 		LifetimeCallContext context = BuildLifetimeCallContext(function, callTarget, callableParameters, arguments, substitutions, scope);
+		if (RequiresEscapedReceiver(function) && context.Receiver is LifetimeFact receiver
+			&& receiver.Kind is not ("escaped" or "null" or "default" or "unknown"))
+		{
+			string? anchor = receiver.Anchors.FirstOrDefault();
+			string description = anchor is null ? "receiver" : IsLocalLifetimeAnchor(anchor, scope)
+				? $"receiver from local '{anchor}'" : IsParameterLifetimeAnchor(anchor, scope)
+				? $"receiver from parameter '{anchor}'" : $"receiver '{anchor}'";
+			Report(GetRange(fallbackSyntax), $"Cannot call '{function.Name}': it requires an escaped receiver, but the {description} is not escaped. Pass an escaped receiver, such as a 'new' allocation, or remove 'escaped this' from the method if it does not retain its receiver.");
+		}
 		CheckLifetimeReceiverRetention(function, context, scope, fallbackSyntax);
 		foreach ((ArgumentExpression argument, ParameterDefinition parameter) in arguments)
 		{
