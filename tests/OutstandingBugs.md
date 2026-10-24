@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-364.
+Next bug number: BUG-365.
 
 ## Bug Template
 
@@ -77,3 +77,67 @@ All of the programs compile without a diagnostic, and `new Item(catch int error)
 Known Impact:
 Code can declare and call constructors that throw, a form the language does not allow. Programs that do so
 today will start to fail when this is fixed.
+
+## BUG-364: Conditional expression with an unavailable arm fails in C emit
+
+Date/Time: 2026-10-24 16:52 EDT
+
+Summary:
+When a conditional expression is guarded by `configured(FLAG)` and one arm calls a function whose `requires`
+condition is not satisfied in the current configuration, semantic analysis accepts the expression, because the
+configured condition proves the other arm. The C emitter then still emits the unavailable arm: it folds the
+condition into the literal `true` or `false` but keeps both arms, so the generated C calls a function that was
+never emitted and the native build fails. The same program written with `if` and `else` compiles.
+
+Steps to Reproduce:
+
+1. Compile the following program with `-d SELECT_FALSE=false`:
+
+   ```camp
+   extern void __intrinsic_log_i32(int value);
+   requires (SELECT_FALSE) int selectedOnly() { return 11; }
+   requires (!SELECT_FALSE) int fallbackOnly() { return 7; }
+   export int main()
+   {
+   	__intrinsic_log_i32(configured(SELECT_FALSE) ? selectedOnly() : fallbackOnly());
+   	return 0;
+   }
+   ```
+
+2. Compile the following program with `-d DECLARED_TRUE=true`, where the unavailable arm is a plain function
+   and the selected arm is a generic one:
+
+   ```camp
+   extern void __intrinsic_log_i32(int value);
+   requires (DECLARED_TRUE)
+   {
+   	T selected<T: int>(T value) { return value; }
+   }
+   requires (!DECLARED_TRUE)
+   {
+   	int fallback() { return 41; }
+   }
+   export int main()
+   {
+   	int result = configured(DECLARED_TRUE) ? selected<int>(43) : fallback();
+   	__intrinsic_log_i32(result);
+   	return 0;
+   }
+   ```
+
+Expected:
+Both programs build and run. The arm that the configured condition rules out is not emitted.
+
+Actual:
+Semantic analysis passes and the native build fails:
+
+```text
+error: call to undeclared function 'selectedOnly'; ISO C99 and later do not support implicit function declarations
+   __intrinsic_log_i32((false ? selectedOnly() : fallbackOnly()));
+```
+
+The second program fails the same way on the call to `fallback`.
+
+Known Impact:
+A conditional expression cannot select between declarations guarded by opposite requirements, although the
+availability rules accept it. Workaround: use an `if` statement with an `else` branch.
