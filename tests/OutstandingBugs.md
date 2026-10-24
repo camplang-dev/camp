@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-365.
+Next bug number: BUG-366.
 
 ## Bug Template
 
@@ -141,3 +141,43 @@ The second program fails the same way on the call to `fallback`.
 Known Impact:
 A conditional expression cannot select between declarations guarded by opposite requirements, although the
 availability rules accept it. Workaround: use an `if` statement with an `else` branch.
+
+## BUG-365: A reserved type name hides the other reserved-name errors in the same file
+
+Date/Time: 2026-10-24 16:52 EDT
+
+Summary:
+A reserved word is rejected as a declared name in every position. When one declaration in a file uses a
+reserved word as a type name, the compiler reports only that error and omits the reserved-name errors for
+the other declarations in the file, which are reported once the type name is fixed. The remaining names are
+therefore found one compile at a time.
+
+Steps to Reproduce:
+
+1. Compile the following program:
+
+   ```camp
+   class break {}
+   int default() { return 0; }
+   export int main() { return 0; }
+   ```
+
+2. Compile it again with only the function declared, and with a reserved local name inside `main` in place
+   of the function (`int continue = 1;`).
+
+Expected:
+The program reports an error for each reserved name: the type name `break` and the function name `default`.
+
+Actual:
+Only the type name is reported:
+
+```text
+error: Type name 'break' is reserved.
+```
+
+With only the function (`int default() { return 0; }`) the compiler reports
+`Function name 'default' is reserved.`, and with the type name and a local `int continue = 1;` in `main` it
+reports only the type name, so the local name error appears only after the type is renamed.
+
+Known Impact:
+A file with several reserved names needs one compile per category of name to find them all.
