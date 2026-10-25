@@ -32,7 +32,8 @@ public sealed partial class BindableNodeAnalyzer
 				case FunctionDefinition function:
 					CheckName(function.Name.TrimStart('~'), GetNameRange(function), "function");
 					break;
-				case ParameterDefinition parameter when IsUserNamedParameter(parameter) && parameter.Name != "this":
+				case ParameterDefinition parameter when parameter is not SizeOfParameterDefinition
+					&& IsUserNamedParameter(parameter) && parameter.Name != "this":
 					CheckName(parameter.Name, GetNameRange(parameter), "parameter");
 					break;
 				case FieldDefinition field:
