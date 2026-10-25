@@ -274,11 +274,12 @@ if [[ "$mode" == "full" ]]; then
 fi
 
 golden_kinds=(Ast Declarations LoweringXml Lowering Diagnostics CEmit CCompile Api Metadata Std)
+section_status=0
 for kind in "${golden_kinds[@]}"; do
 	export CAMP_TEST_KIND="$kind"
 	unset CAMP_TEST_CASE
 	unset CAMP_TEST_CASES
-	vstest "golden $kind" --TestCaseFilter:FullyQualifiedName~GoldenFileTests
+	vstest "golden $kind" --TestCaseFilter:FullyQualifiedName~GoldenFileTests || section_status=1
 done
 
 stdrun_cases=()
@@ -297,11 +298,11 @@ for ((batch_index = 0; batch_index < stdrun_batch_count; batch_index++)); do
 	if (( ${#batch[@]} == 1 )); then
 		export CAMP_TEST_CASE="${batch[0]}"
 		unset CAMP_TEST_CASES
-		vstest "golden StdRun/${batch[0]}" --TestCaseFilter:FullyQualifiedName~GoldenFileTests
+		vstest "golden StdRun/${batch[0]}" --TestCaseFilter:FullyQualifiedName~GoldenFileTests || section_status=1
 	else
 		unset CAMP_TEST_CASE
 		export CAMP_TEST_CASES="$(join_cases "${batch[@]}")"
-		vstest "golden StdRun batch $((batch_index + 1))/$stdrun_batch_count $first_case..$last_case" --TestCaseFilter:FullyQualifiedName~GoldenFileTests
+		vstest "golden StdRun batch $((batch_index + 1))/$stdrun_batch_count $first_case..$last_case" --TestCaseFilter:FullyQualifiedName~GoldenFileTests || section_status=1
 	fi
 done
 
@@ -329,8 +330,19 @@ test_classes=(
 	TargetCapabilityTests
 )
 
+remaining_filter='FullyQualifiedName!~GoldenFileTests'
 for class_name in "${test_classes[@]}"; do
-	vstest "class $class_name" --TestCaseFilter:FullyQualifiedName~"$class_name"
+	vstest "class $class_name" --TestCaseFilter:FullyQualifiedName~"$class_name" || section_status=1
+	remaining_filter+="&FullyQualifiedName!~Camp.Compiler.Tests.$class_name."
 done
 
-echo "[camp-test] sectioned suite passed"
+# Keep costly classes isolated above, but include every other class, including
+# future additions, so sectioned mode covers the same tests as full mode.
+vstest "remaining test classes" --TestCaseFilter:"$remaining_filter" || section_status=1
+
+if (( section_status == 0 )); then
+	echo "[camp-test] sectioned suite passed"
+else
+	echo "[camp-test] sectioned suite failed"
+fi
+exit "$section_status"
