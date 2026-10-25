@@ -44,58 +44,6 @@ Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
 
-## BUG-368: Yielding a stackalloc local is reported at the stackalloc declaration instead of the yield
-
-Date/Time: 2026-10-24 20:32 EDT
-
-Summary:
-An iterator cannot yield a view of its own `stackalloc` local or of an alias of it, because that storage exists
-for only one resume. The documented diagnostic is at the `yield`. The compiler instead reports a different
-error at the declaration or assignment of the local, and never reports the yield. The error text ("Assignment
-cannot store a scoped pointer-bearing value in storage tied to 'this'") also does not tell the author that the
-problem is the yielded view.
-
-Steps to Reproduce:
-
-1. Compile the example from the iterator documentation:
-
-   ```camp
-   struct iter const char[] badLocal()
-   {
-   	char[] scratch = stackalloc char[16];
-   	yield scratch;
-   }
-   export int main() { return 0; }
-   ```
-
-2. Repeat with an alias between the local and the yield:
-
-   ```camp
-   struct iter const char[] badAlias()
-   {
-   	char[] scratch = stackalloc char[16];
-   	const char[] view = scratch;
-   	yield view;
-   }
-   ```
-
-Expected:
-An error at the `yield` expression, stating that the yielded view points at generator-local storage.
-
-Actual:
-The error is reported on the `stackalloc` initializer, one line above the yield, for both programs:
-
-```text
-(3,19): error: Assignment cannot store a scoped pointer-bearing value in storage tied to 'this'.
-```
-
-The same error is reported for any `stackalloc` pointer local in an iterator, whether or not it is yielded (see
-the iterator and stackalloc rules for the separate question of which uses are allowed).
-
-Known Impact:
-The diagnostic points at a line that is not the faulty yield and describes a storage rule instead of the yield
-rule, so authors and golden tests cannot rely on the documented position.
-
 ## BUG-369: A stackalloc array or pointer local is rejected in an iterator
 
 Date/Time: 2026-10-24 20:45 EDT

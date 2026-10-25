@@ -164,6 +164,9 @@ public sealed partial class BindableNodeAnalyzer
 				IteratorStackAllocAssignmentState blockState = stackAllocState.Clone();
 				foreach (Statement child in block.Statements)
 					ValidateIteratorGeneratorSourceStatement(function, child, ref hasYield, blockState);
+				foreach (DeclarationStatement declaration in block.Statements.OfType<DeclarationStatement>())
+					foreach (string name in declaration.Target.Names)
+						blockState.RestoreView(name, stackAllocState);
 				stackAllocState.MergeConditional(blockState, blockState);
 				break;
 			}
@@ -175,6 +178,8 @@ public sealed partial class BindableNodeAnalyzer
 					foreach (string name in declaration.Target.Names)
 						stackAllocState.TrackAssigned(name, declaration.HoldsStackAddress);
 				}
+				foreach (string name in declaration.Target.Names)
+					stackAllocState.TrackView(name, stackAllocState.IsStackView(declaration.InitialValue));
 				break;
 			case ExpressionStatement expressionStatement:
 				ValidateIteratorGeneratorSourceExpressionStatement(expressionStatement, stackAllocState);
@@ -257,6 +262,10 @@ public sealed partial class BindableNodeAnalyzer
 				// Source locals lift into the iterator frame, but stackalloc storage lives only in one activation.
 				if (stackAllocState.IsStackAddress(yieldStatement.Expression))
 					Report(GetRange(yieldStatement.Expression?.SourceSyntax ?? yieldStatement.SourceSyntax), "Yield expression cannot yield stackalloc-backed storage.");
+				else if (stackAllocState.IsStackView(yieldStatement.Expression)
+					&& function.ReturnType is IterTypeReference { ElementType: TypeReference element }
+					&& IsPointerBearingResolvedType(element.ResolvedType ?? FormatTypeReference(element)))
+					Report(GetRange(yieldStatement.Expression?.SourceSyntax ?? yieldStatement.SourceSyntax), "Yield expression cannot yield a view of generator-local stackalloc storage.");
 				if (!yieldStatement.IsBreak && yieldStatement.Expression is null)
 					Report(GetRange(yieldStatement.SourceSyntax), "Yield statement must yield a value or use 'yield break;'.");
 				stackAllocState.MarkSuspended();
@@ -288,6 +297,7 @@ public sealed partial class BindableNodeAnalyzer
 			if (assignment.Operator == AssignmentOperator.Assign && TryGetSimpleAssignedName(assignment.Target, out string? assignedName) && assignedName is not null)
 			{
 				stackAllocState.MarkAssigned(assignedName);
+				stackAllocState.TrackView(assignedName, stackAllocState.IsStackView(assignment.Value));
 			}
 			else
 			{
@@ -324,21 +334,52 @@ public sealed partial class BindableNodeAnalyzer
 		readonly HashSet<string> tracked = new(StringComparer.Ordinal);
 		readonly HashSet<string> unassigned = new(StringComparer.Ordinal);
 		readonly HashSet<string> addresses = new(StringComparer.Ordinal);
+		// Pointer/array values borrow backing storage, but are not named activation
+		// storage locals and do not participate in its resume assignment checks.
+		readonly HashSet<string> views = new(StringComparer.Ordinal);
 
 		public IteratorStackAllocAssignmentState()
 		{
 		}
 
-		IteratorStackAllocAssignmentState(HashSet<string> tracked, HashSet<string> unassigned, HashSet<string> addresses)
+		IteratorStackAllocAssignmentState(HashSet<string> tracked, HashSet<string> unassigned, HashSet<string> addresses, HashSet<string> views)
 		{
 			this.tracked.UnionWith(tracked);
 			this.unassigned.UnionWith(unassigned);
 			this.addresses.UnionWith(addresses);
+			this.views.UnionWith(views);
 		}
 
 		public IteratorStackAllocAssignmentState Clone()
 		{
-			return new IteratorStackAllocAssignmentState(tracked, unassigned, addresses);
+			return new IteratorStackAllocAssignmentState(tracked, unassigned, addresses, views);
+		}
+
+		public void TrackView(string name, bool view)
+		{
+			if (view) views.Add(name);
+			else views.Remove(name);
+		}
+
+		public void RestoreView(string name, IteratorStackAllocAssignmentState enclosing)
+		{
+			TrackView(name, enclosing.views.Contains(name));
+		}
+
+		public bool IsStackView(Expression? expression)
+		{
+			if (TryGetSimpleAssignedName(expression, out string? name) && name is not null && views.Contains(name)) return true;
+			return expression switch
+			{
+				ConstructionExpression { Kind: ConstructionKind.StackAlloc } => true,
+				ParenthesizedExpression value => IsStackView(value.Expression),
+				CastExpression value => IsStackView(value.Expression),
+				ConditionalExpression value => IsStackView(value.WhenTrue) || IsStackView(value.WhenFalse),
+				IndexExpression value when value.Arguments.Any(argument => argument.Value is RangeExpression) => IsStackView(value.Target),
+				UnaryExpression { Operator: UnaryOperator.AddressOf, Operand: IndexExpression value } => IsStackView(value.Target),
+				BinaryExpression { Operator: BinaryOperator.Add or BinaryOperator.Subtract } value => IsStackView(value.Left) || IsStackView(value.Right),
+				_ => false
+			};
 		}
 
 		public void TrackAssigned(string name, bool address = false)
@@ -383,6 +424,9 @@ public sealed partial class BindableNodeAnalyzer
 			tracked.UnionWith(elseState.tracked);
 			addresses.UnionWith(thenState.addresses);
 			addresses.UnionWith(elseState.addresses);
+			views.Clear();
+			views.UnionWith(thenState.views);
+			views.UnionWith(elseState.views);
 			unassigned.UnionWith(thenState.unassigned);
 			unassigned.UnionWith(elseState.unassigned);
 		}
@@ -391,6 +435,7 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			tracked.UnionWith(bodyState.tracked);
 			addresses.UnionWith(bodyState.addresses);
+			views.UnionWith(bodyState.views);
 			unassigned.UnionWith(bodyState.unassigned);
 		}
 

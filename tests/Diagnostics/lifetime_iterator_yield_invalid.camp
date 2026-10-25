@@ -13,3 +13,24 @@ class iter const char[] badClassParameter(char[] text)
 {
 	yield text[..1];
 }
+
+struct iter const char[] badAlias()
+{
+	char[] scratch = stackalloc char[16];
+	const char[] view = scratch;
+	yield view;
+}
+
+struct iter const char[] badSlice()
+{
+	char[] scratch = stackalloc char[16];
+	const char[] view = scratch[..2];
+	yield view;
+}
+
+struct iter int* badPointerAlias()
+{
+	int* scratch = stackalloc int();
+	int* view = scratch;
+	yield view;
+}

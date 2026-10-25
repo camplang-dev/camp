@@ -1,2 +1,6 @@
 tests/Diagnostics/lifetime_iterator_yield_invalid.camp(3,12): error: Yield expression cannot yield a pointer-bearing value that does not outlive the iterator frame.
+tests/Diagnostics/lifetime_iterator_yield_invalid.camp(9,8): error: Yield expression cannot yield a view of generator-local stackalloc storage.
 tests/Diagnostics/lifetime_iterator_yield_invalid.camp(14,12): error: Yield expression cannot yield a pointer-bearing value that does not outlive the iterator frame.
+tests/Diagnostics/lifetime_iterator_yield_invalid.camp(21,8): error: Yield expression cannot yield a view of generator-local stackalloc storage.
+tests/Diagnostics/lifetime_iterator_yield_invalid.camp(28,8): error: Yield expression cannot yield a view of generator-local stackalloc storage.
+tests/Diagnostics/lifetime_iterator_yield_invalid.camp(35,8): error: Yield expression cannot yield a view of generator-local stackalloc storage.
