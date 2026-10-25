@@ -20,6 +20,44 @@ class iter int pointed(const int* pointer)
 	value = pointer;
 	yield *value;
 }
+struct W { int n; }
+int scratchLength(const char[] text) { return (int)text.length; }
+struct iter int scratchBeforeYield()
+{
+	char[] scratch = stackalloc char[16];
+	scratch[0] = 'a';
+	int value = (int)scratch[0];
+	yield value;
+}
+struct iter int scratchHelper()
+{
+	char[] scratch = stackalloc char[16];
+	yield scratchLength(scratch);
+}
+class iter int scratchPointer()
+{
+	W* value = stackalloc W();
+	value.n = 3;
+	int copy = value.n;
+	yield copy;
+}
+struct iter int scratchReassigned()
+{
+	char[] scratch = stackalloc char[16];
+	scratch[0] = 'a';
+	yield (int)scratch[0];
+	scratch = stackalloc char[16];
+	scratch[0] = 'b';
+	yield (int)scratch[0];
+}
+struct iter const char[] resetView(bool first)
+{
+	char[] scratch = stackalloc char[16];
+	const char[] view = scratch;
+	if (first) view = "a";
+	else view = "b";
+	yield view;
+}
 export int main()
 {
 	View view = { "abcdef" };
@@ -28,5 +66,11 @@ export int main()
 	foreach (int viewLength in view.lengths()) total += viewLength;
 	foreach (int copiedLength in copied(view.text)) total += copiedLength;
 	foreach (int pointedValue in pointed(&number)) total += pointedValue;
-	return total == 34 ? 0 : 1;
+	foreach (int value in scratchBeforeYield()) total += value;
+	foreach (int value in scratchHelper()) total += value;
+	foreach (int value in scratchPointer()) total += value;
+	foreach (int value in scratchReassigned()) total += value;
+	foreach (const char[] value in resetView(true)) total += (int)value.length;
+	foreach (const char[] value in resetView(false)) total += (int)value.length;
+	return total == 347 ? 0 : 1;
 }

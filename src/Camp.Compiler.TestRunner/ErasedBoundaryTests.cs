@@ -196,6 +196,24 @@ public sealed class ErasedBoundaryTests
 	}
 
 	[Fact]
+	public void Iterator_pointer_and_array_locals_are_not_named_activation_storage()
+	{
+		SemanticCompiler.AssertNoDiagnostics(SemanticCompiler.CompileLowered("""
+			struct W { int n; }
+			struct iter int pointerValue() {
+			W* value = stackalloc W();
+			yield 1;
+			yield value.n;
+			}
+			struct iter int arrayValue() {
+			char[] value = stackalloc char[16];
+			yield 1;
+			yield (int)value[0];
+			}
+			"""));
+	}
+
+	[Fact]
 	public void Stack_storage_is_not_part_of_exported_iterator_state()
 	{
 		SemanticCompilation compilation = SemanticCompiler.CompileLowered("""

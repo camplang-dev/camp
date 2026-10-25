@@ -492,8 +492,10 @@ directly or through one or more local view copies.
 Yield expressions are checked against iterator result lifetimes. Iterator state
 may retain local values across yields, so the analyzer must treat lifted locals
 and current-value slots as generated storage with real lifetime consequences.
-`stackalloc` storage is not lifted: it lives only in one resume activation. A
-yield whose expression is the address of such storage, or of an alias still
+Named `stackalloc` storage is not lifted, and backing memory allocated by a
+`stackalloc` expression lives only in one resume activation. A pointer or array
+local holding a view may be lifted, but that does not extend the backing memory's
+lifetime. A yield whose expression is the address of such storage, or of an alias still
 holding that address, is rejected at the yield, including in generic and erased
 code. Yielding the value by copy, or a pointer to storage that outlives the
 iterator (for example an `escaped` parameter), remains legal.
@@ -558,15 +560,17 @@ generated fields and cleanup code.
 A pointer-bearing local may copy a retained iterator parameter or a value
 derived from it, including after a yield. Lifting the local into the same
 iterator state must preserve that lifetime relation; it does not make the
-value escaped. This permission does not extend to activation-local stack
-storage or temporary arrays.
+value escaped. Temporary array backing storage cannot be retained this way.
+Pointer and array locals initialized by `stackalloc` are allowed as iterator
+scratch values. Only yielding a view of that storage or an alias is rejected;
+the compiler leaves use of these values after a yield to the author.
 
 Important restrictions include:
 
 - async bodies that can suspend must not retain stackalloc-backed or otherwise
   stack-only values in the frame;
-- iterator generator bodies cannot retain stackalloc-backed or temporary array
-  storage across yields;
+- iterator generators cannot yield views of activation-local stack storage or
+  retain temporary array backing storage;
 - yielded references must be valid for the iterator protocol surface;
 - cleanup code generated for `finally`, delegates, and destructor paths must
   not delete or free values through incompatible lifetime contracts.
@@ -586,9 +590,10 @@ generic payload or change the operand of its layout capability.
 Named `stackalloc` storage, including `stackalloc void<V>`, is unassigned after
 each `yield` or `await`. Assigning it again permits subsequent reads. Its storage
 is allocated once on entry to each resume activation and must not become a
-retained pointer field. Dynamic stackalloc array views remain subject to the existing suspension
-restrictions. Heap-backed annotated pointers may be retained; their allocation
-lifetime and destructor contract survive lifting and apply to cleanup on both
+retained pointer field. Pointer and array locals initialized by stackalloc
+expressions do not have this resume assignment check; yielding a view or alias
+of their backing memory is still forbidden. Heap-backed annotated pointers may
+be retained; their allocation lifetime and destructor contract survive lifting and apply to cleanup on both
 normal exhaustion and early iterator destruction.
 
 Void-represented generic T values are treated conservatively because they may be

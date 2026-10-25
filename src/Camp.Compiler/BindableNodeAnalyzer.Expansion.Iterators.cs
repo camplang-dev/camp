@@ -377,7 +377,6 @@ public sealed partial class BindableNodeAnalyzer
 				ConditionalExpression value => IsStackView(value.WhenTrue) || IsStackView(value.WhenFalse),
 				IndexExpression value when value.Arguments.Any(argument => argument.Value is RangeExpression) => IsStackView(value.Target),
 				UnaryExpression { Operator: UnaryOperator.AddressOf, Operand: IndexExpression value } => IsStackView(value.Target),
-				BinaryExpression { Operator: BinaryOperator.Add or BinaryOperator.Subtract } value => IsStackView(value.Left) || IsStackView(value.Right),
 				_ => false
 			};
 		}

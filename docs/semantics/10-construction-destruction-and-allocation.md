@@ -246,9 +246,14 @@ The backing storage is not allocator-managed and cannot be freed early. A
 must suppress allocator deallocation.
 
 Stackalloc-backed values cannot be returned, stored into longer-lived or
-escaped storage, retained by heap/escaped receivers, or used across suspension.
-The implementation may conservatively reject stackalloc in async/generator
-bodies rather than prove fine-grained post-suspension liveness.
+escaped storage, or retained by heap/escaped receivers. As an iterator-specific
+exception, pointer and array locals may hold these values, pass them to a
+helper, and yield a copy or plain result. A view of the backing storage,
+including an alias, cannot itself be yielded. The compiler
+does not check the validity of these pointer and array locals after a `yield`;
+that use is the author's responsibility. They are distinct from named
+`stackalloc` storage locals, whose assignment state resets on each resume.
+Async storage restrictions remain separate.
 
 ### `stackalloc` Locals
 
@@ -522,10 +527,11 @@ escaping through generated frames.
 
 Restrictions include:
 
-- stackalloc-backed storage in async/iterator bodies where activation-stack
-  storage would cross suspension;
-- retention of scoped pointer-bearing values in async frames or iterator
-  states;
+- stackalloc-backed storage in async bodies where activation-stack storage
+  would cross suspension;
+- retention of scoped pointer-bearing values in async frames;
+- yielding a view or alias of an iterator's activation-stack storage;
+- reading named `stackalloc` storage after a resume without reassigning it;
 - allocator values retained across suspension without escaped/frame-safe
   lifetime;
 - destructors or cleanup methods that would run on storage whose initialization

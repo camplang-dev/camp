@@ -1507,14 +1507,15 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			if (IsLocalLifetimeAnchor(anchor, scope))
 				return;
-			// A lifted local can retain a value already tied to the same iterator
-			// state. Activation-local stack storage still cannot enter that state.
+			// Source pointer/array locals may hold stackalloc views in an iterator.
+			// Yield validation rejects those views; their use after resume is left
+			// to the author. Named activation storage has separate assignment checks.
 			if (target is MemberReferenceExpression { Target: ThisExpression, Member: FieldDefinition field }
 				&& scope.ContainingType?.GeneratedInfo is { Category: GeneratedDeclarationCategory.Iterator }
 				&& iteratorLiftedLocalFields.Contains(field)
-				&& valueFact.Kind is "scoped" or "unscoped"
-				&& valueFact.Anchors.Count > 0 && valueFact.Anchors.All(valueAnchor => valueAnchor == anchor)
-				&& !IsStackAllocLifetimeFact(valueFact))
+				&& (IsStackAllocLifetimeFact(valueFact)
+					|| valueFact.Kind is "scoped" or "unscoped"
+					&& valueFact.Anchors.Count > 0 && valueFact.Anchors.All(valueAnchor => valueAnchor == anchor)))
 				return;
 			if (!ValueOutlivesAnchor(valueFact, anchor))
 			{

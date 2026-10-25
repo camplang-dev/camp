@@ -248,9 +248,12 @@ struct iter const char[] badLocal()
 }
 ```
 
-The local array storage would be part of the iterator's state, but the yielded
-span would escape through the current-value slot in a way the signature does
-not promise.
+The array view can be a local in the iterator, but its backing storage belongs
+to the current resume. It can be used as scratch space, passed to a helper, or
+used to produce a plain value to yield. The view itself cannot escape through
+the current-value slot. The compiler leaves use of these pointer and array
+locals after a `yield` to the author; named `stackalloc` storage below has
+separate assignment checks.
 
 For erased generic value iteration, use explicit stack storage for the current
 item when the compiler cannot know the value's size at compile time:
