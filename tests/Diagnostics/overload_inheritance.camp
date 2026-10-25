@@ -28,3 +28,17 @@ interface IBad: IOrdinary
 {
 	void draw(overload string value);
 }
+
+interface Reader { int get(); }
+interface Twice: Reader, Reader { void extra(); }
+interface Narrow: Reader { long get(); }
+interface Same: Reader { int get(); }
+interface Intermediate: Reader { }
+interface Indirect: Intermediate { int get(); }
+interface Left { int shared(); }
+interface Right { int shared(); }
+interface Combined: Left, Right { }
+interface Common { void common(); }
+interface DiamondLeft: Common { }
+interface DiamondRight: Common { }
+interface Diamond: DiamondLeft, DiamondRight { }

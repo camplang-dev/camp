@@ -316,6 +316,13 @@ the required representation and lifecycle rules.
 Inherited slots participate in conformance and vtable generation. Name and
 signature conflicts must be diagnosed.
 
+Reject a repeated direct base interface at its second occurrence. A derived
+interface cannot redeclare an inherited ordinary member name, even with an
+identical signature, or redeclare an existing inherited overload slot. Diagnose
+the member declaration itself. Unrelated base interfaces may each declare the
+same member name; that is an ambiguity to resolve at use, not a conflict in the
+derived interface declaration.
+
 An interface can derive only from interfaces. A slot inherited from a base
 interface keeps its declaring receiver type for default-target matching and
 vtable layout. A derived C table embeds the base table layout in declaration

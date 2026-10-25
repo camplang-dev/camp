@@ -83,12 +83,16 @@ public sealed partial class BindableNodeAnalyzer
 
 	void AnalyzeInterfaceBaseTypes(InterfaceDefinition owner)
 	{
+		HashSet<InterfaceDefinition> directBases = [];
 		foreach (TypeReference baseType in owner.BaseTypes)
 		{
 			if (TryGetNamedTypeDefinition(baseType, out TypeDefinition? definition) && definition is not InterfaceDefinition)
 				Report(GetRange(baseType.SourceSyntax), $"Interface '{owner.Name}' may only derive from interfaces.");
 			else if (!owner.IsEscaped && definition is InterfaceDefinition { IsEscaped: true })
 				Report(GetNameRange(owner), $"Interface '{owner.Name}' inherits an escaped interface and must be declared escaped.");
+			if (definition is InterfaceDefinition inheritedInterface
+				&& !directBases.Add(inheritedInterface))
+				Report(GetRange(baseType.SourceSyntax), $"Interface '{owner.Name}' repeats base interface '{inheritedInterface.Name}'.");
 		}
 
 		foreach (FunctionDefinition function in owner.Functions)
@@ -97,8 +101,14 @@ public sealed partial class BindableNodeAnalyzer
 			{
 				foreach (FunctionDefinition inherited in baseInterface.Functions)
 				{
-					if (GetInvokerName(inherited) != GetInvokerName(function) || HasOverloadSelector(inherited) == HasOverloadSelector(function))
+					if (GetInvokerName(inherited) != GetInvokerName(function))
 						continue;
+					if (HasOverloadSelector(inherited) == HasOverloadSelector(function))
+					{
+						if (!HasOverloadSelector(function) || GetCallableName(inherited) == GetCallableName(function))
+							Report(GetNameRange(function), $"Interface member '{owner.Name}.{GetCallableName(function)}' redeclares inherited member '{baseInterface.Name}.{GetCallableName(inherited)}'.");
+						continue;
+					}
 
 					string category = HasOverloadSelector(inherited) ? "an overload family" : "an ordinary method";
 					Report(GetNameRange(function), $"`{GetInvokerName(function)}` was inherited as {category}. A derived interface cannot change that method category.");

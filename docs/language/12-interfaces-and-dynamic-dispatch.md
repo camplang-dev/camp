@@ -417,6 +417,11 @@ The practical rule is this: interface inheritance is nominal, and inherited
 members are part of the derived contract. If two inherited paths make a member
 ambiguous, write the interface you mean rather than relying on guesswork.
 
+List each direct base interface once. Do not redeclare an inherited ordinary
+method in the derived interface, even to repeat the same signature. Two
+unrelated bases may each declare the same method name; use the appropriate base
+interface view to select one.
+
 ## Generic Interfaces
 
 An interface may take type parameters. A type implements one *construction* of
