@@ -8,3 +8,5 @@ tests/Diagnostics/generic_generator_locals_invalid.camp(65,8): error: Yield expr
 tests/Diagnostics/generic_generator_locals_invalid.camp(72,8): error: Yield expression cannot yield stackalloc-backed storage.
 tests/Diagnostics/generic_generator_locals_invalid.camp(78,8): error: Yield expression cannot yield stackalloc-backed storage.
 tests/Diagnostics/generic_generator_locals_invalid.camp(85,8): error: Yield expression cannot yield stackalloc-backed storage.
+tests/Diagnostics/generic_generator_locals_invalid.camp(71,5): error: Local name 'alias' is reserved.
+tests/Diagnostics/generic_generator_locals_invalid.camp(84,14): error: Local name 'alias' is reserved.

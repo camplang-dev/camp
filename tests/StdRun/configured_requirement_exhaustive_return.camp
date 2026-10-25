@@ -25,13 +25,13 @@ export int main()
 	if (checks != 0)
 		return checks + 10;
 	int value = platformValue();
-	int selected = configured(OS_WIN32) ? windowsValue() : posixValue();
+	int selected = configured(OS_WIN32) ? windowsValue() : nonWindowsValue();
 	if (selected != value) return 20;
 	selected = configured(!OS_WIN32) ? selectedGeneric<int>(11) : windowsValue();
 	if (selected != value) return 21;
-	const char[] text = configured(OS_WIN32) ? windowsText() : posixText();
+	const char[] text = configured(OS_WIN32) ? windowsText() : nonWindowsText();
 	if (text.length != 1) return 22;
-	selected = !configured(OS_WIN32) ? posixValue() : windowsValue();
+	selected = !configured(OS_WIN32) ? nonWindowsValue() : windowsValue();
 	if (selected != value) return 23;
 	calls = 0;
 	selected = (mark() && configured(OS_WIN32)) ? windowsValue() : 11;
@@ -50,6 +50,12 @@ export int main()
 }
 
 int calls;
+
+requires (!OS_WIN32)
+int nonWindowsValue() => 11;
+
+requires (!OS_WIN32)
+const char[] nonWindowsText() => "p";
 
 requires (!OS_WIN32)
 T selectedGeneric<T: int>(T value) { return value; }

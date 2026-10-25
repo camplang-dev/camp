@@ -34,3 +34,8 @@ struct iter int* badPointerAlias()
 	int* view = scratch;
 	yield view;
 }
+
+struct iter int[] badDirect()
+{
+	yield stackalloc int[4];
+}

@@ -40,11 +40,6 @@ int[] returnLocal()
 	return values;
 }
 
-struct iter int[] yieldStackAlloc()
-{
-	yield stackalloc int[4];
-}
-
 void storeEscaped()
 {
 	auto values = stackalloc int[4];
