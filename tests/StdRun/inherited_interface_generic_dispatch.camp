@@ -103,6 +103,12 @@ export void main()
 	auto retainedObject = new EscapedManyObject() finally delete;
 	EscapedMany* retainedObjectView = retainedObject;
 	Console.writeLine(retainedRight(retainedObjectView).right());
+	StaticDefaultValue staticDefaults = default;
+	StaticDefaultSink* staticView = &staticDefaults;
+	Console.writeLine(staticView.fromStruct(10));
+	Console.writeLine(staticView.fromClass(10));
+	Console.writeLine(staticView.fromStaticClass(10));
+	Console.writeLine(vtableof(StaticDefaultValue: StaticDefaultSink).fromStaticClass(&staticDefaults, 10));
 }
 
 interface ManyCommon { int common(); }
@@ -175,3 +181,30 @@ escaped class EscapedManyObject: EscapedMany
 	int right(): EscapedRight { return 20; }
 }
 EscapedRight* retainedRight(EscapedMany* value) { return value; }
+
+interface StaticDefaultSink
+{
+	int write(int value);
+	int fromStruct(int value) = DefaultHelpers::StructHelper.twice;
+	int fromClass(int value) = ClassHelper.twice;
+	int fromStaticClass(int value) = StaticHelper.twice;
+}
+namespace DefaultHelpers
+{
+	struct StructHelper
+	{
+		static int twice(StaticDefaultSink* sink, int value) { return sink.write(value) * 2; }
+	}
+}
+class ClassHelper
+{
+	static int twice(StaticDefaultSink* sink, int value) { return sink.write(value) * 2; }
+}
+static class StaticHelper
+{
+	static int twice(StaticDefaultSink* sink, int value) { return sink.write(value) * 2; }
+}
+struct StaticDefaultValue: StaticDefaultSink
+{
+	int write(int value): StaticDefaultSink { return value + 1; }
+}

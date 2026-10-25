@@ -2,9 +2,25 @@ export interface ICounter
 {
 	int optional(int value) = null;
 	int getValue(int value) = defaultGetValue;
+	int fromStruct(int value) = StructDefault.getValue;
+	int fromClass(int value) = ClassDefault.getValue;
+	int fromStaticClass(int value) = StaticDefault.getValue;
 }
 
 export int defaultGetValue(ICounter* this, int value)
 {
 	return value + 10;
+}
+
+export struct StructDefault
+{
+	export static int getValue(ICounter* counter, int value) { return value + 1; }
+}
+export class ClassDefault
+{
+	export static int getValue(ICounter* counter, int value) { return value + 2; }
+}
+static class StaticDefault
+{
+	export static int getValue(ICounter* counter, int value) { return value + 3; }
 }

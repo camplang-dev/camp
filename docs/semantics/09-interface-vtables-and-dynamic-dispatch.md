@@ -160,6 +160,10 @@ The initializer can name a visible free function, out-of-scope receiver
 function, or static method. It is not a method body, lambda, delegate value, or
 runtime fallback. The target must match the slot shape after adding the
 interface receiver parameter and applying ordinary callable compatibility rules.
+Static defaults may belong to a struct, class, or static class, including a
+namespace-qualified owner. Bind the owner as a type/container reference rather
+than an instance expression; static-class methods use the same slot matching
+rules as other static methods.
 
 When an implementing type provides its own compatible method, that method wins.
 When it omits the slot, the interface-context table stores the default target.

@@ -793,7 +793,7 @@ public sealed partial class BindableNodeAnalyzer
 		return initializer switch
 		{
 			NamedExpression named => ResolveInterfaceSlotFunctionCandidates(module, named.Name),
-			MemberExpression { Target: NamedExpression targetType } member => ResolveInterfaceSlotStaticMethodCandidates(targetType.Name, member.Name),
+			MemberExpression { Target: NamedExpression targetType } member => ResolveInterfaceSlotStaticMethodCandidates(targetType, member.Name),
 			_ => []
 		};
 	}
@@ -809,13 +809,26 @@ public sealed partial class BindableNodeAnalyzer
 		return candidates;
 	}
 
-	List<FunctionDefinition> ResolveInterfaceSlotStaticMethodCandidates(string typeName, string methodName)
+	List<FunctionDefinition> ResolveInterfaceSlotStaticMethodCandidates(NamedExpression owner, string methodName)
 	{
-		if (!typeDefinitions.TryGetValue(typeName, out TypeDefinition? typeDefinition))
+		NamedTypeReference lookup = new() { Name = owner.Name, SourceSyntax = owner.SourceSyntax };
+		lookup.Qualifiers.AddRange(owner.Qualifiers);
+		IEnumerable<FunctionDefinition> functions;
+		if (TryGetNamedTypeDefinition(lookup, out TypeDefinition? typeDefinition) && typeDefinition is not null)
+		{
+			owner.ResolvedType = ResolvedNominalTypeName(typeDefinition);
+			functions = GetTypeFunctions(typeDefinition);
+		}
+		else if (TryGetStaticClassDefinition(lookup, out StaticClassDefinition? staticClass) && staticClass is not null)
+		{
+			owner.ResolvedType = ResolvedStaticClassName(staticClass);
+			functions = staticClass.Functions;
+		}
+		else
 			return [];
 
 		List<FunctionDefinition> candidates = [];
-		foreach (FunctionDefinition function in GetTypeFunctions(typeDefinition))
+		foreach (FunctionDefinition function in functions)
 		{
 			if (function.Modifier == FunctionModifier.Static && InterfaceSlotFunctionNameMatches(function, methodName))
 				candidates.Add(function);

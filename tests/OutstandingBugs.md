@@ -44,26 +44,3 @@ Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
 
-## BUG-372: A static method used as an interface slot default fails to compile
-
-Date/Time: 2026-10-25 14:10 PDT
-
-Summary:
-The diagnostics for an interface method initializer say it may be null, default, a free function or a static method. A free function works. A static method of a struct or class passes semantic analysis and then aborts C emission because the qualified name of the owning type has no resolved type. A static method of a static class is rejected during semantic analysis with the message that lists a static method as allowed.
-
-Steps to Reproduce:
-
-1. Declare `interface LineSink { int write(int value); int writeTwice(int value) = Helper.twice; }`.
-2. Declare `struct Helper { static int twice(LineSink* sink, int value) { return sink.write(value) * 2; } }` after the interface.
-3. Declare a struct implementing `LineSink` with a marked `write` and call `writeTwice` through a `LineSink*` obtained from it.
-4. Repeat with `class Helper` and with `static class Helper`.
-
-Expected:
-The program compiles, and calling `writeTwice(10)` through the interface runs the static method. With a `write` that returns `value + 1`, the result is 22.
-
-Actual:
-With a struct or a class, C emission aborts with "NamedExpression 'Helper' has unresolved type '#UNRESOLVED'". With a static class, semantic analysis reports "Interface method vtable initializer must be null, default, a free function, or a static method."
-
-Known Impact:
-A defaulted interface slot can only use a free function. Qualifying a static method as the default target fails, in one case without a source location.
-

@@ -40,3 +40,17 @@ class DerivedOptional: BaseOptional
 		return value;
 	}
 }
+
+interface IInvalidStaticDefault
+{
+	int instance(int value) = BadStaticOwner.instance;
+	int shape(int value) = BadStaticContainer.wrongShape;
+}
+struct BadStaticOwner
+{
+	int instance(IInvalidStaticDefault* sink, int value) { return value; }
+}
+static class BadStaticContainer
+{
+	static int wrongShape(int value) { return value; }
+}

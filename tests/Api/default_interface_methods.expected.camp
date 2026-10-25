@@ -3,5 +3,30 @@ export interface ICounter
 	int optional(int value) = null;
 
 	int getValue(int value) = defaultGetValue;
+
+	int fromStruct(int value) = StructDefault.getValue;
+
+	int fromClass(int value) = ClassDefault.getValue;
+
+	int fromStaticClass(int value) = StaticDefault.getValue;
 }
 export extern int defaultGetValue(ICounter* this, int value);
+
+export struct StructDefault
+{
+	export extern static int getValue(ICounter* counter, int value);
+}
+
+export extern class ClassDefault
+{
+	export extern ClassDefault();
+
+	export extern ~ClassDefault();
+
+	export extern static int getValue(ICounter* counter, int value);
+}
+
+static class StaticDefault
+{
+	export extern static int getValue(ICounter* counter, int value);
+}
