@@ -2,3 +2,7 @@ alias restrict = int;
 alias signed = int;
 alias typedef = int;
 alias register = int;
+
+class break {}
+int default() { return 0; }
+export int main() { int continue = 1; return 0; }

@@ -6,6 +6,59 @@ namespace Camp.Compiler;
 
 public sealed partial class BindableNodeAnalyzer
 {
+	void RecoverReservedNames(Module module)
+	{
+		if (!diagnostics.Any(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error))
+			return;
+		// Name checks do not need successful type binding or method-body analysis.
+		foreach (BindableNode node in BindableNodeTraversal.Enumerate(module, new HashSet<BindableNode>(ReferenceEqualityComparer.Instance)))
+		{
+			if (node is Definition { GeneratedInfo: not null })
+				continue;
+			switch (node)
+			{
+				case TypeDefinition type:
+					CheckName(type.Name, GetNameRange(type), "type");
+					break;
+				case StaticClassDefinition type:
+					CheckName(type.Name, GetNameRange(type), "static class");
+					break;
+				case AliasDefinition alias:
+					CheckName(alias.Name, GetNameRange(alias), "alias");
+					break;
+				case GenericParameter parameter:
+					CheckName(parameter.Name, GetGenericParameterNameRange(parameter.SourceSyntax), "generic parameter");
+					break;
+				case FunctionDefinition function:
+					CheckName(function.Name.TrimStart('~'), GetNameRange(function), "function");
+					break;
+				case ParameterDefinition parameter when IsUserNamedParameter(parameter) && parameter.Name != "this":
+					CheckName(parameter.Name, GetNameRange(parameter), "parameter");
+					break;
+				case FieldDefinition field:
+					CheckName(field.Name, GetNameRange(field), "field");
+					break;
+				case VariableDefinition variable:
+					CheckName(variable.Name, GetNameRange(variable), "variable");
+					break;
+				case DeclarationTarget target:
+					foreach (string name in target.Names)
+						if (name != "_")
+							CheckName(name, GetDeclarationTargetNameRange(target.SourceSyntax, name), "local");
+					break;
+				case LambdaParameter { Parameter: null } parameter:
+					CheckName(parameter.Name, GetLambdaParameterNameRange(parameter.SourceSyntax), "parameter");
+					break;
+				case UsingDeclaration usingDeclaration:
+					CheckName(usingDeclaration.Alias, GetAliasRange(usingDeclaration.SourceSyntax), "using alias");
+					break;
+				case LabelStatement label:
+					CheckName(label.Name, GetLabelNameRange(label.SourceSyntax), "label");
+					break;
+			}
+		}
+	}
+
 	void AnalyzeModule(Module module)
 	{
 		RunAnalyzerPass(AnalyzerPass.DeclarationAnalysis, module);

@@ -1,4 +1,7 @@
+tests/Diagnostics/c_reserved_identifiers.camp(6,7): error: Type name 'break' is reserved.
 tests/Diagnostics/c_reserved_identifiers.camp(1,7): error: Alias name 'restrict' is a reserved C word.
 tests/Diagnostics/c_reserved_identifiers.camp(2,7): error: Alias name 'signed' is a reserved C word.
 tests/Diagnostics/c_reserved_identifiers.camp(3,7): error: Alias name 'typedef' is a reserved C word.
 tests/Diagnostics/c_reserved_identifiers.camp(4,7): error: Alias name 'register' is a reserved C word.
+tests/Diagnostics/c_reserved_identifiers.camp(7,5): error: Function name 'default' is reserved.
+tests/Diagnostics/c_reserved_identifiers.camp(8,25): error: Local name 'continue' is reserved.

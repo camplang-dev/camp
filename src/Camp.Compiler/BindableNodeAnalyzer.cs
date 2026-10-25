@@ -1264,12 +1264,18 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (ReservedWords.Contains(name) || IsTargetCallSpecKnown(name) || IsTargetTypeSpecKnown(name))
 		{
-			Report(range, $"{CultureInfo.InvariantCulture.TextInfo.ToTitleCase(symbolKind)} name '{name}' is reserved.", DiagnosticCodes.ReservedIdentifier);
+			ReportReservedName(range, $"{CultureInfo.InvariantCulture.TextInfo.ToTitleCase(symbolKind)} name '{name}' is reserved.");
 			return;
 		}
 
 		if (CReservedWords.Contains(name))
-			Report(range, $"{CultureInfo.InvariantCulture.TextInfo.ToTitleCase(symbolKind)} name '{name}' is a reserved C word.", DiagnosticCodes.ReservedIdentifier);
+			ReportReservedName(range, $"{CultureInfo.InvariantCulture.TextInfo.ToTitleCase(symbolKind)} name '{name}' is a reserved C word.");
+	}
+
+	void ReportReservedName(TokenRange? range, string message)
+	{
+		if (!diagnostics.Any(diagnostic => diagnostic.Code == DiagnosticCodes.ReservedIdentifier && diagnostic.Range == range && diagnostic.Message == message))
+			Report(range, message, DiagnosticCodes.ReservedIdentifier);
 	}
 
 	void Report(TokenRange? range, string message, string? code = null)

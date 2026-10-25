@@ -34,10 +34,12 @@ public sealed partial class BindableNodeAnalyzer
 			{
 				case AnalyzerPass.DeclarationExpansion:
 					RunDeclarationExpansionPass(module);
+					RecoverReservedNames(module);
 					break;
 
 				case AnalyzerPass.DeclarationAnalysis:
 					AnalyzeDeclarations(module);
+					RecoverReservedNames(module);
 					break;
 
 				case AnalyzerPass.MethodBodyAnalysis:
