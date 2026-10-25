@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-370.
+Next bug number: BUG-371.
 
 ## Bug Template
 
@@ -43,3 +43,26 @@ Actual:
 Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
+
+## BUG-370: Duplicate base interfaces and redeclared inherited interface members are not diagnosed
+
+Date/Time: 2026-10-25 13:30 PDT
+
+Summary:
+The semantics require name and signature conflicts in interface inheritance to be diagnosed. Two cases are accepted at the interface declaration. An interface that lists the same base interface twice passes semantic analysis and then fails the native build with a duplicate member in the generated private header. An interface that declares a method with the same name as a method it inherits, whether the signature is identical or different, also passes. The declared interface can then never be implemented: every implementing type is rejected with the marker "is ambiguous" and "does not implement" errors that point at the implementer rather than at the interface declaration.
+
+Steps to Reproduce:
+
+1. Compile a program containing `interface Reader { int get(); }` and `interface Twice: Reader, Reader { void e(); }`.
+2. Compile a program containing `interface Reader { int get(); }` and `interface Narrow: Reader { long get(); }`.
+3. Repeat step 2 with `interface Same: Reader { int get(); }`, then add `struct Impl: Same { int get(): Same { return 2; } }`.
+
+Expected:
+Each interface declaration is rejected with a diagnostic at the declaration: a repeated base interface in step 1, and a member that redeclares an inherited member name in steps 2 and 3. Deriving from two unrelated interfaces that each declare a method of the same name remains valid, and the ambiguity is diagnosed where the member is used.
+
+Actual:
+Steps 1 to 3 report no error at the interface declaration. Step 1 fails in the C compiler with "duplicate member" in the generated private header. Step 3 reports "Interface method marker 'Same.get' is ambiguous", then "Type 'Impl' does not implement interface member 'Same.get()'" and "Type 'Impl' does not implement interface member 'Reader.get()'".
+
+Known Impact:
+Interface authors get a native compiler failure or confusing errors at every implementer instead of one error at the declaration. A derived interface cannot be implemented until the redeclaration is removed.
+
