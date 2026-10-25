@@ -16,6 +16,9 @@ public sealed partial class BindableNodeAnalyzer
 		// calls, expanded-return temporaries, or cleanups.
 		if (expression is BinaryExpression shortCircuit && TryGetShortCircuitedLeft(shortCircuit, out Expression? left))
 			return LowerScalarExpression(left);
+		if (expression is ConditionalExpression configuredConditional
+			&& TrySelectConfiguredConditionalArm(configuredConditional, out Expression? selectedArm))
+			return LowerExpression(selectedArm);
 
 		switch (expression)
 		{
@@ -321,6 +324,41 @@ public sealed partial class BindableNodeAnalyzer
 			return LowerExpression(components[0]);
 		return lowered;
 	}
+
+	readonly Dictionary<SyntaxNode, (bool Value, bool Pure)> configuredConditionalSelections = [];
+
+	bool TrySelectConfiguredConditionalArm(ConditionalExpression conditional, out Expression? selected)
+	{
+		if (expressionRewrites.TryGetValue(conditional, out selected) && !ReferenceEquals(selected, conditional))
+			return true;
+		selected = null;
+		if (conditional.SourceSyntax is not SyntaxNode syntax
+			|| !configuredConditionalSelections.TryGetValue(syntax, out var selection))
+			return false;
+		if (!selection.Pure)
+		{
+			if (currentStatementPrefix is null)
+				return false;
+			// A configuration-fixed result may still evaluate runtime operands.
+			Expression? condition = LowerScalarExpression(conditional.Condition);
+			currentStatementPrefix.Add(new ExpressionStatement { Expression = condition, ResolvedType = "void" });
+		}
+		selected = selection.Value ? conditional.WhenTrue : conditional.WhenFalse;
+		if (selected is null)
+			return false;
+		expressionRewrites[conditional] = selected;
+		return true;
+	}
+
+	static bool ContainsConfiguredCondition(Expression? expression) => expression switch
+	{
+		CallExpression { Target: NamedExpression { Qualifiers.Count: 0, Name: "configured" } } => true,
+		ParenthesizedExpression parenthesized => ContainsConfiguredCondition(parenthesized.Expression),
+		UnaryExpression { Operator: UnaryOperator.LogicalNot } unary => ContainsConfiguredCondition(unary.Operand),
+		BinaryExpression { Operator: BinaryOperator.LogicalAnd or BinaryOperator.LogicalOr } binary
+			=> ContainsConfiguredCondition(binary.Left) || ContainsConfiguredCondition(binary.Right),
+		_ => false
+	};
 
 	Expression LowerConditionalExpression(ConditionalExpression conditional)
 	{

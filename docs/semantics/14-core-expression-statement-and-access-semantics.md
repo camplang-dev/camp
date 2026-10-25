@@ -228,6 +228,12 @@ Conditional expressions also propagate availability proof into their arms:
 return configured(OS_WIN32) ? win32Value() : configured(OS_LINUX) ? linuxValue() : default;
 ```
 
+When configuration fixes the selected arm, lowering must omit the unreachable
+arm before creating calls, expanded results or cleanup temporaries. Emitting a
+C ternary with a literal condition is insufficient: its other arm can reference
+an unavailable declaration. If a condition also evaluates runtime operands,
+preserve their effects once while omitting an arm proven unreachable.
+
 The true arm is analyzed with the positive condition proven. When the condition
 is a direct `configured(EXPR)` query, the false arm is analyzed with `!EXPR`
 proven. The same rule applies to `else` bodies:

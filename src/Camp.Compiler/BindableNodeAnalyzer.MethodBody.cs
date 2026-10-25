@@ -7561,6 +7561,11 @@ public sealed partial class BindableNodeAnalyzer
 			falseType = BodyAnalyzeExpression(conditional.WhenFalse, scope, typeScope, targetType);
 		});
 		expressionConstants[conditional] = IsConstant(conditional.Condition) && IsConstant(conditional.WhenTrue) && IsConstant(conditional.WhenFalse);
+		// Cloning expanded expressions replaces configured calls with literals. Keep
+		// the source decision so lowering can still omit the unavailable arm.
+		if (conditional.SourceSyntax is SyntaxNode syntax && ContainsConfiguredCondition(conditional.Condition)
+			&& TryGetKnownBooleanValue(conditional.Condition, out bool configuredValue))
+			configuredConditionalSelections[syntax] = (configuredValue, GetConfigurationOnlyRequirementProof(conditional.Condition) is not null);
 		if (targetType is not null && targetType != TargetType)
 		{
 			CheckAssignable(targetType, trueType, conditional.WhenTrue?.SourceSyntax, "Conditional expression");

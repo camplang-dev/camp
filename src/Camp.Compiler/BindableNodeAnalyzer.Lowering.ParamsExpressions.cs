@@ -1676,6 +1676,8 @@ public sealed partial class BindableNodeAnalyzer
 	bool TryCreateConditionalParamsComponentExpressions(ConditionalExpression conditional, out List<Expression> components)
 	{
 		components = [];
+		if (TrySelectConfiguredConditionalArm(conditional, out Expression? selected))
+			return TryCreateParamsComponentExpressions(selected!, out components);
 		if (conditional.WhenTrue is null || conditional.WhenFalse is null)
 			return false;
 		if (TryGetParamsComponentShape(null, conditional.ResolvedType, "value", out ParamsComponentShape registeredShape)

@@ -25,6 +25,23 @@ export int main()
 	if (checks != 0)
 		return checks + 10;
 	int value = platformValue();
+	int selected = configured(OS_WIN32) ? windowsValue() : posixValue();
+	if (selected != value) return 20;
+	selected = configured(!OS_WIN32) ? selectedGeneric<int>(11) : windowsValue();
+	if (selected != value) return 21;
+	const char[] text = configured(OS_WIN32) ? windowsText() : posixText();
+	if (text.length != 1) return 22;
+	selected = !configured(OS_WIN32) ? posixValue() : windowsValue();
+	if (selected != value) return 23;
+	calls = 0;
+	selected = (mark() && configured(OS_WIN32)) ? windowsValue() : 11;
+	if (calls != 1 || selected != value) return 24;
+	calls = 0;
+	const char[] mixedText = (mark() && configured(OS_WIN32)) ? windowsText() : "p";
+	if (calls != 1 || mixedText.length != 1) return 25;
+	int error = 0;
+	bool throwingSelected = throwingConditional(catch error);
+	if (error != 0 || throwingSelected != configured(OS_WIN32)) return 26;
 	if (configured(SUBSYSTEM_POSIX))
 		return value == 11 ? 0 : 1;
 	if (configured(OS_WIN32))
@@ -33,6 +50,9 @@ export int main()
 }
 
 int calls;
+
+requires (!OS_WIN32)
+T selectedGeneric<T: int>(T value) { return value; }
 
 bool mark()
 {
@@ -60,6 +80,11 @@ bool windowsThrowingCheck(thrown int error) => mark();
 bool throwingCheck(thrown int error)
 {
 	return configured(OS_WIN32) && windowsThrowingCheck();
+}
+
+bool throwingConditional(thrown int error)
+{
+	return configured(OS_WIN32) ? windowsThrowingCheck() : false;
 }
 
 int checkShortCircuit()

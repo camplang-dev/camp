@@ -110,6 +110,15 @@ public sealed partial class BindableNodeAnalyzer
 	ConfigurationFlagExpression? GetConfigurationOnlyRequirementProof(Expression? expression)
 	{
 		expression = UnwrapParenthesizedExpression(expression);
+		if (expression is UnaryExpression { Operator: UnaryOperator.LogicalNot } unary
+			&& GetConfigurationOnlyRequirementProof(unary.Operand) is ConfigurationFlagExpression operand)
+			return ConfigurationFlagExpressionBinder.Not(operand);
+		if (expression is BinaryExpression { Operator: BinaryOperator.LogicalAnd or BinaryOperator.LogicalOr } binary
+			&& GetConfigurationOnlyRequirementProof(binary.Left) is ConfigurationFlagExpression left
+			&& GetConfigurationOnlyRequirementProof(binary.Right) is ConfigurationFlagExpression right)
+			return binary.Operator == BinaryOperator.LogicalAnd
+				? ConfigurationFlagExpressionBinder.And(left, right)
+				: ConfigurationFlagExpressionBinder.Or(left, right);
 		return expression is CallExpression call && TryGetConfiguredRequirement(call, out ConfigurationFlagExpression? configured)
 			? configured
 			: null;
