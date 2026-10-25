@@ -955,6 +955,8 @@ public sealed partial class BindableNodeAnalyzer
 			return;
 
 		LifetimeFact template = GetParameterLifetimeTemplate(parameter, effectiveParameterType);
+		if (template.Kind == "escaped" && HasFailedEscapedTypeConversion(argument.Value, effectiveParameterType))
+			return;
 		if (function.Modifier == FunctionModifier.Constructor && template.Kind == "unscoped" && template.Anchors.Count == 0)
 			return;
 		List<LifetimeFact> requiredFacts = GetRequiredArgumentLifetimeFacts(template, context);
@@ -1494,7 +1496,8 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (TryGetEscapedStorageTarget(target))
 		{
-			Report(GetRange(syntax), $"{context} cannot store a non-escaped pointer-bearing value in escaped storage.");
+			if (!HasFailedEscapedTypeConversion(value, target.ResolvedType ?? ErrorType))
+				Report(GetRange(syntax), $"{context} cannot store a non-escaped pointer-bearing value in escaped storage.");
 			return;
 		}
 		if (CheckOutParameterFieldLifetime(target, value, valueFact, syntax, scope))

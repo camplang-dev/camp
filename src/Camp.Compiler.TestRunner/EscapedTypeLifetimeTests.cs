@@ -58,6 +58,26 @@ public sealed class EscapedTypeLifetimeTests
 	}
 
 	[Fact]
+	public void Failed_escaped_conversions_do_not_repeat_the_use_lifetime_error()
+	{
+		var compilation = SemanticCompiler.CompileLowered(Declarations + """
+			void accept(Sink* sink) { }
+			void acceptPlain(escaped ExplicitSink* sink) { }
+			void argument(ExplicitSink* source) { accept(source); }
+			void store(ExplicitSink* source) { keptSink = (source); }
+			void castArgument(ExplicitSink* source) { accept((Sink*)source); }
+			void direct(ExplicitSink* source) { acceptPlain(source); }
+			""");
+		// The helper's aggregate also includes the expansion's shared diagnostic list.
+		var diagnostics = compilation.Compilation.Lowering!.Diagnostics;
+		Assert.Equal(4, diagnostics.Count);
+		Assert.Equal(3, System.Linq.Enumerable.Count(diagnostics,
+			diagnostic => diagnostic.Message.Contains("requires escaped source storage")));
+		Assert.Single(diagnostics,
+			diagnostic => diagnostic.Message == "Argument cannot satisfy parameter lifetime 'escaped'.");
+	}
+
+	[Fact]
 	public void Escaped_interface_accessor_requires_an_escaped_receiver()
 	{
 		var compilation = SemanticCompiler.CompileLowered(Declarations);

@@ -1,9 +1,34 @@
 using System;
+using System.Collections.Generic;
 
 namespace Camp.Compiler;
 
 public sealed partial class BindableNodeAnalyzer
 {
+	readonly HashSet<(Expression Value, string TargetType)> failedEscapedTypeConversions = [];
+
+	Expression EscapedConversionSource(Expression value)
+	{
+		while (true)
+		{
+			if (expressionRewrites.TryGetValue(value, out Expression? rewritten) && !ReferenceEquals(value, rewritten))
+				value = rewritten;
+			else if (value is ParenthesizedExpression { Expression: not null } parenthesized)
+				value = parenthesized.Expression;
+			else
+				return value;
+		}
+	}
+
+	bool HasFailedEscapedTypeConversion(Expression? value, string targetType)
+	{
+		if (value is null)
+			return false;
+		value = EscapedConversionSource(value);
+		return failedEscapedTypeConversions.Contains((value, StripTopLevelValueQualifiers(targetType)))
+			|| value is CastExpression cast && HasFailedEscapedTypeConversion(cast.Expression, targetType);
+	}
+
 	bool IsEscapedType(string? type)
 	{
 		return !string.IsNullOrWhiteSpace(type) && TryParseTypeShape(type, out TypeShape shape) && shape.Kind == TypeShapeKind.Named
@@ -55,6 +80,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (fact is "null" or "default" || TryParseLifetimeFact(fact, out LifetimeFact lifetime) && lifetime.Kind == "escaped")
 			return;
 		Report(GetRange(syntax ?? value.SourceSyntax), $"Conversion from '{actual}' to '{expected}', a pointer to an escaped type, requires escaped source storage.");
+		failedEscapedTypeConversions.Add((EscapedConversionSource(value), StripTopLevelValueQualifiers(expected)));
 	}
 
 	string? GetEscapedConversionStorageFact(Expression expression)
