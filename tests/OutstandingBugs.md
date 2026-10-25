@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-367.
+Next bug number: BUG-368.
 
 ## Bug Template
 
@@ -229,3 +229,48 @@ Known Impact:
 Two errors are reported for a single mistake, and one of them points the author at the use instead of the
 conversion. A direct escaped-lifetime violation that involves no failed conversion, such as passing a
 non-escaped pointer for an `escaped T*` parameter, must still report the lifetime error.
+
+## BUG-367: A requires-gated type with an explicit constructor or destructor is rejected
+
+Date/Time: 2026-10-24 20:32 EDT
+
+Summary:
+A type declaration may carry a `requires` condition, and the members of a gated type are available exactly
+where the type is. When such a class or struct declares an explicit constructor or destructor, the compiler
+reports "requires is not valid on constructors or destructors" at the type's `requires` clause. That
+diagnostic is meant for a `requires` written on the constructor or destructor itself; here the condition is
+written once, on the type, and the constructor and destructor only inherit it. A gated type with no explicit
+constructor or destructor compiles.
+
+Steps to Reproduce:
+
+1. Compile the following program with `-d FEATURE=true`:
+
+   ```camp
+   requires (FEATURE) class Value
+   {
+   	int value;
+   	Value(int initial) { this.value = initial; }
+   }
+   export int main() { return 0; }
+   ```
+
+2. Repeat with `requires (FEATURE) struct Value { int value; Value(int initial) { this.value = initial; } }`,
+   with `~Value() {}` in place of the constructor, and with `-d FEATURE=false`.
+
+Expected:
+Every program compiles. The constructor and destructor are available where the type is.
+
+Actual:
+Each program fails at the `requires` clause of the type:
+
+```text
+error: requires is not valid on constructors or destructors.
+```
+
+The same class without the constructor (`requires (FEATURE) class Value { int value; }`) compiles.
+
+Known Impact:
+A requirement-gated type cannot declare a constructor or destructor, so gated types cannot be constructed
+with arguments or have custom cleanup. Workaround: gate the file with a file-wide `requires (CONDITION);`
+or keep the constructor out of the gated type.
