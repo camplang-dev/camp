@@ -613,15 +613,53 @@ public sealed partial class BindableNodeAnalyzer
 			&& sourceDefinition is InterfaceDefinition sourceInterface
 			&& InterfaceContainsBase(sourceInterface, targetInterface))
 		{
-			return new CastExpression
-			{
-				Type = PointerTo(PointerTo(InterfaceType(targetInterface))),
-				Kind = CastKind.Type,
-				Expression = value,
-				ResolvedType = $"{InterfaceResolvedName(targetInterface)}**"
-			};
+			return ProjectInterfaceInstance(value, sourceInterface, targetInterface);
 		}
 
+		return value;
+	}
+
+	Expression ProjectInterfaceInstance(Expression value, InterfaceDefinition source, InterfaceDefinition target)
+	{
+		if (ReferenceEquals(source, target))
+			return value;
+		foreach (TypeReference baseType in source.BaseTypes)
+		{
+			if (!TryGetInterfaceDefinition(baseType, out InterfaceDefinition? direct) || direct is null || !InterfaceContainsBase(direct, target))
+				continue;
+			string sourceType = $"{InterfaceResolvedName(source)}**";
+			if (currentStatementPrefix is not null)
+			{
+				DeclarationStatement local = CreateGeneratedLocal(NewGeneratedLocalName("iface_base"), sourceType, TypeReferenceForResolvedName(sourceType), value);
+				currentStatementPrefix.Add(local);
+				value = CreateVariableReference(local.Target, sourceType);
+			}
+			string targetType = $"{InterfaceResolvedName(direct)}**";
+			Expression projected = new ConditionalExpression
+			{
+				Condition = new BinaryExpression
+				{
+					Left = value, Operator = BinaryOperator.NotEqual,
+					Right = new LiteralExpression { Kind = LiteralKind.Null, Text = "null", ResolvedType = sourceType }, ResolvedType = "bool"
+				},
+				WhenTrue = new CastExpression
+				{
+					Kind = CastKind.Type, Type = TypeReferenceForResolvedName(targetType), ResolvedType = targetType,
+					Expression = new BinaryExpression
+					{
+						Left = new CastExpression { Kind = CastKind.Type, Type = TypeReferenceForResolvedName("byte*"), Expression = value, ResolvedType = "byte*" },
+						Operator = BinaryOperator.Add,
+						Right = new MemberReferenceExpression
+						{
+							Target = new UnaryExpression { Operator = UnaryOperator.PointerDereference, Operand = value, ResolvedType = $"const {InterfaceResolvedName(source)}*" },
+							Name = InterfaceBaseOffsetName(direct), ResolvedType = "nint"
+						}, ResolvedType = "byte*"
+					}
+				},
+				WhenFalse = new LiteralExpression { Kind = LiteralKind.Null, Text = "null", ResolvedType = targetType }, ResolvedType = targetType
+			};
+			return ProjectInterfaceInstance(projected, direct, target);
+		}
 		return value;
 	}
 
@@ -804,6 +842,9 @@ public sealed partial class BindableNodeAnalyzer
 					Operator = AssignmentOperator.Assign, Value = ownerReference, ResolvedType = pointerType
 				}
 			});
+			foreach (TypeReference baseType in targetInterface.BaseTypes)
+				if (TryGetInterfaceDefinition(baseType, out InterfaceDefinition? baseInterface) && baseInterface is not null)
+					CreateStructInterfaceConversion(ownerReference, structDefinition, baseInterface, lowering, StructInterfaceConversionSource.Pointer);
 			return new CastExpression
 			{
 				Kind = CastKind.Type, Type = PointerTo(PointerTo(InterfaceType(targetInterface))),
@@ -847,6 +888,7 @@ public sealed partial class BindableNodeAnalyzer
 				ResolvedType = $"{structDefinition.Name}*"
 			}
 		});
+		InitializeStructBaseCarriers(localReference, targetInterface, structDefinition, lowering);
 
 			UnaryExpression addressOfVTable = new()
 			{
@@ -862,6 +904,25 @@ public sealed partial class BindableNodeAnalyzer
 				ResolvedType = $"{InterfaceResolvedName(targetInterface)}**"
 			};
 		}
+
+	void InitializeStructBaseCarriers(Expression carrier, InterfaceDefinition source, StructDefinition implementation, InterfaceImplementationLowering lowering)
+	{
+		foreach (TypeReference baseType in source.BaseTypes)
+		{
+			if (!TryGetInterfaceDefinition(baseType, out InterfaceDefinition? direct) || direct is null)
+				continue;
+			string type = $"{InterfaceIndirectName(direct)}<{implementation.Name}>";
+			Expression child = CreateInterfaceIndirectMember(carrier, InterfaceBaseCarrierName(direct), type);
+			Assign(CreateInterfaceIndirectMember(child, "_vt", $"const {InterfaceResolvedName(direct)}*"), CreateStructObjectInterfaceVTableReference(lowering, direct));
+			Assign(CreateInterfaceIndirectMember(child, "ctx", implementation.Name + "*"), CreateInterfaceIndirectMember(carrier, "ctx", implementation.Name + "*"));
+			InitializeStructBaseCarriers(child, direct, implementation, lowering);
+		}
+
+		void Assign(Expression target, Expression value) => currentStatementPrefix!.Add(new ExpressionStatement
+		{
+			Expression = new AssignmentExpression { Target = target, Operator = AssignmentOperator.Assign, Value = value, ResolvedType = target.ResolvedType }, ResolvedType = "void"
+		});
+	}
 
 	static MemberReferenceExpression CreateInterfaceIndirectMember(Expression target, string name, string type)
 	{

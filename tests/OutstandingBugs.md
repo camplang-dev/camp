@@ -44,29 +44,6 @@ Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
 
-## BUG-371: A call through an interface with two base interfaces dispatches the second base's slots to the first base
-
-Date/Time: 2026-10-25 14:10 PDT
-
-Summary:
-An interface that inherits from two interfaces gets a slot table in which the members of the second base are bound to the members of the first. Calling a second-base member through a pointer to the derived interface runs the first base's implementation. Converting that pointer to the second base and calling through the result is wrong in the same way. Converting the implementing value directly to the second base gives the correct result. The behavior is the same for a struct and for a class, and when the two bases share a common base of their own.
-
-Steps to Reproduce:
-
-1. Declare `interface Left { int left(); }`, `interface Right { int right(); }` and `interface Both: Left, Right { int both(); }`.
-2. Declare a struct implementing `Both` whose `left()` returns 10, `right()` returns 20 and `both()` returns 30, each marked with its declaring interface.
-3. Convert a local of that struct to `Both*` and log the results of `left()`, `right()` and `both()` through that pointer.
-4. Repeat with a sealed class in place of the struct.
-
-Expected:
-The calls return 10, 20 and 30.
-
-Actual:
-The calls return 10, 10 and 30. `right()` runs the implementation of `left()`. A `Right*` obtained from the `Both*` returns 10 from `right()`, while a `Right*` converted directly from the struct returns 20.
-
-Known Impact:
-Any interface with more than one base interface silently runs the wrong method for the second and later bases, with no diagnostic.
-
 ## BUG-372: A static method used as an interface slot default fails to compile
 
 Date/Time: 2026-10-25 14:10 PDT

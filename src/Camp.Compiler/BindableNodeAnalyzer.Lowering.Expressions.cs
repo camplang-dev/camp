@@ -71,7 +71,12 @@ public sealed partial class BindableNodeAnalyzer
 			case CastExpression cast:
 				cast.Expression = LowerExpression(cast.Expression);
 				if (IsInterfacePointerType(cast.Type) && !IsInterfaceFieldAddressCast(cast))
-					return LowerInterfaceConversion(cast.Type, cast.Expression) ?? cast;
+				{
+					Expression? converted = LowerInterfaceConversion(cast.Type, cast.Expression);
+					// A raw carrier-address cast still supplies its C pointer type when
+					// there is no semantic interface conversion to perform.
+					return ReferenceEquals(converted, cast.Expression) && converted?.ResolvedType != cast.ResolvedType ? cast : converted ?? cast;
+				}
 				break;
 
 			case StackAllocExpression stackAlloc:

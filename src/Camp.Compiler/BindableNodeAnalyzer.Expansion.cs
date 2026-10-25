@@ -500,10 +500,13 @@ public sealed partial class BindableNodeAnalyzer
 		List<InterfaceImplementationLowering> implementations = [];
 		int interfaceIndex = classDefinition.Fields.Count > 0 && classDefinition.Fields[0].Name == VirtualTableFieldName ? 1 : 0;
 		HashSet<InterfaceDefinition> declaredInterfaces = [];
-		foreach (TypeReference baseType in classDefinition.BaseTypes)
+		foreach (InterfaceDefinition interfaceDefinition in classDefinition.BaseTypes
+			.Select(baseType => TryGetDirectInterface(baseType, interfaces, out InterfaceDefinition? direct) ? direct : null)
+			.Where(static direct => direct is not null)
+			.SelectMany(direct => GetInterfaceAndBaseInterfaces(direct!, interfaces)))
 		{
 			// A second construction of one interface is diagnosed in analysis and has no table of its own.
-			if (!TryGetDirectInterface(baseType, interfaces, out InterfaceDefinition? interfaceDefinition) || interfaceDefinition is null || !declaredInterfaces.Add(interfaceDefinition))
+			if (!declaredInterfaces.Add(interfaceDefinition))
 				continue;
 
 			if (classDefinition.Extern is not null)
@@ -777,7 +780,7 @@ public sealed partial class BindableNodeAnalyzer
 			GenerateInterfaceThunks(module, lowering, interfaceDefinition, interfaces);
 			foreach (InterfaceDefinition entryInterface in GetInterfaceAndBaseInterfaces(interfaceDefinition, interfaces))
 			{
-				if (!entryInterface.IsEscaped || escapedStructInterfaceCarriers.ContainsKey((structDefinition, entryInterface)))
+				if (!(interfaceDefinition.IsEscaped || entryInterface.IsEscaped) || escapedStructInterfaceCarriers.ContainsKey((structDefinition, entryInterface)))
 					continue;
 				FieldDefinition carrierVTable = generatedDeclarations.Field(GeneratedDeclarationCategory.Interface, "escaped interface carrier", structDefinition);
 				carrierVTable.Name = carrierVTable.Symbol = InterfaceFieldName(entryInterface);
@@ -876,6 +879,11 @@ public sealed partial class BindableNodeAnalyzer
 			member.EffectiveRequirement);
 		thunk.Name = InterfaceThunkName(lowering.Type, entryInterface, member);
 		thunk.Symbol = InterfaceThunkName(lowering.Type, entryInterface, member);
+		if (!lowering.IsStruct && !ReferenceEquals(lowering.Interface, entryInterface))
+		{
+			thunk.Name += "__via_" + lowering.Interface.Name;
+			thunk.Symbol += "__via_" + lowering.Interface.Name;
+		}
 		if (lowering.IsStruct)
 		{
 			thunk.Export = lowering.Type.Export is not null && entryInterface.Export is not null ? "export" : null;
@@ -1285,6 +1293,13 @@ public sealed partial class BindableNodeAnalyzer
 
 		foreach (FunctionDefinition member in SelectedInterfaceMembers(definition))
 			lowered.Fields.Add(CreateInterfaceVTableEntryField(definition, member));
+		foreach (TypeReference baseType in definition.BaseTypes)
+			if (TryGetInterfaceDefinition(baseType, out InterfaceDefinition? baseInterface) && baseInterface is not null)
+				lowered.Fields.Add(new FieldDefinition
+				{
+					Name = InterfaceBaseOffsetName(baseInterface), Symbol = InterfaceBaseOffsetName(baseInterface),
+					Type = TypeReferenceForResolvedName("nint"), ResolvedType = "nint"
+				});
 
 		loweredInterfaceStructs[definition] = lowered;
 		return lowered;
@@ -1326,6 +1341,19 @@ public sealed partial class BindableNodeAnalyzer
 			Type = PointerTo(new GenericParameterTypeReference { Name = generic.Name, Parameter = generic, ResolvedType = generic.Name }),
 			ResolvedType = $"{generic.Name}*"
 		});
+		foreach (TypeReference baseType in interfaceDefinition.BaseTypes)
+			if (TryGetInterfaceDefinition(baseType, out InterfaceDefinition? baseInterface) && baseInterface is not null)
+			{
+				StructDefinition baseIndirect = EnsureInterfaceIndirectStruct(module, baseInterface);
+				string baseCarrier = $"{InterfaceIndirectName(baseInterface)}<U>";
+				TypeDefinitionReference carrierType = new() { Name = baseIndirect.Name, Definition = baseIndirect, ResolvedType = baseCarrier };
+				carrierType.TypeArguments.Add(new GenericParameterTypeReference { Name = generic.Name, Parameter = generic, ResolvedType = generic.Name });
+				indirect.Fields.Add(new FieldDefinition
+				{
+					Name = InterfaceBaseCarrierName(baseInterface), Symbol = InterfaceBaseCarrierName(baseInterface),
+					Type = carrierType, ResolvedType = baseCarrier
+				});
+			}
 
 		interfaceIndirectStructs[interfaceDefinition] = indirect;
 		module.Definitions.Add(indirect);
@@ -1396,7 +1424,46 @@ public sealed partial class BindableNodeAnalyzer
 				ResolvedType = BuildInterfaceEntryCallableType(interfaceDefinition, member)
 			});
 		}
+		foreach (TypeReference baseType in interfaceDefinition.BaseTypes)
+			if (TryGetInterfaceDefinition(baseType, out InterfaceDefinition? baseInterface) && baseInterface is not null)
+				initializer.Items.Add(new InitializerItem
+				{
+					Target = InitializerTargetFor(InterfaceBaseOffsetName(baseInterface)), ResolvedType = "nint",
+					Expression = CreateInterfaceBaseOffset(lowering, interfaceDefinition, baseInterface)
+				});
 		return initializer;
+	}
+
+	static string InterfaceBaseOffsetName(InterfaceDefinition definition) => "__offset_" + definition.Name;
+	static string InterfaceBaseCarrierName(InterfaceDefinition definition) => "__base_" + definition.Name;
+
+	Expression InterfaceCarrierOffset(TypeReference type, string field)
+	{
+		CallExpression offset = new()
+		{
+			Target = new NamedExpression { Name = "offsetof", ResolvedType = "fn nuint()" }, ResolvedType = "nuint"
+		};
+		offset.Arguments.Add(new ArgumentExpression
+		{
+			Value = new MemberExpression
+			{
+				Target = new TypeReferenceExpression { Type = type, ResolvedType = type.ResolvedType },
+				Name = field, ResolvedType = "nuint"
+			}, ResolvedType = "nuint"
+		});
+		return new CastExpression { Kind = CastKind.Type, Type = TypeReferenceForResolvedName("nint"), Expression = offset, ResolvedType = "nint" };
+	}
+
+	Expression CreateInterfaceBaseOffset(InterfaceImplementationLowering lowering, InterfaceDefinition source, InterfaceDefinition target)
+	{
+		if (!lowering.IsStruct || escapedStructInterfaceCarriers.ContainsKey(((StructDefinition)lowering.Type, source)))
+			return new BinaryExpression
+			{
+				Left = InterfaceCarrierOffset(InterfaceType(lowering.Type), InterfaceFieldName(target)),
+				Operator = BinaryOperator.Subtract,
+				Right = InterfaceCarrierOffset(InterfaceType(lowering.Type), InterfaceFieldName(source)), ResolvedType = "nint"
+			};
+		return InterfaceCarrierOffset(InterfaceIndirectType(source, lowering.Type), InterfaceBaseCarrierName(target));
 	}
 
 	Expression CreateInterfaceVTableEntryReference(InterfaceImplementationLowering lowering, InterfaceDefinition interfaceDefinition, FunctionDefinition member, bool directEntries)

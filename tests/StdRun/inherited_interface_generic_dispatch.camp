@@ -84,4 +84,94 @@ export void main()
 	Console.writeLine(birdRoot.twice(1));
 	IRootPet birdTable = *birdRoot;
 	Console.writeLine(birdTable.twice(birdRoot, 1));
+	ManyValue value = default;
+	Many* valueView = &value;
+	checkMany(valueView);
+	Console.writeLine(manyGeneric<ManyValue>(&value));
+	auto object = new ManyObject() finally delete;
+	Many* objectView = object;
+	checkMany(objectView);
+	Console.writeLine(manyGeneric<ManyObject>(object));
+	ManyRight* directRight = object;
+	Console.writeLine(directRight.right());
+	Many* absent = null;
+	ManyRight* absentRight = absent;
+	Console.writeLine(absentRight == null);
+	auto retained = new EscapedManyValue() finally delete;
+	EscapedMany* retainedView = retained;
+	Console.writeLine(retainedRight(retainedView).right());
+	auto retainedObject = new EscapedManyObject() finally delete;
+	EscapedMany* retainedObjectView = retainedObject;
+	Console.writeLine(retainedRight(retainedObjectView).right());
 }
+
+interface ManyCommon { int common(); }
+interface ManyLeft: ManyCommon { int left(); }
+interface ManyRight: ManyCommon
+{
+	int right();
+	int twiceRight() = twiceRight;
+}
+interface ManyThird { int third(); }
+interface Many: ManyLeft, ManyRight, ManyThird { int own(); }
+
+int twiceRight(ManyRight* value) { return value.right() * 2; }
+
+struct ManyValue: Many
+{
+	int common(): ManyCommon { return 1; }
+	int left(): ManyLeft { return 10; }
+	int right(): ManyRight { return 20; }
+	int third(): ManyThird { return 25; }
+	int own(): Many { return 30; }
+}
+
+sealed class ManyObject: Many
+{
+	int padding;
+	int common(): ManyCommon { return 1; }
+	int left(): ManyLeft { return 10; }
+	int right(): ManyRight { return 20; }
+	int third(): ManyThird { return 25; }
+	int own(): Many { return 30; }
+}
+
+Many* onceView(Many* value, int* count)
+{
+	*count += 1;
+	return value;
+}
+
+void checkMany(Many* value)
+{
+	Console.writeLine(value.left());
+	Console.writeLine(value.right());
+	Console.writeLine(value.third());
+	Console.writeLine(value.own());
+	ManyRight* right = value;
+	Console.writeLine(right.common());
+	Console.writeLine(right.right());
+	Console.writeLine(value.twiceRight());
+	delegate int() saved = value.right;
+	Console.writeLine(saved());
+	int count = 0;
+	Console.writeLine(onceView(value, &count).right());
+	Console.writeLine(count);
+}
+
+int manyGeneric<T>(T* value, vtableof(T: Many)) { return value.twiceRight(); }
+
+escaped interface EscapedLeft { int left(); }
+escaped interface EscapedRight { int right(); }
+escaped interface EscapedMany: EscapedLeft, EscapedRight { }
+struct EscapedManyValue: EscapedMany
+{
+	int left(): EscapedLeft { return 10; }
+	int right(): EscapedRight { return 20; }
+}
+escaped class EscapedManyObject: EscapedMany
+{
+	int left(): EscapedLeft { return 10; }
+	int right(): EscapedRight { return 20; }
+}
+EscapedRight* retainedRight(EscapedMany* value) { return value; }

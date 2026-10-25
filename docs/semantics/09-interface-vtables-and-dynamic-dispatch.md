@@ -333,6 +333,16 @@ contract is inherited through multiple paths. A struct carrier for a base
 interface uses the base's indirect context shape, even when the struct declares
 conformance through a derived interface.
 
+After the declared slots, each derived table carries one signed carrier offset
+per direct base, in base declaration order. Instance widening adds that offset
+to the source carrier address; it does not reinterpret every base as a prefix.
+Class objects contain a carrier for every implemented interface. Scoped struct
+carriers contain nested base carriers, while escaped struct base carriers stay
+in the implementing object. These views retain the source lifetime and concrete
+receiver. A null instance widens to null, and the source is evaluated once.
+Witness-table projection continues to select the nested base table directly;
+it does not use instance carrier offsets.
+
 Interface-to-interface widening is an ordinary implicit conversion when the
 target is an exact base interface and the compiler can perform the required
 carrier conversion. Narrowing or side-casting follows the raw/interface cast
