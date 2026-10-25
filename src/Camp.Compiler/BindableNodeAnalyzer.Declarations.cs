@@ -1636,6 +1636,10 @@ public sealed partial class BindableNodeAnalyzer
 		foreach (ParameterDefinition parameter in definition.Parameters)
 			if (ContainsThisTypeReference(parameter.Type))
 				Report(GetRange(parameter.Type?.SourceSyntax ?? parameter.SourceSyntax), "'this' may be used only as a plain method return type.");
+		if (definition.Modifier == FunctionModifier.Constructor)
+			foreach (ParameterDefinition parameter in definition.Parameters)
+				if (parameter.Modifier == ParameterModifier.Thrown)
+					Report(GetRange(parameter.SourceSyntax ?? definition.SourceSyntax), "A constructor cannot declare a thrown error parameter.");
 		AnalyzeOverloadDeclaration(definition, containingType);
 		ValidateAsyncFunctionParameters(definition);
 		ValidateAwaitWithParameters(definition);

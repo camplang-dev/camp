@@ -413,7 +413,9 @@ class Buffer
 
 A constructor establishes the invariants that the type's methods and destructor
 rely on. It can take ordinary parameters, `within` allocation context
-parameters, generic capabilities, and `thrown` error slots.
+parameters, and generic capabilities. A constructor cannot declare a `thrown`
+error parameter. Put fallible work in an ordinary function or method before
+construction, or expose a factory function that reports the failure.
 
 For an ordinary local variable, a constructor-shaped call constructs into the
 local's storage:

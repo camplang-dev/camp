@@ -34,6 +34,10 @@ Constructor binding resolves the target type, overloads, receiver/storage
 target, generic substitutions, and initializer arguments. Constructors may be
 generated or user-defined.
 
+Constructors cannot declare `thrown` parameters, including struct, class,
+interface and extern constructors. Diagnose the parameter at declaration time;
+generated create/init helpers cannot make a throwing source constructor valid.
+
 Construction analysis must decide:
 
 - source construction kind: selected destination construction, `stackalloc`,

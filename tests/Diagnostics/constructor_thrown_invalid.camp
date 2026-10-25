@@ -1,0 +1,6 @@
+class Allocator { }
+class Item { Item(thrown int error) { } }
+struct Pair { int x; Pair(thrown int error) { this.x = 0; } }
+export class Exported { export Exported(thrown int error) { } }
+interface IMade { IMade(thrown int error, within allocator); }
+extern class Native { extern Native(thrown int error); }
