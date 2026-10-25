@@ -399,6 +399,33 @@ public sealed partial class CompilerDriverOptionTests
 		Assert.Contains("requires is not valid on constructors or destructors", result.StdErr, StringComparison.Ordinal);
 	}
 
+	[Theory]
+	[InlineData("class", true)]
+	[InlineData("class", false)]
+	[InlineData("struct", true)]
+	[InlineData("struct", false)]
+	public void Type_requirements_are_inherited_by_explicit_lifecycle_methods(string kind, bool enabled)
+	{
+		string source = CreateTempCase($"requirement_lifecycle_{kind}_{enabled}.camp", $$"""
+			extern escaped void* malloc(nuint size);
+			extern void free(void* memory);
+			requires (FEATURE) {{kind}} Value
+			{
+				int value;
+				Value(int initial) { this.value = initial; }
+				~Value() { }
+			}
+			export int main() { return 0; }
+			""");
+		CompilerResult result = Execute(source, request =>
+		{
+			request.NoStdLib = true;
+			request.ConfigurationFlagDeclarations.Add("FEATURE=" + (enabled ? "true" : "false"));
+			request.Inspect = CompilerInspectMode.Lowering;
+		});
+		Assert.True(result.ExitCode == 0, result.StdErr);
+	}
+
 	[Fact]
 	public void Requirements_and_namespace_blocks_can_wrap_each_other_without_enabling_nested_namespaces()
 	{

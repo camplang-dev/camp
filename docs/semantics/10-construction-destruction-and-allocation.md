@@ -28,6 +28,10 @@ Constructors and destructors should not participate in ordinary callable
 ascription unless the language rule explicitly says they can. Their source
 signature identity is not the same as an ordinary named method.
 
+Lifecycle methods inherit the containing type's configuration requirement.
+They may be declared on a `requires`-gated type; a `requires` clause written
+directly on a constructor or destructor remains invalid.
+
 ## Constructor Binding
 
 Constructor binding resolves the target type, overloads, receiver/storage

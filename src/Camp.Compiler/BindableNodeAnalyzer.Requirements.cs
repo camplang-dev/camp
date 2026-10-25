@@ -168,7 +168,7 @@ public sealed partial class BindableNodeAnalyzer
 			ValidateRequirementAttributePlacement(definition, topLevel: true, ownerKind: "");
 	}
 
-	void ValidateRequirementAttributePlacement(Definition definition, bool topLevel, string ownerKind)
+	void ValidateRequirementAttributePlacement(Definition definition, bool topLevel, string ownerKind, Definition? owner = null)
 	{
 		foreach (AttributeConstructor attribute in definition.Attributes)
 		{
@@ -179,6 +179,10 @@ public sealed partial class BindableNodeAnalyzer
 
 		foreach (SourceRequirement requirement in definition.SourceRequirements)
 		{
+			// The builder shares an enclosing source requirement with its members.
+			// Placement restrictions apply only to requirements authored on this member.
+			if (owner?.SourceRequirements.Contains(requirement) == true)
+				continue;
 			if (definition is ParameterDefinition)
 				Report(GetRange(requirement.SourceSyntax ?? definition.SourceSyntax), "requires is not valid on parameters.");
 			else if (definition is VariableDefinition && ownerKind == "enum")
@@ -192,47 +196,47 @@ public sealed partial class BindableNodeAnalyzer
 			case ClassDefinition classDefinition:
 				ValidateRequirementAttributes(classDefinition.GenericParameters);
 				foreach (FieldDefinition field in classDefinition.Fields)
-					ValidateRequirementAttributePlacement(field, topLevel: false, ownerKind: "class");
+					ValidateRequirementAttributePlacement(field, topLevel: false, ownerKind: "class", owner: definition);
 				foreach (FunctionDefinition function in classDefinition.Functions)
-					ValidateRequirementAttributePlacement(function, topLevel: false, ownerKind: "class");
+					ValidateRequirementAttributePlacement(function, topLevel: false, ownerKind: "class", owner: definition);
 				break;
 			case StructDefinition structDefinition:
 				ValidateRequirementAttributes(structDefinition.GenericParameters);
 				foreach (FieldDefinition field in structDefinition.Fields)
-					ValidateRequirementAttributePlacement(field, topLevel: false, ownerKind: "struct");
+					ValidateRequirementAttributePlacement(field, topLevel: false, ownerKind: "struct", owner: definition);
 				foreach (FunctionDefinition function in structDefinition.Functions)
-					ValidateRequirementAttributePlacement(function, topLevel: false, ownerKind: "struct");
+					ValidateRequirementAttributePlacement(function, topLevel: false, ownerKind: "struct", owner: definition);
 				break;
 			case InterfaceDefinition interfaceDefinition:
 				ValidateRequirementAttributes(interfaceDefinition.GenericParameters);
 				foreach (FunctionDefinition function in interfaceDefinition.Functions)
-					ValidateRequirementAttributePlacement(function, topLevel: false, ownerKind: "interface");
+					ValidateRequirementAttributePlacement(function, topLevel: false, ownerKind: "interface", owner: definition);
 				break;
 			case EnumDefinition enumDefinition:
 				foreach (VariableDefinition value in enumDefinition.Values)
-					ValidateRequirementAttributePlacement(value, topLevel: false, ownerKind: "enum");
+					ValidateRequirementAttributePlacement(value, topLevel: false, ownerKind: "enum", owner: definition);
 				foreach (FunctionDefinition function in enumDefinition.Functions)
-					ValidateRequirementAttributePlacement(function, topLevel: false, ownerKind: "enum");
+					ValidateRequirementAttributePlacement(function, topLevel: false, ownerKind: "enum", owner: definition);
 				break;
 			case NewtypeDefinition newtypeDefinition:
 				ValidateRequirementAttributes(newtypeDefinition.GenericParameters);
 				foreach (ParameterDefinition parameter in newtypeDefinition.Parameters)
-					ValidateRequirementAttributePlacement(parameter, topLevel: false, ownerKind: "newtype");
+					ValidateRequirementAttributePlacement(parameter, topLevel: false, ownerKind: "newtype", owner: definition);
 				foreach (FieldDefinition field in newtypeDefinition.Fields)
-					ValidateRequirementAttributePlacement(field, topLevel: false, ownerKind: "newtype");
+					ValidateRequirementAttributePlacement(field, topLevel: false, ownerKind: "newtype", owner: definition);
 				foreach (FunctionDefinition function in newtypeDefinition.Functions)
-					ValidateRequirementAttributePlacement(function, topLevel: false, ownerKind: "newtype");
+					ValidateRequirementAttributePlacement(function, topLevel: false, ownerKind: "newtype", owner: definition);
 				break;
 			case ParamsDefinition paramsDefinition:
 				foreach (ParameterDefinition component in paramsDefinition.Components)
-					ValidateRequirementAttributePlacement(component, topLevel: false, ownerKind: "params");
+					ValidateRequirementAttributePlacement(component, topLevel: false, ownerKind: "params", owner: definition);
 				foreach (FunctionDefinition function in paramsDefinition.Functions)
-					ValidateRequirementAttributePlacement(function, topLevel: false, ownerKind: "params");
+					ValidateRequirementAttributePlacement(function, topLevel: false, ownerKind: "params", owner: definition);
 				break;
 			case FunctionDefinition functionDefinition:
 				ValidateRequirementAttributes(functionDefinition.GenericParameters);
 				foreach (ParameterDefinition parameter in functionDefinition.Parameters)
-					ValidateRequirementAttributePlacement(parameter, topLevel: false, ownerKind: "function");
+					ValidateRequirementAttributePlacement(parameter, topLevel: false, ownerKind: "function", owner: definition);
 				break;
 		}
 	}
