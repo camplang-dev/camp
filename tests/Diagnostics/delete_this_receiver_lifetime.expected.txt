@@ -1,2 +1,5 @@
 tests/Diagnostics/delete_this_receiver_lifetime.camp(5,10): error: delete this requires an escaped receiver because a non-escaped receiver may refer to non-owned storage.
 tests/Diagnostics/delete_this_receiver_lifetime.camp(13,10): error: delete this requires an escaped receiver because a non-escaped receiver may refer to non-owned storage.
+tests/Diagnostics/delete_this_receiver_lifetime.camp(43,10): error: 'delete base' is not valid; base destructors run automatically after the derived destructor body.
+tests/Diagnostics/delete_this_receiver_lifetime.camp(44,11): error: 'delete base' is not valid; base destructors run automatically after the derived destructor body.
+tests/Diagnostics/delete_this_receiver_lifetime.camp(45,27): error: 'delete base' is not valid; base destructors run automatically after the derived destructor body.

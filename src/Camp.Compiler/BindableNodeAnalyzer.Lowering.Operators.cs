@@ -1018,9 +1018,6 @@ public sealed partial class BindableNodeAnalyzer
 
 	Expression RewriteDeleteExpression(Expression? expression, bool suppressDeallocate)
 	{
-		if (expression is NamedExpression { Qualifiers.Count: 0, Name: "base" } && CreateBaseDeleteCall() is Expression baseDelete)
-			return baseDelete;
-
 		if (expression is WithinExpression { Expression: not null } within)
 		{
 			bool defaultWithin = within.Context is DefaultWithinContextExpression;
@@ -1206,31 +1203,6 @@ public sealed partial class BindableNodeAnalyzer
 			if (IsDestructorFunction(function))
 				return function;
 		return null;
-	}
-
-	Expression? CreateBaseDeleteCall()
-	{
-		if (currentRewriteContainingType is not ClassDefinition classDefinition)
-			return null;
-		ClassDefinition? baseClass = GetDirectBaseClass(classDefinition);
-		if (baseClass is null)
-			return null;
-
-		FunctionDefinition? opDelete = FindVirtualImplementationByName(baseClass, DeleteMethodName) ?? FindDeleteMethod(baseClass.Name);
-		if (opDelete is null)
-			return null;
-
-		CallExpression call = new()
-		{
-			ResolvedType = "void",
-			Target = CreateMethodReference(opDelete, "void")
-		};
-		if (HasWithinParameter(opDelete))
-		{
-			Expression? allocator = CurrentAllocator();
-			call.Arguments.Add(new ArgumentExpression { Value = allocator ?? NullLiteral(opDelete.SourceSyntax), ResolvedType = allocator?.ResolvedType ?? "#NULL" });
-		}
-		return call;
 	}
 
 	Expression CreateAllocCall(TypeReference type, SyntaxNode? syntax)

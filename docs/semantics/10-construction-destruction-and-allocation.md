@@ -150,6 +150,9 @@ a nonvirtual call to the nearest base destructor implementation. Treat that call
 as an outer `finally`, so it also runs after an early `return` and after the
 body's own cleanup. Each implementation chains to its base in turn; these calls
 run destructor bodies only, with deallocation performed once by the delete path.
+`delete base` is not a language operation. Reject it at the `base` expression;
+parentheses or an allocation-context wrapper do not make it valid. Explicit
+base deletion would duplicate the automatic cleanup.
 
 An interface destructor slot may call
 the generated `destroy` helper, which runs `_op_delete` and then deallocates

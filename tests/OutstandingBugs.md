@@ -45,29 +45,6 @@ Known Impact:
 ```
 
 
-## BUG-383: delete base is accepted and emits invalid C
-
-Date/Time: 2026-10-26 14:20 EDT
-
-Summary:
-The expression `delete base;` is accepted in a class destructor. It is not described in the language or semantic documentation. The generated C calls the base destructor helper without the receiver argument, so the native build fails. Destructor chaining is performed automatically after the derived body, so `delete base;` is not part of the language and should be rejected.
-
-Steps to Reproduce:
-
-1. Declare `virtual class Root { Root() { } virtual ~Root() { log(1); } }`.
-2. Declare `sealed class Leaf: Root { Leaf() { } override ~Leaf() { log(3); delete base; } }`.
-3. In `main`, create a `Leaf` with `stackalloc` and delete it.
-4. Compile the program.
-
-Expected:
-The compiler reports a diagnostic at `base` in `delete base;` saying it is not valid. The base destructor already runs automatically.
-
-Actual:
-Semantic analysis accepts the program and the native build fails with `too few arguments to function call, single argument 'this' was not specified` for the generated call `Root__op_delete();`.
-
-Known Impact:
-An undocumented form compiles to broken C instead of being rejected, and it would conflict with automatic destructor chaining if it were fixed.
-
 ## BUG-384: The semantic documentation does not define destructor chaining, sealing or the boundary call
 
 Date/Time: 2026-10-26 14:20 EDT

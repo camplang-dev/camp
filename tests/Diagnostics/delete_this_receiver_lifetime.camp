@@ -34,3 +34,16 @@ export int main()
 {
 	return 0;
 }
+
+virtual class ManualDeleteRoot { virtual ~ManualDeleteRoot() { } }
+sealed class ManualDeleteLeaf: ManualDeleteRoot
+{
+	override ~ManualDeleteLeaf()
+	{
+		delete base;
+		delete (base);
+		within (default) delete base;
+	}
+}
+
+extern void free(void* ptr);

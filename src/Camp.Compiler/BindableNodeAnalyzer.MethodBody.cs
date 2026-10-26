@@ -527,7 +527,7 @@ public sealed partial class BindableNodeAnalyzer
 				if (IsDeleteContextExpression(deleteStatement.Expression))
 					Report(GetRange(deleteStatement.Expression?.SourceSyntax ?? deleteStatement.SourceSyntax), "Escaped delegate cleanup uses 'delete delegate'; 'delete context' is no longer valid.");
 				if (IsBaseDeleteExpression(deleteStatement.Expression))
-					AnalyzeBaseDeleteExpression(deleteStatement.Expression, scope);
+					AnalyzeBaseDeleteExpression(deleteStatement.Expression);
 				else
 				{
 					string deleteType = BodyAnalyzeExpression(deleteStatement.Expression, scope, typeScope);
@@ -799,26 +799,22 @@ public sealed partial class BindableNodeAnalyzer
 
 	static bool IsBaseDeleteExpression(Expression? expression)
 	{
-		return expression is NamedExpression { Qualifiers.Count: 0, Name: "base" };
+		return BaseDeleteOperand(expression) is not null;
 	}
 
-	void AnalyzeBaseDeleteExpression(Expression? expression, BodyScope scope)
+	static NamedExpression? BaseDeleteOperand(Expression? expression) => expression switch
 	{
-		if (scope.ContainingType is not ClassDefinition containingClass)
-		{
-			Report(GetRange(expression?.SourceSyntax), "delete base is valid only in a class method.");
-			return;
-		}
+		NamedExpression { Qualifiers.Count: 0, Name: "base" } named => named,
+		ParenthesizedExpression parenthesized => BaseDeleteOperand(parenthesized.Expression),
+		WithinExpression within => BaseDeleteOperand(within.Expression),
+		_ => null
+	};
 
-		ClassDefinition? baseClass = GetDirectBaseClass(containingClass);
-		if (baseClass is null)
-		{
-			Report(GetRange(expression?.SourceSyntax), $"Class '{containingClass.Name}' does not have a base class.");
-			return;
-		}
-
+	void AnalyzeBaseDeleteExpression(Expression? expression)
+	{
+		Report(GetRange(BaseDeleteOperand(expression)?.SourceSyntax ?? expression?.SourceSyntax), "'delete base' is not valid; base destructors run automatically after the derived destructor body.");
 		if (expression is not null)
-			expression.ResolvedType = baseClass.Name;
+			expression.ResolvedType = ErrorType;
 	}
 
 	CastExpression? FindPendingErasedCast(Expression? value)
@@ -2967,6 +2963,11 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (finallyCleanup.Kind == FinallyCleanupKind.Delete)
 		{
+			if (IsBaseDeleteExpression(finallyCleanup.Expression))
+			{
+				AnalyzeBaseDeleteExpression(finallyCleanup.Expression);
+				return ErrorType;
+			}
 			string deleteExpressionType = BodyAnalyzeExpression(finallyCleanup.Expression, scope, typeScope, targetType);
 			if (finallyCleanup.Expression is not WithinExpression { Expression: not null })
 				RequireExplicitWithinForDelete(finallyCleanup.Expression, deleteExpressionType, scope, "finally delete requires an explicit within context for pointer deletion; use within(allocator) or within(default).");
