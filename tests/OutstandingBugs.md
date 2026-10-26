@@ -45,23 +45,3 @@ Known Impact:
 ```
 
 
-## BUG-384: The semantic documentation does not define destructor chaining, sealing or the boundary call
-
-Date/Time: 2026-10-26 14:20 EDT
-
-Summary:
-The documentation for destructors says only that lowering must preserve base destruction order, and that virtual hierarchies need a root destructor slot. It does not state when a base destructor runs, which classes may declare a destructor, that a destructor can be sealed, or how callers in other modules delete an object. These rules are intended: only the ultimate base class introduces a destructor; if it is not virtual, no derived class may declare one; if it is virtual, derived classes override it and the base destructor is called automatically (non-virtually) after the derived body, also when the body exits early; a destructor may be `sealed`; destructor implementations are not visible across a module or artifact boundary, and a caller outside the module deletes through the generated `destroy` helper, whether it dispatches virtually or not being an implementation detail; in-module `delete` calls the destructor entry point inline and then frees.
-
-Steps to Reproduce:
-
-1. Read the Destructors section of the construction and destruction semantic document, and the Virtual Class Dispatch section of the interface and dispatch semantic document.
-2. Look for the chaining order, the declaring-class rules, `sealed` destructors and the cross-module deletion call.
-
-Expected:
-The semantic documents describe the rules above, matching the compiler, and the language guide's class lifetime chapter mentions that a base destructor runs after a derived one.
-
-Actual:
-The rules are absent. The only related statement is that destructor lowering must preserve base destruction order, which does not say whether base destructors run.
-
-Known Impact:
-A reader of the documents cannot tell what a derived destructor does with its base, so independent implementations cannot be checked against the intended behavior.

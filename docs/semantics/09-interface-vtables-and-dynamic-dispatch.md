@@ -518,9 +518,22 @@ redeclaring them. A concrete descendant must supply the remaining implementation
 An override or sealed implementation inherited from a nearer base satisfies an
 older abstract declaration; do not require each descendant to repeat it.
 
-The validator enforces destructor rules for
-virtual hierarchies so a derived destructor cannot introduce a destroy path that
-the root vtable cannot represent.
+Only the ultimate base class introduces the destructor contract. A nonvirtual
+root destructor cannot be redeclared in a derived class. With a virtual or
+abstract root destructor slot, derived destructors use `override` or `sealed`;
+a sealed destructor closes the slot to further overrides. A derived body
+automatically calls the nearest base destructor implementation nonvirtually
+after its own cleanup, including on an early `return`. Each implementation
+continues the chain, so `delete base` is invalid.
+
+Destructor implementations remain inside their defining module or artifact.
+Deletion across that boundary calls the generated `destroy` helper, whose
+dispatch mechanism is an implementation detail. In-module `delete` emits the
+destructor entry-point call and then frees owned storage at the delete site.
+Neither automatic base chaining nor dispatch may deallocate the same instance
+again. See [Destructors](10-construction-destruction-and-allocation.md#destructors)
+for ownership and cleanup ordering, and the shadow-class supplement for its
+separate lifecycle rules.
 
 Do not conflate virtual class vtables with interface implementation vtables.
 Interface vtables describe a nominal interface contract. Virtual class vtables

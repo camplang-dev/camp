@@ -520,6 +520,14 @@ A destructor should release only resources the instance owns. If a field is a
 borrowed pointer or borrowed array view, the destructor should not free it just
 because it has access to the address.
 
+For ordinary class inheritance, the ultimate base class establishes the
+destructor contract. Derived classes may declare destructors only when that
+contract is virtual, using `override` or `sealed`. A sealed destructor cannot
+be overridden further. After a derived destructor body and its cleanup finish,
+the base destructor runs automatically, even if the derived body returns early.
+The chain runs from derived to base before the allocation is freed. Do not
+write `delete base`; automatic chaining handles base cleanup.
+
 `delete` runs destruction and, for pointer-owned storage, frees the allocation
 through the matching allocation context:
 

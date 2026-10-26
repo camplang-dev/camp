@@ -154,10 +154,20 @@ run destructor bodies only, with deallocation performed once by the delete path.
 parentheses or an allocation-context wrapper do not make it valid. Explicit
 base deletion would duplicate the automatic cleanup.
 
-An interface destructor slot may call
-the generated `destroy` helper, which runs `_op_delete` and then deallocates
-owned storage through the selected or retained allocator. Ordinary `delete`
-uses its own ownership path; neither path may free the same instance twice.
+Destructor implementations are private to their defining module or artifact.
+An imported destructor declaration describes the lifecycle contract; it does
+not expose the implementation as a callable boundary symbol. A caller outside
+that boundary deletes through the generated `destroy` helper. The helper runs
+the appropriate destructor and then releases owned storage through the selected
+or retained allocator. Whether it uses virtual dispatch is an implementation
+detail of the defining module.
+
+Within the defining module, `delete` lowers inline to a call to the destructor
+entry point followed by deallocation when the operand owns its allocation.
+Here, inline describes the delete sequence at the call site, not a requirement
+to inline the destructor body. An interface destructor slot also uses
+`destroy`. Each path must run the destructor chain and release owned storage
+exactly once; stack-backed storage is destroyed without being freed.
 
 ## Base Initialization
 
