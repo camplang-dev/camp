@@ -188,6 +188,9 @@ public sealed partial class BindableNodeAnalyzer
 		foreach (InterfaceDefinition interfaceDefinition in GetDeclaredInterfaceImplementations(definition))
 			EnsureInterfaceImplemented(definition, interfaceDefinition);
 
+		if (definition.Modifier == ClassModifier.Abstract)
+			return;
+
 		foreach (FunctionDefinition abstractMethod in GetInheritedAbstractMethods(definition))
 		{
 			if (abstractMethod.Name == DeleteMethodName && HasInheritedAbstractDestructorSlot(definition))

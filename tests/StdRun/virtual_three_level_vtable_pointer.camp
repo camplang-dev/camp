@@ -46,6 +46,9 @@ export sealed class Form: Control
 
 export int main()
 {
+	auto square = stackalloc Square();
+	Shape* shape = square;
+	if (shape.area() != 7) return 1;
 	Form* form = new Form();
 	Component* component = (Component*)form;
 	Control* control = (Control*)form;
@@ -53,3 +56,7 @@ export int main()
 	delete component;
 	return result == 60 ? 0 : result;
 }
+
+abstract class Shape { abstract int area(); }
+abstract class Half: Shape { }
+sealed class Square: Half { override int area() { return 7; } }

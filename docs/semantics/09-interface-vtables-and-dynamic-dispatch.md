@@ -504,6 +504,8 @@ inherited virtual or abstract slot.
 Sealing a method closes that slot to later overrides or sealing declarations,
 including through intermediate classes that do not redeclare it. Resolve the
 closest inherited declaration before considering the original virtual slot.
+An abstract intermediate class may defer inherited abstract slots without
+redeclaring them. A concrete descendant must supply the remaining implementations.
 
 The validator enforces destructor rules for
 virtual hierarchies so a derived destructor cannot introduce a destroy path that
