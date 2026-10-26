@@ -315,6 +315,16 @@ ordinary Camp instance fields into an extern class. Extern classes may
 participate in interface typing only where an explicit extern surface supplies
 the required representation and lifecycle rules.
 
+An extern class that lists an interface implements it natively and declares no
+members for it. The implementation is the interface accessor, which for an
+extern class is an implied extern method: it is never written in source, takes
+the class pointer and returns the interface pointer, and the native side
+provides it under the class's ordinary extern naming (`Native_getReader` for
+`Reader` on `extern class Native`). Conformance does not look for member
+implementations on an extern class, and the compiler generates no default
+slots, tables or thunks for it. Converting an extern class pointer to a listed
+interface, or to a base of one, calls the accessor for that interface.
+
 ## Interface Inheritance
 
 Inherited slots participate in conformance and vtable generation. Name and
