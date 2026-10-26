@@ -91,3 +91,26 @@ The program compiles and links without a diagnostic. Calling `area()` on the ins
 
 Known Impact:
 Nothing prevents a program from creating an instance of an incomplete class, so the guarantee that abstract members are implemented before they are called does not hold.
+
+## BUG-375: An abstract class must restate abstract members it inherits
+
+Date/Time: 2026-10-26 13:06 EDT
+
+Summary:
+A class that derives from an abstract class and is itself abstract is rejected unless it repeats `override` for every inherited abstract method. The documented requirement is that an abstract member must be implemented by the concrete classes that derive from it, so an abstract class that leaves the member unimplemented is valid.
+
+Steps to Reproduce:
+
+1. Declare `abstract class Shape { abstract int area(); }`.
+2. Declare `abstract class Half: Shape { }`.
+3. Declare `sealed class Square: Half { override int area() { return 1; } }`.
+4. Compile the program.
+
+Expected:
+The program compiles. `Half` is abstract and defers `area` to `Square`, which implements it.
+
+Actual:
+The compiler reports `Class 'Half' must use override to implement inherited abstract member 'area()'.` at the name of `Half`.
+
+Known Impact:
+An abstract class cannot be used as an intermediate layer of a hierarchy unless it declares an implementation or a forwarding stub for every abstract member of its bases.
