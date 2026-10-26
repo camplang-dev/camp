@@ -45,29 +45,6 @@ Known Impact:
 ```
 
 
-## BUG-379: An implementation marker naming the derived interface for an inherited member emits invalid C
-
-Date/Time: 2026-10-26 13:06 EDT
-
-Summary:
-A type that implements an interface inheriting a method from a base interface can mark the inherited method with the name of the derived interface. The compiler accepts the marker without a diagnostic, and the generated C calls a member that does not exist on the implementing struct. Whichever rule applies to the marker of an inherited member, the compiler should either generate working code or report a diagnostic.
-
-Steps to Reproduce:
-
-1. Declare `interface Reader { int read(); }` and `interface Seekable: Reader { void seek(int position); }`.
-2. Declare `struct Wrong: Seekable { int read(): Seekable { return 1; } void seek(int position): Seekable { } }`.
-3. In `main`, create a `Wrong`, convert it to `Seekable*`, convert that to `Reader*`, and call `read()` on both pointers.
-4. Compile the program.
-
-Expected:
-The program either compiles and returns 2, or the marker `: Seekable` on `read` is rejected with a diagnostic.
-
-Actual:
-Semantic analysis reports nothing and the native build fails: the generated slot function for `read` contains `return instance->read();` and the struct has no member named `read`.
-
-Known Impact:
-A valid-looking program ends in a native compiler error with no Camp diagnostic pointing at the marker.
-
 ## BUG-380: A derived destructor does not run the base destructor
 
 Date/Time: 2026-10-26 14:20 EDT

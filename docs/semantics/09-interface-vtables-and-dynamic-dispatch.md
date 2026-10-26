@@ -376,6 +376,10 @@ implementation markers name it exactly: `: Check<byte>` for an implementer of
 constructed names by one nominal spelling, and reports a second construction of
 the same interface, a marker naming a construction the type does not implement,
 and a marker naming a method-owned parameter.
+An implementation marker may name a derived interface for an unambiguous
+inherited member. The implementation still fills the slot declared by the base
+interface. Match its signature using that declaring interface's constructed
+owner arguments, even when its binder names differ from the derived interface.
 
 Owner substitution maps the interface's parameters to the construction's
 arguments. Integer-represented owners normalize through their carrier

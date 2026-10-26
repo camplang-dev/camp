@@ -54,14 +54,14 @@ struct GenBoth<T: int>: Both<T>
 
 class DerivedImpl: Derived<short>
 {
-	int<short> pass(int<short> a): Base<short> => a;
+	int<short> pass(int<short> a): Derived<short> => a;
 	bool same(int<short> a, int<short> b): Derived<short> => a == b;
 }
 
 struct DerivedStruct<T: int>: Derived<T>
 {
 	int pad;
-	T pass(T a): Base<T> => a;
+	T pass(T a): Derived<T> => a;
 	bool same(T a, T b): Derived<T> => a == b;
 }
 

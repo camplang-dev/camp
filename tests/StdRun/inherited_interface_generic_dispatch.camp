@@ -109,6 +109,19 @@ export void main()
 	Console.writeLine(staticView.fromClass(10));
 	Console.writeLine(staticView.fromStaticClass(10));
 	Console.writeLine(vtableof(StaticDefaultValue: StaticDefaultSink).fromStaticClass(&staticDefaults, 10));
+	RemarkedBird remarked = default;
+	IPet* remarkedView = &remarked;
+	Console.writeLine(remarkedView.tally(3));
+	IRootPet* remarkedRoot = remarkedView;
+	Console.writeLine(remarkedRoot.tally(1));
+	Console.writeLine(remarkedView.twice(1));
+}
+
+struct RemarkedBird: IPet
+{
+	int total;
+	int tally(int amount): IPet { this.total += amount; return this.total; }
+	void feed(int amount): IPet { }
 }
 
 interface ManyCommon { int common(); }

@@ -607,7 +607,9 @@ public sealed partial class BindableNodeAnalyzer
 			MethodSignature declared = BuildMethodSignature(function, includeLifecycleWithin: IsInterfaceLifecycleMember(member));
 			MethodSignature required = BuildMethodSignature(member, includeLifecycleWithin: IsInterfaceLifecycleMember(member));
 			MethodSignature declaredMapped = BuildBinderMappedSignature(function, IsInterfaceLifecycleMember(member), null);
-			MethodSignature requiredMapped = BuildBinderMappedSignature(member, IsInterfaceLifecycleMember(member), constructed.Owner);
+			InterfaceDefinition declaringInterface = FindContainingType(member) as InterfaceDefinition ?? interfaceDefinition;
+			ConstructedInterface? declaringConstruction = FindConstructedInterface(implementation, declaringInterface, null);
+			MethodSignature requiredMapped = BuildBinderMappedSignature(member, IsInterfaceLifecycleMember(member), declaringConstruction?.Owner ?? constructed.Owner);
 			if (ReportGenericContractMismatch(function, member, interfaceDefinition, declared, required, declaredMapped, requiredMapped))
 				continue;
 			if (!IsInterfaceLifecycleMember(member))

@@ -2025,7 +2025,8 @@ public sealed partial class BindableNodeAnalyzer
 		if (function.CallableAscriptionType is null || FindContainingType(interfaceMember) is not InterfaceDefinition interfaceDefinition)
 			return false;
 		string markerType = function.CallableAscriptionType.ResolvedType ?? GetTypeReferenceName(function.CallableAscriptionType) ?? ErrorType;
-		if (BaseTypeName(markerType) != interfaceDefinition.Name)
+		if (!typeDefinitions.TryGetValue(BaseTypeName(markerType), out TypeDefinition? markerDefinition)
+			|| markerDefinition is not InterfaceDefinition markerInterface || !InterfaceContainsBase(markerInterface, interfaceDefinition))
 			return false;
 		string slotName = function.InterfaceImplementationSlotName ?? GetCallableName(function);
 		if (slotName != GetCallableName(interfaceMember))
