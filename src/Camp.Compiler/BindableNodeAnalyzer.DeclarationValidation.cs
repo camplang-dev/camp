@@ -1008,6 +1008,11 @@ public sealed partial class BindableNodeAnalyzer
 		MethodSignature signature = BuildMethodSignature(function);
 		foreach (FunctionDefinition inherited in GetInheritedClassMethods(owner))
 		{
+			if (!IsDestructorFunction(function) && inherited.Modifier == FunctionModifier.Sealed && BuildMethodSignature(inherited).Equals(signature))
+			{
+				Report(GetNameRange(function), $"Method '{GetCallableName(function)}' cannot override a sealed inherited method.");
+				return;
+			}
 			if (inherited.Modifier is not FunctionModifier.Virtual and not FunctionModifier.Abstract)
 				continue;
 			if (BuildMethodSignature(inherited).Equals(signature))

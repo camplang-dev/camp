@@ -500,7 +500,12 @@ vtable concepts. A virtual/abstract/sealed class hierarchy has:
 
 Derived vtable types include base vtable state, and vtable pointer assignment is
 inserted during creation/init paths. Overrides and sealed methods must match an
-inherited virtual or abstract slot. The validator enforces destructor rules for
+inherited virtual or abstract slot.
+Sealing a method closes that slot to later overrides or sealing declarations,
+including through intermediate classes that do not redeclare it. Resolve the
+closest inherited declaration before considering the original virtual slot.
+
+The validator enforces destructor rules for
 virtual hierarchies so a derived destructor cannot introduce a destroy path that
 the root vtable cannot represent.
 

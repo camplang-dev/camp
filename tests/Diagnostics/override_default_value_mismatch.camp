@@ -23,3 +23,17 @@ sealed class Repeated: Base
 {
 	override int scale(int value, int factor = 3, int offset = 1) { return value; }
 }
+
+virtual class Sealing: Base
+{
+	sealed int plain(int value) { return value; }
+}
+virtual class Between: Sealing { }
+sealed class Reopening: Between
+{
+	override int plain(int value) { return value + 1; }
+}
+sealed class Resealing: Sealing
+{
+	sealed int plain(int value) { return value + 2; }
+}
