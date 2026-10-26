@@ -356,6 +356,11 @@ in the implementing object. These views retain the source lifetime and concrete
 receiver. A null instance widens to null, and the source is evaluated once.
 Witness-table projection continues to select the nested base table directly;
 it does not use instance carrier offsets.
+An erased result slot retains its caller-result-storage ABI after substituting
+the interface's owner arguments. A concrete implementation returning a scalar
+or aggregate needs an adapter that writes that storage; a function-pointer cast
+cannot adapt its native return convention. Both object and witness tables must
+use the appropriate receiver form of that adapter.
 
 Interface-to-interface widening is an ordinary implicit conversion when the
 target is an exact base interface and the compiler can perform the required

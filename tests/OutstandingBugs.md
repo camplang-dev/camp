@@ -45,29 +45,6 @@ Known Impact:
 ```
 
 
-## BUG-378: Calls through an inherited generic interface return wrong values
-
-Date/Time: 2026-10-26 13:06 EDT
-
-Summary:
-A type that implements a constructed generic interface which inherits from another generic interface can be used through the derived interface, and the inherited members are documented to be callable on it or through a conversion to the base construction. The calls compile, but the inherited members return uninitialized values.
-
-Steps to Reproduce:
-
-1. Declare `interface Source<T> { T read(); }` and `interface Counted<T>: Source<T> { int count(); }`.
-2. Declare `struct Ints: Counted<int> { int n; int read(): Source<int> { return this.n; } int count(): Counted<int> { return 2; } }`.
-3. In `main`, create an `Ints` with `n = 8`, convert it to `Counted<int>*`, and call `count()` and `read()` on it.
-4. Convert the `Counted<int>*` to `Source<int>*` and call `read()`.
-
-Expected:
-`count()` returns 2 and both `read()` calls return 8.
-
-Actual:
-`count()` returns 2. The `read()` call through `Counted<int>*` returns an arbitrary value (32759 in one run) and the `read()` call through `Source<int>*` returns 0.
-
-Known Impact:
-Inherited members of a generic interface cannot be used, and nothing diagnoses it.
-
 ## BUG-379: An implementation marker naming the derived interface for an inherited member emits invalid C
 
 Date/Time: 2026-10-26 13:06 EDT

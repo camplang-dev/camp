@@ -467,6 +467,7 @@ public sealed partial class BindableNodeAnalyzer
 		methodSignatureCache.Clear();
 		interfaceEntryCallableTypeCache.Clear();
 		interfaceThunkFunctions.Clear();
+		interfaceWitnessThunkFunctions.Clear();
 		Dictionary<string, InterfaceDefinition> interfaces = [];
 		foreach (Definition definition in ActiveDefinitions(module))
 		{
@@ -836,6 +837,18 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			foreach (FunctionDefinition member in implementedInterface.Functions)
 			{
+				if (ErasedTypeIdentity.TryGetPayload(InterfaceSlotResultType(implementedInterface, member), out _) && FindImplementationMethod(lowering.Type, member) is not null)
+				{
+					FunctionDefinition witness = CreateInterfaceThunkDeclaration(lowering, implementedInterface, member);
+					witness.Name += "_witness_result";
+					witness.Symbol += "_witness_result";
+					witness.Parameters[0].Type = PointerTo(InterfaceType(lowering.Type));
+					witness.Parameters[0].ResolvedType = lowering.Type.Name + "*";
+					module.Definitions.Add(witness);
+					generatedInterfaceDefinitions.Add(witness);
+					interfaceThunkLowerings[witness] = new InterfaceThunkLowering(lowering, implementedInterface, member, DirectReceiver: true);
+					interfaceWitnessThunkFunctions[(lowering, implementedInterface, member)] = witness;
+				}
 				if (member.InterfaceSlotInitializer is not null
 					&& !IsNullInterfaceSlotInitializer(member.InterfaceSlotInitializer)
 					&& FindImplementationMethod(lowering.Type, member) is null)
@@ -937,12 +950,25 @@ public sealed partial class BindableNodeAnalyzer
 				continue;
 			thunk.Parameters.Add(CloneThunkParameter(parameter, binders, thunk));
 		}
+		string slotResult = InterfaceSlotResultType(entryInterface, member);
+		if (ErasedTypeIdentity.TryGetPayload(slotResult, out _))
+		{
+			thunk.ResolvedType = SubstituteGenericType(slotResult, binders);
+			thunk.ReturnType = TypeReferenceForSubstitution(thunk.ResolvedType, member.SourceSyntax);
+		}
 		return thunk;
 	}
+
+	string InterfaceSlotResultType(InterfaceDefinition owner, FunctionDefinition member) =>
+		ErasedCallableSignatureType(FormatSignatureTypeReference(member.ReturnType, []),
+			name => ErasureWrapper(member.GenericParameters.FirstOrDefault(parameter => parameter.Name == name)
+				?? owner.GenericParameters.FirstOrDefault(parameter => parameter.Name == name)), result: true);
 
 	// An integer-carrier argument R<A> is a generic type over its representation, as the parser builds it.
 	static TypeReference TypeReferenceForSubstitution(string text, SyntaxNode? sourceSyntax)
 	{
+		if (ErasedTypeIdentity.TryGetPayload(text, out string erasedPayload))
+			return new ErasedTypeReference { SourceSyntax = sourceSyntax, ParamsType = TypeReferenceForSubstitution(erasedPayload, sourceSyntax), ResolvedType = text };
 		if (!CarrierTypeIdentity.TryGetCarrier(text, out string carrier, out string payload))
 			return TypeReferenceForResolvedName(text, sourceSyntax);
 		GenericTypeReference generic = new() { SourceSyntax = sourceSyntax, Type = TypeReferenceForResolvedName(carrier, sourceSyntax) };
@@ -1471,6 +1497,8 @@ public sealed partial class BindableNodeAnalyzer
 		FunctionDefinition? implementation = FindImplementationMethod(lowering.Type, member);
 		if (directEntries && implementation is not null)
 		{
+			if (interfaceWitnessThunkFunctions.TryGetValue((lowering, interfaceDefinition, member), out FunctionDefinition? adapter))
+				return CreateMethodReference(adapter, BuildInterfaceEntryCallableType(interfaceDefinition, member));
 			EnsureImplementationMethodSymbol(lowering.Type, implementation);
 			MethodReferenceExpression reference = new()
 			{
@@ -1581,7 +1609,9 @@ public sealed partial class BindableNodeAnalyzer
 		ParameterDefinition ctx = thunk.Parameters[0];
 		DeclarationStatement? indirect = null;
 		DeclarationStatement instance;
-		if (lowering.Implementation.Type is ClassDefinition { IsShadow: true } shadowClass && lowering.Implementation.Field is not null)
+		if (lowering.DirectReceiver)
+			instance = CreateGeneratedLocal("instance", lowering.Implementation.Type.Name + "*", PointerTo(InterfaceType(lowering.Implementation.Type)), CreateVariableReference(ctx, ctx.ResolvedType!));
+		else if (lowering.Implementation.Type is ClassDefinition { IsShadow: true } shadowClass && lowering.Implementation.Field is not null)
 		{
 			DeclarationStatement shadowData = CreateGeneratedLocal("shadowData", $"{ShadowDataTypeName(shadowClass)}*", PointerTo(ShadowDataTypeReference(shadowClass)), CreateShadowInterfaceDataFixup(lowering, ctx, shadowClass));
 			shadowData.Target.Names.Clear();
@@ -1626,12 +1656,14 @@ public sealed partial class BindableNodeAnalyzer
 		body.Statements.Add(instance);
 
 		FunctionDefinition? memberImplementation = FindImplementationMethod(lowering.Implementation.Type, lowering.Member);
+		ParameterDefinition? resultParameter = thunk.Parameters.FirstOrDefault(parameter => parameter.Name == "__result");
+		bool storeConcreteResult = resultParameter is not null && memberImplementation is not null && !IsMaterializedGenericReturnFunction(memberImplementation);
 		if (memberImplementation is not null && IsInterfaceLifecycleMember(lowering.Member))
 			EnsureImplementationMethodSymbol(lowering.Implementation.Type, memberImplementation);
 
 		CallExpression call = new()
 		{
-			ResolvedType = thunk.ResolvedType ?? GetInterfaceEntryReturnType(lowering.Member, lowering.Implementation.Type),
+			ResolvedType = storeConcreteResult ? memberImplementation!.ResolvedType : thunk.ResolvedType ?? GetInterfaceEntryReturnType(lowering.Member, lowering.Implementation.Type),
 			Target = IsDestructorFunction(lowering.Member)
 				? new MethodReferenceExpression
 				{
@@ -1656,7 +1688,7 @@ public sealed partial class BindableNodeAnalyzer
 		}
 		foreach (ParameterDefinition parameter in thunk.Parameters)
 		{
-			if (parameter == ctx)
+			if (parameter == ctx || storeConcreteResult && parameter == resultParameter)
 				continue;
 			call.Arguments.Add(CreateForwardedInterfaceArgument(parameter));
 		}
@@ -1664,12 +1696,21 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			EnsureImplementationMethodSymbol(lowering.Implementation.Type, implementation);
 			callTargets[call] = implementation;
-			if (thunk.Parameters.Any(parameter => parameter.Name == "__result")) materializedGenericReturnCalls.Add(call);
+			if (resultParameter is not null && !storeConcreteResult) materializedGenericReturnCalls.Add(call);
 			ExpandParamsArguments(call);
 			LowerCallArgumentConversions(call);
 		}
 
-		if (call.ResolvedType == "void")
+		if (storeConcreteResult)
+			body.Statements.Add(new ExpressionStatement
+			{
+				Expression = new AssignmentExpression
+				{
+					Target = CreateVariableReference(resultParameter!, resultParameter!.ResolvedType!),
+					Operator = AssignmentOperator.Assign, Value = call, ResolvedType = resultParameter.ResolvedType
+				}, ResolvedType = "void"
+			});
+		else if (call.ResolvedType == "void")
 			body.Statements.Add(new ExpressionStatement { Expression = call, ResolvedType = "void" });
 		else
 			body.Statements.Add(new ReturnStatement { Expression = call, ResolvedType = "void" });

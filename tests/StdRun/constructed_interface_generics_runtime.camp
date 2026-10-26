@@ -69,6 +69,33 @@ byte viaWitnessByte<T>(T* v, byte x, vtableof(T: Check<byte>)) { return v.pass(x
 short viaWitnessShort<T>(T* v, short x, vtableof(T: Check<short>)) { return v.pass(x); }
 bool sameWitness<T>(T* v, short x, vtableof(T: Check<short>)) { return v.same(x, x); }
 
+interface ErasedReadSource<T> { T read(); }
+interface ErasedCountedSource<T>: ErasedReadSource<T> { int count(); }
+struct IntSource: ErasedCountedSource<int>
+{
+	int value;
+	int read(): ErasedReadSource<int> { return this.value; }
+	int count(): ErasedCountedSource<int> { return 2; }
+}
+class ClassSource: ErasedCountedSource<int>
+{
+	int value;
+	int read(): ErasedReadSource<int> { return this.value; }
+	int count(): ErasedCountedSource<int> { return 3; }
+}
+int readWitness<T>(T* source, vtableof(T: ErasedCountedSource<int>)) { return source.read(); }
+struct SourcePair { int first; int second; }
+struct PairSource: ErasedCountedSource<SourcePair>
+{
+	SourcePair read(): ErasedReadSource<SourcePair> { return { 11, 13 }; }
+	int count(): ErasedCountedSource<SourcePair> { return 2; }
+}
+struct TextSource: ErasedCountedSource<string>
+{
+	string read(): ErasedReadSource<string> { return "result"; }
+	int count(): ErasedCountedSource<string> { return 1; }
+}
+
 export int main()
 {
 	// Owner substitution through class and struct implementers.
@@ -128,5 +155,25 @@ export int main()
 	if (viaWitnessByte(b, 201) != 201) return 21;
 	if (viaWitnessShort(&s, -1234) != -1234) return 22;
 	if (!sameWitness(&s, -1234)) return 23;
+	IntSource ints = default;
+	ints.value = 8;
+	ErasedCountedSource<int>* counted = &ints;
+	if (counted.count() != 2 || counted.read() != 8) return 24;
+	ErasedReadSource<int>* source = counted;
+	if (source.read() != 8) return 25;
+	auto read = counted.read;
+	if (read() != 8 || readWitness(&ints) != 8) return 26;
+	auto objectSource = new ClassSource() finally delete;
+	objectSource.value = 9;
+	ErasedCountedSource<int>* objectView = objectSource;
+	if (objectView.read() != 9 || readWitness(objectSource) != 9) return 27;
+	PairSource pairs = default;
+	ErasedCountedSource<SourcePair>* pairView = &pairs;
+	SourcePair pair = pairView.read();
+	if (pair.first != 11 || pair.second != 13) return 28;
+	TextSource text = default;
+	ErasedCountedSource<string>* textView = &text;
+	string result = textView.read();
+	if (result != "result") return 29;
 	return 0;
 }
