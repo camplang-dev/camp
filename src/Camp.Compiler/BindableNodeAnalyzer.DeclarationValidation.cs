@@ -912,7 +912,13 @@ public sealed partial class BindableNodeAnalyzer
 	void ValidateVirtualHierarchyDestructorRules(ClassDefinition definition)
 	{
 		if (!ClassHierarchyParticipatesInVirtualDispatch(definition))
+		{
+			ClassDefinition root = GetUltimateBaseClass(definition);
+			if (!definition.IsShadow && root.Extern is null && !ReferenceEquals(root, definition))
+				foreach (FunctionDefinition destructor in definition.Functions.Where(IsDestructorFunction))
+					Report(GetNameRange(destructor), $"Destructor '{destructor.Name}' cannot be declared in a derived class because the ultimate base class '{root.Name}' does not declare a virtual destructor; declare a virtual destructor on the ultimate base to allow derived destructors.");
 			return;
+		}
 
 		ClassDefinition ultimateBase = GetUltimateBaseClass(definition);
 		FunctionDefinition? ultimateDestructor = FindDeclaredDestructor(ultimateBase);
@@ -1087,7 +1093,7 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			if (function.Modifier is FunctionModifier.Constructor)
 				continue;
-			if (IsDestructorFunction(function) && ClassHierarchyParticipatesInVirtualDispatch(definition))
+			if (IsDestructorFunction(function))
 				continue;
 			if (IsGeneratedLifecycleMethodName(function.Name))
 				continue;

@@ -122,8 +122,16 @@ Destructors release owned resources and must return `void`. Lowering must call
 destructors at explicit `delete` sites and generated cleanup points where the
 language requires it.
 
-The validator must reject destructors that return values. It must also enforce
-virtual hierarchy destructor rules:
+The validator must reject destructors that return values and enforce the
+hierarchy's destructor contract.
+
+Only the ultimate non-shadow base class introduces the destructor contract. If
+it has no virtual destructor, derived classes may inherit its cleanup but may
+not declare their own destructors. Diagnose the derived destructor declaration,
+not a collision between generated lifecycle helpers. Shadow-class lifecycle
+rules are defined in the shadow-class supplement.
+
+For a virtual destructor contract:
 
 - a virtual hierarchy cannot introduce a derived destructor unless the ultimate
   base declares a virtual or abstract destructor slot;

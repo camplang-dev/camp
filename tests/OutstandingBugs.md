@@ -45,28 +45,6 @@ Known Impact:
 ```
 
 
-## BUG-381: A derived destructor in a non-virtual hierarchy is rejected with a misleading diagnostic
-
-Date/Time: 2026-10-26 14:20 EDT
-
-Summary:
-A class whose ultimate base declares a non-virtual destructor may not have derived classes that declare destructors, because the derived destructor could not be dispatched or chained. The compiler does reject the program, but with an unrelated message about a duplicate generated method rather than a diagnostic that names the rule. A derived class that declares no destructor works.
-
-Steps to Reproduce:
-
-1. Declare `class Plain { Plain() { } ~Plain() { log(5); } }`.
-2. Declare `class Sub: Plain { Sub() { } ~Sub() { log(6); } }`.
-3. Compile the program.
-
-Expected:
-A diagnostic at the destructor of `Sub` says that a derived class cannot declare a destructor because the ultimate base class `Plain` declares a non-virtual destructor (and that the base would need a virtual destructor).
-
-Actual:
-The compiler reports `Duplicate method name 'destroy' inherited from base class.`, which names a generated helper the program never declares.
-
-Known Impact:
-The error does not point at the rule that was broken or at a fix.
-
 ## BUG-382: A sealed destructor can be overridden by a derived class
 
 Date/Time: 2026-10-26 14:20 EDT

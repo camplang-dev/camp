@@ -91,3 +91,9 @@ sealed class ConcreteWithoutDestructor: AbstractDestructorBase
 		return 1;
 	}
 }
+
+class PlainRoot { ~PlainRoot() { } }
+class PlainChild: PlainRoot { ~PlainChild() { } }
+class PlainInherited: PlainRoot { }
+class EmptyRoot { }
+class IntroducesDestructor: EmptyRoot { ~IntroducesDestructor() { } }
