@@ -140,6 +140,10 @@ For a virtual destructor contract:
 - an abstract destructor requires concrete derived classes to implement it with
   the correct override form.
 
+A `sealed` destructor ends overriding of that slot. Later descendants may
+inherit the sealed destructor, but may neither override nor reseal it, even
+through intermediate classes that declare no destructor.
+
 Destructor lowering must preserve base destruction order, field cleanup order,
 and generated `finally` cleanup paths. A derived destructor body is followed by
 a nonvirtual call to the nearest base destructor implementation. Treat that call

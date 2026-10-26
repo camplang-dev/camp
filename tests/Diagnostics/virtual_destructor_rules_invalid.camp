@@ -97,3 +97,9 @@ class PlainChild: PlainRoot { ~PlainChild() { } }
 class PlainInherited: PlainRoot { }
 class EmptyRoot { }
 class IntroducesDestructor: EmptyRoot { ~IntroducesDestructor() { } }
+
+virtual class SealedDestructorRoot { virtual ~SealedDestructorRoot() { } }
+virtual class SealedDestructorMiddle: SealedDestructorRoot { sealed ~SealedDestructorMiddle() { } }
+virtual class SealedDestructorGap: SealedDestructorMiddle { }
+sealed class ReopeningDestructor: SealedDestructorGap { override ~ReopeningDestructor() { } }
+sealed class ResealingDestructor: SealedDestructorMiddle { sealed ~ResealingDestructor() { } }

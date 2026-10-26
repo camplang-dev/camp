@@ -45,29 +45,6 @@ Known Impact:
 ```
 
 
-## BUG-382: A sealed destructor can be overridden by a derived class
-
-Date/Time: 2026-10-26 14:20 EDT
-
-Summary:
-A destructor declared `sealed` in a virtual hierarchy should end the chain of overrides, like any sealed method. The compiler accepts an `override` destructor in a class derived from the sealing class, and the override is the one that runs.
-
-Steps to Reproduce:
-
-1. Declare `virtual class Root { Root() { } virtual ~Root() { log(1); } }`.
-2. Declare `virtual class Middle: Root { Middle() { } sealed ~Middle() { log(2); } }`.
-3. Declare `sealed class Leaf: Middle { Leaf() { } override ~Leaf() { log(3); } }`.
-4. In `main`, create a `Leaf` with `stackalloc`, store it in a `Root*` and delete the pointer.
-
-Expected:
-The override in `Leaf` is rejected because the destructor of `Middle` is sealed.
-
-Actual:
-The program compiles and logs 3, so the sealed destructor is replaced.
-
-Known Impact:
-`sealed` has no effect on destructors.
-
 ## BUG-383: delete base is accepted and emits invalid C
 
 Date/Time: 2026-10-26 14:20 EDT

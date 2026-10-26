@@ -15,7 +15,7 @@ sealed class VirtualFileDevice: VirtualDevice
 		return 1;
 	}
 
-	override ~VirtualFileDevice()
+	sealed ~VirtualFileDevice()
 	{
 		destructorLog = destructorLog * 10 + 2;
 	}
