@@ -105,6 +105,7 @@ public sealed partial class BindableNodeAnalyzer
 		InsertCreateVirtualTableAssignment(function, containingType);
 		bool functionAssignsThrownParameterManually = HasManualThrownParameterAssignment(function);
 		currentFunctionAssignsThrownParameterManually = functionAssignsThrownParameterManually;
+		WrapDerivedDestructorBody(function, containingType);
 		function.Body = RewriteFunctionBody(function.Body);
 		if (function.Body is not null && currentFunctionExitLabel is not null)
 			AppendFunctionExit(function.Body.Statements);
@@ -127,6 +128,36 @@ public sealed partial class BindableNodeAnalyzer
 		preparedBufferLoweringRewrites.Clear();
 		foreach (KeyValuePair<SyntaxNode, Expression> rewrite in savedPreparedBufferLoweringRewrites)
 			preparedBufferLoweringRewrites[rewrite.Key] = rewrite.Value;
+	}
+
+	void WrapDerivedDestructorBody(FunctionDefinition function, TypeDefinition? owner)
+	{
+		if (function.Body is null || owner is not ClassDefinition derived
+			|| function.GeneratedInfo is not { Category: GeneratedDeclarationCategory.VirtualDispatch, Reason: "virtual implementation thunk", Source: FunctionDefinition { Name: DeleteMethodName } }
+			|| GetDirectBaseClass(derived) is not ClassDefinition parent
+			|| FindVirtualImplementationByName(parent, DeleteMethodName) is not FunctionDefinition implementation)
+			return;
+
+		Expression receiver = new CastExpression
+		{
+			Kind = CastKind.Type, Type = PointerTo(TypeReferenceFor(parent)), ResolvedType = parent.Name + "*",
+			Expression = new ThisExpression { ResolvedType = derived.Name + "*" }
+		};
+		CallExpression call = new()
+		{
+			Target = new MemberReferenceExpression
+			{
+				Target = receiver, Member = implementation, Name = implementation.Name,
+				ResolvedType = BuildFunctionValueType(implementation, isInstance: true)
+			}, ResolvedType = "void"
+		};
+		callTargets[call] = implementation;
+		function.Body = CreateBlock([new TryStatement
+		{
+			Body = function.Body,
+			Finally = new FinallyStatement { Body = new ExpressionStatement { Expression = call, ResolvedType = "void" }, ResolvedType = "void" },
+			ResolvedType = "void"
+		}]);
 	}
 
 	BlockStatement? RewriteFunctionBody(BlockStatement? body)

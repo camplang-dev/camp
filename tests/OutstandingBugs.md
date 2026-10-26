@@ -45,29 +45,6 @@ Known Impact:
 ```
 
 
-## BUG-380: A derived destructor does not run the base destructor
-
-Date/Time: 2026-10-26 14:20 EDT
-
-Summary:
-When a class in a virtual hierarchy overrides a virtual destructor, deleting an instance runs only the most derived destructor body. The destructors of the base classes never run, so resources a base class owns are leaked. The destructor of a derived class is expected to be followed automatically by the base destructor, as if the derived body were wrapped in a `finally` that runs the base destructor, including when the derived body exits early with `return`.
-
-Steps to Reproduce:
-
-1. Declare `virtual class Root { Root() { } virtual ~Root() { log(1); } }`, where `log` records its argument.
-2. Declare `virtual class Middle: Root { Middle() { } override ~Middle() { log(2); } }` and `sealed class Leaf: Middle { Leaf() { } override ~Leaf() { log(3); } }`.
-3. In `main`, create a `Leaf` with `stackalloc`, store it in a `Root*` and delete the pointer.
-4. Repeat with a `Leaf*` pointer, and with a `Leaf` destructor whose body ends in an early `return;`.
-
-Expected:
-The deletes log 3, 2, 1 in that order (derived body first, then each base destructor), including when the body returns early.
-
-Actual:
-Only 3 is logged. The generated override for `Leaf` contains the body of `~Leaf` and nothing else, and no code calls `~Middle` or `~Root`.
-
-Known Impact:
-Base classes cannot reliably release what they own. The only way to reach a base destructor is an explicit call that the language does not document.
-
 ## BUG-381: A derived destructor in a non-virtual hierarchy is rejected with a misleading diagnostic
 
 Date/Time: 2026-10-26 14:20 EDT

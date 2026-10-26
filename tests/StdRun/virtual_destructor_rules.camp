@@ -51,5 +51,44 @@ export int main()
 	AbstractDevice* abstractDevice = (AbstractDevice*)new AbstractFileDevice();
 	delete abstractDevice;
 
-	return destructorLog == 23 ? 0 : 1;
+	if (destructorLog != 213) return 1;
+	auto direct = stackalloc ChainLeaf();
+	direct.early = false;
+	delete direct;
+	if (chainLog != 3421) return 2;
+	chainLog = 0;
+	auto early = stackalloc ChainLeaf();
+	early.early = true;
+	ChainRoot* root = early;
+	delete root;
+	if (chainLog != 321) return 3;
+	chainLog = 0;
+	ChainRoot* heap = new ChainLeaf();
+	delete heap;
+	if (chainLog != 3421) return 4;
+	chainLog = 0;
+	ChainRoot* inherited = new ChainInherited();
+	delete inherited;
+	return chainLog == 21 ? 0 : 5;
 }
+
+int chainLog;
+virtual class ChainRoot
+{
+	virtual ~ChainRoot() { chainLog = chainLog * 10 + 1; }
+}
+virtual class ChainMiddle: ChainRoot
+{
+	override ~ChainMiddle() { chainLog = chainLog * 10 + 2; }
+}
+sealed class ChainLeaf: ChainMiddle
+{
+	bool early;
+	override ~ChainLeaf()
+	{
+		chainLog = chainLog * 10 + 3;
+		if (this.early) return;
+		chainLog = chainLog * 10 + 4;
+	}
+}
+sealed class ChainInherited: ChainMiddle { }

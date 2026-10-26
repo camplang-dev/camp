@@ -133,7 +133,13 @@ virtual hierarchy destructor rules:
   the correct override form.
 
 Destructor lowering must preserve base destruction order, field cleanup order,
-and generated `finally` cleanup paths. An interface destructor slot may call
+and generated `finally` cleanup paths. A derived destructor body is followed by
+a nonvirtual call to the nearest base destructor implementation. Treat that call
+as an outer `finally`, so it also runs after an early `return` and after the
+body's own cleanup. Each implementation chains to its base in turn; these calls
+run destructor bodies only, with deallocation performed once by the delete path.
+
+An interface destructor slot may call
 the generated `destroy` helper, which runs `_op_delete` and then deallocates
 owned storage through the selected or retained allocator. Ordinary `delete`
 uses its own ownership path; neither path may free the same instance twice.
