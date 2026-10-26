@@ -218,7 +218,11 @@ the final storage, then apply initializer writes/calls against that storage.
 ## `new`
 
 `new` allocates through the selected `within` context, then constructs. Lowering
-must preserve allocation order, zeroing rules where required, constructor call,
+must retain the concrete allocated type through zero initialization, vtable
+installation, constructor execution, and trailing initialization. Only then
+convert the resulting pointer to a base or interface destination type.
+
+Lowering must preserve allocation order, zeroing rules where required, constructor call,
 and cleanup on failure paths.
 
 The `new` sequence is conceptually:

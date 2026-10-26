@@ -29,6 +29,7 @@ export virtual class Control: Component
 
 export sealed class Form: Control
 {
+	int own;
 	export Form()
 	{
 	}
@@ -52,6 +53,10 @@ export int main()
 	auto inherited = stackalloc Inherited();
 	Shape* inheritedShape = inherited;
 	if (inheritedShape.area() != 9) return 2;
+	Component* direct = new Form() { .own = 5 };
+	Form* directForm = (unsafe Form*)direct;
+	if (direct.value() != 3 || directForm.own != 5) return 3;
+	delete direct;
 	Form* form = new Form();
 	Component* component = (Component*)form;
 	Control* control = (Control*)form;

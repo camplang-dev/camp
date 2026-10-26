@@ -1499,6 +1499,12 @@ public sealed partial class BindableNodeAnalyzer
 		statements = [];
 		if (declaration.InitialValue is not ConstructionExpression { Kind: ConstructionKind.New } construction || declaration.Target.Names.Count != 1)
 			return false;
+		// A widened destination cannot be the storage used to initialize the
+		// concrete object. Let expression lowering construct a typed temporary
+		// before applying the destination's ordinary pointer conversion.
+		if (construction.Type is not null && TryGetNamedTypeDefinition(construction.Type, out TypeDefinition? allocatedType)
+			&& allocatedType is ClassDefinition && construction.ResolvedType != declaration.Target.ResolvedType)
+			return false;
 
 		List<Statement>? previousPrefix = currentStatementPrefix;
 		List<Statement>? previousSuffix = currentStatementSuffix;

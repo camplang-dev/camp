@@ -45,29 +45,6 @@ Known Impact:
 ```
 
 
-## BUG-377: Creating a derived class with new and assigning it to a base pointer emits invalid C
-
-Date/Time: 2026-10-26 13:06 EDT
-
-Summary:
-Initializing a base class pointer directly from `new` of a derived class type produces C that declares the variable with the base type but allocates, assigns and constructs it as the derived type. The compiler does not report a Camp diagnostic and the native build fails. Allocating into a derived pointer first and then assigning to a base pointer works.
-
-Steps to Reproduce:
-
-1. Declare `virtual class Base { Base() { } virtual int get() { return 1; } }` and `sealed class Leaf: Base { Leaf() { } override int get() { return 2; } }`.
-2. Declare `extern escaped void* malloc(nuint size);` and `extern void free(void* ptr);`.
-3. In `main`, write `Base* b = new Leaf();`, call `b.get()` and `delete b;`.
-4. Compile and run the program.
-
-Expected:
-The program compiles and `b.get()` returns 2 through virtual dispatch.
-
-Actual:
-The native build fails: the generated C initializes `Base *b` from a `Leaf *`, assigns `*b = (Leaf){0};` (`assigning to 'Base' from incompatible type 'Leaf'`) and passes `b` to the `Leaf` initializer.
-
-Known Impact:
-A natural way to create an object behind its base type does not compile. The workaround is `Leaf* l = new Leaf(); Base* b = l;`.
-
 ## BUG-378: Calls through an inherited generic interface return wrong values
 
 Date/Time: 2026-10-26 13:06 EDT
