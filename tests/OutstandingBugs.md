@@ -44,3 +44,26 @@ Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
 
+
+## BUG-373: A sealed method can be overridden again in a derived class
+
+Date/Time: 2026-10-26 13:06 EDT
+
+Summary:
+A method declared `sealed` in a virtual class is documented as the point where overriding stops. The compiler accepts a later `override` of the sealed method in a class derived from the sealing class, with no diagnostic. The override replaces the sealed implementation at run time.
+
+Steps to Reproduce:
+
+1. Declare `virtual class Base { virtual int get() { return 1; } }`.
+2. Declare `virtual class Middle: Base { sealed int get() { return 2; } }`.
+3. Declare `sealed class Leaf: Middle { override int get() { return 3; } }`.
+4. Compile a program whose `main` creates a `Leaf` with `stackalloc` and returns `get()`.
+
+Expected:
+The compiler rejects the override in `Leaf`, because `get` was sealed by `Middle` and can no longer be overridden.
+
+Actual:
+The program compiles without any diagnostic and returns 3, so the sealed method is replaced.
+
+Known Impact:
+`sealed` on a method has no effect on classes that derive from the class that seals it, so a base class cannot protect a method from being overridden further down the hierarchy.
