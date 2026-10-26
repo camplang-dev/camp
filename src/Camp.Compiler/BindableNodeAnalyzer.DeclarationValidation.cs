@@ -1377,7 +1377,8 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		foreach (ClassDefinition current in EnumerateClassAndBaseDefinitions(owner))
 		{
-			foreach (FunctionDefinition function in SelectedFunctions(current.Functions))
+			IEnumerable<FunctionDefinition> candidates = ReferenceEquals(current, owner) ? current.Functions : SelectedFunctions(current.Functions);
+			foreach (FunctionDefinition function in candidates)
 				if (BuildMethodSignature(function).Equals(required))
 					return function.Modifier is (FunctionModifier.Override or FunctionModifier.Sealed)
 						&& IsAtLeastAsAvailable(function, inherited, ownerRequirement);
