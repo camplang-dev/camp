@@ -49,6 +49,9 @@ export int main()
 	auto square = stackalloc Square();
 	Shape* shape = square;
 	if (shape.area() != 7) return 1;
+	auto inherited = stackalloc Inherited();
+	Shape* inheritedShape = inherited;
+	if (inheritedShape.area() != 9) return 2;
 	Form* form = new Form();
 	Component* component = (Component*)form;
 	Control* control = (Control*)form;
@@ -60,3 +63,6 @@ export int main()
 abstract class Shape { abstract int area(); }
 abstract class Half: Shape { }
 sealed class Square: Half { override int area() { return 7; } }
+virtual class Filled: Half { sealed int area() { return 9; } }
+virtual class Gap: Filled { }
+sealed class Inherited: Gap { }

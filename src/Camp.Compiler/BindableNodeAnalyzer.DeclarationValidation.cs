@@ -199,12 +199,12 @@ public sealed partial class BindableNodeAnalyzer
 			MethodSignature signature = BuildMethodSignature(abstractMethod);
 			if (IsDestructorFunction(abstractMethod))
 			{
-				if (!ContainsOverrideSignature(definition.Functions, signature, abstractMethod, definition.EffectiveRequirement))
+				if (!ContainsOverrideSignature(definition, signature, abstractMethod, definition.EffectiveRequirement))
 					Report(GetNameRange(definition), $"Class '{definition.Name}' must use override to implement inherited abstract destructor '{abstractMethod.Name}'.");
 				continue;
 			}
 
-			if (!ContainsOverrideSignature(definition.Functions, signature, abstractMethod, definition.EffectiveRequirement))
+			if (!ContainsOverrideSignature(definition, signature, abstractMethod, definition.EffectiveRequirement))
 				Report(GetNameRange(definition), $"Class '{definition.Name}' must use override to implement inherited abstract member '{signature.DisplayName}'.");
 		}
 	}
@@ -1373,12 +1373,14 @@ public sealed partial class BindableNodeAnalyzer
 			: new CallableSlot(text[..separator], text[(separator + 1)..]);
 	}
 
-	bool ContainsOverrideSignature(List<FunctionDefinition> functions, MethodSignature required, FunctionDefinition inherited, ConfigurationFlagExpression? ownerRequirement)
+	bool ContainsOverrideSignature(ClassDefinition owner, MethodSignature required, FunctionDefinition inherited, ConfigurationFlagExpression? ownerRequirement)
 	{
-		foreach (FunctionDefinition function in functions)
+		foreach (ClassDefinition current in EnumerateClassAndBaseDefinitions(owner))
 		{
-			if (function.Modifier is (FunctionModifier.Override or FunctionModifier.Sealed) && BuildMethodSignature(function).Equals(required) && IsAtLeastAsAvailable(function, inherited, ownerRequirement))
-				return true;
+			foreach (FunctionDefinition function in SelectedFunctions(current.Functions))
+				if (BuildMethodSignature(function).Equals(required))
+					return function.Modifier is (FunctionModifier.Override or FunctionModifier.Sealed)
+						&& IsAtLeastAsAvailable(function, inherited, ownerRequirement);
 		}
 
 		return false;

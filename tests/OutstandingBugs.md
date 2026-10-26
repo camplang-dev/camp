@@ -45,29 +45,6 @@ Known Impact:
 ```
 
 
-## BUG-376: A concrete class must restate an abstract member that a base class already implements
-
-Date/Time: 2026-10-26 13:06 EDT
-
-Summary:
-When a concrete class derives from a class that already overrides an abstract member of its own base, the compiler still reports the member as unimplemented. The check collects the abstract declarations of every ancestor and looks for an override only in the class being checked, ignoring implementations inherited from the intermediate class.
-
-Steps to Reproduce:
-
-1. Declare `abstract class Shape { abstract int area(); }`.
-2. Declare `virtual class Half: Shape { override int area() { return 1; } }`.
-3. Declare `sealed class Square: Half { }`.
-4. Compile the program.
-
-Expected:
-The program compiles, and `Square` uses the implementation inherited from `Half`.
-
-Actual:
-The compiler reports `Class 'Square' must use override to implement inherited abstract member 'area()'.` at the name of `Square`.
-
-Known Impact:
-A derived class has to repeat an override that an ancestor already provides, which makes it impossible to extend a concrete implementation without duplicating it.
-
 ## BUG-377: Creating a derived class with new and assigning it to a base pointer emits invalid C
 
 Date/Time: 2026-10-26 13:06 EDT

@@ -37,3 +37,7 @@ sealed class Resealing: Sealing
 {
 	sealed int plain(int value) { return value + 2; }
 }
+
+abstract class Required { abstract int area(); }
+abstract class Deferred: Required { }
+sealed class Missing: Deferred { }

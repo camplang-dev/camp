@@ -2,3 +2,4 @@ tests/Diagnostics/override_default_value_mismatch.camp(9,45): error: Default val
 tests/Diagnostics/override_default_value_mismatch.camp(14,33): error: Default value for parameter 'value' of override 'plain' must be omitted or identical to the default value of the inherited method.
 tests/Diagnostics/override_default_value_mismatch.camp(34,15): error: Method 'plain' cannot override a sealed inherited method.
 tests/Diagnostics/override_default_value_mismatch.camp(38,13): error: Method 'plain' cannot override a sealed inherited method.
+tests/Diagnostics/override_default_value_mismatch.camp(43,14): error: Class 'Missing' must use override to implement inherited abstract member 'area()'.

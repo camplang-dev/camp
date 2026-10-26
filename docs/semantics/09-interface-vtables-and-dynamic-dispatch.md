@@ -506,6 +506,8 @@ including through intermediate classes that do not redeclare it. Resolve the
 closest inherited declaration before considering the original virtual slot.
 An abstract intermediate class may defer inherited abstract slots without
 redeclaring them. A concrete descendant must supply the remaining implementations.
+An override or sealed implementation inherited from a nearer base satisfies an
+older abstract declaration; do not require each descendant to repeat it.
 
 The validator enforces destructor rules for
 virtual hierarchies so a derived destructor cannot introduce a destroy path that
