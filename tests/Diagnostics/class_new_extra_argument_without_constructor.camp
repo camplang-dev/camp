@@ -5,4 +5,10 @@ class Host
 export void main()
 {
 	auto host = new Host(1);
+	auto shapeStack = stackalloc Shape();
+	auto shapeHeap = new Shape();
+	Other other = Other();
 }
+
+abstract class Shape { abstract int area(); }
+abstract class Other { }

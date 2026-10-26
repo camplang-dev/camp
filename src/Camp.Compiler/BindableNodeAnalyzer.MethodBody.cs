@@ -2837,6 +2837,9 @@ public sealed partial class BindableNodeAnalyzer
 			AnalyzeType(construction.Type, typeScope);
 
 		string targetType = construction.Type?.ResolvedType ?? TargetType;
+		if (TryGetNamedTypeDefinition(construction.Type ?? TypeReferenceForResolvedName(targetType), out TypeDefinition? allocatedType)
+			&& allocatedType is ClassDefinition { Modifier: ClassModifier.Abstract } abstractClass)
+			Report(GetRange(construction.Type?.SourceSyntax ?? construction.SourceSyntax), $"Abstract class '{abstractClass.Name}' cannot be instantiated.");
 		if (construction.Kind == ConstructionKind.StackAlloc && ContainsEscapedValueStorage(targetType))
 			Report(GetRange(construction.SourceSyntax ?? construction.Type?.SourceSyntax), "An escaped type cannot be allocated on the stack; use static storage or new.");
 		if (construction.Kind == ConstructionKind.Init)

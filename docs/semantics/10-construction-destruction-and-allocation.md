@@ -42,7 +42,12 @@ Constructors cannot declare `thrown` parameters, including struct, class,
 interface and extern constructors. Diagnose the parameter at declaration time;
 generated create/init helpers cannot make a throwing source constructor valid.
 
-Construction analysis must decide:
+An abstract class cannot be instantiated by `new`, `stackalloc`, or a
+constructor-shaped selected construction, even if it has no abstract members.
+Constructing its base portion while initializing a concrete derived class is
+permitted.
+
+For valid construction, analysis must decide:
 
 - source construction kind: selected destination construction, `stackalloc`,
   or `new`;

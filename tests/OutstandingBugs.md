@@ -45,30 +45,6 @@ Known Impact:
 ```
 
 
-## BUG-374: Abstract classes can be instantiated
-
-Date/Time: 2026-10-26 13:06 EDT
-
-Summary:
-The language guide describes an abstract class as a base class that is not directly constructed. The compiler accepts `new`, `stackalloc` and constructor-shaped construction of an abstract class without a diagnostic, including a class that declares an abstract method with no implementation.
-
-Steps to Reproduce:
-
-1. Declare `abstract class Shape { abstract int area(); }`.
-2. In a function, write `Shape* a = stackalloc Shape();`.
-3. Declare `extern escaped void* malloc(nuint size);` and write `Shape* b = new Shape();`.
-4. Declare `abstract class Other { }` and write `Other c = Other();`.
-5. Compile the program.
-
-Expected:
-Each construction of an abstract class is rejected with a diagnostic stating that an abstract class cannot be instantiated.
-
-Actual:
-The program compiles and links without a diagnostic. Calling `area()` on the instance would dispatch through a vtable slot that has no implementation.
-
-Known Impact:
-Nothing prevents a program from creating an instance of an incomplete class, so the guarantee that abstract members are implemented before they are called does not hold.
-
 ## BUG-375: An abstract class must restate abstract members it inherits
 
 Date/Time: 2026-10-26 13:06 EDT

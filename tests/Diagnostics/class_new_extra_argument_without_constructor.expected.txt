@@ -1,1 +1,4 @@
 tests/Diagnostics/class_new_extra_argument_without_constructor.camp(7,23): error: No constructor or create method for 'Host' accepts 1 argument(s).
+tests/Diagnostics/class_new_extra_argument_without_constructor.camp(8,31): error: Abstract class 'Shape' cannot be instantiated.
+tests/Diagnostics/class_new_extra_argument_without_constructor.camp(9,23): error: Abstract class 'Shape' cannot be instantiated.
+tests/Diagnostics/class_new_extra_argument_without_constructor.camp(10,16): error: Abstract class 'Other' cannot be instantiated.
