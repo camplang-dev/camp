@@ -196,7 +196,7 @@ public sealed partial class BindableNodeAnalyzer
 			if (abstractMethod.Name == DeleteMethodName && HasInheritedAbstractDestructorSlot(definition))
 				continue;
 
-			MethodSignature signature = BuildMethodSignature(abstractMethod);
+			MethodSignature signature = BuildClassMethodSignature(definition, abstractMethod);
 			if (IsDestructorFunction(abstractMethod))
 			{
 				if (!ContainsOverrideSignature(definition, signature, abstractMethod, definition.EffectiveRequirement))
@@ -1016,10 +1016,10 @@ public sealed partial class BindableNodeAnalyzer
 
 	void ValidateOverrideMethod(ClassDefinition owner, FunctionDefinition function)
 	{
-		MethodSignature signature = BuildMethodSignature(function);
+		MethodSignature signature = BuildClassMethodSignature(owner, function);
 		foreach (FunctionDefinition inherited in GetInheritedClassMethods(owner))
 		{
-			if (inherited.Modifier == FunctionModifier.Sealed && BuildMethodSignature(inherited).Equals(signature))
+			if (inherited.Modifier == FunctionModifier.Sealed && BuildClassMethodSignature(owner, inherited).Equals(signature))
 			{
 				bool destructor = IsDestructorFunction(function);
 				Report(GetNameRange(function), $"{(destructor ? "Destructor" : "Method")} '{GetCallableName(function)}' cannot override a sealed inherited {(destructor ? "destructor" : "method")}.");
@@ -1027,7 +1027,7 @@ public sealed partial class BindableNodeAnalyzer
 			}
 			if (inherited.Modifier is not FunctionModifier.Virtual and not FunctionModifier.Abstract)
 				continue;
-			if (BuildMethodSignature(inherited).Equals(signature))
+			if (BuildClassMethodSignature(owner, inherited).Equals(signature))
 			{
 				if (!OverloadSelectorShapeCompatible(function, inherited, out string overloadShapeMismatch))
 					Report(GetNameRange(function), $"Override '{GetCallableName(function)}' must preserve the base declaration's {overloadShapeMismatch}.");
@@ -1388,7 +1388,7 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			IEnumerable<FunctionDefinition> candidates = ReferenceEquals(current, owner) ? current.Functions : SelectedFunctions(current.Functions);
 			foreach (FunctionDefinition function in candidates)
-				if (BuildMethodSignature(function).Equals(required))
+				if (BuildClassMethodSignature(owner, function).Equals(required))
 					return function.Modifier is (FunctionModifier.Override or FunctionModifier.Sealed)
 						&& IsAtLeastAsAvailable(function, inherited, ownerRequirement);
 		}
@@ -1478,7 +1478,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	bool IsGeneratedVirtualImplementation(FunctionDefinition function)
 	{
-		if (function.GeneratedInfo is { Category: GeneratedDeclarationCategory.VirtualDispatch, Reason: "virtual implementation thunk" or "class-relative virtual result adapter" })
+		if (function.GeneratedInfo is { Category: GeneratedDeclarationCategory.VirtualDispatch, Reason: "virtual implementation thunk" or "class-relative virtual result adapter" or "generic virtual ABI adapter" })
 			return true;
 		foreach (FunctionDefinition implementation in virtualImplementations.Values)
 		{

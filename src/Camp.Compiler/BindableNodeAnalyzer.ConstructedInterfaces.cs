@@ -207,6 +207,17 @@ public sealed partial class BindableNodeAnalyzer
 		return signature with { ReturnType = SubstituteGenericType(signature.ReturnType, map), ParameterTypes = parameters };
 	}
 
+	MethodSignature BuildClassMethodSignature(ClassDefinition receiver, FunctionDefinition function)
+	{
+		Dictionary<string, string>? owner = null;
+		if (FindContainingType(function) is ClassDefinition declaringClass
+			&& !ReferenceEquals(receiver, declaringClass)
+			&& ConstructedClassType(ResolvedNominalTypeName(receiver), declaringClass) is string constructed)
+			owner = BuildConstructedOwnerMap(declaringClass, ExtractConstructedTypeArguments(constructed),
+				[.. receiver.GenericParameters.Select(static parameter => parameter.Name)]);
+		return BuildBinderMappedSignature(function, false, owner);
+	}
+
 	static List<string> CapabilitySlotSignatures(MethodSignature signature) => [.. signature.ParameterTypes
 		.Select(static text => ParseMethodSignatureSlot(text).Type)
 		.Where(static type => type.StartsWith("sizeof(", System.StringComparison.Ordinal)

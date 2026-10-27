@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 
 namespace Camp.Compiler;
 
@@ -370,8 +371,11 @@ public sealed partial class BindableNodeAnalyzer
 					break;
 				}
 			}
-			constructed = baseReference is null ? ResolvedNominalTypeName(baseClass)
-				: SubstituteGenericType(baseReference.ResolvedType ?? FormatTypeReference(baseReference), substitutions);
+			List<TypeReference> writtenArguments = baseReference is null ? [] : WrittenTypeArguments(baseReference);
+			string baseType = writtenArguments.Count > 0
+				? $"{ResolvedNominalTypeName(baseClass)}<{string.Join(", ", writtenArguments.Select(argument => FormatSignatureTypeReference(argument, [])))}>"
+				: baseReference?.ResolvedType ?? ResolvedNominalTypeName(baseClass);
+			constructed = SubstituteGenericType(baseType, substitutions);
 			current = baseClass;
 		}
 

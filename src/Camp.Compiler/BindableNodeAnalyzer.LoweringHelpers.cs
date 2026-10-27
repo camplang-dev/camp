@@ -1008,7 +1008,7 @@ public sealed partial class BindableNodeAnalyzer
 			{
 				if (inherited.Modifier is not FunctionModifier.Virtual and not FunctionModifier.Abstract)
 					continue;
-				if (BuildMethodSignature(inherited).Equals(signature))
+				if (BuildClassMethodSignature(owner, inherited).Equals(BuildClassMethodSignature(owner, function)))
 					return inherited;
 			}
 		}

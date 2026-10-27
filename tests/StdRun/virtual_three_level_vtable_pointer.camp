@@ -52,6 +52,7 @@ export sealed class Form: Control
 
 export int main()
 {
+	if (testGenericVirtuals() != 0) return 6;
 	auto plain = stackalloc PlainLeaf();
 	if (plain.twice() != 6) return 4;
 	auto square = stackalloc Square();
@@ -83,3 +84,41 @@ sealed class Inherited: Gap { }
 class PlainRoot { int value() { return 3; } }
 class PlainMiddle: PlainRoot { }
 sealed class PlainLeaf: PlainMiddle { int twice() { return base.value() * 2; } }
+
+virtual class GenericVirtualBox<T>
+{
+	T* held;
+	virtual T* get() { return this.held; }
+	virtual ~GenericVirtualBox() { }
+}
+sealed class ConcreteVirtualBox: GenericVirtualBox<int>
+{
+	override int* get() { return null; }
+	override ~ConcreteVirtualBox() { }
+}
+virtual class GenericVirtualNum<T: int>
+{
+	virtual T next(T value) { return value; }
+}
+sealed class ConcreteVirtualNum: GenericVirtualNum<byte>
+{
+	override int<byte> next(int<byte> value) { return value; }
+}
+abstract class GenericVirtualSource<T> { abstract T* take(); }
+abstract class GenericVirtualGap<U>: GenericVirtualSource<U> { }
+sealed class ConcreteVirtualSource: GenericVirtualGap<int>
+{
+	override int* take() { return null; }
+}
+int testGenericVirtuals()
+{
+	GenericVirtualBox<int>* box = new ConcreteVirtualBox() finally delete;
+	if (box.get() != null) return 1;
+	GenericVirtualNum<byte>* number = new ConcreteVirtualNum() finally delete;
+	if ((int)number.next(250) != 250) return 2;
+	GenericVirtualSource<int>* source = new ConcreteVirtualSource() finally delete;
+	if (source.take() != null) return 3;
+	auto inherited = new GenericVirtualBox<int>() finally delete;
+	if (inherited.get() != null) return 4;
+	return 0;
+}

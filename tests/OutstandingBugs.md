@@ -44,30 +44,6 @@ Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
 
-## BUG-390: A virtual or abstract method of a generic class cannot mention the class's type parameter in its signature
-
-Date/Time: 2026-10-27 07:57 EDT
-
-Summary:
-In a generic class, a `virtual` or `abstract` method whose parameter or result type mentions the class's type parameter (`virtual T* get()`, `virtual T next(T x)`, `abstract T* take()`) is rejected with "Unknown type 'T'." at that use. Fields and non-virtual methods of the same class may use `T`, and the same virtual method without `T` in its signature is accepted. As a consequence, an override in a class derived from a construction, written with the substituted types (`override int* get()` for `Box<int>`, `override int<byte> next(int<byte> x)` for an integer-represented `Num<byte>`), is also rejected, and a concrete class implementing an inherited abstract `T`-typed method is reported as not implementing it.
-
-Steps to Reproduce:
-
-1. Declare `virtual class Box<T> { T* held; virtual T* get() { return this.held; } virtual ~Box() { } }` (with the usual `malloc` and `free` externs).
-2. Declare `sealed class IntBox: Box<int> { override int* get() { return null; } override ~IntBox() { } }`.
-3. Declare `virtual class Num<T: int> { T value; virtual T next(T x) { return x; } virtual ~Num() { } }` and `sealed class ByteNum: Num<byte> { override int<byte> next(int<byte> x) { return x; } override ~ByteNum() { } }`.
-4. Declare `abstract class Src<T> { abstract T* take(); virtual ~Src() { } }` and `sealed class IntSrc: Src<int> { override int* take() { return null; } override ~IntSrc() { } }`.
-5. In `main`, construct each derived class, call the method through a pointer to its base construction (`Box<int>* b = new IntBox(); b.get();`, and so on), and delete it through that pointer. Build with `campc run`.
-
-Expected:
-The program builds and runs. Each `T` in a virtual or abstract signature resolves to the class's type parameter, and each override written with the base construction's substituted types (`int*`, `int<byte>`) overrides the inherited member.
-
-Actual:
-"Unknown type 'T'." at each `T` in a virtual or abstract signature, followed by "Override method 'get' must match an inherited virtual or abstract method." for each override and "Class 'IntSrc' must use override to implement inherited abstract member 'take()'." for the abstract case. `Box<int>` alone, with no derived class, already fails.
-
-Known Impact:
-A generic class hierarchy cannot dispatch virtually on any member whose signature mentions a type parameter. Workaround: keep virtual signatures free of type parameters and reach `T` through non-virtual members.
-
 ## BUG-391: Dereferencing an inherited type-parameter pointer field through `this` in a class derived from a concrete construction emits invalid C
 
 Date/Time: 2026-10-27 07:57 EDT

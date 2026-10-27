@@ -40,6 +40,8 @@ public sealed partial class BindableNodeAnalyzer
 			ResolvedType = VirtualTableTypeName(classDefinition),
 			EffectiveRequirement = classDefinition.EffectiveRequirement
 		};
+		foreach (GenericParameter parameter in classDefinition.GenericParameters)
+			vtableType.GenericParameters.Add(CloneGenericParameter(parameter));
 		if (baseLowering is not null)
 		{
 			vtableType.Fields.Add(new FieldDefinition
@@ -84,6 +86,13 @@ public sealed partial class BindableNodeAnalyzer
 					&& (ContainsClassTypeReference(function.ReturnType) || function.Parameters.Any(parameter => ContainsClassTypeReference(parameter.Type))))
 				{
 					implementation = CreateClassTypeVirtualAdapter(classDefinition, abiOwner, implementation);
+					generated.Add(implementation);
+				}
+				if (GetVirtualImplementationAbiOwner(classDefinition, function) is ClassDefinition genericOwner
+					&& !ReferenceEquals(genericOwner, classDefinition) && genericOwner.GenericParameters.Count > 0
+					&& !IsGeneratedDestructorDeleteHelper(function))
+				{
+					implementation = CreateGenericVirtualAdapter(classDefinition, genericOwner, function, implementation);
 					generated.Add(implementation);
 				}
 				virtualImplementations[function] = implementation;
@@ -160,6 +169,50 @@ public sealed partial class BindableNodeAnalyzer
 		}
 		ApplyVirtualImplementationThisTypes(implementation, owner, abiOwner ?? owner, source);
 		return implementation;
+	}
+
+	FunctionDefinition CreateGenericVirtualAdapter(ClassDefinition owner, ClassDefinition abiOwner, FunctionDefinition source, FunctionDefinition implementation)
+	{
+		FunctionDefinition slot = abiOwner.Functions.First(candidate => VirtualSlotName(candidate) == VirtualSlotName(source));
+		List<string> arguments = ExtractConstructedTypeArguments(ConstructedClassType(ResolvedNominalTypeName(owner), abiOwner) ?? abiOwner.Name);
+		Dictionary<string, string> map = [];
+		for (int i = 0; i < abiOwner.GenericParameters.Count && i < arguments.Count; i++)
+			map[abiOwner.GenericParameters[i].Name] = $"{ErasureWrapper(abiOwner.GenericParameters[i])}<{arguments[i]}>";
+		FunctionDefinition adapter = generatedDeclarations.Function(GeneratedDeclarationCategory.VirtualDispatch, "generic virtual ABI adapter", implementation);
+		adapter.Name = implementation.Name + "_generic_abi";
+		adapter.Symbol = implementation.Symbol + "_generic_abi";
+		adapter.ReturnType = RewriteThunkType(slot.ReturnType, map, adapter);
+		adapter.AbiThisType = CloneType(implementation.AbiThisType);
+		adapter.ImplementationThisType = CloneType(implementation.ImplementationThisType);
+		CallExpression call = new()
+		{
+			Target = new MemberReferenceExpression
+			{
+				Target = new ThisExpression { ResolvedType = owner.Name + "*" },
+				Name = implementation.Name, Member = implementation,
+				ResolvedType = BuildFunctionValueType(implementation, isInstance: true)
+			},
+			ResolvedType = implementation.ResolvedType
+		};
+		List<ParameterDefinition> slotParameters = slot.Parameters.Where(static parameter => parameter is not ThisParameterDefinition).ToList();
+		for (int i = 0; i < implementation.Parameters.Count; i++)
+		{
+			ParameterDefinition parameter = CloneParameter(implementation.Parameters[i]);
+			parameter.Type = RewriteThunkType(slotParameters[i].Type, map, adapter);
+			parameter.ResolvedType = null;
+			adapter.Parameters.Add(parameter);
+			call.Arguments.Add(new ArgumentExpression
+			{
+				Modifier = parameter.Modifier == ParameterModifier.Out ? ArgumentModifier.Out : ArgumentModifier.None,
+				Value = new VariableReferenceExpression { Variable = parameter }
+			});
+		}
+		adapter.Body = new BlockStatement();
+		if (GetFunctionReturnTypeName(slot) == "void")
+			adapter.Body.Statements.Add(new ExpressionStatement { Expression = call });
+		else
+			adapter.Body.Statements.Add(new ReturnStatement { Expression = call });
+		return adapter;
 	}
 
 	FunctionDefinition CreateClassTypeVirtualAdapter(ClassDefinition owner, ClassDefinition abiOwner, FunctionDefinition implementation)

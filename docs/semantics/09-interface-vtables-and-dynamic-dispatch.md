@@ -507,6 +507,12 @@ vtable concepts. A virtual/abstract/sealed class hierarchy has:
 - vtable variables initialized with the closest implementation;
 - dispatch bodies for virtual/abstract slot declarations.
 
+Generated vtable types retain the declaring class's generic binders. A virtual
+signature may mention those binders, and override matching substitutes the
+constructed base's owner arguments, including integer representations, through
+every intermediate base. Concrete overrides use typed adapters when their
+native signature differs from the erased slot signature.
+
 Dispatch forwarding preserves every ABI component of each source argument.
 For a slot taking and returning an array, pass the input pointer and length
 before the result-length address. Preparing expanded return components must
