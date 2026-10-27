@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-402.
+Next bug number: BUG-403.
 
 ## Bug Template
 
@@ -73,3 +73,32 @@ The compiler terminates with `Stack overflow.` in the type-substitution code. Va
 
 Known Impact:
 Any generic class that overrides a virtual method mentioning the base's parameter while reusing the parameter name cannot be compiled. Workaround: give the derived class's parameters different names from the base's.
+
+## BUG-402: inherited integer-carried field read in a derived class emits invalid C
+
+Date/Time: 2026-10-27 12:15 EDT
+
+Summary:
+A class derived from a generic base with an integer-carried parameter (`T: int`) cannot read the inherited field of that parameter's type. The generated C returns a `void *` from a function whose result is an integer, and the native build fails. Reading the field inside the base class, through a base method, works.
+
+Steps to Reproduce:
+
+1. Compile this program:
+
+   ```camp
+   extern void __intrinsic_log_i32(int value);
+   extern escaped void* malloc(nuint size);
+   extern void free(void* ptr);
+   virtual class Num<T: int> { T value; Num(T value) { this.value = value; } virtual ~Num() { } }
+   sealed class ByteNum: Num<byte> { ByteNum() { base(250); } int<byte> get() { return this.value; } override ~ByteNum() { } }
+   export int main() { ByteNum* n = new ByteNum(); __intrinsic_log_i32(n.get()); delete n; return 0; }
+   ```
+
+Expected:
+The program compiles and prints `250`.
+
+Actual:
+The native build fails: `error: incompatible pointer to integer conversion returning 'void *' from a function with result type 'int'` at `return this->value;`. A generic derived class (`LeafN<C: int>: RootN<C>` returning `this.value` as `C`) fails the same way.
+
+Known Impact:
+Derived classes cannot read inherited integer-carried fields directly. Workaround: read the field through a method of the base class.
