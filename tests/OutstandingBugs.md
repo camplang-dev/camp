@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-399.
+Next bug number: BUG-400.
 
 ## Bug Template
 
@@ -276,3 +276,27 @@ Both classes are accepted.
 
 Known Impact:
 Source that restates markers on overrides compiles, and would be rejected once the rule is enforced. Workaround: omit the marker on overrides.
+
+## BUG-399: A derived class of a retained-allocator root cannot declare its destructor
+
+Date/Time: 2026-10-27 07:57 EDT
+
+Summary:
+A lifecycle root with a retained allocator (`Retained(within this.allocator)`) has a parameterless destructor, and its derived classes accept and forward a `within` context in their constructors. A derived class's destructor overrides the root's parameterless destructor slot, so it is parameterless too: the object is freed through the retained allocator, not through a context supplied to the destructor. The compiler rejects the parameterless override, because the derived constructor declares `within`. The `within` form it asks for instead does not match the slot and emits C that does not compile.
+
+Steps to Reproduce:
+
+1. Declare an `Allocator` interface with `alloc`, `realloc` and `free`, and a class implementing it (with the usual `malloc` and `free` externs).
+2. Declare `virtual class Retained { int r; Retained(within this.allocator) { this.r = 2; } virtual ~Retained() { } }`.
+3. Declare `sealed class Sub: Retained { Sub(within allocator) { } override ~Sub() { } }`.
+4. In `main`, construct `Sub` with `within (allocator) new Sub()` and delete it.
+5. Build with `campc run`. Repeat with `override ~Sub(within allocator) { }` in place of `override ~Sub() { }`.
+
+Expected:
+The first program builds and runs `~Sub` and then `~Retained`. The second is rejected at the destructor, because a destructor with a `within` parameter does not match the root's parameterless destructor slot.
+
+Actual:
+The first is rejected with "Destructor must declare a within allocator because an explicit constructor declares within." The second passes analysis and the native build fails with "incompatible function pointer types initializing 'void (*)(Retained *)' ... with an expression of type 'void (Retained *, Allocator **)'" for the vtable's `op_delete` entry.
+
+Known Impact:
+Derived classes of a retained-allocator root cannot have destructors. Workaround: omit the derived destructor and do the cleanup in the root.
