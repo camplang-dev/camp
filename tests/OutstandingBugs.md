@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-397.
+Next bug number: BUG-398.
 
 ## Bug Template
 
@@ -230,3 +230,26 @@ Actual:
 
 Known Impact:
 Explicit evidence in `base(...)` works only when the derived parameter reuses the base's name. Workaround: name the derived parameter as the base does.
+
+## BUG-397: Calling through an interface pointer field that holds a sealed implementer crashes
+
+Date/Time: 2026-10-27 07:57 EDT
+
+Summary:
+A heap object of a `sealed` class that implements an interface, converted to the interface pointer and stored in a field of another heap object, crashes when a method is called through that field. The same program with the implementing class not `sealed` runs correctly.
+
+Steps to Reproduce:
+
+1. Declare `interface Store { int put(int item); }` and `sealed class Impl: Store { int pad; int put(int item): Store { return item + 1; } }` (with the usual `malloc` and `free` externs).
+2. Declare `sealed class Inner { Store* store; int run(int item) { return this.store.put(item); } }`.
+3. In `main`, write `Impl* a = new Impl(); Inner* inner = new Inner(); inner.store = a;` and log `inner.run(5)`.
+4. Build with `campc run`. Repeat with `class Impl` instead of `sealed class Impl`.
+
+Expected:
+Both programs print `6`.
+
+Actual:
+With `sealed class Impl` the program exits with status 139 (segmentation fault) at the call; without `sealed` it prints `6`.
+
+Known Impact:
+Sealed classes cannot be stored as interface pointers in fields. Workaround: do not mark interface implementers `sealed`.
