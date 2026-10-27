@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-394.
+Next bug number: BUG-395.
 
 ## Bug Template
 
@@ -161,3 +161,26 @@ Actual:
 
 Known Impact:
 Derived classes must reuse the base's type parameter names, and concrete constructions of a capability-taking base cannot be derived from at all. Workaround: name the derived parameter as the base does.
+
+## BUG-394: `sizeof(T)` of an integer-represented type parameter requires a declared capability
+
+Date/Time: 2026-10-27 07:57 EDT
+
+Summary:
+For a type parameter with an integer representation (`T: int`), the compiler supplies `sizeof(T)` without a declaration, both as an expression and for a `sizeof(T)` slot of a called constructor, including a base constructor. The compiler instead requires a declared `sizeof(T)` capability in each case, as it does for a void-represented parameter.
+
+Steps to Reproduce:
+
+1. Declare `int sz<T: int>() { return (int)sizeof(T); }` (with the usual `malloc` and `free` externs) and log `sz<short>()` from `main`.
+2. Separately, declare `class Foo<T: int> { T value; Foo(T seed) { this.value = seed; } int size() { return (int)sizeof(T); } }`, construct `Foo<short>` with a `short` seed and log `size()`.
+3. Separately, declare `virtual class Num2<T: int> { T value; Num2(T seed, sizeof(T)) { this.value = seed; } int width() { return (int)sizeof(T); } virtual ~Num2() { } }` and `sealed class Carried<T: int>: Num2<T> { Carried(T seed) { base(seed); } }`, construct `Carried<byte>` with `250` and log `width()`.
+4. Build each with `campc run`.
+
+Expected:
+Each program builds and logs the size of the type argument: `2` for `short` and `1` for `byte`.
+
+Actual:
+"sizeof(T) requires parameter 'sizeof_T'." at the `sizeof(T)` expression in the first two programs and at the `base(seed)` call in the third.
+
+Known Impact:
+Integer-represented generic code must declare `sizeof(T)` wherever it uses it. Workaround: declare the capability.
