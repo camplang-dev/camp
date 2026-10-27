@@ -44,29 +44,6 @@ Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
 
-## BUG-394: `sizeof(T)` of an integer-represented type parameter requires a declared capability
-
-Date/Time: 2026-10-27 07:57 EDT
-
-Summary:
-For a type parameter with an integer representation (`T: int`), the compiler supplies `sizeof(T)` without a declaration, both as an expression and for a `sizeof(T)` slot of a called constructor, including a base constructor. The compiler instead requires a declared `sizeof(T)` capability in each case, as it does for a void-represented parameter.
-
-Steps to Reproduce:
-
-1. Declare `int sz<T: int>() { return (int)sizeof(T); }` (with the usual `malloc` and `free` externs) and log `sz<short>()` from `main`.
-2. Separately, declare `class Foo<T: int> { T value; Foo(T seed) { this.value = seed; } int size() { return (int)sizeof(T); } }`, construct `Foo<short>` with a `short` seed and log `size()`.
-3. Separately, declare `virtual class Num2<T: int> { T value; Num2(T seed, sizeof(T)) { this.value = seed; } int width() { return (int)sizeof(T); } virtual ~Num2() { } }` and `sealed class Carried<T: int>: Num2<T> { Carried(T seed) { base(seed); } }`, construct `Carried<byte>` with `250` and log `width()`.
-4. Build each with `campc run`.
-
-Expected:
-Each program builds and logs `4`: `sizeof(T)` of an integer-represented `T` is the storage width of its representation (`int` here), whatever the type argument, as it is for a declared `sizeof(T)`.
-
-Actual:
-"sizeof(T) requires parameter 'sizeof_T'." at the `sizeof(T)` expression in the first two programs and at the `base(seed)` call in the third.
-
-Known Impact:
-Integer-represented generic code must declare `sizeof(T)` wherever it uses it. Workaround: declare the capability.
-
 ## BUG-395: A derived class that retains the same capability as its base emits a duplicate C struct member
 
 Date/Time: 2026-10-27 07:57 EDT

@@ -331,6 +331,12 @@ Implicit `sizeof` arguments can be added at call sites when the concrete type is
 known and the callee declares the capability parameter. If no capability is
 available inside the generic body, report the operation that needs it.
 
+An integer-represented parameter supplies `sizeof(T)` intrinsically, without a
+declared slot or retained field. Its value is the target storage width of the
+representation, not the eventual payload; `T: int` therefore supplies the size
+of `int` even when instantiated with `byte` or `short`. This evidence also
+satisfies an automatically supplied constructor or base-constructor size slot.
+
 ### `vtableof(T: Interface)`
 
 `vtableof(T: Interface)` supplies a witness capability for generic interface

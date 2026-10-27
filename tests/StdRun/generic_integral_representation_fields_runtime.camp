@@ -12,6 +12,7 @@ struct Pair<T: long>
 class Box<T: int>
 {
 	T value;
+	int size() { return (int)sizeof(T); }
 
 	Box(T value)
 	{
@@ -21,6 +22,11 @@ class Box<T: int>
 
 export int main()
 {
+	if (implicitIntegerSize<short>() != 4) return 5;
+	auto sized = new Box<short>(123) finally delete;
+	if (sized.size() != 4) return 6;
+	auto carried = new CarriedSize<byte>(250) finally delete;
+	if (carried.width() != 4) return 7;
 	Slot<uint>* slot = stackalloc Slot<uint>();
 	slot.value = 9;
 	uint stored = slot.value;
@@ -43,4 +49,15 @@ export int main()
 		return 4;
 
 	return 0;
+}
+
+int implicitIntegerSize<T: int>() { return (int)sizeof(T); }
+virtual class CarriedSizeBase<T: int>
+{
+	CarriedSizeBase(T seed, sizeof(T)) { }
+	int width() { return (int)sizeof(T); }
+}
+sealed class CarriedSize<T: int>: CarriedSizeBase<T>
+{
+	CarriedSize(T seed) { base(seed); }
 }

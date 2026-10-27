@@ -108,6 +108,14 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (!IsGenericSizeOf(sizeOf, out string genericName))
 			return sizeOf;
+		if (BoundParameter(sizeOf.Type) is GenericParameter operand
+			&& ErasureWrapper(operand) is string representation && representation != "void")
+			return new SizeOfExpression
+			{
+				SourceSyntax = sizeOf.SourceSyntax,
+				Type = TypeReferenceForResolvedName(representation),
+				ResolvedType = "nuint"
+			};
 
 		if (FindSizeOfParameter(currentRewriteFunction, genericName) is SizeOfParameterDefinition parameter)
 			return CreateVariableReference(parameter, "nuint");
