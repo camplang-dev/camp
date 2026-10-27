@@ -28,3 +28,18 @@ class DerivedWrongForwarding : BaseWithin
 		within (other) base();
 	}
 }
+
+class RequiredBase { RequiredBase(int value) { } }
+class MissingBaseWithStatement: RequiredBase
+{
+	MissingBaseWithStatement() { touch(); }
+}
+class MissingBaseWithDeclaration: RequiredBase
+{
+	MissingBaseWithDeclaration() { int value = 1; }
+}
+class MissingBaseWithReturn: RequiredBase
+{
+	MissingBaseWithReturn() { return; }
+}
+void touch() { }

@@ -5673,7 +5673,7 @@ public sealed partial class BindableNodeAnalyzer
 			return;
 
 		FunctionDefinition? baseInitNew = FindGeneratedInitNewMethod(baseClass);
-		if (baseInitNew is not null)
+		if (baseInitNew is not null && CountRequiredParameters(baseInitNew.Parameters) == 0)
 		{
 			InsertImplicitBaseConstructorCall(function, function.Body, containingClass, baseClass, baseInitNew);
 			return;

@@ -1,1 +1,4 @@
 tests/Diagnostics/lifecycle_allocator_base_forwarding.camp(28,18): error: base(...) must be the first constructor action and may not be conditional or delayed.
+tests/Diagnostics/lifecycle_allocator_base_forwarding.camp(35,29): error: Constructor for class 'MissingBaseWithStatement' must invoke a base constructor because base class 'RequiredBase' has no accessible parameterless constructor.
+tests/Diagnostics/lifecycle_allocator_base_forwarding.camp(39,31): error: Constructor for class 'MissingBaseWithDeclaration' must invoke a base constructor because base class 'RequiredBase' has no accessible parameterless constructor.
+tests/Diagnostics/lifecycle_allocator_base_forwarding.camp(43,26): error: Constructor for class 'MissingBaseWithReturn' must invoke a base constructor because base class 'RequiredBase' has no accessible parameterless constructor.

@@ -44,28 +44,6 @@ Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
 
-## BUG-387: A constructor with statements and no `base(...)` call emits invalid C when the base constructor takes arguments
-
-Date/Time: 2026-10-27 09:05 EDT
-
-Summary:
-When a base class constructor takes a required argument, a derived constructor that does not start with `base(...)` cannot satisfy it. If the derived constructor body is empty the compiler reports an error, but if the body contains any statement the compiler reports nothing and emits a call to the base constructor with too few arguments. The native compile of the generated C then fails.
-
-Steps to Reproduce:
-
-1. Declare `class Root { Root(int x) { } }`.
-2. Declare `sealed class E: Root { E() { __intrinsic_log_i32(1); } }`, with the usual `__intrinsic_log_i32`, `malloc` and `free` externs.
-3. Add `export int main() { return 0; }` and build the program with `campc run`.
-
-Expected:
-The compiler reports a Camp diagnostic on the derived constructor saying that the base class constructor has arguments, so the derived constructor must start with a `base(...)` call. The empty-body form `E() { }` is already diagnosed.
-
-Actual:
-No Camp diagnostic is produced. The native compile fails: `error: too few arguments to function call, expected 2, have 1` at `Root_op_initnew((Root *)(this));` in the generated C.
-
-Known Impact:
-Any derived constructor with a body that omits a required `base(...)` call surfaces as a C compiler error. Workaround: start the constructor with `base(...)`.
-
 ## BUG-388: Diagnostics for a missing or mismatched base constructor call mention `op_initnew()` and suggest constructor overloads
 
 Date/Time: 2026-10-26 23:00 EDT

@@ -187,6 +187,11 @@ Base initialization must run before derived fields/methods depend on base
 state. Derived initialization must not overwrite generated base vtable/interface
 state unless the lowering path intentionally updates it for the dynamic type.
 
+An implicit base constructor call is valid only when no source arguments are
+required. Otherwise the derived constructor must start with `base(...)`.
+Validate this even when its body contains statements; never insert an unchecked
+zero-argument helper call after body analysis.
+
 ## Selected Destination Construction
 
 Constructor-shaped type calls construct into storage selected by the
