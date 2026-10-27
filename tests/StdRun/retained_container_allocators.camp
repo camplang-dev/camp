@@ -88,6 +88,30 @@ export int main()
 		return 6;
 	if (outstandingAllocations != 0)
 		return 7;
+	resetTracking();
+	RetainedCleanupDerived* direct = within (allocator) new RetainedCleanupDerived();
+	within (HeapAllocator) delete direct;
+	if (freeCalls != 1 || outstandingAllocations != 0 || retainedCleanupLog != 21) return 8;
+	retainedCleanupLog = 0;
+	RetainedCleanupRoot* baseView = within (allocator) new RetainedCleanupDerived();
+	within (HeapAllocator) delete baseView;
+	if (freeCalls != 2 || outstandingAllocations != 0 || retainedCleanupLog != 21) return 9;
+	retainedCleanupLog = 0;
+	auto stackValue = within (allocator) stackalloc RetainedCleanupDerived();
+	delete stackValue;
+	if (freeCalls != 2 || retainedCleanupLog != 21) return 10;
 
 	return 0;
+}
+
+int retainedCleanupLog;
+virtual class RetainedCleanupRoot
+{
+	RetainedCleanupRoot(within this.allocator) { }
+	virtual ~RetainedCleanupRoot() { retainedCleanupLog = retainedCleanupLog * 10 + 1; }
+}
+sealed class RetainedCleanupDerived: RetainedCleanupRoot
+{
+	RetainedCleanupDerived(within allocator) { }
+	override ~RetainedCleanupDerived() { retainedCleanupLog = retainedCleanupLog * 10 + 2; return; }
 }

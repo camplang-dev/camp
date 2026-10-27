@@ -37,3 +37,19 @@ class DerivedMissingWithin : BaseWithin
 	{
 	}
 }
+
+virtual class RetainedDestructorRoot
+{
+	RetainedDestructorRoot(within this.allocator) { }
+	virtual ~RetainedDestructorRoot() { }
+}
+sealed class RetainedDestructorValid: RetainedDestructorRoot
+{
+	RetainedDestructorValid(within allocator) { }
+	override ~RetainedDestructorValid() { }
+}
+sealed class RetainedDestructorWrong: RetainedDestructorRoot
+{
+	RetainedDestructorWrong(within allocator) { }
+	override ~RetainedDestructorWrong(within allocator) { }
+}

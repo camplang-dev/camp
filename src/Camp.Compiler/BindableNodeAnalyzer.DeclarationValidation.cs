@@ -954,6 +954,8 @@ public sealed partial class BindableNodeAnalyzer
 
 			if (destructor.Modifier is not FunctionModifier.Override and not FunctionModifier.Sealed)
 				Report(GetNameRange(destructor), $"Destructor '{destructor.Name}' must use override to implement inherited virtual destructor '{ultimateDestructor.Name}'.");
+			if (HasWithinParameter(destructor) != HasWithinParameter(ultimateDestructor))
+				Report(GetNameRange(destructor), $"Destructor '{destructor.Name}' must match the inherited destructor's allocator contract: {(HasWithinParameter(ultimateDestructor) ? "a within allocator parameter is required" : "no within allocator parameter is allowed")}.");
 		}
 	}
 

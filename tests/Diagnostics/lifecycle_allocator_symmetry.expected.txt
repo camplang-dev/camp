@@ -1,3 +1,4 @@
 tests/Diagnostics/lifecycle_allocator_symmetry.camp(11,3): error: Destructor must declare a within allocator because an explicit constructor declares within.
 tests/Diagnostics/lifecycle_allocator_symmetry.camp(18,2): error: Constructor must declare a within allocator because the explicit destructor declares within.
 tests/Diagnostics/lifecycle_allocator_symmetry.camp(36,2): error: Constructor for derived class 'DerivedMissingWithin' must declare within because base class 'BaseWithin' has a within constructor.
+tests/Diagnostics/lifecycle_allocator_symmetry.camp(54,12): error: Destructor '~RetainedDestructorWrong' must match the inherited destructor's allocator contract: no within allocator parameter is allowed.

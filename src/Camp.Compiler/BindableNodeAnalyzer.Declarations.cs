@@ -261,7 +261,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (definition.Extern is not null)
 			return;
 
-		bool retainsAllocator = LifecycleAllocatorPolicy.RetainsAllocator(definition.Functions);
+		bool retainsAllocator = FindRetainedAllocatorOwner(definition) is not null;
 		List<FunctionDefinition> sourceConstructors = [.. definition.Functions.Where(static function => function.Modifier == FunctionModifier.Constructor && function.GeneratedInfo is null)];
 		List<FunctionDefinition> sourceDestructors = [.. definition.Functions.Where(function => IsDestructorFunction(function) && function.GeneratedInfo is null)];
 
@@ -299,6 +299,11 @@ public sealed partial class BindableNodeAnalyzer
 			if (function.Modifier == FunctionModifier.Constructor && HasWithinParameter(function))
 				return true;
 		return false;
+	}
+
+	ClassDefinition? FindRetainedAllocatorOwner(ClassDefinition definition)
+	{
+		return EnumerateClassAndBaseDefinitions(definition).FirstOrDefault(candidate => LifecycleAllocatorPolicy.RetainsAllocator(candidate.Functions));
 	}
 
 	void CollectTypeNames(Module module)

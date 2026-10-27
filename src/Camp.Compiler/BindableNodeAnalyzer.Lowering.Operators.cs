@@ -1104,6 +1104,9 @@ public sealed partial class BindableNodeAnalyzer
 
 		if (captureTarget && (isPointer || isThisPointer))
 			target = CaptureDeleteTarget(target, "deleteTarget");
+		if (!suppressDeallocate && deletedDefinition is ClassDefinition deletedClass
+			&& FindRetainedAllocatorOwner(deletedClass) is ClassDefinition retainedOwner)
+			opDelete = FindDestroyMethod(retainedOwner) ?? opDelete;
 		if (isPointer && !suppressDeallocate && FindWitnessDestructor(currentRewriteFunction, deletedType, currentRewriteContainingType) is FunctionDefinition witnessDestructor)
 			return new DeleteOperation(CreateWitnessDestructorCall(target, witnessDestructor), captureTarget ? target : null);
 		bool deallocate = opDelete?.Name != DestroyMethodName

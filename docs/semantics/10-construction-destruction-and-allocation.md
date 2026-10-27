@@ -524,6 +524,13 @@ derived class must not declare a second retained allocator field. In source,
 the base call is written with ordinary base-call syntax; the `within` modifier
 belongs to the parameter declaration, not to the base-call argument.
 
+Derived destructor overrides keep the lifecycle root's allocator contract. For
+a retained-allocator root they are parameterless, even though derived
+constructors accept `within`. Reject a destructor `within` parameter that does
+not match the inherited slot. Owning deletion through either a base or derived
+pointer calls the retained root's destroy path, which dispatches destruction
+and frees once through the stored allocator; stack deletion only destroys.
+
 Constructor and destructor allocator shapes must remain coherent:
 
 - a retained allocator constructor pairs with a parameterless destructor;
