@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-400.
+Next bug number: BUG-401.
 
 ## Bug Template
 
@@ -300,3 +300,26 @@ The first is rejected with "Destructor must declare a within allocator because a
 
 Known Impact:
 Derived classes of a retained-allocator root cannot have destructors. Workaround: omit the derived destructor and do the cleanup in the root.
+
+## BUG-400: `sizeof(T)` of an integer-represented type parameter reports the representation's size instead of the type argument's
+
+Date/Time: 2026-10-27 07:57 EDT
+
+Summary:
+`sizeof(T)` returns the size of `T`. For a type parameter with an integer representation, `T` is the type argument (`byte`, `short`), not its carrier. The compiler instead reports the size of the declared representation: 4 for any argument of `T: int` and 8 for any argument of `T: long`.
+
+Steps to Reproduce:
+
+1. Declare `int sz<T: int>(sizeof(T)) { return (int)sizeof(T); }` (with the usual `malloc` and `free` externs).
+2. In `main`, log `sz<byte>()` and `sz<short>()`.
+3. Separately, declare `class Foo<T: long> { T value; Foo(T seed, sizeof(T)) { this.value = seed; } int size() { return (int)sizeof(T); } }`, construct `Foo<byte>` with a `byte` seed and log `size()`.
+4. Build each with `campc run`.
+
+Expected:
+The first program prints `1` and `2`; the second prints `1`.
+
+Actual:
+The first program prints `4` and `4`; the second prints `8`.
+
+Known Impact:
+Generic code sizing buffers or copies by `sizeof(T)` over an integer-represented parameter uses the carrier width. No workaround inside the generic code.
