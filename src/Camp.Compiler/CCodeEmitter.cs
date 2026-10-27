@@ -8184,8 +8184,11 @@ public static class CCodeEmitter
                 && TryGetPointerElementType(operand.ResolvedType, out string operandElementType)
                 && TryFindInterfaceStruct(InterfaceStructNameFromPointerElement(operandElementType), name, out _))
             {
-                string formattedOperand = FormatExpression(operand);
-                return operand.ResolvedType?.TrimEnd().EndsWith("**", StringComparison.Ordinal) == true
+                string operandType = operand.ResolvedType ?? "";
+                if (TryNormalizeInterfacePointerType(operandType, out string normalizedOperandType))
+                    operandType = normalizedOperandType;
+                string formattedOperand = FormatMemberTarget(operand);
+                return operandType.TrimEnd().EndsWith("**", StringComparison.Ordinal)
                     ? "(*" + formattedOperand + ")->" + SanitizeIdentifier(name)
                     : formattedOperand + "->" + SanitizeIdentifier(name);
             }
@@ -8318,6 +8321,10 @@ public static class CCodeEmitter
         bool TryFindInterfaceStruct(string interfaceName, string fieldName, out StructDefinition? interfaceStruct)
         {
             interfaceStruct = null;
+            // Constructed interfaces share their definition's erased C table.
+            int generic = interfaceName.IndexOf('<', StringComparison.Ordinal);
+            if (generic >= 0)
+                interfaceName = interfaceName[..generic];
             foreach (Definition definition in GetDefinitions())
             {
                 if (definition is StructDefinition candidate

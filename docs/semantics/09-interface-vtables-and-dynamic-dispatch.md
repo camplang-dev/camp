@@ -416,6 +416,9 @@ pointer (`auto f = i.pass`) reads the slot when formed and carries the instance
 as its context; it is not a flattened static call. A call through a derived
 interface pointer to an inherited member first views the receiver as the
 declaring base interface.
+Slot lookup and C pointer-depth normalization also apply when a constructed
+interface receiver is read directly from a generic owner's field, including an
+inherited field. Copying that field to a local must not change dispatch.
 
 Conversion to an interface pointer checks the exact construction; a base
 interface upcast compares the constructed base arguments. Witnesses over

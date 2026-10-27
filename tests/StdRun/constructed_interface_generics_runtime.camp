@@ -106,8 +106,37 @@ struct TextSource: ErasedCountedSource<string>
 	int count(): ErasedCountedSource<string> { return 1; }
 }
 
+interface PointerReadSource<T> { T* read(); }
+class IntPointerSource: PointerReadSource<int>
+{
+	int* value;
+	int* read(): PointerReadSource<int> { return this.value; }
+}
+class PointerSourceHolder<T>
+{
+	PointerReadSource<T>* source;
+	T* read() { return this.source.read(); }
+	T* readLocal() { PointerReadSource<T>* source = this.source; return source.read(); }
+	T* readReference() { auto read = this.source.read; return read(); }
+}
+class PointerSourceBase<T> { PointerReadSource<T>* source; }
+class InheritedPointerSourceHolder<U>: PointerSourceBase<U>
+{
+	U* read() { return this.source.read(); }
+}
+
 export int main()
 {
+	int pointedValue = 37;
+	auto pointerSource = new IntPointerSource() finally delete;
+	pointerSource.value = &pointedValue;
+	auto pointerHolder = new PointerSourceHolder<int>() finally delete;
+	pointerHolder.source = pointerSource;
+	if (pointerHolder.read() != &pointedValue || pointerHolder.readLocal() != &pointedValue
+		|| pointerHolder.readReference() != &pointedValue) return 32;
+	auto inheritedHolder = new InheritedPointerSourceHolder<int>() finally delete;
+	inheritedHolder.source = pointerSource;
+	if (inheritedHolder.read() != &pointedValue) return 33;
 	auto relisted = new RecheckedGeneric<byte>() finally delete;
 	Check<byte>* relistedView = relisted;
 	if (relistedView.pass(200) != 200) return 30;
