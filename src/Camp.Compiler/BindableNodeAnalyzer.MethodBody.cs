@@ -4242,6 +4242,7 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		string? receiverType = target switch
 		{
+			NamedExpression { Qualifiers.Count: 0, Name: "base" } when currentAnalysisContainingType is ClassDefinition owner => ResolvedNominalTypeName(owner) + "*",
 			MemberExpression member => member.Target?.ResolvedType,
 			MemberReferenceExpression member => member.Target?.ResolvedType,
 			_ => null

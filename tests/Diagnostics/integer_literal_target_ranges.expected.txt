@@ -5,3 +5,7 @@ tests/Diagnostics/integer_literal_target_ranges.camp(6,11): error: Integer liter
 tests/Diagnostics/integer_literal_target_ranges.camp(7,12): error: Integer literal '18446744073709551616' is outside the range of type 'ulong'.
 tests/Diagnostics/integer_literal_target_ranges.camp(8,11): error: Integer literal '-9223372036854775809' is outside the range of type 'long'.
 tests/Diagnostics/integer_literal_target_ranges.camp(9,11): error: Integer literal '0x100UL' is outside the range of type 'byte'.
+tests/Diagnostics/integer_literal_target_ranges.camp(15,63): error: Integer literal '300' is outside the range of type 'byte'.
+tests/Diagnostics/integer_literal_target_ranges.camp(18,72): error: Integer literal '300' is outside the range of type 'byte'.
+tests/Diagnostics/integer_literal_target_ranges.camp(22,15): error: Integer literal '300' is outside the range of type 'byte'.
+tests/Diagnostics/integer_literal_target_ranges.camp(23,29): error: Integer literal '300' is outside the range of type 'byte'.

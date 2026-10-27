@@ -8,3 +8,17 @@ void test()
 	long f = -9223372036854775809;
 	byte g = 0x100UL;
 }
+
+extern escaped void* malloc(nuint size);
+extern void free(void* ptr);
+virtual class Seed<T: int> { T first; Seed(T first) { this.first = first; } }
+sealed class TooLargeSeed: Seed<byte> { TooLargeSeed() { base(300); } }
+sealed class ValidSeed: Seed<byte> { ValidSeed() { base(255); } }
+virtual class PlainSeed { PlainSeed(byte first) { } }
+sealed class TooLargePlainSeed: PlainSeed { TooLargePlainSeed() { base(300); } }
+void takesCarrier(int<byte> value) { }
+void testCarriedCalls()
+{
+	takesCarrier(300);
+	auto seed = new Seed<byte>(300);
+}

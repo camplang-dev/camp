@@ -192,6 +192,10 @@ required. Otherwise the derived constructor must start with `base(...)`.
 Validate this even when its body contains statements; never insert an unchecked
 zero-argument helper call after body analysis.
 
+Bind `base(...)` arguments against the actual base construction. Substitute its
+owner type arguments before checking source values, including literal ranges
+for integer-carried generic parameters.
+
 Constructors are not overload families. Diagnose an omitted required base call
 at the explicit derived constructor name, or at the base type in the derived
 declaration when its constructor is implicit. Explain that `base(...)` is

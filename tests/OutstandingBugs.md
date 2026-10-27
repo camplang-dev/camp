@@ -44,29 +44,6 @@ Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
 
-## BUG-389: An out-of-range integer literal passed in `base(...)` to a carried generic constructor parameter is not diagnosed
-
-Date/Time: 2026-10-27 07:30 EDT
-
-Summary:
-An integer literal that does not fit its target type is rejected with "Integer literal '300' is outside the range of type 'byte'." for declarations, assignments, ordinary calls, `new` constructor arguments and `base(...)` calls whose parameter has a plain type. When the parameter is the carried form of a generic class parameter (`T: int` constructed as `byte`, so `int<byte>`), the same literal is accepted silently in `base(...)`, while an ordinary call to a function taking `int<byte>` and `new Seed<byte>(300)` are diagnosed.
-
-Steps to Reproduce:
-
-1. Declare `virtual class Seed<T: int> { T first; Seed(T first) { this.first = first; } }` and `virtual class Plain { byte first; Plain(byte first) { this.first = first; } }` (with the usual `malloc` and `free` externs).
-2. Declare `sealed class A: Seed<byte> { A() { base(300); } }` and `sealed class B: Plain { B() { base(300); } }`.
-3. Declare `void takes(int<byte> value) { }` and call `takes(300)` and `new Seed<byte>(300)` from `main`.
-4. Build with `campc run`.
-
-Expected:
-Every occurrence of `300` is rejected with "Integer literal '300' is outside the range of type 'byte'." at the literal, including the one in `A`.
-
-Actual:
-The literals in `B`, in `takes(300)` and in `new Seed<byte>(300)` are diagnosed. The literal in `A` is not, and the program is accepted when the other three are removed.
-
-Known Impact:
-A value that does not fit is silently truncated into the base class field. Workaround: pass a value of the carrier type, or an in-range literal.
-
 ## BUG-390: A virtual or abstract method of a generic class cannot mention the class's type parameter in its signature
 
 Date/Time: 2026-10-27 07:57 EDT
