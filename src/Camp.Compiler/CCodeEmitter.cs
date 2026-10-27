@@ -2765,7 +2765,13 @@ public static class CCodeEmitter
                     if (fields.Count == 0)
                         writer.WriteLine("\tchar _camp_empty;");
                     foreach (FieldDefinition field in fields.Where(static field => field.Modifier != FieldModifier.Static))
-                        WithInterfaceMemberGenerics(type, field, () => writer.WriteLine("\t" + FormatFieldLayoutDeclaration(field) + ";"));
+                    {
+                        // An inherited field keeps the layout its declaring class gave it, in that class's generic context.
+                        if (index.FieldOwners.TryGetValue(field, out TypeDefinition? fieldOwner) && !ReferenceEquals(fieldOwner, type) && fieldOwner.GenericParameters.Count > 0)
+                            WithGenericContext(fieldOwner, () => writer.WriteLine("\t" + FormatFieldLayoutDeclaration(field) + ";"));
+                        else
+                            WithInterfaceMemberGenerics(type, field, () => writer.WriteLine("\t" + FormatFieldLayoutDeclaration(field) + ";"));
+                    }
                     writer.WriteLine("};");
                 });
             });

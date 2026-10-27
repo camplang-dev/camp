@@ -27,6 +27,10 @@ export int main()
 	if (sized.size() != 4) return 6;
 	auto carried = new CarriedSize<byte>(250) finally delete;
 	if (carried.width() != 4) return 7;
+	auto derived = new ByteField() finally delete;
+	if ((int)derived.get() != 250) return 8;
+	auto generic = new LeafField<short>(300) finally delete;
+	if ((int)generic.get() != 300) return 9;
 	Slot<uint>* slot = stackalloc Slot<uint>();
 	slot.value = 9;
 	uint stored = slot.value;
@@ -60,4 +64,22 @@ virtual class CarriedSizeBase<T: int>
 sealed class CarriedSize<T: int>: CarriedSizeBase<T>
 {
 	CarriedSize(T seed) { base(seed); }
+}
+virtual class RootField<T: int>
+{
+	T value;
+	RootField(T value) { this.value = value; }
+	virtual ~RootField() { }
+}
+sealed class ByteField: RootField<byte>
+{
+	ByteField() { base(250); }
+	int<byte> get() { return this.value; }
+	override ~ByteField() { }
+}
+sealed class LeafField<C: int>: RootField<C>
+{
+	LeafField(C value) { base(value); }
+	C get() { return this.value; }
+	override ~LeafField() { }
 }
