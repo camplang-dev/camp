@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-392.
+Next bug number: BUG-393.
 
 ## Bug Template
 
@@ -113,3 +113,27 @@ The native build fails: "returning 'void' from a function with incompatible resu
 
 Known Impact:
 Derived classes of concrete generic constructions cannot use inherited pointer fields directly in expressions. Workaround: copy the field into a typed local first.
+
+## BUG-392: Listing an interface that the base class already implements fails with an unlocated duplicate-method error
+
+Date/Time: 2026-10-27 07:57 EDT
+
+Summary:
+A derived class may list an interface that its base class already implements, or an interface whose base interface the base class already implements; the derived class inherits the base class's implementation of those members. The compiler instead fails with an unlocated "Duplicate method name 'getX()' inherited from base class." naming the generated interface accessor. It happens for non-generic and generic interfaces alike.
+
+Steps to Reproduce:
+
+1. Declare `interface Counter { int next(); }` and `class Impl: Counter { int n; int next(): Counter { return 1; } }` (with the usual `malloc` and `free` externs).
+2. Declare `class Relists: Impl, Counter { }`.
+3. In `main`, write `Relists* r = new Relists(); Counter* c = r;`, log `c.next()` and delete `r`.
+4. Separately, declare `interface IBase { int echo(int b); }`, `interface IDer: IBase { int twice(int b); }`, `class BaseImpl: IBase { int echo(int b): IBase => b; }` and `class DerImpl: BaseImpl, IDer { int twice(int b): IDer => b; }`, convert a `DerImpl*` to both `IDer*` and `IBase*`, and call each member.
+5. Build each with `campc run`.
+
+Expected:
+Both programs build. The first prints `1`; the second prints the results of `twice` and `echo`. Re-listing an interface is not an error, and the inherited implementation satisfies it.
+
+Actual:
+"(1,1) (no line,column) error: Duplicate method name 'getCounter()' inherited from base class." for the first program and "Duplicate method name 'getIBase()' inherited from base class." for the second. The generic forms (`Check<T>`, `IDer<T>: IBase<T>`) fail the same way.
+
+Known Impact:
+A derived class cannot add an interface that extends one its base implements, and cannot restate an inherited interface. Workaround: list the interface only on the base class.
