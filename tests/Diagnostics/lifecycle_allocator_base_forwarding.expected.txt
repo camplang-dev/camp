@@ -1,4 +1,9 @@
 tests/Diagnostics/lifecycle_allocator_base_forwarding.camp(28,18): error: base(...) must be the first constructor action and may not be conditional or delayed.
-tests/Diagnostics/lifecycle_allocator_base_forwarding.camp(35,29): error: Constructor for class 'MissingBaseWithStatement' must invoke a base constructor because base class 'RequiredBase' has no accessible parameterless constructor.
-tests/Diagnostics/lifecycle_allocator_base_forwarding.camp(39,31): error: Constructor for class 'MissingBaseWithDeclaration' must invoke a base constructor because base class 'RequiredBase' has no accessible parameterless constructor.
-tests/Diagnostics/lifecycle_allocator_base_forwarding.camp(43,26): error: Constructor for class 'MissingBaseWithReturn' must invoke a base constructor because base class 'RequiredBase' has no accessible parameterless constructor.
+tests/Diagnostics/lifecycle_allocator_base_forwarding.camp(35,2): error: The constructor for 'RequiredBase' has arguments, so this constructor must start with a base(...) statement to call it.
+tests/Diagnostics/lifecycle_allocator_base_forwarding.camp(39,2): error: The constructor for 'RequiredBase' has arguments, so this constructor must start with a base(...) statement to call it.
+tests/Diagnostics/lifecycle_allocator_base_forwarding.camp(43,2): error: The constructor for 'RequiredBase' has arguments, so this constructor must start with a base(...) statement to call it.
+tests/Diagnostics/lifecycle_allocator_base_forwarding.camp(47,48): error: The constructor for 'RequiredBase' has arguments, so this constructor must start with a base(...) statement to call it.
+tests/Diagnostics/lifecycle_allocator_base_forwarding.camp(48,43): error: The constructor for base class 'RequiredBase' has arguments, so this class must declare a constructor that calls it.
+tests/Diagnostics/lifecycle_allocator_base_forwarding.camp(49,56): error: The constructor for base class 'RequiredBase' has arguments, so this class must declare a constructor that calls it.
+tests/Diagnostics/lifecycle_allocator_base_forwarding.camp(50,57): error: There is no argument given that corresponds to the required parameter 'value' of base class constructor 'RequiredBase()'.
+tests/Diagnostics/lifecycle_allocator_base_forwarding.camp(51,59): error: Call to base class constructor 'RequiredBase()' has too many arguments.

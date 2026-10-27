@@ -192,6 +192,13 @@ required. Otherwise the derived constructor must start with `base(...)`.
 Validate this even when its body contains statements; never insert an unchecked
 zero-argument helper call after body analysis.
 
+Constructors are not overload families. Diagnose an omitted required base call
+at the explicit derived constructor name, or at the base type in the derived
+declaration when its constructor is implicit. Explain that `base(...)` is
+required. For an explicit `base(...)`, validate arguments as for a method call,
+name the base class constructor, and report missing or excess arguments at
+`base`. Diagnostics must not expose generated names such as `op_initnew`.
+
 ## Selected Destination Construction
 
 Constructor-shaped type calls construct into storage selected by the

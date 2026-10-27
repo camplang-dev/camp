@@ -711,6 +711,8 @@ public sealed partial class BindableNodeAnalyzer
 		FunctionDefinition? initNew = FindGeneratedInitNewMethod(classDefinition);
 		if (initNew?.Body is null || initNew.Body.Statements.Count > 0)
 			return;
+		if (CountRequiredParameters(baseInitNew.Parameters) > 0)
+			return;
 		if (HasWithinParameter(baseInitNew) && !HasWithinParameter(initNew))
 		{
 			ParameterDefinition allocator = CreateAllocatorParameter();

@@ -4481,7 +4481,7 @@ public sealed partial class BindableNodeAnalyzer
 			case NamedExpression named:
 			{
 				if (named.Qualifiers.Count == 0 && named.Name == "base")
-					return ResolveBaseConstructorCall(named, scope, argumentCount);
+					return ResolveBaseConstructorCall(named, scope);
 
 				if (named.Qualifiers.Count == 0 && scope.TryLookup(named.Name, out _))
 				{
@@ -4790,10 +4790,12 @@ public sealed partial class BindableNodeAnalyzer
 		foreach ((ArgumentExpression argument, ParameterDefinition parameter) in analyzedLifetimeArguments)
 			if (parameter is SizeOfParameterDefinition or NameOfParameterDefinition or VTableOfParameterDefinition)
 				boundCapabilityArguments[argument] = parameter;
+		bool isBaseConstructorCall = callTarget is NamedExpression { Qualifiers.Count: 0, Name: "base" };
 		if (parameters.Count > 0 && TryFindMissingRequiredCallArgument(callableParameters, suppliedParameters, allowOmittedPrepParameter, out ParameterDefinition? missingParameter))
-			Report(GetRange(missingArgumentSyntax ?? fallbackSyntax ?? (arguments.Count > 0 ? arguments[^1].SourceSyntax : null)), MissingRequiredArgumentMessage(missingParameter!, callDisplayName ?? GetCallDisplayName(function, callTarget)));
+			Report(GetRange(missingArgumentSyntax ?? fallbackSyntax ?? (arguments.Count > 0 ? arguments[^1].SourceSyntax : null)), MissingRequiredArgumentMessage(missingParameter!, callDisplayName ?? GetCallDisplayName(function, callTarget), isBaseConstructorCall));
 		if (extraArgument is not null && (function is not null || parameters.Count > 0))
-			Report(GetRange(GetArgumentDiagnosticSyntax(extraArgument, fallbackSyntax)), "Call has too many arguments.");
+			Report(GetRange(isBaseConstructorCall ? callTarget?.SourceSyntax : GetArgumentDiagnosticSyntax(extraArgument, fallbackSyntax)),
+				isBaseConstructorCall ? $"Call to base class constructor '{callDisplayName}' has too many arguments." : "Call has too many arguments.");
 		if (function is not null)
 			CheckLifetimeCallArguments(function, callTarget, analyzedLifetimeArguments, scope, fallbackSyntax, genericSubstitutions);
 		Dictionary<string, bool> constOfAnchors = BuildConstOfCallAnchorFacts(analyzedConstOfArguments);
@@ -5056,6 +5058,9 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (function is not null)
 		{
+			if (callTarget is NamedExpression { Qualifiers.Count: 0, Name: "base" }
+				&& FindContainingType(function) is ClassDefinition baseClass)
+				return baseClass.Name + "()";
 			if (function.Modifier == FunctionModifier.Constructor && FindContainingType(function) is TypeDefinition containingType)
 				return containingType.Name + "()";
 			return GetInvokerName(function) + "()";
@@ -5070,10 +5075,12 @@ public sealed partial class BindableNodeAnalyzer
 		return "call";
 	}
 
-	static string MissingRequiredArgumentMessage(ParameterDefinition parameter, string? callDisplayName)
+	static string MissingRequiredArgumentMessage(ParameterDefinition parameter, string? callDisplayName, bool baseConstructor = false)
 	{
 		string parameterName = string.IsNullOrWhiteSpace(parameter.Name) ? "<unnamed>" : parameter.Name!;
 		string callable = string.IsNullOrWhiteSpace(callDisplayName) ? "this call" : $"'{callDisplayName}'";
+		if (baseConstructor)
+			callable = "base class constructor " + callable;
 		return $"There is no argument given that corresponds to the required parameter '{parameterName}' of {callable}.";
 	}
 
@@ -5686,7 +5693,17 @@ public sealed partial class BindableNodeAnalyzer
 			return;
 		}
 
-		Report(GetRange(function.Body.SourceSyntax ?? function.SourceSyntax), $"Constructor for class '{containingClass.Name}' must invoke a base constructor because base class '{baseClass.Name}' has no accessible parameterless constructor.");
+		FunctionDefinition? sourceConstructor = containingClass.Functions.FirstOrDefault(static candidate =>
+			candidate.Modifier == FunctionModifier.Constructor && candidate.GeneratedInfo is null);
+		if (sourceConstructor is not null)
+			Report(GetNameRange(sourceConstructor), $"The constructor for '{baseClass.Name}' has arguments, so this constructor must start with a base(...) statement to call it.");
+		else
+		{
+			TypeReference? baseReference = containingClass.BaseTypes.FirstOrDefault(reference =>
+				TryGetNamedTypeDefinition(reference, out TypeDefinition? definition) && ReferenceEquals(definition, baseClass));
+			Report(GetRange(baseReference?.SourceSyntax) ?? GetNameRange(containingClass),
+				$"The constructor for base class '{baseClass.Name}' has arguments, so this class must declare a constructor that calls it.");
+		}
 	}
 
 	void EnsureGeneratedConstructorAllocatorParameter(FunctionDefinition function, FunctionDefinition baseConstructor)
@@ -6084,7 +6101,7 @@ public sealed partial class BindableNodeAnalyzer
 		}
 	}
 
-	FunctionDefinition? ResolveBaseConstructorCall(NamedExpression target, BodyScope scope, int argumentCount)
+	FunctionDefinition? ResolveBaseConstructorCall(NamedExpression target, BodyScope scope)
 	{
 		if (!IsConstructorLikeFunction(scope.CurrentFunction) || scope.ContainingType is not ClassDefinition containingClass)
 		{
@@ -6101,10 +6118,10 @@ public sealed partial class BindableNodeAnalyzer
 			return null;
 		}
 
-		FunctionDefinition? constructor = LookupConstructor(baseClass.Name, argumentCount);
+		FunctionDefinition? constructor = LookupAnyConstructor(baseClass.Name) ?? FindGeneratedInitNewMethod(baseClass);
 		if (constructor is null)
 		{
-			Report(GetRange(target.SourceSyntax), $"No accessible constructor on base class '{baseClass.Name}' accepts {argumentCount.ToString(CultureInfo.InvariantCulture)} argument(s).");
+			Report(GetRange(target.SourceSyntax), $"Base class '{baseClass.Name}' has no constructor to call.");
 			target.ResolvedType = ErrorType;
 			return null;
 		}

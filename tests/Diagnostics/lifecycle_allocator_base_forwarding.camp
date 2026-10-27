@@ -43,3 +43,9 @@ class MissingBaseWithReturn: RequiredBase
 	MissingBaseWithReturn() { return; }
 }
 void touch() { }
+
+class MissingBaseWithEmptyBody: RequiredBase { MissingBaseWithEmptyBody() { } }
+class MissingBaseWithImplicitConstructor: RequiredBase { }
+public class PublicMissingBaseWithImplicitConstructor: RequiredBase { }
+class BaseCallTooFew: RequiredBase { BaseCallTooFew() { base(); } }
+class BaseCallTooMany: RequiredBase { BaseCallTooMany() { base(1, 2); } }
