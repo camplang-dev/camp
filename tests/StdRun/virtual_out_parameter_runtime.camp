@@ -1,5 +1,8 @@
 virtual class Source
 {
+	virtual int[] values(int[] input) { return input; }
+	virtual int[] tail(int[] input) { return input; }
+
 	virtual void read(out int result)
 	{
 		result = 5;
@@ -8,6 +11,8 @@ virtual class Source
 
 virtual class Derived: Source
 {
+	override int[] tail(int[] input) { return input[1..]; }
+
 	override void read(out int result)
 	{
 		result = 9;
@@ -29,5 +34,26 @@ export int main()
 	polymorphic.read(out result);
 	if (result != 9)
 		return 3;
+	fixed int[3] data = [3, 5, 7];
+	int[] inherited = polymorphic.values(data[..]);
+	if (inherited.length != 3 || inherited[2] != 7) return 4;
+	int[] overridden = polymorphic.tail(data[..]);
+	if (overridden.length != 2 || overridden[0] != 5) return 5;
+	auto transform = stackalloc ArrayTransformImpl();
+	ArrayTransform* abstractView = transform;
+	int[] abstractResult = abstractView.apply(data[..], data[1..]);
+	if (abstractResult.length != 2 || abstractResult[1] != 7) return 6;
 	return 0;
+}
+
+abstract class ArrayTransform
+{
+	abstract int[] apply(int[] first, int[] second);
+}
+sealed class ArrayTransformImpl: ArrayTransform
+{
+	override int[] apply(int[] first, int[] second)
+	{
+		return first.length > second.length ? second : first;
+	}
 }

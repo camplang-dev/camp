@@ -2974,6 +2974,7 @@ public sealed partial class BindableNodeAnalyzer
 			else
 			{
 				TryRewriteDelegateInvocation(call);
+				ExpandParamsArguments(call);
 			}
 
 		for (int i = 1; i < shape.Components.Count; i++)
