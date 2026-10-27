@@ -44,29 +44,6 @@ Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
 
-## BUG-396: Explicit capability evidence in `base(...)` from a differently named type parameter is rejected
-
-Date/Time: 2026-10-27 07:57 EDT
-
-Summary:
-A derived constructor may pass its own capability evidence explicitly to a base constructor's capability slot, by expression (`sizeof(U)`) or by generated name (`sizeof_U`). When the derived type parameter has a different name from the base's (`CapOnly<U>: Cap<U>`), the evidence for `U` is the evidence for the base's `T`, but the compiler rejects it as evidence for another operand.
-
-Steps to Reproduce:
-
-1. Declare `class Cap<T> { Cap(sizeof(T)) { } int width() { return (int)sizeof(T); } }` (with the usual `malloc` and `free` externs).
-2. Declare `class CapOnly<U>: Cap<U> { CapOnly(sizeof(U)) { base(sizeof(U)); } }`.
-3. In `main`, construct `CapOnly<long>`, log `width()` and delete it.
-4. Build with `campc run`.
-
-Expected:
-The program prints `8`.
-
-Actual:
-"Capability slot 'sizeof_T' requires evidence for exact operand 'T', not an ordinary payload or another operand." at `sizeof(U)` in the `base(...)` call. A witness written as `base(vtableof_U_Counter, typenameof_U)` for `Dispatch(vtableof(T: Counter), typenameof(T))` is rejected the same way.
-
-Known Impact:
-Explicit evidence in `base(...)` works only when the derived parameter reuses the base's name. Workaround: name the derived parameter as the base does.
-
 ## BUG-397: Calling through an interface pointer field that holds a sealed implementer crashes
 
 Date/Time: 2026-10-27 07:57 EDT

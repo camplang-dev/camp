@@ -12,5 +12,34 @@ export int main()
 {
 	Cell a = { 3 };
 	Cell b = { 5 };
+	auto expression = new ExplicitBaseExpression<long>() finally delete;
+	auto named = new ExplicitBaseName<long>() finally delete;
+	if (expression.width() != 8 || named.width() != 8) return 2;
+	auto dispatch = new ExplicitDispatchDerived<Cell>() finally delete;
+	if (dispatch.readBase(&a) != 3 || dispatch.readOwn(&b) != 5) return 3;
 	return swapped<Cell, Cell>(&a, &b) == 503 ? 0 : 1;
+}
+
+class ExplicitCapabilityBase<T>
+{
+	ExplicitCapabilityBase(sizeof(T)) { }
+	int width() { return (int)sizeof(T); }
+}
+class ExplicitBaseExpression<U>: ExplicitCapabilityBase<U>
+{
+	ExplicitBaseExpression(sizeof(U)) { base(sizeof(U)); }
+}
+class ExplicitBaseName<U>: ExplicitCapabilityBase<U>
+{
+	ExplicitBaseName(sizeof(U)) { base(sizeof_U); }
+}
+class ExplicitDispatchBase<T>
+{
+	ExplicitDispatchBase(vtableof(T: Counter), typenameof(T)) { }
+	int readBase(T* value) { return value.read(); }
+}
+class ExplicitDispatchDerived<U>: ExplicitDispatchBase<U>
+{
+	ExplicitDispatchDerived(vtableof(U: Counter), typenameof(U)) { base(vtableof_U_Counter, typenameof_U); }
+	int readOwn(U* value) { return value.read(); }
 }
