@@ -32,7 +32,7 @@ class Pet: IPet
 	}
 }
 
-class Dog: Pet
+class Dog: Pet, IPet
 {
 }
 

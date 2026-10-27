@@ -1171,7 +1171,7 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			foreach (InterfaceImplementationLowering candidate in lowerings)
 			{
-				if (ReferenceEquals(candidate.Interface, targetInterface) || InterfaceContainsBase(candidate.Interface, targetInterface))
+				if (ReferenceEquals(candidate.Interface, targetInterface))
 				{
 					lowering = candidate;
 					return true;

@@ -562,6 +562,8 @@ public sealed partial class BindableNodeAnalyzer
 			// A second construction of one interface is diagnosed in analysis and has no table of its own.
 			if (!declaredInterfaces.Add(interfaceDefinition))
 				continue;
+			if (baseClass is not null && TryFindInterfaceLowering(baseClass, interfaceDefinition, out _))
+				continue;
 
 			if (classDefinition.Extern is not null)
 			{
@@ -2045,7 +2047,10 @@ public sealed partial class BindableNodeAnalyzer
 		(TypeDefinition Type, FunctionDefinition InterfaceMember, int Version) key = (type, interfaceMember, interfaceGenerationCacheVersion);
 		if (interfaceImplementationMethodCache.TryGetValue(key, out FunctionDefinition? cached))
 			return cached;
-		foreach (FunctionDefinition function in GetFunctions(type))
+		IEnumerable<FunctionDefinition> candidates = GetFunctions(type);
+		if (type is ClassDefinition classDefinition)
+			candidates = candidates.Concat(GetInheritedClassMethods(classDefinition));
+		foreach (FunctionDefinition function in candidates)
 		{
 			if (IsInterfaceLifecycleMember(interfaceMember) && GetCachedMethodSignature(function, includeLifecycleWithin: true).Equals(GetCachedMethodSignature(interfaceMember, includeLifecycleWithin: true)))
 			{

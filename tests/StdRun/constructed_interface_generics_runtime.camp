@@ -32,6 +32,16 @@ class GenCheck<T: int>: Check<T>
 	T pass(T a): Check<T> => a;
 }
 
+class RecheckedGeneric<T: int>: GenCheck<T>, Check<T> { }
+class ExtendedBaseImpl: Base<short>
+{
+	int<short> pass(int<short> value): Base<short> => value;
+}
+class ExtendedDerivedImpl: ExtendedBaseImpl, Derived<short>
+{
+	bool same(int<short> left, int<short> right): Derived<short> => left == right;
+}
+
 struct GenStruct<T: int>: Check<T>
 {
 	int pad;
@@ -98,6 +108,13 @@ struct TextSource: ErasedCountedSource<string>
 
 export int main()
 {
+	auto relisted = new RecheckedGeneric<byte>() finally delete;
+	Check<byte>* relistedView = relisted;
+	if (relistedView.pass(200) != 200) return 30;
+	auto extended = new ExtendedDerivedImpl() finally delete;
+	Derived<short>* extendedView = extended;
+	Base<short>* extendedBase = extended;
+	if (!extendedView.same(7, 7) || extendedView.pass(8) != 8 || extendedBase.pass(9) != 9) return 31;
 	// Owner substitution through class and struct implementers.
 	ByteCheck* b = new ByteCheck();
 	Check<byte>* cb = b;

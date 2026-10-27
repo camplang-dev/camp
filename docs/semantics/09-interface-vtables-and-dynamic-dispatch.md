@@ -498,6 +498,11 @@ raw casts.
 
 ## Virtual Class Dispatch
 
+A class may restate an interface already implemented by its base or add an
+interface extending one implemented by the base. Inherited members satisfy the
+shared slots. Reuse inherited interface carriers and accessors rather than
+generating duplicate fields or methods for the same interface construction.
+
 Virtual class dispatch is separate from interface dispatch but uses similar
 vtable concepts. A virtual/abstract/sealed class hierarchy has:
 
