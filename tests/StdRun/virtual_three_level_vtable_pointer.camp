@@ -54,6 +54,7 @@ export int main()
 {
 	if (testGenericVirtuals() != 0) return 6;
 	if (testGenericDerivedVirtuals() != 0) return 7;
+	if (testGenericBaseCalls() != 0) return 8;
 	auto plain = stackalloc PlainLeaf();
 	if (plain.twice() != 6) return 4;
 	auto square = stackalloc Square();
@@ -140,5 +141,21 @@ int testGenericDerivedVirtuals()
 	if (kept.first() != null || kept.second() != null) return 3;
 	SameNameDuo<int, long>* swapped = new SameNameSwapped<long, int>() finally delete;
 	if (swapped.first() != null || swapped.second() != null) return 4;
+	return 0;
+}
+
+virtual class BaseCallNum<T: int> { virtual T same(T v) { return v; } virtual ~BaseCallNum() { } }
+virtual class BaseCallMidNum<U: int>: BaseCallNum<U> { override U same(U v) { return v; } }
+sealed class BaseCallByte: BaseCallMidNum<byte> { override int<byte> same(int<byte> v) { return base.same(v); } override ~BaseCallByte() { } }
+virtual class BaseCallBox<T> { virtual int check(T* p) { return 1; } virtual ~BaseCallBox() { } }
+virtual class BaseCallMid<U>: BaseCallBox<U*> { override int check(U** p) { return 2; } }
+sealed class BaseCallLeaf<V>: BaseCallMid<V> { override int check(V** p) { return base.check(p) + 1; } override ~BaseCallLeaf() { } }
+int testGenericBaseCalls()
+{
+	BaseCallNum<byte>* number = new BaseCallByte() finally delete;
+	if ((int)number.same((int<byte>)201) != 201) return 1;
+	BaseCallBox<long*>* leaf = new BaseCallLeaf<long>() finally delete;
+	long* held = null;
+	if (leaf.check(&held) != 3) return 2;
 	return 0;
 }

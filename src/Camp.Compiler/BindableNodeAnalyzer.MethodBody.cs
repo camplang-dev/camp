@@ -4616,7 +4616,7 @@ public sealed partial class BindableNodeAnalyzer
 		FunctionDefinition? implementation = baseDeclaration is null
 			? null
 			: IsVirtualMethodDeclaration(baseDeclaration)
-				? FindVirtualImplementationByName(baseClass, VirtualSlotName(baseDeclaration))
+				? FindVirtualBaseCallImplementation(baseClass, VirtualSlotName(baseDeclaration))
 				: baseDeclaration;
 		if (implementation is null)
 		{

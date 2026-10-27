@@ -43,34 +43,3 @@ Actual:
 Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
-
-## BUG-403: base call through a generic intermediate class that overrides a parameter-typed method fails type inference
-
-Date/Time: 2026-10-27 12:15 EDT
-
-Summary:
-A class calls `base.method(...)` where the base is a generic intermediate class that itself overrides a virtual method whose signature mentions a type parameter. The call is rejected with an error that its type arguments cannot be inferred, although the argument has exactly the type the method takes. The same call works when the base is a non-generic class, and when the method is not overridden by the intermediate class.
-
-Steps to Reproduce:
-
-1. Compile this program:
-
-   ```camp
-   extern void __intrinsic_log_i32(int value);
-   extern escaped void* malloc(nuint size);
-   extern void free(void* ptr);
-   virtual class Num<T: int> { virtual T same(T v) { return v; } virtual ~Num() { } }
-   virtual class MidN<U: int>: Num<U> { override U same(U v) { return v; } }
-   sealed class ByteN: MidN<byte> { override int<byte> same(int<byte> v) { return base.same(v); } override ~ByteN() { } }
-   export int main() { ByteN* n = new ByteN(); __intrinsic_log_i32(n.same((int<byte>)201)); delete n; return 0; }
-   ```
-2. A void-represented variant: `Box<T> { virtual int check(T* p) }`, `Mid<U>: Box<U*> { override int check(U** p) }`, `Leaf<V>: Mid<V> { override int check(V** p) { return base.check(p) + 1; } }`.
-
-Expected:
-Both programs compile; the first prints `201`.
-
-Actual:
-The first program is rejected with `Argument cannot convert 'byte' to 'U' because type arguments for '_same_generic_abi' cannot be inferred; specify them explicitly.` followed by two conversion errors on the result. The second is rejected with `Argument cannot convert 'V**' to 'void<U*>*' because type arguments for '_check_generic_abi' cannot be inferred`.
-
-Known Impact:
-A class cannot chain to the overriding implementation of a parameter-typed virtual method in a generic intermediate class through `base`. Workaround: do not call `base.method(...)` for such methods.

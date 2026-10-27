@@ -3687,6 +3687,21 @@ public sealed partial class BindableNodeAnalyzer
 		return null;
 	}
 
+	FunctionDefinition? FindVirtualBaseCallImplementation(ClassDefinition owner, string slotName)
+	{
+		foreach (ClassDefinition candidate in EnumerateClassAndBases(owner))
+		{
+			foreach (FunctionDefinition function in candidate.Functions)
+			{
+				if (!virtualImplementations.TryGetValue(function, out FunctionDefinition? implementation))
+					continue;
+				if (VirtualSlotName(function) == slotName)
+					return virtualDirectImplementations.TryGetValue(function, out FunctionDefinition? direct) ? direct : implementation;
+			}
+		}
+		return null;
+	}
+
 	ClassDefinition? GetDirectBaseClass(TypeDefinition definition)
 	{
 		if (directBaseClassCache.TryGetValue(definition, out ClassDefinition? cached))

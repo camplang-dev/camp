@@ -92,6 +92,7 @@ public sealed partial class BindableNodeAnalyzer
 					&& !ReferenceEquals(genericOwner, classDefinition) && genericOwner.GenericParameters.Count > 0
 					&& !IsGeneratedDestructorDeleteHelper(function))
 				{
+					virtualDirectImplementations[function] = implementation;
 					implementation = CreateGenericVirtualAdapter(classDefinition, genericOwner, function, implementation);
 					generated.Add(implementation);
 				}
