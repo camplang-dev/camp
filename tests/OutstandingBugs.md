@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-386.
+Next bug number: BUG-387.
 
 ## Bug Template
 
@@ -65,3 +65,29 @@ The native compile of the generated C fails: `error: too few arguments to functi
 
 Known Impact:
 Any virtual or abstract method with both an array parameter and an array result cannot be compiled. Workaround: return the array through an `out` parameter or take a fixed-size or pointer parameter instead.
+
+## BUG-386: `base.method()` is rejected when the base method is not virtual
+
+Date/Time: 2026-10-26 22:12 EDT
+
+Summary:
+Inside a derived class method, `base.name(...)` can call only a base method that is `virtual`, `abstract` or `override`. When the base method is an ordinary non-virtual method, the call is rejected with "Base implementation 'name' could not be found." plus a cascading "Symbol 'base' could not be found." A non-virtual base method has exactly one implementation, so there is nothing ambiguous about the call, and `base.name(...)` should call it the same way it calls a virtual implementation nonvirtually.
+
+Steps to Reproduce:
+
+1. Declare `virtual class Root { Root() {} int value() { return 3; } }`, where `value` has no `virtual` modifier.
+2. Declare `sealed class Leaf: Root { Leaf() {} int twice() { return base.value() * 2; } }`.
+3. Construct a `Leaf` with `stackalloc`, call `twice`, and build the program with `campc run`.
+
+Expected:
+The program builds and `twice` returns 6. `base.value()` calls the inherited non-virtual method.
+
+Actual:
+```
+error: Base implementation 'value' could not be found.
+error: Symbol 'base' could not be found.
+```
+The same program builds and runs when `value` is declared `virtual` in `Root`.
+
+Known Impact:
+A derived method cannot call a non-virtual base method through `base`. Workaround: call the method unqualified (`value()`) or through `this`, which finds the inherited method.
