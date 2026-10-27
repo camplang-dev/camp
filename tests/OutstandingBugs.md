@@ -44,51 +44,6 @@ Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
 
-## BUG-404: generic derived class of a base whose constructor takes a size capability emits invalid C when the base argument is a pointer to its parameter
-
-Date/Time: 2026-10-27 13:20 EDT
-
-Summary:
-A generic class derives from a generic base constructed with a pointer to the derived class's own type parameter (`Box<T*>`), and the base constructor takes a `sizeof` capability. The derived constructor runs the base constructor with the size of the pointer, but the generated C names a placeholder type that is never declared, so the native build fails. The same program works when the base is constructed with the parameter itself (`Box<T>`), and when the base is constructed with a concrete pointer type (`Box<long*>`). It fails whether the derived constructor declares its own `sizeof(T)` capability or not.
-
-Steps to Reproduce:
-
-1. Compile and run this program:
-
-   ```camp
-   extern void __intrinsic_log_i32(int value);
-   extern escaped void* malloc(nuint size);
-   extern void free(void* ptr);
-   virtual class Box<T>
-   {
-   	nuint stride;
-   	Box(sizeof(T)) { this.stride = sizeof(T); }
-   	virtual ~Box() { }
-   }
-   sealed class Pointer<T>: Box<T*>
-   {
-   	Pointer() { }
-   }
-   export int main()
-   {
-   	Pointer<long>* p = new Pointer<long>();
-   	__intrinsic_log_i32((int)p.stride);
-   	delete p;
-   	return 0;
-   }
-   ```
-2. Change the derived constructor to `Pointer(sizeof(T)) { }` and compile again.
-3. Change the derived class to the non-generic `sealed class Pointer: Box<long*>` with `Pointer() { }`, and `new Pointer()` in `main`.
-
-Expected:
-The programs compile. The first two print `8`, the size of a pointer, like the third.
-
-Actual:
-The first two fail in the native build: `error: use of undeclared identifier 'voidPtr'` at `Box_op_initnew((Box *)(this), sizeof(voidPtr *));` in the derived constructor. The third prints `8`.
-
-Known Impact:
-A generic class cannot derive from a base constructed with a pointer to its own parameter when that base's constructor takes a capability. Workaround: none found other than not deriving through a pointer-wrapped parameter.
-
 ## BUG-405: calling a method through a field of a generic class whose type is a construction of a generic interface emits invalid C
 
 Date/Time: 2026-10-27 16:30 EDT

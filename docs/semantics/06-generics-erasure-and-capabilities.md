@@ -310,6 +310,9 @@ Base constructor calls substitute the constructed base's owner arguments before
 acquiring capabilities. Evidence for a forwarded `U` satisfies the base operand
 `T` when the base is constructed as `Base<U>`; a concrete argument can supply
 its capability automatically. Generated implicit calls retain this owner map.
+For `Base<U*>`, the implicit size is the target pointer size, independent of
+`sizeof(U)` evidence. Emission resolves the pointer's erased storage type before
+formatting the size expression.
 
 Equivalent retained capabilities in a class hierarchy share one field after
 owner substitution, even when the derived binder has a different name. Each

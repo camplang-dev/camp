@@ -17,6 +17,11 @@ export int main()
 	if (shared.width() != 8 || shared.ownWidth() != 8 || shared.name() != shared.ownName()) return 6;
 	auto separate = new SeparateCapabilityDerived<int>() finally delete;
 	if (separate.width() != 8 || separate.ownWidth() != 4) return 7;
+	auto pointer = new PointerCapabilityDerived<long>() finally delete;
+	auto retainedPointer = new RetainedPointerCapabilityDerived<int>() finally delete;
+	auto concretePointer = new ConcretePointerCapabilityDerived() finally delete;
+	if (pointer.width() != (int)sizeof(long*) || retainedPointer.width() != (int)sizeof(int*)
+		|| concretePointer.width() != (int)sizeof(long*) || retainedPointer.ownWidth() != 4) return 8;
 	Box box = { 7 };
 	if (a(&box) != 7 || b(&box) != 7 || c(&box) != 7) return 1;
 	if (d(&box) != 7 || e(&box) != 7 || f(&box) != 7) return 2;
@@ -35,6 +40,17 @@ class CapabilityRenamed<U>: CapabilityBase<U>
 	CapabilityRenamed(sizeof(U)) { int initialized = 1; }
 }
 class CapabilityConcrete: CapabilityBase<long> { }
+
+sealed class PointerCapabilityDerived<T>: CapabilityBase<T*>
+{
+	PointerCapabilityDerived() { }
+}
+sealed class RetainedPointerCapabilityDerived<T>: CapabilityBase<T*>
+{
+	RetainedPointerCapabilityDerived(sizeof(T)) { }
+	int ownWidth() { return (int)sizeof(T); }
+}
+sealed class ConcretePointerCapabilityDerived: CapabilityBase<long*> { }
 
 class SharedCapabilityBase<T>
 {

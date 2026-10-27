@@ -5337,7 +5337,7 @@ public static class CCodeEmitter
                 return FormatGenericSizeExpression(resolvedType);
             if (IsExpandedStorageResolvedType(resolvedType))
                 return "sizeof(" + FormatStorageResolvedType(resolvedType ?? "", "").Declaration.Trim() + ")";
-            return "sizeof(" + FormatType(sizeOf.Type, "").Declaration.Trim() + ")";
+            return "sizeof(" + FormatTypeOrResolved(sizeOf.Type, resolvedType, "").Declaration.Trim() + ")";
         }
 
         bool IsExpandedStorageResolvedType(string? resolvedType)
