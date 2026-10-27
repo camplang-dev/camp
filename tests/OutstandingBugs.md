@@ -88,3 +88,52 @@ The first two fail in the native build: `error: use of undeclared identifier 'vo
 
 Known Impact:
 A generic class cannot derive from a base constructed with a pointer to its own parameter when that base's constructor takes a capability. Workaround: none found other than not deriving through a pointer-wrapped parameter.
+
+## BUG-405: calling a method through a field of a generic class whose type is a construction of a generic interface emits invalid C
+
+Date/Time: 2026-10-27 16:30 EDT
+
+Summary:
+A generic class has a field whose type is a pointer to a construction of a generic interface that mentions the class's type parameter (`Get<T>*`), and a method of the class calls an interface method directly through that field (`this.source.get()`). The generated C takes a member of a pointer without dereferencing it correctly, so the native build fails. The same call works when the field is copied to a local first, when the holder class is not generic (`Get<int>*` field), and when the field is a pointer to a non-generic interface in a generic holder.
+
+Steps to Reproduce:
+
+1. Compile and run this program:
+
+   ```camp
+   extern void __intrinsic_log_i32(int value);
+   extern escaped void* malloc(nuint size);
+   extern void free(void* ptr);
+   interface Get<V>
+   {
+   	V* get();
+   }
+   class IntGet: Get<int>
+   {
+   	int* get(): Get<int> { return null; }
+   }
+   class Holder<T>
+   {
+   	Get<T>* source;
+   	T* run() { return this.source.get(); }
+   }
+   export int main()
+   {
+   	IntGet* g = new IntGet();
+   	Holder<int>* h = new Holder<int>();
+   	h.source = g;
+   	__intrinsic_log_i32(h.run() == null ? 1 : 0);
+   	return 0;
+   }
+   ```
+2. Change `run` to copy the field first: `T* run() { Get<T>* s = this.source; return s.get(); }`, and compile again.
+3. Make the holder non-generic: `class Holder { Get<int>* source; int* run() { return this.source.get(); } }` with `new Holder()` in `main`.
+
+Expected:
+All three programs compile and print `1`.
+
+Actual:
+The first fails in the native build: `error: member reference type 'Get *' (aka 'struct Get *') is a pointer; did you mean to use '->'?` at `return (void *)((*((Get **)(this->source))).get(this->source));` in the generated `run`. The second and third print `1`. A generic holder whose field is a pointer to a non-generic interface also works.
+
+Known Impact:
+A generic class cannot call an interface method directly through a field typed with a construction of a generic interface over its parameter. Workaround: copy the field to a local before the call.
