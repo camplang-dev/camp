@@ -5783,15 +5783,16 @@ public sealed partial class BindableNodeAnalyzer
 		return reference;
 	}
 
-	static CastExpression CreateBaseThisReceiver(ClassDefinition containingClass, ClassDefinition baseClass, SyntaxNode? syntax)
+	CastExpression CreateBaseThisReceiver(ClassDefinition containingClass, ClassDefinition baseClass, SyntaxNode? syntax)
 	{
+		string constructed = ConstructedClassType(ResolvedNominalTypeName(containingClass), baseClass) ?? ResolvedNominalTypeName(baseClass);
 		return new CastExpression
 		{
 			SourceSyntax = syntax,
 			Kind = CastKind.Type,
-			Type = PointerTo(TypeReferenceFor(baseClass)),
+			Type = PointerTo(TypeArgumentReference(constructed)),
 			Expression = new ThisExpression { SourceSyntax = syntax, ResolvedType = $"{containingClass.Name}*" },
-			ResolvedType = $"{baseClass.Name}*"
+			ResolvedType = constructed + "*"
 		};
 	}
 

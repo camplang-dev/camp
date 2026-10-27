@@ -10,6 +10,9 @@ int forward<T>(T* source, vtableof(T: Reader), typenameof(T), sizeof(T)) => b(so
 int expanded<T>(T* source, int? extra = 3, vtableof(T: Reader), sizeof(T)) => source.read() + extra.value;
 export int main()
 {
+	auto renamed = new CapabilityRenamed<long>() finally delete;
+	auto concrete = new CapabilityConcrete() finally delete;
+	if (renamed.width() != 8 || concrete.width() != 8) return 5;
 	Box box = { 7 };
 	if (a(&box) != 7 || b(&box) != 7 || c(&box) != 7) return 1;
 	if (d(&box) != 7 || e(&box) != 7 || f(&box) != 7) return 2;
@@ -17,3 +20,14 @@ export int main()
 	if (expanded(&box) != 10 || expanded(&box, 5) != 12) return 4;
 	return 0;
 }
+
+class CapabilityBase<T>
+{
+	CapabilityBase(sizeof(T)) { }
+	int width() { return (int)sizeof(T); }
+}
+class CapabilityRenamed<U>: CapabilityBase<U>
+{
+	CapabilityRenamed(sizeof(U)) { int initialized = 1; }
+}
+class CapabilityConcrete: CapabilityBase<long> { }

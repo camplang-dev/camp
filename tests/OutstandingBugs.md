@@ -44,30 +44,6 @@ Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
 
-## BUG-393: A base constructor's capability argument is matched by the base's parameter name instead of the substituted type argument
-
-Date/Time: 2026-10-27 07:57 EDT
-
-Summary:
-When a derived class constructs a generic base whose constructor takes a capability (`Cap(sizeof(T))`), the compiler looks for evidence named after the base's own parameter (`sizeof_T`) instead of evidence for the type argument the derived class passes. A derived class whose type parameter has another name (`CapOnly<U>: Cap<U>` declaring `sizeof(U)`) is rejected. A class derived from a concrete construction (`CapOnly: Cap<long>`) is also rejected, although the compiler can supply every argument itself for a concrete construction and such a class needs no constructor.
-
-Steps to Reproduce:
-
-1. Declare `class Cap<T> { Cap(sizeof(T)) { } int width() { return (int)sizeof(T); } }` (with the usual `malloc` and `free` externs).
-2. Declare `class Renamed<U>: Cap<U> { Renamed(sizeof(U)) { } }`.
-3. Declare `class Concrete: Cap<long> { }`.
-4. In `main`, construct `Renamed<long>` and `Concrete`, log `width()` of each and delete them.
-5. Build with `campc run`.
-
-Expected:
-The program prints `8` twice. `Renamed`'s `sizeof(U)` is the evidence for the base's `sizeof(T)` because `U` is the argument for `T`; `Concrete` needs no constructor because `sizeof(long)` is known.
-
-Actual:
-"(1,1) (no line,column) error: sizeof(T) requires parameter 'sizeof_T'." for each class. Renaming the derived parameter to `T` removes this error for the forwarded case only, after which the program fails as in BUG-395.
-
-Known Impact:
-Derived classes must reuse the base's type parameter names, and concrete constructions of a capability-taking base cannot be derived from at all. Workaround: name the derived parameter as the base does.
-
 ## BUG-394: `sizeof(T)` of an integer-represented type parameter requires a declared capability
 
 Date/Time: 2026-10-27 07:57 EDT

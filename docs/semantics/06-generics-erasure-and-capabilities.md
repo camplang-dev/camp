@@ -306,6 +306,11 @@ Call lowering preserves their declaration order. Track each generated argument
 by its capability parameter so a size, name, or witness argument cannot be
 mistaken for a different capability that has not yet been inserted.
 
+Base constructor calls substitute the constructed base's owner arguments before
+acquiring capabilities. Evidence for a forwarded `U` satisfies the base operand
+`T` when the base is constructed as `Base<U>`; a concrete argument can supply
+its capability automatically. Generated implicit calls retain this owner map.
+
 ### `sizeof(T)`
 
 `sizeof(T)` is checked copy/layout capability. A must be semantically copyable;
