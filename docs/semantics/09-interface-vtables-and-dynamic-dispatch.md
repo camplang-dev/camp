@@ -475,6 +475,12 @@ parameter constrained to implement it.
 
 ## Interface Conversions
 
+Assignment into an interface-pointer field performs the same class-to-interface
+conversion as a local initializer or argument. Store the interface carrier
+address, not the object's address; their offsets can differ in sealed and
+virtual classes. Preserve the assignment target's semantic type until conversion
+has been applied.
+
 Conversions from structs/classes to interfaces build or reference compatible
 interface carriers. Interface-to-interface and class/interface conversions must
 respect inheritance and target representation.

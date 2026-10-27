@@ -247,10 +247,13 @@ public sealed partial class BindableNodeAnalyzer
 					return setterCall;
 				if (TryRewriteInitAssignment(assignment, out Expression? initCall))
 					return initCall;
+				string? assignmentTargetType = assignment.Target?.ResolvedType;
 				assignment.Target = LowerExpression(assignment.Target);
 				assignment.Value = LowerExpression(assignment.Value);
 				if (assignment.Target is VariableReferenceExpression { Variable: DeclarationTarget target })
 					assignment.Value = LowerInterfaceConversion(target.Type, assignment.Value);
+				else
+					assignment.Value = LowerInterfaceConversion(null, assignmentTargetType, assignment.Value);
 				break;
 
 			case ConditionalExpression conditional:

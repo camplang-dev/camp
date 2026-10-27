@@ -43,10 +43,33 @@ int readViaVTable<T>(T* probe, vtableof(T: IProbe))
 	return probe.read();
 }
 
-export void main()
+export int main()
 {
 	auto probe = new Probe(314);
 	Console.writeLine(readViaVTable(probe));
 	IProbe* interfaceProbe = probe;
 	Console.writeLine(readViaInterface(interfaceProbe));
+	auto holder = new ProbeHolder() finally delete;
+	holder.probe = probe;
+	if (holder.read() != 314) return 1;
+	auto sealedProbe = new SealedProbe() finally delete;
+	holder.probe = sealedProbe;
+	if (holder.read() != 91) return 2;
+	auto plainProbe = new PlainProbe() finally delete;
+	holder.probe = plainProbe;
+	if (holder.read() != 92) return 3;
+	delete probe;
+	return 0;
+}
+
+sealed class SealedProbe: IProbe
+{
+	int pad;
+	int read(): IProbe { return 91; }
+}
+class PlainProbe: IProbe { int read(): IProbe { return 92; } }
+sealed class ProbeHolder
+{
+	IProbe* probe;
+	int read() { return this.probe.read(); }
 }
