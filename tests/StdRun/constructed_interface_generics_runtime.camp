@@ -191,6 +191,7 @@ export int main()
 	TextSource text = default;
 	ErasedCountedSource<string>* textView = &text;
 	string result = textView.read();
-	if (result != "result") return 29;
+	if (result == null || result[0] != 'r' || result[1] != 'e' || result[2] != 's'
+		|| result[3] != 'u' || result[4] != 'l' || result[5] != 't' || result[6] != '\0') return 29;
 	return 0;
 }
