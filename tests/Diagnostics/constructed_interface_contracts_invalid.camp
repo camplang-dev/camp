@@ -25,3 +25,12 @@ class MoreCap: Plain { bool run<U>(U* a, sizeof(U)): Plain => true; bool two<U>(
 class WrongCap: Plain { bool run<U>(U* a): Plain => true; bool two<U>(U* a, U* b): Plain => true; bool same<U: int>(U a): Plain => true; bool cap<U>(U* a, typenameof(U)): Plain => true; }
 
 export int main() { return 0; }
+
+virtual class MarkedRoot: Check<short>
+{
+	virtual bool check(short* value): Check<short> => true;
+}
+virtual class UnmarkedControl: MarkedRoot { override bool check(short* value) => true; }
+virtual class MarkedOverride: MarkedRoot { override bool check(short* value): Check<short> => true; }
+virtual class MarkedGap: MarkedRoot { }
+sealed class MarkedSealed: MarkedGap { sealed bool check(short* value): Check<short> => true; }

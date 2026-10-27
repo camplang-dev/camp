@@ -302,6 +302,12 @@ storage. A derived class that implements an interface through its base should
 reuse the base lowering unless it explicitly provides its own compatible
 implementation according to the language rules.
 
+The class first implementing a slot marks its implementing method. An override
+or sealing declaration of that method inherits the interface implementation and
+must omit its marker, including through intermediate classes. Diagnose a
+repeated marker at the marker itself. Interface calls still reach the override
+through the inherited implementation's virtual dispatch.
+
 Unlike a struct conversion, a class conversion can usually produce the address
 of an interface slot stored in object state. The produced interface pointer is
 still only as durable as the class receiver. A scoped class receiver produces a

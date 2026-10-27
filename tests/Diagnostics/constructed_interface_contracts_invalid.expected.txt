@@ -7,3 +7,5 @@ tests/Diagnostics/constructed_interface_contracts_invalid.camp(20,107): error: M
 tests/Diagnostics/constructed_interface_contracts_invalid.camp(23,140): error: Method 'cap' cannot implement 'Plain.cap': its capability slots (none) must match the interface member's (sizeof(U)) by kind, operand and order.
 tests/Diagnostics/constructed_interface_contracts_invalid.camp(24,29): error: Method 'run' cannot implement 'Plain.run': its capability slots (sizeof(U)) must match the interface member's (none) by kind, operand and order.
 tests/Diagnostics/constructed_interface_contracts_invalid.camp(25,143): error: Method 'cap' cannot implement 'Plain.cap': its capability slots (typenameof(U)) must match the interface member's (sizeof(U)) by kind, operand and order.
+tests/Diagnostics/constructed_interface_contracts_invalid.camp(34,79): error: Method 'check' inherits its interface implementation from a base class; omit the interface marker on the override.
+tests/Diagnostics/constructed_interface_contracts_invalid.camp(36,73): error: Method 'check' inherits its interface implementation from a base class; omit the interface marker on the override.

@@ -595,6 +595,16 @@ public sealed partial class BindableNodeAnalyzer
 			}
 
 			FunctionDefinition member = slots[0];
+			if (implementation is ClassDefinition implementingClass
+				&& function.Modifier is FunctionModifier.Override or FunctionModifier.Sealed
+				&& GetDirectBaseClass(implementingClass) is ClassDefinition parent
+				&& FindContainingType(member) is InterfaceDefinition declaringContract
+				&& TypeImplementsInterface(parent, declaringContract))
+			{
+				Report(GetRange(function.CallableAscriptionType.SourceSyntax ?? function.SourceSyntax),
+					$"Method '{GetCallableName(function)}' inherits its interface implementation from a base class; omit the interface marker on the override.");
+				continue;
+			}
 			function.InterfaceImplementationMember = member;
 			string? markerType = function.CallableAscriptionType.ResolvedType;
 			ConstructedInterface? constructed = FindConstructedInterface(implementation, interfaceDefinition, markerType);

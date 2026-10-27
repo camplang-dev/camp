@@ -27,7 +27,7 @@ virtual class Probe: Root, IProbe
 		return 1;
 	}
 
-	int read(): IProbe
+	virtual int read(): IProbe
 	{
 		return this.expected;
 	}
@@ -58,6 +58,9 @@ export int main()
 	auto plainProbe = new PlainProbe() finally delete;
 	holder.probe = plainProbe;
 	if (holder.read() != 92) return 3;
+	auto inherited = new InheritedMarkedProbe() finally delete;
+	holder.probe = inherited;
+	if (holder.read() != 401) return 4;
 	delete probe;
 	return 0;
 }
@@ -68,6 +71,11 @@ sealed class SealedProbe: IProbe
 	int read(): IProbe { return 91; }
 }
 class PlainProbe: IProbe { int read(): IProbe { return 92; } }
+sealed class InheritedMarkedProbe: Probe
+{
+	InheritedMarkedProbe() { base(400); }
+	override int read() { return base.read() + 1; }
+}
 sealed class ProbeHolder
 {
 	IProbe* probe;
