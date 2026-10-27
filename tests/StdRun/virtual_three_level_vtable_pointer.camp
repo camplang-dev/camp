@@ -53,6 +53,7 @@ export sealed class Form: Control
 export int main()
 {
 	if (testGenericVirtuals() != 0) return 6;
+	if (testGenericDerivedVirtuals() != 0) return 7;
 	auto plain = stackalloc PlainLeaf();
 	if (plain.twice() != 6) return 4;
 	auto square = stackalloc Square();
@@ -120,5 +121,24 @@ int testGenericVirtuals()
 	if (source.take() != null) return 3;
 	auto inherited = new GenericVirtualBox<int>() finally delete;
 	if (inherited.get() != null) return 4;
+	return 0;
+}
+
+virtual class SameNameBox<T> { T* held; virtual T* peek() { return this.held; } virtual ~SameNameBox() { } }
+sealed class SameNameTagged<T>: SameNameBox<T> { override T* peek() { return this.held; } override ~SameNameTagged() { } }
+sealed class SameNameHeld<T>: SameNameBox<T*> { override T** peek() { return this.held; } override ~SameNameHeld() { } }
+virtual class SameNameDuo<A, B> { A* a; B* b; virtual A* first() { return this.a; } virtual B* second() { return this.b; } virtual ~SameNameDuo() { } }
+sealed class SameNameKept<A, B>: SameNameDuo<A, B> { override A* first() { return this.a; } override B* second() { return this.b; } override ~SameNameKept() { } }
+sealed class SameNameSwapped<A, B>: SameNameDuo<B, A> { override B* first() { return this.a; } override A* second() { return this.b; } override ~SameNameSwapped() { } }
+int testGenericDerivedVirtuals()
+{
+	SameNameBox<long>* tagged = new SameNameTagged<long>() finally delete;
+	if (tagged.peek() != null) return 1;
+	SameNameBox<long*>* held = new SameNameHeld<long>() finally delete;
+	if (held.peek() != null) return 2;
+	SameNameDuo<long, int>* kept = new SameNameKept<long, int>() finally delete;
+	if (kept.first() != null || kept.second() != null) return 3;
+	SameNameDuo<int, long>* swapped = new SameNameSwapped<long, int>() finally delete;
+	if (swapped.first() != null || swapped.second() != null) return 4;
 	return 0;
 }

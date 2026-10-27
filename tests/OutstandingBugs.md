@@ -44,36 +44,6 @@ Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
 
-## BUG-401: derived generic class overflows the compiler stack when it reuses its base's type parameter name
-
-Date/Time: 2026-10-27 12:15 EDT
-
-Summary:
-A generic class derived from a generic base overrides a virtual method whose signature mentions the base's type parameter. When the derived class names its own type parameter the same as the base's (for example `T`), the compiler crashes with a stack overflow instead of compiling or reporting a diagnostic. The same crash occurs when the derived class wraps the parameter in a pointer or swaps two parameters while keeping the names. Using different parameter names, or inheriting the method without overriding it, compiles and runs correctly.
-
-Steps to Reproduce:
-
-1. Compile this program:
-
-   ```camp
-   extern void __intrinsic_log_i32(int value);
-   extern escaped void* malloc(nuint size);
-   extern void free(void* ptr);
-   virtual class Box<T> { T* held; virtual T* peek() { return this.held; } virtual ~Box() { } }
-   sealed class Tagged<T>: Box<T> { override T* peek() { return this.held; } override ~Tagged() { } }
-   export int main() { Tagged<long>* t = new Tagged<long>(); Box<long>* b = t; __intrinsic_log_i32(b.peek() == null ? 1 : 0); delete b; return 0; }
-   ```
-2. Rename the derived class's parameter (`Tagged<U>: Box<U>` and `override U* peek()`) and compile again.
-
-Expected:
-The program compiles and prints `1`, as it does when the parameter is renamed.
-
-Actual:
-The compiler terminates with `Stack overflow.` in the type-substitution code. Variants that also crash: `Held<T>: Box<T*>` overriding `T** peek()`, and `Same<A, B>: Duo<A, B>` or `Swap<A, B>: Duo<B, A>` overriding a method that returns `A*`.
-
-Known Impact:
-Any generic class that overrides a virtual method mentioning the base's parameter while reusing the parameter name cannot be compiled. Workaround: give the derived class's parameters different names from the base's.
-
 ## BUG-402: inherited integer-carried field read in a derived class emits invalid C
 
 Date/Time: 2026-10-27 12:15 EDT

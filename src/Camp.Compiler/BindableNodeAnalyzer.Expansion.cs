@@ -1040,6 +1040,9 @@ public sealed partial class BindableNodeAnalyzer
 		if (clone is null || binders.Count == 0)
 			return clone;
 
+		// A replacement already speaks the target binders' names, which may reuse a source name, so it is marked
+		// visited and never renamed again.
+		HashSet<BindableNode> visited = new(ReferenceEqualityComparer.Instance);
 		TypeReference Rename(TypeReference candidate)
 		{
 			string? name = candidate switch
@@ -1048,13 +1051,15 @@ public sealed partial class BindableNodeAnalyzer
 				GenericParameterTypeReference generic => generic.Name,
 				_ => null
 			};
-			return name is not null && binders.TryGetValue(name, out string? replacement)
-				? TypeReferenceForSubstitution(replacement, candidate.SourceSyntax)
-				: candidate;
+			if (name is null || !binders.TryGetValue(name, out string? replacement))
+				return candidate;
+			TypeReference renamed = TypeReferenceForSubstitution(replacement, candidate.SourceSyntax);
+			visited.Add(renamed);
+			return renamed;
 		}
 
 		clone = Rename(clone);
-		BindableNodeTraversal.RewriteChildren(clone, static expression => expression, Rename, new HashSet<BindableNode>(ReferenceEqualityComparer.Instance));
+		BindableNodeTraversal.RewriteChildren(clone, static expression => expression, Rename, visited);
 		return clone;
 	}
 
