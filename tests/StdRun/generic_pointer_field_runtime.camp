@@ -5,11 +5,23 @@ struct Holder<T>
 	T* value;
 }
 
+class PointerFieldBase<T> { T* held; }
+class PointerFieldMiddle<U>: PointerFieldBase<U> { }
+class PointerFieldDerived: PointerFieldMiddle<int>
+{
+	int readHeld() { return *this.held; }
+	void writeHeld(int value) { *this.held = value; }
+}
+
 export int main()
 {
 	int source = 42;
 	Holder<int> holder = { .value = &source };
 	int observed = *holder.value;
 	Console.writeLine(observed);
-	return observed == 42 ? 0 : 1;
+	auto inherited = stackalloc PointerFieldDerived();
+	inherited.held = &source;
+	if (inherited.readHeld() != 42) return 2;
+	inherited.writeHeld(43);
+	return observed == 42 && source == 43 ? 0 : 1;
 }

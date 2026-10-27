@@ -44,29 +44,6 @@ Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
 
-## BUG-391: Dereferencing an inherited type-parameter pointer field through `this` in a class derived from a concrete construction emits invalid C
-
-Date/Time: 2026-10-27 07:57 EDT
-
-Summary:
-A class derived from a concrete construction of a generic class (`class IntBox: Box<int>`, where `Box<T>` declares `T* held`) sees the inherited field as `int*`. Reading it into a local and dereferencing that works, but dereferencing the field directly (`*this.held`) emits C that dereferences the erased `void*` field, and the native build fails.
-
-Steps to Reproduce:
-
-1. Declare `class Box<T> { T* held; }` (with the usual `malloc` and `free` externs).
-2. Declare `class IntBox: Box<int> { int readHeld() { return *this.held; } }`.
-3. In `main`, write `int a = 5; IntBox* b = stackalloc IntBox(); b.held = &a;` and log `b.readHeld()`.
-4. Build with `campc run`.
-
-Expected:
-The program prints `5`. `*this.held` has type `int`, as it does when written `int* p = this.held; return *p;`.
-
-Actual:
-The native build fails: "returning 'void' from a function with incompatible result type 'int'" for the emitted `return *this->held;`, with the warning "ISO C does not allow indirection on operand of type 'void *'".
-
-Known Impact:
-Derived classes of concrete generic constructions cannot use inherited pointer fields directly in expressions. Workaround: copy the field into a typed local first.
-
 ## BUG-392: Listing an interface that the base class already implements fails with an unlocated duplicate-method error
 
 Date/Time: 2026-10-27 07:57 EDT

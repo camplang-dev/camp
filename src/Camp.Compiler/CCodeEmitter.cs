@@ -8136,17 +8136,14 @@ public static class CCodeEmitter
                 return false;
             if (!TryGetPointerElementType(resolvedType, out _))
                 return false;
-            if (!TryFindFieldOwner(ownerType, field, out TypeDefinition? owner) || owner is null || owner.GenericParameters.Count == 0)
+            if (!index.FieldOwners.TryGetValue(field, out TypeDefinition? owner))
+                TryFindFieldOwner(ownerType, field, out owner);
+            if (owner is null || owner.GenericParameters.Count == 0)
                 return false;
             if (string.IsNullOrWhiteSpace(field.ResolvedType))
                 return false;
 
-            Dictionary<string, string> substitutions = GetConstructedTypeSubstitutionsForEmitter(ownerType, owner);
-            if (substitutions.Count == 0)
-                return false;
-
-            string substituted = SubstituteGenericTypeTokens(field.ResolvedType, substitutions) ?? field.ResolvedType;
-            if (substituted == field.ResolvedType || substituted != resolvedType)
+            if (field.ResolvedType == resolvedType)
                 return false;
 
             string castType = FormatResolvedType(resolvedType, "").Declaration.Trim();

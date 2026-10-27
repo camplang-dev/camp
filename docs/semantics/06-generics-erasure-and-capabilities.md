@@ -143,6 +143,11 @@ conversion may decode/re-encode A, but pointers/arrays cannot change element
 stride and out storage cannot gain an implicit allocation/copy-back adapter.
 Capabilities describe destination represented storage, not a previous carrier.
 
+Inherited field accesses retain the declaring owner's generic storage and the
+constructed receiver's substituted read type. C emission must cast an erased
+pointer field to that analyzed pointer type before dereferencing it, including
+through `this` and intermediate generic bases.
+
 ### Integer Carrier Values, Encoding, And Equality
 
 An integer-represented value `R<A>` holds A in the low-order payload-width bits
