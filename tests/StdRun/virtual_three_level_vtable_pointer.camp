@@ -1,5 +1,7 @@
 export virtual class Component
 {
+	int ordinary(int delta) { return 2 + delta; }
+
 	export Component()
 	{
 	}
@@ -29,6 +31,9 @@ export virtual class Control: Component
 
 export sealed class Form: Control
 {
+	int baseOrdinary() { return base.ordinary(5); }
+	int baseVirtual() { return base.value(); }
+
 	int own;
 	export Form()
 	{
@@ -47,6 +52,8 @@ export sealed class Form: Control
 
 export int main()
 {
+	auto plain = stackalloc PlainLeaf();
+	if (plain.twice() != 6) return 4;
 	auto square = stackalloc Square();
 	Shape* shape = square;
 	if (shape.area() != 7) return 1;
@@ -58,6 +65,7 @@ export int main()
 	if (direct.value() != 3 || directForm.own != 5) return 3;
 	delete direct;
 	Form* form = new Form();
+	if (form.baseOrdinary() != 7 || form.baseVirtual() != 2) return 5;
 	Component* component = (Component*)form;
 	Control* control = (Control*)form;
 	int result = component.value() * 10 + control.controlValue();
@@ -71,3 +79,7 @@ sealed class Square: Half { override int area() { return 7; } }
 virtual class Filled: Half { sealed int area() { return 9; } }
 virtual class Gap: Filled { }
 sealed class Inherited: Gap { }
+
+class PlainRoot { int value() { return 3; } }
+class PlainMiddle: PlainRoot { }
+sealed class PlainLeaf: PlainMiddle { int twice() { return base.value() * 2; } }

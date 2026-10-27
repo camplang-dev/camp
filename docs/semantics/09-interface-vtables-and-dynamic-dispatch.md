@@ -523,6 +523,11 @@ redeclaring them. A concrete descendant must supply the remaining implementation
 An override or sealed implementation inherited from a nearer base satisfies an
 older abstract declaration; do not require each descendant to repeat it.
 
+Inside a derived class method, `base.name(...)` resolves against the base class
+and its ancestors. An ordinary nonvirtual method is callable this way as well
+as a virtual method. The call selects the base implementation directly rather
+than dispatching through the current object's virtual table.
+
 Only the ultimate base class introduces the destructor contract. A nonvirtual
 root destructor cannot be redeclared in a derived class. With a virtual or
 abstract root destructor slot, derived destructors use `override` or `sealed`;
