@@ -177,7 +177,7 @@ Steps to Reproduce:
 4. Build each with `campc run`.
 
 Expected:
-Each program builds and logs the size of the type argument: `2` for `short` and `1` for `byte`.
+Each program builds and logs `4`: `sizeof(T)` of an integer-represented `T` is the storage width of its representation (`int` here), whatever the type argument, as it is for a declared `sizeof(T)`.
 
 Actual:
 "sizeof(T) requires parameter 'sizeof_T'." at the `sizeof(T)` expression in the first two programs and at the `base(seed)` call in the third.
