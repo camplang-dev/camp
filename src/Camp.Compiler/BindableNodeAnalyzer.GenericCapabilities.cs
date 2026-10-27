@@ -8,6 +8,53 @@ public sealed partial class BindableNodeAnalyzer
 	readonly System.Collections.Generic.HashSet<CallExpression> preparedCallableCapabilities = [];
 	readonly Dictionary<ArgumentExpression, ParameterDefinition> boundCapabilityArguments = [];
 
+	void ReuseInheritedCapabilityFields(Module module)
+	{
+		HashSet<ClassDefinition> visited = [];
+		foreach (ClassDefinition owner in ActiveDefinitions(module).OfType<ClassDefinition>())
+			Visit(owner);
+
+		void Visit(ClassDefinition owner)
+		{
+			if (!visited.Add(owner)) return;
+			ClassDefinition? parent = GetDirectBaseClass(owner);
+			if (parent is null) return;
+			Visit(parent);
+			List<FieldDefinition> inherited = [.. EnumerateClassAndBases(parent).SelectMany(static type => type.Fields)];
+			foreach (FieldDefinition field in owner.Fields.ToArray())
+			{
+				if (field.CapabilitySource is not ParameterDefinition slot) continue;
+				FieldDefinition? shared = null;
+				foreach (ClassDefinition declaring in EnumerateClassAndBases(parent))
+				{
+					string construction = ConstructedClassType(ResolvedNominalTypeName(owner), declaring) ?? declaring.Name;
+					Dictionary<string, string> map = BuildConstructedOwnerMap(declaring, ExtractConstructedTypeArguments(construction),
+						[.. owner.GenericParameters.Select(static parameter => parameter.Name)]);
+					shared = declaring.Fields.FirstOrDefault(candidate => candidate.CapabilitySource is ParameterDefinition source
+						&& source.GetType() == slot.GetType()
+						&& SubstituteGenericType(FormatSignatureTypeReference(source.Type, []), map) == FormatSignatureTypeReference(slot.Type, [])
+						&& (source is not VTableOfParameterDefinition witness || slot is VTableOfParameterDefinition ownWitness
+							&& SubstituteGenericType(FormatSignatureTypeReference(witness.InterfaceType, []), map) == FormatSignatureTypeReference(ownWitness.InterfaceType, [])));
+					if (shared is not null) break;
+				}
+				if (shared is null)
+				{
+					if (inherited.Any(candidate => candidate.Name == field.Name))
+					{
+						field.Name += "__" + owner.Name;
+						while (inherited.Any(candidate => candidate.Name == field.Name)) field.Name += "_";
+						field.Symbol = field.Name;
+					}
+					continue;
+				}
+				foreach (var key in sizeOfFields.Where(pair => ReferenceEquals(pair.Value, field)).Select(static pair => pair.Key).ToArray()) sizeOfFields[key] = shared;
+				foreach (var key in nameOfFields.Where(pair => ReferenceEquals(pair.Value, field)).Select(static pair => pair.Key).ToArray()) nameOfFields[key] = shared;
+				foreach (var key in vtableOfFields.Where(pair => ReferenceEquals(pair.Value, field)).Select(static pair => pair.Key).ToArray()) vtableOfFields[key] = shared;
+				owner.Fields.Remove(field);
+			}
+		}
+	}
+
 	static bool SameBinder(GenericParameter? left, GenericParameter? right) => left is not null && right is not null
 		&& ReferenceEquals(left.Binder ?? left, right.Binder ?? right) && left.Ordinal == right.Ordinal;
 

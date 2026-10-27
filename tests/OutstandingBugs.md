@@ -44,29 +44,6 @@ Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
 
-## BUG-395: A derived class that retains the same capability as its base emits a duplicate C struct member
-
-Date/Time: 2026-10-27 07:57 EDT
-
-Summary:
-A generic class whose constructor takes a capability (`sizeof(T)`, `typenameof(T)`) retains it in the object. When a generic derived class's constructor declares the same capability, which it must do to supply it to the base constructor, the derived class retains it too, and the emitted C struct has the same member twice (`_sizeof_T`, `_typenameof_T`). Omitting the declaration is rejected as missing evidence, so no class can derive from a class whose constructor takes a capability for the forwarded parameter.
-
-Steps to Reproduce:
-
-1. Declare `class Cap<T> { Cap(sizeof(T)) { } int width() { return (int)sizeof(T); } }` (with the usual `malloc` and `free` externs).
-2. Declare `class CapOnly<T>: Cap<T> { CapOnly(sizeof(T)) { } }`.
-3. In `main`, construct `CapOnly<long>`, log `width()` and delete it.
-4. Build with `campc run`. Repeat with `base(sizeof(T))` written in `CapOnly`'s constructor, and with `typenameof(T)` in place of `sizeof(T)`.
-
-Expected:
-The program prints `8`. The capability is retained once for the object, and both the base and derived methods read that one value.
-
-Actual:
-The native build fails with "duplicate member '_sizeof_T'" (or "duplicate member '_typenameof_T'") in the generated private header. Declaring `CapOnly() { }` without the capability is rejected with "sizeof(T) capability needs evidence for 'T' in the caller; declare sizeof(T) in its signature or pass a pointer.", which is correct.
-
-Known Impact:
-Generic hierarchies cannot use capability-taking base constructors. No workaround short of removing the capability from the base constructor.
-
 ## BUG-396: Explicit capability evidence in `base(...)` from a differently named type parameter is rejected
 
 Date/Time: 2026-10-27 07:57 EDT

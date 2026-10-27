@@ -108,6 +108,7 @@ public sealed partial class BindableNodeAnalyzer
 		AnalyzeInlineConstantsAndEnumValues(module);
 		AnalyzeGlobalInitializers(module);
 		AnalyzeInheritance();
+		ReuseInheritedCapabilityFields(module);
 		ValidateShadowClasses();
 		AnalyzeExportProjections(module);
 		ValidateDuplicateTopLevelSymbols(module);

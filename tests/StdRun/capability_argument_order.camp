@@ -13,6 +13,10 @@ export int main()
 	auto renamed = new CapabilityRenamed<long>() finally delete;
 	auto concrete = new CapabilityConcrete() finally delete;
 	if (renamed.width() != 8 || concrete.width() != 8) return 5;
+	auto shared = new SharedCapabilityDerived<long>() finally delete;
+	if (shared.width() != 8 || shared.ownWidth() != 8 || shared.name() != shared.ownName()) return 6;
+	auto separate = new SeparateCapabilityDerived<int>() finally delete;
+	if (separate.width() != 8 || separate.ownWidth() != 4) return 7;
 	Box box = { 7 };
 	if (a(&box) != 7 || b(&box) != 7 || c(&box) != 7) return 1;
 	if (d(&box) != 7 || e(&box) != 7 || f(&box) != 7) return 2;
@@ -31,3 +35,21 @@ class CapabilityRenamed<U>: CapabilityBase<U>
 	CapabilityRenamed(sizeof(U)) { int initialized = 1; }
 }
 class CapabilityConcrete: CapabilityBase<long> { }
+
+class SharedCapabilityBase<T>
+{
+	SharedCapabilityBase(sizeof(T), typenameof(T)) { }
+	int width() { return (int)sizeof(T); }
+	string name() { return typenameof(T); }
+}
+class SharedCapabilityDerived<T>: SharedCapabilityBase<T>
+{
+	SharedCapabilityDerived(sizeof(T), typenameof(T)) { }
+	int ownWidth() { return (int)sizeof(T); }
+	string ownName() { return typenameof(T); }
+}
+class SeparateCapabilityDerived<T>: SharedCapabilityBase<long>
+{
+	SeparateCapabilityDerived(sizeof(T), typenameof(T)) { }
+	int ownWidth() { return (int)sizeof(T); }
+}

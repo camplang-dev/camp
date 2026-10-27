@@ -311,6 +311,11 @@ acquiring capabilities. Evidence for a forwarded `U` satisfies the base operand
 `T` when the base is constructed as `Base<U>`; a concrete argument can supply
 its capability automatically. Generated implicit calls retain this owner map.
 
+Equivalent retained capabilities in a class hierarchy share one field after
+owner substitution, even when the derived binder has a different name. Each
+class's capability lookup refers to that storage. Distinct operands retain
+distinct fields, including when their source parameter names happen to match.
+
 ### `sizeof(T)`
 
 `sizeof(T)` is checked copy/layout capability. A must be semantically copyable;
