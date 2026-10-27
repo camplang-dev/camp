@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-398.
+Next bug number: BUG-399.
 
 ## Bug Template
 
@@ -253,3 +253,26 @@ With `sealed class Impl` the program exits with status 139 (segmentation fault) 
 
 Known Impact:
 Sealed classes cannot be stored as interface pointers in fields. Workaround: do not mark interface implementers `sealed`.
+
+## BUG-398: An interface marker on an override of an interface-implementing method is accepted
+
+Date/Time: 2026-10-27 07:57 EDT
+
+Summary:
+Only the class that first implements an interface marks its methods with the interface (`: Check<short>`). A derived class inherits that implementation, and an override of the implementing method carries no marker. The compiler accepts the marker on such an override instead of rejecting it.
+
+Steps to Reproduce:
+
+1. Declare `interface Check<A: int> { void f(A v); }` and `virtual class Plain: Check<short> { virtual void f(int<short> v): Check<short> { } }` (with the usual `malloc` and `free` externs).
+2. Declare `virtual class Control: Plain { override void f(int<short> v) { } }`.
+3. Declare `virtual class WithMarker: Plain { override void f(int<short> v): Check<short> { } }`.
+4. Build with `campc run` and an empty `main`.
+
+Expected:
+`Control` is accepted. `WithMarker` is rejected at its marker, because the override does not implement the interface; `Plain` does, and `WithMarker` inherits that.
+
+Actual:
+Both classes are accepted.
+
+Known Impact:
+Source that restates markers on overrides compiles, and would be rejected once the rule is enforced. Workaround: omit the marker on overrides.
