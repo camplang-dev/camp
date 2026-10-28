@@ -126,6 +126,9 @@ Aliases and generic constructions retain this rule. Literal/default
 initialization and selected destination construction remain valid, including
 construction through an `out` destination. Use pointers or `out` destinations
 instead of returning fixed struct values by value.
+Generated struct iterator factories may construct their fresh state aggregate as
+part of their internal ABI. This does not permit copying an existing fixed
+struct in the generator's source body or its caller.
 
 ## Destructors
 

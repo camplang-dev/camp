@@ -21,3 +21,17 @@ void copies(Buffer* pointer)
 	GenericBuffer<int> generic = default;
 	GenericBuffer<int> genericCopy = generic;
 }
+
+struct iter int copiesInIterator()
+{
+	Buffer original = { .value = 1 };
+	Buffer copied = original;
+	yield copied.value;
+}
+
+struct iter int values() { yield 1; }
+void copyIteratorState()
+{
+	valuesIter original = values();
+	valuesIter copy = original;
+}

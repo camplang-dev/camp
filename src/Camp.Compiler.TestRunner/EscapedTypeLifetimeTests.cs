@@ -89,15 +89,15 @@ public sealed class EscapedTypeLifetimeTests
 	}
 
 	[Theory]
-	[InlineData("virtual escaped class Root { } sealed class Derived: Root { }")]
-	[InlineData("virtual class Root { } sealed escaped class Derived: Root { }")]
-	[InlineData("escaped interface Root { void run(); } interface Derived: Root { }")]
-	[InlineData("escaped class Item { } struct Holder { Item item; }")]
-	[InlineData("escaped class Item { } struct Holder { fixed Item[2] items; }")]
-	public void Escaped_hierarchies_and_by_value_struct_fields_are_checked(string source)
+	[InlineData("virtual escaped class Root { } sealed class Derived: Root { }", "escaped")]
+	[InlineData("virtual class Root { } sealed escaped class Derived: Root { }", "escaped")]
+	[InlineData("escaped interface Root { void run(); } interface Derived: Root { }", "escaped")]
+	[InlineData("escaped class Item { } struct Holder { Item item; }", "A copyable struct cannot contain a direct class field")]
+	[InlineData("escaped class Item { } struct Holder { fixed Item[2] items; }", "escaped")]
+	public void Escaped_hierarchies_and_by_value_struct_fields_are_checked(string source, string expectedDiagnostic)
 	{
 		var compilation = SemanticCompiler.CompileLowered(source);
-		Assert.Contains(compilation.AnalysisDiagnostics, diagnostic => diagnostic.Message.Contains("escaped"));
+		Assert.Contains(compilation.AnalysisDiagnostics, diagnostic => diagnostic.Message.Contains(expectedDiagnostic));
 	}
 
 	[Theory]

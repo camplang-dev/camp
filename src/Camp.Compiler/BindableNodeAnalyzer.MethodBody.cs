@@ -458,7 +458,8 @@ public sealed partial class BindableNodeAnalyzer
 				if (scopedPreparedEscape)
 					Report(GetRange(returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax), "Return expression cannot return a scoped prepared result; use '(new)' for heap-allocated prepared storage.");
 				ReportFixedStructCopy(scope.CurrentFunctionReturnType, returnStatement.Expression,
-					returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax, allowConstruction: false);
+					returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax,
+					allowConstruction: generatedIteratorFactories.Contains(scope.CurrentFunction));
 				if (RequiresAnyGenericCopy(scope.CurrentFunctionReturnType, returnStatement.Expression, scope))
 					ReportAnyGenericCopy(returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax);
 				else if (RequiresCopyableGenericCopySizeOf(scope.CurrentFunctionReturnType, returnStatement.Expression, scope))
@@ -1064,6 +1065,7 @@ public sealed partial class BindableNodeAnalyzer
 		return value switch
 		{
 			InitializerExpression or DefaultExpression or ConstructionExpression { Kind: ConstructionKind.Selected } => true,
+			CallExpression call when callTargets.TryGetValue(call, out FunctionDefinition? function) && generatedIteratorFactories.Contains(function) => true,
 			ParenthesizedExpression { Expression: not null } parenthesized => IsInPlaceFixedStructValue(parenthesized.Expression),
 			WithinExpression { Expression: not null } within => IsInPlaceFixedStructValue(within.Expression),
 			FinallyCleanupExpression { Expression: not null } cleanup => IsInPlaceFixedStructValue(cleanup.Expression),
