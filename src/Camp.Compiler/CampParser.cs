@@ -1333,11 +1333,18 @@ public sealed class CampParser
 				shorthand.ThisKeyword = Take();
 				shorthand.DotToken = Expect(".");
 				shorthand.Identifier = TakeIdentifier();
-				return shorthand;
 			}
-			if (IsIdentifier() && ValueIsAny(PeekValue(1), ",", ")"))
+			else if (IsIdentifier() && ValueIsAny(PeekValue(1), ",", ")", "="))
 			{
 				shorthand.Identifier = TakeIdentifier();
+			}
+			if (shorthand.Identifier is not null)
+			{
+				if (TakeIf("=") is Token equals)
+				{
+					shorthand.EqualsToken = equals;
+					shorthand.DefaultValue = ParseExpressionItem();
+				}
 				return shorthand;
 			}
 		}

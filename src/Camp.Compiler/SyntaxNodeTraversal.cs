@@ -108,6 +108,10 @@ public static class SyntaxNodeTraversal
 				if (syntax.Type is not null) yield return syntax.Type;
 				if (syntax.DefaultValue is not null) yield return syntax.DefaultValue;
 				break;
+			case WithinParameterSyntax syntax:
+				if (syntax.AnchorList is not null) yield return syntax.AnchorList;
+				if (syntax.DefaultValue is not null) yield return syntax.DefaultValue;
+				break;
 			case ThisParameterSyntax syntax:
 				foreach (SyntaxNode child in syntax.Declarators ?? []) yield return child;
 				break;
@@ -578,6 +582,8 @@ public static class SyntaxNodeTraversal
 				if (syntax.AnchorList is not null) foreach (Token token in Tokens(syntax.AnchorList)) yield return token;
 				foreach (Token token in Tokens(syntax.CloseParenToken)) yield return token;
 				foreach (Token token in Tokens(syntax.Identifier)) yield return token;
+				foreach (Token token in Tokens(syntax.EqualsToken)) yield return token;
+				if (syntax.DefaultValue is not null) foreach (Token token in Tokens(syntax.DefaultValue)) yield return token;
 				break;
 			case ThisParameterSyntax syntax:
 				foreach (SyntaxNode child in syntax.Declarators ?? []) foreach (Token token in Tokens(child)) yield return token;

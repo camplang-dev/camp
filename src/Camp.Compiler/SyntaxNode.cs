@@ -241,6 +241,8 @@ public class WithinParameterSyntax : ParameterSyntax
 	public Token? ThisKeyword { get; set; }
 	public Token? DotToken { get; set; }
 	public Token? Identifier { get; set; }
+	public Token? EqualsToken { get; set; }
+	public ExpressionSyntax? DefaultValue { get; set; }
 }
 
 public class ThisParameterSyntax : ParameterSyntax

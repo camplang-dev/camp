@@ -443,6 +443,9 @@ interface, but a program or test that declares its own `Allocator` type binds
 to that one instead. Compiler passes that need the allocator type for an
 implicit `within` slot or a `within` carrier must resolve `Allocator` by name in
 the same way and must not assume the standard library's declaration.
+A forbidden default after this shorthand does not change its binding: preserve
+the parameter name and implicit type, and report the default-value error without
+an unrelated unknown-type diagnostic.
 
 A `within` parameter has the lifetime of any other parameter. Unannotated, it is
 `scoped`, so a plain `within allocator` cannot be stored in a field tied to the

@@ -14,3 +14,12 @@ export void main()
 	within(default) needs();
 	ordinary();
 }
+
+void untypedDefault(within allocator = default) { }
+void scopedDefault(within scoped allocator = default) { }
+void anchoredDefault(int* owner, within unscoped(owner) allocator = default) { }
+
+class DefaultAllocatorConstructor
+{
+	DefaultAllocatorConstructor(within allocator = default) { }
+}

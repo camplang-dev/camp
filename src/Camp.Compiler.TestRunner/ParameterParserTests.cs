@@ -9,6 +9,8 @@ public sealed class ParameterParserTests
 	[Theory]
 	[InlineData("within allocator", typeof(WithinParameterSyntax))]
 	[InlineData("within scoped allocator", typeof(WithinParameterSyntax))]
+	[InlineData("within allocator = default", typeof(WithinParameterSyntax))]
+	[InlineData("within unscoped(owner) allocator = default", typeof(WithinParameterSyntax))]
 	[InlineData("within this.allocator", typeof(WithinParameterSyntax))]
 	[InlineData("within Allocator* allocator", typeof(ValueParameterSyntax))]
 	[InlineData("within @testname Allocator* allocator", typeof(ValueParameterSyntax))]
@@ -64,6 +66,27 @@ public sealed class ParameterParserTests
 		ParameterDefinition allocator = SemanticCompiler.Function(compilation, "factory").Parameters[0];
 		Assert.Single(allocator.Attributes);
 		Assert.Equal(ParameterModifier.Within, allocator.Modifier);
+	}
+
+	[Theory]
+	[InlineData("within allocator = default")]
+	[InlineData("within scoped allocator = default")]
+	[InlineData("within unscoped(owner) allocator = default")]
+	[InlineData("within this.allocator = default")]
+	public void Within_default_recovery_preserves_the_expression_and_source_tokens(string parameter)
+	{
+		TokenSequence tokens = new(CampTokenizer.Tokenize($"void f({parameter}) {{ }}"));
+		CompilationUnitSyntax syntax = CampParser.Parse(tokens, out IReadOnlyList<ParseDiagnostic> diagnostics);
+		Assert.Empty(diagnostics);
+		WithinParameterSyntax parsed = Assert.Single(Flatten(syntax).OfType<WithinParameterSyntax>());
+		Assert.NotNull(parsed.DefaultValue);
+		Assert.Contains(parsed.DefaultValue, SyntaxNodeTraversal.Children(parsed));
+		Assert.Equal(new[] { "=", "default" }, SyntaxNodeTraversal.Tokens(parsed).TakeLast(2).Select(token => token.Value));
+		BindResult bound = BindableNodeBuilder.Build(syntax);
+		Assert.Empty(bound.Diagnostics);
+		WithinParameterDefinition allocator = Assert.IsType<WithinParameterDefinition>(Assert.Single(bound.Module.Definitions.OfType<FunctionDefinition>()).Parameters[0]);
+		Assert.NotNull(allocator.DefaultValue);
+		Assert.Equal("allocator", allocator.Name);
 	}
 
 	static IEnumerable<SyntaxNode> Flatten(SyntaxNode node)

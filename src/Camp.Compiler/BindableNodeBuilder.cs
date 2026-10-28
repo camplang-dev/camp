@@ -2211,6 +2211,7 @@ public sealed partial class BindableNodeBuilder
 					SourceSyntax = within,
 					Name = within.Identifier?.Value ?? "",
 					Symbol = within.Identifier?.Value ?? "",
+					DefaultValue = within.DefaultValue is null ? null : BuildExpression(within.DefaultValue, "Parameter default value"),
 					Modifier = ParameterModifier.Within,
 					RetainsAllocator = within.ThisKeyword is not null,
 					RetainedAllocatorFieldName = within.ThisKeyword is null ? null : within.Identifier?.Value,
