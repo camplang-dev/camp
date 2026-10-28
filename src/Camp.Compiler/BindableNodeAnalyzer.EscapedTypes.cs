@@ -33,7 +33,7 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		return !string.IsNullOrWhiteSpace(type) && TryParseTypeShape(type, out TypeShape shape) && shape.Kind == TypeShapeKind.Named
 			&& typeDefinitions.TryGetValue(BaseTypeName(StripTopLevelValueQualifiers(type)), out TypeDefinition? definition)
-			&& definition is ClassDefinition { IsEscaped: true } or InterfaceDefinition { IsEscaped: true };
+			&& definition is ClassDefinition { IsEscaped: true } or ClassDefinition { IsShadow: true } or InterfaceDefinition { IsEscaped: true };
 	}
 
 	bool IsEscapedPointerType(string? type)

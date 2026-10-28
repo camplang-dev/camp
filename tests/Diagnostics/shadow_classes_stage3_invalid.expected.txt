@@ -4,3 +4,8 @@ tests/Diagnostics/shadow_classes_stage3_invalid.camp(26,8): error: Shadow field 
 tests/Diagnostics/shadow_classes_stage3_invalid.camp(31,15): error: Assignment cannot store a non-escaped pointer-bearing value in escaped storage.
 tests/Diagnostics/shadow_classes_stage3_invalid.camp(53,10): warning: 'delete shadow' uses the default allocator here, but the shadow constructor accepts a within allocator.
 tests/Diagnostics/shadow_classes_stage3_invalid.camp(59,9): error: 'delete shadow' is valid only inside an instance method declared directly in a shadow class.
+tests/Diagnostics/shadow_classes_stage3_invalid.camp(64,2): error: Storage of an escaped type cannot be declared in an activation frame; use static storage or new.
+tests/Diagnostics/shadow_classes_stage3_invalid.camp(65,2): error: Storage of an escaped type cannot be declared in an activation frame; use static storage or new.
+tests/Diagnostics/shadow_classes_stage3_invalid.camp(66,2): error: Storage of an escaped type cannot be declared in an activation frame; use static storage or new.
+tests/Diagnostics/shadow_classes_stage3_invalid.camp(67,28): error: An escaped type cannot be allocated on the stack; use static storage or new.
+tests/Diagnostics/shadow_classes_stage3_invalid.camp(68,2): error: Storage of an escaped type cannot be declared in an activation frame; use static storage or new.

@@ -62,4 +62,31 @@ void badGlobal()
 export void main()
 {
 	auto initialized = BadDeleteShadow();
+	FrameShadow explicitValue = FrameShadow(2);
+	auto inferredValue = FrameShadow(3);
+	FrameShadow* stackValue = stackalloc FrameShadow(1);
+	FrameShadow uninitializedValue;
+}
+
+class FrameHost
+{
+	FrameHost() { }
+	@getshadow
+	extern escaped void* getShadow(const this);
+	@setshadow
+	extern void setShadow(escaped void* value);
+}
+
+extern escaped void* malloc(nuint size);
+
+shadow class FrameShadow: FrameHost
+{
+	FrameShadow(int value)
+	{
+	}
+
+	void cleanup()
+	{
+		delete shadow;
+	}
 }
