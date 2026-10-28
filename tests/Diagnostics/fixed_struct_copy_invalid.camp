@@ -1,0 +1,23 @@
+fixed struct Buffer { int value; }
+alias BufferAlias = Buffer;
+fixed struct Holder { Buffer value; }
+fixed struct GenericBuffer<T> { T* value; }
+
+Buffer returnCopy()
+{
+	Buffer source = { .value = 5 };
+	return source;
+}
+
+void copies(Buffer* pointer)
+{
+	Buffer source = { .value = 5 };
+	Buffer copy = source;
+	auto inferred = source;
+	BufferAlias aliasCopy = (source);
+	copy = source;
+	*pointer = *pointer;
+	Holder holder = { .value = source };
+	GenericBuffer<int> generic = default;
+	GenericBuffer<int> genericCopy = generic;
+}

@@ -457,6 +457,8 @@ public sealed partial class BindableNodeAnalyzer
 				bool scopedPreparedEscape = ContainsScopedPreparedBuffer(returnStatement.Expression);
 				if (scopedPreparedEscape)
 					Report(GetRange(returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax), "Return expression cannot return a scoped prepared result; use '(new)' for heap-allocated prepared storage.");
+				ReportFixedStructCopy(scope.CurrentFunctionReturnType, returnStatement.Expression,
+					returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax, allowConstruction: false);
 				if (RequiresAnyGenericCopy(scope.CurrentFunctionReturnType, returnStatement.Expression, scope))
 					ReportAnyGenericCopy(returnStatement.Expression?.SourceSyntax ?? returnStatement.SourceSyntax);
 				else if (RequiresCopyableGenericCopySizeOf(scope.CurrentFunctionReturnType, returnStatement.Expression, scope))
@@ -931,6 +933,7 @@ public sealed partial class BindableNodeAnalyzer
 		}
 		if (declaration.InitialValue is not null)
 			TryReportInvalidCharacterLiteralTarget(declaration.Target.ResolvedType ?? ErrorType, declaration.InitialValue, declaration.InitialValue.SourceSyntax, "Declaration initializer");
+		ReportFixedStructCopy(declaration.Target.ResolvedType ?? ErrorType, declaration.InitialValue, declaration.InitialValue?.SourceSyntax ?? declaration.SourceSyntax);
 
 		if (declaration.InitialValue is not null && IsDirectFixedArrayType(declaration.Target.Type) && !IsValidFixedStorageInitializer(declaration.Target.Type, declaration.InitialValue))
 			Report(GetRange(declaration.InitialValue.SourceSyntax ?? declaration.SourceSyntax), "Fixed-size arrays cannot be copied by value; initialize them with an array literal, string literal, or default.");
@@ -1039,6 +1042,33 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		return IsDirectFixedArrayType(targetType)
 			&& value is ArrayExpression or DefaultExpression or LiteralExpression { Kind: LiteralKind.String } or NameOfExpression or InterpolatedStringExpression;
+	}
+
+	bool ReportFixedStructCopy(string targetType, Expression? value, SyntaxNode? syntax, bool allowConstruction = true)
+	{
+		if (value?.ResolvedType is not string actual || actual is ErrorType or TargetType
+			|| !TryParseTypeShape(targetType, out TypeShape shape) || shape.Kind != TypeShapeKind.Named
+			|| GetTypeDefinition(shape.Name) is not StructDefinition { Modifier: StructModifier.Fixed }
+			|| !CanAssignToType(targetType, actual))
+			return false;
+		if (allowConstruction && IsInPlaceFixedStructValue(value))
+			return false;
+		Report(GetRange(syntax), "Fixed structs cannot be copied by value; use a pointer or construct directly in the destination storage.");
+		return true;
+	}
+
+	bool IsInPlaceFixedStructValue(Expression value)
+	{
+		if (expressionRewrites.TryGetValue(value, out Expression? rewritten) && !ReferenceEquals(value, rewritten))
+			return IsInPlaceFixedStructValue(rewritten);
+		return value switch
+		{
+			InitializerExpression or DefaultExpression or ConstructionExpression { Kind: ConstructionKind.Selected } => true,
+			ParenthesizedExpression { Expression: not null } parenthesized => IsInPlaceFixedStructValue(parenthesized.Expression),
+			WithinExpression { Expression: not null } within => IsInPlaceFixedStructValue(within.Expression),
+			FinallyCleanupExpression { Expression: not null } cleanup => IsInPlaceFixedStructValue(cleanup.Expression),
+			_ => false
+		};
 	}
 
 	static bool IsValidFixedStorageAssignmentValue(string targetType, Expression? value)
@@ -2599,6 +2629,8 @@ public sealed partial class BindableNodeAnalyzer
 	void CheckInitializerFieldAssignable(string expected, InitializerItem item)
 	{
 		string actual = item.ResolvedType ?? ErrorType;
+		if (ReportFixedStructCopy(expected, item.Expression, item.Expression?.SourceSyntax ?? item.SourceSyntax))
+			return;
 		if (TryGetFixedArrayShape(expected, out _, out _) && !IsValidFixedStorageAssignmentValue(expected, item.Expression))
 		{
 			Report(GetRange(item.Expression?.SourceSyntax ?? item.SourceSyntax), "Fixed-size arrays cannot be copied by value; assign from an array literal, string literal, or default.");
@@ -7294,6 +7326,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (!RequireIntegralAssignmentOperands(assignment, targetType, valueType))
 			return targetType;
 		WarnIfRetainedAllocatorFieldAssignment(assignment);
+		ReportFixedStructCopy(targetType, assignment.Value, assignment.Value?.SourceSyntax ?? assignment.SourceSyntax);
 		if (assignment.Operator == AssignmentOperator.Add
 			&& (IsTextualCompositionAnchor(assignment.Target, targetType) || IsTextualCompositionAnchor(assignment.Value, valueType)))
 		{

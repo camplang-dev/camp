@@ -1,0 +1,8 @@
+tests/Diagnostics/fixed_struct_copy_invalid.camp(9,9): error: Fixed structs cannot be copied by value; use a pointer or construct directly in the destination storage.
+tests/Diagnostics/fixed_struct_copy_invalid.camp(15,16): error: Fixed structs cannot be copied by value; use a pointer or construct directly in the destination storage.
+tests/Diagnostics/fixed_struct_copy_invalid.camp(16,18): error: Fixed structs cannot be copied by value; use a pointer or construct directly in the destination storage.
+tests/Diagnostics/fixed_struct_copy_invalid.camp(17,26): error: Fixed structs cannot be copied by value; use a pointer or construct directly in the destination storage.
+tests/Diagnostics/fixed_struct_copy_invalid.camp(18,9): error: Fixed structs cannot be copied by value; use a pointer or construct directly in the destination storage.
+tests/Diagnostics/fixed_struct_copy_invalid.camp(19,13): error: Fixed structs cannot be copied by value; use a pointer or construct directly in the destination storage.
+tests/Diagnostics/fixed_struct_copy_invalid.camp(20,29): error: Fixed structs cannot be copied by value; use a pointer or construct directly in the destination storage.
+tests/Diagnostics/fixed_struct_copy_invalid.camp(22,35): error: Fixed structs cannot be copied by value; use a pointer or construct directly in the destination storage.

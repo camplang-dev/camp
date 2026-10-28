@@ -120,6 +120,12 @@ Lowering must not accidentally materialize a copied temporary for a fixed
 struct. Construction should target the final storage whenever possible, and
 operations that require a movable value should diagnose rather than silently
 copying bytes.
+Reject copying an existing fixed struct in local initialization (including
+`auto`), assignment, aggregate field initialization, or a by-value return.
+Aliases and generic constructions retain this rule. Literal/default
+initialization and selected destination construction remain valid, including
+construction through an `out` destination. Use pointers or `out` destinations
+instead of returning fixed struct values by value.
 
 ## Destructors
 

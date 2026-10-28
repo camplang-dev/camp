@@ -22,8 +22,26 @@ Point makePoint(int value)
 	return Point(value, value + 1);
 }
 
+fixed struct FixedPoint
+{
+	int value;
+	FixedPoint(int value) { this.value = value; }
+	~FixedPoint() { }
+}
+void constructFixed(out FixedPoint destination) { destination = FixedPoint(7); }
+
 export int main()
 {
+	FixedPoint fixedPoint = FixedPoint(3);
+	fixedPoint = FixedPoint(4);
+	FixedPoint* pointer = &fixedPoint;
+	constructFixed(out fixedPoint);
+	if (pointer.value != 7) return 1;
+	FixedPoint literal = { .value = 9 };
+	FixedPoint zero = default;
+	if (literal.value != 9 || zero.value != 0) return 2;
+	auto guarded = FixedPoint(11) finally delete;
+	if (guarded.value != 11) return 3;
 	Point local = Point(1, 2);
 	local = Point(3, 4);
 	Point aggregate = Point(0, 0) { .x = 5, .y = 6 };
