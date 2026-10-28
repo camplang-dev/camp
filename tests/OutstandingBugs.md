@@ -117,16 +117,22 @@ to discover the call errors, and an error-expectation test that mixes both kinds
 of mistake cannot assert all of them at once. The workaround is to keep each kind
 in a separate program.
 
-## BUG-407: Copyable struct with a direct class or fixed-struct field is accepted
+## BUG-407: Copyable struct with a direct class or fixed-struct field, and fixed struct with a direct class field, are accepted
 
-Date/Time: 2026-10-27 22:13 EDT
+Date/Time: 2026-10-27 22:13 EDT (amended 2026-10-27 22:50 EDT, before any work started)
 
 Summary:
-An ordinary copyable struct cannot contain a direct field whose type is a class
-or a fixed struct, because copying the struct would copy a value that has no
-copy semantics. The compiler accepts such a declaration without a diagnostic.
-For a class field the program then fails later, when the generated C is
-compiled; for a fixed-struct field the program compiles and runs.
+The containment rules for struct fields are:
+
+- a class may contain a copyable struct or a fixed struct;
+- a fixed struct may contain a fixed struct, but not a direct class;
+- a copyable struct may contain neither a fixed struct nor a direct class.
+
+The compiler does not enforce the last two rules. A copyable struct with a
+direct class or fixed-struct field, and a fixed struct with a direct class
+field, are accepted without a diagnostic. A class field then fails later, when
+the generated C is compiled; a fixed-struct field in a copyable struct compiles
+and runs.
 
 Steps to Reproduce:
 
@@ -155,20 +161,25 @@ Steps to Reproduce:
 2. Replace the class `K` and the field `K k;` with a `fixed struct F { int a; }`
    and a field `F f;`, and compile and run again.
 
+3. Change the containing struct in the program from step 1 from `struct
+   Copyable` to `fixed struct Holder`, keeping the class `K` and the field
+   `K k;`, and compile and run again.
+
 Expected:
-Both programs are rejected with a diagnostic at the offending field of
-`Copyable` that says an ordinary struct cannot contain a direct class or fixed
-struct field.
+All three programs are rejected with a diagnostic at the offending field. The
+message says an ordinary struct cannot contain a direct class or fixed struct
+field (steps 1 and 2) or that a fixed struct cannot contain a direct class field
+(step 3).
 
 Actual:
-No diagnostic is reported. Step 1 stops in the native compile with
+No diagnostic is reported. Steps 1 and 3 stop in the native compile with
 `field has incomplete type 'K'`. Step 2 compiles and runs.
 
 Known Impact:
-The restriction on copyable structs is not enforced, so an invalid declaration
-is reported as a native compile failure or not at all. The workaround is to
-declare the field as a pointer to the class or fixed struct, or to declare the
-containing struct `fixed`.
+The containment rules are not enforced, so an invalid declaration is reported as
+a native compile failure or not at all. The workaround is to declare the field
+as a pointer to the class or fixed struct, or, for a copyable struct holding a
+fixed struct, to declare the containing struct `fixed`.
 
 ## BUG-408: Untyped within parameter with a default value also reports an unknown type
 
