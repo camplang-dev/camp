@@ -3605,6 +3605,7 @@ public sealed partial class BindableNodeAnalyzer
 			GetCallDisplayName(function, call.Target),
 			allowOmittedPrepParameter: function is not null,
 			binding: binding);
+		ValidateCallWithinContext(call, analysisParameters, binding, scope);
 		if (function is not null)
 			AddReceiverConstOfAnchorFact(call.Target, function, constOfAnchors);
 		if (function is not null)
@@ -4013,6 +4014,7 @@ public sealed partial class BindableNodeAnalyzer
 			callTarget: call.Target,
 			binding: binding,
 			implicitConstOfAnchors: boundAnchors);
+		ValidateCallWithinContext(call, parameters, binding, scope);
 		returnType = ReadErasedValueType(SubstituteCallableConstOfReturnType(callableType, callable.ReturnType, constOfAnchors));
 		if (sourceCallable is not null && ContainsConstOfTypeReference(sourceCallable.ReturnType)
 			&& (boundAnchors is not null || !TypeReferencesConstOfAnchor(sourceCallable.ReturnType, "this")))
@@ -7746,6 +7748,23 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (RequiresExplicitWithinPolicy(expression?.SourceSyntax, scope) && (IsPointerStorageDeleteType(expressionType) || IsDelegateValueType(expressionType)))
 			Report(GetRange(expression?.SourceSyntax), message);
+	}
+
+	void ValidateCallWithinContext(CallExpression call, List<ParameterDefinition> parameters, CallArgumentBinding binding, BodyScope scope)
+	{
+		if (!RequiresExplicitWithinPolicy(call.SourceSyntax ?? call.Target?.SourceSyntax, scope)
+			|| GetWithinParameter(parameters) is not ParameterDefinition within)
+			return;
+		// Omitted implicit slots are absent from the argument binder's visible parameter list.
+		int index = binding.Parameters.IndexOf(within);
+		if (index < 0 || !binding.SuppliedParameters[index])
+			ReportMissingCallWithinContext(call, within);
+	}
+
+	void ReportMissingCallWithinContext(CallExpression call, ParameterDefinition parameter)
+	{
+		string parameterName = string.IsNullOrWhiteSpace(parameter.Name) ? "allocator" : parameter.Name;
+		Report(GetRange(call.SourceSyntax ?? call.Target?.SourceSyntax), $"Call requires a within context for parameter '{parameterName}'; prefix the call with a `within (allocator)` expression or place it inside a `within (allocator)` statement.");
 	}
 
 	void RequireExplicitWithin(SyntaxNode? syntax, BodyScope scope, string message)

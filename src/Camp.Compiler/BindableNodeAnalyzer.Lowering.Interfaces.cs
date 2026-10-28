@@ -371,8 +371,7 @@ public sealed partial class BindableNodeAnalyzer
 
 				if (RequiresExplicitWithinArgument(call))
 				{
-					string parameterName = string.IsNullOrWhiteSpace(parameter.Name) ? "allocator" : parameter.Name;
-					Report(GetRange(call.SourceSyntax ?? call.Target?.SourceSyntax), $"Call requires a within context for parameter '{parameterName}'; prefix the call with a `within (allocator)` expression or place it inside a `within (allocator)` statement.");
+					ReportMissingCallWithinContext(call, parameter);
 					return;
 				}
 

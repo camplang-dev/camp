@@ -8,4 +8,13 @@ export void main()
 	auto bytes = new byte[4];
 	delete bytes;
 	auto other = new byte[1] finally delete;
+	needs();
+	auto invoke = needs;
+	invoke();
+	within(default) needs();
+	within(default) { needs(); }
 }
+
+struct Allocator { }
+void needs(within allocator) { }
+void forward(within allocator) { needs(); }

@@ -427,6 +427,9 @@ current allocation policy. `within` is not a call-argument modifier; write
 `allocatingCall(within allocator)`. If the current file requires explicit within
 allocation, calls that need a within argument must diagnose instead of silently
 inserting fallback.
+Validate a source call's missing context during body analysis, alongside `new`
+and pointer-form `delete`, so independent allocation errors do not suppress it
+by preventing lowering. This applies to direct calls and callable values.
 
 A bare `within` parameter (`within allocator`) has the type `Allocator*`, where
 `Allocator` is the type of that name visible at the declaration. Name lookup
