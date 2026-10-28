@@ -142,6 +142,11 @@ generic parameter scopes, receiver scopes, and body-local declarations. A symbol
 found through one scope layer should not silently bypass a more local
 declaration with the same name unless the language rule explicitly permits it.
 
+A local declaration cannot reuse the name of a local or parameter visible from
+an enclosing scope. This includes loop variables and function parameters.
+Names may be reused in sibling scopes, or after a loop-local scope has ended.
+Ordinary global and member names may still be shadowed by locals.
+
 An unqualified type name used as a static member qualifier is not an implicit
 instance-member access, even when the containing class has a field or property
 with that name. Locals and parameters still take precedence as member receivers.

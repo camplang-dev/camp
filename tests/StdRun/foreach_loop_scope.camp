@@ -5,15 +5,15 @@ export int main()
 	foreach (int value in items) total += value;
 	foreach (int value in items) total += value;
 	int value = 10;
-	foreach (int value in items)
+	foreach (int outer in items)
 	{
-		foreach (int value in items) total += value;
-		total += value;
+		foreach (int inner in items) total += inner;
+		total += outer;
 	}
-	foreach (int items in items)
+	foreach (int item in items)
 	{
-		if (items == 1) continue;
-		total += items;
+		if (item == 1) continue;
+		total += item;
 		break;
 	}
 	return total == 38 && value == 10 ? 0 : 1;

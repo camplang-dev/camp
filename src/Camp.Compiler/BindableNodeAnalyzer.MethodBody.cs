@@ -1384,6 +1384,8 @@ public sealed partial class BindableNodeAnalyzer
 			Report(nameRange, $"Symbol '{name}' is already declared in this scope.");
 		else if (scope.TryLookup(name, out BodySymbol existing) && IsImplicitThrownErrorSymbol(existing))
 			Report(nameRange, "Local declaration 'error' conflicts with an unnamed thrown parameter, which is implicitly named 'error'. Rename the local or explicitly name the thrown parameter.");
+		else if (node is DeclarationTarget && scope.TryLookup(name, out _))
+			Report(nameRange, $"Symbol '{name}' is already declared in this scope.");
 		else
 			scope.Symbols[name] = new BodySymbol(name, type, node);
 
@@ -1444,8 +1446,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (TryGetArrayElementType(sourceType) is not null)
 			RequireGenericArrayElementStride(sourceType, scope, statement.Source?.SourceSyntax, "enumerate T[]");
 		string elementType = GetForeachElementType(statement, sourceType, statement.Source?.SourceSyntax);
-		// The source binds outside the loop variable's scope, including when it
-		// uses an enclosing variable with the same name as the loop target.
+		// The source binds outside the loop variable's scope.
 		scope = new BodyScope(scope, scope.CurrentFunction, scope.ContainingType)
 		{
 			CurrentFunctionReturnType = scope.CurrentFunctionReturnType,

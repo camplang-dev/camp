@@ -462,6 +462,8 @@ public sealed partial class BindableNodeBuilder
 
 		if (syntax is ClauseStatementConditionSyntax { DeclarationStatement: not null } clause)
 		{
+			if (clause.DeclarationStatement.Target is DeclarationTargetSyntax targetSyntax)
+				target.SourceSyntax = targetSyntax;
 			BuildDeclarationTarget(target, clause.DeclarationStatement.Target, "Catch statement");
 			return;
 		}
