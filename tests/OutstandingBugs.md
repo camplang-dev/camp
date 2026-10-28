@@ -93,22 +93,22 @@ Steps to Reproduce:
    again.
 
 Expected:
-All three errors are reported in a single compilation: the `new` at (21,9), the
-`delete` at (22,9) and the call at (23,13), each with its own message. This is
+All three errors are reported in a single compilation: the `new` at (20,9), the
+`delete` at (21,9) and the call at (22,13), each with its own message. This is
 what the compiler does for each error when it is the only kind in the program.
 
 Actual:
 Step 1 reports only:
 
 ```text
-(21,9): error: new requires an explicit within context; use within(allocator) or within(default).
-(22,9): error: pointer-form delete requires an explicit within context; use within(allocator) delete or within(default) delete.
+(20,9): error: new requires an explicit within context; use within(allocator) or within(default).
+(21,9): error: pointer-form delete requires an explicit within context; use within(allocator) delete or within(default) delete.
 ```
 
 The call error is not reported. Step 2 reports:
 
 ```text
-(15,13): error: Call requires a within context for parameter 'allocator'; prefix the call with a `within (allocator)` expression or place it inside a `within (allocator)` statement.
+(20,13): error: Call requires a within context for parameter 'allocator'; prefix the call with a `within (allocator)` expression or place it inside a `within (allocator)` statement.
 ```
 
 Known Impact:
