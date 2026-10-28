@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-414.
+Next bug number: BUG-415.
 
 ## Bug Template
 
@@ -66,3 +66,26 @@ Semantic analysis reports no error, and the native build fails with `error: inco
 
 Known Impact:
 Any shadow class that reads or writes a field of its non-shadow base. A workaround is to access the field only through a method of the base class.
+
+## BUG-414: The derived-from-virtual diagnostic advises `sealed` for a shadow class, which cannot be sealed
+
+Date/Time: 2026-10-28 16:17 EDT
+
+Summary:
+A class that derives from a virtual or abstract class must itself be declared virtual, abstract, or sealed, and a shadow class that derives from a virtual or abstract shadow class is held to the same rule. The diagnostic reports the one message for every class, including a shadow class, so for a shadow class it lists `sealed` as an option even though a shadow class may not be declared sealed. A user who follows the advice replaces one error with another.
+
+Steps to Reproduce:
+
+1. Declare `class Host` with an `escaped void* shadowData` field, a constructor, and `@getshadow` and `@setshadow` methods that read and write `shadowData`.
+2. Declare `virtual shadow class Base: Host` with a constructor and a method containing `delete shadow;`.
+3. Declare `shadow class Leaf: Base` with a constructor and a method containing `delete shadow;`.
+4. Compile the program.
+
+Expected:
+The program is rejected at the name of `Leaf`, and the message for a shadow class names only the options that are valid for it: virtual or abstract. It may say that a shadow class cannot be sealed.
+
+Actual:
+The program is rejected at the name of `Leaf` with "Class 'Leaf' derives from a virtual or abstract class and must be declared virtual, abstract, or sealed." Adding `sealed shadow` to `Leaf` is then rejected with "Shadow classes cannot be sealed."
+
+Known Impact:
+Diagnostic wording only. The rejection and its position are correct. Declaring the class virtual or abstract resolves the error.
