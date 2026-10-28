@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-410.
+Next bug number: BUG-411.
 
 ## Bug Template
 
@@ -43,3 +43,42 @@ Actual:
 Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
+
+## BUG-410: Shadow classes are not treated as escaped types for in-frame storage and stackalloc
+
+Date/Time: 2026-10-28 10:15 EDT
+
+Summary:
+The shadow-class semantics say a shadow class is an escaped class type and may
+not be constructed directly with selected construction or `stackalloc`. The
+compiler rejects an in-frame declaration, a selected construction and a
+`stackalloc` of an ordinary `escaped` class, but accepts all three for a shadow
+class. The semantic phase reports nothing, and the generated C then fails to
+build because the shadow class is only a forward-declared struct there.
+
+Steps to Reproduce:
+
+1. Declare an ordinary class with a constructor that has `@getshadow` and
+   `@setshadow` methods, and a `shadow` class that derives from it and declares
+   a constructor taking one `int`.
+2. In a function, write `S b = S(2);`, `auto c = S(3);`, `S* f = stackalloc S(1);`
+   and `S g;`, where `S` is the shadow class.
+3. Build the program.
+4. Replace the shadow class with an `escaped` class and build again.
+
+Expected:
+Each of the four statements is rejected during semantic analysis, as it is for
+the `escaped` class in step 4, with the escaped-type diagnostics for an
+in-frame declaration (three statements) and for `stackalloc` (one statement).
+
+Actual:
+The `escaped` class produces the expected semantic errors, "Storage of an
+escaped type cannot be declared in an activation frame; use static storage or
+new." and "An escaped type cannot be allocated on the stack; use static storage
+or new." The shadow class produces no semantic diagnostic, and the native build
+fails with errors such as "variable has incomplete type" and "invalid
+application of 'sizeof' to an incomplete type" for the shadow class.
+
+Known Impact:
+Invalid direct construction of a shadow class is reported as a native compiler
+failure instead of a source diagnostic. Allocating with `new` is unaffected.
