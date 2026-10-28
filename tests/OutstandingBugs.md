@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-406.
+Next bug number: BUG-407.
 
 ## Bug Template
 
@@ -43,3 +43,76 @@ Actual:
 Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
+
+## BUG-406: Missing-within-context call error is suppressed when allocation errors exist in the same program
+
+Date/Time: 2026-10-27 20:47 EDT
+
+Summary:
+Under the explicit within policy, three constructs require an explicit within
+context: a `new` expression, a pointer-form `delete`, and a call to a function
+that has a `within` parameter. Each is an independent error. The compiler
+reports the `new` and `delete` errors in one pass and the missing-context call
+error in a later pass, and the later pass does not run when the earlier pass
+reported errors. A program that contains both kinds of mistake therefore shows
+only the `new` and `delete` errors. The call error appears only after those are
+fixed and the program is compiled again.
+
+Steps to Reproduce:
+
+1. Compile the following program with the explicit within policy (the
+   `#within explicit` prelude directive selects it for the file):
+
+   ```camp
+   #within explicit
+   extern escaped void* malloc(nuint size);
+   extern void free(void* ptr);
+   interface Allocator
+   {
+   	escaped void* alloc(nuint size);
+   	void free(void* ptr);
+   }
+   class C
+   {
+   	int v;
+   	C() { this.v = 1; }
+   }
+   int work(within allocator)
+   {
+   	return 5;
+   }
+   export int main()
+   {
+   	C* c = new C();
+   	delete c;
+   	return work();
+   }
+   ```
+
+2. Remove the `new` and `delete` lines (keeping `return work();`) and compile
+   again.
+
+Expected:
+All three errors are reported in a single compilation: the `new` at (21,9), the
+`delete` at (22,9) and the call at (23,13), each with its own message. This is
+what the compiler does for each error when it is the only kind in the program.
+
+Actual:
+Step 1 reports only:
+
+```text
+(21,9): error: new requires an explicit within context; use within(allocator) or within(default).
+(22,9): error: pointer-form delete requires an explicit within context; use within(allocator) delete or within(default) delete.
+```
+
+The call error is not reported. Step 2 reports:
+
+```text
+(15,13): error: Call requires a within context for parameter 'allocator'; prefix the call with a `within (allocator)` expression or place it inside a `within (allocator)` statement.
+```
+
+Known Impact:
+A user fixing a program under the explicit policy needs an extra compile cycle
+to discover the call errors, and an error-expectation test that mixes both kinds
+of mistake cannot assert all of them at once. The workaround is to keep each kind
+in a separate program.
