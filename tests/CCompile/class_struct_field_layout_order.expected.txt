@@ -7,7 +7,9 @@ void free(void *ptr);
 static void Holder_op_initnew(Holder *this, int number);
 static Holder *Holder_create(int number);
 static int main(void);
+static FixedPair PointerWrapper_shared;
 
+static FixedPair PointerWrapper_shared;
 static void Holder_op_initnew(Holder *this, int number)
 {
 	this->value.number = number;
@@ -54,6 +56,9 @@ static int main(void)
 typedef struct Holder Holder;
 typedef struct Wrapper Wrapper;
 typedef struct Pair Pair;
+typedef struct FixedPair FixedPair;
+typedef struct FixedWrapper FixedWrapper;
+typedef struct PointerWrapper PointerWrapper;
 
 /* Enums. */
 
@@ -68,10 +73,25 @@ struct Wrapper
 {
 	Pair value;
 };
+struct FixedPair
+{
+	int number;
+};
+struct FixedWrapper
+{
+	FixedPair value;
+	Pair copyable;
+};
+struct PointerWrapper
+{
+	Holder *object;
+	FixedPair *fixedValue;
+};
 struct Holder
 {
 	Pair value;
 	Wrapper wrapper;
+	FixedWrapper fixedWrapper;
 };
 
 /* Function declarations. */

@@ -193,6 +193,9 @@ One practical consequence follows from the copy rule: a copyable struct should
 not contain a fixed struct field by value, because copying the outer struct
 would copy the fixed field. Make the containing type fixed too, store a
 pointer, or use a class when identity and opacity are the better fit.
+Neither copyable nor fixed structs can contain a class instance directly; store
+a pointer to the class. A fixed struct may contain other fixed structs, and a
+class may contain both copyable and fixed structs.
 
 ## Classes As Identity-Bearing Objects
 

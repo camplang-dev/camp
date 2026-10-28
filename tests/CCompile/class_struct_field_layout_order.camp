@@ -5,6 +5,7 @@ class Holder
 {
 	Pair value;
 	Wrapper wrapper;
+	FixedWrapper fixedWrapper;
 
 	Holder(int number)
 	{
@@ -21,6 +22,15 @@ struct Wrapper
 struct Pair
 {
 	int number;
+}
+
+fixed struct FixedPair { int number; }
+fixed struct FixedWrapper { FixedPair value; Pair copyable; }
+struct PointerWrapper
+{
+	Holder* object;
+	FixedPair* fixedValue;
+	static FixedPair shared;
 }
 
 int main()

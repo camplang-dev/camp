@@ -1,0 +1,32 @@
+class ClassField { int value; }
+fixed struct FixedField { int value; }
+alias ClassAlias = ClassField;
+alias FixedAlias = FixedField;
+
+struct BadCopyableFields
+{
+	ClassField classValue;
+	FixedField fixedValue;
+	const ClassAlias constClassValue;
+	const FixedAlias constFixedValue;
+}
+
+fixed struct BadFixedFields
+{
+	ClassField classValue;
+	ClassAlias aliasClassValue;
+}
+
+class GenericClassField<T> { T* value; }
+fixed struct GenericFixedField<T> { T* value; }
+
+struct BadGenericFields
+{
+	GenericClassField<int> classValue;
+	GenericFixedField<int> fixedValue;
+}
+
+fixed struct BadFixedGenericFields
+{
+	GenericClassField<int> classValue;
+}

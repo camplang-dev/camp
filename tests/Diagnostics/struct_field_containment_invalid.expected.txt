@@ -1,0 +1,9 @@
+tests/Diagnostics/struct_field_containment_invalid.camp(8,13): error: A copyable struct cannot contain a direct class field; use a pointer instead.
+tests/Diagnostics/struct_field_containment_invalid.camp(9,13): error: A copyable struct cannot contain a direct fixed struct field; make the containing struct fixed or use a pointer instead.
+tests/Diagnostics/struct_field_containment_invalid.camp(10,19): error: A copyable struct cannot contain a direct class field; use a pointer instead.
+tests/Diagnostics/struct_field_containment_invalid.camp(11,19): error: A copyable struct cannot contain a direct fixed struct field; make the containing struct fixed or use a pointer instead.
+tests/Diagnostics/struct_field_containment_invalid.camp(16,13): error: A fixed struct cannot contain a direct class field; use a pointer instead.
+tests/Diagnostics/struct_field_containment_invalid.camp(17,13): error: A fixed struct cannot contain a direct class field; use a pointer instead.
+tests/Diagnostics/struct_field_containment_invalid.camp(25,25): error: A copyable struct cannot contain a direct class field; use a pointer instead.
+tests/Diagnostics/struct_field_containment_invalid.camp(26,25): error: A copyable struct cannot contain a direct fixed struct field; make the containing struct fixed or use a pointer instead.
+tests/Diagnostics/struct_field_containment_invalid.camp(31,25): error: A fixed struct cannot contain a direct class field; use a pointer instead.

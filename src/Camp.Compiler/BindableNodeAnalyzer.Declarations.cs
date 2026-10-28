@@ -1441,7 +1441,8 @@ public sealed partial class BindableNodeAnalyzer
 			Report(GetNameRange(definition), "Erased generic type parameters cannot be stored directly in fields; use pointer, span, or explicit erased storage instead.");
 		definition.ResolvedType = definition.Type?.ResolvedType ?? ErrorType;
 		InitializeFieldLifetimeFacts(definition, scope, containingType);
-		if ((containingType is StructDefinition or ClassDefinition { IsEscaped: false, IsShadow: false })
+		bool invalidStructField = ReportInvalidStructFieldContainment(definition, containingType);
+		if (!invalidStructField && (containingType is StructDefinition or ClassDefinition { IsEscaped: false, IsShadow: false })
 			&& definition.Modifier != FieldModifier.Static && ContainsEscapedClassStorage(definition.ResolvedType))
 			Report(GetNameRange(definition), "Only an escaped class can hold an escaped class by value; use a pointer instead.");
 		if (definition.Modifier == FieldModifier.Static && definition.InitialValue is not null)

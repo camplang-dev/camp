@@ -108,6 +108,11 @@ Compiler rules to preserve:
   surface explicitly owns a compatible native representation;
 - ordinary copyable structs cannot contain direct fields whose type is a class
   or fixed struct;
+- fixed structs may contain fixed structs, but cannot contain a direct class
+  field; classes may contain copyable and fixed structs;
+- enforce these instance-field rules during declaration analysis, after resolving
+  aliases and generic constructions. Pointer fields and static fields do not
+  form inline instance containment;
 - initialization of fixed-size arrays is limited to array literals, string
   literals where the element type permits them, or `default`.
 

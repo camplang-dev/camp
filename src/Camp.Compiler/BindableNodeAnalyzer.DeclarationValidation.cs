@@ -1599,4 +1599,29 @@ public sealed partial class BindableNodeAnalyzer
 
 		return false;
 	}
+
+	bool ReportInvalidStructFieldContainment(FieldDefinition field, TypeDefinition? containingType)
+	{
+		if (containingType is not StructDefinition owner || field.Modifier == FieldModifier.Static
+			|| field.Type is null || IsDirectExternClassType(field.Type))
+			return false;
+		TypeReference type = UnwrapTypeDeclarators(field.Type);
+		if (typeRewrites.TryGetValue(type, out TypeReference? rewritten))
+			type = UnwrapTypeDeclarators(rewritten);
+		if (!TryGetNamedTypeDefinition(type, out TypeDefinition? fieldType))
+			return false;
+		if (fieldType is ClassDefinition)
+		{
+			Report(GetNameRange(field), owner.Modifier == StructModifier.Fixed
+				? "A fixed struct cannot contain a direct class field; use a pointer instead."
+				: "A copyable struct cannot contain a direct class field; use a pointer instead.");
+			return true;
+		}
+		if (owner.Modifier != StructModifier.Fixed && fieldType is StructDefinition { Modifier: StructModifier.Fixed })
+		{
+			Report(GetNameRange(field), "A copyable struct cannot contain a direct fixed struct field; make the containing struct fixed or use a pointer instead.");
+			return true;
+		}
+		return false;
+	}
 }
