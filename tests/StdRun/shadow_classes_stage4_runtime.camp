@@ -68,6 +68,19 @@ virtual shadow class DerivedShadow: BaseShadow, IExtra
 	}
 }
 
+virtual shadow class InheritedShadow: BaseShadow
+{
+	InheritedShadow(int value)
+	{
+		base(value);
+	}
+
+	void cleanupInherited()
+	{
+		delete shadow;
+	}
+}
+
 export int main()
 {
 	auto derived = new DerivedShadow(10, 7);
@@ -83,5 +96,12 @@ export int main()
 
 	derived.cleanupDerived();
 	delete derived;
+
+	auto inherited = new InheritedShadow(16);
+	BaseShadow* inheritedBase = inherited;
+	Console.writeLine(inherited.calculate());
+	Console.writeLine(inheritedBase.calculate());
+	inherited.cleanupInherited();
+	delete inherited;
 	return 0;
 }

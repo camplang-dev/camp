@@ -116,3 +116,32 @@ escaped class DestructorNativeView: NativeBase
 	{
 	}
 }
+
+virtual shadow class VirtualShadow: GoodHookBase
+{
+	virtual int read() => 1;
+	void cleanup() { delete shadow; }
+}
+
+shadow class OrdinaryVirtualChild: VirtualShadow
+{
+	void cleanupChild() { delete shadow; }
+}
+
+shadow class OrdinaryOverrideChild: VirtualShadow
+{
+	override int read() => 2;
+	void cleanupChild() { delete shadow; }
+}
+
+abstract shadow class AbstractShadow: GoodHookBase
+{
+	abstract int read();
+	void cleanup() { delete shadow; }
+}
+
+shadow class OrdinaryAbstractChild: AbstractShadow
+{
+	override int read() => 3;
+	void cleanupChild() { delete shadow; }
+}

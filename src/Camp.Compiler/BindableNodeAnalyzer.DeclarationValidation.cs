@@ -893,7 +893,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	void ValidateClassVirtualMethods(ClassDefinition definition)
 	{
-		if (!definition.IsShadow && InheritsVirtualClass(definition) && definition.Modifier is not ClassModifier.Virtual and not ClassModifier.Abstract and not ClassModifier.Sealed)
+		if (InheritsVirtualClass(definition) && definition.Modifier is not ClassModifier.Virtual and not ClassModifier.Abstract and not ClassModifier.Sealed)
 			Report(GetNameRange(definition), $"Class '{definition.Name}' derives from a virtual or abstract class and must be declared virtual, abstract, or sealed.");
 
 		ValidateVirtualHierarchyDestructorRules(definition);

@@ -173,6 +173,11 @@ access.
 A shadow class may derive from another shadow class. There is still one active
 most-derived shadow data allocation per shadow instance.
 
+A shadow class derived from a virtual or abstract shadow class must itself be
+`virtual` or `abstract`, even if it only inherits virtual implementations or
+provides its own overrides. The ordinary virtual-inheritance modifier rule
+applies; `sealed` remains unavailable for shadow classes.
+
 Derived shadow data is prefix-compatible with base shadow data. A method
 compiled for the base shadow class may retrieve the active shadow pointer and
 cast it to the base shadow data type, reading the inherited prefix. A method
