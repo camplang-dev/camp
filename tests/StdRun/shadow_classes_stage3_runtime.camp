@@ -37,6 +37,45 @@ shadow class CounterShadow: NativeShadowHost
 	}
 }
 
+sealed class CountingAllocator: Allocator
+{
+	int allocations;
+	int deallocations;
+
+	escaped void* alloc(escaped this, nuint size): Allocator
+	{
+		this.allocations++;
+		return malloc(size);
+	}
+
+	escaped void* realloc(escaped this, void* ptr, nuint newSize): Allocator => null;
+
+	void free(escaped this, void* ptr): Allocator
+	{
+		this.deallocations++;
+		free(ptr);
+	}
+}
+
+shadow class PooledShadow: NativeShadowHost
+{
+	int value;
+	Allocator* owner;
+
+	PooledShadow(int value, within allocator)
+	{
+		this.value = value;
+		this.owner = allocator;
+	}
+
+	int getValue() => this.value;
+
+	void cleanup()
+	{
+		within (this.owner) delete shadow;
+	}
+}
+
 export int main()
 {
 	auto counter = new CounterShadow(7);
@@ -44,5 +83,20 @@ export int main()
 	Console.writeLine(counter.getValue());
 	counter.cleanup();
 	delete counter;
+
+	auto ordinary = new PooledShadow(9);
+	Console.writeLine(ordinary.getValue());
+	ordinary.cleanup();
+	delete ordinary;
+
+	auto allocator = new CountingAllocator();
+	Allocator* pool = allocator;
+	auto pooled = within (pool) new PooledShadow(5);
+	Console.writeLine(pooled.getValue());
+	pooled.cleanup();
+	delete pooled;
+	Console.writeLine(allocator.allocations);
+	Console.writeLine(allocator.deallocations);
+	delete allocator;
 	return 0;
 }

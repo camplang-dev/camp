@@ -134,6 +134,10 @@ target. It must not rediscover the constructor by counting lowered ABI
 arguments, because source arguments such as `escaped once void()` expand into
 multiple physical parameters.
 
+A constructor's `within` parameter receives the selected allocation context
+once. Generated create and init-new helpers must preserve an already supplied
+allocator argument when lowering the call, including a resolved allocator local.
+
 If a shadow class has no matching constructor or create method for the supplied
 source arguments, the compiler reports an argument-count or missing-argument
 diagnostic at the call site. Arguments must not be silently forwarded to the

@@ -1313,7 +1313,9 @@ public sealed partial class BindableNodeAnalyzer
 		if (HasWithinParameter(initNew))
 		{
 			Expression? allocator = allocatorArgument ?? CurrentAllocator();
-			call.Arguments.Add(new ArgumentExpression { Value = allocator ?? NullLiteral(syntax), ResolvedType = allocator?.ResolvedType ?? "#NULL" });
+			ArgumentExpression withinArgument = new() { Value = allocator ?? NullLiteral(syntax), ResolvedType = allocator?.ResolvedType ?? "#NULL" };
+			implicitWithinArguments.Add(withinArgument);
+			call.Arguments.Add(withinArgument);
 		}
 		if (ShouldEmitFlattenedInstanceCalls() && call.Target is MemberReferenceExpression member && target is not null)
 			RewriteInstanceInvocation(call, member, target, initNew);

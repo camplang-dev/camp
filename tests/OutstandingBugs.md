@@ -67,30 +67,6 @@ Semantic analysis reports no error, and the native build fails with `error: inco
 Known Impact:
 Any shadow class that reads or writes a field of its non-shadow base. A workaround is to access the field only through a method of the base class.
 
-## BUG-412: Constructing a shadow class whose constructor takes a `within` parameter produces C that does not compile
-
-Date/Time: 2026-10-28 15:10 EDT
-
-Summary:
-The shadow class semantics allow a shadow constructor to accept a `within` allocator parameter, and describe how `delete shadow` interacts with it. A program that actually constructs such a class with `new` passes semantic analysis, but the generated C passes the resolved allocator to the generated constructor helper twice, so the helper call has one more argument than the helper declares and the native build fails.
-
-Steps to Reproduce:
-
-1. Declare `interface Allocator` with `alloc`, `realloc` and `free`, and a class that implements it.
-2. Declare `class Host` with an `escaped void* shadowData` field, a constructor, and `@getshadow` and `@setshadow` methods that read and write `shadowData`.
-3. Declare `shadow class Pooled: Host` with an `int value` field and a constructor `Pooled(int value, within allocator)`, plus a method containing `delete shadow;`.
-4. In `main`, write `Pooled* p = new Pooled(5);`. The same failure occurs with `within (allocator) new Pooled(5)`.
-5. Compile the program.
-
-Expected:
-The program compiles. The constructor receives the allocation context once, as it does for a non-shadow class with a `within` constructor parameter.
-
-Actual:
-Semantic analysis reports no error. The native build fails with `too many arguments to function call, expected 3, have 4` at the generated call of the constructor helper, where the resolved allocator appears twice in the argument list.
-
-Known Impact:
-Any shadow class with a `within` constructor parameter cannot be constructed. A workaround is to pass the allocator as an ordinary parameter, which can be stored in a shadow field and used by `within (this.field) delete shadow;`.
-
 ## BUG-413: A non-virtual class derived from a virtual shadow class is accepted and crashes at run time
 
 Date/Time: 2026-10-28 15:40 EDT

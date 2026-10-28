@@ -504,7 +504,8 @@ public sealed partial class BindableNodeAnalyzer
 
 	bool IsWithinArgumentAlreadySupplied(ParameterDefinition parameter, ArgumentExpression argument)
 	{
-		return argument.Value is WithinExpression
+		return implicitWithinArguments.Contains(argument)
+			|| argument.Value is WithinExpression
 			|| IsCurrentWithinArgument(argument)
 			|| IsCapturedAllocatorArgument(argument)
 			|| IsGeneratedHiddenForwardingArgumentFor(parameter, argument);
