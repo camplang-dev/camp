@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-407.
+Next bug number: BUG-408.
 
 ## Bug Template
 
@@ -116,3 +116,56 @@ A user fixing a program under the explicit policy needs an extra compile cycle
 to discover the call errors, and an error-expectation test that mixes both kinds
 of mistake cannot assert all of them at once. The workaround is to keep each kind
 in a separate program.
+
+## BUG-407: Copyable struct with a direct class or fixed-struct field is accepted
+
+Date/Time: 2026-10-27 22:30 EDT
+
+Summary:
+An ordinary copyable struct cannot contain a direct field whose type is a class
+or a fixed struct, because copying the struct would copy a value that has no
+copy semantics. The compiler accepts such a declaration without a diagnostic.
+For a class field the program then fails later, when the generated C is
+compiled; for a fixed-struct field the program compiles and runs.
+
+Steps to Reproduce:
+
+1. Compile and run the following program:
+
+   ```camp
+   extern void __intrinsic_log_i32(int value);
+   extern escaped void* malloc(nuint size);
+   extern void free(void* ptr);
+   class K
+   {
+   	int v;
+   }
+   struct Copyable
+   {
+   	K k;
+   	int x;
+   }
+   export int main()
+   {
+   	__intrinsic_log_i32(1);
+   	return 0;
+   }
+   ```
+
+2. Replace the class `K` and the field `K k;` with a `fixed struct F { int a; }`
+   and a field `F f;`, and compile and run again.
+
+Expected:
+Both programs are rejected with a diagnostic at the offending field of
+`Copyable` that says an ordinary struct cannot contain a direct class or fixed
+struct field.
+
+Actual:
+No diagnostic is reported. Step 1 stops in the native compile with
+`field has incomplete type 'K'`. Step 2 compiles and runs.
+
+Known Impact:
+The restriction on copyable structs is not enforced, so an invalid declaration
+is reported as a native compile failure or not at all. The workaround is to
+declare the field as a pointer to the class or fixed struct, or to declare the
+containing struct `fixed`.
