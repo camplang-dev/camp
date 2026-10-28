@@ -9,7 +9,7 @@ tests/Diagnostics/shadow_classes_stage2_invalid.camp(91,6): error: Class 'FieldN
 tests/Diagnostics/shadow_classes_stage2_invalid.camp(99,48): error: Class 'InterfaceNativeView' derives from extern class 'NativeBase' and cannot implement interfaces unless it is declared shadow.
 tests/Diagnostics/shadow_classes_stage2_invalid.camp(108,15): error: Class 'VirtualMethodNativeView' derives from extern class 'NativeBase' and cannot declare virtual or abstract methods unless it is declared shadow.
 tests/Diagnostics/shadow_classes_stage2_invalid.camp(115,3): error: Class 'DestructorNativeView' derives from extern class 'NativeBase' and cannot declare a destructor unless it is declared shadow.
-tests/Diagnostics/shadow_classes_stage2_invalid.camp(71,14): error: Class 'BadVirtualBase' derives from a virtual or abstract class and must be declared virtual, abstract, or sealed.
-tests/Diagnostics/shadow_classes_stage2_invalid.camp(126,14): error: Class 'OrdinaryVirtualChild' derives from a virtual or abstract class and must be declared virtual, abstract, or sealed.
-tests/Diagnostics/shadow_classes_stage2_invalid.camp(131,14): error: Class 'OrdinaryOverrideChild' derives from a virtual or abstract class and must be declared virtual, abstract, or sealed.
-tests/Diagnostics/shadow_classes_stage2_invalid.camp(143,14): error: Class 'OrdinaryAbstractChild' derives from a virtual or abstract class and must be declared virtual, abstract, or sealed.
+tests/Diagnostics/shadow_classes_stage2_invalid.camp(71,14): error: Class 'BadVirtualBase' derives from a virtual or abstract class and must be declared virtual or abstract.
+tests/Diagnostics/shadow_classes_stage2_invalid.camp(126,14): error: Class 'OrdinaryVirtualChild' derives from a virtual or abstract class and must be declared virtual or abstract.
+tests/Diagnostics/shadow_classes_stage2_invalid.camp(131,14): error: Class 'OrdinaryOverrideChild' derives from a virtual or abstract class and must be declared virtual or abstract.
+tests/Diagnostics/shadow_classes_stage2_invalid.camp(143,14): error: Class 'OrdinaryAbstractChild' derives from a virtual or abstract class and must be declared virtual or abstract.
