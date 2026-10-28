@@ -66,4 +66,3 @@ Semantic analysis reports no error, and the native build fails with `error: inco
 
 Known Impact:
 Any shadow class that reads or writes a field of its non-shadow base. A workaround is to access the field only through a method of the base class.
-
