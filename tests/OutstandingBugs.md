@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-413.
+Next bug number: BUG-414.
 
 ## Bug Template
 
@@ -90,3 +90,27 @@ Semantic analysis reports no error. The native build fails with `too many argume
 
 Known Impact:
 Any shadow class with a `within` constructor parameter cannot be constructed. A workaround is to pass the allocator as an ordinary parameter, which can be stored in a shadow field and used by `within (this.field) delete shadow;`.
+
+## BUG-413: A non-virtual class derived from a virtual shadow class is accepted and crashes at run time
+
+Date/Time: 2026-10-28 15:40 EDT
+
+Summary:
+A class that derives from a virtual or abstract class must itself be declared virtual, abstract, or sealed, and the compiler reports an error for an ordinary class that does not. That check is skipped when the derived class is a shadow class. Because a shadow class cannot be `sealed`, an ordinary shadow class that derives from a virtual shadow class is accepted. When it adds no override of its own, no dispatch table is installed for it, so calling an inherited virtual method through it crashes the program.
+
+Steps to Reproduce:
+
+1. Declare `class Host` with an `escaped void* shadowData` field, a constructor, and `@getshadow` and `@setshadow` methods that read and write `shadowData`.
+2. Declare `virtual shadow class Shape: Host` with an `int side` field, a constructor that sets it, `virtual int area() => this.side * this.side;`, and a method containing `delete shadow;`.
+3. Declare `shadow class Square: Shape` (not virtual) with a constructor `Square(int side) { base(side); }` and no override.
+4. In `main`, write `Square* s = new Square(4); __intrinsic_log_i32(s.area());` and call the `delete shadow;` method.
+5. Compile and run the program.
+
+Expected:
+The compiler reports an error on `Square`, as it does for a non-shadow class that derives from a virtual class without being marked virtual, abstract, or sealed. Declaring `Square` as `virtual shadow class` makes the program compile and print 16.
+
+Actual:
+Semantic analysis reports no error for the ordinary `Square`, and the program exits with a segmentation fault instead of printing 16. If `Square` is declared `virtual shadow class`, or if it declares its own override, the program prints the expected value.
+
+Known Impact:
+Any ordinary shadow class under a virtual or abstract shadow base. A workaround is to declare such classes `virtual` or `abstract`.
