@@ -1313,6 +1313,9 @@ public sealed partial class BindableNodeAnalyzer
 		if (HasWithinParameter(initNew))
 		{
 			Expression? allocator = allocatorArgument ?? CurrentAllocator();
+			ParameterDefinition? within = GetWithinParameter(initNew);
+			string withinType = within?.ResolvedType is null or AllocatorType ? "Allocator*" : within.ResolvedType;
+			allocator = LowerInterfaceConversion(within?.Type, withinType, allocator);
 			ArgumentExpression withinArgument = new() { Value = allocator ?? NullLiteral(syntax), ResolvedType = allocator?.ResolvedType ?? "#NULL" };
 			implicitWithinArguments.Add(withinArgument);
 			call.Arguments.Add(withinArgument);

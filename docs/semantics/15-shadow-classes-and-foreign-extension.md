@@ -137,6 +137,9 @@ multiple physical parameters.
 A constructor's `within` parameter receives the selected allocation context
 once. Generated create and init-new helpers must preserve an already supplied
 allocator argument when lowering the call, including a resolved allocator local.
+The context uses the constructor parameter's normal interface conversion. A
+concrete allocator instance is converted to the interface view required by that
+parameter.
 
 If a shadow class has no matching constructor or create method for the supplied
 source arguments, the compiler reports an argument-count or missing-argument

@@ -95,6 +95,11 @@ export int main()
 	Console.writeLine(pooled.getValue());
 	pooled.cleanup();
 	delete pooled;
+
+	auto concrete = within (allocator) new PooledShadow(6);
+	Console.writeLine(concrete.getValue());
+	concrete.cleanup();
+	delete concrete;
 	Console.writeLine(allocator.allocations);
 	Console.writeLine(allocator.deallocations);
 	delete allocator;
