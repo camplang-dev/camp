@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-415.
+Next bug number: BUG-416.
 
 ## Bug Template
 
@@ -66,3 +66,26 @@ Semantic analysis reports no error, and the native build fails with `error: inco
 
 Known Impact:
 Any shadow class that reads or writes a field of its non-shadow base. A workaround is to access the field only through a method of the base class.
+
+## BUG-415: A local may reuse the name of a visible outer local or parameter
+
+Date/Time: 2026-10-28 16:35 EDT
+
+Summary:
+Declaring a local in a function body is rejected when the name is already declared in the same scope, but it is accepted when the name belongs to a local or parameter of an enclosing scope. The inner declaration silently shadows the outer one. Locals are not allowed to shadow other locals or parameters, so every one of these shapes should be an error. When the shadowed name is a parameter, semantic analysis reports nothing and the generated C does not compile.
+
+Steps to Reproduce:
+
+1. Write `int shadowLocal() { int n = 1; { int n = 2; return n; } }`.
+2. Write `int shadowLoop() { for (int i = 0; i < 2; i++) { int i = 5; } return 0; }`. The same applies to the variable of a `foreach` loop and to a `for` loop that declares a variable already declared before the loop.
+3. Write `int shadowParameter(int a) { int a = 1; return a; }`.
+4. Compile a program that contains these functions and a `main`.
+
+Expected:
+Each inner declaration is reported as already declared, the same way a second declaration of `n` in a single scope is.
+
+Actual:
+The first two functions compile and the inner variable shadows the outer one. The third function passes semantic analysis and the native build fails with a redefinition error for the parameter name in the generated C.
+
+Known Impact:
+Any function that reuses a local or parameter name in a nested scope. A workaround is to use distinct names.
