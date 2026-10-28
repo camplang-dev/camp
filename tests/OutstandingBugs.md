@@ -119,7 +119,7 @@ in a separate program.
 
 ## BUG-407: Copyable struct with a direct class or fixed-struct field is accepted
 
-Date/Time: 2026-10-27 22:30 EDT
+Date/Time: 2026-10-27 22:13 EDT
 
 Summary:
 An ordinary copyable struct cannot contain a direct field whose type is a class
