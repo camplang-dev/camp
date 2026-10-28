@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-408.
+Next bug number: BUG-409.
 
 ## Bug Template
 
@@ -169,3 +169,59 @@ The restriction on copyable structs is not enforced, so an invalid declaration
 is reported as a native compile failure or not at all. The workaround is to
 declare the field as a pointer to the class or fixed struct, or to declare the
 containing struct `fixed`.
+
+## BUG-408: Untyped within parameter with a default value also reports an unknown type
+
+Date/Time: 2026-10-27 22:34 EDT
+
+Summary:
+A within parameter cannot have a default value, and the compiler rejects one
+with a clear diagnostic. When the within parameter is written in its usual
+untyped form, the compiler reports a second, unrelated diagnostic that treats
+the parameter name as an unknown type. The same mistake written with an
+explicit type reports only the real error, so the extra error comes from how
+the untyped form is read once a default follows it.
+
+Steps to Reproduce:
+
+1. Compile the following program:
+
+   ```camp
+   extern escaped void* malloc(nuint size);
+   extern void free(void* ptr);
+   interface Allocator
+   {
+   	escaped void* alloc(nuint size);
+   	void free(void* ptr);
+   }
+   int work(within allocator = default)
+   {
+   	return 1;
+   }
+   export int main()
+   {
+   	return 0;
+   }
+   ```
+
+2. Change the parameter to `within Allocator allocator = default` and compile
+   again.
+
+Expected:
+Both programs report only the within-default diagnostic, at the default value.
+
+Actual:
+Step 1 reports two errors:
+
+```text
+(8,17): error: Unknown type 'allocator'.
+(8,29): error: within parameters cannot have default values; their value is supplied by an explicit within context or explicit within argument.
+```
+
+Step 2 reports only the second error, at (8,39). The same extra error appears
+for a constructor parameter written the same way.
+
+Known Impact:
+The first error is misleading, because the parameter name is not meant to be a
+type. The program is rejected either way, so no invalid program is accepted.
+Writing the parameter with an explicit type avoids the extra error.
