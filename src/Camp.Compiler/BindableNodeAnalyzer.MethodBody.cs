@@ -2319,14 +2319,14 @@ public sealed partial class BindableNodeAnalyzer
 			return ErrorType;
 		}
 
+		if (TryResolveTargetTypedEnumValue(named, targetType, out string enumType))
+			return enumType;
+
 		if (named.Qualifiers.Count == 0 && configurationFlags.Declarations.ContainsKey(named.Name))
 		{
 			Report(GetRange(named.SourceSyntax), $"Configuration flag '{named.Name}' can only be queried with configured(...).");
 			return ErrorType;
 		}
-
-		if (TryResolveTargetTypedEnumValue(named, targetType, out string enumType))
-			return enumType;
 
 		Report(GetRange(named.SourceSyntax), $"Symbol '{FormatNamedExpressionName(named)}' could not be found.");
 		return ErrorType;

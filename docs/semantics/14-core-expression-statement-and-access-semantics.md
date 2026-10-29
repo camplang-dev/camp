@@ -135,6 +135,11 @@ matches an enum member. Apply the ordinary access and conversion checks to that
 declaration. For example, `int A = 5; Kind value = A;` cannot silently select
 `Kind.A`. The qualified spelling `Kind.A` always names the enum member.
 
+Configuration flags are not ordinary names and do not hide a target enum member.
+For example, `Arch value = X64;` names `Arch.X64` even when the target defines an
+`X64` flag. Without an enum target, querying that flag still requires
+`configured(X64)`.
+
 An unqualified enum member in a comparison is target-typed from the other
 operand's enum type on either side. Local and global storage, including
 namespace-qualified globals, supply the same enum context.

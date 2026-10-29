@@ -6,6 +6,29 @@ namespace Camp.Compiler.Tests;
 
 public sealed class EnumStorageComparisonTests
 {
+	[Theory]
+	[InlineData(true)]
+	[InlineData(false)]
+	public void Configuration_flags_do_not_hide_target_enum_members(bool enabled)
+	{
+		ConfigurationFlagSet flags = new();
+		Assert.True(flags.TryDeclare($"X64={enabled.ToString().ToLowerInvariant()}", false,
+			ConfigurationFlagOwner.Target, "test", new()));
+		var compilation = SemanticCompiler.CompileLowered(flags, ("test.camp", """
+			enum Arch { UNKNOWN, X64 }
+			Arch current() => X64;
+			void accept(Arch value) { }
+			void test(Arch value) {
+				Arch copy = X64;
+				copy = X64;
+				accept(X64);
+				bool equal = value == X64;
+				switch (value) { case X64: break; default: break; }
+			}
+			"""));
+		SemanticCompiler.AssertNoDiagnostics(compilation);
+	}
+
 	[Fact]
 	public void Ordinary_local_and_parameter_lookup_wins_over_target_enum_members()
 	{
