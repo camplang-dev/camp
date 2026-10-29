@@ -106,6 +106,16 @@ specific diagnostic or preserve uncertainty until a later check can report one.
 
 ## Anchors
 
+When an untargeted conditional, array literal, or by-value generic inference
+chooses a common pointer type, the candidates' lifetime annotations must match.
+Do not weaken a scoped candidate by joining it with an escaped one. Diagnose
+the differing operand and request an explicit lifetime cast. For example,
+`condition ? (escaped)scopedValue : escapedValue` and
+`condition ? scopedValue : (scoped)escapedValue` state the choice explicitly.
+Two scoped parameters may join even though their provenance anchors differ;
+null and default supply no competing lifetime annotation. Ordinary assignment
+and parameter lifetime checks continue to use their flow rules.
+
 Anchors are source-visible names used by `scoped(...)`, `unscoped(...)`, and
 `constof(...)` relationships. The binder must reject missing anchors and anchors
 that are not valid in the current signature or body context.

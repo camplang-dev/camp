@@ -275,6 +275,11 @@ public sealed partial class BindableNodeAnalyzer
 
 	void ApplyExpressionLifetimeFact(Expression expression, string resolvedType, BodyScope scope, AnalysisScope typeScope)
 	{
+		if (expression is CastExpression { LifetimeBinding: not null } lifetimeCast)
+		{
+			expression.ValueLifetimeFact = lifetimeCast.LifetimeBinding;
+			return;
+		}
 		if (IsEscapedValueType(resolvedType))
 		{
 			expression.ValueLifetimeFact = MakeLifetimeFact("escaped", null, "escaped type");

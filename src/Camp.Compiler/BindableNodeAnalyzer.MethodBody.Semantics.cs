@@ -4061,6 +4061,32 @@ public sealed partial class BindableNodeAnalyzer
 		return best;
 	}
 
+	bool ReportCommonPointerLifetimeMismatch(IReadOnlyList<Expression?> expressions, IReadOnlyList<string> types)
+	{
+		string? first = null;
+		for (int i = 0; i < types.Count; i++)
+		{
+			if (!TryParseTypeShape(types[i], out TypeShape shape) || !shape.IsPointer)
+				continue;
+			string lifetime = shape.Qualifiers.Lifetime.ToString();
+			if (TryParseLifetimeFact(GetExpressionLifetimeFact(expressions[i]), out LifetimeFact fact))
+			{
+				if (fact.Kind is "null" or "default")
+					continue;
+				if (fact.Kind is "scoped" or "unscoped" or "escaped")
+					lifetime = fact.Kind;
+			}
+			lifetime = lifetime.ToLowerInvariant();
+			if (first is not null && first != lifetime)
+			{
+				Report(GetRange(expressions[i]?.SourceSyntax), "Common pointer type requires matching lifetime annotations; use an explicit lifetime cast.");
+				return true;
+			}
+			first = lifetime;
+		}
+		return false;
+	}
+
 	string BestExpressionType(IReadOnlyList<Expression?> expressions, IReadOnlyList<string> types, out int incompatibleIndex)
 	{
 		incompatibleIndex = -1;

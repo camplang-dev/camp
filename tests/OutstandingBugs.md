@@ -67,28 +67,6 @@ Semantic analysis reports no accessibility error. Compilation proceeds to native
 Known Impact:
 Invalid access to a non-shadow base's fields is accepted by semantic analysis and reported later as a native compiler error. Use a method of the base class to expose the required operation instead of accessing its field through the shadow class.
 
-## BUG-425: A common pointer type is accepted for candidates with different lifetime annotations
-
-Date/Time: 2026-10-28 23:02 EDT
-
-Summary:
-When a conditional expression, an array literal, or generic type argument inference combines pointer values, the candidates are joined into one pointer type without comparing their lifetime annotations. A `scoped` pointer and an `escaped` pointer are accepted together and silently produce a value whose lifetime is the weaker of the two. The explicit lifetime casts `(escaped)` and `(scoped)` already exist for making the lifetimes agree, but nothing requires them.
-
-Steps to Reproduce:
-
-1. Declare `void two<T>(in T a, in T b, sizeof(T), typenameof(T))` that logs `typenameof(T)` with the string log intrinsic.
-2. Declare `void f(scoped int* s, escaped int* e, bool c)` whose body contains `auto r = c ? s : e;`, `auto a = [s, e];`, `two(s, e);` and `two(e, s);`.
-3. Compile the program. Then replace the first conditional with `c ? (escaped)s : e` and with `c ? s : (scoped)e`.
-
-Expected:
-A common pointer type requires the lifetime annotations of all candidates to match exactly, so a `scoped` pointer never joins an `escaped` one. Each of the conditional, the array literal, `two(s, e)` and `two(e, s)` is rejected at the operand whose lifetime differs from the others, with a diagnostic that asks for an explicit lifetime cast. The two cast forms in step 3 are accepted, as are candidates whose annotations already match (`c ? s : t` for two `scoped` parameters).
-
-Actual:
-All four forms in step 2 compile without a diagnostic.
-
-Known Impact:
-A pointer whose lifetime is only borrowed can be mixed with a retained one without any explicit acknowledgement, which hides lifetime decisions that the language otherwise requires in the source. Add the explicit lifetime cast on the operand that should change.
-
 ## BUG-426: An enum member named by the target type hides a local variable or parameter of the same name
 
 Date/Time: 2026-10-28 23:03 EDT

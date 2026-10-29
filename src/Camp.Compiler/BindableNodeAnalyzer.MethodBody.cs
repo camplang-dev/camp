@@ -13,6 +13,7 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		public List<ParameterDefinition> Parameters { get; set; } = [];
 		public bool[] SuppliedParameters { get; set; } = [];
+		public bool HasInferenceDiagnostic { get; set; }
 	}
 
 	readonly Dictionary<Expression, bool> expressionConstants = [];
@@ -2495,6 +2496,8 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		int incompatibleIndex = -1;
+		if (elementTarget is null && ReportCommonPointerLifetimeMismatch(array.Elements, elementTypes))
+			return ErrorType;
 		string elementType = elementTarget ?? BestExpressionType(array.Elements, elementTypes, out incompatibleIndex);
 		if (elementTarget is null && elementType == ErrorType && array.Elements.Count > 0)
 		{
@@ -3663,7 +3666,7 @@ public sealed partial class BindableNodeAnalyzer
 			AddReceiverConstOfAnchorFact(call.Target, function, constOfAnchors);
 		if (function is not null)
 		{
-			if (ReportUnresolvedGenericCall(function, genericSubstitutions, GetCallTargetNameDiagnosticSyntax(call.Target)))
+			if (binding.HasInferenceDiagnostic || ReportUnresolvedGenericCall(function, genericSubstitutions, GetCallTargetNameDiagnosticSyntax(call.Target)))
 			{
 				call.ResolvedType = ErrorType;
 				return ErrorType;
@@ -4693,10 +4696,11 @@ public sealed partial class BindableNodeAnalyzer
 		return implementation;
 	}
 
-	void InferCommonCallTypes(List<ArgumentExpression> arguments, List<ParameterDefinition> parameters, Dictionary<string, string> substitutions, HashSet<string> genericNames, BodyScope scope, AnalysisScope typeScope)
+	bool InferCommonCallTypes(List<ArgumentExpression> arguments, List<ParameterDefinition> parameters, Dictionary<string, string> substitutions, HashSet<string> genericNames, BodyScope scope, AnalysisScope typeScope)
 	{
 		if (genericNames.Count == 0)
-			return;
+			return false;
+		bool reported = false;
 		Dictionary<string, List<ArgumentExpression>> candidates = [];
 		bool[] supplied = new bool[parameters.Count];
 		foreach (ArgumentExpression argument in arguments)
@@ -4717,8 +4721,16 @@ public sealed partial class BindableNodeAnalyzer
 			if (values.Count < 2 || values.Any(argument => UnwrapParenthesizedExpression(argument.Value) is LambdaExpression or InitializerExpression))
 				continue;
 			List<string> types = values.Select(argument => BodyAnalyzeArgumentExpression(argument, scope, typeScope, TargetType)).ToList();
-			substitutions[name] = BestExpressionType(values.Select(argument => argument.Value).ToList(), types, out _);
+			List<Expression?> expressions = values.Select(argument => argument.Value).ToList();
+			if (ReportCommonPointerLifetimeMismatch(expressions, types))
+			{
+				substitutions[name] = ErrorType;
+				reported = true;
+			}
+			else
+				substitutions[name] = BestExpressionType(expressions, types, out _);
 		}
+		return reported;
 	}
 
 	Dictionary<string, bool> AnalyzeCallArguments(List<ArgumentExpression> arguments, List<ParameterDefinition> parameters, BodyScope scope, AnalysisScope typeScope, SyntaxNode? fallbackSyntax = null, bool includeExplicitThis = false, Dictionary<string, string>? genericSubstitutions = null, HashSet<string>? genericParameterNames = null, FunctionDefinition? function = null, Expression? callTarget = null, SyntaxNode? missingArgumentSyntax = null, string? callDisplayName = null, bool allowOmittedPrepParameter = false, CallArgumentBinding? binding = null, Dictionary<string, bool>? implicitConstOfAnchors = null)
@@ -4731,7 +4743,9 @@ public sealed partial class BindableNodeAnalyzer
 		if (arguments.Count > callableParameters.Count || HasExplicitHiddenArgument(arguments))
 			AddExplicitHiddenParameters(parameters, callableParameters);
 		AnalyzeRangeAwareArguments(arguments, callableParameters, GetRangeReceiver(callTarget), scope, typeScope, fallbackSyntax);
-		InferCommonCallTypes(arguments, callableParameters, genericSubstitutions, genericParameterNames, scope, typeScope);
+		bool inferenceDiagnostic = InferCommonCallTypes(arguments, callableParameters, genericSubstitutions, genericParameterNames, scope, typeScope);
+		if (binding is not null)
+			binding.HasInferenceDiagnostic = inferenceDiagnostic;
 		List<(ArgumentExpression Argument, ParameterDefinition Parameter)> analyzedLifetimeArguments = [];
 		List<(ArgumentExpression Argument, ParameterDefinition Parameter)> analyzedConstOfArguments = [];
 		Dictionary<string, bool> constOfAnchorsInProgress = new(System.StringComparer.Ordinal);
@@ -7691,6 +7705,8 @@ public sealed partial class BindableNodeAnalyzer
 			CheckAssignable(targetType, falseType, conditional.WhenFalse?.SourceSyntax, "Conditional expression");
 			return targetType;
 		}
+		if (ReportCommonPointerLifetimeMismatch([conditional.WhenTrue, conditional.WhenFalse], [trueType, falseType]))
+			return ErrorType;
 		string commonType = BestExpressionType([conditional.WhenTrue, conditional.WhenFalse], [trueType, falseType], out int incompatibleIndex);
 		if (commonType == ErrorType)
 		{

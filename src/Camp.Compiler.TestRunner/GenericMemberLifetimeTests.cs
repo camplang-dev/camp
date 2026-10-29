@@ -1,9 +1,46 @@
+using System.Linq;
+using Camp.Compiler;
 using Xunit;
 
 namespace Camp.Compiler.Tests;
 
 public sealed class GenericMemberLifetimeTests
 {
+	[Theory]
+	[InlineData("auto value = c ? s : e;", "e")]
+	[InlineData("auto value = c ? e : s;", "s")]
+	[InlineData("auto value = [s, e];", "e")]
+	[InlineData("auto value = [e, s];", "s")]
+	[InlineData("two(s, e);", "e")]
+	[InlineData("two(e, s);", "s")]
+	public void Common_pointer_candidates_require_matching_lifetimes(string body, string operand)
+	{
+		var result = SemanticCompiler.CompileLowered($$"""
+			void two<T>(in T a, in T b, sizeof(T), typenameof(T)) { }
+			void test(scoped int* s, escaped int* e, bool c) { {{body}} }
+			""");
+		var diagnostic = Assert.Single(result.AnalysisDiagnostics.Distinct());
+		Assert.Contains("explicit lifetime cast", diagnostic.Message);
+		Assert.Equal(operand, Assert.IsType<TokenRange>(diagnostic.Range).Value);
+	}
+
+	[Theory]
+	[InlineData("auto value = c ? (escaped)s : e;")]
+	[InlineData("auto value = c ? s : (scoped)e;")]
+	[InlineData("auto value = c ? s : t;")]
+	[InlineData("auto value = [s, t];")]
+	[InlineData("auto value = [(escaped)s, e];")]
+	[InlineData("two(s, t);")]
+	[InlineData("two((escaped)s, e);")]
+	[InlineData("two(s, (scoped)e);")]
+	public void Matching_pointer_lifetimes_and_explicit_casts_are_valid(string body)
+	{
+		SemanticCompiler.AssertNoDiagnostics(SemanticCompiler.CompileLowered($$"""
+			void two<T>(in T a, in T b, sizeof(T), typenameof(T)) { }
+			void test(scoped int* s, scoped int* t, escaped int* e, bool c) { {{body}} }
+			"""));
+	}
+
 	[Fact]
 	public void Retained_generic_pointer_keeps_the_payload_capability_identity()
 	{
