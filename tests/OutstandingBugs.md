@@ -44,25 +44,25 @@ Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
 
-## BUG-411: Fields declared by the non-shadow base cannot be accessed through a shadow class
+## BUG-411: Access to fields declared by a non-shadow base is not rejected through a shadow class
 
 Date/Time: 2026-10-28 12:47 EDT
 
 Summary:
-A shadow class pointer has the same representation as a pointer to its first non-shadow base object, and the shadow class inherits that base's members. Calling a base method through a shadow class instance works, but reading or writing an instance field that the non-shadow base declares, through a shadow class pointer or through `this` inside a shadow class method, passes semantic analysis and then produces C that does not compile, because the generated C declares the shadow class only as an incomplete type and accesses the field through it.
+Instance fields declared by a non-shadow base are not accessible through a shadow class. The compiler currently accepts reads and writes of those fields through a shadow class pointer or through `this` inside a shadow class method, instead of reporting an accessibility diagnostic. Sharing the base object's pointer representation does not make its fields accessible to the shadow class.
 
 Steps to Reproduce:
 
 1. Declare `class Host` with an `escaped void* shadowData` field, an `int hostValue` field, a constructor, and `@getshadow` and `@setshadow` methods that read and write `shadowData`.
 2. Declare `shadow class S: Host` with an `int v` field, a constructor and a method containing `delete shadow;`.
-3. In `main`, write `S* s = new S(); __intrinsic_log_i32(s.hostValue);`. The same failure occurs for `this.hostValue` inside a method of `S`, and for a write such as `s.hostValue = 1;`.
+3. In `main`, write `S* s = new S(); __intrinsic_log_i32(s.hostValue);`. Also try `this.hostValue` inside a method of `S`, and a write such as `s.hostValue = 1;`.
 4. Compile the program.
 
 Expected:
-The program compiles. `hostValue` is a field of the base object that `s` points at, so the access reads or writes that field and does not involve the shadow data.
+Semantic analysis rejects each read or write at the field access with a diagnostic explaining that `hostValue` is declared in non-shadow base class `Host` and is not accessible to shadow classes.
 
 Actual:
-Semantic analysis reports no error, and the native build fails with `error: incomplete definition of type 'S'` at the generated field access `s->hostValue`.
+Semantic analysis reports no accessibility error. Compilation proceeds to native code generation, where the build fails with `error: incomplete definition of type 'S'` at the generated field access `s->hostValue`. The missing source diagnostic is the defect; generating compilable C for this access would still be incorrect.
 
 Known Impact:
-Any shadow class that reads or writes a field of its non-shadow base. A workaround is to access the field only through a method of the base class.
+Invalid access to a non-shadow base's fields is accepted by semantic analysis and reported later as a native compiler error. Use a method of the base class to expose the required operation instead of accessing its field through the shadow class.
