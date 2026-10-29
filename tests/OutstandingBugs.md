@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-431.
+Next bug number: BUG-432.
 
 ## Bug Template
 
@@ -136,4 +136,27 @@ Actual:
 
 Known Impact:
 Mixed-width unsigned arithmetic with the narrower operand first changes sign silently under `auto` and is rejected where a `uint` is required. Put the `uint` operand first (`u * b`) or cast the narrower operand to `uint` until this is fixed.
+
+## BUG-431: `out default` is accepted as an argument and emits invalid C
+
+Date/Time: 2026-10-29 07:31 EDT
+
+Summary:
+An `out` argument written as `default` passes semantic analysis and is emitted as the address of a literal, so the native compiler rejects the generated code. An `out` argument must name writable storage, and the documented way to ignore an `out` value is the write-only discard `_`, which compiles and runs. The failure happens for scalar, struct and pointer parameters. An older bootstrap build compiled this form and ran it.
+
+Steps to Reproduce:
+
+1. Declare `struct Facts { int a; int b; }`, `int readInt(out int v) { v = 3; return 1; }` and `int readFacts(out Facts f) { f = default; return 2; }`.
+2. In `main`, log `readInt(out default)` and `readFacts(out default)` with the 32-bit integer log intrinsic.
+3. Compile and run the program.
+4. Replace each `out default` with `out _` and compile again.
+
+Expected:
+Semantic analysis rejects `out default` at the argument, because `default` is not writable storage, and the diagnostic points to the `_` discard. With `out _` the program compiles and logs `1` and `2`.
+
+Actual:
+Semantic analysis reports no error. The native compiler fails on the generated call, for example `error: cannot take the address of an rvalue of type 'int'` for `readInt(&0)`. With `out _` the program compiles and runs.
+
+Known Impact:
+A call that ignores an `out` result with `default` fails late with a native compiler error that does not name the Camp source. Write the discard `_` instead.
 
