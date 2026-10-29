@@ -3504,6 +3504,12 @@ public sealed partial class BindableNodeAnalyzer
 			argument.Value!.ResolvedType = argument.ResolvedType;
 			return argument.ResolvedType;
 		}
+		if (argument.Modifier == ArgumentModifier.Out && UnwrapParenthesizedExpression(argument.Value) is DefaultExpression)
+		{
+			Report(GetRange(argument.Value?.SourceSyntax ?? argument.SourceSyntax), "Out arguments require writable storage; use 'out _' to discard the result.");
+			argument.ResolvedType = ErrorType;
+			return ErrorType;
+		}
 
 		if (argument.Value is WithinExpression { Expression: null } within)
 		{

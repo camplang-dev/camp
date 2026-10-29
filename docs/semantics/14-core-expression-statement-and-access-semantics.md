@@ -1239,6 +1239,11 @@ error path described in the error/cleanup and expanded-forms supplements.
 appear where the language expects write-only storage, such as an assignment
 target, or an `out` argument target.
 
+`default` is a value expression, not writable storage. Reject `out default`
+(including through parentheses) at the argument before native emission, and
+direct the caller to `out _` when the output is intentionally ignored. The same
+rule applies to scalar, aggregate, and pointer output slots.
+
 Each discard use lowers to fresh generated storage. Generated names such as
 `__discard0` are implementation details; they must not become source-visible
 lookup names, metadata names, or reusable locals.

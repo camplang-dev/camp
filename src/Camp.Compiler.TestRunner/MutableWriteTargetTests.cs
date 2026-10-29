@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using Camp.Compiler;
 using Xunit;
 
@@ -6,6 +7,39 @@ namespace Camp.Compiler.Tests;
 
 public sealed class MutableWriteTargetTests
 {
+	[Theory]
+	[InlineData("int", "default")]
+	[InlineData("Facts", "default")]
+	[InlineData("int*", "default")]
+	[InlineData("int", "(default)")]
+	public void Out_default_reports_storage_error_and_points_to_discard(string type, string expression)
+	{
+		var compilation = SemanticCompiler.CompileLowered($$"""
+			struct Facts { int a; int b; }
+			void fill(out {{type}} value) { value = default; }
+			void test() { fill(out {{expression}}); }
+			""");
+		Assert.Empty(compilation.ParseDiagnostics);
+		Assert.Empty(compilation.BindDiagnostics);
+		var diagnostic = Assert.Single(compilation.AnalysisDiagnostics.Distinct());
+		Assert.Contains("writable storage", diagnostic.Message);
+		Assert.Contains("out _", diagnostic.Message);
+		Assert.Equal(expression == "default" ? "default" : "(", Assert.IsType<TokenRange>(diagnostic.Range).Value);
+	}
+
+	[Theory]
+	[InlineData("int")]
+	[InlineData("Facts")]
+	[InlineData("int*")]
+	public void Out_discard_and_writable_storage_remain_valid(string type)
+	{
+		SemanticCompiler.AssertNoDiagnostics(SemanticCompiler.CompileLowered($$"""
+			struct Facts { int a; int b; }
+			void fill(out {{type}} value) { value = default; }
+			void test() { fill(out _); {{type}} value; fill(out value); }
+			"""));
+	}
+
 	[Theory]
 	[MemberData(nameof(ConstUpdateCases))]
 	public void Updates_reject_const_storage(string setup, string update)

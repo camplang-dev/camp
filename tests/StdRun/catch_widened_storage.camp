@@ -16,6 +16,10 @@ async int parentAsync(@awaitwith Resumer* resumer)
 	return result;
 }
 void complete(void* context, int result) { }
+struct OutputFacts { int a; int b; }
+int readOutputInt(out int value) { value = 3; return 1; }
+int readOutputFacts(out OutputFacts value) { value = default; return 2; }
+int readOutputPointer(out int* value) { value = null; return 3; }
 export int main()
 {
 	long error = 5000000000;
@@ -43,5 +47,8 @@ export int main()
 	error = 5000000000;
 	forwarded(catch error);
 	if (error != -7 || handled() != 1) return 11;
+	if (readOutputInt(out _) != 1 || readOutputFacts(out _) != 2 || readOutputPointer(out _) != 3) return 12;
+	fn int(out int) outputFunction = readOutputInt;
+	if (outputFunction(out _) != 1) return 13;
 	return 0;
 }
