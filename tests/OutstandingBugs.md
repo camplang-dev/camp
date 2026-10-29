@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-420.
+Next bug number: BUG-421.
 
 ## Bug Template
 
@@ -168,3 +168,26 @@ The program compiles and runs. `u == 4294967295` is true, `back` is `-294967296`
 
 Known Impact:
 Negative or large values change silently at implicit conversions, and an integer can be assigned to a character type without a cast. Cast explicitly where the conversion is intended. Tightening the rules will require explicit casts in existing code that relies on them.
+
+## BUG-420: The common type of an untargeted conditional or array literal depends on operand order
+
+Date/Time: 2026-10-28 23:01 EDT
+
+Summary:
+When no target type applies, such as under `auto`, the type of a conditional expression or array literal that mixes operand types depends on the order of the operands, and can silently change a value. For mixed `int` and `uint` operands the result is the type of the second arm of a conditional or of the first element of an array literal, regardless of which type can hold all the values. Mixes where one type widens to the other (`int` with `long`, an integer with `double`) are handled correctly in both orders.
+
+Steps to Reproduce:
+
+1. Declare a generic helper `void show<T>(in T value, sizeof(T), typenameof(T))` that logs `typenameof(T)` with the string log intrinsic.
+2. In `main`, declare `uint u = 4000000000; bool c = true;`, then `auto a = c ? u : 0;`, `auto b = c ? 0 : u;`, `auto d = [u, 2];` and `auto e = [2, u];`.
+3. Call `show` on `a`, `b`, `d` and `e`, and log `a` and `d[0]` with the 32-bit integer log intrinsic.
+4. Also declare `int i = 4;` and `auto f = c ? u : i;`, `auto g = c ? i : u;` and `auto h = [i, u];`.
+
+Expected:
+The common type is a type among the operand types to which every operand converts implicitly, where an unsuffixed integer literal converts to any integer type that holds its value. If several types qualify, the one to which all the others convert is chosen. The result never depends on the order of the operands. So `a` and `b` are both `uint`, `d` and `e` are both `uint[]`, and `a` holds `4000000000`. Neither `uint` nor `int` converts to the other, so `f`, `g` and `h` are rejected as having no common type, at the first operand that does not convert to the widest candidate.
+
+Actual:
+`a` is `int` and logs `-294967296`, `b` is `uint`, `d` is `int[]` and `d[0]` logs `-294967296`, and `e` is `uint[]`. `f` and `h` are accepted as `int` and `int[]`, `g` is accepted as `uint`. None of these reports a diagnostic.
+
+Known Impact:
+A conditional or array literal over mixed signedness silently changes values, and the same expression gets a different type when its operands are reordered. Declare the destination type explicitly, or cast the operands to a common type.
