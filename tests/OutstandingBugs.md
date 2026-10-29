@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-428.
+Next bug number: BUG-429.
 
 ## Bug Template
 
@@ -66,3 +66,28 @@ Semantic analysis reports no accessibility error. Compilation proceeds to native
 
 Known Impact:
 Invalid access to a non-shadow base's fields is accepted by semantic analysis and reported later as a native compiler error. Use a method of the base class to expose the required operation instead of accessing its field through the shadow class.
+
+## BUG-428: A static field is visible by its bare name outside its declaring type
+
+Date/Time: 2026-10-29 07:09 EDT
+
+Summary:
+A static field or static constant declared inside a class or newtype can be named without its type qualifier from code that is not in that type, including global functions and methods of unrelated types. Static members are documented as members of their type, reached as `Type.member`. Static methods are correctly not found by bare name, so only static fields are affected. Because ordinary lookup now wins over an enum member named by the target type (BUG-426), such a bare name also hides a same-named enum member in `switch` labels and declarations.
+
+Steps to Reproduce:
+
+1. Declare `public class Holder` containing `public static const int LIMIT = 7;` and `public static int twice(int v) => v * 2;`.
+2. Declare `public struct Other` with a method `public int get() => LIMIT;`.
+3. In `main`, declare `int a = LIMIT;` and log `a` and `Other.get()` through an assigned `Other` value.
+4. Separately, declare `public newtype Span: long` with `public static const Span INVALID = (Span)(long)-1;` and `enum Kind { NONE, INVALID, OTHER }`, then write `switch (k) { case INVALID: ... }` on a `Kind` value `k`.
+5. Compile.
+
+Expected:
+`LIMIT` is not found in `main` or in `Other.get`, because it is a member of `Holder`; the program must write `Holder.LIMIT`. The call to `twice` is rejected in the same way. In step 4, `case INVALID` selects `Kind.INVALID`.
+
+Actual:
+`LIMIT` resolves in both places with no diagnostic. A call to `twice` reports that the symbol cannot be found. In step 4, the case label resolves to `Span.INVALID` and the compiler reports `Switch case type 'const Span' is not compatible with switch type 'Kind'`; `Kind k = INVALID;` likewise reports that `const Span` cannot convert to `Kind`.
+
+Known Impact:
+Static fields leak into every scope that can see their declaring type, so unrelated code can silently bind to them, and a bare enum member can be shadowed by an unrelated type's static field. Qualify enum members (`Kind.INVALID`) or rename the static field until this is fixed.
+
