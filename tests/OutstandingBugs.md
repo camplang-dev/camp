@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-423.
+Next bug number: BUG-424.
 
 ## Bug Template
 
@@ -234,3 +234,25 @@ Semantic analysis reports nothing. The native build fails with `use of undeclare
 
 Known Impact:
 The mistake is reported as a native compiler error instead of a source diagnostic. Declare the element type explicitly (`int[] a = [];`).
+
+## BUG-423: `null` is accepted where an optional is expected and emits invalid C
+
+Date/Time: 2026-10-28 23:02 EDT
+
+Summary:
+`null` is the null pointer literal; an empty optional is written `default`. The compiler accepts `null` as an initializer, assignment value, argument or return value of an optional type such as `int?` without a diagnostic, and generates C that uses a pointer where the optional's payload and specified flag are expected. The native compiler then rejects the generated code. A plain integer (`int x = null;`) is correctly rejected with "Declaration initializer cannot convert '#NULL' to 'int'."
+
+Steps to Reproduce:
+
+1. Declare `void take(int? v) { }` and `int? give() { return null; }`.
+2. In `main`, declare `int? o = default; o = null; take(null);` and `int? p = null;`.
+3. Compile the program.
+
+Expected:
+Semantic analysis rejects each use of `null` (the initializer of `p`, the assignment to `o`, the argument to `take` and the return value of `give`) at the `null` expression, as a conversion error from `null` to `int?`. `int? o = default;` remains the way to write an empty optional.
+
+Actual:
+Semantic analysis reports nothing. The native build fails with errors such as `incompatible pointer to integer conversion returning 'void *' from a function with result type 'int'` and `too few arguments to function call, expected 2, have 1`, reported against the generated C file.
+
+Known Impact:
+Misusing `null` for an optional is reported as a native compiler error. Use `default` for an empty optional.
