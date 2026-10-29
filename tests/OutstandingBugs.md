@@ -204,28 +204,45 @@ Each use is rejected with `Configuration flag 'X64' can only be queried with con
 Known Impact:
 An enum with a member named like a built-in flag (`X64`, and likely `WINDOWS`, `LINUX` and the like) cannot use the member by its bare name in target-typed positions on a target that defines the flag. Qualify the member with the enum name.
 
-## BUG-434: A constant expression of integer literals is typed `int` and rejected for a wider or unsigned target
+## BUG-434: An expression made only of unsuffixed literals does not take its target or operand type
 
-Date/Time: 2026-10-29 11:02 EDT
+Date/Time: 2026-10-29 11:02 EDT; widened with the owner's permission 2026-10-29 11:20 EDT, before any fix started
 
 Summary:
-A single integer literal adapts to the type of its target, but an expression built only from integer literals, such as `256 * 1024 * 1024`, is typed `int` before the target is considered. When the target is `uint`, `nuint` or `ulong`, the conversion is rejected even though the computed value is within the target's range. A target of known type should accept a literal constant expression whose value fits, as it does for a single literal.
+A single unsuffixed literal takes the type of its target, or of the other operand of an operator, when its value fits that type. A literal-shaped expression should do the same. A literal-shaped expression is one of:
+
+- an unsuffixed integer or floating literal;
+- a constant expression built only from such literals, such as `256 * 1024 * 1024`, `5 + 45` or `0.1 + 0.2`;
+- a conditional whose two arms are both literal-shaped (the condition can be anything), such as `f ? 1 : 2` or `f ? 1 : (5 + 45)`;
+- one of these in parentheses.
+
+The constant parts are computed in their natural types, as C computes them. A literal-shaped integer expression then converts to any integer target or operand type that holds every value it can produce: the computed value of a constant, or each arm of a conditional. A literal-shaped floating expression converts only to `float` and `double`. The bootstrap already does this for single literals, and for conditionals of single literals with a declared target. It does not do it for constant expressions, for a literal-shaped operand on the left of arithmetic, or for either side of a comparison.
 
 Steps to Reproduce:
 
 1. Declare `inline uint BUDGET = 256 * 1024 * 1024;` at global scope.
-2. In `main`, declare `uint a = 256 * 1024 * 1024;`, `nuint b = 64 * 1024;` and `ulong c = 1024 * 1024;`, and `uint d = (1 + 2);`.
-3. In `main`, with `uint b = 7;`, write `b = 2 * 8;` and `b += 4 * 4;`.
-4. Declare `void arg(uint v)` and `uint ret() { return 4 * 1024; }`, and call `arg(8 * 8);`.
+2. In `main`, declare `uint a = 256 * 1024 * 1024;`, `nuint b = 64 * 1024;`, `ulong c = 1024 * 1024;` and `uint d = (1 + 2);`.
+3. In `main`, with `uint v = 7;`, write `v = 2 * 8;` and `v += 4 * 4;`.
+4. Declare `void arg(uint value)` and `uint ret() { return 4 * 1024; }`, and call `arg(8 * 8);`.
 5. Declare `struct Opts { int mode; nuint budget; }` and pass `{ 1, 256 * 1024 * 1024 }` as an `Opts` argument.
-6. Compile.
+6. In `main`, with `bool f = true;`, declare `uint x = f ? 1 : (5 + 45);`.
+7. In `main`, with `uint k = 3;`, declare `bool p = k < (f ? 1 : 2);`, `bool q = k == (f ? 1 : 2);`, `bool r = k < 2 * 3;` and `uint s = (f ? 2 : 3) * k;`.
+8. In `main`, declare `float h = 0.5 * 3;` and `float w = 0.1 + 0.2;`.
+9. Compile.
 
 Expected:
-Every use above compiles, and the value is converted to the target type. A constant expression whose value does not fit the target is rejected.
+Every use above compiles. Constant parts are computed in their natural types and the result is converted, so `256 * 1024 * 1024` is computed as `int` and then converted to `uint`, and `0.1 + 0.2` is computed as `double` and then converted to `float`. The comparisons in step 7 compare as `uint`, and `(f ? 2 : 3) * k` is `uint`. A computed value or conditional arm that does not fit is rejected at that value, for example `byte b = f ? 1 : 300;` at `300`, and `uint n = f ? -1 : 2;` at `-1`.
+
+These are not literal-shaped and stay as they are:
+
+- A suffixed literal keeps its fixed type.
+- A named inline constant lowers to `#define NAME ((T)value)`, so it acts as `(T)value` with the fixed type `T`. With `inline int PAGE = 4096;`, `nuint n = PAGE * 4;` stays an error.
+- Arithmetic that is not constant stays in its natural type even when every operand is literal-shaped. So `uint z = (f ? 1 : 5) + (g ? 10 : 20);` is an `int` expression and an error, and so is `uint m = 1 << (uint)n;`.
+- With a `float` `a`, `a * 0.1` is `double`, as in C.
 
 Actual:
-Each use is rejected with `cannot convert 'int' to 'uint'` (or `'nuint'` or `'ulong'`): `Global initializer`, `Declaration initializer`, `Assignment`, `Argument`, `Return expression` and `Initializer field`. A cast, such as `(uint)(256 * 1024 * 1024)`, is accepted.
+Steps 1 to 5 are rejected with `cannot convert 'int' to 'uint'` (or `'nuint'` or `'ulong'`), as a `Global initializer`, `Declaration initializer`, `Assignment`, `Argument`, `Return expression` or `Initializer field`. Step 6 reports `Conditional expression cannot convert 'int' to 'uint'.`. In step 7, each comparison reports `Cannot compare 'uint' and 'int'.`, and `(f ? 2 : 3) * k` reports `Declaration initializer cannot convert 'int' to 'uint'.`. Step 8 reports `Declaration initializer cannot convert 'double' to 'float'.`. Already correct: `uint a = f ? 1 : 0;`, `byte b = f ? 1 : 33;`, `float c = f ? 1.5 : 2.5;`, `k + 2 * 3` and `k * (f ? 2 : 3)`.
 
 Known Impact:
-Sizes and limits written as products of literals need a redundant cast when the target is unsigned or 64-bit. Write the cast until this is fixed.
+Sizes and limits written as products of literals need a redundant cast when the target is unsigned or 64-bit. A conditional of literals compared with an unsigned value, or on the left of arithmetic with one, needs `u` suffixes. Write the cast or suffix until this is fixed.
 
