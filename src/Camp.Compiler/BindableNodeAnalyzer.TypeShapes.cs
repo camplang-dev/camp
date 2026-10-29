@@ -64,7 +64,7 @@ public sealed partial class BindableNodeAnalyzer
 			if (!QualifiersCanConvert(source.Qualifiers, target.Qualifiers, protectedByConstTarget, pointerDepth))
 				return false;
 			return source.Name == target.Name
-				|| !elementPosition && IsNumericType(source.Name) && IsNumericType(target.Name) && NumericRank(source.Name) <= NumericRank(target.Name);
+				|| !elementPosition && CanImplicitlyConvertNumeric(source.Name, target.Name);
 		}
 
 		if (!QualifiersCanConvert(source.Qualifiers, target.Qualifiers, protectedByConstTarget, pointerDepth))

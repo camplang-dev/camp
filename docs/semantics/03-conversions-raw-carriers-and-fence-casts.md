@@ -239,6 +239,34 @@ Function pointer target domains remain target-defined. Recovering from
 `fn* _near` to a `_far` concrete function type requires a target-defined
 conversion or a stronger raw escape.
 
+## Implicit Numeric Conversions
+
+Implicit integer conversions preserve every value of the source type. Signed
+integers never implicitly become unsigned; unsigned integers require a wider
+signed destination. The supported integer widenings are:
+
+| Source | Destinations |
+|---|---|
+| `sbyte` | `short`, `int`, `long`, `nint` |
+| `byte` | `short`, `ushort`, `int`, `uint`, `long`, `ulong`, `nint`, `nuint` |
+| `short` | `int`, `long`, `nint` |
+| `ushort` | `int`, `uint`, `long`, `ulong`, `nint`, `nuint` |
+| `int` | `long`, `nint` |
+| `uint` | `long`, `ulong`, `nuint` |
+| `nint` | `long` |
+| `nuint` | `ulong` |
+
+Natural integers are treated as between 32 and 64 bits for this conversion
+policy. Integer values do not implicitly become character-code types. Character
+values may widen to wider character representations or suitable integer types;
+in particular, `char` widens to `wchar`, and `wchar` converts to `ushort` and
+wider integers, but not `short` or `char`. Every integer type converts to
+`float` or `double`, and `float` converts to `double`. Other numeric conversions
+require an explicit cast. Unsuffixed literals retain their target-typing rules.
+Comparisons with a fitting unsuffixed integer literal supply the other numeric
+operand's type to that literal, so expressions such as `count == 0` remain
+valid for an unsigned `count`.
+
 ## `nint` And `nuint`
 
 `nint` and `nuint` are natural integer carriers for data pointer values:

@@ -7110,6 +7110,12 @@ public sealed partial class BindableNodeAnalyzer
 			right = BodyAnalyzeExpression(binary.Right, scope, typeScope);
 			left = BodyAnalyzeExpression(binary.Left, scope, typeScope, IsEnumTargetType(right) ? right : null);
 		}
+		else if (IsComparisonOperator(binary.Operator) && IsUnsuffixedIntegerLiteral(binary.Left) && binary.Right is not null)
+		{
+			right = BodyAnalyzeExpression(binary.Right, scope, typeScope);
+			left = BodyAnalyzeExpression(binary.Left, scope, typeScope,
+				IsNumericType(right) && CanTargetIntegerLiteral(binary.Left, right) ? right : null);
+		}
 		else
 		{
 			left = BodyAnalyzeExpression(binary.Left, scope, typeScope);
@@ -7122,7 +7128,8 @@ public sealed partial class BindableNodeAnalyzer
 			right = "";
 			WithRequirementProof(leftProof, () =>
 			{
-				string? rightTarget = IsEnumTargetType(left) ? left
+				string? rightTarget = IsEnumTargetType(left) || IsComparisonOperator(binary.Operator)
+					&& IsNumericType(left) && CanTargetIntegerLiteral(binary.Right, left) ? left
 					: binary.Operator is BinaryOperator.Equal or BinaryOperator.NotEqual && IsNewtypeOperand(left) ? StripTopLevelValueQualifiers(left) : null;
 				right = BodyAnalyzeExpression(binary.Right, scope, typeScope, rightTarget);
 			});

@@ -72,7 +72,7 @@ static class Path
 		if (Path.isDirectorySeparator(path[path.length - 1]))
 			return path[path.length..];
 
-		nuint start = Path.lastSeparatorAfterRoot(path) + 1;
+		nuint start = (nuint)(Path.lastSeparatorAfterRoot(path) + 1);
 		if (start == 0)
 			start = 0;
 		return path[start..];

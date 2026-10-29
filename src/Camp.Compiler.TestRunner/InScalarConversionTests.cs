@@ -8,6 +8,67 @@ namespace Camp.Compiler.Tests;
 public sealed class InScalarConversionTests
 {
 	[Theory]
+	[InlineData("int", "uint")]
+	[InlineData("uint", "int")]
+	[InlineData("sbyte", "ulong")]
+	[InlineData("byte", "sbyte")]
+	[InlineData("short", "ushort")]
+	[InlineData("short", "char")]
+	[InlineData("short", "wchar")]
+	[InlineData("wchar", "char")]
+	[InlineData("wchar", "short")]
+	[InlineData("int", "nuint")]
+	[InlineData("uint", "nint")]
+	[InlineData("nint", "nuint")]
+	[InlineData("nuint", "nint")]
+	[InlineData("long", "ulong")]
+	[InlineData("ulong", "long")]
+	public void Implicit_numeric_conversions_reject_sign_changes_and_character_targets(string source, string target)
+	{
+		var compilation = SemanticCompiler.CompileLowered($$"""
+			void take({{target}} value) { }
+			{{target}} test({{source}} source) {
+				{{target}} value = source;
+				value = source;
+				take(source);
+				return source;
+			}
+			""");
+		Assert.Empty(compilation.ParseDiagnostics);
+		Assert.Empty(compilation.BindDiagnostics);
+		Assert.Equal(4, compilation.AnalysisDiagnostics.Distinct().Count());
+		Assert.All(compilation.AnalysisDiagnostics, d => Assert.Contains("cannot convert", d.Message));
+	}
+
+	[Theory]
+	[InlineData("sbyte", "short")]
+	[InlineData("byte", "nuint")]
+	[InlineData("ushort", "nint")]
+	[InlineData("uint", "long")]
+	[InlineData("nint", "long")]
+	[InlineData("nuint", "ulong")]
+	[InlineData("wchar", "ushort")]
+	[InlineData("char", "wchar")]
+	[InlineData("long", "float")]
+	[InlineData("ulong", "double")]
+	public void Value_preserving_integer_widening_and_floating_conversions_remain_valid(string source, string target)
+	{
+		SemanticCompiler.AssertNoDiagnostics(SemanticCompiler.CompileLowered($"{target} test({source} value) => value;"));
+	}
+
+	[Theory]
+	[InlineData("nuint", "value == 0")]
+	[InlineData("ulong", "0 < value")]
+	[InlineData("uint", "value >= 2")]
+	[InlineData("uchar", "value < 128")]
+	[InlineData("ulong", "value == 18446744073709551615")]
+	[InlineData("ulong", "18446744073709551615 == value")]
+	public void Comparisons_target_fitting_unsuffixed_literals(string type, string expression)
+	{
+		SemanticCompiler.AssertNoDiagnostics(SemanticCompiler.CompileLowered($"bool test({type} value) => {expression};"));
+	}
+
+	[Theory]
 	[InlineData("short", "int", "short source = -1;", "&(int){source}")]
 	[InlineData("short", "int", "", "&(int){source}")]
 	[InlineData("in short", "int", "", "&(int){(*source)}")]

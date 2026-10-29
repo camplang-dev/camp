@@ -486,7 +486,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (TryParseTypeShape(source, out TypeShape sourceShape) && TryParseTypeShape(target, out TypeShape targetShape))
 			return CanImplicitlyConvertShape(sourceShape, targetShape);
 
-		return IsNumericType(source) && IsNumericType(target) && NumericRank(source) <= NumericRank(target);
+		return CanImplicitlyConvertNumeric(source, target);
 	}
 
 	bool IsAllocatorInterfacePointerType(string type, bool allowPointerToPointer = false)
@@ -4073,6 +4073,14 @@ public sealed partial class BindableNodeAnalyzer
 
 	static string InferUnsuffixedIntegerType(BigInteger value) => value >= int.MinValue && value <= int.MaxValue ? "int" : "long";
 
+	bool CanTargetIntegerLiteral(Expression? expression, string type)
+	{
+		return IsUnsuffixedIntegerLiteral(expression)
+			&& TryParseIntegerLiteralValue(expression, out BigInteger value, out _)
+			&& TryGetIntegerTypeBounds(type, out BigInteger min, out BigInteger max)
+			&& value >= min && value <= max;
+	}
+
 	static string GetNumericLiteralSuffix(Expression? expression) => expression switch
 	{
 		ParenthesizedExpression parenthesized => GetNumericLiteralSuffix(parenthesized.Expression),
@@ -4151,6 +4159,37 @@ public sealed partial class BindableNodeAnalyzer
 			"float" => 6,
 			"double" => 7,
 			_ => 100
+		};
+	}
+
+	static bool CanImplicitlyConvertNumeric(string source, string target)
+	{
+		source = StripTopLevelValueQualifiers(source);
+		target = StripTopLevelValueQualifiers(target);
+		if (new TypeShapeParser(source).TryParse(out TypeShape sourceShape) && sourceShape.Kind == TypeShapeKind.Named)
+			source = sourceShape.Name;
+		if (new TypeShapeParser(target).TryParse(out TypeShape targetShape) && targetShape.Kind == TypeShapeKind.Named)
+			target = targetShape.Name;
+		if (!IsNumericTypeName(source) || !IsNumericTypeName(target))
+			return false;
+		if (source == target)
+			return true;
+		if (target is "float" or "double")
+			return source != "double" || target == "double";
+		return source switch
+		{
+			"sbyte" => target is "short" or "int" or "long" or "nint",
+			"byte" => target is "short" or "ushort" or "int" or "uint" or "long" or "ulong" or "nint" or "nuint",
+			"short" => target is "int" or "long" or "nint",
+			"ushort" => target is "int" or "uint" or "long" or "ulong" or "nint" or "nuint",
+			"int" => target is "long" or "nint",
+			"uint" => target is "long" or "ulong" or "nuint",
+			"nint" => target == "long",
+			"nuint" => target == "ulong",
+			"char" or "achar" => target is "char" or "achar" or "wchar" or "uchar" or "short" or "ushort" or "int" or "uint" or "long" or "ulong" or "nint" or "nuint",
+			"wchar" => target is "uchar" or "ushort" or "int" or "uint" or "long" or "ulong" or "nint" or "nuint",
+			"uchar" => target is "uint" or "long" or "ulong" or "nuint",
+			_ => false
 		};
 	}
 

@@ -111,13 +111,13 @@ nuint formatWriteUtf8(char* output, nuint index, uchar codepoint)
 	return index + 4;
 }
 
-public prep char[] toString(in byte   this) => applyFormat((long)this, false, buffer);
+public prep char[] toString(in byte   this) => applyFormat((ulong)this, false, buffer);
 public prep char[] toString(in sbyte  this) => applyFormat(abs((int)this), this < 0, buffer);
-public prep char[] toString(in ushort this) => applyFormat((long)this, false, buffer);
+public prep char[] toString(in ushort this) => applyFormat((ulong)this, false, buffer);
 public prep char[] toString(in short  this) => applyFormat(abs((int)this), this < 0, buffer);
-public prep char[] toString(in uint   this) => applyFormat((long)this, false, buffer);
+public prep char[] toString(in uint   this) => applyFormat((ulong)this, false, buffer);
 public prep char[] toString(in int    this) => applyFormat(abs((long)this), this < 0, buffer);
-public prep char[] toString(in nuint  this) => applyFormat((long)this, false, buffer);
+public prep char[] toString(in nuint  this) => applyFormat((ulong)this, false, buffer);
 public prep char[] toString(in nint   this) => applyFormat(abs((long)this), this < 0, buffer);
 public prep char[] toString(in ulong  this) => applyFormat(this, false, buffer);
 
