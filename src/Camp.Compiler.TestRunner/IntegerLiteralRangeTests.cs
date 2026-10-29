@@ -9,6 +9,29 @@ namespace Camp.Compiler.Tests;
 public sealed class IntegerLiteralRangeTests
 {
 	[Theory]
+	[InlineData("double", "2.5d", "2.5")]
+	[InlineData("float", "1f", "1.0f")]
+	[InlineData("double", "2d", "2.0")]
+	[InlineData("float", "1F", "1.0f")]
+	[InlineData("double", "2D", "2.0")]
+	[InlineData("int", "0x1f", "0x1f")]
+	[InlineData("int", "0x2d", "0x2d")]
+	public void Floating_suffixes_have_valid_c_spellings_and_leave_hex_digits_intact(string type, string literal, string expected)
+	{
+		var compilation = SemanticCompiler.CompileLowered($"export {type} value() => {literal};");
+		SemanticCompiler.AssertNoDiagnostics(compilation);
+		DirectoryInfo directory = Directory.CreateTempSubdirectory("camp-number-literal-");
+		try
+		{
+			var emission = CCodeEmitter.Emit(compilation.Compilation,
+				new CEmissionOptions { OutputDirectory = directory.FullName, ProjectName = "literal" });
+			Assert.True(emission.Success, string.Join("\n", emission.Diagnostics));
+			Assert.Contains($"return {expected};", string.Join("\n", emission.GeneratedSourceFiles.Select(File.ReadAllText)));
+		}
+		finally { directory.Delete(recursive: true); }
+	}
+
+	[Theory]
 	[InlineData("5u", "uint")]
 	[InlineData("4294967296u", "ulong")]
 	[InlineData("5L", "long")]

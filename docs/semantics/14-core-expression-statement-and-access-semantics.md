@@ -46,6 +46,9 @@ destination conversion: `u` selects `uint` or, if necessary, `ulong`; `l`
 selects `long`; `ul` and `lu` select `ulong`; `f` selects `float`; and `d`
 selects `double`. A suffixed literal uses ordinary implicit conversions and
 cannot take a narrower destination type merely because its value fits there.
+The floating suffixes may follow decimal digits with or without a decimal
+point. C emission removes `d` and supplies a decimal point for digit-only
+floating forms such as `1f` and `2d`. Hexadecimal `f` and `d` remain digits.
 
 An integer literal used with a primitive integral target must fit that target's
 range. Body analysis checks the exact integer value before C emission, including

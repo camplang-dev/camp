@@ -173,7 +173,7 @@ nuint decimalDigits(ulong n)
         if (n >= 1000000000000000) { // 16 to 20 digits
             if (n >= 100000000000000000) { // 18 to 20 digits
                 if (n >= 1000000000000000000) { // 19 or 20 digits
-                    return (n >= 10000000000000000000) ? 20 : 19;
+                    return (n >= 10000000000000000000UL) ? 20 : 19;
                 } else {
                     return 18;
                 }

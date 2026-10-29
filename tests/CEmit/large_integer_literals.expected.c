@@ -24,7 +24,7 @@ uint64_t hexLargeUnsigned(void)
 
 int64_t signedMinBoundary(void)
 {
-	return -2147483648;
+	return -2147483648LL;
 }
 
 uint64_t unsignedMaxBoundary(void)

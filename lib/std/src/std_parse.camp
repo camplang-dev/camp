@@ -44,7 +44,7 @@ public bool tryParse(const char[] this, overload out long result)
 	}
 
 	if (negative)
-		result = value == 9223372036854775808 ? -9223372036854775808 : 0 - (long)value;
+		result = value == 9223372036854775808UL ? -9223372036854775808 : 0 - (long)value;
 	else
 		result = (long)value;
 	return true;

@@ -49,6 +49,14 @@ public static class CCodeEmitter
 
     static string FormatNumberLiteralForC(string text, bool negativeContext = false, string? resolvedType = null)
     {
+        string suffix = NumericLiteralParser.GetSuffix(text);
+        if (suffix is "f" or "d")
+        {
+            string core = text[..^1].Replace("_", "", StringComparison.Ordinal);
+            if (!core.Contains('.', StringComparison.Ordinal) && !core.Contains('e', StringComparison.OrdinalIgnoreCase))
+                core += ".0";
+            return core + (suffix == "f" ? "f" : "");
+        }
         if (!TryParseIntegerLiteral(text, out BigInteger magnitude, out bool unsignedSuffix, out bool longSuffix, out string coreText))
             return text;
 
