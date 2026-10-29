@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-425.
+Next bug number: BUG-426.
 
 ## Bug Template
 
@@ -278,3 +278,25 @@ The program compiles and runs, and logs `#TARGET` as the name of the inferred ty
 
 Known Impact:
 An internal placeholder type name leaks into user-visible output, and a call that cannot be inferred is accepted. Supply the type argument explicitly.
+
+## BUG-425: A common pointer type is accepted for candidates with different lifetime annotations
+
+Date/Time: 2026-10-28 23:02 EDT
+
+Summary:
+When a conditional expression, an array literal, or generic type argument inference combines pointer values, the candidates are joined into one pointer type without comparing their lifetime annotations. A `scoped` pointer and an `escaped` pointer are accepted together and silently produce a value whose lifetime is the weaker of the two. The explicit lifetime casts `(escaped)` and `(scoped)` already exist for making the lifetimes agree, but nothing requires them.
+
+Steps to Reproduce:
+
+1. Declare `void two<T>(in T a, in T b, sizeof(T), typenameof(T))` that logs `typenameof(T)` with the string log intrinsic.
+2. Declare `void f(scoped int* s, escaped int* e, bool c)` whose body contains `auto r = c ? s : e;`, `auto a = [s, e];`, `two(s, e);` and `two(e, s);`.
+3. Compile the program. Then replace the first conditional with `c ? (escaped)s : e` and with `c ? s : (scoped)e`.
+
+Expected:
+A common pointer type requires the lifetime annotations of all candidates to match exactly, so a `scoped` pointer never joins an `escaped` one. Each of the conditional, the array literal, `two(s, e)` and `two(e, s)` is rejected at the operand whose lifetime differs from the others, with a diagnostic that asks for an explicit lifetime cast. The two cast forms in step 3 are accepted, as are candidates whose annotations already match (`c ? s : t` for two `scoped` parameters).
+
+Actual:
+All four forms in step 2 compile without a diagnostic.
+
+Known Impact:
+A pointer whose lifetime is only borrowed can be mixed with a retained one without any explicit acknowledgement, which hides lifetime decisions that the language otherwise requires in the source. Add the explicit lifetime cast on the operand that should change.
