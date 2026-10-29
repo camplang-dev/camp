@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-416.
+Next bug number: BUG-417.
 
 ## Bug Template
 
@@ -66,3 +66,25 @@ Semantic analysis reports no accessibility error. Compilation proceeds to native
 
 Known Impact:
 Invalid access to a non-shadow base's fields is accepted by semantic analysis and reported later as a native compiler error. Use a method of the base class to expose the required operation instead of accessing its field through the shadow class.
+
+## BUG-416: An unsuffixed integer literal that does not fit `int` is truncated to `int` when no target type applies
+
+Date/Time: 2026-10-28 23:00 EDT
+
+Summary:
+When an integer literal without a type suffix is used where no target type applies, such as the initializer of an `auto` local or an operand of untargeted arithmetic, and its value does not fit `int`, the compiler gives it type `int` and silently truncates the value. No diagnostic is reported, even for a value that does not fit `long`. Literals with a target type are handled correctly (`long x = 5000000000;` and `long y = 1 + 5000000000;` both keep their values).
+
+Steps to Reproduce:
+
+1. Declare a generic helper `void show<T>(in T value, sizeof(T), typenameof(T))` that logs `typenameof(T)` with the string log intrinsic.
+2. In `main`, declare `auto a = 2147483648;`, `auto b = 5000000000;`, `auto c = 1 + 5000000000;`, `auto d = 0xFFFFFFFF;`, `auto e = -2147483649;`, `auto f = 4294967296;` and `auto g = 9223372036854775808;`, and call `show` on each. Also log `a`, `b`, `c`, `d`, `e` and `f` with the 32-bit integer log intrinsic.
+3. Compile and run the program.
+
+Expected:
+An integer literal without a suffix and without a target type has type `int` when its value fits `int`, and `long` otherwise. Hexadecimal literals follow the same rule, and a negated literal is checked as a signed value. So `a`, `b`, `c`, `d`, `e` and `f` are `long` and hold `2147483648`, `5000000000`, `5000000001`, `4294967295`, `-2147483649` and `4294967296` (the 32-bit log calls in step 2 are then rejected as `long` to `int` conversions and should be removed or cast). A value that does not fit `long`, such as `g`, is reported as out of range at the literal.
+
+Actual:
+Every variable is inferred as `int` and no diagnostic is reported. `a` is `-2147483648`, `b` is `705032704`, `c` is `705032705`, `d` is `-1`, `e` is `2147483647`, `f` is `0`, and `g` is also `int`.
+
+Known Impact:
+Untargeted literals silently change value, and arithmetic built on them is wrong without any warning. Give the literal a target type (`long x = 5000000000;`) or cast it.
