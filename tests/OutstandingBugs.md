@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-433.
+Next bug number: BUG-434.
 
 ## Bug Template
 
@@ -181,4 +181,26 @@ Actual:
 
 Known Impact:
 A mistyped suffix either fails late with a native compiler message that does not name the Camp source, or silently produces a different type or a truncated value. Check literal suffixes by hand until this is fixed.
+
+## BUG-433: A built-in configuration flag name hides a same-named target enum member
+
+Date/Time: 2026-10-29 10:26 EDT
+
+Summary:
+Configuration flags can only be queried with `configured(...)` and are not names in ordinary code. When an expression or `case` label names a member of the target enum type and the name is also a built-in configuration flag, such as `X64`, lookup finds the flag and reports the flag rule instead of using the enum member. Since BUG-426, ordinary name lookup beats a target enum member, and the flag is found at that step. The qualified form `Arch.X64` works.
+
+Steps to Reproduce:
+
+1. Declare `enum Arch { UNKNOWN, X86, X64, ARM64 }`.
+2. In a function that returns `Arch`, write `return X64;`. Also try `Arch b = X64;` and `case X64:` in a `switch` over an `Arch` value.
+3. Compile.
+
+Expected:
+Each use names the `Arch` member, because a configuration flag is not visible outside `requires` declarations and `configured(...)`. The programs compile.
+
+Actual:
+Each use is rejected with `Configuration flag 'X64' can only be queried with configured(...).`. Other built-in flag names that are not defined for the current target, such as `X86` and `ARM64`, resolve to the enum member in the same program.
+
+Known Impact:
+An enum with a member named like a built-in flag (`X64`, and likely `WINDOWS`, `LINUX` and the like) cannot use the member by its bare name in target-typed positions on a target that defines the flag. Qualify the member with the enum name.
 
