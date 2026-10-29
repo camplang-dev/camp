@@ -8,6 +8,84 @@ namespace Camp.Compiler.Tests;
 
 public sealed class IntegerLiteralRangeTests
 {
+	[Fact]
+	public void Literal_shaped_constants_take_targets_in_all_value_contexts()
+	{
+		SemanticCompiler.AssertNoDiagnostics(SemanticCompiler.CompileLowered("""
+			inline uint BUDGET = 256 * 1024 * 1024;
+			struct Opts { int mode; nuint budget; }
+			void arg(uint value) { }
+			void consume(Opts value) { }
+			uint ret() { return 4 * 1024; }
+			void test(bool f) {
+				uint a = 256 * 1024 * 1024; nuint b = 64 * 1024;
+				ulong c = 1024 * 1024; uint d = (1 + 2);
+				uint v = 7; v = 2 * 8; v += 4 * 4;
+				arg(8 * 8); consume({1, 256 * 1024 * 1024});
+				uint x = f ? 1 : (5 + 45);
+				float h = 0.5 * 3; float w = 0.1 + 0.2;
+			}
+			"""));
+	}
+
+	[Theory]
+	[InlineData("value < (f ? 1 : 2)", "bool")]
+	[InlineData("(f ? 1 : 2) < value", "bool")]
+	[InlineData("value == (f ? 1 : 2)", "bool")]
+	[InlineData("(f ? 1 : 2) == value", "bool")]
+	[InlineData("value < 2 * 3", "bool")]
+	[InlineData("2 * 3 < value", "bool")]
+	[InlineData("(f ? 2 : 3) * value", "uint")]
+	[InlineData("value * (f ? 2 : 3)", "uint")]
+	[InlineData("(2 * 3) + value", "uint")]
+	[InlineData("value + (2 * 3)", "uint")]
+	public void Integer_literal_shapes_take_the_other_operand_type(string expression, string expected)
+	{
+		var compilation = SemanticCompiler.CompileLowered($"void test(bool f, uint value) {{ auto result = {expression}; }}");
+		SemanticCompiler.AssertNoDiagnostics(compilation);
+		var local = Assert.Single(SemanticCompiler.Descendants<DeclarationStatement>(SemanticCompiler.Function(compilation, "test")));
+		Assert.Equal(expected, local.Target.ResolvedType);
+	}
+
+	[Theory]
+	[InlineData("byte", "f ? 1 : 300", "300")]
+	[InlineData("uint", "f ? -1 : 2", "-")]
+	[InlineData("byte", "f ? 1 : (200 + 100)", "+")]
+	public void Literal_shape_range_failures_point_to_the_bad_value(string target, string expression, string token)
+	{
+		var compilation = SemanticCompiler.CompileLowered($"void test(bool f) {{ {target} value = {expression}; }}");
+		var diagnostic = Assert.Single(compilation.AnalysisDiagnostics.Distinct());
+		Assert.Contains("outside the range", diagnostic.Message);
+		Assert.Equal(token, Assert.IsType<TokenRange>(diagnostic.Range).Value);
+	}
+
+	[Theory]
+	[InlineData("uint", "(f ? 1 : 5) + (g ? 10 : 20)")]
+	[InlineData("uint", "1 << (uint)n")]
+	[InlineData("nuint", "PAGE * 4")]
+	[InlineData("uint", "1L + 2")]
+	[InlineData("float", "a * 0.1")]
+	[InlineData("int", "0.5 * 3")]
+	public void Fixed_or_runtime_numeric_expressions_keep_their_natural_types(string target, string expression)
+	{
+		var compilation = SemanticCompiler.CompileLowered($$"""
+			inline int PAGE = 4096;
+			void test(bool f, bool g, nuint n, float a) { {{target}} value = {{expression}}; }
+			""");
+		Assert.Contains(compilation.AnalysisDiagnostics, diagnostic => diagnostic.Message.Contains("cannot convert"));
+	}
+
+	[Fact]
+	public void Literal_constant_conversion_wraps_the_natural_operation()
+	{
+		var compilation = SemanticCompiler.CompileLowered("float value() => 100000000.0 + 1.0 - 100000000.0;");
+		SemanticCompiler.AssertNoDiagnostics(compilation);
+		var cast = Assert.Single(SemanticCompiler.Descendants<CastExpression>(SemanticCompiler.Function(compilation, "value")));
+		Assert.Equal("float", cast.ResolvedType);
+		Assert.Equal("double", Assert.IsType<BinaryExpression>(cast.Expression).ResolvedType);
+		Assert.All(SemanticCompiler.Descendants<LiteralExpression>(cast), literal => Assert.Equal("double", literal.ResolvedType));
+	}
+
 	[Theory]
 	[InlineData("5uu", "uu")]
 	[InlineData("1.5u", "u")]

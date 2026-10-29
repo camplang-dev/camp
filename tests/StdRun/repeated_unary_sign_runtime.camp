@@ -1,5 +1,8 @@
 int fileDoubleNegative = - -5;
 int fileDoublePositive = + +5;
+inline uint LITERAL_BUDGET = 256 * 1024 * 1024;
+uint literalReturn() => 4 * 1024;
+uint literalArgument(uint value) => value;
 
 export int main()
 {
@@ -33,5 +36,18 @@ export int main()
 	long narrowSum = wider + unsignedValue;
 	if (narrowProduct != 4000000000L || narrowSum != 4000000001L)
 		return 7;
+	bool choose = true;
+	uint budget = 256 * 1024 * 1024;
+	uint selected = choose ? 1 : (5 + 45);
+	uint shapedProduct = (choose ? 2 : 3) * unsignedValue;
+	if (budget != LITERAL_BUDGET || selected != 1 || shapedProduct != 3705032704)
+		return 8;
+	if (!(unsignedValue > (choose ? 1 : 2)) || !(2 * 3 < unsignedValue))
+		return 9;
+	if (literalReturn() != 4096 || literalArgument(8 * 8) != 64)
+		return 10;
+	float roundedResult = 100000000.0 + 1.0 - 100000000.0;
+	if (roundedResult != 1.0f)
+		return 11;
 	return 0;
 }

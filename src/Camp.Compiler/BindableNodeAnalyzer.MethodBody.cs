@@ -1513,6 +1513,8 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (expression is null)
 			return ErrorType;
+		if (TryAnalyzeLiteralConstantTarget(expression, scope, typeScope, targetType, out string constantType))
+			return constantType;
 
 		string type = expression switch
 		{
@@ -7172,7 +7174,7 @@ public sealed partial class BindableNodeAnalyzer
 			right = BodyAnalyzeExpression(binary.Right, scope, typeScope);
 			left = BodyAnalyzeExpression(binary.Left, scope, typeScope, IsEnumTargetType(right) ? right : null);
 		}
-		else if (IsLiteralOperandContextOperator(binary.Operator) && IsUnsuffixedIntegerLiteral(binary.Left) && binary.Right is not null)
+		else if (IsLiteralOperandContextOperator(binary.Operator) && IsIntegerLiteralShape(binary.Left) && binary.Right is not null)
 		{
 			right = BodyAnalyzeExpression(binary.Right, scope, typeScope);
 			left = BodyAnalyzeExpression(binary.Left, scope, typeScope,

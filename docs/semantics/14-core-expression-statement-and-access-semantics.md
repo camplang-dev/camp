@@ -90,7 +90,23 @@ its source expression.
 
 ## Common Expression Types
 
-For arithmetic and bitwise operators, a fitting unsuffixed integer literal on
+A literal-shaped numeric expression is an unsuffixed numeric literal, a constant
+numeric expression made only from such literals, or a conditional with two
+literal-shaped arms (its condition may be runtime). Parentheses preserve the
+shape. Compute constant parts in their natural types, then convert the result
+to the target. Integer shapes accept integer targets that hold every possible
+value; floating shapes accept only `float` or `double`. Diagnose a value or arm
+that does not fit at that value. This applies to initialization, assignment,
+arguments, returns and aggregate fields as well as numeric operand contexts.
+
+Named inline constants and suffixed literals have fixed types. Runtime
+arithmetic of literal-shaped conditionals is not itself literal-shaped:
+`(f ? 1 : 5) + (g ? 10 : 20)` remains `int`. Shift counts do not supply the
+left operand's type. Floating operands keep ordinary C arithmetic: a `float`
+variable multiplied by `0.1` produces `double`. In a `float` destination,
+`0.1 + 0.2` computes as `double` before converting the result to `float`.
+
+For arithmetic and bitwise operators, a fitting integer literal shape on
 either side takes the other operand's integer type before the operation's
 ordinary promotions. Thus `4 + unsignedValue` and `unsignedValue + 4` agree.
 Shift operands retain their separate roles; a shift count does not supply the

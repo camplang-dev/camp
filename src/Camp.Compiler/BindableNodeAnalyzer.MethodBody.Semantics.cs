@@ -4136,10 +4136,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	bool CanTargetIntegerLiteral(Expression? expression, string type)
 	{
-		return IsUnsuffixedIntegerLiteral(expression)
-			&& TryParseIntegerLiteralValue(expression, out BigInteger value, out _)
-			&& TryGetIntegerTypeBounds(type, out BigInteger min, out BigInteger max)
-			&& value >= min && value <= max;
+		return LiteralShapeFitsInteger(expression, type);
 	}
 
 	static string GetNumericLiteralSuffix(Expression? expression) => expression switch
