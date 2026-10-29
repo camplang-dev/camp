@@ -3854,7 +3854,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	bool ReportUnresolvedGenericCall(FunctionDefinition function, Dictionary<string, string> substitutions, SyntaxNode? syntax)
 	{
-		List<GenericParameter> missing = [.. function.GenericParameters.Where(parameter => !substitutions.TryGetValue(parameter.Name, out string? type) || type == ErrorType)];
+		List<GenericParameter> missing = [.. function.GenericParameters.Where(parameter => !substitutions.TryGetValue(parameter.Name, out string? type) || type is ErrorType or TargetType)];
 		if (missing.Count == 0)
 			return false;
 
@@ -5432,7 +5432,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	void InferGenericSubstitutions(string pattern, string actual, Dictionary<string, string> substitutions, HashSet<string> genericParameterNames)
 	{
-		if (string.IsNullOrWhiteSpace(pattern) || actual == ErrorType)
+		if (string.IsNullOrWhiteSpace(pattern) || actual is ErrorType or TargetType)
 			return;
 
 		if (TryGetCallableShape(pattern, out CallableShape patternCallable)

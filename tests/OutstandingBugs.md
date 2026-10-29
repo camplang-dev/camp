@@ -67,28 +67,6 @@ Semantic analysis reports no accessibility error. Compilation proceeds to native
 Known Impact:
 Invalid access to a non-shadow base's fields is accepted by semantic analysis and reported later as a native compiler error. Use a method of the base class to expose the required operation instead of accessing its field through the shadow class.
 
-## BUG-424: `default` as the only argument for a type parameter infers an internal placeholder type
-
-Date/Time: 2026-10-28 23:02 EDT
-
-Summary:
-`default` takes its type from its destination, so it cannot supply a type argument for a generic type parameter. When a call passes `default` as the only argument that mentions the type parameter, the compiler does not report that inference failed. It infers an internal placeholder type named `#TARGET` and compiles the call. Passing `null` in the same position is correctly rejected with "The type arguments for method ... cannot be inferred from the usage."
-
-Steps to Reproduce:
-
-1. Declare `void tn<T>(in T v, sizeof(T), typenameof(T))` that logs `typenameof(T)` with the string log intrinsic.
-2. In `main`, call `tn(default);`.
-3. Compile and run the program.
-
-Expected:
-Semantic analysis rejects the call at the called name with "The type arguments for method 'tn<T>' cannot be inferred from the usage. Try specifying the type arguments explicitly." Writing `tn<int>(default);` is accepted. A call that also passes an argument of known type for the same parameter, such as `two(5, default)` for `two<T>(in T a, in T b, ...)`, infers from that argument.
-
-Actual:
-The program compiles and runs, and logs `#TARGET` as the name of the inferred type.
-
-Known Impact:
-An internal placeholder type name leaks into user-visible output, and a call that cannot be inferred is accepted. Supply the type argument explicitly.
-
 ## BUG-425: A common pointer type is accepted for candidates with different lifetime annotations
 
 Date/Time: 2026-10-28 23:02 EDT

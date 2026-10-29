@@ -7,6 +7,36 @@ namespace Camp.Compiler.Tests;
 public sealed class AutoTypeInferenceTests
 {
 	[Theory]
+	[InlineData("tn(default)", "tn<T>", "tn")]
+	[InlineData("tn((default))", "tn<T>", "tn")]
+	[InlineData("two(default, default)", "two<T>", "two")]
+	public void Default_without_a_concrete_inference_source_fails_at_the_called_name(string invocation, string method, string name)
+	{
+		var compilation = SemanticCompiler.CompileLowered($$"""
+			void tn<T>(in T value, sizeof(T), typenameof(T)) { }
+			void two<T>(in T a, in T b, sizeof(T)) { }
+			void test() { {{invocation}}; }
+			""");
+		var diagnostic = Assert.Single(compilation.AnalysisDiagnostics.Distinct());
+		Assert.Contains($"The type arguments for method '{method}' cannot be inferred", diagnostic.Message);
+		Assert.Equal(name, Assert.IsType<TokenRange>(diagnostic.Range).Value);
+	}
+
+	[Theory]
+	[InlineData("tn<int>(default)")]
+	[InlineData("two(5, default)")]
+	[InlineData("two(default, 5)")]
+	[InlineData("two<int>(default, default)")]
+	public void Default_uses_an_explicit_or_independently_inferred_type(string invocation)
+	{
+		SemanticCompiler.AssertNoDiagnostics(SemanticCompiler.CompileLowered($$"""
+			void tn<T>(in T value, sizeof(T), typenameof(T)) { }
+			void two<T>(in T a, in T b, sizeof(T)) { }
+			void test() { {{invocation}}; }
+			"""));
+	}
+
+	[Theory]
 	[InlineData("l, i")]
 	[InlineData("i, l")]
 	[InlineData("l, 2")]

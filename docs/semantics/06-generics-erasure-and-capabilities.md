@@ -34,6 +34,11 @@ candidate accepts every argument, report failed type argument inference at the
 called name. Explicit type arguments and receiver-supplied owner arguments stay
 fixed; this common-value rule does not widen invariant nested storage slots.
 
+An untyped `default` contributes no type argument. With no independent source,
+inference fails at the called name; internal target placeholders are never valid
+inferred arguments. An explicit specialization such as `tn<int>(default)` or a
+concrete sibling argument such as `two(5, default)` supplies the required type.
+
 ## Receiver-Relative Type Forms
 
 `this` as a return type and `classtype` are not generic parameters, but they
