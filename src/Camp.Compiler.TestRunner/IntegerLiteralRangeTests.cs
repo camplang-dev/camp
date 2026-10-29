@@ -9,6 +9,41 @@ namespace Camp.Compiler.Tests;
 public sealed class IntegerLiteralRangeTests
 {
 	[Theory]
+	[InlineData("5uu", "uu")]
+	[InlineData("1.5u", "u")]
+	[InlineData("5uf", "uf")]
+	[InlineData("5ud", "ud")]
+	[InlineData("5ll", "ll")]
+	[InlineData("5lul", "lul")]
+	[InlineData("1.5l", "l")]
+	[InlineData("1.5fd", "fd")]
+	[InlineData("5ULU", "ULU")]
+	[InlineData("0x1uu", "uu")]
+	public void Malformed_suffixes_are_diagnosed_at_the_numeric_token(string literal, string suffix)
+	{
+		CampParser.Parse(new TokenSequence(CampTokenizer.Tokenize($"void test() {{ auto value = {literal}; }}")), out var diagnostics);
+		var diagnostic = Assert.Single(diagnostics);
+		Assert.Contains($"invalid suffix '{suffix}'", diagnostic.Message);
+		Assert.Equal(literal, Assert.IsType<TokenRange>(diagnostic.Range).Value);
+	}
+
+	[Theory]
+	[InlineData("5u")]
+	[InlineData("5L")]
+	[InlineData("5uL")]
+	[InlineData("5Lu")]
+	[InlineData("5f")]
+	[InlineData("5D")]
+	[InlineData("1.5F")]
+	[InlineData("1.5d")]
+	[InlineData("0xdead")]
+	[InlineData("0x1fUL")]
+	public void Valid_suffixes_and_hexadecimal_digits_remain_valid(string literal)
+	{
+		SemanticCompiler.AssertNoDiagnostics(SemanticCompiler.CompileLowered($"void test() {{ auto value = {literal}; }}"));
+	}
+
+	[Theory]
 	[InlineData("4 + value")]
 	[InlineData("value + 4")]
 	[InlineData("4 - value")]

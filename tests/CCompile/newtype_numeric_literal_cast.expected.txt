@@ -9,7 +9,7 @@ static int main(void)
 	HWND zero = (HWND)(0);
 	HWND minusOne = (HWND)(-1);
 	FLAGS mask = (FLAGS)(0xFFFFu);
-	return (int)(((((intptr_t)(zero) + (intptr_t)(minusOne)) + (uintptr_t)(mask))));
+	return (int)(((((intptr_t)(zero) + (intptr_t)(minusOne)) + (intptr_t)((uintptr_t)(mask)))));
 }
 
 // file: newtype_numeric_literal_cast_private.h

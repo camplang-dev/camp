@@ -54,6 +54,12 @@ The floating suffixes may follow decimal digits with or without a decimal
 point. C emission removes `d` and supplies a decimal point for digit-only
 floating forms such as `1f` and `2d`. Hexadecimal `f` and `d` remain digits.
 
+Validate the whole suffix at the numeric token during parsing. Integer suffixes
+are only `u`, `l`, `ul`, and `lu`; decimal floating suffixes are only `f` and
+`d`. Decimal digits without a point may also use `f` or `d`. Reject repetitions,
+combinations such as `uf` or `fd`, and integer suffixes on fractional literals,
+with a diagnostic naming the invalid suffix. Case does not affect validity.
+
 An unsuffixed floating literal takes only a `float` or `double` numeric target;
 otherwise it has type `double`. It cannot acquire an integral or character type
 from its destination, including under unary signs. Reject such implicit

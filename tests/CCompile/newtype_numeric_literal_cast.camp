@@ -6,5 +6,5 @@ int main()
 	HWND zero = (HWND)0;
 	HWND minusOne = (HWND)-1;
 	FLAGS mask = (FLAGS)0xFFFFu;
-	return (int)((nint)zero + (nint)minusOne + (nuint)mask);
+	return (int)((nint)zero + (nint)minusOne + (nint)(nuint)mask);
 }

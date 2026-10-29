@@ -67,28 +67,6 @@ Semantic analysis reports no accessibility error. Compilation proceeds to native
 Known Impact:
 Invalid access to a non-shadow base's fields is accepted by semantic analysis and reported later as a native compiler error. Use a method of the base class to expose the required operation instead of accessing its field through the shadow class.
 
-## BUG-432: A malformed numeric literal suffix is not diagnosed
-
-Date/Time: 2026-10-29 07:41 EDT
-
-Summary:
-The valid suffixes are `u`, `l`, `ul` and `lu` on integer literals (in either case), and `f` or `d` on decimal digits with or without a `.`. Any other suffix is accepted without a diagnostic. Some forms reach the native compiler and fail there with a message about C literal syntax, and others compile silently with a type the suffix does not describe.
-
-Steps to Reproduce:
-
-1. In `main`, declare `auto a = 5uu;`, `auto b = 1.5u;`, `auto c = 5uf;` and `auto d = 5ud;` in separate programs, since each fails to build.
-2. In one program, declare `auto e = 5ll;`, `auto f = 5lul;`, `auto g = 1.5l;` and `auto h = 1.5fd;`, print the type of each (for example through a generic function with a `typenameof(T)` parameter), and log `g` with the 64-bit integer log intrinsic.
-3. Compile and run each program.
-
-Expected:
-Each literal above is rejected at the literal with a diagnostic that names the invalid suffix.
-
-Actual:
-`5uu`, `1.5u`, `5uf` and `5ud` pass semantic analysis and fail in the native compiler, for example `invalid suffix 'uu' on integer constant` and `invalid suffix 'u.0' on integer constant`. `5ll` and `5lul` compile as `int`, `1.5l` compiles as `long` and holds `1`, and `1.5fd` compiles as `double`.
-
-Known Impact:
-A mistyped suffix either fails late with a native compiler message that does not name the Camp source, or silently produces a different type or a truncated value. Check literal suffixes by hand until this is fixed.
-
 ## BUG-433: A built-in configuration flag name hides a same-named target enum member
 
 Date/Time: 2026-10-29 10:26 EDT

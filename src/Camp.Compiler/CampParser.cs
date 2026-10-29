@@ -2040,7 +2040,12 @@ public sealed class CampParser
 			return ParseInterpolatedStringExpression();
 
 		if (IsLiteral())
-			return new LiteralExpressionSyntax { Literal = Take() };
+		{
+			Token? literal = Take();
+			if (literal is Token { Class: TokenClass.Number } number && NumericLiteralParser.TryGetInvalidSuffix(number.Value, out string suffix))
+				Report(literal, $"Numeric literal '{number.Value}' has invalid suffix '{suffix}'.");
+			return new LiteralExpressionSyntax { Literal = literal };
+		}
 
 		if (Is("this"))
 			return new ThisExpressionSyntax { ThisKeyword = Take() };

@@ -6,6 +6,26 @@ namespace Camp.Compiler;
 
 static class NumericLiteralParser
 {
+	public static bool TryGetInvalidSuffix(string text, out string suffix)
+	{
+		int radix = text.StartsWith("0x", StringComparison.OrdinalIgnoreCase) ? 16
+			: text.StartsWith("0b", StringComparison.OrdinalIgnoreCase) ? 2 : 10;
+		int index = radix == 10 ? 0 : 2;
+		while (index < text.Length && GetDigit(text[index]) is int digit && digit >= 0 && digit < radix)
+			index++;
+		bool floating = radix == 10 && index < text.Length && text[index] == '.';
+		if (floating)
+		{
+			index++;
+			while (index < text.Length && text[index] is >= '0' and <= '9')
+				index++;
+		}
+		suffix = text[index..];
+		string normalized = suffix.ToLowerInvariant();
+		return floating ? normalized is not ("" or "f" or "d")
+			: normalized is not ("" or "u" or "l" or "ul" or "lu") && !(radix == 10 && normalized is "f" or "d");
+	}
+
 	public static string GetSuffix(string text)
 	{
 		text = text.Trim();
