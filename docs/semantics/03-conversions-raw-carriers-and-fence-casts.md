@@ -260,8 +260,11 @@ Natural integers are treated as between 32 and 64 bits for this conversion
 policy. Integer values do not implicitly become character-code types. Character
 values may widen to wider character representations or suitable integer types;
 in particular, `char` widens to `wchar`, and `wchar` converts to `ushort` and
-wider integers, but not `short` or `char`. Every integer type converts to
-`float` or `double`, and `float` converts to `double`. Other numeric conversions
+wider integers, but not `short` or `char`.
+`uchar` has the logical range `0..0x10FFFF`, so it also converts implicitly to
+`int` and `nint`, as well as `uint`, `long`, `ulong` and `nuint`; its 32-bit
+storage width does not give it the full `uint` value range. Every integer type
+converts to `float` or `double`, and `float` converts to `double`. Other numeric conversions
 require an explicit cast. Unsuffixed literals retain their target-typing rules.
 Comparisons with a fitting unsuffixed integer literal supply the other numeric
 operand's type to that literal, so expressions such as `count == 0` remain

@@ -4256,7 +4256,7 @@ public sealed partial class BindableNodeAnalyzer
 			"nuint" => target == "ulong",
 			"char" or "achar" => target is "char" or "achar" or "wchar" or "uchar" or "short" or "ushort" or "int" or "uint" or "long" or "ulong" or "nint" or "nuint",
 			"wchar" => target is "uchar" or "ushort" or "int" or "uint" or "long" or "ulong" or "nint" or "nuint",
-			"uchar" => target is "uint" or "long" or "ulong" or "nuint",
+			"uchar" => target is "int" or "uint" or "long" or "ulong" or "nint" or "nuint",
 			_ => false
 		};
 	}

@@ -67,28 +67,6 @@ Semantic analysis reports no accessibility error. Compilation proceeds to native
 Known Impact:
 Invalid access to a non-shadow base's fields is accepted by semantic analysis and reported later as a native compiler error. Use a method of the base class to expose the required operation instead of accessing its field through the shadow class.
 
-## BUG-436: A `uchar` does not convert implicitly to `int` or `nint`
-
-Date/Time: 2026-10-29 12:40 EDT
-
-Summary:
-A `uchar` holds a code point in `0..0x10FFFF`, so every value fits in `int` and in `nint` (at least 32 bits). A character type converts implicitly to every integer type that holds its whole logical range and is at least 16 bits wide, so `uchar` converts to `int` and `nint`, as it already does to `uint`, `long`, `ulong` and `nuint`. The conversion is rejected for `int` and `nint` only, as if `uchar` were an unsigned 32-bit integer.
-
-Steps to Reproduce:
-
-1. In a function with a `uchar u` parameter, write `int i = u;` and `nint n = u;`.
-2. Also write `uint ui = u;` and `long l = u;`.
-3. Compile.
-
-Expected:
-All four declarations compile.
-
-Actual:
-`int i = u;` reports `Declaration initializer cannot convert 'uchar' to 'int'.` and `nint n = u;` reports the same for `'nint'`. The `uint` and `long` declarations compile.
-
-Known Impact:
-A `uchar` code point cannot be stored in an `int` without a cast. Write `(int)u` until this is fixed.
-
 ## BUG-437: `achar` converts implicitly to and from the other character types
 
 Date/Time: 2026-10-29 12:40 EDT

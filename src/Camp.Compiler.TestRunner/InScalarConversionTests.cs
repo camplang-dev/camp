@@ -8,6 +8,22 @@ namespace Camp.Compiler.Tests;
 public sealed class InScalarConversionTests
 {
 	[Theory]
+	[InlineData("int")]
+	[InlineData("nint")]
+	public void Unicode_code_points_fit_signed_integer_targets_in_all_value_contexts(string target)
+	{
+		SemanticCompiler.AssertNoDiagnostics(SemanticCompiler.CompileLowered($$"""
+			void take({{target}} value) { }
+			{{target}} test(uchar source) {
+				{{target}} value = source;
+				value = source;
+				take(source);
+				return source;
+			}
+			"""));
+	}
+
+	[Theory]
 	[InlineData("byte", "left * right")]
 	[InlineData("byte", "right * left")]
 	[InlineData("byte", "left + right")]
@@ -56,6 +72,8 @@ public sealed class InScalarConversionTests
 	[InlineData("short", "wchar")]
 	[InlineData("wchar", "char")]
 	[InlineData("wchar", "short")]
+	[InlineData("uchar", "short")]
+	[InlineData("uchar", "ushort")]
 	[InlineData("int", "nuint")]
 	[InlineData("uint", "nint")]
 	[InlineData("nint", "nuint")]

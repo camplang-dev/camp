@@ -16,5 +16,10 @@ export int main()
 	float fraction = 1.5;
 	if (asDouble(fraction) != 1.5) return 6;
 	if (twice(integer) != -246) return 7;
+	uchar codePoint = (uchar)0x10FFFF;
+	int signedCodePoint = codePoint;
+	nint naturalCodePoint = codePoint;
+	if (signedCodePoint != 0x10FFFF || naturalCodePoint != 0x10FFFF) return 8;
+	if (twice(codePoint) != 0x21FFFE || asLong(codePoint) != 0x10FFFF) return 9;
 	return 0;
 }
