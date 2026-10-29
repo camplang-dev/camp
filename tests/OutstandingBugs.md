@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-436.
+Next bug number: BUG-437.
 
 ## Bug Template
 
@@ -268,3 +268,25 @@ The program compiles and logs `0`, `-2147483648`, an unpredictable value for `y`
 Known Impact:
 A constant that overflows silently gives a wrong value, or an unpredictable one for an oversized shift, with no diagnostic. Use a `l`, `u` or `ul` suffix on an operand when a constant can exceed `int`.
 
+
+## BUG-436: A `uchar` does not convert implicitly to `int` or `nint`
+
+Date/Time: 2026-10-29 12:40 EDT
+
+Summary:
+A `uchar` holds a code point in `0..0x10FFFF`, so every value fits in `int` and in `nint` (at least 32 bits). A character type converts implicitly to every integer type that holds its whole logical range and is at least 16 bits wide, so `uchar` converts to `int` and `nint`, as it already does to `uint`, `long`, `ulong` and `nuint`. The conversion is rejected for `int` and `nint` only, as if `uchar` were an unsigned 32-bit integer.
+
+Steps to Reproduce:
+
+1. In a function with a `uchar u` parameter, write `int i = u;` and `nint n = u;`.
+2. Also write `uint ui = u;` and `long l = u;`.
+3. Compile.
+
+Expected:
+All four declarations compile.
+
+Actual:
+`int i = u;` reports `Declaration initializer cannot convert 'uchar' to 'int'.` and `nint n = u;` reports the same for `'nint'`. The `uint` and `long` declarations compile.
+
+Known Impact:
+A `uchar` code point cannot be stored in an `int` without a cast. Write `(int)u` until this is fixed.
