@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-426.
+Next bug number: BUG-427.
 
 ## Bug Template
 
@@ -300,3 +300,26 @@ All four forms in step 2 compile without a diagnostic.
 
 Known Impact:
 A pointer whose lifetime is only borrowed can be mixed with a retained one without any explicit acknowledgement, which hides lifetime decisions that the language otherwise requires in the source. Add the explicit lifetime cast on the operand that should change.
+
+## BUG-426: An enum member named by the target type hides a local variable or parameter of the same name
+
+Date/Time: 2026-10-28 23:03 EDT
+
+Summary:
+A name that is visible as a local variable or parameter should resolve to that variable. Unqualified enum members are looked up through the target type only when ordinary name lookup finds nothing. The compiler instead prefers the target enum's member, so a local variable or parameter that has the same name as an enum member is silently ignored wherever the expression has that enum as its target. The program then runs with the enum member's value, or accepts a variable of an unrelated type.
+
+Steps to Reproduce:
+
+1. Declare `enum Kind { A, B }` and `void take(Kind A) { Kind k = A; __intrinsic_log_i32((int)k); }`.
+2. In `main`, declare `Kind A = Kind.B; Kind k = A; __intrinsic_log_i32((int)k);` and call `take(Kind.B);`.
+3. Also declare `int n = 5;` renamed `int A = 5;` in a separate function, followed by `Kind j = A;`, and compile it.
+4. Compile and run the program.
+
+Expected:
+Ordinary lookup wins. In `main`, `A` is the local `Kind` variable with value `Kind.B`, so the program logs `1` for the local and `1` inside `take`. In step 3 `A` is an `int` variable and the declaration is rejected with a conversion error from `int` to `Kind` (a conversion that is also rejected for any other `int` value). An enum member is chosen from the target type only when no local, parameter, field or other declaration is visible under that name; the qualified form `Kind.A` always names the member.
+
+Actual:
+The local and the parameter are ignored: both log `0`, the value of `Kind.A`. The step 3 declaration is accepted, and `j` holds `Kind.A`.
+
+Known Impact:
+Renaming or adding a local or parameter can silently change which value an expression has, and an `int` variable can reach an enum without a diagnostic. Qualify the member (`Kind.A`) or avoid reusing enum member names as variable names.
