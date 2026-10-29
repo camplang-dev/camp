@@ -103,9 +103,9 @@ public sealed partial class BindableNodeAnalyzer
 			return false;
 		if (IsLiteralOperandContextOperator(binary.Operator))
 		{
-			if (LiteralShapeFitsInteger(binary.Left, right.Type))
+			if (ContainsOnlyUnsuffixedNumericLiterals(binary.Left) && NumericConstantFitsInteger(left, right.Type))
 				left = left with { Type = right.Type };
-			else if (LiteralShapeFitsInteger(binary.Right, left.Type))
+			else if (ContainsOnlyUnsuffixedNumericLiterals(binary.Right) && NumericConstantFitsInteger(right, left.Type))
 				right = right with { Type = left.Type };
 		}
 		string common = binary.Operator is BinaryOperator.LeftShift or BinaryOperator.RightShift
@@ -210,9 +210,11 @@ public sealed partial class BindableNodeAnalyzer
 		if (expression is ConditionalExpression conditional)
 			return LiteralShapeFitsInteger(conditional.WhenTrue, type) && LiteralShapeFitsInteger(conditional.WhenFalse, type);
 		return ContainsOnlyUnsuffixedNumericLiterals(expression) && TryEvaluateNumericConstant(expression, out NumericConstant value)
-			&& !value.IsFloating && TryGetIntegerTypeBounds(type, out BigInteger min, out BigInteger max)
-			&& value.Integer >= min && value.Integer <= max;
+			&& NumericConstantFitsInteger(value, type);
 	}
+
+	bool NumericConstantFitsInteger(NumericConstant value, string type) => !value.IsFloating
+		&& TryGetIntegerTypeBounds(type, out BigInteger min, out BigInteger max) && value.Integer >= min && value.Integer <= max;
 
 	bool IsIntegerLiteralShape(Expression? expression) => expression switch
 	{

@@ -8,6 +8,13 @@ namespace Camp.Compiler.Tests;
 
 public sealed class IntegerLiteralRangeTests
 {
+	[Fact]
+	public void Long_literal_constant_chains_do_not_recompute_each_subtree()
+	{
+		string sum = string.Join(" + ", Enumerable.Repeat("1", 32));
+		SemanticCompiler.AssertNoDiagnostics(SemanticCompiler.CompileLowered($"inline uint SUM = {sum}; void test() {{ uint value = {sum}; }}"));
+	}
+
 	[Theory]
 	[InlineData("int", "65536 * 65536", "int", "*")]
 	[InlineData("auto", "2147483647 + 1", "int", "+")]
