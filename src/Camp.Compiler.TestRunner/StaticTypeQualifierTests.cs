@@ -1,10 +1,50 @@
 using System;
+using System.Linq;
 using Xunit;
 
 namespace Camp.Compiler.Tests;
 
 public sealed class StaticTypeQualifierTests
 {
+	[Theory]
+	[InlineData("class Holder", "const int", "7")]
+	[InlineData("struct Holder", "int", "7")]
+	[InlineData("newtype Holder: long", "const Holder", "(Holder)(long)-1")]
+	public void Unrelated_static_fields_do_not_enter_bare_name_lookup(string declaration, string type, string value)
+	{
+		var compilation = SemanticCompiler.CompileLowered($$"""
+			extern escaped void* malloc(nuint size);
+			extern void free(void* pointer);
+			public {{declaration}} { public static {{type}} LIMIT = {{value}}; }
+			public struct Other { public void test() { auto value = LIMIT; } }
+			void test() { auto value = LIMIT; }
+			""");
+		Assert.Empty(compilation.ParseDiagnostics);
+		Assert.Empty(compilation.BindDiagnostics);
+		Assert.Equal(2, compilation.AnalysisDiagnostics.Distinct().Count());
+		Assert.All(compilation.AnalysisDiagnostics, diagnostic => Assert.Equal("Symbol 'LIMIT' could not be found.", diagnostic.Message));
+	}
+
+	[Fact]
+	public void Own_and_qualified_static_fields_remain_visible_and_unrelated_enums_keep_their_members()
+	{
+		SemanticCompiler.AssertNoDiagnostics(SemanticCompiler.CompileLowered("""
+			extern escaped void* malloc(nuint size);
+			extern void free(void* pointer);
+			public class Holder { public static const int LIMIT = 7; public int read() => LIMIT; }
+			public newtype Span: long {
+				public static const Span INVALID = (Span)(long)-1;
+				public static Span read() => INVALID;
+			}
+			enum Kind { NONE, INVALID, OTHER }
+			Kind read(Kind value) {
+				Kind result = INVALID;
+				switch (value) { case INVALID: return result; default: return NONE; }
+			}
+			int qualified() => Holder.LIMIT;
+			"""));
+	}
+
 	[Theory]
 	[InlineData("class", "static", "int getCatalog() => 0;")]
 	[InlineData("class", "", "int getCatalog() => 0;")]

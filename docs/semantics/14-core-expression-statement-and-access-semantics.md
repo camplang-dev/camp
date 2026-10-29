@@ -100,6 +100,14 @@ same operand-type check to all four forms, including property updates, before
 lowering or C emission. Boolean, pointer, aggregate, array, optional, and callable
 values are not numeric operands. Writable-target and const checks also apply.
 
+## Static Field Name Lookup
+
+A static field belongs to its declaring type. Bare-name storage lookup considers
+static fields only in the current type and its visible bases; unrelated types
+must use `Type.member`. Public visibility makes a member accessible through its
+owner, not a global name. This applies to static constants as well as mutable
+static fields, including when an enum supplies the expression's target type.
+
 ## Enum Comparisons
 
 Target enum member lookup is a fallback after ordinary name lookup. A visible

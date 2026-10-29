@@ -2245,6 +2245,12 @@ public sealed partial class BindableNodeAnalyzer
 		return definition.Name == name;
 	}
 
+	bool IsUnqualifiedStaticFieldOwner(TypeDefinition type)
+	{
+		TypeDefinition? owner = currentAnalysisContainingType ?? currentAnalysisDefinition as TypeDefinition;
+		return owner is not null && EnumerateTypeAndBases(owner).Any(candidate => ReferenceEquals(candidate, type));
+	}
+
 	BodySymbol? LookupGlobalStorageSymbol(NamedExpression name, SyntaxNode? referenceSyntax)
 	{
 		foreach (Definition definition in ActiveCurrentDefinitions())
@@ -2254,7 +2260,7 @@ public sealed partial class BindableNodeAnalyzer
 				ReportIfExportProjectionSourceReference(variable, referenceSyntax);
 				return new BodySymbol(name.Name, variable.ResolvedType ?? variable.Type?.ResolvedType ?? ErrorType, variable, IsConstantVariable(variable));
 			}
-			if (name.Qualifiers.Count == 0 && definition is TypeDefinition type)
+			if (name.Qualifiers.Count == 0 && definition is TypeDefinition type && IsUnqualifiedStaticFieldOwner(type))
 			{
 				foreach (FieldDefinition field in GetTypeFields(type))
 				{
@@ -2276,7 +2282,7 @@ public sealed partial class BindableNodeAnalyzer
 				ReportIfExportProjectionSourceReference(variable, referenceSyntax);
 				return new BodySymbol(name, variable.ResolvedType ?? variable.Type?.ResolvedType ?? ErrorType, variable, IsConstantVariable(variable));
 			}
-			if (definition is TypeDefinition type)
+			if (definition is TypeDefinition type && IsUnqualifiedStaticFieldOwner(type))
 			{
 				foreach (FieldDefinition field in GetTypeFields(type))
 				{
@@ -2302,7 +2308,7 @@ public sealed partial class BindableNodeAnalyzer
 		{
 			if (IsDefinitionNamed(definition, name) && !IsUnqualifiedDefinitionVisible(definition, referenceSyntax))
 				return definition;
-			if (definition is TypeDefinition type)
+			if (definition is TypeDefinition type && IsUnqualifiedStaticFieldOwner(type))
 			{
 				foreach (FieldDefinition field in GetTypeFields(type))
 					if (field.Modifier == FieldModifier.Static && IsDefinitionNamed(field, name) && !IsMemberVisible(field, type, referenceSyntax))
