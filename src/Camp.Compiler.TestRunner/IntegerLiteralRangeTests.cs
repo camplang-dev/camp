@@ -8,6 +8,68 @@ namespace Camp.Compiler.Tests;
 
 public sealed class IntegerLiteralRangeTests
 {
+	[Theory]
+	[InlineData("int", "65536 * 65536", "int", "*")]
+	[InlineData("auto", "2147483647 + 1", "int", "+")]
+	[InlineData("long", "2147483647 + 1", "int", "+")]
+	[InlineData("uint", "65536 * 65535", "int", "*")]
+	[InlineData("int", "(2147483647 + 1) - 1", "int", "+")]
+	[InlineData("int", "-(-2147483647 - 1)", "int", "-")]
+	[InlineData("int", "(-2147483647 - 1) / -1", "int", "/")]
+	[InlineData("int", "(-2147483647 - 1) % -1", "int", "%")]
+	[InlineData("long", "9223372036854775807L + 1", "long", "+")]
+	[InlineData("long", "1 << 40", "int", "<<")]
+	[InlineData("long", "1 << 32", "int", "<<")]
+	[InlineData("int", "1 << -1", "int", "<<")]
+	[InlineData("long", "1L << 64", "long", "<<")]
+	[InlineData("int", "1 << 31", "int", "<<")]
+	[InlineData("int", "-2 << 1", "int", "<<")]
+	public void Constant_integer_operations_are_checked_in_their_natural_type(string target, string expression, string natural, string token)
+	{
+		var compilation = SemanticCompiler.CompileLowered($"void test() {{ {target} value = {expression}; }}");
+		var diagnostic = Assert.Single(compilation.AnalysisDiagnostics.Distinct());
+		Assert.Contains($"type '{natural}'", diagnostic.Message);
+		Assert.True(diagnostic.Message.Contains("constant operation") || diagnostic.Message.Contains("Constant"));
+		Assert.Equal(token, Assert.IsType<TokenRange>(diagnostic.Range).Value);
+	}
+
+	[Theory]
+	[InlineData("inline int PAGE = 4096; void test() { int value = PAGE * 1048576; }")]
+	[InlineData("inline int PAGE = 4096; inline long VALUE = PAGE * 1048576;")]
+	[InlineData("inline uint VALUE = 65536 * 65535;")]
+	[InlineData("inline int VALUE = (2147483647 + 1) - 1;")]
+	[InlineData("inline long VALUE = 1 << 40;")]
+	[InlineData("struct Holder { static inline int PAGE = 4096; static inline long VALUE = PAGE * 1048576; }")]
+	public void Named_and_inline_constants_do_not_hide_natural_overflow(string source)
+	{
+		var compilation = SemanticCompiler.CompileLowered(source);
+		Assert.Contains(compilation.AnalysisDiagnostics, diagnostic => diagnostic.Message.Contains("type 'int'"));
+	}
+
+	[Theory]
+	[InlineData("long", "65536L * 65536")]
+	[InlineData("long", "1L << 40")]
+	[InlineData("uint", "65536u * 65535")]
+	[InlineData("uint", "1u << 31")]
+	[InlineData("ulong", "1UL << 63")]
+	[InlineData("uint", "4294967295u + 1")]
+	[InlineData("uint", "~0u")]
+	[InlineData("long", "-9223372036854775808L")]
+	public void Wider_operands_and_unsigned_constant_arithmetic_remain_valid(string target, string expression)
+	{
+		SemanticCompiler.AssertNoDiagnostics(SemanticCompiler.CompileLowered($"void test() {{ {target} value = {expression}; }}"));
+	}
+
+	[Fact]
+	public void Unsigned_inline_constant_arithmetic_wraps_in_its_fixed_type()
+	{
+		var compilation = SemanticCompiler.CompileLowered("inline uint WRAPPED = 4294967295u + 1; inline uint MASK = ~0u;");
+		SemanticCompiler.AssertNoDiagnostics(compilation);
+		var constants = compilation.Module.Definitions.OfType<VariableDefinition>().ToArray();
+		Assert.Equal(System.Numerics.BigInteger.Zero, Assert.IsType<ConstantValue.Integer>(constants[0].ConstantValue).Value);
+		Assert.Equal(new System.Numerics.BigInteger(uint.MaxValue), Assert.IsType<ConstantValue.Integer>(constants[1].ConstantValue).Value);
+	}
+
 	[Fact]
 	public void Literal_shaped_constants_take_targets_in_all_value_contexts()
 	{

@@ -220,6 +220,15 @@ public sealed partial class BindableNodeAnalyzer
 		value = null;
 		if (expressionRewrites.TryGetValue(expression, out Expression? rewrite))
 			return TryEvaluateInlineConstantCore(owner, rewrite, targetType, visiting, out value);
+		NumericConstant? naturalNumeric = null;
+		if (expression is BinaryExpression or UnaryExpression)
+		{
+			if (TryEvaluateNumericConstant(expression, out NumericConstant numeric, reportErrors: true, owner, visiting)
+				&& !numeric.IsFloating)
+				naturalNumeric = numeric;
+			if (HasInvalidNumericConstantOperation(expression))
+				return false;
+		}
 		bool evaluated = expression switch
 		{
 			LiteralExpression literal => TryEvaluateLiteralConstant(literal, targetType, out value),
@@ -253,7 +262,11 @@ public sealed partial class BindableNodeAnalyzer
 		};
 
 		if (evaluated)
+		{
+			if (naturalNumeric is NumericConstant numeric)
+				value = new ConstantValue.Integer(numeric.Integer);
 			MarkConstantExpressionResolved(expression, targetType, value);
+		}
 		return evaluated;
 	}
 

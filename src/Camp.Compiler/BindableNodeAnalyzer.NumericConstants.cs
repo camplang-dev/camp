@@ -7,6 +7,8 @@ namespace Camp.Compiler;
 
 public sealed partial class BindableNodeAnalyzer
 {
+	readonly HashSet<Expression> invalidNumericConstantOperations = [];
+
 	readonly record struct NumericConstant(string Type, BigInteger Integer, double Floating = 0)
 	{
 		public bool IsFloating => Type is "float" or "double";
@@ -15,11 +17,57 @@ public sealed partial class BindableNodeAnalyzer
 
 	// This evaluator deliberately ignores destination types. A constant operation
 	// happens in its natural type; contextual conversion applies to its result.
-	bool TryEvaluateNumericConstant(Expression? expression, out NumericConstant value)
+	bool TryEvaluateNumericConstant(Expression? expression, out NumericConstant value, bool reportErrors = false,
+		BindableNode? owner = null, HashSet<BindableNode>? visiting = null)
 	{
 		value = default;
+		bool Evaluate(Expression? child, out NumericConstant result) => TryEvaluateNumericConstant(child, out result, reportErrors, owner, visiting);
 		if (expression is ParenthesizedExpression parenthesized)
-			return TryEvaluateNumericConstant(parenthesized.Expression, out value);
+			return Evaluate(parenthesized.Expression, out value);
+		if (expression is NamedExpression or MemberExpression
+			&& expressionRewrites.TryGetValue(expression, out Expression? reference))
+			return Evaluate(reference, out value);
+		BindableNode? definition = expression switch
+		{
+			VariableReferenceExpression variable => variable.Variable,
+			MemberReferenceExpression member => member.Member,
+			NamedExpression named when owner is not null && TryResolveNamedConstantReference(named, owner, out BindableNode? node) => node,
+			_ => null
+		};
+		if (definition is VariableDefinition { IsInline: true } variableDefinition)
+		{
+			if (variableDefinition.ConstantValue is null && owner is not null)
+				AnalyzeInlineVariable(variableDefinition, visiting ?? []);
+			if (variableDefinition.ConstantValue is ConstantValue.Integer integer)
+			{
+				value = new(ConstantNumericType(variableDefinition.ResolvedType), integer.Value);
+				return true;
+			}
+		}
+		if (definition is FieldDefinition { IsInline: true } field)
+		{
+			if (field.ConstantValue is null && owner is not null)
+				AnalyzeInlineField(field, visiting ?? []);
+			if (field.ConstantValue is ConstantValue.Integer integer)
+			{
+				value = new(ConstantNumericType(field.ResolvedType), integer.Value);
+				return true;
+			}
+		}
+		if (definition is VariableDefinition { ConstantValue: ConstantValue.Integer enumValue } enumDefinition)
+		{
+			value = new(ConstantNumericType(enumDefinition.ResolvedType), enumValue.Value);
+			return true;
+		}
+		if (expression is CastExpression cast && Evaluate(cast.Expression, out NumericConstant source)
+			&& !source.IsFloating && cast.Type?.ResolvedType is string castType
+			&& TryGetIntegerTypeBounds(castType, out BigInteger castMin, out BigInteger castMax))
+		{
+			BigInteger width = castMax - castMin + 1;
+			BigInteger converted = ((source.Integer - castMin) % width + width) % width + castMin;
+			value = new(castType, converted);
+			return true;
+		}
 		if (IsUnsuffixedIntegerLiteral(expression) && TryParseIntegerLiteralValue(expression, out BigInteger signed, out _))
 		{
 			value = new(InferUnsuffixedIntegerType(signed), signed);
@@ -37,7 +85,7 @@ public sealed partial class BindableNodeAnalyzer
 				return false;
 			return true;
 		}
-		if (expression is UnaryExpression unary && TryEvaluateNumericConstant(unary.Operand, out NumericConstant operand))
+		if (expression is UnaryExpression unary && Evaluate(unary.Operand, out NumericConstant operand))
 		{
 			if (unary.Operator == UnaryOperator.Plus)
 				value = operand;
@@ -47,12 +95,19 @@ public sealed partial class BindableNodeAnalyzer
 				value = new(PromoteInteger(operand.Type), ~operand.Integer);
 			else
 				return false;
-			return true;
+			return NormalizeNumericConstant(unary, ref value, reportErrors);
 		}
 		if (expression is not BinaryExpression binary
-			|| !TryEvaluateNumericConstant(binary.Left, out NumericConstant left)
-			|| !TryEvaluateNumericConstant(binary.Right, out NumericConstant right))
+			|| !Evaluate(binary.Left, out NumericConstant left)
+			|| !Evaluate(binary.Right, out NumericConstant right))
 			return false;
+		if (IsLiteralOperandContextOperator(binary.Operator))
+		{
+			if (LiteralShapeFitsInteger(binary.Left, right.Type))
+				left = left with { Type = right.Type };
+			else if (LiteralShapeFitsInteger(binary.Right, left.Type))
+				right = right with { Type = left.Type };
+		}
 		string common = binary.Operator is BinaryOperator.LeftShift or BinaryOperator.RightShift
 			? PromoteInteger(left.Type) : UsualArithmeticConversion(left.Type, right.Type);
 		if (common == ErrorType)
@@ -72,6 +127,18 @@ public sealed partial class BindableNodeAnalyzer
 			return true;
 		}
 		BigInteger l = left.Integer, r = right.Integer, computed;
+		if (binary.Operator is BinaryOperator.LeftShift or BinaryOperator.RightShift
+			&& TryGetIntegerTypeBounds(common, out BigInteger shiftMin, out BigInteger shiftMax))
+		{
+			int bits = (int)shiftMax.GetBitLength() + (shiftMin < 0 ? 1 : 0);
+			if (r < 0 || r >= bits)
+				return InvalidNumericConstant(binary, $"Constant shift count '{r}' must be nonnegative and smaller than the width of type '{common}' ({bits} bits).", reportErrors);
+			if (binary.Operator == BinaryOperator.LeftShift && shiftMin < 0 && l < 0)
+				return InvalidNumericConstant(binary, $"Constant left shift has a negative operand of type '{common}'.", reportErrors);
+		}
+		if (binary.Operator is BinaryOperator.Divide or BinaryOperator.Modulo && r == -1
+			&& TryGetIntegerTypeBounds(common, out BigInteger divisionMin, out _) && divisionMin < 0 && l == divisionMin)
+			return InvalidNumericConstant(binary, $"Integer constant operation overflows type '{common}'.", reportErrors);
 		switch (binary.Operator)
 		{
 			case BinaryOperator.Add: computed = l + r; break;
@@ -87,8 +154,45 @@ public sealed partial class BindableNodeAnalyzer
 			default: return false;
 		}
 		value = new(common, computed);
+		return NormalizeNumericConstant(binary, ref value, reportErrors);
+	}
+
+	string ConstantNumericType(string? type)
+	{
+		type = StripTopLevelValueQualifiers(type ?? "int");
+		return TryGetUnderlyingNumericType(type, out string? underlying) ? underlying! : type;
+	}
+
+	bool NormalizeNumericConstant(Expression operation, ref NumericConstant value, bool reportErrors)
+	{
+		if (value.IsFloating || !TryGetIntegerTypeBounds(value.Type, out BigInteger min, out BigInteger max))
+			return true;
+		if (min < 0 && (value.Integer < min || value.Integer > max))
+			return InvalidNumericConstant(operation, $"Integer constant operation overflows type '{value.Type}'.", reportErrors);
+		if (min == 0)
+		{
+			BigInteger modulus = max + 1;
+			value = value with { Integer = (value.Integer % modulus + modulus) % modulus };
+		}
 		return true;
 	}
+
+	bool InvalidNumericConstant(Expression expression, string message, bool reportErrors)
+	{
+		if (reportErrors && invalidNumericConstantOperations.Add(expression))
+			Report(GetRange(expression.SourceSyntax), message);
+		return false;
+	}
+
+	bool HasInvalidNumericConstantOperation(Expression? expression) => expression is not null
+		&& (invalidNumericConstantOperations.Contains(expression) || expression switch
+		{
+			ParenthesizedExpression parenthesized => HasInvalidNumericConstantOperation(parenthesized.Expression),
+			UnaryExpression unary => HasInvalidNumericConstantOperation(unary.Operand),
+			BinaryExpression binary => HasInvalidNumericConstantOperation(binary.Left) || HasInvalidNumericConstantOperation(binary.Right),
+			CastExpression cast => HasInvalidNumericConstantOperation(cast.Expression),
+			_ => false
+		});
 
 	static bool ContainsOnlyUnsuffixedNumericLiterals(Expression? expression) => expression switch
 	{
@@ -129,6 +233,9 @@ public sealed partial class BindableNodeAnalyzer
 		string target = StripTopLevelValueQualifiers(targetType);
 		if (value.IsFloating && target is not ("float" or "double"))
 			return false;
+		string natural = BodyAnalyzeExpression(expression, scope, typeScope);
+		if (natural == ErrorType)
+			return true;
 		if (!value.IsFloating && TryGetIntegerTypeBounds(target, out BigInteger min, out BigInteger max)
 			&& (value.Integer < min || value.Integer > max))
 		{
@@ -136,9 +243,6 @@ public sealed partial class BindableNodeAnalyzer
 			expression.ResolvedType = ErrorType;
 			return true;
 		}
-		string natural = BodyAnalyzeExpression(expression, scope, typeScope);
-		if (natural == ErrorType)
-			return true;
 		if (natural != target)
 		{
 			// Clone only the root so a rewrite never refers back to its own key.

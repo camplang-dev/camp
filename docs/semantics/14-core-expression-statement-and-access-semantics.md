@@ -106,6 +106,15 @@ left operand's type. Floating operands keep ordinary C arithmetic: a `float`
 variable multiplied by `0.1` produces `double`. In a `float` destination,
 `0.1 + 0.2` computes as `double` before converting the result to `float`.
 
+Check each integer constant operation in its natural operand type, including
+operations on named inline constants. Reject signed overflow at the operation
+and name that type, even if a wider destination could hold the mathematical
+result. A constant shift count must be nonnegative and smaller than the width
+of its promoted left operand. Signed left shifts also require a nonnegative
+operand and a representable result. Unsigned arithmetic wraps in its type's
+width. Use a wider or unsigned operand when needed: `65536L * 65536` and
+`1L << 40` are valid; an outer `long` destination does not widen `1 << 40`.
+
 For arithmetic and bitwise operators, a fitting integer literal shape on
 either side takes the other operand's integer type before the operation's
 ordinary promotions. Thus `4 + unsignedValue` and `unsignedValue + 4` agree.

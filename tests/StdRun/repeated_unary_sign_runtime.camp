@@ -3,6 +3,7 @@ int fileDoublePositive = + +5;
 inline uint LITERAL_BUDGET = 256 * 1024 * 1024;
 uint literalReturn() => 4 * 1024;
 uint literalArgument(uint value) => value;
+inline uint WRAPPED_UNSIGNED = 4294967295u + 1;
 
 export int main()
 {
@@ -49,5 +50,13 @@ export int main()
 	float roundedResult = 100000000.0 + 1.0 - 100000000.0;
 	if (roundedResult != 1.0f)
 		return 11;
+	long wideProduct = 65536L * 65536;
+	long wideShift = 1L << 40;
+	uint unsignedProduct = 65536u * 65535;
+	uint unsignedShift = 1u << 31;
+	if (wideProduct != 4294967296L || wideShift != 1099511627776L)
+		return 12;
+	if (unsignedProduct != 4294901760u || unsignedShift != 2147483648u || WRAPPED_UNSIGNED != 0)
+		return 13;
 	return 0;
 }

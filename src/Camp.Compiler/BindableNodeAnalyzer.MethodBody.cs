@@ -1565,6 +1565,12 @@ public sealed partial class BindableNodeAnalyzer
 			&& TryReportIntegerLiteralOutOfRange(expression, literalRangeTarget))
 			type = ErrorType;
 		expression.ResolvedType = type;
+		if (type != ErrorType && expression is BinaryExpression or UnaryExpression)
+		{
+			TryEvaluateNumericConstant(expression, out _, reportErrors: true);
+			if (HasInvalidNumericConstantOperation(expression))
+				type = expression.ResolvedType = ErrorType;
+		}
 		ApplyExpressionLifetimeFact(expression, type, scope, typeScope);
 		CheckCallableContextLifetime(expression, targetType);
 		return type;

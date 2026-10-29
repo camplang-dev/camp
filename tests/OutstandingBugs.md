@@ -67,29 +67,6 @@ Semantic analysis reports no accessibility error. Compilation proceeds to native
 Known Impact:
 Invalid access to a non-shadow base's fields is accepted by semantic analysis and reported later as a native compiler error. Use a method of the base class to expose the required operation instead of accessing its field through the shadow class.
 
-## BUG-435: Overflow in an integer constant expression is not diagnosed
-
-Date/Time: 2026-10-29 11:24 EDT
-
-Summary:
-An integer constant expression, built from literals and named inline constants, is computed in its natural type, as in C: `int`, or `long` when an operand is `long`. When a step overflows that type, or a shift count is not smaller than the width of its left operand, the program is accepted. The generated C then has signed overflow or an oversized shift, which is undefined behaviour, and the value is wrong or unpredictable.
-
-Steps to Reproduce:
-
-1. Declare `inline int PAGE = 4096;` at global scope.
-2. In `main`, declare `int x = 65536 * 65536;`, `int z = 2147483647 + 1;`, `long y = 1 << 40;` and `int w = PAGE * 1048576;`.
-3. Log each value, and compile and run.
-
-Expected:
-Each initializer is rejected at the operation that overflows, naming the type it is computed in. A wider or unsigned operand is the fix, for example `65536L * 65536` or `1L << 40`. This holds even when the target could hold the true result: `uint u = 65536 * 65535;` overflows `int` and is rejected.
-
-Actual:
-The program compiles and logs `0`, `-2147483648`, an unpredictable value for `y` (for example `140704628754960`), and `0`. The generated C keeps each expression as written, for example `int64_t y = (1 << 40);`.
-
-Known Impact:
-A constant that overflows silently gives a wrong value, or an unpredictable one for an oversized shift, with no diagnostic. Use a `l`, `u` or `ul` suffix on an operand when a constant can exceed `int`.
-
-
 ## BUG-436: A `uchar` does not convert implicitly to `int` or `nint`
 
 Date/Time: 2026-10-29 12:40 EDT
