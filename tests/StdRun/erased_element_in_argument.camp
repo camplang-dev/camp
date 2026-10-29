@@ -3,7 +3,7 @@ int readScalar(in void<int> value) => value;
 int readArray(in void<int[]?> value) => value.specified ? value.value[1] : -1;
 int observe(in void<int?> value, void<int?>* slot) { *slot = 9; return value.value; }
 int calls;
-int nextIndex() { calls++; return 1; }
+nuint nextIndex() { calls++; return 1; }
 export int main()
 {
 	void<int?>[] slots = stackalloc void<int?>[2];

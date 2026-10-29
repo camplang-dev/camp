@@ -28,7 +28,7 @@ export int main()
 {
 	int value;
 	bool parsed = "42".tryParseInt(out value);
-	uint one = 0.next();
+	uint one = 0u.next();
 	nuint two = ((nuint)0).wideNext();
 	int[] values = [1, 2, 3];
 	values.touch();

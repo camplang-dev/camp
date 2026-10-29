@@ -218,7 +218,7 @@ int carrierEncoding()
 	float readQuiet = *quiet;
 	if (*quiet != quietCopy || *quiet == *payload || !(*quiet != *payload) || readQuiet == readQuiet) return 307;
 	// The same representation copies all bits, including initialized unused ones; a conversion re-encodes.
-	ulong wideBits = 0xffff000000000000 | 0x3f800000;
+	ulong wideBits = 0xffff000000000000UL | 0x3f800000;
 	ulong<float>* wideStored = (ulong<float>*)&wideBits;
 	ulong<float> wideCopy = *wideStored;
 	long<float> reencoded = *wideStored;

@@ -1,5 +1,5 @@
 int calls;
-int next() { calls++; return 0; }
+nuint next() { calls++; return 0; }
 int fail(thrown int error) { throw -7; }
 int succeed(thrown int error) { return 3; }
 char[] arrayFail(thrown int error) { throw 7; }

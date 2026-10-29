@@ -37,7 +37,7 @@ int main(void)
 {
 	int value;
 	bool parsed = String_tryParseInt("42", &value);
-	uint32_t one = UInt_next(0);
+	uint32_t one = UInt_next(0u);
 	uintptr_t two = NUInt_wideNext(((uintptr_t)(0)));
 	int *values = (int []){1, 2, 3};
 	uintptr_t values_length = 3;
