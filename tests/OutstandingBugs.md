@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-419.
+Next bug number: BUG-420.
 
 ## Bug Template
 
@@ -132,3 +132,39 @@ Semantic analysis reports nothing. The native build fails with `invalid suffix '
 
 Known Impact:
 These literal spellings cannot be used, and failing to compile is reported at the wrong level. Write `2.5`, `1.0f` and `2.0` instead.
+
+## BUG-419: Implicit conversions accept sign changes and integer-to-character conversions
+
+Date/Time: 2026-10-28 23:01 EDT
+
+Summary:
+The implicit numeric conversion rules are too permissive. Conversions between signed and unsigned integer types are accepted in both directions at every width, as are several conversions that narrow or reinterpret the value: an integer type of at most 16 bits to `char` or `wchar`, `wchar` to `char` or `short`, `uint` to `nint`, and between `nint` and `nuint`. Each of these changes the value of negative or large operands without a cast or a diagnostic.
+
+Steps to Reproduce:
+
+1. In `main`, declare `int i = -1; uint u = i;` and log whether `u == 4294967295`.
+2. Declare `uint big = 4000000000; int back = big;` and log `back`.
+3. Declare `sbyte s = -1; ulong w = s;` and `byte b = 200; sbyte sb = b;`, and log `sb`.
+4. Declare `short sh = -1; char c = sh; wchar wc = sh; nuint nu = i;`.
+5. Declare `wchar w2 = 65; char c2 = w2; short s2 = w2;`, `uint u3 = 1; nint n = u3;` and `nint n2 = 1; nuint nu2 = n2;`.
+6. Compile and run the program.
+
+Expected:
+A variable converts implicitly only to a type that holds every value of its own type. In particular, signed to unsigned is never implicit at any width, nor is unsigned to a signed type of the same width, and an integer type never converts implicitly to a character type. The implicit integer conversions are:
+
+- `sbyte` to `short`, `int`, `long`, `nint`;
+- `byte` to `short`, `ushort`, `int`, `uint`, `long`, `ulong`, `nint`, `nuint`;
+- `short` to `int`, `long`, `nint`;
+- `ushort` to `int`, `uint`, `long`, `ulong`, `nint`, `nuint`;
+- `int` to `long`, `nint`;
+- `uint` to `long`, `ulong`, `nuint`;
+- `nint` to `long`;
+- `nuint` to `ulong`.
+
+Every integer type converts implicitly to `float` and `double`. `wchar` converts to `ushort` and wider integer types but not to `short` or `char`, and `char` converts to `wchar`. `nint` and `nuint` are treated as between 32 and 64 bits wide. All the other declarations above are rejected at the initializer as requiring an explicit cast.
+
+Actual:
+The program compiles and runs. `u == 4294967295` is true, `back` is `-294967296`, `w == 18446744073709551615` is true, and `sb` is `-56`. The other declarations compile without a diagnostic. Beyond the cases above, the same permissive rule accepts every sign change between `int`/`uint`, `long`/`ulong` and `short`/`ushort`.
+
+Known Impact:
+Negative or large values change silently at implicit conversions, and an integer can be assigned to a character type without a cast. Cast explicitly where the conversion is intended. Tightening the rules will require explicit casts in existing code that relies on them.
