@@ -67,28 +67,6 @@ Semantic analysis reports no accessibility error. Compilation proceeds to native
 Known Impact:
 Invalid access to a non-shadow base's fields is accepted by semantic analysis and reported later as a native compiler error. Use a method of the base class to expose the required operation instead of accessing its field through the shadow class.
 
-## BUG-421: Generic type argument inference is fixed by the first argument
-
-Date/Time: 2026-10-28 23:01 EDT
-
-Summary:
-When one type parameter is inferred from several by-value arguments, the first argument fixes the type argument and each later argument must then convert to it. Whether a call is accepted therefore depends on argument order: a call that passes the wider type first succeeds, and the same call with the arguments swapped fails with a conversion error at the later argument.
-
-Steps to Reproduce:
-
-1. Declare `void two<T>(in T a, in T b, sizeof(T), typenameof(T))` that logs `typenameof(T)` with the string log intrinsic.
-2. In `main`, declare `int i = 1; long l = 2;` and call `two(l, i);`, `two(i, l);`, `two(l, 2);` and `two(2, l);`.
-3. Compile and run the program.
-
-Expected:
-When several by-value arguments contribute to one type parameter, the type argument is the common type of the argument types: a type among them to which every argument converts implicitly, where an unsuffixed integer literal converts to any integer type that holds its value, and the one to which all the others convert if several qualify. The result does not depend on argument order. All four calls are accepted with `T` equal to `long`. If no argument type qualifies, for example `two(u, i)` and `two(i, u)` with a `uint` `u`, inference fails with the type arguments reported as not inferable.
-
-Actual:
-`two(l, i)` is accepted with `T` equal to `long`. `two(i, l)` is rejected with `Argument cannot convert 'long' to 'int'` at the second argument, and `two(2, l)` is rejected the same way. `two(u, i)` and `two(i, u)` are both accepted, with `T` equal to `uint` and `int`.
-
-Known Impact:
-Generic calls with mixed argument types succeed or fail depending on argument order. Reorder the arguments, or supply the type argument explicitly (`two<long>(i, l)`).
-
 ## BUG-422: `auto` initialised from an empty array literal emits invalid C
 
 Date/Time: 2026-10-28 23:02 EDT

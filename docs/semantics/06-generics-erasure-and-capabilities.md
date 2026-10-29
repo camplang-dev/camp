@@ -24,6 +24,16 @@ storage, expression read view and exact-operand capabilities separate. A read
 view is a comparison/expression device; it never replaces canonical types in
 signatures, generic arguments, symbols, metadata or API output.
 
+## Common Argument Inference
+
+For a type parameter contributed by several by-value or `in` arguments, collect
+the argument types before checking conversions. Choose their common expression
+type using the rules in semantics 14, including fitting unsuffixed integer
+literals. Argument order cannot fix the type parameter prematurely. If no
+candidate accepts every argument, report failed type argument inference at the
+called name. Explicit type arguments and receiver-supplied owner arguments stay
+fixed; this common-value rule does not widen invariant nested storage slots.
+
 ## Receiver-Relative Type Forms
 
 `this` as a return type and `classtype` are not generic parameters, but they

@@ -3852,7 +3852,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	bool ReportUnresolvedGenericCall(FunctionDefinition function, Dictionary<string, string> substitutions, SyntaxNode? syntax)
 	{
-		List<GenericParameter> missing = [.. function.GenericParameters.Where(parameter => !substitutions.ContainsKey(parameter.Name))];
+		List<GenericParameter> missing = [.. function.GenericParameters.Where(parameter => !substitutions.TryGetValue(parameter.Name, out string? type) || type == ErrorType)];
 		if (missing.Count == 0)
 			return false;
 
@@ -4691,6 +4691,34 @@ public sealed partial class BindableNodeAnalyzer
 		return implementation;
 	}
 
+	void InferCommonCallTypes(List<ArgumentExpression> arguments, List<ParameterDefinition> parameters, Dictionary<string, string> substitutions, HashSet<string> genericNames, BodyScope scope, AnalysisScope typeScope)
+	{
+		if (genericNames.Count == 0)
+			return;
+		Dictionary<string, List<ArgumentExpression>> candidates = [];
+		bool[] supplied = new bool[parameters.Count];
+		foreach (ArgumentExpression argument in arguments)
+		{
+			if (!TryBindCallArgumentToParameter(argument, parameters, supplied, null, out int index))
+				continue;
+			ParameterDefinition parameter = parameters[index];
+			string name = StripTopLevelValueQualifiers(parameter.ResolvedType ?? ErrorType);
+			if (parameter.Modifier is not (ParameterModifier.None or ParameterModifier.In)
+				|| !genericNames.Contains(name) || substitutions.ContainsKey(name))
+				continue;
+			if (!candidates.TryGetValue(name, out List<ArgumentExpression>? values))
+				candidates[name] = values = [];
+			values.Add(argument);
+		}
+		foreach ((string name, List<ArgumentExpression> values) in candidates)
+		{
+			if (values.Count < 2 || values.Any(argument => UnwrapParenthesizedExpression(argument.Value) is LambdaExpression or InitializerExpression))
+				continue;
+			List<string> types = values.Select(argument => BodyAnalyzeArgumentExpression(argument, scope, typeScope, TargetType)).ToList();
+			substitutions[name] = BestExpressionType(values.Select(argument => argument.Value).ToList(), types, out _);
+		}
+	}
+
 	Dictionary<string, bool> AnalyzeCallArguments(List<ArgumentExpression> arguments, List<ParameterDefinition> parameters, BodyScope scope, AnalysisScope typeScope, SyntaxNode? fallbackSyntax = null, bool includeExplicitThis = false, Dictionary<string, string>? genericSubstitutions = null, HashSet<string>? genericParameterNames = null, FunctionDefinition? function = null, Expression? callTarget = null, SyntaxNode? missingArgumentSyntax = null, string? callDisplayName = null, bool allowOmittedPrepParameter = false, CallArgumentBinding? binding = null, Dictionary<string, bool>? implicitConstOfAnchors = null)
 	{
 		genericSubstitutions ??= [];
@@ -4701,6 +4729,7 @@ public sealed partial class BindableNodeAnalyzer
 		if (arguments.Count > callableParameters.Count || HasExplicitHiddenArgument(arguments))
 			AddExplicitHiddenParameters(parameters, callableParameters);
 		AnalyzeRangeAwareArguments(arguments, callableParameters, GetRangeReceiver(callTarget), scope, typeScope, fallbackSyntax);
+		InferCommonCallTypes(arguments, callableParameters, genericSubstitutions, genericParameterNames, scope, typeScope);
 		List<(ArgumentExpression Argument, ParameterDefinition Parameter)> analyzedLifetimeArguments = [];
 		List<(ArgumentExpression Argument, ParameterDefinition Parameter)> analyzedConstOfArguments = [];
 		Dictionary<string, bool> constOfAnchorsInProgress = new(System.StringComparer.Ordinal);

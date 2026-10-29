@@ -7,6 +7,38 @@ namespace Camp.Compiler.Tests;
 public sealed class AutoTypeInferenceTests
 {
 	[Theory]
+	[InlineData("l, i")]
+	[InlineData("i, l")]
+	[InlineData("l, 2")]
+	[InlineData("2, l")]
+	[InlineData("a: i, b: l")]
+	[InlineData("b: l, a: i")]
+	public void Generic_value_arguments_infer_a_common_type(string arguments)
+	{
+		var compilation = SemanticCompiler.CompileLowered($$"""
+			T two<T>(in T a, in T b, sizeof(T)) => a;
+			void test(int i, long l) { long result = two({{arguments}}); }
+			""");
+		SemanticCompiler.AssertNoDiagnostics(compilation);
+		var call = Assert.Single(SemanticCompiler.Descendants<CallExpression>(SemanticCompiler.Function(compilation, "test")));
+		Assert.Equal("long", call.ResolvedType);
+	}
+
+	[Theory]
+	[InlineData("u, i")]
+	[InlineData("i, u")]
+	public void Incompatible_generic_value_arguments_fail_inference_at_the_call_name(string arguments)
+	{
+		var compilation = SemanticCompiler.CompileLowered($$"""
+			void two<T>(in T a, in T b, sizeof(T)) { }
+			void test(int i, uint u) { two({{arguments}}); }
+			""");
+		var diagnostic = Assert.Single(compilation.AnalysisDiagnostics.Distinct());
+		Assert.Contains("The type arguments for method 'two<T>' cannot be inferred", diagnostic.Message);
+		Assert.Equal("two", Assert.IsType<TokenRange>(diagnostic.Range).Value);
+	}
+
+	[Theory]
 	[InlineData("c ? u : 0", "uint")]
 	[InlineData("c ? 0 : u", "uint")]
 	[InlineData("[u, 2]", "uint[]")]
