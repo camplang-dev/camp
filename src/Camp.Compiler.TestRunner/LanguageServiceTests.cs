@@ -878,7 +878,7 @@ public sealed class LanguageServiceTests
 			Holder<int>* holder = default;
 			Mode mode = Mode.OPEN;
 			int limit = Button.LIMIT;
-			return (int)(lengthOf([1, 2, 3]) + limit);
+			return (int)(lengthOf([1, 2, 3]) + (nuint)limit);
 		}
 		""";
 		File.WriteAllText(source, text);
