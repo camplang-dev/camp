@@ -8,6 +8,46 @@ namespace Camp.Compiler.Tests;
 
 public sealed class IntegerLiteralRangeTests
 {
+	public static IEnumerable<object[]> FloatingIntegerTargets()
+	{
+		foreach (string target in new[] { "sbyte", "byte", "short", "ushort", "int", "uint", "long", "ulong", "nint", "nuint", "char", "achar", "wchar", "uchar" })
+			foreach (string literal in new[] { "1.5", "-1.5", "1.5f", "1.5d" })
+				yield return [target, literal];
+	}
+
+	[Theory]
+	[MemberData(nameof(FloatingIntegerTargets))]
+	public void Floating_literals_never_take_integer_targets(string target, string literal)
+	{
+		var compilation = SemanticCompiler.CompileLowered($$"""
+			void take({{target}} value) { }
+			{{target}} give() { return {{literal}}; }
+			void test() { {{target}} value = {{literal}}; value = {{literal}}; take({{literal}}); }
+			""");
+		Assert.Empty(compilation.ParseDiagnostics);
+		Assert.Empty(compilation.BindDiagnostics);
+		Assert.Equal(4, compilation.AnalysisDiagnostics.Distinct().Count());
+		Assert.All(compilation.AnalysisDiagnostics, diagnostic =>
+		{
+			Assert.Contains("cannot convert", diagnostic.Message);
+			Assert.NotNull(diagnostic.Range);
+		});
+	}
+
+	[Fact]
+	public void Floating_targets_integer_to_float_literals_and_explicit_integer_casts_remain_valid()
+	{
+		SemanticCompiler.AssertNoDiagnostics(SemanticCompiler.CompileLowered("""
+			float take(float value) => value;
+			float give() => 1.5;
+			void test() {
+				float x = 1.5; double y = 2.75; x = -3.5; take(4.5);
+				float integer = 3; double other = 4;
+				int cast = (int)1.5; uint unsignedValue = (uint)2.75;
+			}
+			"""));
+	}
+
 	[Theory]
 	[InlineData("double", "2.5d", "2.5")]
 	[InlineData("float", "1f", "1.0f")]

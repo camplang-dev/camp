@@ -4114,6 +4114,8 @@ public sealed partial class BindableNodeAnalyzer
 		if (suffix is "l" or "ul" or "lu" or "f" or "d")
 			return suffix switch { "l" => "long", "ul" or "lu" => "ulong", "f" => "float", _ => "double" };
 		targetType = targetType is null ? null : StripTopLevelValueQualifiers(targetType);
+		if (text.Contains('.', StringComparison.Ordinal))
+			return targetType is "float" or "double" ? targetType : "double";
 		if (targetType is not null && IsNumericTypeName(targetType))
 			return targetType;
 

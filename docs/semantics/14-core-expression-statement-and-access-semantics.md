@@ -54,6 +54,13 @@ The floating suffixes may follow decimal digits with or without a decimal
 point. C emission removes `d` and supplies a decimal point for digit-only
 floating forms such as `1f` and `2d`. Hexadecimal `f` and `d` remain digits.
 
+An unsuffixed floating literal takes only a `float` or `double` numeric target;
+otherwise it has type `double`. It cannot acquire an integral or character type
+from its destination, including under unary signs. Reject such implicit
+conversions in declarations, assignments, arguments, and returns. Integer
+literals still accept floating targets, and explicit numeric casts retain their
+ordinary conversion rules.
+
 An integer literal used with a primitive integral target must fit that target's
 range. Body analysis checks the exact integer value before C emission, including
 decimal, hexadecimal, and integer suffixes. This

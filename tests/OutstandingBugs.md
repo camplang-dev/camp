@@ -66,25 +66,3 @@ Semantic analysis reports no accessibility error. Compilation proceeds to native
 
 Known Impact:
 Invalid access to a non-shadow base's fields is accepted by semantic analysis and reported later as a native compiler error. Use a method of the base class to expose the required operation instead of accessing its field through the shadow class.
-
-## BUG-427: A floating literal is accepted for an integer target and truncated
-
-Date/Time: 2026-10-28 23:09 EDT
-
-Summary:
-A floating literal such as `1.5` is accepted wherever an integer type is expected, and its fractional part is silently discarded. A floating variable is correctly rejected in the same position (`double d = 1.5; int i = d;` is an invalid conversion), so only literals are affected. The truncation happens for declarations, assignments, arguments and return values, for every integer target, and for negative literals.
-
-Steps to Reproduce:
-
-1. Declare `void take(int v)` that logs `v` with the 32-bit integer log intrinsic, and `int give() { return 2.75; }`.
-2. In `main`, declare `int a = 1.5; byte b = 2.5; long c = 3.5; uint d = 4.5; char e = 5.5; int f = -1.5;`, call `take(6.5);`, assign `a = 7.5;`, and log `a`, `b`, `f` and `give()`.
-3. Compile and run the program.
-
-Expected:
-A floating literal, with or without a suffix, takes only a `float` or `double` target. Each declaration, the assignment, the argument and the return value above is rejected at the literal as an invalid conversion to an integer type. An integer literal remains valid for a floating target (`float x = 3;`, `double y = 4;`).
-
-Actual:
-The program compiles and runs. The values are truncated toward zero: `take(6.5)` logs `6`, and `a`, `b`, `f` and `give()` log `7`, `2`, `-1` and `2` after the assignment. No diagnostic is reported.
-
-Known Impact:
-Fractional values are discarded silently in code that looks like a floating computation. Write the target as `float` or `double`, or cast the literal explicitly (`(int)1.5`).
