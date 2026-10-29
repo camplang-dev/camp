@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-424.
+Next bug number: BUG-425.
 
 ## Bug Template
 
@@ -256,3 +256,25 @@ Semantic analysis reports nothing. The native build fails with errors such as `i
 
 Known Impact:
 Misusing `null` for an optional is reported as a native compiler error. Use `default` for an empty optional.
+
+## BUG-424: `default` as the only argument for a type parameter infers an internal placeholder type
+
+Date/Time: 2026-10-28 23:02 EDT
+
+Summary:
+`default` takes its type from its destination, so it cannot supply a type argument for a generic type parameter. When a call passes `default` as the only argument that mentions the type parameter, the compiler does not report that inference failed. It infers an internal placeholder type named `#TARGET` and compiles the call. Passing `null` in the same position is correctly rejected with "The type arguments for method ... cannot be inferred from the usage."
+
+Steps to Reproduce:
+
+1. Declare `void tn<T>(in T v, sizeof(T), typenameof(T))` that logs `typenameof(T)` with the string log intrinsic.
+2. In `main`, call `tn(default);`.
+3. Compile and run the program.
+
+Expected:
+Semantic analysis rejects the call at the called name with "The type arguments for method 'tn<T>' cannot be inferred from the usage. Try specifying the type arguments explicitly." Writing `tn<int>(default);` is accepted. A call that also passes an argument of known type for the same parameter, such as `two(5, default)` for `two<T>(in T a, in T b, ...)`, infers from that argument.
+
+Actual:
+The program compiles and runs, and logs `#TARGET` as the name of the inferred type.
+
+Known Impact:
+An internal placeholder type name leaks into user-visible output, and a call that cannot be inferred is accepted. Supply the type argument explicitly.
