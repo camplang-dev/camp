@@ -67,29 +67,6 @@ Semantic analysis reports no accessibility error. Compilation proceeds to native
 Known Impact:
 Invalid access to a non-shadow base's fields is accepted by semantic analysis and reported later as a native compiler error. Use a method of the base class to expose the required operation instead of accessing its field through the shadow class.
 
-## BUG-426: An enum member named by the target type hides a local variable or parameter of the same name
-
-Date/Time: 2026-10-28 23:03 EDT
-
-Summary:
-A name that is visible as a local variable or parameter should resolve to that variable. Unqualified enum members are looked up through the target type only when ordinary name lookup finds nothing. The compiler instead prefers the target enum's member, so a local variable or parameter that has the same name as an enum member is silently ignored wherever the expression has that enum as its target. The program then runs with the enum member's value, or accepts a variable of an unrelated type.
-
-Steps to Reproduce:
-
-1. Declare `enum Kind { A, B }` and `void take(Kind A) { Kind k = A; __intrinsic_log_i32((int)k); }`.
-2. In `main`, declare `Kind A = Kind.B; Kind k = A; __intrinsic_log_i32((int)k);` and call `take(Kind.B);`.
-3. In a separate function, declare `int A = 5;` followed by `Kind j = A;`.
-4. Compile and run the program.
-
-Expected:
-Ordinary lookup wins. In `main`, `A` is the local `Kind` variable with value `Kind.B`, so the program logs `1` for the local and `1` inside `take`. In step 3 `A` is an `int` variable and the declaration is rejected with a conversion error from `int` to `Kind` (an `int` never converts implicitly to an enum). An enum member is chosen from the target type only when no local, parameter, field or other declaration is visible under that name; the qualified form `Kind.A` always names the member.
-
-Actual:
-The local and the parameter are ignored: both log `0`, the value of `Kind.A`. The step 3 declaration is accepted, and `j` holds `Kind.A`.
-
-Known Impact:
-Renaming or adding a local or parameter can silently change which value an expression has, and an `int` variable can reach an enum without a diagnostic. Qualify the member (`Kind.A`) or avoid reusing enum member names as variable names.
-
 ## BUG-427: A floating literal is accepted for an integer target and truncated
 
 Date/Time: 2026-10-28 23:09 EDT

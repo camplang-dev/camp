@@ -2133,9 +2133,6 @@ public sealed partial class BindableNodeAnalyzer
 			return ErrorType;
 		}
 
-		if (TryResolveTargetTypedEnumValue(named, targetType, out string enumType))
-			return enumType;
-
 		if (named.Qualifiers.Count == 0 && TryGetCurrentRetainedAllocatorParameter(scope, out ParameterDefinition? retainedParameter) && named.Name == retainedParameter.Name)
 		{
 			Report(GetRange(named.SourceSyntax), $"Retained allocator parameter '{retainedParameter.Name}' must be accessed as 'this.{retainedParameter.RetainedAllocatorFieldName ?? retainedParameter.Name}'.");
@@ -2327,6 +2324,9 @@ public sealed partial class BindableNodeAnalyzer
 			Report(GetRange(named.SourceSyntax), $"Configuration flag '{named.Name}' can only be queried with configured(...).");
 			return ErrorType;
 		}
+
+		if (TryResolveTargetTypedEnumValue(named, targetType, out string enumType))
+			return enumType;
 
 		Report(GetRange(named.SourceSyntax), $"Symbol '{FormatNamedExpressionName(named)}' could not be found.");
 		return ErrorType;
@@ -7681,6 +7681,11 @@ public sealed partial class BindableNodeAnalyzer
 
 	string BodyAnalyzeConditionalExpression(ConditionalExpression conditional, BodyScope scope, AnalysisScope typeScope, string? targetType)
 	{
+		// Lowering supplies the result type for generated selections such as allocator
+		// fallback calls. These are typed operations, not source common-type inference.
+		if (targetType is null or TargetType && conditional.SourceSyntax is not ConditionalExpressionSyntax
+			&& conditional.ResolvedType is not (null or ErrorType or TargetType))
+			targetType = conditional.ResolvedType;
 		string conditionType = BodyAnalyzeExpression(conditional.Condition, scope, typeScope);
 		RequireExpressionType("bool", conditionType, conditional.Condition?.SourceSyntax, "Conditional expression condition");
 		string trueType = "";

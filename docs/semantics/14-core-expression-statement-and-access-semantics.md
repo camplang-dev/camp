@@ -95,6 +95,12 @@ values are not numeric operands. Writable-target and const checks also apply.
 
 ## Enum Comparisons
 
+Target enum member lookup is a fallback after ordinary name lookup. A visible
+local, parameter, field, global, or other declaration wins even when its name
+matches an enum member. Apply the ordinary access and conversion checks to that
+declaration. For example, `int A = 5; Kind value = A;` cannot silently select
+`Kind.A`. The qualified spelling `Kind.A` always names the enum member.
+
 An unqualified enum member in a comparison is target-typed from the other
 operand's enum type on either side. Local and global storage, including
 namespace-qualified globals, supply the same enum context.

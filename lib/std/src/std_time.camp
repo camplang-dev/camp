@@ -378,7 +378,7 @@ public struct Date
 	public Weekday getWeekday()
 	{
 		if (!this.isValid())
-			return INVALID;
+			return Weekday.INVALID;
 		long days = timeDaysBeforeDate((int)this.year, (int)this.month, (int)this.day);
 		int weekday = (int)(days % 7);
 		if (weekday < 0)

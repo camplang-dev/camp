@@ -5,10 +5,20 @@ enum FileMode
 	APPEND
 }
 
+int readMode(FileMode CREATE)
+{
+	FileMode value = CREATE;
+	return (int)value;
+}
+
 export int main()
 {
 	FileMode mode = FileMode.OPEN_EXISTING;
 	if (mode == FileMode.CREATE)
 		return 1;
+	FileMode CREATE = FileMode.APPEND;
+	FileMode local = CREATE;
+	if ((int)local != 8 || readMode(FileMode.APPEND) != 8)
+		return 2;
 	return 0;
 }

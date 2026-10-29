@@ -1,6 +1,14 @@
 // file: enum_value_c_symbols.c
 #include "enum_value_c_symbols_private.h"
 
+/* Private file declarations. */
+static int readMode(FileMode CREATE);
+
+static int readMode(FileMode CREATE)
+{
+	FileMode value = CREATE;
+	return (int)(value);
+}
 
 int main(void)
 {
@@ -8,6 +16,12 @@ int main(void)
 	if ((mode == FileMode_CREATE))
 	{
 		return 1;
+	}
+	FileMode CREATE = FileMode_APPEND;
+	FileMode local = CREATE;
+	if ((((int)(local) != 8) || (readMode(FileMode_APPEND) != 8)))
+	{
+		return 2;
 	}
 	return 0;
 }

@@ -1,9 +1,40 @@
+using System.Linq;
+using Camp.Compiler;
 using Xunit;
 
 namespace Camp.Compiler.Tests;
 
 public sealed class EnumStorageComparisonTests
 {
+	[Fact]
+	public void Ordinary_local_and_parameter_lookup_wins_over_target_enum_members()
+	{
+		var compilation = SemanticCompiler.CompileLowered("""
+			enum Kind { A, B }
+			Kind parameter(Kind A) { Kind value = A; return value; }
+			Kind local() { Kind A = Kind.B; Kind value = A; return value; }
+			""");
+		SemanticCompiler.AssertNoDiagnostics(compilation);
+		var parameter = SemanticCompiler.Function(compilation, "parameter");
+		var parameterValue = Assert.Single(SemanticCompiler.Descendants<DeclarationStatement>(parameter));
+		Assert.Same(parameter.Parameters[0], Assert.IsType<VariableReferenceExpression>(parameterValue.InitialValue).Variable);
+		var locals = SemanticCompiler.Descendants<DeclarationStatement>(SemanticCompiler.Function(compilation, "local")).ToList();
+		Assert.Same(locals[0].Target, Assert.IsType<VariableReferenceExpression>(locals[1].InitialValue).Variable);
+	}
+
+	[Theory]
+	[InlineData("void test() { int A = 5; Kind value = A; }", "cannot convert 'int' to 'Kind'")]
+	[InlineData("void test(int A) { Kind value = A; }", "cannot convert 'int' to 'Kind'")]
+	[InlineData("int A = 5; void test() { Kind value = A; }", "cannot convert 'int' to 'Kind'")]
+	[InlineData("class Holder { int A; void test() { Kind value = A; } }", "requires explicit 'this.'")]
+	public void Ordinary_declarations_cannot_be_bypassed_by_target_enum_lookup(string source, string message)
+	{
+		var compilation = SemanticCompiler.CompileLowered("enum Kind { A, B } " + source);
+		var diagnostic = Assert.Single(compilation.AnalysisDiagnostics.Distinct());
+		Assert.Contains(message, diagnostic.Message);
+		Assert.Equal("A", Assert.IsType<TokenRange>(diagnostic.Range).Value);
+	}
+
 	[Theory]
 	[InlineData("globalColor == RED")]
 	[InlineData("RED == globalColor")]
