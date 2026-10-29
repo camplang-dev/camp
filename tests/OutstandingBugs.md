@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-434.
+Next bug number: BUG-435.
 
 ## Bug Template
 
@@ -203,4 +203,29 @@ Each use is rejected with `Configuration flag 'X64' can only be queried with con
 
 Known Impact:
 An enum with a member named like a built-in flag (`X64`, and likely `WINDOWS`, `LINUX` and the like) cannot use the member by its bare name in target-typed positions on a target that defines the flag. Qualify the member with the enum name.
+
+## BUG-434: A constant expression of integer literals is typed `int` and rejected for a wider or unsigned target
+
+Date/Time: 2026-10-29 11:02 EDT
+
+Summary:
+A single integer literal adapts to the type of its target, but an expression built only from integer literals, such as `256 * 1024 * 1024`, is typed `int` before the target is considered. When the target is `uint`, `nuint` or `ulong`, the conversion is rejected even though the computed value is within the target's range. A target of known type should accept a literal constant expression whose value fits, as it does for a single literal.
+
+Steps to Reproduce:
+
+1. Declare `inline uint BUDGET = 256 * 1024 * 1024;` at global scope.
+2. In `main`, declare `uint a = 256 * 1024 * 1024;`, `nuint b = 64 * 1024;` and `ulong c = 1024 * 1024;`, and `uint d = (1 + 2);`.
+3. In `main`, with `uint b = 7;`, write `b = 2 * 8;` and `b += 4 * 4;`.
+4. Declare `void arg(uint v)` and `uint ret() { return 4 * 1024; }`, and call `arg(8 * 8);`.
+5. Declare `struct Opts { int mode; nuint budget; }` and pass `{ 1, 256 * 1024 * 1024 }` as an `Opts` argument.
+6. Compile.
+
+Expected:
+Every use above compiles, and the value is converted to the target type. A constant expression whose value does not fit the target is rejected.
+
+Actual:
+Each use is rejected with `cannot convert 'int' to 'uint'` (or `'nuint'` or `'ulong'`): `Global initializer`, `Declaration initializer`, `Assignment`, `Argument`, `Return expression` and `Initializer field`. A cast, such as `(uint)(256 * 1024 * 1024)`, is accepted.
+
+Known Impact:
+Sizes and limits written as products of literals need a redundant cast when the target is unsigned or 64-bit. Write the cast until this is fixed.
 
