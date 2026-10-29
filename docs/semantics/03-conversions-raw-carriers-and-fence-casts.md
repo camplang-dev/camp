@@ -264,11 +264,19 @@ wider integers, but not `short` or `char`.
 `uchar` has the logical range `0..0x10FFFF`, so it also converts implicitly to
 `int` and `nint`, as well as `uint`, `long`, `ulong` and `nuint`; its 32-bit
 storage width does not give it the full `uint` value range. Every integer type
-converts to `float` or `double`, and `float` converts to `double`. Other numeric conversions
-require an explicit cast. Unsuffixed literals retain their target-typing rules.
+converts to `float` or `double`, and `float` converts to `double`. Other numeric
+conversions require an explicit cast. Unsuffixed literals retain their
+target-typing rules.
 Comparisons with a fitting unsuffixed integer literal supply the other numeric
 operand's type to that literal, so expressions such as `count == 0` remain
 valid for an unsigned `count`.
+
+`achar` has the logical range `0..0x7F`, but its encoding differs from `char`,
+`wchar` and `uchar`. Conversion between `achar` and any of those three character
+types requires an explicit cast in either direction. Its numeric widenings
+remain implicit: `short`, `ushort`, `int`, `uint`, `long`, `ulong`, `nint`,
+`nuint`, `float` and `double`. Character-to-integer widening requires at least
+16 bits, so `achar` does not implicitly convert to `byte` or `sbyte`.
 
 ## `nint` And `nuint`
 

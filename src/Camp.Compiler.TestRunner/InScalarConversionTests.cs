@@ -74,6 +74,14 @@ public sealed class InScalarConversionTests
 	[InlineData("wchar", "short")]
 	[InlineData("uchar", "short")]
 	[InlineData("uchar", "ushort")]
+	[InlineData("char", "achar")]
+	[InlineData("achar", "char")]
+	[InlineData("achar", "wchar")]
+	[InlineData("achar", "uchar")]
+	[InlineData("wchar", "achar")]
+	[InlineData("uchar", "achar")]
+	[InlineData("achar", "byte")]
+	[InlineData("achar", "sbyte")]
 	[InlineData("int", "nuint")]
 	[InlineData("uint", "nint")]
 	[InlineData("nint", "nuint")]
@@ -106,11 +114,33 @@ public sealed class InScalarConversionTests
 	[InlineData("nuint", "ulong")]
 	[InlineData("wchar", "ushort")]
 	[InlineData("char", "wchar")]
+	[InlineData("achar", "short")]
+	[InlineData("achar", "ushort")]
+	[InlineData("achar", "int")]
+	[InlineData("achar", "uint")]
+	[InlineData("achar", "long")]
+	[InlineData("achar", "ulong")]
+	[InlineData("achar", "nint")]
+	[InlineData("achar", "nuint")]
+	[InlineData("achar", "float")]
+	[InlineData("achar", "double")]
 	[InlineData("long", "float")]
 	[InlineData("ulong", "double")]
 	public void Value_preserving_integer_widening_and_floating_conversions_remain_valid(string source, string target)
 	{
 		SemanticCompiler.AssertNoDiagnostics(SemanticCompiler.CompileLowered($"{target} test({source} value) => value;"));
+	}
+
+	[Theory]
+	[InlineData("char", "achar")]
+	[InlineData("achar", "char")]
+	[InlineData("achar", "wchar")]
+	[InlineData("achar", "uchar")]
+	[InlineData("wchar", "achar")]
+	[InlineData("uchar", "achar")]
+	public void Character_encoding_conversions_remain_available_with_explicit_casts(string source, string target)
+	{
+		SemanticCompiler.AssertNoDiagnostics(SemanticCompiler.CompileLowered($"{target} test({source} value) => ({target})value;"));
 	}
 
 	[Theory]

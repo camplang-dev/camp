@@ -21,5 +21,13 @@ export int main()
 	nint naturalCodePoint = codePoint;
 	if (signedCodePoint != 0x10FFFF || naturalCodePoint != 0x10FFFF) return 8;
 	if (twice(codePoint) != 0x21FFFE || asLong(codePoint) != 0x10FFFF) return 9;
+	achar ascii = (achar)'A';
+	char native = (char)ascii;
+	wchar wide = (wchar)ascii;
+	uchar unicode = (uchar)ascii;
+	int asciiCode = ascii;
+	double asciiNumber = ascii;
+	if (native != 'A' || wide != (wchar)'A' || unicode != (uchar)'A') return 10;
+	if (asciiCode != 65 || asciiNumber != 65.0) return 11;
 	return 0;
 }
