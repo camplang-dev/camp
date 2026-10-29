@@ -187,7 +187,7 @@ Expected:
 The common type is a type among the operand types to which every operand converts implicitly, where an unsuffixed integer literal converts to any integer type that holds its value. If several types qualify, the one to which all the others convert is chosen. The result never depends on the order of the operands. So `a` and `b` are both `uint`, `d` and `e` are both `uint[]`, and `a` holds `4000000000`. Neither `uint` nor `int` converts to the other, so `f`, `g` and `h` are rejected as having no common type, at the first operand that does not convert to the widest candidate.
 
 Actual:
-`a` is `int` and logs `-294967296`, `b` is `uint`, `d` is `int[]` and `d[0]` logs `-294967296`, and `e` is `uint[]`. `f` and `h` are accepted as `int` and `int[]`, `g` is accepted as `uint`. None of these reports a diagnostic.
+`a` is `int` and logs `-294967296`, `b` is `uint`, `d` is `int[]` and `d[0]` logs `-294967296`, and `e` is `uint[]`. `f` is accepted as `int`, and `g` and `h` are accepted as `uint` and `uint[]`. None of these reports a diagnostic.
 
 Known Impact:
 A conditional or array literal over mixed signedness silently changes values, and the same expression gets a different type when its operands are reordered. Declare the destination type explicitly, or cast the operands to a common type.
@@ -312,11 +312,11 @@ Steps to Reproduce:
 
 1. Declare `enum Kind { A, B }` and `void take(Kind A) { Kind k = A; __intrinsic_log_i32((int)k); }`.
 2. In `main`, declare `Kind A = Kind.B; Kind k = A; __intrinsic_log_i32((int)k);` and call `take(Kind.B);`.
-3. Also declare `int n = 5;` renamed `int A = 5;` in a separate function, followed by `Kind j = A;`, and compile it.
+3. In a separate function, declare `int A = 5;` followed by `Kind j = A;`.
 4. Compile and run the program.
 
 Expected:
-Ordinary lookup wins. In `main`, `A` is the local `Kind` variable with value `Kind.B`, so the program logs `1` for the local and `1` inside `take`. In step 3 `A` is an `int` variable and the declaration is rejected with a conversion error from `int` to `Kind` (a conversion that is also rejected for any other `int` value). An enum member is chosen from the target type only when no local, parameter, field or other declaration is visible under that name; the qualified form `Kind.A` always names the member.
+Ordinary lookup wins. In `main`, `A` is the local `Kind` variable with value `Kind.B`, so the program logs `1` for the local and `1` inside `take`. In step 3 `A` is an `int` variable and the declaration is rejected with a conversion error from `int` to `Kind` (an `int` never converts implicitly to an enum). An enum member is chosen from the target type only when no local, parameter, field or other declaration is visible under that name; the qualified form `Kind.A` always names the member.
 
 Actual:
 The local and the parameter are ignored: both log `0`, the value of `Kind.A`. The step 3 declaration is accepted, and `j` holds `Kind.A`.
