@@ -67,29 +67,6 @@ Semantic analysis reports no accessibility error. Compilation proceeds to native
 Known Impact:
 Invalid access to a non-shadow base's fields is accepted by semantic analysis and reported later as a native compiler error. Use a method of the base class to expose the required operation instead of accessing its field through the shadow class.
 
-## BUG-430: Arithmetic with a `byte`, `ushort` or `short` left operand and a `uint` right operand gives type `int`
-
-Date/Time: 2026-10-29 07:16 EDT
-
-Summary:
-In `b * u`, with `b` a `byte` and `u` a `uint`, the expression is typed `int`, while `u * b` is typed `uint`. The same holds for a `ushort` left operand (`s + u`) and for the other arithmetic and bitwise operators. The result depends on operand order. The operation runs in unsigned arithmetic but the result is labelled `int`, so values above `int` range change sign silently under `auto`, and an assignment to a `uint` is rejected. With a `short` left operand (`h + u`) the expression is also typed `int` and accepted, although neither operand type converts implicitly to the other. A `ulong` or `nuint` right operand is not affected.
-
-Steps to Reproduce:
-
-1. In `main`, declare `byte b = 1; ushort s = 1; short h = 1; uint u = 4000000000;`.
-2. Declare `auto x = b * u; auto y = u * b; auto z = s + u; auto q = h + u;`.
-3. Print `typenameof` of each (for example through a generic function with a `typenameof(T)` parameter) and log `x`, `y`, `z` and `q` with the 32-bit integer log intrinsic.
-4. Also write `uint v = b * u;` and compile it.
-
-Expected:
-`x`, `y` and `z` are all `uint`, because `byte` and `ushort` convert implicitly to `uint`; `x` and `y` both hold `4000000000`. `h + u` is rejected because neither `short` nor `uint` converts implicitly to the other. `uint v = b * u;` is accepted.
-
-Actual:
-`x`, `z` and `q` are `int`, and they log `-294967296`, `-294967295` and `-294967295`; `y` is `uint`. `h + u` is accepted. `uint v = b * u;` is rejected with `Declaration initializer cannot convert 'int' to 'uint'`.
-
-Known Impact:
-Mixed-width unsigned arithmetic with the narrower operand first changes sign silently under `auto` and is rejected where a `uint` is required. Put the `uint` operand first (`u * b`) or cast the narrower operand to `uint` until this is fixed.
-
 ## BUG-431: `out default` is accepted as an argument and emits invalid C
 
 Date/Time: 2026-10-29 07:31 EDT

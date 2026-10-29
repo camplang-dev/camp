@@ -8,6 +8,45 @@ namespace Camp.Compiler.Tests;
 public sealed class InScalarConversionTests
 {
 	[Theory]
+	[InlineData("byte", "left * right")]
+	[InlineData("byte", "right * left")]
+	[InlineData("byte", "left + right")]
+	[InlineData("byte", "right + left")]
+	[InlineData("ushort", "left + right")]
+	[InlineData("ushort", "right + left")]
+	[InlineData("ushort", "left | right")]
+	[InlineData("ushort", "right | left")]
+	public void Narrow_unsigned_arithmetic_keeps_the_uint_common_type(string type, string expression)
+	{
+		var compilation = SemanticCompiler.CompileLowered($"void test({type} left, uint right) {{ auto result = {expression}; }}");
+		SemanticCompiler.AssertNoDiagnostics(compilation);
+		var local = Assert.Single(SemanticCompiler.Descendants<DeclarationStatement>(SemanticCompiler.Function(compilation, "test")));
+		Assert.Equal("uint", local.Target.ResolvedType);
+	}
+
+	[Theory]
+	[InlineData("short", "left + right")]
+	[InlineData("short", "right + left")]
+	[InlineData("sbyte", "left * right")]
+	[InlineData("int", "right | left")]
+	public void Incompatible_signed_unsigned_arithmetic_requires_an_explicit_conversion(string type, string expression)
+	{
+		var compilation = SemanticCompiler.CompileLowered($"void test({type} left, uint right) {{ auto result = {expression}; }}");
+		var diagnostic = Assert.Single(compilation.AnalysisDiagnostics.Distinct());
+		Assert.Contains("no common type", diagnostic.Message);
+	}
+
+	[Theory]
+	[InlineData("byte left, sbyte right", "left + right")]
+	[InlineData("byte left, long right", "left << right")]
+	public void Integer_promotions_and_shift_result_types_remain_int(string parameters, string expression)
+	{
+		var compilation = SemanticCompiler.CompileLowered($"void test({parameters}) {{ auto result = {expression}; }}");
+		SemanticCompiler.AssertNoDiagnostics(compilation);
+		Assert.Equal("int", Assert.Single(SemanticCompiler.Descendants<DeclarationStatement>(SemanticCompiler.Function(compilation, "test"))).Target.ResolvedType);
+	}
+
+	[Theory]
 	[InlineData("int", "uint")]
 	[InlineData("uint", "int")]
 	[InlineData("sbyte", "ulong")]

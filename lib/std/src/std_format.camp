@@ -137,7 +137,7 @@ public prep char[] toString(in long   this)
 nuint applyFormat(ulong value, bool sign, char[] buffer)
 {
 	nuint digits = decimalDigits(value);
-	nuint required = digits + (sign ? 1 : 0);
+	nuint required = digits + (nuint)(sign ? 1 : 0);
 	fixed char[21] scratch = default;
 	char[] text = scratch;
 	nuint index = 0;

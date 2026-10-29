@@ -4172,11 +4172,21 @@ public sealed partial class BindableNodeAnalyzer
 			: type;
 	}
 
-	static string UsualArithmeticConversion(string left, string right)
+	string UsualArithmeticConversion(string left, string right)
 	{
+		// Prefer a common operand type before promoting narrow integers: byte can
+		// widen to uint, whereas promoting it to int first loses that conversion.
+		if (CanImplicitlyConvert(left, right))
+			return PromoteInteger(right);
+		if (CanImplicitlyConvert(right, left))
+			return PromoteInteger(left);
 		left = PromoteInteger(left);
 		right = PromoteInteger(right);
-		return NumericRank(left) >= NumericRank(right) ? left : right;
+		if (CanImplicitlyConvert(left, right))
+			return right;
+		if (CanImplicitlyConvert(right, left))
+			return left;
+		return ErrorType;
 	}
 
 	static bool IsNumericTypeName(string type)

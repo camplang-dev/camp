@@ -27,5 +27,11 @@ export int main()
 		return 5;
 	if (difference != 294967300 || product != unsignedValue || bits != sum)
 		return 6;
+	byte narrow = 1;
+	ushort wider = 1;
+	long narrowProduct = narrow * unsignedValue;
+	long narrowSum = wider + unsignedValue;
+	if (narrowProduct != 4000000000L || narrowSum != 4000000001L)
+		return 7;
 	return 0;
 }

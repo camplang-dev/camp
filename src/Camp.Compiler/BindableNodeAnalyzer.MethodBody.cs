@@ -7842,8 +7842,10 @@ public sealed partial class BindableNodeAnalyzer
 
 	string AnalyzeIntegralBinary(BinaryExpression binary, string left, string right)
 	{
-		RequireIntegralOperands(binary.SourceSyntax, left, right);
-		return UsualArithmeticConversion(left, right);
+		if (!RequireIntegralOperands(binary.SourceSyntax, left, right))
+			return ErrorType;
+		return binary.Operator is BinaryOperator.LeftShift or BinaryOperator.RightShift
+			? PromoteInteger(left) : AnalyzeArithmeticCommonType(binary, left, right);
 	}
 
 	bool RequireIntegralAssignmentOperands(AssignmentExpression assignment, string left, string right)
@@ -7869,8 +7871,19 @@ public sealed partial class BindableNodeAnalyzer
 			return ErrorType;
 
 		if (!IsNumericType(left) || !IsNumericType(right))
+		{
 			Report(GetRange(binary.SourceSyntax), $"Arithmetic operators require numeric operands, not '{left}' and '{right}'.");
-		return UsualArithmeticConversion(left, right);
+			return ErrorType;
+		}
+		return AnalyzeArithmeticCommonType(binary, left, right);
+	}
+
+	string AnalyzeArithmeticCommonType(BinaryExpression binary, string left, string right)
+	{
+		string common = UsualArithmeticConversion(left, right);
+		if (common == ErrorType)
+			Report(GetRange(binary.SourceSyntax), $"Numeric operands '{left}' and '{right}' have no common type; use an explicit conversion.");
+		return common;
 	}
 
 	void RequireExplicitWithinForDelete(Expression? expression, string expressionType, BodyScope scope, string message)

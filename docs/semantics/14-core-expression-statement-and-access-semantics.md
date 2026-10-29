@@ -90,6 +90,13 @@ ordinary promotions. Thus `4 + unsignedValue` and `unsignedValue + 4` agree.
 Shift operands retain their separate roles; a shift count does not supply the
 left operand's type.
 
+Numeric arithmetic and bitwise operands choose a common type through implicit
+conversion, independently of operand order, before applying narrow integer
+promotion. This preserves `byte`/`ushort` with `uint` as `uint`. If the original
+types have no common candidate, try their promoted types; reject pairs such as
+`short` with `uint` when neither converts to the other even after promotion.
+Shift result types come from the promoted left operand alone.
+
 An untargeted conditional or array literal chooses a common type from its
 operand types. A candidate qualifies only if every operand converts implicitly
 to it, including target typing a fitting unsuffixed integer literal. If several
