@@ -16,5 +16,16 @@ export int main()
 		return 3;
 	if (fileDoubleNegative != 5 || fileDoublePositive != 5)
 		return 4;
+	uint unsignedValue = 4000000000;
+	auto literalFirst = 4 + unsignedValue;
+	long observed = literalFirst;
+	uint sum = 4 + unsignedValue;
+	uint difference = 4 - unsignedValue;
+	uint product = 1 * unsignedValue;
+	uint bits = 4 | unsignedValue;
+	if (observed != 4000000004L || sum != unsignedValue + 4)
+		return 5;
+	if (difference != 294967300 || product != unsignedValue || bits != sum)
+		return 6;
 	return 0;
 }

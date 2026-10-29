@@ -7166,7 +7166,7 @@ public sealed partial class BindableNodeAnalyzer
 			right = BodyAnalyzeExpression(binary.Right, scope, typeScope);
 			left = BodyAnalyzeExpression(binary.Left, scope, typeScope, IsEnumTargetType(right) ? right : null);
 		}
-		else if (IsComparisonOperator(binary.Operator) && IsUnsuffixedIntegerLiteral(binary.Left) && binary.Right is not null)
+		else if (IsLiteralOperandContextOperator(binary.Operator) && IsUnsuffixedIntegerLiteral(binary.Left) && binary.Right is not null)
 		{
 			right = BodyAnalyzeExpression(binary.Right, scope, typeScope);
 			left = BodyAnalyzeExpression(binary.Left, scope, typeScope,
@@ -7184,7 +7184,7 @@ public sealed partial class BindableNodeAnalyzer
 			right = "";
 			WithRequirementProof(leftProof, () =>
 			{
-				string? rightTarget = IsEnumTargetType(left) || IsComparisonOperator(binary.Operator)
+				string? rightTarget = IsEnumTargetType(left) || IsLiteralOperandContextOperator(binary.Operator)
 					&& IsNumericType(left) && CanTargetIntegerLiteral(binary.Right, left) ? left
 					: binary.Operator is BinaryOperator.Equal or BinaryOperator.NotEqual && IsNewtypeOperand(left) ? StripTopLevelValueQualifiers(left) : null;
 				right = BodyAnalyzeExpression(binary.Right, scope, typeScope, rightTarget);
@@ -7353,6 +7353,10 @@ public sealed partial class BindableNodeAnalyzer
 		return named.Qualifiers.Count == 0 && scope.TryLookup(named.Name, out _)
 			|| LookupGlobalStorageSymbol(named, named.SourceSyntax) is not null;
 	}
+
+	static bool IsLiteralOperandContextOperator(BinaryOperator op) => IsComparisonOperator(op)
+		|| op is BinaryOperator.Add or BinaryOperator.Subtract or BinaryOperator.Multiply or BinaryOperator.Divide or BinaryOperator.Modulo
+			or BinaryOperator.BitwiseAnd or BinaryOperator.BitwiseOr or BinaryOperator.BitwiseXor;
 
 	static bool IsComparisonOperator(BinaryOperator op)
 	{

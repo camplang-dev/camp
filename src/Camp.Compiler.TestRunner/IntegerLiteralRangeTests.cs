@@ -8,6 +8,30 @@ namespace Camp.Compiler.Tests;
 
 public sealed class IntegerLiteralRangeTests
 {
+	[Theory]
+	[InlineData("4 + value")]
+	[InlineData("value + 4")]
+	[InlineData("4 - value")]
+	[InlineData("value - 4")]
+	[InlineData("4 * value")]
+	[InlineData("value * 4")]
+	[InlineData("4 / value")]
+	[InlineData("4 % value")]
+	[InlineData("4 | value")]
+	[InlineData("value | 4")]
+	[InlineData("4 & value")]
+	[InlineData("value & 4")]
+	[InlineData("4 ^ value")]
+	[InlineData("value ^ 4")]
+	[InlineData("(-(-4)) + value")]
+	public void Fitting_literal_operands_take_the_unsigned_operand_type_in_either_order(string expression)
+	{
+		var compilation = SemanticCompiler.CompileLowered($"void test(uint value) {{ auto result = {expression}; }}");
+		SemanticCompiler.AssertNoDiagnostics(compilation);
+		var local = Assert.Single(SemanticCompiler.Descendants<DeclarationStatement>(SemanticCompiler.Function(compilation, "test")));
+		Assert.Equal("uint", local.Target.ResolvedType);
+	}
+
 	public static IEnumerable<object[]> FloatingIntegerTargets()
 	{
 		foreach (string target in new[] { "sbyte", "byte", "short", "ushort", "int", "uint", "long", "ulong", "nint", "nuint", "char", "achar", "wchar", "uchar" })

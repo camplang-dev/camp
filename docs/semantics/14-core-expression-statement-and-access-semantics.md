@@ -84,6 +84,12 @@ its source expression.
 
 ## Common Expression Types
 
+For arithmetic and bitwise operators, a fitting unsuffixed integer literal on
+either side takes the other operand's integer type before the operation's
+ordinary promotions. Thus `4 + unsignedValue` and `unsignedValue + 4` agree.
+Shift operands retain their separate roles; a shift count does not supply the
+left operand's type.
+
 An untargeted conditional or array literal chooses a common type from its
 operand types. A candidate qualifies only if every operand converts implicitly
 to it, including target typing a fitting unsuffixed integer literal. If several

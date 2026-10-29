@@ -67,29 +67,6 @@ Semantic analysis reports no accessibility error. Compilation proceeds to native
 Known Impact:
 Invalid access to a non-shadow base's fields is accepted by semantic analysis and reported later as a native compiler error. Use a method of the base class to expose the required operation instead of accessing its field through the shadow class.
 
-## BUG-429: An unsuffixed literal on the left of arithmetic with a `uint` operand gives type `int`
-
-Date/Time: 2026-10-29 07:09 EDT
-
-Summary:
-In `4 + u`, with `u` a `uint`, the literal does not adapt to the other operand and the expression is typed `int`, while `u + 4` is typed `uint`. The result depends on operand order. The value is computed in unsigned arithmetic but labelled `int`, so values above `int` range change sign silently under `auto`, and an assignment to a `uint` is rejected. The same holds for `-`, `*`, `|` and `&`. `nuint` operands and comparisons (`4 == u`) are not affected.
-
-Steps to Reproduce:
-
-1. In `main`, declare `uint u = 4000000000;`.
-2. Declare `auto a = 4 + u;` and `auto b = u + 4;`.
-3. Print `typenameof` of each (for example through a generic function with a `typenameof(T)` parameter) and log `a` with the 32-bit integer log intrinsic.
-4. Also write `uint c = 4 + u;` and `uint d = 4 - u;` and compile them.
-
-Expected:
-A fitting unsuffixed literal takes the other operand's type, so `a` and `b` are both `uint` and both hold `4000000004`. `uint c = 4 + u;` and `uint d = 4 - u;` are accepted.
-
-Actual:
-`a` is `int` and logs `-294967292`; `b` is `uint`. `uint c = 4 + u;` is rejected with `Declaration initializer cannot convert 'int' to 'uint'`, and `size += 4 + u;` with `Assignment cannot convert 'int' to 'uint'`.
-
-Known Impact:
-Literal-first arithmetic on `uint` values changes sign silently under `auto` and is rejected where a `uint` is required. Put the literal on the right (`u + 4`) or cast the literal (`4u`) until this is fixed.
-
 ## BUG-430: Arithmetic with a `byte`, `ushort` or `short` left operand and a `uint` right operand gives type `int`
 
 Date/Time: 2026-10-29 07:16 EDT
