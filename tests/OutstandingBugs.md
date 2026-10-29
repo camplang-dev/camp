@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-437.
+Next bug number: BUG-438.
 
 ## Bug Template
 
@@ -290,3 +290,25 @@ Actual:
 
 Known Impact:
 A `uchar` code point cannot be stored in an `int` without a cast. Write `(int)u` until this is fixed.
+
+## BUG-437: `achar` converts implicitly to and from the other character types
+
+Date/Time: 2026-10-29 12:40 EDT
+
+Summary:
+`achar` is an ASCII-encoded character with the same logical range as `char` (`0..0x7F`) but a different encoding, so it has no implicit conversion to or from `char`, `wchar` or `uchar`. A cast is required. It converts implicitly only to the integer and floating types that hold its range. The compiler accepts `char` to `achar`, and `achar` to `char`, `wchar` and `uchar`. A `wchar` or `uchar` to `achar` is already rejected.
+
+Steps to Reproduce:
+
+1. In a function with `char c`, `achar a` parameters, write `achar a2 = c;`, `char c2 = a;`, `wchar w = a;` and `uchar u = a;`.
+2. Also write `int i = a;` and `double d = a;`.
+3. Compile.
+
+Expected:
+The first four declarations are rejected as conversions that need a cast. The last two compile.
+
+Actual:
+All six declarations compile.
+
+Known Impact:
+Text in two encodings is mixed without a cast, so a conversion that should be explicit is silent. Do not rely on it.
