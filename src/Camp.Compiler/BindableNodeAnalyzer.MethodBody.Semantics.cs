@@ -4059,7 +4059,27 @@ public sealed partial class BindableNodeAnalyzer
 		if (targetType is not null && IsNumericTypeName(targetType))
 			return targetType;
 
+		if (NumericLiteralParser.TryParseIntegerMagnitude(text, out BigInteger value)
+			&& !text.EndsWith("u", StringComparison.OrdinalIgnoreCase)
+			&& !text.EndsWith("l", StringComparison.OrdinalIgnoreCase))
+			return InferUnsuffixedIntegerType(value);
 		return text.Contains('.', StringComparison.Ordinal) ? "double" : "int";
+	}
+
+	static string InferUnsuffixedIntegerType(BigInteger value) => value >= int.MinValue && value <= int.MaxValue ? "int" : "long";
+
+	static bool IsUnsuffixedIntegerLiteral(Expression? expression)
+	{
+		return expression switch
+		{
+			ParenthesizedExpression parenthesized => IsUnsuffixedIntegerLiteral(parenthesized.Expression),
+			UnaryExpression { Operator: UnaryOperator.Plus or UnaryOperator.Minus } unary => IsUnsuffixedIntegerLiteral(unary.Operand),
+			LiteralExpression { Kind: LiteralKind.Number } literal =>
+				!literal.Text.EndsWith("u", StringComparison.OrdinalIgnoreCase)
+				&& !literal.Text.EndsWith("l", StringComparison.OrdinalIgnoreCase)
+				&& NumericLiteralParser.TryParseIntegerMagnitude(literal.Text, out _),
+			_ => false
+		};
 	}
 
 	static string PromoteInteger(string type)

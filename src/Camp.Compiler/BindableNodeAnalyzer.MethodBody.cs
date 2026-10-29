@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Numerics;
 using System.Text;
 
 namespace Camp.Compiler;
@@ -1553,8 +1554,11 @@ public sealed partial class BindableNodeAnalyzer
 			_ => ErrorType
 		};
 
+		string? literalRangeTarget = targetType;
+		if ((targetType is null or TargetType) && IsUnsuffixedIntegerLiteral(expression))
+			literalRangeTarget = type;
 		if (checkIntegerLiteralRange && type != ErrorType && expression is not ParenthesizedExpression
-			&& TryReportIntegerLiteralOutOfRange(expression, targetType))
+			&& TryReportIntegerLiteralOutOfRange(expression, literalRangeTarget))
 			type = ErrorType;
 		expression.ResolvedType = type;
 		ApplyExpressionLifetimeFact(expression, type, scope, typeScope);
@@ -2775,7 +2779,7 @@ public sealed partial class BindableNodeAnalyzer
 			? StripLifetimeQualifiers(targetType)
 			: targetType;
 		string? expressionTargetType = cast.Expression is InitializerExpression or ArrayExpression ? structuralTargetType : null;
-		string sourceType = BodyAnalyzeExpression(cast.Expression, scope, typeScope, expressionTargetType);
+		string sourceType = BodyAnalyzeExpression(cast.Expression, scope, typeScope, expressionTargetType, checkIntegerLiteralRange: false);
 		if (cast.LifetimeCastKind is null && !ContainsLifetimeAnnotation(cast.Type)
 			&& (IsClassPointerUpcast(sourceType, targetType) || IsClassToInterfaceConversion(sourceType, targetType)
 				|| IsStructPointerToInterfaceConversion(sourceType, targetType) || IsStructToInterfaceConversion(sourceType, targetType)
@@ -6674,7 +6678,9 @@ public sealed partial class BindableNodeAnalyzer
 			: targetType;
 		// A signed literal is checked as a whole: its positive magnitude may exceed
 		// the signed maximum while its negation is the valid minimum.
-		bool signedLiteral = TryParseIntegerLiteralValue(unary, out _, out _);
+		bool signedLiteral = TryParseIntegerLiteralValue(unary, out BigInteger signedLiteralValue, out _);
+		if (signedLiteral && (targetType is null or TargetType) && IsUnsuffixedIntegerLiteral(unary))
+			operandTargetType = InferUnsuffixedIntegerType(signedLiteralValue);
 		string operandType = BodyAnalyzeExpression(unary.Operand, scope, typeScope, operandTargetType, checkIntegerLiteralRange && !signedLiteral);
 		if (unary.Context is not null)
 			BodyAnalyzeExpression(unary.Context, scope, typeScope);
@@ -6723,8 +6729,8 @@ public sealed partial class BindableNodeAnalyzer
 					return ErrorType;
 				if (!IsNumericType(operandType))
 					Report(GetRange(unary.Operand?.SourceSyntax), $"Unary operator requires a numeric operand, not '{operandType}'.");
-				if (signedLiteral && targetType is not null && TryGetIntegerTypeBounds(targetType, out _, out _))
-					return StripTopLevelValueQualifiers(targetType);
+				if (signedLiteral && operandTargetType is not null && TryGetIntegerTypeBounds(operandTargetType, out _, out _))
+					return StripTopLevelValueQualifiers(operandTargetType);
 				return PromoteInteger(operandType);
 
 			case UnaryOperator.Increment:

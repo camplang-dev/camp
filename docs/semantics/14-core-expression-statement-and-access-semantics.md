@@ -34,6 +34,13 @@ initializes erased storage.
 
 ## Integer Literal Target Ranges
 
+Without a numeric target, an unsuffixed integer literal has type `int` when its
+exact value fits `int`, and `long` otherwise. Values outside `long` are errors.
+The same rule applies to hexadecimal and binary spellings, and unary signs are
+included when choosing the type. Arithmetic uses those inferred operand types;
+C emission must preserve their width even where C assigns a hexadecimal literal
+a narrower unsigned type.
+
 An integer literal used with a primitive integral target must fit that target's
 range. Body analysis checks the exact integer value before C emission, including
 decimal, hexadecimal, and integer suffixes. This

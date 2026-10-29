@@ -47,12 +47,12 @@ public static class CCodeEmitter
     static readonly BigInteger UInt32MaxValue = new(uint.MaxValue);
     static readonly BigInteger Int32MinMagnitude = new(2147483648UL);
 
-    static string FormatNumberLiteralForC(string text, bool negativeContext = false)
+    static string FormatNumberLiteralForC(string text, bool negativeContext = false, string? resolvedType = null)
     {
         if (!TryParseIntegerLiteral(text, out BigInteger magnitude, out bool unsignedSuffix, out bool longSuffix, out string coreText))
             return text;
 
-        bool needsLongLong = longSuffix || (negativeContext
+        bool needsLongLong = longSuffix || resolvedType == "long" && magnitude > int.MaxValue || (negativeContext
             ? magnitude > Int32MinMagnitude
             : magnitude > UInt32MaxValue);
         if (!needsLongLong)
@@ -8507,11 +8507,11 @@ public static class CCodeEmitter
             return expression switch
             {
                 null => null,
-                LiteralExpression { Kind: LiteralKind.Number } literal => FormatNumberLiteralForC(literal.Text),
+                LiteralExpression { Kind: LiteralKind.Number } literal => FormatNumberLiteralForC(literal.Text, resolvedType: literal.ResolvedType),
                 LiteralExpression { Kind: LiteralKind.True } => "1",
                 LiteralExpression { Kind: LiteralKind.False } => "0",
                 LiteralExpression { Kind: LiteralKind.Null } => "NULL",
-                UnaryExpression { Operator: UnaryOperator.Minus, Operand: LiteralExpression { Kind: LiteralKind.Number } literal } => "-" + FormatNumberLiteralForC(literal.Text, negativeContext: true),
+                UnaryExpression { Operator: UnaryOperator.Minus, Operand: LiteralExpression { Kind: LiteralKind.Number } literal } => "-" + FormatNumberLiteralForC(literal.Text, negativeContext: true, resolvedType: literal.ResolvedType),
                 UnaryExpression unary => FormatFileScopeUnaryConstant(unary, seen),
                 BinaryExpression binary => FormatFileScopeBinaryConstant(binary, seen),
                 CastExpression cast => FormatFileScopeCastConstant(cast, seen),
@@ -8721,7 +8721,7 @@ public static class CCodeEmitter
             return unary.Operator switch
             {
                 UnaryOperator.Plus => FormatUnarySign('+', operand),
-                UnaryOperator.Minus when unary.Operand is LiteralExpression { Kind: LiteralKind.Number } literal => "-" + FormatNumberLiteralForC(literal.Text, negativeContext: true),
+                UnaryOperator.Minus when unary.Operand is LiteralExpression { Kind: LiteralKind.Number } literal => "-" + FormatNumberLiteralForC(literal.Text, negativeContext: true, resolvedType: literal.ResolvedType),
                 UnaryOperator.Minus => FormatUnarySign('-', operand),
                 UnaryOperator.LogicalNot => "!" + operand,
                 UnaryOperator.BitwiseNot => "~" + operand,
@@ -8744,7 +8744,7 @@ public static class CCodeEmitter
 
             return literal.Kind switch
             {
-                LiteralKind.Number => FormatNumberLiteralForC(literal.Text),
+                LiteralKind.Number => FormatNumberLiteralForC(literal.Text, resolvedType: literal.ResolvedType),
                 LiteralKind.String => FormatCStringLiteral(literal.Value as string ?? "", IsAnsiStringLiteralType(literal.ResolvedType) ? "achar" : "char"),
                 LiteralKind.Character => FormatCharacterLiteral(literal),
                 LiteralKind.True => "true",
@@ -10153,11 +10153,11 @@ public static class CCodeEmitter
             return expression switch
             {
                 null => null,
-                LiteralExpression { Kind: LiteralKind.Number } literal => FormatNumberLiteralForC(literal.Text),
+                LiteralExpression { Kind: LiteralKind.Number } literal => FormatNumberLiteralForC(literal.Text, resolvedType: literal.ResolvedType),
                 LiteralExpression { Kind: LiteralKind.True } => "1",
                 LiteralExpression { Kind: LiteralKind.False } => "0",
                 LiteralExpression { Kind: LiteralKind.Null } => "NULL",
-                UnaryExpression { Operator: UnaryOperator.Minus, Operand: LiteralExpression { Kind: LiteralKind.Number } literal } => "-" + FormatNumberLiteralForC(literal.Text, negativeContext: true),
+                UnaryExpression { Operator: UnaryOperator.Minus, Operand: LiteralExpression { Kind: LiteralKind.Number } literal } => "-" + FormatNumberLiteralForC(literal.Text, negativeContext: true, resolvedType: literal.ResolvedType),
                 CastExpression cast => FormatConstantExpression(cast.Expression),
                 ParenthesizedExpression parenthesized => FormatConstantExpression(parenthesized.Expression),
                 VariableReferenceExpression { Variable: VariableDefinition variable } => CName(variable),

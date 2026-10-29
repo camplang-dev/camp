@@ -9,6 +9,35 @@ namespace Camp.Compiler.Tests;
 public sealed class IntegerLiteralRangeTests
 {
 	[Theory]
+	[InlineData("2147483647", "int")]
+	[InlineData("2147483648", "long")]
+	[InlineData("5000000000", "long")]
+	[InlineData("1 + 5000000000", "long")]
+	[InlineData("0xFFFFFFFF", "long")]
+	[InlineData("0xFFFFFFFF + 1", "long")]
+	[InlineData("4294967296", "long")]
+	[InlineData("-2147483648", "int")]
+	[InlineData("-2147483649", "long")]
+	[InlineData("-(9223372036854775808)", "long")]
+	public void Untargeted_integer_literals_choose_int_or_long(string expression, string expected)
+	{
+		var compilation = SemanticCompiler.CompileLowered($"void test() {{ auto value = {expression}; }}");
+		SemanticCompiler.AssertNoDiagnostics(compilation);
+		var local = Assert.Single(SemanticCompiler.Descendants<DeclarationStatement>(SemanticCompiler.Function(compilation, "test")));
+		Assert.Equal(expected, local.Target.ResolvedType);
+	}
+
+	[Theory]
+	[InlineData("9223372036854775808")]
+	[InlineData("-9223372036854775809")]
+	[InlineData("0x10000000000000000")]
+	public void Untargeted_integer_literals_must_fit_long(string expression)
+	{
+		var compilation = SemanticCompiler.CompileLowered($"void test() {{ auto value = {expression}; }}");
+		Assert.Contains(compilation.AnalysisDiagnostics, d => d.Message.Contains("outside the range of type 'long'"));
+	}
+
+	[Theory]
 	[MemberData(nameof(OutOfRangeLiterals))]
 	public void Integer_literals_must_fit_their_primitive_target(string type, string literal)
 	{
