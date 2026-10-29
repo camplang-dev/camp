@@ -7,6 +7,44 @@ namespace Camp.Compiler.Tests;
 public sealed class OptionalDefaultArgumentTests
 {
 	[Theory]
+	[InlineData("int?")]
+	[InlineData("int*?")]
+	[InlineData("int[]?")]
+	[InlineData("delegate int()?")]
+	[InlineData("Maybe?")]
+	public void Null_is_rejected_for_optional_declarations_assignments_arguments_and_results(string type)
+	{
+		var compilation = SemanticCompiler.CompileLowered($$"""
+			alias Maybe = int;
+			void take({{type}} value) { }
+			{{type}} give() { return null; }
+			void test() { {{type}} value = null; value = null; take(null); }
+			""");
+		Assert.Empty(compilation.ParseDiagnostics);
+		Assert.Empty(compilation.BindDiagnostics);
+		Assert.Equal(4, compilation.AnalysisDiagnostics.Distinct().Count());
+		Assert.All(compilation.AnalysisDiagnostics, diagnostic =>
+		{
+			Assert.Contains("cannot convert '#NULL'", diagnostic.Message);
+			Assert.Equal("null", Assert.IsType<TokenRange>(diagnostic.Range).Value);
+		});
+	}
+
+	[Fact]
+	public void Default_optionals_and_null_pointer_destinations_remain_valid()
+	{
+		SemanticCompiler.AssertNoDiagnostics(SemanticCompiler.CompileLowered("""
+			int? give() => default;
+			void take(int? value) { }
+			void test() {
+				int? value = default; value = default; take(default);
+				int* pointer = null; int?* distributed = null;
+				fn int() callback = null; string text = null;
+			}
+			"""));
+	}
+
+	[Theory]
 	[InlineData("7", true)]
 	[InlineData("-3", true)]
 	[InlineData("default", false)]

@@ -421,8 +421,13 @@ public sealed partial class BindableNodeAnalyzer
 		if ((structuralSource != source || structuralTarget != target) && CanImplicitlyConvert(structuralSource, structuralTarget))
 			return true;
 
-		if (source == "#NULL" && TryParseTypeShape(target, out TypeShape nullTarget) && (nullTarget.IsPointer || nullTarget.IsOptional))
-			return true;
+		if (source == "#NULL" && TryParseTypeShape(target, out TypeShape nullTarget))
+		{
+			if (nullTarget.IsOptional)
+				return false;
+			if (nullTarget.IsPointer)
+				return true;
+		}
 
 		if (source == "#NULL" && TryGetCallableShape(target, out _))
 			return true;
@@ -555,6 +560,8 @@ public sealed partial class BindableNodeAnalyzer
 
 	bool CanLiftToOptional(string source, string target)
 	{
+		if (source == "#NULL")
+			return false;
 		if (!TryParseTypeShape(target, out TypeShape targetShape) || targetShape.Kind != TypeShapeKind.Optional || targetShape.Element is null)
 			return false;
 		string targetElement = TypeShapeParser.Format(targetShape.Element);

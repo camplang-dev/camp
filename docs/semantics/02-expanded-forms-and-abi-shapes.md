@@ -220,6 +220,11 @@ to a present optional. Lowering writes `true` to the specified result component
 for struct payloads as well as scalar payloads. Returning an existing optional
 carries its specified component instead. `int? none = default;` defaults the payload and the flag.
 
+The literal `null` denotes a null pointer, not an empty optional. Reject it for
+every optional destination (including optional pointers, arrays, and delegates)
+in declarations, assignments, arguments, and returns. Use `default` for an empty
+optional; a typed pointer payload can still be lifted as an ordinary value.
+
 `T?` converts to `U?` exactly when `T` converts to `U`, with the same
 classification (implicit, explicit, or unsafe): the payload component converts as
 `T` to `U` and the specified component is carried unchanged, whether or not it is
