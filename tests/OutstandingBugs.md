@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-418.
+Next bug number: BUG-419.
 
 ## Bug Template
 
@@ -111,3 +111,24 @@ Actual:
 
 Known Impact:
 A suffix cannot be used to select a literal's type, and a wrong suffix is never reported. Use a typed declaration or an explicit cast to select the type.
+
+## BUG-418: The `d` suffix and a floating suffix after digits with no decimal point are passed to the C compiler unrecognised
+
+Date/Time: 2026-10-28 23:00 EDT
+
+Summary:
+A floating literal written with a `d` suffix (`2.5d`), or with an `f` or `d` suffix directly after decimal digits (`1f`, `2d`), is neither accepted nor diagnosed by the Camp front end. Its source text is copied into the generated C, where the native compiler rejects it. The build then fails with a C error that does not point at Camp source.
+
+Steps to Reproduce:
+
+1. In `main`, declare `double x = 2.5d;`, `float f = 1f;` and `double g = 2d;`.
+2. Compile the program.
+
+Expected:
+A floating literal may end in `f` (type `float`) or `d` (type `double`). The suffix may follow a literal with a decimal point or plain decimal digits, so `2.5d`, `1f` and `2d` are valid. A suffix never applies to a hexadecimal literal, where `f` and `d` are digits, so `0x1f` stays an integer. Compilation succeeds and each variable holds its value.
+
+Actual:
+Semantic analysis reports nothing. The native build fails with `invalid suffix 'd' on floating constant` for `2.5d`, `invalid digit 'f' in decimal constant` for `1f`, and `invalid digit 'd' in decimal constant` for `2d`, reported against the generated C file.
+
+Known Impact:
+These literal spellings cannot be used, and failing to compile is reported at the wrong level. Write `2.5`, `1.0f` and `2.0` instead.
