@@ -2475,6 +2475,8 @@ public sealed partial class BindableNodeAnalyzer
 			elementTarget = TryGetPointerElementType(targetType);
 			pointerTarget = elementTarget is not null;
 		}
+		if (elementTarget is null && array.Elements.Count == 0)
+			return TargetType;
 		List<string> elementTypes = [];
 		foreach (Expression element in array.Elements)
 		{

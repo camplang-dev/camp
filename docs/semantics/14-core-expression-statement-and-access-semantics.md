@@ -20,6 +20,10 @@ type. Body analysis reports `CAMP3202` at the initializer, or at `auto` when
 there is no initializer, and asks the user to specify a type. Parentheses do
 not make an otherwise untyped initializer inferable.
 
+An empty array literal also supplies no element type: `auto values = [];` is
+an inference error at `[]`. A concrete target such as `int[] values = [];`
+supplies the element type and produces an array with length zero.
+
 Values read from explicitly typed storage, typed null-producing expressions,
 and ordinary typed values remain valid inference sources. Failed expression
 analysis keeps its original diagnostic; it does not also need an inference
