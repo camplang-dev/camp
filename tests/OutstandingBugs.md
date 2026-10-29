@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-422.
+Next bug number: BUG-423.
 
 ## Bug Template
 
@@ -213,3 +213,24 @@ Actual:
 
 Known Impact:
 Generic calls with mixed argument types succeed or fail depending on argument order. Reorder the arguments, or supply the type argument explicitly (`two<long>(i, l)`).
+
+## BUG-422: `auto` initialised from an empty array literal emits invalid C
+
+Date/Time: 2026-10-28 23:02 EDT
+
+Summary:
+An empty array literal has no element type, so it cannot supply a type to an `auto` local. The compiler accepts `auto a = [];` without a diagnostic and generates C that declares the variable with an unresolved error type, so the build fails in the native compiler. Other initializers that supply no type, such as `null`, are rejected at the initializer with "The type of this expression cannot be inferred; specify a type." An empty array literal with a target type (`int[] a = [];`) is accepted and has length 0.
+
+Steps to Reproduce:
+
+1. In `main`, declare `auto a = [];`.
+2. Compile the program.
+
+Expected:
+Semantic analysis reports "The type of this expression cannot be inferred; specify a type." at the initializer `[]`, as it does for `auto a = null;`.
+
+Actual:
+Semantic analysis reports nothing. The native build fails with `use of undeclared identifier '_ERROR'` for the generated declaration `_ERROR *a = NULL;`.
+
+Known Impact:
+The mistake is reported as a native compiler error instead of a source diagnostic. Declare the element type explicitly (`int[] a = [];`).
