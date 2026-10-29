@@ -6,6 +6,46 @@ namespace Camp.Compiler.Tests;
 
 public sealed class AutoTypeInferenceTests
 {
+	[Theory]
+	[InlineData("c ? u : 0", "uint")]
+	[InlineData("c ? 0 : u", "uint")]
+	[InlineData("[u, 2]", "uint[]")]
+	[InlineData("[2, u]", "uint[]")]
+	[InlineData("c ? i : l", "long")]
+	[InlineData("c ? l : i", "long")]
+	[InlineData("[i, u, l]", "long[]")]
+	[InlineData("[u, i, l]", "long[]")]
+	[InlineData("[l, u, i]", "long[]")]
+	[InlineData("[i, d]", "double[]")]
+	[InlineData("[d, i]", "double[]")]
+	public void Common_expression_type_is_independent_of_operand_order(string expression, string expected)
+	{
+		var compilation = SemanticCompiler.CompileDeclarations($"void test(uint u, int i, long l, double d, bool c) {{ auto value = {expression}; }}");
+		SemanticCompiler.AssertNoDiagnostics(compilation);
+		string? inferred = null;
+		var lowered = BindableNodeLowerer.Lower(compilation.Compilation.DeclarationExpansion!, (phase, action) =>
+		{
+			action();
+			if (phase == "method body analysis")
+				inferred = Assert.Single(SemanticCompiler.Descendants<DeclarationStatement>(SemanticCompiler.Function(compilation, "test"))).Target.ResolvedType;
+		});
+		Assert.Empty(lowered.Diagnostics);
+		Assert.Equal(expected, inferred);
+	}
+
+	[Theory]
+	[InlineData("c ? u : i")]
+	[InlineData("c ? i : u")]
+	[InlineData("[i, u]")]
+	[InlineData("[u, i]")]
+	public void Incompatible_common_operands_report_at_the_operand(string expression)
+	{
+		var compilation = SemanticCompiler.CompileLowered($"void test(uint u, int i, bool c) {{ auto value = {expression}; }}");
+		var diagnostic = Assert.Single(compilation.AnalysisDiagnostics.Distinct());
+		Assert.Contains("no common type", diagnostic.Message);
+		Assert.NotNull(diagnostic.Range);
+	}
+
 	[Fact]
 	public void Erased_generic_inference_preserves_source_types_and_erased_optional_storage()
 	{

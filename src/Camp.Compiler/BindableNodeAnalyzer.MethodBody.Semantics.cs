@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
 
 namespace Camp.Compiler;
@@ -4051,6 +4052,25 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		return best;
+	}
+
+	string BestExpressionType(IReadOnlyList<Expression?> expressions, IReadOnlyList<string> types, out int incompatibleIndex)
+	{
+		incompatibleIndex = -1;
+		if (types.Count == 0 || types.Contains(ErrorType))
+			return ErrorType;
+		if (types.All(type => type == TargetType))
+			return TargetType;
+		List<string> candidates = types.Select(EraseConstOfQualifiers).Where(type => type != TargetType).Distinct(StringComparer.Ordinal).ToList();
+		bool Accepts(int index, string candidate) => types[index] == TargetType
+			|| CanImplicitlyConvert(types[index], candidate) || CanTargetIntegerLiteral(expressions[index], candidate);
+		List<string> common = candidates.Where(candidate => Enumerable.Range(0, types.Count).All(index => Accepts(index, candidate))).ToList();
+		foreach (string candidate in common)
+			if (common.All(other => CanImplicitlyConvert(other, candidate)))
+				return candidate;
+		string? widest = candidates.OrderByDescending(type => IsNumericType(type) ? NumericRank(type) : 0).FirstOrDefault();
+		incompatibleIndex = widest is null ? 0 : Enumerable.Range(0, types.Count).FirstOrDefault(index => !Accepts(index, widest), -1);
+		return ErrorType;
 	}
 
 	static string GetNumberLiteralType(string text, string? targetType)

@@ -2492,9 +2492,20 @@ public sealed partial class BindableNodeAnalyzer
 			elementTypes.Add(actual);
 		}
 
-		string elementType = elementTarget ?? BestType(elementTypes);
-		foreach (string actual in elementTypes)
-			CheckAssignable(elementType, actual, array.SourceSyntax, "Array element");
+		int incompatibleIndex = -1;
+		string elementType = elementTarget ?? BestExpressionType(array.Elements, elementTypes, out incompatibleIndex);
+		if (elementTarget is null && elementType == ErrorType && array.Elements.Count > 0)
+		{
+			if (incompatibleIndex >= 0)
+				Report(GetRange(array.Elements[incompatibleIndex].SourceSyntax), "Array literal elements have no common type; use an explicit conversion.");
+			return ErrorType;
+		}
+		for (int i = 0; i < elementTypes.Count; i++)
+		{
+			if (elementTarget is null && CanTargetIntegerLiteral(array.Elements[i], elementType))
+				elementTypes[i] = BodyAnalyzeExpression(array.Elements[i], scope, typeScope, elementType);
+			CheckAssignable(elementType, elementTypes[i], array.Elements[i].SourceSyntax, "Array element");
+		}
 
 		if (fixedTarget)
 			return targetType ?? ErrorType;
@@ -7649,7 +7660,19 @@ public sealed partial class BindableNodeAnalyzer
 			CheckAssignable(targetType, falseType, conditional.WhenFalse?.SourceSyntax, "Conditional expression");
 			return targetType;
 		}
-		return BestType([trueType, falseType]);
+		string commonType = BestExpressionType([conditional.WhenTrue, conditional.WhenFalse], [trueType, falseType], out int incompatibleIndex);
+		if (commonType == ErrorType)
+		{
+			if (incompatibleIndex >= 0)
+				Report(GetRange((incompatibleIndex == 0 ? conditional.WhenTrue : conditional.WhenFalse)?.SourceSyntax),
+					$"Conditional operands '{trueType}' and '{falseType}' have no common type; use an explicit conversion.");
+			return ErrorType;
+		}
+		if (CanTargetIntegerLiteral(conditional.WhenTrue, commonType))
+			BodyAnalyzeExpression(conditional.WhenTrue, scope, typeScope, commonType);
+		if (CanTargetIntegerLiteral(conditional.WhenFalse, commonType))
+			BodyAnalyzeExpression(conditional.WhenFalse, scope, typeScope, commonType);
+		return commonType;
 	}
 
 	string BodyAnalyzeRangeExpression(RangeExpression range, BodyScope scope, AnalysisScope typeScope)

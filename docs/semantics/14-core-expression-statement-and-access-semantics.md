@@ -71,6 +71,17 @@ Unary operations on ordinary values still use integer promotion; explicit casts
 keep their conversion rules. An out-of-range literal produces a diagnostic at
 its source expression.
 
+## Common Expression Types
+
+An untargeted conditional or array literal chooses a common type from its
+operand types. A candidate qualifies only if every operand converts implicitly
+to it, including target typing a fitting unsuffixed integer literal. If several
+qualify, choose the candidate to which the other qualifying types convert.
+Consider all operands together; intermediate incompatible pairs do not exclude
+a later candidate that accepts every operand. Operand order never changes the
+result. If none qualifies, diagnose the incompatible operand and require an
+explicit conversion rather than emitting an unresolved type.
+
 ## Update Operands
 
 Prefix and postfix increment and decrement require numeric operands. Apply the
