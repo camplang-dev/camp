@@ -9,6 +9,36 @@ namespace Camp.Compiler.Tests;
 public sealed class IntegerLiteralRangeTests
 {
 	[Theory]
+	[InlineData("5u", "uint")]
+	[InlineData("4294967296u", "ulong")]
+	[InlineData("5L", "long")]
+	[InlineData("5UL", "ulong")]
+	[InlineData("5lu", "ulong")]
+	[InlineData("0x10u", "uint")]
+	[InlineData("1.5f", "float")]
+	[InlineData("-5L", "long")]
+	public void Numeric_suffixes_determine_literal_type(string expression, string expected)
+	{
+		var compilation = SemanticCompiler.CompileLowered($"void test() {{ auto value = {expression}; }}");
+		SemanticCompiler.AssertNoDiagnostics(compilation);
+		var local = Assert.Single(SemanticCompiler.Descendants<DeclarationStatement>(SemanticCompiler.Function(compilation, "test")));
+		Assert.Equal(expected, local.Target.ResolvedType);
+	}
+
+	[Theory]
+	[InlineData("byte", "5u")]
+	[InlineData("byte", "256u")]
+	[InlineData("byte", "256L")]
+	[InlineData("int", "5L")]
+	[InlineData("uint", "5L")]
+	[InlineData("int", "1.5f")]
+	public void Suffixed_literals_use_ordinary_implicit_conversions(string target, string expression)
+	{
+		var compilation = SemanticCompiler.CompileLowered($"void test() {{ {target} value = {expression}; }}");
+		Assert.Contains(compilation.AnalysisDiagnostics, d => d.Message.Contains("Declaration initializer cannot convert"));
+	}
+
+	[Theory]
 	[InlineData("2147483647", "int")]
 	[InlineData("2147483648", "long")]
 	[InlineData("5000000000", "long")]
@@ -70,8 +100,6 @@ public sealed class IntegerLiteralRangeTests
 		yield return ["nuint", "18446744073709551616"];
 		yield return ["const byte", "256"];
 		yield return ["byte", "0x100"];
-		yield return ["byte", "256u"];
-		yield return ["byte", "256L"];
 		yield return ["ulong", "18446744073709551616UL"];
 		yield return ["byte", "(256)"];
 		yield return ["byte", "+256"];
@@ -97,7 +125,7 @@ public sealed class IntegerLiteralRangeTests
 	[InlineData("short", "32767")]
 	[InlineData("short", "-32768")]
 	[InlineData("short", "-0x8000")]
-	[InlineData("short", "-32768L")]
+	[InlineData("long", "-32768L")]
 	[InlineData("ushort", "65535")]
 	[InlineData("int", "2147483647")]
 	[InlineData("uint", "4294967295")]

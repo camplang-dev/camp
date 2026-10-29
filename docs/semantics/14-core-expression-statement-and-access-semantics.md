@@ -41,6 +41,12 @@ included when choosing the type. Arithmetic uses those inferred operand types;
 C emission must preserve their width even where C assigns a hexadecimal literal
 a narrower unsigned type.
 
+Numeric suffixes are case-insensitive and determine the source type before
+destination conversion: `u` selects `uint` or, if necessary, `ulong`; `l`
+selects `long`; `ul` and `lu` select `ulong`; `f` selects `float`; and `d`
+selects `double`. A suffixed literal uses ordinary implicit conversions and
+cannot take a narrower destination type merely because its value fits there.
+
 An integer literal used with a primitive integral target must fit that target's
 range. Body analysis checks the exact integer value before C emission, including
 decimal, hexadecimal, and integer suffixes. This

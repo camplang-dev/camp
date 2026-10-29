@@ -73,15 +73,11 @@ public static class CCodeEmitter
             || text.Contains('p', StringComparison.OrdinalIgnoreCase))
             return false;
 
-        if (text.EndsWith("u", StringComparison.OrdinalIgnoreCase))
+        while (coreText.Length > 0 && char.ToLowerInvariant(coreText[^1]) is 'u' or 'l')
         {
-            unsignedSuffix = true;
-            coreText = text[..^1];
-        }
-        else if (text.EndsWith("l", StringComparison.OrdinalIgnoreCase))
-        {
-            longSuffix = true;
-            coreText = text[..^1];
+            unsignedSuffix |= char.ToLowerInvariant(coreText[^1]) == 'u';
+            longSuffix |= char.ToLowerInvariant(coreText[^1]) == 'l';
+            coreText = coreText[..^1];
         }
 
         int radix = 10;

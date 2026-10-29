@@ -6,6 +6,19 @@ namespace Camp.Compiler;
 
 static class NumericLiteralParser
 {
+	public static string GetSuffix(string text)
+	{
+		text = text.Trim();
+		if (!text.StartsWith("0x", StringComparison.OrdinalIgnoreCase)
+			&& !text.StartsWith("0b", StringComparison.OrdinalIgnoreCase)
+			&& text.Length > 0 && char.ToLowerInvariant(text[^1]) is 'f' or 'd')
+			return text[^1..].ToLowerInvariant();
+		int start = text.Length;
+		while (start > 0 && char.ToLowerInvariant(text[start - 1]) is 'u' or 'l')
+			start--;
+		return text[start..].ToLowerInvariant();
+	}
+
 	public static bool TryParseIntegerMagnitude(string text, out BigInteger magnitude)
 	{
 		return TryParseIntegerMagnitude(text, out magnitude, out _);

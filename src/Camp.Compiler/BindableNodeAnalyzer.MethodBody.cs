@@ -1555,7 +1555,8 @@ public sealed partial class BindableNodeAnalyzer
 		};
 
 		string? literalRangeTarget = targetType;
-		if ((targetType is null or TargetType) && IsUnsuffixedIntegerLiteral(expression))
+		if (GetNumericLiteralSuffix(expression) is "u" or "l" or "ul" or "lu"
+			|| (targetType is null or TargetType) && IsUnsuffixedIntegerLiteral(expression))
 			literalRangeTarget = type;
 		if (checkIntegerLiteralRange && type != ErrorType && expression is not ParenthesizedExpression
 			&& TryReportIntegerLiteralOutOfRange(expression, literalRangeTarget))
@@ -6729,7 +6730,7 @@ public sealed partial class BindableNodeAnalyzer
 					return ErrorType;
 				if (!IsNumericType(operandType))
 					Report(GetRange(unary.Operand?.SourceSyntax), $"Unary operator requires a numeric operand, not '{operandType}'.");
-				if (signedLiteral && operandTargetType is not null && TryGetIntegerTypeBounds(operandTargetType, out _, out _))
+				if (signedLiteral && GetNumericLiteralSuffix(unary).Length == 0 && operandTargetType is not null && TryGetIntegerTypeBounds(operandTargetType, out _, out _))
 					return StripTopLevelValueQualifiers(operandTargetType);
 				return PromoteInteger(operandType);
 

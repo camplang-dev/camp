@@ -67,29 +67,6 @@ Semantic analysis reports no accessibility error. Compilation proceeds to native
 Known Impact:
 Invalid access to a non-shadow base's fields is accepted by semantic analysis and reported later as a native compiler error. Use a method of the base class to expose the required operation instead of accessing its field through the shadow class.
 
-## BUG-417: Numeric literal suffixes are accepted but do not affect the literal's type
-
-Date/Time: 2026-10-28 23:03 EDT
-
-Summary:
-The integer suffixes `u`, `l`, `ul` (in either case and either order) and the floating suffix `f` are accepted by the lexer, but they have no effect on the type of the literal. Without a target type, a suffixed integer literal is inferred as `int` and a suffixed floating literal as `double`. With a target type, any suffix is accepted regardless of the target, so a suffix that contradicts the target is not diagnosed.
-
-Steps to Reproduce:
-
-1. Declare a generic helper `void show<T>(in T value, sizeof(T), typenameof(T))` that logs `typenameof(T)` with the string log intrinsic.
-2. In `main`, declare `auto a = 5u;`, `auto b = 5L;`, `auto c = 5UL;`, `auto d = 5lu;`, `auto e = 0x10u;` and `auto f = 1.5f;`, and call `show` on each.
-3. Separately declare `byte g = 5u;`, `int h = 5L;`, `uint i = 5L;` and `int j = 1.5f;`.
-4. Compile and run the program.
-
-Expected:
-A suffix fixes the type of the literal. `5u` is `uint` (`ulong` when the value does not fit `uint`), `5L` is `long`, `5UL` is `ulong`, and `1.5f` is `float`; suffixes are case-insensitive and `lu` means `ul`. A suffixed literal converts to a target only through the ordinary implicit conversions, so `long k = 5u;` is accepted, while each declaration in step 3 is rejected at the literal as an invalid conversion.
-
-Actual:
-`a`, `b`, `c`, `d` and `e` are inferred as `int`, and `f` is inferred as `double`. Every declaration in step 3 compiles without a diagnostic; `j` holds `1`.
-
-Known Impact:
-A suffix cannot be used to select a literal's type, and a wrong suffix is never reported. Use a typed declaration or an explicit cast to select the type.
-
 ## BUG-418: The `d` suffix and a floating suffix after digits with no decimal point are passed to the C compiler unrecognised
 
 Date/Time: 2026-10-28 23:00 EDT

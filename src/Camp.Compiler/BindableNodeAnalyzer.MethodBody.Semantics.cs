@@ -4055,6 +4055,11 @@ public sealed partial class BindableNodeAnalyzer
 
 	static string GetNumberLiteralType(string text, string? targetType)
 	{
+		string suffix = NumericLiteralParser.GetSuffix(text);
+		if (suffix == "u" && NumericLiteralParser.TryParseIntegerMagnitude(text, out BigInteger unsignedValue))
+			return unsignedValue <= uint.MaxValue ? "uint" : "ulong";
+		if (suffix is "l" or "ul" or "lu" or "f" or "d")
+			return suffix switch { "l" => "long", "ul" or "lu" => "ulong", "f" => "float", _ => "double" };
 		targetType = targetType is null ? null : StripTopLevelValueQualifiers(targetType);
 		if (targetType is not null && IsNumericTypeName(targetType))
 			return targetType;
@@ -4067,6 +4072,14 @@ public sealed partial class BindableNodeAnalyzer
 	}
 
 	static string InferUnsuffixedIntegerType(BigInteger value) => value >= int.MinValue && value <= int.MaxValue ? "int" : "long";
+
+	static string GetNumericLiteralSuffix(Expression? expression) => expression switch
+	{
+		ParenthesizedExpression parenthesized => GetNumericLiteralSuffix(parenthesized.Expression),
+		UnaryExpression { Operator: UnaryOperator.Plus or UnaryOperator.Minus } unary => GetNumericLiteralSuffix(unary.Operand),
+		LiteralExpression { Kind: LiteralKind.Number } literal => NumericLiteralParser.GetSuffix(literal.Text),
+		_ => ""
+	};
 
 	static bool IsUnsuffixedIntegerLiteral(Expression? expression)
 	{
