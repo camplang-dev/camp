@@ -72,10 +72,10 @@ the top-level `in` arguments of the same parameter must convert to it. With
 an `int` and a `long` infers `long`, and `exchange(wide, out small)` is an error
 because the `long` does not convert to `int`.
 Collect these output bounds before choosing common input types, even when the
-output argument is written last or is named. A typed output declaration supplies
-its declared type; an untyped output discard supplies no bound. Explicit type
-arguments remain fixed, and incompatible output storage is diagnosed at that
-argument rather than adapted by a widening conversion.
+output argument is written last or input arguments are named. A typed output
+declaration supplies its declared type; an untyped output discard supplies no
+bound. Explicit type arguments remain fixed, and incompatible output storage is
+diagnosed at that argument rather than adapted by a widening conversion.
 
 After inference, substitute the arguments, convert every argument to its
 substituted parameter type and check applicability as for a call with explicit
