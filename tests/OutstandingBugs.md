@@ -135,3 +135,25 @@ The output is `6433681343041106432`, `-5352980537445187577`, `7` and `5000000000
 
 Known Impact:
 A generic call that mixes argument types reads garbage or truncated values unless the first argument has the common type. Convert the arguments to the common type by hand, or pass the type argument explicitly (`second<long>(i, l)` converts correctly).
+
+## BUG-441: A conditional of two `in T` values in a generic function emits invalid C
+
+Date/Time: 2026-10-29 23:45 EDT
+
+Summary:
+Selecting between two `in T` parameters with a conditional in a generic function emits C that takes the address of the conditional's value, which the C compiler rejects, so the build fails with a native compiler error and no source diagnostic.
+
+Steps to Reproduce:
+
+1. Declare `T pick<T>(bool c, in T a, in T b, sizeof(T)) { return c ? a : b; }`.
+2. In `main`, declare `long x = 1;` and `long y = 2;` and log `pick(false, x, y)` with `__intrinsic_log_i64`.
+3. Compile and run the program.
+
+Expected:
+The program compiles and logs 2, as it does when the function is written `if (c) return a; return b;`.
+
+Actual:
+The build fails with `error: cannot take the address of an rvalue of type 'const void *'` at the generated `__builtin_memcpy(__result, &((c ? a : b)), sizeof_T);`.
+
+Known Impact:
+A generic function cannot return a conditional of its `in T` parameters. Write the selection as an `if` statement with a return in each branch.
