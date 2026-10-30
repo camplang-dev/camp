@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-445.
+Next bug number: BUG-446.
 
 ## Bug Template
 
@@ -88,3 +88,26 @@ No source diagnostic is reported. The generated C declares `_NULL *a = (_NULL []
 
 Known Impact:
 An untyped array literal under `auto` is reported late as a native compiler error. Declare the local with its type, such as `int*[] a = [null];`, which compiles.
+
+## BUG-445: An `auto` local initialized with an array literal of only `default` is accepted with the internal type `#TARGET[]`
+
+Date/Time: 2026-10-30 06:39 EDT
+
+Summary:
+An array literal whose elements are all `default` has no element type, so an `auto` local cannot take a type from it, exactly as `auto values = [];` cannot. The compiler accepts the declaration without a diagnostic and gives the local the internal type `#TARGET[]`. `typenameof` of the local prints `#TARGETArray`, and the program compiles and runs.
+
+Steps to Reproduce:
+
+1. Declare `void show<T>(in T value, sizeof(T), typenameof(T)) { __intrinsic_log_string(typenameof(T)); }`.
+2. In `main`, declare `auto a = [default];` and call `show(a);`.
+3. Also try `auto b = [default, default];`.
+4. Compile and run the program.
+
+Expected:
+Each declaration is reported at its initializer with `The type of this expression cannot be inferred; specify a type.`
+
+Actual:
+No diagnostic is reported. The program prints `#TARGETArray`.
+
+Known Impact:
+A local with a meaningless type is accepted, and any later use of it works with that type. Declare the local with its type, such as `int[] a = [default];`.
