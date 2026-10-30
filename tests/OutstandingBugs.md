@@ -66,24 +66,3 @@ Semantic analysis reports no accessibility error. Compilation proceeds to native
 
 Known Impact:
 Invalid access to a non-shadow base's fields is accepted by semantic analysis and reported later as a native compiler error. Use a method of the base class to expose the required operation instead of accessing its field through the shadow class.
-
-## BUG-446: An `auto` local initialized with `[[]]` fails with an unsupported-emission message instead of reporting that it supplies no type
-
-Date/Time: 2026-10-30 06:39 EDT
-
-Summary:
-An array literal nested in an array literal is a pointer to storage of its own elements, so `[[]]` has no element type at either level and an `auto` local cannot take a type from it, exactly as `auto values = [];` cannot. The compiler reports no source diagnostic; code generation stops with an internal message. With a concrete target, `int*[] values = [[]];` compiles.
-
-Steps to Reproduce:
-
-1. In `main`, declare `auto a = [[]];`.
-2. Compile the program.
-
-Expected:
-The declaration is reported at its initializer with `The type of this expression cannot be inferred; specify a type.`
-
-Actual:
-No source diagnostic is reported. The compiler stops with `C emission does not yet support expression node ArrayExpression.`
-
-Known Impact:
-The failure names a compiler limitation rather than the source problem. Declare the local with its type, such as `int*[] a = [[]];`, which compiles.

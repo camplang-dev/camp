@@ -11,4 +11,6 @@ void test()
 	auto defaultArray = [default];
 	auto defaults = [default, default];
 	auto defaultSelection = true ? [default] : [default];
+	auto nestedEmpty = [[]];
+	auto deeperEmpty = [[[]]];
 }

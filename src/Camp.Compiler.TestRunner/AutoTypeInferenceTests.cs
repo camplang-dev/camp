@@ -170,6 +170,13 @@ public sealed class AutoTypeInferenceTests
 	[InlineData("auto value = [default, default];", "[")]
 	[InlineData("auto value = ([default]);", "(")]
 	[InlineData("auto value = true ? [default] : [default];", "true")]
+	[InlineData("auto value = [[]];", "[")]
+	[InlineData("auto value = [[], []];", "[")]
+	[InlineData("auto value = [[[]]];", "[")]
+	[InlineData("auto value = ([[]]);", "(")]
+	[InlineData("auto value = [[default]];", "[")]
+	[InlineData("auto value = [[null]];", "[")]
+	[InlineData("auto value = true ? [[]] : [[]];", "true")]
 	[InlineData("auto value = (null);", "(")]
 	[InlineData("auto value = ((default));", "(")]
 	[InlineData("auto value = true ? null : null;", "true")]
@@ -210,6 +217,10 @@ public sealed class AutoTypeInferenceTests
 	[InlineData("auto values = [default, 7]; auto reversed = [7, default];")]
 	[InlineData("int[] values = true ? [default] : [default];")]
 	[InlineData("auto values = true ? [default] : [7];")]
+	[InlineData("int*[] values = [[]]; int**[] deeper = [[[]]];")]
+	[InlineData("auto values = [[], [1, 2]]; auto reversed = [[1, 2], []];")]
+	[InlineData("auto values = [[default], [7]];")]
+	[InlineData("int* pointer = null; auto values = [[null], [pointer]];")]
 	public void Concrete_inference_and_explicit_targets_remain_valid(string declarations)
 	{
 		SemanticCompiler.AssertNoDiagnostics(SemanticCompiler.CompileLowered($"void test() {{ {declarations} }}"));
@@ -217,6 +228,8 @@ public sealed class AutoTypeInferenceTests
 
 	[Theory]
 	[InlineData("auto value = missingName;", "Symbol 'missingName' could not be found.")]
+	[InlineData("auto value = [missingName];", "Symbol 'missingName' could not be found.")]
+	[InlineData("auto value = [[missingName]];", "Symbol 'missingName' could not be found.")]
 	[InlineData("auto value = doNothing();", "Auto declaration cannot infer a type from a void expression.")]
 	[InlineData("auto value = { 1, 2 };", "Initializer expression requires a target type.")]
 	public void Existing_initializer_errors_do_not_gain_a_secondary_inference_error(string declaration, string expected)
@@ -235,13 +248,17 @@ public sealed class AutoTypeInferenceTests
 		});
 	}
 
-	[Fact]
-	public void An_uninferable_local_is_registered_as_an_error_type_for_later_uses()
+	[Theory]
+	[InlineData("null")]
+	[InlineData("[null]")]
+	[InlineData("[default]")]
+	[InlineData("[[]]")]
+	public void An_uninferable_local_is_registered_as_an_error_type_for_later_uses(string initializer)
 	{
-		SemanticCompilation compilation = SemanticCompiler.CompileLowered("""
+		SemanticCompilation compilation = SemanticCompiler.CompileLowered($$"""
 			void test()
 			{
-				auto value = null;
+				auto value = {{initializer}};
 				value = null;
 			}
 			""");

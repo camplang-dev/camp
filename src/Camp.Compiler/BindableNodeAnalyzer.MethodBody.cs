@@ -2517,7 +2517,7 @@ public sealed partial class BindableNodeAnalyzer
 		}
 		for (int i = 0; i < elementTypes.Count; i++)
 		{
-			if (elementTarget is null && CanTargetIntegerLiteral(array.Elements[i], elementType))
+			if (elementTarget is null && (elementTypes[i] == TargetType || CanTargetIntegerLiteral(array.Elements[i], elementType)))
 				elementTypes[i] = BodyAnalyzeExpression(array.Elements[i], scope, typeScope, elementType);
 			CheckAssignable(elementType, elementTypes[i], array.Elements[i].SourceSyntax, "Array element");
 		}

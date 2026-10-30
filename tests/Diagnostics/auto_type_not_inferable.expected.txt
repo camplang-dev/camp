@@ -9,3 +9,5 @@ tests/Diagnostics/auto_type_not_inferable.camp(10,23): error: The type of this e
 tests/Diagnostics/auto_type_not_inferable.camp(11,22): error: The type of this expression cannot be inferred; specify a type.
 tests/Diagnostics/auto_type_not_inferable.camp(12,18): error: The type of this expression cannot be inferred; specify a type.
 tests/Diagnostics/auto_type_not_inferable.camp(13,26): error: The type of this expression cannot be inferred; specify a type.
+tests/Diagnostics/auto_type_not_inferable.camp(14,21): error: The type of this expression cannot be inferred; specify a type.
+tests/Diagnostics/auto_type_not_inferable.camp(15,21): error: The type of this expression cannot be inferred; specify a type.

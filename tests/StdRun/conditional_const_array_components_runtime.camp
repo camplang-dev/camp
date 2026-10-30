@@ -44,6 +44,16 @@ export int main()
 	int[] typedDefaults = [default, default];
 	auto inferredDefaults = [default, 7];
 	auto reversedDefaults = [7, default];
+	int*[] typedNested = [[]];
+	int**[] deeperNested = [[[]]];
+	auto nestedInferred = [[], [1, 2]];
+	auto nestedReversed = [[1, 2], []];
+	auto nestedDefaults = [[default], [7]];
+	auto nestedNulls = [[null], [pointer]];
+	if (typedNested.length != 1 || deeperNested.length != 1) return 16;
+	if (nestedInferred.length != 2 || nestedInferred[1][1] != 2 || nestedReversed[0][1] != 2) return 17;
+	if (nestedDefaults[0][0] != 0 || nestedDefaults[1][0] != 7) return 18;
+	if (nestedNulls[0][0] != null || *nestedNulls[1][0] != 7) return 19;
 	if (typedDefaults.length != 2 || typedDefaults[0] != 0 || typedDefaults[1] != 0) return 13;
 	if (inferredDefaults[0] != 0 || inferredDefaults[1] != 7 || reversedDefaults[0] != 7 || reversedDefaults[1] != 0) return 14;
 	auto inferred = [null, pointer];

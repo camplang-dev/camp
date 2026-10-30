@@ -30,6 +30,10 @@ element can supply the required type.
 The same rule applies to an array of only untyped `default` elements: an array
 shape does not turn an unresolved element type into a concrete type. An explicit
 element target or a typed sibling supplies the type used to default each element.
+Nesting does not supply a missing element type: `[[]]` is likewise untyped.
+When a concrete sibling supplies the common element type, analyze the untyped
+elements again with that target, including nested empty or default-only literals.
+An explicit nested pointer target such as `int*[] values = [[]];` is also valid.
 
 Values read from explicitly typed storage, typed null-producing expressions,
 and ordinary typed values remain valid inference sources. Failed expression
