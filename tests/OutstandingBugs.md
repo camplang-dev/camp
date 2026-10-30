@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-446.
+Next bug number: BUG-447.
 
 ## Bug Template
 
@@ -111,3 +111,24 @@ No diagnostic is reported. The program prints `#TARGETArray`.
 
 Known Impact:
 A local with a meaningless type is accepted, and any later use of it works with that type. Declare the local with its type, such as `int[] a = [default];`.
+
+## BUG-446: An `auto` local initialized with `[[]]` fails with an unsupported-emission message instead of reporting that it supplies no type
+
+Date/Time: 2026-10-30 06:39 EDT
+
+Summary:
+An array literal nested in an array literal is a pointer to storage of its own elements, so `[[]]` has no element type at either level and an `auto` local cannot take a type from it, exactly as `auto values = [];` cannot. The compiler reports no source diagnostic; code generation stops with an internal message. With a concrete target, `int*[] values = [[]];` compiles.
+
+Steps to Reproduce:
+
+1. In `main`, declare `auto a = [[]];`.
+2. Compile the program.
+
+Expected:
+The declaration is reported at its initializer with `The type of this expression cannot be inferred; specify a type.`
+
+Actual:
+No source diagnostic is reported. The compiler stops with `C emission does not yet support expression node ArrayExpression.`
+
+Known Impact:
+The failure names a compiler limitation rather than the source problem. Declare the local with its type, such as `int*[] a = [[]];`, which compiles.
