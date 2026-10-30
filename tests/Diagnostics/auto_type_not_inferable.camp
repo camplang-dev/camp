@@ -4,4 +4,8 @@ void test()
 	auto nothing = null;
 	auto fromDefault = default;
 	auto wrapped = (null);
+	auto nullArray = [null];
+	auto nulls = [null, null];
+	auto nullAndDefault = [null, default];
+	auto nullSelection = true ? [null] : [null];
 }

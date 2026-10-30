@@ -2507,6 +2507,8 @@ public sealed partial class BindableNodeAnalyzer
 		if (elementTarget is null && ReportCommonPointerLifetimeMismatch(array.Elements, elementTypes))
 			return ErrorType;
 		string elementType = elementTarget ?? BestExpressionType(array.Elements, elementTypes, out incompatibleIndex);
+		if (elementTarget is null && elementType == "#NULL")
+			return TargetType;
 		if (elementTarget is null && elementType == ErrorType && array.Elements.Count > 0)
 		{
 			if (incompatibleIndex >= 0)

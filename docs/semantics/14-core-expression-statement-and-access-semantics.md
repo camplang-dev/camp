@@ -23,6 +23,10 @@ not make an otherwise untyped initializer inferable.
 An empty array literal also supplies no element type: `auto values = [];` is
 an inference error at `[]`. A concrete target such as `int[] values = [];`
 supplies the element type and produces an array with length zero.
+An array containing only `null` (or `null` mixed with untyped `default`) also
+supplies no element type. This remains an inference error through parentheses
+and conditional arms. An explicit pointer element target or a typed sibling
+element can supply the required type.
 
 Values read from explicitly typed storage, typed null-producing expressions,
 and ordinary typed values remain valid inference sources. Failed expression

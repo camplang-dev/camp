@@ -38,5 +38,16 @@ export int main()
 	if (third.length != 1 || third[0] != 'c' || calls != 8) return 8;
 	const char[] fourth = deeper({ 4 });
 	if (fourth.length != 4 || fourth[3] != 'd') return 9;
+	int number = 7;
+	int* pointer = &number;
+	int*[] typedNulls = [null, default];
+	auto inferred = [null, pointer];
+	auto reversed = [pointer, null];
+	if (typedNulls.length != 2 || typedNulls[0] != null || typedNulls[1] != null) return 10;
+	if (inferred[0] != null || *inferred[1] != 7 || *reversed[0] != 7 || reversed[1] != null) return 11;
+	for (int i = 0; i < 2; i++) {
+		auto selected = i == 0 ? [null] : [pointer];
+		if (selected.length != 1 || selected[0] != (i == 0 ? null : pointer)) return 12;
+	}
 	return 0;
 }

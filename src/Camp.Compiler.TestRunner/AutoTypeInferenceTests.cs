@@ -160,6 +160,12 @@ public sealed class AutoTypeInferenceTests
 	[InlineData("auto value = default;", "default")]
 	[InlineData("auto value = [];", "[")]
 	[InlineData("auto value = ([]);", "(")]
+	[InlineData("auto value = [null];", "[")]
+	[InlineData("auto value = [null, null];", "[")]
+	[InlineData("auto value = [null, default];", "[")]
+	[InlineData("auto value = [default, null];", "[")]
+	[InlineData("auto value = ([null]);", "(")]
+	[InlineData("auto value = true ? [null] : [null];", "true")]
 	[InlineData("auto value = (null);", "(")]
 	[InlineData("auto value = ((default));", "(")]
 	[InlineData("auto value = true ? null : null;", "true")]
@@ -192,6 +198,10 @@ public sealed class AutoTypeInferenceTests
 	[InlineData("int* pointer = null; auto value = true ? pointer : null;")]
 	[InlineData("auto values = [1, 2, 3];")]
 	[InlineData("int[] values = []; int* pointer = [];")]
+	[InlineData("int*[] values = [null, default];")]
+	[InlineData("int* pointer = null; auto values = [null, pointer]; auto reversed = [pointer, null];")]
+	[InlineData("int*[] values = true ? [null] : [null];")]
+	[InlineData("int* pointer = null; auto values = true ? [null] : [pointer];")]
 	public void Concrete_inference_and_explicit_targets_remain_valid(string declarations)
 	{
 		SemanticCompiler.AssertNoDiagnostics(SemanticCompiler.CompileLowered($"void test() {{ {declarations} }}"));
