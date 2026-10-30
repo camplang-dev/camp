@@ -115,14 +115,20 @@ byte* raw = (unsafe byte*)dependent;
 
 ## Common Type Inference
 
-When computing an untargeted common type, prefer the safe widened result:
+An untargeted conditional, array literal or generic argument list chooses its
+type by the Best Common Type algorithm in semantics 14. This section states only
+how `constof` takes part.
+
+Before the algorithm checks which candidates survive, replace a dependent const
+candidate with ordinary `const`. The result is the safe widened type:
 
 ```camp
 auto value = condition ? dependentPointer : constPointer;
 ```
 
-The common type should be ordinary `const`, not dependent const, unless a target
-type or explicit cast supplies the dependent relationship.
+The common type is ordinary `const`, not dependent const, unless a target type or
+explicit cast supplies the dependent relationship. With a target, each operand
+converts to the target on its own and no common type is computed.
 
 ## Parameter Passing Equality
 

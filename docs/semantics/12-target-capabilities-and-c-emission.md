@@ -269,6 +269,26 @@ counts and fixed-storage copies. Use bounded C escapes so following digits
 cannot extend an escape, including an embedded NUL followed by a digit. Wide
 strings preserve UTF-16 units and use C-safe escapes or unit storage.
 
+## Numeric Expression Emission
+
+Emitted C arithmetic is the arithmetic as written. A target type or an operand
+type decides how Camp converts a value, never the type an operation is computed
+in, so the emitter writes each operation unchanged and C evaluates it in its own
+promoted type, which is the type Camp computed (semantics 14, Constant
+Expressions And Literal-Shaped Expressions). The conversion happens at the
+target: a declaration, assignment, argument, return, or array element. It keeps
+the value, because analysis has already range-checked every literal-shaped value
+and rejected the constant overflows and shift counts where C would have
+undefined behavior.
+
+The emitter may write an explicit cast at a conversion point, for example to
+keep `-Wconversion` quiet. A cast never changes the type an operation is
+computed in. Integer literals keep the width of their natural type (semantics
+14, Numeric Literal Types) even where C would give a hexadecimal spelling a
+narrower unsigned type, and the floating suffixes are spelled so C reads the
+same type: `d` is removed and digit-only forms such as `1f` and `2d` gain a
+decimal point.
+
 ## C Emission Preconditions
 
 C emission requires a lowered bindable tree with no unresolved/error marker
@@ -355,9 +375,12 @@ behavior. The Camp enum underlying type is semantic; the C spelling must
 preserve it.
 
 Inline constants are emitted as typed macro-style constants when they are part
-of the native surface. Their source values and kinds remain metadata facts.
-Emitter code should consume the analyzer's computed constant value rather than
-re-evaluating source expressions in C-emission-specific logic.
+of the native surface: `inline int PAGE = 4096;` emits as
+`#define PAGE ((int)4096)`, with the value folded. A use of the constant has
+the fixed type of that cast (semantics 14, Named Constants). Their source values
+and kinds remain metadata facts. Emitter code should consume the analyzer's
+computed constant value rather than re-evaluating source expressions in
+C-emission-specific logic.
 
 `@symbol` overrides apply to every symbol-bearing declaration that declaration
 analysis accepts: ABI-visible type declarations, typedef-like newtypes, enum

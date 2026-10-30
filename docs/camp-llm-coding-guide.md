@@ -472,6 +472,41 @@ because the native representation is compatible. When a value's lifetime,
 constness, or representation changes, make the conversion visible and prefer an
 API that expresses the intent.
 
+### Numeric Literals, Conversions, And `auto`
+
+- An unsuffixed literal, a constant built from unsuffixed literals, and a
+  conditional of two such constants adapt to the target or to a typed operand.
+  Write no cast and no suffix: `uint size = 256 * 1024 * 1024;`,
+  `nuint block = 64 * 1024;`, `byte tier = ready ? 1 : 33;`, `count + 1` for a
+  `uint count`. A value that does not fit is an error at that value.
+- With no target (`auto`, generic argument) a literal is `int`, or `long` if the
+  value needs it, and `double` with a `.`. A suffix fixes the type: `5u`
+  `uint`, `5l` `long`, `5ul` `ulong`, `1.5f` `float`, `2d` `double`. Hex follows
+  the same table (`0xFFFFFFFF` is `long`; write `0xFFFFFFFFu`). `byte b = 5u;`
+  and `-5u` are errors, so do not suffix a literal that has a target.
+- A target never changes the type an operation is computed in. `uint m = 1 << 31;`
+  and `long x = 1 << 40;` are overflow errors in `int`. Write `1u << 31`,
+  `1L << 40`, and `1u << n` for a run-time `n`. A sum of two literal
+  conditionals is `int`: `uint t = (a ? 1 : 5) + (b ? 10 : 20);` is an error;
+  one suffix fixes it: `(a ? 1u : 5) + (b ? 10 : 20)`.
+- Implicit numeric conversion widens within a signedness, takes an unsigned
+  integer to a strictly wider signed one, and takes any integer to `float` or
+  `double`. `int` to `uint`/`ulong`/`nuint`, narrowing, `double` to `float`, and
+  integers to `char` types need a cast. `nint`/`nuint` count as 32 to 64 bits:
+  `int` to `nint` and `nint` to `long` are implicit.
+- `inline int N = 4096;` is `(int)4096`: a fixed type that does not adapt.
+  `nuint x = N * 4;` is an error. Declare `inline nuint N` or write
+  `(nuint)N * 4`.
+- `auto` takes the natural type of the initializer. It is an error for `null`,
+  `default`, `[]`, `{ ... }`, `[null]`, `[[]]`, a void call, and a missing
+  initializer. `auto` takes no modifier: write `const int limit = 5;`, not
+  `const auto`. `out auto v` and `catch auto e` take the callee's slot type.
+- A conditional or array literal with no target takes the common type of its
+  parts, whatever their order: `c ? i : l` is `long`, `[1, 2.5]` is
+  `double[]`, `[u, 2]` is `uint[]`, `[[1, 2], [3]]` is `int*[]`. `c ? u : i`
+  and `[1, 2L, true]` are errors; cast. With a target, each part converts to it
+  alone.
+
 A stack-local struct is ordinary scoped storage. It is valid to copy scoped
 pointer-bearing parameters into fields of that local struct when the target
 storage cannot outlive the source value. For ordinary function-scope parser or
@@ -1060,6 +1095,15 @@ arguments and no parentheses: `box.isEmpty2<byte>` is an `EmptyCheck<byte>`, whi
 never infers method type arguments, and `EmptyCheck<byte>` does not convert to
 `EmptyCheck<short>`.
 
+Type arguments are inferred from arguments. Several `in T` arguments take their
+common type in either order and each converts to it: for
+`T chooseFirst<T>(in T a, in T b, sizeof(T))`, `chooseFirst(count, 5000000000L)`
+is `long` and `chooseFirst(small, 2)` is `uint`, while `int` with `uint` fails at
+the name. `T*` and `T[]` positions match the argument's type, the first argument
+fixes `T`, and `const T*` accepts `int*` and `const int*`. `null` takes the
+sibling pointer's type; `null`, `default` and `[]` alone infer nothing, so write
+the type argument (`describe<int>(default)`).
+
 Generic Camp code must declare what it does with `T`. Do not assume every generic
 type can be copied, compared, default-constructed, sized, or placed into an array.
 
@@ -1443,6 +1487,10 @@ Stable agent habits:
 | Hiding failure in sentinel values | Use `thrown`, or an intentional `tryX` API shape |
 | Adding `within(default)` to ordinary console-app allocation | Use plain `new` or `(new)` unless allocator selection matters |
 | Qualifying target-typed enum values such as `Command.BUILD` | Use `BUILD` when the target enum type is known |
+| `auto kind = BUILD;`, `auto x = null;`, `const auto limit = 5;` | Qualify the member (`Command.BUILD`), write the type, or write `const int limit = 5;` |
+| Casting or suffixing every constant (`(uint)(256 * 1024)`, `5u` for a `uint` target) | Write the unsuffixed constant; it adapts to the target |
+| `uint mask = 1 << 31;` or `long far = 1 << 40;` | `1u << 31`, `1L << 40`; the target does not widen the shift |
+| Mixing `int` with `uint` or `nuint` and expecting a common type | Cast one operand; a signed integer never converts implicitly to unsigned |
 | Adding absolute paths or local setup to committed docs | Keep local-only details out of committed docs |
 | Writing `receiver.[index]` / `receiver.[index] = value` (nameless property accessors are unsupported) | Use a named indexed property such as `receiver.Item[index]`, or an ordinary method call |
 

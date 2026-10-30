@@ -139,6 +139,82 @@ if (buffer != null)
 	Console.writeLine("has buffer");
 ```
 
+## Numeric Literals And Conversions
+
+A numeric literal that goes somewhere with a known type simply becomes that type,
+as long as the value fits:
+
+```camp
+byte level = 12;
+uint capacity = 4096;
+double ratio = 1;
+// byte tooLarge = 300;  // ERROR: 300 does not fit byte
+```
+
+When nothing says what type a literal should have, as with `auto`, the literal
+has its own natural type: `int` if the value fits, otherwise `long`, and
+`double` for a number with a decimal point. A suffix picks a different type:
+
+| Literal | Type | Notes |
+|---|---|---|
+| `42`, `5000000000` | `int`, or `long` when the value needs it | A value above the `long` range is an error that asks for `ul` |
+| `42u` | `uint`, or `ulong` when the value needs it | |
+| `42l` | `long` | |
+| `42ul`, `42lu` | `ulong` | |
+| `1.5` | `double` | |
+| `1.5f`, `1f` | `float` | The suffix may follow digits with no decimal point |
+| `1.5d`, `2d` | `double` | |
+
+Suffixes are not case sensitive. Hexadecimal literals follow the same table as
+decimal ones, so `0xFFFFFFFF` is a `long` because it does not fit an `int`;
+write `0xFFFFFFFFu` when you want a `uint`. In a hexadecimal literal `f` and `d`
+are digits, never suffixes. Negating an unsigned literal (`-5u`) is an error.
+
+```camp
+auto offset = 5000000000;   // long
+auto flags = 0xFFFFFFFFu;   // uint
+auto scale = 2.5f;          // float
+```
+
+A literal with a suffix keeps its type. It converts the way any value of that
+type does, so `long wide = 5u;` is valid and `byte small = 5u;` is an error.
+Leave the suffix off when you want the literal to take its target's type.
+
+Between values, Camp converts implicitly only when every value of the source type
+is kept:
+
+- an integer converts to a wider integer of the same signedness, and an
+  unsigned integer converts to a strictly wider signed integer;
+- a signed integer never converts implicitly to an unsigned one, whatever the
+  width;
+- every integer converts to `float` and `double`, and `float` converts to
+  `double`;
+- `nint` and `nuint` count as between 32 and 64 bits wide, so `int` converts to
+  `nint` and `nint` converts to `long`, on every target;
+- no integer converts implicitly to a character type, and a character type
+  converts to the wider character types and to integers that hold its whole range
+  (`char` never converts to `byte`).
+
+Everything else needs a cast:
+
+```camp
+int count = 7;
+uint small = 7;
+long total = count;                // wider
+long fromUnsigned = small;         // unsigned to wider signed
+double average = count;            // integer to floating point
+uint unsignedCount = (uint)count;  // signed to unsigned needs a cast
+// uint implicit = count;          // ERROR
+// byte narrow = count;            // ERROR
+```
+
+When two different numeric types meet in arithmetic, they convert to a common
+type, so `long + int` is a `long`. A pair with no common type is an error: `uint`
+with `int` does not convert either way, so cast one of them. A bare literal
+adapts to the other operand (`small + 4` is a `uint`); see
+[Expressions, Statements, And Operators Reference](18-expressions-statements-and-operators-reference.md)
+for how literal expressions are typed.
+
 ## Text: `string` And Counted Character Views
 
 Camp has primitive string pointer types and counted character-array views.
@@ -498,7 +574,8 @@ Do not use `null` as a universal empty value. Use `default` when you want the
 default of a known destination type, and use optionals when "no payload" is part
 of the value's meaning.
 
-Literals are target-typed where the destination is known:
+Literals are target-typed where the destination is known (see Numeric Literals
+And Conversions above for suffixes and natural types):
 
 ```camp
 byte small = 12;

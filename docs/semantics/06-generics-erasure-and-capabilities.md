@@ -24,29 +24,81 @@ storage, expression read view and exact-operand capabilities separate. A read
 view is a comparison/expression device; it never replaces canonical types in
 signatures, generic arguments, symbols, metadata or API output.
 
-## Common Argument Inference
+## Type Argument Inference
 
-For a type parameter contributed by several by-value or `in` arguments, collect
-the argument types before checking conversions. Choose their common expression
-type using the rules in semantics 14, including fitting unsuffixed integer
-literals. Argument order cannot fix the type parameter prematurely. If no
-candidate accepts every argument, report failed type argument inference at the
-called name. Explicit type arguments and receiver-supplied owner arguments stay
-fixed; this common-value rule does not widen invariant nested storage slots.
+A call that names no type arguments infers them from its arguments. Explicit
+type arguments and receiver-supplied owner arguments stay fixed (leading ones
+when the list is partial); inference fills the rest. Callable parameters give
+no bound, and neither does matching a class against the base construction it
+derives from (`Derived*` against `Base<T>*`) or an interface it implements
+(`Reader<T>*`): those calls report the failure rather than infer through
+derivation.
+
+Inference reads the arguments in two ways, depending on where the type
+parameter appears in the parameter list.
+
+**Top-level positions.** For a type parameter contributed by several by-value or
+`in` arguments (`in T a, in T b`), collect the argument types before checking
+conversions and choose their best common type using semantics 14, including
+fitting unsuffixed integer literals and other literal-shaped arguments. Argument
+order cannot fix the type parameter prematurely, and an argument that is a
+literal adapts to the others exactly as it does in a conditional:
+
+| Call (`two<T>(in T a, in T b)`) | `T` |
+|---|---|
+| `two(l, i)`, `two(i, l)`, `two(2, l)` | `long` |
+| `two(u, 2)`, `two(2, u)` | `uint` |
+| `two(b, 300)` (`byte b`) | `int`, because `300` does not fit `byte` |
+| `two(i, u)` | error: `int` and `uint` have no common type |
+| `two(p, cp)` (`int* p`, `const int* cp`) | `const int*` |
+| `two(derived, base)` | `Base*` |
+| `two(p, null)`, `two(null, p)` | `int*` |
+| `two(null, null)`, `tn(default)` | error: nothing supplies a type |
+| `tn(c ? 1 : 2L)` | `long` |
+
+**Every other position.** A parameter that appears nested (`T*`, `T[]`, `T**`,
+`Box<T>*`), alone, or in an `out` slot is matched structurally against the
+argument's type, and the first argument that supplies it fixes it. A qualifier
+that the parameter adds is dropped before matching: `int*` against `const T*`
+and `int[]` against `const T[]` both give `T` as `int`. Nested positions are
+exact, so no inference passes through pointer covariance. A later argument that
+disagrees does not change the type; it fails the conversion to the substituted
+parameter and is reported at that argument. With `exact<T>(T* a, T* b)`,
+`exact(p, lp)` over an `int*` and a `long*` is an error at `lp`.
+
+After inference, substitute the arguments, convert every argument to its
+substituted parameter type and check applicability as for a call with explicit
+type arguments. The pointer arguments that one top-level parameter joins follow
+the lifetime rule of the best common type: their lifetime annotations must match
+exactly, and the first that differs is the error.
 
 Preserve the analyzed substitutions through lowering and emission. An `in T`
 argument that converts to the inferred type needs storage of that type before
 its address is passed; the original argument's narrower storage cannot be read
-as the inferred wider type.
+as the inferred wider type. So `first(i, l)` returns the `int` argument as a
+`long`, and `second(b, 300)` passes `300` where a conversion to `byte` would
+truncate it. This common-value rule does not widen invariant nested storage
+slots.
 
 A bare `null` argument can use a pointer type independently inferred from a
 sibling argument, in either order. Its temporary storage then has that pointer
 type, rather than the internal null-literal placeholder type.
 
-An untyped `default` or bare `null` contributes no type argument. With no
-independent source, inference fails at the called name; internal target placeholders are never valid
-inferred arguments. An explicit specialization such as `tn<int>(default)` or a
-concrete sibling argument such as `two(5, default)` supplies the required type.
+An untyped `default`, a brace list, `[]`, or bare `null` contributes no type
+argument. With no independent source, inference fails; internal target
+placeholders are never valid inferred arguments. An explicit specialization such
+as `tn<int>(default)` or a concrete sibling argument such as `two(5, default)`
+supplies the required type.
+
+**Diagnostics.** A failed inference is reported at two positions. The error "the
+type arguments cannot be inferred" is at the called name when a parameter gets
+no type from any argument, or when its top-level arguments have no common type.
+A conversion error is at each argument that does not convert to its substituted
+parameter, naming the types; the arguments of a parameter whose arguments have no
+common type are left out, because the error at the name covers them. A parameter
+that nothing supplies (`default`, a brace list, `[]`, a derived class for
+`Base<T>*`) gives the error at the name, and the argument error as well where
+the argument has a type.
 
 ## Receiver-Relative Type Forms
 
@@ -819,7 +871,11 @@ Generic changes should cover:
   (`StdRun/generic_storage_operations_runtime`,
   `Diagnostics/generic_local_storage_invalid`,
   `Diagnostics/generic_generator_locals_invalid`);
-- generic static member lookup and type argument inference;
+- generic static member lookup;
+- type argument inference: top-level common types in both argument orders,
+  literal and conditional arguments, nested positions with dropped qualifiers,
+  `null` and `default` arguments, converted argument values, lifetime mismatch,
+  and the located failure at the name and at the blocking argument;
 - generic constructor argument errors;
 - metadata output for capability parameters and generic self-links.
 

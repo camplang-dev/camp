@@ -99,6 +99,12 @@ Qualification is also the way to break ties if two visible enum types use the
 same member name and the surrounding expression does not already decide which
 enum you mean.
 
+An unqualified name is tried as an enum member only after ordinary lookup fails.
+A local variable, parameter, or field that has the same name wins, so
+`FileKind kind = DEVICE;` uses a local named `DEVICE` if one is in scope. Without
+a known target type there is nothing to look in, and `auto kind = DEVICE;` is an
+error that asks for `FileKind.DEVICE`.
+
 ## Underlying Types And Numbering
 
 If you do not choose an underlying type, an enum uses `uint`. When ABI width
@@ -316,7 +322,28 @@ compile-time constant expression:
 ```camp
 inline uint HALF_PAGE = PAGE_SIZE / 2;
 inline nuint POINTER_BITS = sizeof(nuint) * 8;
+inline uint BUDGET = 256 * 1024 * 1024;
 ```
+
+The initializer is converted to the declared type like any other value, which is
+why `BUDGET` needs no suffix or cast.
+
+A constant has exactly the type you declare, and using it is the same as writing
+`(T)value` in its place. Unlike a bare literal, it does not adapt to where it is
+used:
+
+```camp
+inline int PAGE_SIZE = 4096;
+
+long wide = PAGE_SIZE * 4;               // valid: int converts to long
+nuint bytes = (nuint)PAGE_SIZE * 4;      // valid: the cast picks the type
+// nuint broken = PAGE_SIZE * 4;         // ERROR: int does not convert to nuint
+// int overflow = PAGE_SIZE * 1048576;   // ERROR: the constant operation overflows int
+```
+
+Declare a constant with the type its users need, such as `uint` for sizes that
+are compared with `uint` counts. In generated C, an exported constant is a
+`#define` of the value cast to its type (`#define PAGE_SIZE ((int)4096)`).
 
 Inline constants are intended for scalar, enum, string-like, pointer-null, and
 function-null values. They are not aggregate storage:

@@ -241,42 +241,64 @@ conversion or a stronger raw escape.
 
 ## Implicit Numeric Conversions
 
-Implicit integer conversions preserve every value of the source type. Signed
-integers never implicitly become unsigned; unsigned integers require a wider
-signed destination. The supported integer widenings are:
+Implicit conversion between primitive numeric types is a fixed table. It never
+depends on the selected target, and it applies the same way to declarations,
+assignments, arguments, returns, operands, conditional arms, array elements and
+generic arguments. A conversion not in the table needs an explicit cast.
 
-| Source | Destinations |
+| From | Implicitly to |
 |---|---|
-| `sbyte` | `short`, `int`, `long`, `nint` |
-| `byte` | `short`, `ushort`, `int`, `uint`, `long`, `ulong`, `nint`, `nuint` |
-| `short` | `int`, `long`, `nint` |
-| `ushort` | `int`, `uint`, `long`, `ulong`, `nint`, `nuint` |
-| `int` | `long`, `nint` |
-| `uint` | `long`, `ulong`, `nuint` |
-| `nint` | `long` |
-| `nuint` | `ulong` |
+| `sbyte` | `short`, `int`, `long`, `nint`, `float`, `double` |
+| `byte` | `short`, `ushort`, `int`, `uint`, `long`, `ulong`, `nint`, `nuint`, `float`, `double` |
+| `short` | `int`, `long`, `nint`, `float`, `double` |
+| `ushort` | `int`, `uint`, `long`, `ulong`, `nint`, `nuint`, `float`, `double` |
+| `int` | `long`, `nint`, `float`, `double` |
+| `uint` | `long`, `ulong`, `nuint`, `float`, `double` |
+| `long`, `ulong` | `float`, `double` |
+| `nint` | `long`, `float`, `double` |
+| `nuint` | `ulong`, `float`, `double` |
+| `float` | `double` |
+| `double` | none |
+| `char` | `wchar`, `uchar`, `short`, `ushort`, `int`, `uint`, `long`, `ulong`, `nint`, `nuint`, `float`, `double` |
+| `wchar` | `uchar`, `ushort`, `int`, `uint`, `long`, `ulong`, `nint`, `nuint`, `float`, `double` |
+| `uchar` | `int`, `uint`, `long`, `ulong`, `nint`, `nuint`, `float`, `double` |
+| `achar` | `short`, `ushort`, `int`, `uint`, `long`, `ulong`, `nint`, `nuint`, `float`, `double` |
 
-Natural integers are treated as between 32 and 64 bits for this conversion
-policy. Integer values do not implicitly become character-code types. Character
-values may widen to wider character representations or suitable integer types;
-in particular, `char` widens to `wchar`, and `wchar` converts to `ushort` and
-wider integers, but not `short` or `char`.
-`uchar` has the logical range `0..0x10FFFF`, so it also converts implicitly to
-`int` and `nint`, as well as `uint`, `long`, `ulong` and `nuint`; its 32-bit
-storage width does not give it the full `uint` value range. Every integer type
-converts to `float` or `double`, and `float` converts to `double`. Other numeric
-conversions require an explicit cast. Unsuffixed literals retain their
-target-typing rules.
-Comparisons with a fitting unsuffixed integer literal supply the other numeric
-operand's type to that literal, so expressions such as `count == 0` remain
-valid for an unsigned `count`.
+The table follows these principles:
 
-`achar` has the logical range `0..0x7F`, but its encoding differs from `char`,
-`wchar` and `uchar`. Conversion between `achar` and any of those three character
-types requires an explicit cast in either direction. Its numeric widenings
-remain implicit: `short`, `ushort`, `int`, `uint`, `long`, `ulong`, `nint`,
-`nuint`, `float` and `double`. Character-to-integer widening requires at least
-16 bits, so `achar` does not implicitly convert to `byte` or `sbyte`.
+- **Integers.** A signed integer never converts implicitly to an unsigned one,
+  at any width, and a sign change at the same width is never implicit. An
+  unsigned integer converts to a strictly wider signed integer. So `int` does
+  not convert to `uint` or `nuint`, `uint` does not convert to `int`, and
+  `byte` converts to `short` but `ushort` does not.
+- **Floating point.** Every integer converts to `float` and `double`, accepting
+  the precision loss, and `float` converts to `double`. `double` converts to
+  nothing implicitly.
+- **`nint` and `nuint`.** Both are treated as between 32 and 64 bits wide for
+  this table, so the table is the same for every target. The lower bound is why
+  `int` converts to `nint` and `uint` to `nuint`; the upper bound is why `nint`
+  converts to `long` and `nuint` to `ulong`.
+- **Character types.** No integer converts implicitly to a character type.
+  A character type converts to the wider character types (`char` to `wchar`
+  and `uchar`, `wchar` to `uchar`), and to an integer type that holds its whole
+  logical range and is at least 16 bits wide. The logical ranges are `char`
+  `0..0x7F`, `wchar` `0..0xFFFF` and `uchar` `0..0x10FFFF`, so `char` never converts to `byte` or
+  `sbyte`, `wchar` converts to `ushort` but not `short`, and `uchar` converts
+  to `int` (its 32-bit storage width does not give it the full `uint` range).
+  `achar` has the logical range `0..0x7F` like `char`, so it has the same
+  integer rows, but its encoding is the native code page: conversion between
+  `achar` and `char`, `wchar` or `uchar` requires an explicit cast in either
+  direction.
+
+Top-level value qualifiers (`const`, `volatile`) do not affect these
+conversions. Carriers convert in their conversion view, described above; pointer
+and array element types are exact and never use the numeric table.
+
+A numeric literal or a literal-shaped expression is converted by value rather
+than by type. An unsuffixed integer literal converts to any integer type that
+holds its value, so `byte small = 12;` is valid although `int` does not convert
+to `byte`. See Constant Expressions And Literal-Shaped Expressions in semantics
+14. A suffixed literal has a fixed type and uses this table.
 
 ## `nint` And `nuint`
 
@@ -537,6 +559,8 @@ Conversion work should cover:
   integers, and ABI slots;
 - class and interface pointer conversions;
 - generic invariance;
+- every pair of primitive numeric types against the implicit table, including the
+  character types and both bounds of `nint` and `nuint`;
 - expanded forms and materialized storage;
 - generated C on at least one target with type specs when target behavior is
   involved.

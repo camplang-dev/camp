@@ -159,6 +159,31 @@ preserves it. A pointer or array cannot silently change stride, and out storage
 cannot acquire an implicit temporary adapter. An abstract representation change
 needs proof of the actual transport; width alone is insufficient.
 
+## Inferring Type Arguments
+
+A call can leave out its type arguments when the arguments say what they are.
+When several arguments feed the same `in T`, Camp picks the common type of all
+of them, in either order, and converts each argument to it. A literal adapts:
+
+```camp
+T chooseFirst<T>(in T first, in T second, sizeof(T)) => first;
+
+long wide = chooseFirst(count, 5000000000L);   // T is long, count converts
+uint unsignedValue = chooseFirst(small, 2);    // T is uint, the literal adapts
+// chooseFirst(count, small);                  // ERROR: int and uint have no common type
+```
+
+A type parameter inside another type, such as `T*` or `T[]`, is matched against
+the argument's type. The first argument that supplies it fixes it, and a later
+one must convert to that type. A qualifier the parameter adds does not take part,
+so `const T*` accepts both `int*` and `const int*` and gives `T` as `int`.
+
+`null` takes its type from a sibling pointer in either order, so
+`chooseFirst(buffer, null)` is a pointer to what `buffer` points to. `null`,
+`default`, `[]` and brace lists supply no type on their own. When nothing else
+does, the call is an error at the function name; write the type argument:
+`describe<int>(default)`.
+
 ## Type Names
 
 `typenameof(T)` provides the source type name for exactly its operand:

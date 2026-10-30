@@ -40,16 +40,34 @@ auto values = [1, 2, 3];
 `auto` does not make a local dynamic. The inferred type is fixed after the
 initializer is analyzed.
 
-An `auto` declaration needs an initializer with an inferable type. Write an
-explicit type when there is no initializer or the value is bare `null` or
-`default`.
+An `auto` declaration needs an initializer with an inferable type, and it takes
+that expression's natural type: `5` is `int`, `5u` is `uint`, and a conditional
+or array literal is the common type of its parts. Write an explicit type when
+there is no initializer, when the initializer is a call that returns nothing, or
+when the value supplies no type of its own: `null`, `default`, a brace list, an
+empty `[]`, and conditionals or array literals made only of those. `auto` takes
+no modifiers, so `const auto limit = 5;` is an error; write `const int limit = 5;`.
+
+```camp
+auto count = 5;            // int
+auto mask = 1u << 3;       // uint
+auto weights = [1, 2.5];   // double[]
+// auto nothing = null;    // ERROR: null has no type of its own
+// auto empty = [];        // ERROR: no element type
+```
+
+`out auto name` and `catch auto name` declare a local of the type the callee
+gives that slot, so `catch auto fault` is a `Fault` when the callee declares
+`thrown Fault`.
 
 ## Literals
 
 | Literal form | Notes |
 |---|---|
-| `0`, `42`, `0xFF` | Integer literals are checked against the target type where needed |
-| `1.5` | Floating literal, converted according to the target type |
+| `0`, `42`, `0xFF` | Integer literals are checked against the target type where needed; without a target they are `int`, or `long` when the value needs it |
+| `42u`, `42l`, `42ul` | Suffixed integer literals have the fixed type `uint`, `long` and `ulong` |
+| `1.5` | Floating literal; `double` unless the target is `float` |
+| `1.5f`, `2d` | Suffixed floating literals have the fixed type `float` and `double` |
 | `true`, `false` | `bool` |
 | `'x'`, `'é'`, `'😀'` | Character literal, inferred or target-typed as a compatible character/code type |
 | `"ready"` | String literal, target-driven |
@@ -60,12 +78,55 @@ explicit type when there is no initializer or the value is bare `null` or
 | `{ 1, 2, 3 }` | Positional initializer list |
 
 Initializer entries are either named or positional. Do not mix both in one
-initializer.
+initializer. Everyday Types explains the suffixes and the implicit conversions
+between numeric types.
 
 ```camp
 Point origin = { .x = 0, .y = 0 };
 fixed byte[4] signature = [0x43, 0x41, 0x4D, 0x50];
 ```
+
+## Literal Expressions And Constants
+
+An unsuffixed literal, a constant built only from unsuffixed literals, and a
+conditional whose two arms are such constants all adapt to where they are used.
+They go to any integer type that holds every value they can produce, and to
+`float` and `double`, so none of these needs a cast or a suffix:
+
+```camp
+uint budget = 256 * 1024 * 1024;
+nuint blockSize = 64 * 1024;
+byte tier = ready ? 1 : 33;
+float weight = 0.1 + 0.2;
+bool belowLimit = used < (ready ? 100 : 50);   // used is a uint
+uint total = 2 + count + (ready ? 1 : 0);      // count is a uint
+```
+
+A value that does not fit is reported at the value: `byte tier = ready ? 1 : 300;`
+is an error at `300`.
+
+What a target never does is change the type an operation is computed in. Camp
+lowers to C and each operation keeps the type its operands give it. Constant
+operations are computed in `int` (or `long` once an operand is `long`) and are
+errors when they overflow, even if the target could hold the true result:
+
+```camp
+uint mask = 1u << 31;        // valid: 1u is a uint
+// uint mask = 1 << 31;      // ERROR: overflows int
+// long far = 1 << 40;       // ERROR: shift count too large for int
+long far = 1L << 40;         // valid
+```
+
+The same applies to run-time arithmetic. `1 << index` is an `int`, so write
+`1u << index` to get a `uint`, and add a suffix when a conditional of constants
+feeds a sum: `(ready ? 1u : 5) + (full ? 10 : 20)` is a `uint`, while the sum of
+two unsuffixed conditionals is an `int`. A suffixed literal keeps its type, so
+`byte tier = ready ? 1u : 33u;` is an error: write `ready ? 1 : 33`.
+
+An `inline` constant has the type you declare. Using it is the same as writing
+`(T)value`, so it does not adapt: with `inline int PAGE_SIZE = 4096;`, the line
+`nuint bytes = PAGE_SIZE * 4;` is an error, while `long bytes = PAGE_SIZE * 4;`
+and `nuint bytes = (nuint)PAGE_SIZE * 4;` are valid.
 
 ## Operator Precedence
 
@@ -107,7 +168,7 @@ bitwise XOR operator.
 | Comparison | `<`, `<=`, `>`, `>=`, `==`, `!=` | `bool` |
 | Logical | `!`, `&&`, <code>&#124;&#124;</code> | `bool` |
 | Bitwise | `~`, `&`, <code>&#124;</code>, `^`, `<<`, `>>` | Integral result |
-| Conditional | `condition ? whenTrue : whenFalse` | Common/target-compatible result |
+| Conditional | `condition ? whenTrue : whenFalse` | The target type, or the common type of both arms |
 
 Use interpolated strings when you want to build text from literal pieces and
 values:
@@ -167,6 +228,33 @@ if (buffer != null)
 if (count)   // ERROR
 	process(values);
 ```
+
+## Mixed Types In Conditionals And Array Literals
+
+With a target type, each arm of a conditional and each element of an array
+literal converts to it on its own, so `long total = ready ? count : bigCount;`
+and `float[] weights = [1, 2.5];` just work. With no target, as under `auto` or
+as an operand, Camp looks for one type that every part converts to. That is the
+common type:
+
+```camp
+auto wider = ready ? count : bigCount;   // long, from an int and a long
+auto weights = [1, 2.5];                 // double[]
+auto counts = [small, 2];                // uint[]: the literal adapts
+auto rows = [[1, 2], [3]];               // int*[]: each inner literal is a pointer to its elements
+```
+
+The result is always one of the types that appear, and it does not depend on the
+order. `null`, `default` and `[]` take their type from the other parts, so
+`ready ? buffer : null` has the type of `buffer`; a part that is only those gives
+nothing to infer from. When no type works, as in `ready ? small : count` over a
+`uint` and an `int`, or `[1, 2L, true]`, the compiler reports the first part that
+does not convert to the widest type. Add a cast to say which you mean.
+
+Pointers join to the more general pointer: `int*` with `const int*` is
+`const int*`, and `Derived*` with `Base*` is `Base*`. Their lifetimes must agree
+too. A `scoped` pointer and an `escaped` one do not join; write a lifetime cast
+on one of them.
 
 ## Assignment And Update
 

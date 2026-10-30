@@ -14,6 +14,11 @@ calls.
 
 ## Local Type Inference
 
+An `auto` local takes the natural type of its initializer: the type of a
+literal (Numeric Literal Types), the best common type of a conditional or array
+literal that no target types (Best Common Type), and the ordinary type of any
+other expression. The inferred type is fixed for the life of the local.
+
 An `auto` local requires an initializer that supplies a concrete static type.
 A missing initializer, bare `null`, or untyped `default` cannot supply that
 type. Body analysis reports `CAMP3202` at the initializer, or at `auto` when
@@ -35,11 +40,44 @@ When a concrete sibling supplies the common element type, analyze the untyped
 elements again with that target, including nested empty or default-only literals.
 An explicit nested pointer target such as `int*[] values = [[]];` is also valid.
 
+A conditional whose arms are all untyped in this sense (`c ? null : null`,
+`c ? default : default`, `c ? null : default`, `c ? [] : []`) supplies no type
+either. Each of these is reported at the initializer:
+
+```camp
+auto none = null;                // CAMP3202 at `null`
+auto grouped = (default);        // CAMP3202 at `(default)`
+auto arms = c ? null : default;  // CAMP3202 at the conditional
+auto elements = [null, default]; // CAMP3202 at the array literal
+auto values = [];                // CAMP3202 at `[]`
+auto nothing;                    // CAMP3202 at `auto`
+```
+
+A void initializer cannot supply a type. `auto result = log();` over a `void`
+function is an error (`CAMP3201`) at the call, and a conditional whose arms are
+void calls is an error at the conditional. Later uses of the local are diagnosed
+as uses of a void value; they add no inference error. The deferred forms
+`postpone` and `await` are not void initializers, because their operand's type
+is not the type of the expression.
+
+`auto` takes no modifier. `const auto x = 5;`, `fixed auto x = 5;` and
+`stackalloc auto x = 5;` are errors at `auto`, for a local and for a `foreach`
+variable, and the declaration reports no inference error beside them. A
+lifetime annotation is rejected on every local, `auto` included. To declare a
+read-only, inline or `stackalloc` local, write its type: `const int limit = 5;`.
+
+A declaration made in a call takes its type from the callee. `out auto name`
+declares a local of the matching `out` parameter's type, and `catch auto name`
+declares a local of the callee's `thrown` slot type, so `catch auto fault` for
+`thrown Fault` is a `Fault`. These locals are typed before the declarations and
+statements after them are analyzed, so those use the inferred type like any
+other local.
+
 Values read from explicitly typed storage, typed null-producing expressions,
 and ordinary typed values remain valid inference sources. Failed expression
-analysis keeps its original diagnostic; it does not also need an inference
-diagnostic. The existing diagnostics for void initializers and initializer lists
-without a target type remain applicable.
+analysis keeps its original diagnostic; no inference error is added to it, so
+`auto fromCall = pass(missing);` reports the unresolved name only. The existing
+diagnostics for initializer lists without a target type remain applicable.
 
 Inference reads storage as its carried type. `auto c = slot.value` over a
 `long<Color>` field is a `Color`, never a top-level carrier or `void<V>`. `auto`
@@ -47,43 +85,65 @@ also never infers a `stackalloc` local: `auto d = (void<int?>)42;` is an error
 that asks for `stackalloc void<int?> d`, because the cast is valid only where it
 initializes erased storage.
 
-## Integer Literal Target Ranges
+## Numeric Literal Types
 
-Without a numeric target, an unsuffixed integer literal has type `int` when its
-exact value fits `int`, and `long` otherwise. Values outside `long` are errors.
-The same rule applies to hexadecimal and binary spellings, and unary signs are
-included when choosing the type. Arithmetic uses those inferred operand types;
-C emission must preserve their width even where C assigns a hexadecimal literal
-a narrower unsigned type.
+A numeric literal has a natural type. It applies wherever no target type does:
+an `auto` initializer, an operand, a candidate of a best common type, and an
+argument that infers a generic parameter. Where a target type exists, an
+unsuffixed literal converts to it by value (see Target Ranges below).
 
-Numeric suffixes are case-insensitive and determine the source type before
-destination conversion: `u` selects `uint` or, if necessary, `ulong`; `l`
-selects `long`; `ul` and `lu` select `ulong`; `f` selects `float`; and `d`
-selects `double`. A suffixed literal uses ordinary implicit conversions and
-cannot take a narrower destination type merely because its value fits there.
-The floating suffixes may follow decimal digits with or without a decimal
-point. C emission removes `d` and supplies a decimal point for digit-only
-floating forms such as `1f` and `2d`. Hexadecimal `f` and `d` remain digits.
+| Suffix | Natural type |
+|---|---|
+| none | `int` if the value fits `int`, otherwise `long`; a value above the `long` maximum is an error that suggests the `ul` suffix |
+| `u` | `uint` if the value fits `uint`, otherwise `ulong`; a value above the `ulong` maximum is an error |
+| `l` | `long`; a value above the `long` maximum is an error |
+| `ul`, `lu` | `ulong`; a value above the `ulong` maximum is an error |
+| none, with a `.` | `double` |
+| `f` | `float` |
+| `d` | `double` |
+
+Suffixes are case-insensitive, and `lu` is the same as `ul`. Hexadecimal and
+binary spellings follow the same table as decimal ones, so `0xFFFFFFFF` is
+`long` and `0xFFFFFFFFu` is `uint`. A unary sign is included when choosing the
+type: `-2147483648` is `int`, and `-2147483649` and `-9223372036854775808` are
+`long`. Negating a `u` or `ul` literal (`-5u`) is an error.
+
+The floating suffixes `f` and `d` may follow decimal digits with or without a
+decimal point (`1f`, `2d`, `2.5d`). They never apply to hexadecimal literals,
+where `f` and `d` are digits (`0x1f` is an integer). C emission removes `d` and
+supplies a decimal point for digit-only floating forms such as `1f` and `2d`.
 
 Validate the whole suffix at the numeric token during parsing. Integer suffixes
 are only `u`, `l`, `ul`, and `lu`; decimal floating suffixes are only `f` and
-`d`. Decimal digits without a point may also use `f` or `d`. Reject repetitions,
-combinations such as `uf` or `fd`, and integer suffixes on fractional literals,
-with a diagnostic naming the invalid suffix. Case does not affect validity.
+`d`. Reject repetitions, combinations such as `uf` or `fd`, and integer suffixes
+on fractional literals, with a diagnostic naming the invalid suffix. Case does
+not affect validity.
 
-An unsuffixed floating literal takes only a `float` or `double` numeric target;
-otherwise it has type `double`. It cannot acquire an integral or character type
+Arithmetic uses these natural types; C emission must preserve their width even
+where C assigns a hexadecimal literal a narrower unsigned type.
+
+### Target Ranges
+
+An **unsuffixed** integer literal is target-typed. It converts to any integer
+target whose range holds its exact value, and to `float` and `double`. An
+**unsuffixed** floating literal takes only a `float` or `double` target;
+otherwise it is a `double`. It cannot acquire an integral or character type
 from its destination, including under unary signs. Reject such implicit
-conversions in declarations, assignments, arguments, and returns. Integer
-literals still accept floating targets, and explicit numeric casts retain their
-ordinary conversion rules.
+conversions in declarations, assignments, arguments, and returns. Explicit
+numeric casts retain their ordinary conversion rules.
+
+A **suffixed** literal has a fixed type and converts only by the implicit table
+in semantics 03. It cannot take a narrower destination type merely because its
+value fits there: `long wide = 5u;` is valid, while `byte b = 5u;`,
+`int i = 5l;` and `float f = 1.5d;` are errors.
 
 An integer literal used with a primitive integral target must fit that target's
 range. Body analysis checks the exact integer value before C emission, including
-decimal, hexadecimal, and integer suffixes. This
-applies to initialization, assignment, return values, arguments, and aggregate
-elements wherever a target type is supplied. Natural integer bounds follow the
-selected target and type specifier.
+decimal, hexadecimal, and integer suffixes. This applies to initialization,
+assignment, return values, arguments, and aggregate elements wherever a target
+type is supplied. Natural integer bounds follow the selected target and type
+specifier. Integer literals for character targets (`char c = 65;`) keep their
+own rules.
 
 The target of a carrier is its carried type: `int<byte> b = 300;` is out of range
 and `long<Color> c = RED;` resolves `RED` through `Color`. Natural-width carriers
@@ -99,57 +159,228 @@ Unary operations on ordinary values still use integer promotion; explicit casts
 keep their conversion rules. An out-of-range literal produces a diagnostic at
 its source expression.
 
-## Common Expression Types
+## Constant Expressions And Literal-Shaped Expressions
 
-A literal-shaped numeric expression is an unsuffixed numeric literal, a constant
-numeric expression made only from such literals, or a conditional with two
-literal-shaped arms (its condition may be runtime). Parentheses preserve the
-shape. Compute constant parts in their natural types, then convert the result
-to the target. Integer shapes accept integer targets that hold every possible
-value; floating shapes accept only `float` or `double`. Diagnose a value or arm
-that does not fit at that value. This applies to initialization, assignment,
-arguments, returns and aggregate fields as well as numeric operand contexts.
+A target type or an operand type decides how a value is *converted*, never which
+type an operation is *computed* in. Camp lowers to C, and C computes every
+operation in its promoted type, so the C a compiler emits must compute what the
+Camp source means when written as it is.
 
-Named inline constants and suffixed literals have fixed types. Runtime
-arithmetic of literal-shaped conditionals is not itself literal-shaped:
-`(f ? 1 : 5) + (g ? 10 : 20)` remains `int`. Shift counts do not supply the
-left operand's type. Floating operands keep ordinary C arithmetic: a `float`
-variable multiplied by `0.1` produces `double`. In a `float` destination,
-`0.1 + 0.2` computes as `double` before converting the result to `float`.
+### Literal-Shaped Expressions
 
-Check each integer constant operation in its natural operand type, including
-operations on named inline constants. Reject signed overflow at the operation
-and name that type, even if a wider destination could hold the mathematical
-result. A constant shift count must be nonnegative and smaller than the width
-of its promoted left operand. Signed left shifts also require a nonnegative
-operand and a representable result. Unsigned arithmetic wraps in its type's
-width. Use a wider or unsigned operand when needed: `65536L * 65536` and
-`1L << 40` are valid; an outer `long` destination does not widen `1 << 40`.
+An expression is **literal-shaped** if it is:
 
-For arithmetic and bitwise operators, a fitting integer literal shape on
-either side takes the other operand's integer type before the operation's
-ordinary promotions. Thus `4 + unsignedValue` and `unsignedValue + 4` agree.
-Shift operands retain their separate roles; a shift count does not supply the
-left operand's type.
+- an unsuffixed integer or floating literal;
+- a constant expression built only from unsuffixed literals and operators
+  (`256 * 1024 * 1024`, `5 + 45`, `-(-3)`, `0.1 + 0.2`);
+- a conditional whose two arms are both literal-shaped, whatever its `bool`
+  condition (`f ? 1 : 50`, `f ? 1 : (5 + 45)`, `a ? 1 : (b ? 2 : 3)`);
+- one of these in parentheses.
+
+Suffixed literals and named constants are never literal-shaped.
+
+A literal-shaped integer expression converts implicitly to any integer type, and
+to `float` and `double`, that holds every value it can produce: the folded value
+of a constant, or each arm of a conditional, recursively. A literal-shaped
+floating expression converts only to `float` and `double`. This *expression
+conversion* applies:
+
+- to every target: declaration, assignment and compound assignment, `return`,
+  argument, initializer field and array element;
+- to operator operands, through the operand rules below: with `uint k`,
+  `k < (f ? 1 : 2)`, `k == (f ? 1 : 2)`, `k < 2 * 3` and `(f ? 2 : 3) * k` are
+  `uint` operations, just as `k + 2` is;
+- to the arms and elements of a conditional or array literal, through the best
+  common type.
+
+With no target and no typed operand, the expression has its natural type. For a
+constant that is the type it is folded in; for a conditional it is the best
+common type of its arms. Only the final value, or each conditional arm, is
+range-checked against the target, and a value or arm that does not fit is
+diagnosed at that value.
+
+```camp
+uint budget = 256 * 1024 * 1024;     // valid
+nuint blockSize = 64 * 1024;         // valid
+byte level = ready ? 1 : 33;         // valid, each arm fits
+byte bad = ready ? 1 : 300;          // error at 300
+uint negative = ready ? -1 : 2;      // error at -1
+```
+
+### Folding
+
+A constant expression is folded in its natural types, as C computes it: `int`,
+or `long` once an operand is `long` (an unsuffixed literal beyond `int` is
+`long`), and `double` for floating operands. Check each integer constant
+operation in the type it is computed in, including operations on named inline
+constants. These are errors at the operation, even when the final target could
+hold the true result:
+
+- overflow of the signed type the step is computed in (`uint u = 65536 * 65535;`,
+  `int z = 2147483647 + 1;`, `uint mask = 1 << 31;`), naming that type;
+- a shift count that is negative or not smaller than the width of the promoted
+  left operand (`long y = 1 << 40;`);
+- a signed left shift of a negative operand, or one whose result is not
+  representable.
+
+Unsigned arithmetic wraps in its type's width. Intermediate values may be
+negative: `uint x = 5 - 10 + 20;` is `15`. Use a wider or unsigned operand when
+the result needs it: `65536L * 65536` and `1L << 40` are valid, and an outer
+`long` target does not widen `1 << 40`.
+
+### Named Constants
+
+`inline T NAME = value;` lowers to `#define NAME ((T)value)` with the value
+folded, so a use of `NAME` is the expression `(T)value`: an expression of the
+fixed type `T`, like a suffixed literal. With `inline int PAGE = 4096;`:
+
+- `nuint n = PAGE * 4;` and `byte b = PAGE / 32;` are errors (`int` to `nuint`,
+  `int` to `byte`), while `long l = PAGE * 4;` is valid by the implicit table;
+- an expression with named constants is still a constant expression for
+  folding, so `PAGE * 1048576` is an overflow error.
+
+The constant's own initializer is a target like any other, so
+`inline uint BUDGET = 256 * 1024 * 1024;` is valid.
+
+### Floating Values
+
+Floating literal-shaped expressions follow the same rules, and C models them
+directly:
+
+- `float w = 0.1 + 0.2;` and `float h = 0.5 * 3;` are computed in `double` and
+  rounded once at the conversion;
+- `float c = f ? 1.5 : 2.5;` converts each arm;
+- an operand stays C-like: with `float a`, `a * 0.1` is `double` (both `float`
+  and `double` survive and `float` converts to `double`), so
+  `float r = a * 0.1;` is an error. Write `0.1f`.
+
+### Lowering
+
+No arithmetic changes type, so C evaluates the emitted expression to the value
+Camp computed. The conversion at the target keeps that value, because every
+value has been range-checked. Lowering emits the expression as written; a cast
+at the conversion point is optional, for example to keep `-Wconversion` quiet.
+The folding errors are exactly the cases where C would have undefined behavior.
+
+### What Is Not Literal-Shaped
+
+- Arithmetic that is not constant stays in its natural type, even when every
+  operand is literal-shaped: `uint z = (f ? 1 : 5) + (g ? 10 : 20);` is `int`
+  and an error. The type of an operation decides wrapping, sign, division and
+  shift results, and C computes it in `int`. One suffix is enough, because the
+  second operand then adapts to the first: `(f ? 1u : 5) + (g ? 10 : 20)`.
+- `1 << n` with a non-constant `n` is `int`, so `uint m = 1 << (uint)n;` is an
+  error and `1u << n` is the required form. `auto m = 1 << n` is `int` and
+  `auto m = 1u << n` is `uint`. A shift count never supplies the left operand's
+  type.
+- A suffixed literal keeps its fixed type: `byte b = f ? 1u : 33u;` is an error
+  (`uint` to `byte`). Write `f ? 1 : 33`.
+
+| Code | Result |
+|---|---|
+| `uint x = 256 * 1024 * 1024;`, `nuint b = 64 * 1024;`, `ulong c = 1 << 20;` | valid |
+| `uint x = f ? 1 : 50;`, `uint x = f ? 1 : (5 + 45);`, `byte b = f ? 1 : 33;` | valid |
+| `byte b = f ? 1 : 300;` / `uint x = f ? -1 : 2;` | error at `300` / at `-1` |
+| `uint u = 65536 * 65535;`, `uint mask = 1 << 31;` / `long y = 1 << 40;` | error at the operator: overflows `int` / shift count too large for `int` |
+| `float w = 0.1 + 0.2;`, `float h = 0.5 * 3;`, `double m = f ? 1 : (0.5 + 1);` | valid; constants computed in `double` |
+| `k < (f ? 1 : 2)`, `k == (f ? 1 : 2)`, `(f ? 2 : 3) * k` (`uint k`) | `uint` |
+| `2 + argumentCount + (hasWithin ? 1 : 0)` (`uint argumentCount`) | `uint`, with no suffix |
+| `uint z = (f ? 1 : 5) + (g ? 10 : 20);` | error: `int` |
+| `uint m = 1 << (uint)n;`, `byte b = f ? 1u : 33u;` | error |
+| `nuint n = PAGE * 4;` (`inline int PAGE`) | error: `int` to `nuint` |
+
+## Numeric Operand Types
 
 Numeric arithmetic and bitwise operands choose a common type through implicit
 conversion, independently of operand order, before applying narrow integer
 promotion. This preserves `byte`/`ushort` with `uint` as `uint`. If the original
-types have no common candidate, try their promoted types; reject pairs such as
-`short` with `uint` when neither converts to the other even after promotion.
-Shift result types come from the promoted left operand alone.
+types have no common candidate, try their promoted types, and reject pairs such
+as `short` with `uint` when neither converts to the other even after promotion.
+Shift result types come from the promoted left operand alone. Comparisons do not
+promote.
+
+For arithmetic, bitwise and comparison operators, a literal-shaped integer
+expression on either side takes the other operand's integer type when its value
+fits, before the operation's ordinary promotions. Thus `4 + unsignedValue` and
+`unsignedValue + 4` agree, `1 + 2u` is `uint`, and `-1 + 2u` has no common type.
+Character types do not adapt. A conditional of literal-shaped arms counts by the
+smallest and largest value of its arms. Shift operands retain their separate
+roles; a shift count does not supply the left operand's type.
+
 Top-level value qualifiers such as `const` and `volatile` do not affect this
 numeric common-type calculation; reading qualified storage produces the same
 numeric result type as reading unqualified storage.
 
-An untargeted conditional or array literal chooses a common type from its
-operand types. A candidate qualifies only if every operand converts implicitly
-to it, including target typing a fitting unsuffixed integer literal. If several
-qualify, choose the candidate to which the other qualifying types convert.
-Consider all operands together; intermediate incompatible pairs do not exclude
-a later candidate that accepts every operand. Operand order never changes the
-result. If none qualifies, diagnose the incompatible operand and require an
-explicit conversion rather than emitting an unresolved type.
+## Best Common Type
+
+Some expressions join several operands into one type when no target type
+supplies it: the arms of a conditional, the elements of an array literal, and
+the top-level arguments for one generic parameter (see semantics 06). The join
+is the **best common type**. It is computed once, from the operands as a list,
+and never depends on their order.
+
+1. Bind each operand without a target. These operands are **target-only** and
+   give no candidate: `null`, `default`, a brace list, an empty array literal
+   `[]`, and an unqualified enum member (and, once lambdas are bound, a lambda).
+2. The **candidates** are the distinct natural types of the other operands.
+   A literal gives its natural type. Camp has no nested arrays: an array
+   literal nested in an array literal is a pointer to C-style storage of its own
+   elements, so it gives `E*`, where `E` is the best common type of its
+   elements.
+3. A candidate **survives** if every operand of the list, target-only operands
+   included, converts implicitly to it. Operands convert as expressions: a
+   literal-shaped expression converts to any candidate whose range holds every
+   value it can produce, `null` converts to any pointer (never to an optional;
+   an empty optional is written `default`), `default` converts to any candidate,
+   and an unqualified enum member converts to its enum.
+4. The result is the survivor to which every other survivor converts
+   implicitly. It is an error if there is no survivor.
+
+The result is always one of the candidate types. Sibling classes do not join to
+their base, `int` and `uint` have no common type, and `c ? null : null` has
+none. `Derived*` with `Base*` gives `Base*`; `int*` with `null` gives `int*`;
+`int` with `null` has no survivor; `int?` with `null` has no survivor, while
+`int?` with `default` gives `int?`, and `int` with `default` gives `int`.
+`int*` with `const int*` gives `const int*`, because only that candidate
+survives; a `dependent const` candidate is first replaced by ordinary `const`
+(semantics 04, Common Type Inference).
+
+| Expression | Result |
+|---|---|
+| `[1, 2L]`, `c ? i : l` | `long[]`, `long` |
+| `[1, 2.5]`, `c ? 1 : 2.5` | `double[]`, `double` |
+| `[u, 2]`, `[2, u]`, `c ? u : 0` | `uint[]`, `uint[]`, `uint` |
+| `[b, 300]`, `[b, 1]` (`byte b`) | `int[]` (300 does not fit `byte`), `int[]` (`byte` converts to `int`) |
+| `c ? u : i`, `[i, u]` | error |
+| `[[1, 2], [3]]` | `int*[]` |
+| `[[1, 2], [3L]]` | error: `int*` and `long*` have no common type |
+| `c ? scopedPointer : escapedPointer` | error: lifetimes differ |
+
+**Lifetimes.** Once a common pointer type is found, the lifetime annotations of
+every candidate must match it exactly. A `scoped` candidate never joins an
+`escaped` one; the source adds an explicit lifetime cast (`(escaped)p`,
+`(scoped)q`) to make them agree. The same holds for the lifetimes of the
+pointer arguments of one generic parameter.
+
+**Diagnostics.** When no candidate survives, report at the first operand, in
+source order, that does not convert to the *widest* candidate, naming both
+types. The widest candidate is the one that most other candidates convert to,
+and a tie goes to the earlier candidate. So `[1, 2L, true]`
+reports at `true` (`bool`, `long`), and `c ? u : i` reports at `i` (`int`,
+`uint`). An operand that is already an error leaves the join untyped without a
+second diagnostic. When there are no candidates at all (`c ? null : null`,
+`[]`) the construct has no type; under `auto` this is `CAMP3202`, and in generic
+inference it is the failure described in semantics 06.
+
+### Targets Come First
+
+When a target type exists (a declaration, an assignment, `return`, an argument
+whose parameter type is known, an element of a targeted array), each operand
+converts to the target on its own and no best common type is computed. So
+`long r = c ? i : l;`, `float[] f = [1, 2.5];`, `Kind k = c ? A : B;` and
+`Kind[] ks = [A, B];` are valid. The best common type applies only where nothing
+supplies a target: an `auto` initializer, an operand of an operator, a receiver,
+and the arguments of a generic parameter.
 
 ## Update Operands
 
@@ -166,7 +397,28 @@ must use `Type.member`. Public visibility makes a member accessible through its
 owner, not a global name. This applies to static constants as well as mutable
 static fields, including when an enum supplies the expression's target type.
 
-## Enum Comparisons
+## Enum Member Target Typing
+
+An unqualified identifier that ordinary lookup does not resolve is looked up as
+a member of the target's enum. The target type must be an enum, an optional or
+carrier of an enum, or the element type of an enum array. The target is any
+target that types an expression:
+
+- a declaration, an assignment, `return` and an expression body;
+- an argument, named or positional, including constructor arguments and default
+  arguments, where the parameter type is the target;
+- a field of an aggregate initializer, positional or designated;
+- either side of `==` and `!=`, and the other operand of a bitwise combination
+  such as `READ | WRITE`;
+- the subject of a `switch`, for its case labels;
+- the arms and elements of a targeted conditional or array literal, through
+  parentheses and unary signs.
+
+```camp
+Kind kind = DEVICE;
+Kind[] kinds = [DEVICE, FILE];
+bool isFile = kind == FILE;
+```
 
 Target enum member lookup is a fallback after ordinary name lookup. A visible
 local, parameter, field, global, or other declaration wins even when its name
@@ -179,9 +431,20 @@ For example, `Arch value = X64;` names `Arch.X64` even when the target defines a
 `X64` flag. Without an enum target, querying that flag still requires
 `configured(X64)`.
 
+Static fields follow the same rule as other declarations: a bare name finds a
+static field only in its own type and its visible bases (Static Field Name
+Lookup), so a static field of an unrelated type never hides a member.
+
 An unqualified enum member in a comparison is target-typed from the other
 operand's enum type on either side. Local and global storage, including
 namespace-qualified globals, supply the same enum context.
+
+In a conditional or array literal that no target types, an enum operand acts as
+the target for the unqualified members beside it, as part of the best common
+type: `auto kind = ready ? Kind.DEVICE : FILE;` is a `Kind`. Without any target
+or enum operand there is no lookup. `auto x = DEVICE;`, `(Kind)DEVICE`,
+`count == DEVICE` over an integer, and `auto y = ready ? DEVICE : FILE;` are
+errors that ask for a qualified name.
 
 ## Newtype Operators
 
@@ -1426,6 +1689,16 @@ Important diagnostic categories include:
 - invalid character literals that do not contain exactly one Unicode scalar
   value;
 - character literals that do not fit an explicit target character-code type;
+- numeric literals that are malformed, out of range for their natural type or
+  target, or negated with an unsigned suffix;
+- integer constant operations that overflow the type they are computed in, and
+  shift counts outside the left operand's width;
+- operands, conditional arms, array elements or generic arguments with no best
+  common type, reported at the first operand that does not convert to the
+  widest candidate;
+- `auto` over an initializer that supplies no type, over a void value, with a
+  modifier, or with no initializer;
+- an unqualified enum member with no enum target;
 - source `goto` crosses cleanup in a way the compiler diagnoses.
 
 Diagnostics should point at the source syntax that introduced the special
@@ -1455,6 +1728,18 @@ Changes here should cover:
 - bare and explicit `toString`, alternate prepared formatters, direct text,
   UTF-8 result targets, and direct-to-destination interpolation lowering;
 - intentional discard lowering and invalid discard reads;
+- numeric literal natural types for every suffix and spelling, range checks
+  against each integer target, and the malformed-suffix diagnostics;
+- constant folding in natural types, overflow and shift errors, named constants
+  as `(T)value`, and literal-shaped targets and operands, including conditional
+  arms and floating values;
+- best common type for conditionals and array literals independent of operand
+  order, target-only operands, nested array literals, pointer lifetimes, and the
+  no-common-type diagnostic position;
+- `auto` initializers that supply no type, void initializers, modifiers on
+  `auto`, `out auto` and `catch auto`, and use of the inferred local;
+- enum member target typing at every target position, hiding by ordinary
+  declarations, and the untargeted-join rule;
 - source `goto` interaction with `try`/`finally` cleanup.
 
 ## Implementation Anchors

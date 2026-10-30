@@ -54,6 +54,7 @@ code. Ordinary Camp users should start with the language guide.
 - Raw Carrier Families
 - `void*` Fences
 - `fn*` Fences
+- Implicit Numeric Conversions
 - `nint` And `nuint`
 - `untyped`
 - Const And Volatile Overrides
@@ -115,6 +116,7 @@ code. Ordinary Camp users should start with the language guide.
 ## 6. Generics, Erasure, And Capabilities
 
 - Binding Model
+- Type Argument Inference
 - Receiver-Relative Type Forms
 - Representations And Eligible Arguments
 - Erased Versus Materialized Values
@@ -260,6 +262,7 @@ code. Ordinary Camp users should start with the language guide.
 - Conversion Policy Tables
 - Natural Integers And Pointer Widths
 - Primitive C Spelling
+- Numeric Expression Emission
 - C Emission Preconditions
 - Expanded Forms In C
 - Prepared Result Emission
@@ -297,6 +300,12 @@ code. Ordinary Camp users should start with the language guide.
 
 ## 14. Core Expression, Statement, And Access Semantics
 
+- Local Type Inference
+- Numeric Literal Types
+- Constant Expressions And Literal-Shaped Expressions
+- Numeric Operand Types
+- Best Common Type
+- Enum Member Target Typing
 - Body-Analysis Ownership
 - Static Class Member Access
 - Property Accessor Binding
