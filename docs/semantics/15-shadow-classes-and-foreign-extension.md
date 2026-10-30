@@ -149,6 +149,14 @@ arguments.
 
 ## Field Access And Receiver Constness
 
+Instance fields declared by a non-shadow base are inaccessible through a shadow
+class receiver, including `this` and receivers of derived shadow classes. Report
+the field access during semantic analysis, naming the field and its declaring
+non-shadow base. Shared pointer representation does not grant field access.
+Base methods remain callable, and a base-typed pointer retains its ordinary
+field access. Fields declared by shadow bases remain accessible through their
+shadow data prefix.
+
 Inside an instance method of a shadow class, `this` is still the shadow instance
 pointer, which is physically the base object pointer. Field access for fields
 declared by the shadow class is rewritten through the selected `@getshadow`
@@ -292,7 +300,9 @@ Diagnostics should point at the source token that explains the problem:
 - the constructor type name for invalid direct shadow construction;
 - the `delete shadow` statement for invalid deletion scope;
 - the `shadow` token for a local-name collision warning;
-- the shadow field access after an obvious delete.
+- the shadow field access after an obvious delete;
+- the field name for access to a non-shadow base's instance field through a
+  shadow receiver.
 
 Important diagnostics include:
 
@@ -319,6 +329,7 @@ Shadow class coverage should include:
 - constructor calls whose source parameters lower to expanded ABI components;
 - generated vtable assignment at the `new` or create site;
 - field access through mutable and const receivers;
+- rejection of non-shadow base fields through direct and inherited shadow receivers;
 - `delete shadow` legality, warnings, and post-delete field diagnostics;
 - shadow inheritance with inherited and appended fields;
 - interface conversion and interface dispatch through shadow data;

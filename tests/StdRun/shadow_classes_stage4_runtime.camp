@@ -13,6 +13,8 @@ interface IExtra
 class NativeShadowHost
 {
 	escaped void* shadowData;
+	int hostValue;
+	int readHostValue() => this.hostValue;
 
 	NativeShadowHost()
 	{
@@ -87,6 +89,9 @@ export int main()
 	BaseShadow* baseView = derived;
 	IValue* value = derived;
 	IExtra* extra = derived;
+	NativeShadowHost* hostView = derived;
+	hostView.hostValue = 23;
+	if (derived.readHostValue() != 23) return 1;
 
 	Console.writeLine(baseView.getBase());
 	Console.writeLine(derived.getExtra());

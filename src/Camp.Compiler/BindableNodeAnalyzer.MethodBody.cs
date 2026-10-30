@@ -6464,6 +6464,19 @@ public sealed partial class BindableNodeAnalyzer
 		}
 
 		BodySymbol selected = members[0];
+		if (!isTypeTarget && selected.Node is FieldDefinition { Modifier: not FieldModifier.Static } baseField
+			&& GetTypeDefinition(lookupTargetType) is ClassDefinition { IsShadow: true } shadowReceiver)
+		{
+			foreach (ClassDefinition owner in EnumerateClassAndBases(shadowReceiver))
+			{
+				if (!owner.IsShadow && owner.Fields.Contains(baseField))
+				{
+					Report(member.NameRange ?? GetRange(member.SourceSyntax),
+						$"Field '{baseField.Name}' is declared in non-shadow base class '{owner.Name}' and is not accessible to shadow classes.");
+					return ErrorType;
+				}
+			}
+		}
 		if (!isTypeTarget
 			&& selected.Node is FunctionDefinition prepPropertyGetter
 			&& prepPropertyGetter.Parameters.Exists(static parameter => parameter.Modifier == ParameterModifier.Prep)
@@ -6775,6 +6788,8 @@ public sealed partial class BindableNodeAnalyzer
 				return unary.ResolvedType ?? ErrorType;
 
 			case UnaryOperator.AddressOf:
+				if (operandType == ErrorType)
+					return ErrorType;
 				if (IsEscapedInterfaceValueType(operandType) && unary.Operand is not null
 					&& (!TryParseLifetimeFact(GetEscapedConversionStorageFact(unary.Operand), out LifetimeFact interfaceSlot) || interfaceSlot.Kind != "escaped"))
 					Report(GetRange(unary.SourceSyntax), "Taking the address of an escaped interface value requires escaped slot storage.");
@@ -7162,6 +7177,8 @@ public sealed partial class BindableNodeAnalyzer
 
 	void RequireNumericUpdateOperand(Expression? operand, string operandType, AnalysisScope typeScope)
 	{
+		if (operandType == ErrorType)
+			return;
 		if (RejectNewtypeOperator(operand?.SourceSyntax, operandType))
 			return;
 		if (RejectCarrierComputation(operand, operandType, typeScope, operand?.SourceSyntax, "an update operator"))

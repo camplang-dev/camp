@@ -9,3 +9,6 @@ tests/Diagnostics/shadow_classes_stage3_invalid.camp(65,2): error: Storage of an
 tests/Diagnostics/shadow_classes_stage3_invalid.camp(66,2): error: Storage of an escaped type cannot be declared in an activation frame; use static storage or new.
 tests/Diagnostics/shadow_classes_stage3_invalid.camp(67,28): error: An escaped type cannot be allocated on the stack; use static storage or new.
 tests/Diagnostics/shadow_classes_stage3_invalid.camp(68,2): error: Storage of an escaped type cannot be declared in an activation frame; use static storage or new.
+tests/Diagnostics/shadow_classes_stage3_invalid.camp(85,30): error: Field 'hostValue' is declared in non-shadow base class 'FrameHost' and is not accessible to shadow classes.
+tests/Diagnostics/shadow_classes_stage3_invalid.camp(86,31): error: Field 'hostValue' is declared in non-shadow base class 'FrameHost' and is not accessible to shadow classes.
+tests/Diagnostics/shadow_classes_stage3_invalid.camp(97,48): error: Field 'hostValue' is declared in non-shadow base class 'FrameHost' and is not accessible to shadow classes.

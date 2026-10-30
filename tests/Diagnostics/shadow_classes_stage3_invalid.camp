@@ -70,6 +70,7 @@ export void main()
 
 class FrameHost
 {
+	int hostValue;
 	FrameHost() { }
 	@getshadow
 	extern escaped void* getShadow(const this);
@@ -81,6 +82,8 @@ extern escaped void* malloc(nuint size);
 
 shadow class FrameShadow: FrameHost
 {
+	int readBaseField() => this.hostValue;
+	void writeBaseField() { this.hostValue = 1; }
 	FrameShadow(int value)
 	{
 	}
@@ -90,3 +93,5 @@ shadow class FrameShadow: FrameHost
 		delete shadow;
 	}
 }
+
+int readHostField(FrameShadow* value) => value.hostValue;
