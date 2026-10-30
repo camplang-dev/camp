@@ -3802,6 +3802,7 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		CallExpression clone = new()
 		{
+			AnalyzedGenericSubstitutions = call.AnalyzedGenericSubstitutions is null ? null : new(call.AnalyzedGenericSubstitutions, System.StringComparer.Ordinal),
 			SourceSyntax = call.SourceSyntax,
 			Target = CloneParamsExpansionExpression(call.Target),
 			ResolvedType = call.ResolvedType,

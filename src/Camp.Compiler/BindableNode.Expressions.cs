@@ -242,6 +242,8 @@ public enum PreparedCallMode
 
 public class CallExpression : Expression
 {
+	// Preserve semantic inference for emission; lowered arguments are not fresh inference sources.
+	internal Dictionary<string, string>? AnalyzedGenericSubstitutions { get; set; }
 	public Expression? Target { get; set; }
 	public List<TypeReference> TypeArguments { get; } = [];
 	public List<ArgumentExpression> Arguments { get; } = [];

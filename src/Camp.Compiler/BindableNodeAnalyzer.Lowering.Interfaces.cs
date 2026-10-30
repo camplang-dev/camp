@@ -321,6 +321,8 @@ public sealed partial class BindableNodeAnalyzer
 		if (!callTargets.TryGetValue(call, out FunctionDefinition? function))
 			return;
 
+		if (callGenericSubstitutions.TryGetValue(call, out Dictionary<string, string>? substitutions))
+			call.AnalyzedGenericSubstitutions = new(substitutions, StringComparer.Ordinal);
 		List<ParameterDefinition> parameters = GetCallableParametersForCall(function, IncludeExplicitThisArgument(call.Target, function));
 		for (int i = 0; i < call.Arguments.Count && i < parameters.Count; i++)
 		{

@@ -67,29 +67,6 @@ Semantic analysis reports no accessibility error. Compilation proceeds to native
 Known Impact:
 Invalid access to a non-shadow base's fields is accepted by semantic analysis and reported later as a native compiler error. Use a method of the base class to expose the required operation instead of accessing its field through the shadow class.
 
-## BUG-440: An argument of a generic call is not converted to the common type inferred for its parameter
-
-Date/Time: 2026-10-30 00:05 EDT
-
-Summary:
-When the arguments of a generic call have different types and the parameter is inferred as their common type, the generated call passes each argument in its own representation, and converts only the second one, to the type of the first. The inferred type name is right (`Long` for `int` with `long`), but the callee reads the storage as that type, so it reads past the end of the `int` argument or reads a truncated value.
-
-Steps to Reproduce:
-
-1. Declare `T second<T>(in T a, in T b, sizeof(T)) { return b; }` and `T first<T>(in T a, in T b, sizeof(T)) { return a; }`.
-2. In `main`, declare `int i = 7;` and `long l = 5000000000;`.
-3. Log `second(i, l)`, `first(i, l)`, `second(l, i)` and `first(l, i)` with `__intrinsic_log_i64`.
-4. Compile and run the program.
-
-Expected:
-All four calls infer `T` as `long` and convert the `int` argument to `long`, so the output is 5000000000, 7, 7 and 5000000000.
-
-Actual:
-The output is `6433681343041106432`, `-5352980537445187577`, `7` and `5000000000`. The generated C for `second(i, l)` is `second(&i, &(int){l}, ..., sizeof(int64_t))`: the `long` argument is converted to `int` and the `int` argument is passed unconverted, both read as 8 bytes. The same happens for `two(b, s)` (`byte` with `short`, `&(uint8_t){s}`), `two(b, 300)` (`&(uint8_t){300}`, a truncated 44) and `two(f, d)`.
-
-Known Impact:
-A generic call that mixes argument types reads garbage or truncated values unless the first argument has the common type. Convert the arguments to the common type by hand, or pass the type argument explicitly (`second<long>(i, l)` converts correctly).
-
 ## BUG-441: A conditional of two `in T` values in a generic function emits invalid C
 
 Date/Time: 2026-10-29 23:45 EDT

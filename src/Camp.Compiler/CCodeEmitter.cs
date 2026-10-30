@@ -7554,7 +7554,8 @@ public static class CCodeEmitter
 
         Dictionary<string, string> GetCallGenericSubstitutions(CallExpression call, FunctionDefinition function)
         {
-            Dictionary<string, string> substitutions = [];
+            Dictionary<string, string> substitutions = call.AnalyzedGenericSubstitutions is null
+                ? [] : new(call.AnalyzedGenericSubstitutions, StringComparer.Ordinal);
             int typeArgumentCount = Math.Min(function.GenericParameters.Count, call.TypeArguments.Count);
             for (int i = 0; i < typeArgumentCount; i++)
                 substitutions[function.GenericParameters[i].Name] = call.TypeArguments[i].ResolvedType ?? "void*";

@@ -4,6 +4,8 @@ int fromInput(in short value) => twice(value);
 long asLong(in long value) => value;
 float asFloat(in float value) => value;
 double asDouble(in double value) => value;
+T first<T>(in T a, in T b, sizeof(T)) => a;
+T second<T>(in T a, in T b, sizeof(T)) => b;
 export int main()
 {
 	short narrow = -1;
@@ -29,5 +31,17 @@ export int main()
 	double asciiNumber = ascii;
 	if (native != 'A' || wide != (wchar)'A' || unicode != (uchar)'A') return 10;
 	if (asciiCode != 65 || asciiNumber != 65.0) return 11;
+	int small = 7;
+	long large = 5000000000;
+	if (first(small, large) != 7 || second(small, large) != large) return 12;
+	if (first(large, small) != large || second(large, small) != 7) return 13;
+	byte tiny = 2;
+	short larger = 300;
+	if (first(tiny, larger) != 2 || second(tiny, larger) != 300) return 14;
+	if (second(tiny, 300) != 300 || first(tiny, 300) != 2) return 15;
+	float single = 1.5;
+	double precise = 2.25;
+	if (first(single, precise) != 1.5 || second(single, precise) != 2.25) return 16;
+	if (second(b: large, a: small) != large || second<long>(small, large) != large) return 17;
 	return 0;
 }
