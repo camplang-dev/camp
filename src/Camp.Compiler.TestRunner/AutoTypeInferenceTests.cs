@@ -7,6 +7,54 @@ namespace Camp.Compiler.Tests;
 public sealed class AutoTypeInferenceTests
 {
 	[Theory]
+	[InlineData("exchange(small, out wide)", "long")]
+	[InlineData("exchange(source: small, out wide)", "long")]
+	[InlineData("reverse(source: small, out wide)", "long")]
+	[InlineData("reverse(out wide, small)", "long")]
+	[InlineData("exchange(1, out wide)", "long")]
+	[InlineData("exchange(default, out wide)", "long")]
+	[InlineData("exchange(small, out long declared)", "long")]
+	[InlineData("exchange<long>(small, out wide)", "long")]
+	[InlineData("exchange(small, out _)", "int")]
+	[InlineData("exchange(1, out tiny)", "byte")]
+	[InlineData("many(small, small, out wide)", "long")]
+	[InlineData("exchange(pointer, out readOnlyPointer)", "const int*")]
+	[InlineData("exchange(null, out pointer)", "int*")]
+	[InlineData("exchange(small, out optional)", "int?")]
+	public void Generic_out_storage_fixes_the_type_before_inputs_are_converted(string invocation, string expected)
+	{
+		var compilation = SemanticCompiler.CompileLowered($$"""
+			T exchange<T>(in T source, out T destination, sizeof(T)) { destination = source; return source; }
+			T reverse<T>(out T destination, in T source, sizeof(T)) { destination = source; return source; }
+			T many<T>(in T first, in T second, out T destination, sizeof(T)) { destination = second; return first; }
+			void test(int small) {
+				long wide; byte tiny; int* pointer = null; const int* readOnlyPointer = null; int? optional = default;
+				auto value = {{invocation}};
+			}
+			""");
+		SemanticCompiler.AssertNoDiagnostics(compilation);
+		var call = Assert.Single(SemanticCompiler.Descendants<CallExpression>(SemanticCompiler.Function(compilation, "test")));
+		Assert.Equal(expected, call.ResolvedType);
+	}
+
+	[Theory]
+	[InlineData("exchange(wide, out small)", "wide", "cannot convert 'long' to 'int'")]
+	[InlineData("exchange<int>(small, out wide)", "wide", "exact type")]
+	[InlineData("twoOut(out small, out wide)", "wide", "exact type")]
+	[InlineData("twoOut(out wide, out small)", "small", "exact type")]
+	public void Generic_out_bounds_reject_incompatible_inputs_and_output_storage(string invocation, string argument, string message)
+	{
+		var compilation = SemanticCompiler.CompileLowered($$"""
+			void exchange<T>(in T source, out T destination, sizeof(T)) { destination = source; }
+			void twoOut<T>(out T first, out T second, sizeof(T)) { first = default; second = default; }
+			void test(int small, long wide) { {{invocation}}; }
+			""");
+		var diagnostic = Assert.Single(compilation.AnalysisDiagnostics.Distinct());
+		Assert.Contains(message, diagnostic.Message);
+		Assert.Equal(argument, Assert.IsType<TokenRange>(diagnostic.Range).Value);
+	}
+
+	[Theory]
 	[InlineData("tn(default)", "tn<T>", "tn")]
 	[InlineData("tn((default))", "tn<T>", "tn")]
 	[InlineData("two(default, default)", "two<T>", "two")]

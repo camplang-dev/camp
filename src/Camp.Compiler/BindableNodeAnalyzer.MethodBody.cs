@@ -4729,6 +4729,29 @@ public sealed partial class BindableNodeAnalyzer
 	{
 		if (genericNames.Count == 0)
 			return false;
+		// Output storage gives exact bounds before the value arguments choose a common type.
+		bool[] suppliedOutputs = new bool[parameters.Count];
+		foreach (ArgumentExpression argument in arguments)
+		{
+			if (!TryBindCallArgumentToParameter(argument, parameters, suppliedOutputs, null, out int index)
+				|| parameters[index].Modifier != ParameterModifier.Out || argument.Modifier != ArgumentModifier.Out
+				|| IsDiscardExpression(argument.Value))
+				continue;
+			string pattern = parameters[index].ResolvedType ?? ErrorType;
+			if (!ContainsUnboundGenericParameter(pattern, substitutions, genericNames))
+				continue;
+			string actual;
+			if (argument.Target is not null)
+			{
+				if (argument.Target.Type is null or AutoTypeReference)
+					continue;
+				AnalyzeType(argument.Target.Type, typeScope);
+				actual = argument.Target.Type.ResolvedType ?? ErrorType;
+			}
+			else
+				actual = BodyAnalyzeExpression(argument.Value, scope, typeScope);
+			InferGenericSubstitutions(pattern, actual, substitutions, genericNames);
+		}
 		bool reported = false;
 		Dictionary<string, List<ArgumentExpression>> candidates = [];
 		bool[] supplied = new bool[parameters.Count];
@@ -4865,7 +4888,14 @@ public sealed partial class BindableNodeAnalyzer
 							&& (!ContainsClassTypeReference(analysisParameter.Type) || !IsClassRelativeCallReceiver(callTarget))
 							&& callTarget is not MemberReferenceExpression { Member: FieldDefinition { GeneratedInfo: { Category: GeneratedDeclarationCategory.VirtualDispatch } } })
 							Report(GetRange(argumentSyntax), "Out argument cannot implicitly write an enclosing-class value to 'classtype'; use plain class storage and an explicit classtype cast.");
-						if (!ContainsConstOfTypeReference(analysisParameter.Type))
+						bool exactGenericOutput = genericParameterNames.Contains(StripTopLevelValueQualifiers(ReadErasedValueType(analysisParameter.ResolvedType ?? ErrorType)))
+							&& actual is not (ErrorType or TargetType) && expected is not (ErrorType or TargetType)
+							&& !ContainsUnboundGenericParameter(expected, genericSubstitutions, genericParameterNames)
+							&& NormalizeNominalTypeAliases(StripLifetimeQualifiers(StripTopLevelValueQualifiers(actual)))
+								!= NormalizeNominalTypeAliases(StripLifetimeQualifiers(StripTopLevelValueQualifiers(expected)));
+						if (exactGenericOutput)
+							Report(GetRange(argumentSyntax), $"Out argument requires storage of type '{expected}', not '{actual}'; a generic out slot requires an exact type.");
+						else if (!ContainsConstOfTypeReference(analysisParameter.Type))
 							CheckCallArgumentAssignable(actual, expected, arguments[i].Value, argumentSyntax, "Out argument", function, genericSubstitutions, genericParameterNames);
 						// An out argument writes the carrier itself, so it cannot adapt storage of another representation.
 						if (CarrierTypeIdentity.TryGetPayload(storageExpected, out _) && !ContainsUnboundGenericParameter(storageExpected, genericSubstitutions, genericParameterNames)

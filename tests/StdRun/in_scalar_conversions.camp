@@ -6,6 +6,11 @@ float asFloat(in float value) => value;
 double asDouble(in double value) => value;
 T first<T>(in T a, in T b, sizeof(T)) => a;
 T second<T>(in T a, in T b, sizeof(T)) => b;
+int transfer<T>(in T source, out T destination, sizeof(T), typenameof(T)) {
+	destination = source;
+	return typenameof(T)[0];
+}
+void transferPair<T>(in T first, in T second, out T destination, sizeof(T)) { destination = second; }
 export int main()
 {
 	short narrow = -1;
@@ -47,5 +52,14 @@ export int main()
 	if (first(null, pointer) != null || second(null, pointer) != pointer) return 18;
 	if (first(pointer, null) != pointer || second(pointer, null) != null) return 19;
 	if (second<int*>(null, pointer) != pointer || first((int*)null, pointer) != null) return 20;
+	if (transfer(small, out large) != 'L' || large != 7) return 21;
+	if (transfer(source: small, out large) != 'L' || large != 7) return 22;
+	if (transfer(small, out long declared) != 'L' || declared != 7) return 23;
+	if (transfer(default, out declared) != 'L' || declared != 0) return 24;
+	if (transfer(small, out _) != 'I') return 25;
+	transferPair(small, small + 1, out large);
+	if (large != 8) return 26;
+	int? optional = default;
+	if (transfer(small, out optional) != 'I' || !optional.specified || optional.value != 7) return 27;
 	return 0;
 }

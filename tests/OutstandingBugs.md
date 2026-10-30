@@ -43,26 +43,3 @@ Actual:
 Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
-
-## BUG-448: A generic argument in an `out` slot does not take part in inferring the type parameter it shares with an `in` argument
-
-Date/Time: 2026-10-30 EDT
-
-Summary:
-When one type parameter appears in both an `in T` slot and an `out T` slot, inference fixes the parameter from the `in` argument alone. An `out T` slot is meant to give an exact bound taken from its argument's type, which the `in` arguments of the same parameter must convert to (semantics 06, Type Argument Inference). The `out` argument is instead checked afterwards, in the opposite direction.
-
-Steps to Reproduce:
-
-1. Declare `void exchange<T>(in T source, out T destination, sizeof(T), typenameof(T))` with a body that assigns `destination = default;` and logs `typenameof(T)`.
-2. In a function, declare `int small = 1;` and `long wide = 2;`.
-3. Call `exchange(small, out wide);`.
-4. Compile and run the program.
-
-Expected:
-`T` is inferred as `long`, the exact type of the `out` argument, and the `int` converts to it. The program logs `Long`.
-
-Actual:
-`T` is inferred as `int` from the `in` argument and the call is accepted. The program logs `Int`. The opposite call, `exchange(wide, out small)`, is rejected with `Out argument cannot convert 'long' to 'int'` at `small`, which agrees with the expected rule only by accident of the checking direction.
-
-Known Impact:
-The inferred type, and so `sizeof(T)` and `typenameof(T)`, differs from the documented rule when the two arguments have different types. Write the type argument explicitly (`exchange<long>(small, out wide)`) to get the documented result.
