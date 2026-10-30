@@ -67,28 +67,6 @@ Semantic analysis reports no accessibility error. Compilation proceeds to native
 Known Impact:
 Invalid access to a non-shadow base's fields is accepted by semantic analysis and reported later as a native compiler error. Use a method of the base class to expose the required operation instead of accessing its field through the shadow class.
 
-## BUG-441: A conditional of two `in T` values in a generic function emits invalid C
-
-Date/Time: 2026-10-29 23:45 EDT
-
-Summary:
-Selecting between two `in T` parameters with a conditional in a generic function emits C that takes the address of the conditional's value, which the C compiler rejects, so the build fails with a native compiler error and no source diagnostic.
-
-Steps to Reproduce:
-
-1. Declare `T pick<T>(bool c, in T a, in T b, sizeof(T)) { return c ? a : b; }`.
-2. In `main`, declare `long x = 1;` and `long y = 2;` and log `pick(false, x, y)` with `__intrinsic_log_i64`.
-3. Compile and run the program.
-
-Expected:
-The program compiles and logs 2, as it does when the function is written `if (c) return a; return b;`.
-
-Actual:
-The build fails with `error: cannot take the address of an rvalue of type 'const void *'` at the generated `__builtin_memcpy(__result, &((c ? a : b)), sizeof_T);`.
-
-Known Impact:
-A generic function cannot return a conditional of its `in T` parameters. Write the selection as an `if` statement with a return in each branch.
-
 ## BUG-442: `null` as the first of two arguments for one generic parameter emits an undeclared type
 
 Date/Time: 2026-10-29 23:46 EDT

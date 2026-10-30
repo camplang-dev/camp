@@ -16,6 +16,11 @@ escaped T[] makeDefault<T>(nuint n, sizeof(T)) { T[] r = new T[n]; for (nuint i 
 nuint count<T>(const T[] values, sizeof(T)) { nuint n = 0; foreach (stackalloc T item in values) n++; return n; }
 void swap<T>(T[] values, nuint i, nuint j, sizeof(T)) { stackalloc T t = values[i]; values[i] = values[j]; values[j] = t; }
 T pickAt<T>(const T[] values, nuint i, sizeof(T)) => values[i];
+T pick<T>(bool c, in T a, in T b, sizeof(T)) => c ? (a) : (b);
+T pickLocal<T>(bool c, in T a, in T b, sizeof(T)) {
+	stackalloc T local = c ? a : b;
+	return local;
+}
 
 int run1()
 {
@@ -56,6 +61,10 @@ int run1()
 	if (w[0].a != 5 || w[1].a != 100) return 14;
 	Wide pk = pickAt<Wide>(w, 1);
 	if (pk.a != 100 || pk.b != 101 || pk.c != 102) return 15;
+	Wide selected = pick(false, nv, fv);
+	if (selected.a != 5 || selected.c != 7) return 16;
+	selected = pickLocal(true, nv, fv);
+	if (selected.a != 100 || selected.c != 102) return 17;
 	return 0;
 }
 
@@ -85,6 +94,11 @@ int run2()
 	if (count<int?>(w) != 4) return 9;
 	int? pk = pickAt<int?>(w, 2);
 	if (pk.specified) return 10;
+	int? none = default;
+	int? selected = pick(false, nv, none);
+	if (selected.specified) return 11;
+	selected = pickLocal(true, nv, none);
+	if (!selected.specified || selected.value != 42) return 12;
 	return 0;
 }
 
@@ -126,6 +140,10 @@ int run4()
 	void<int[]>[] made = make<int[]>(2, a1);
 	if (made.length != 2 || made[1].length != 3 || made[1][2] != 5) return 4;
 	delete made;
+	int[] selected = pick(false, a0, a1);
+	if (selected.length != 3 || selected[2] != 5) return 5;
+	selected = pickLocal(true, a0, a1);
+	if (selected.length != 2 || selected[1] != 2) return 6;
 	return 0;
 }
 

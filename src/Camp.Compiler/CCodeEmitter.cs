@@ -7844,6 +7844,17 @@ public static class CCodeEmitter
             genericType = "";
             switch (expression)
             {
+                case ParenthesizedExpression parenthesized:
+                    return TryFormatGenericStorageAddress(parenthesized.Expression, out address, out genericType);
+
+                case ConditionalExpression conditional
+                    when TryFormatGenericStorageAddress(conditional.WhenTrue, out string trueAddress, out string trueType)
+                        && TryFormatGenericStorageAddress(conditional.WhenFalse, out string falseAddress, out string falseType)
+                        && trueType == falseType:
+                    address = "(" + FormatExpression(conditional.Condition) + " ? " + trueAddress + " : " + falseAddress + ")";
+                    genericType = trueType;
+                    return true;
+
                 case IndexExpression index when TryFormatGenericArrayElementAddress(index, out address):
                     genericType = TryGetArrayElementType(index.Target?.ResolvedType, out string arrayElement)
                         ? arrayElement

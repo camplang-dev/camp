@@ -240,6 +240,9 @@ storage for every argument, including scalars and ordinary structs. The result
 pointer follows source parameters and precedes compiler-supplied allocator,
 error, size, name, and witness slots. Calls read as `A`; their ordinary
 inferred locals never acquire a top-level erased storage type.
+Selecting between two generic storage values selects their storage addresses
+before copying the result. Parentheses do not change this rule; do not take the
+address of a C conditional pointer value.
 
 A generic declaration cannot write `T?`: an optional payload cannot be a type
 parameter of any representation, so substitution never produces an optional of an
