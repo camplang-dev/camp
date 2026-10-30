@@ -27,6 +27,9 @@ An array containing only `null` (or `null` mixed with untyped `default`) also
 supplies no element type. This remains an inference error through parentheses
 and conditional arms. An explicit pointer element target or a typed sibling
 element can supply the required type.
+The same rule applies to an array of only untyped `default` elements: an array
+shape does not turn an unresolved element type into a concrete type. An explicit
+element target or a typed sibling supplies the type used to default each element.
 
 Values read from explicitly typed storage, typed null-producing expressions,
 and ordinary typed values remain valid inference sources. Failed expression

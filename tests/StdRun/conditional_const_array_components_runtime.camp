@@ -41,6 +41,11 @@ export int main()
 	int number = 7;
 	int* pointer = &number;
 	int*[] typedNulls = [null, default];
+	int[] typedDefaults = [default, default];
+	auto inferredDefaults = [default, 7];
+	auto reversedDefaults = [7, default];
+	if (typedDefaults.length != 2 || typedDefaults[0] != 0 || typedDefaults[1] != 0) return 13;
+	if (inferredDefaults[0] != 0 || inferredDefaults[1] != 7 || reversedDefaults[0] != 7 || reversedDefaults[1] != 0) return 14;
 	auto inferred = [null, pointer];
 	auto reversed = [pointer, null];
 	if (typedNulls.length != 2 || typedNulls[0] != null || typedNulls[1] != null) return 10;
@@ -48,6 +53,8 @@ export int main()
 	for (int i = 0; i < 2; i++) {
 		auto selected = i == 0 ? [null] : [pointer];
 		if (selected.length != 1 || selected[0] != (i == 0 ? null : pointer)) return 12;
+		auto selectedDefaults = i == 0 ? [default] : [7];
+		if (selectedDefaults.length != 1 || selectedDefaults[0] != (i == 0 ? 0 : 7)) return 15;
 	}
 	return 0;
 }

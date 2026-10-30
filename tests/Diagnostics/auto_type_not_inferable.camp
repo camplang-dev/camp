@@ -8,4 +8,7 @@ void test()
 	auto nulls = [null, null];
 	auto nullAndDefault = [null, default];
 	auto nullSelection = true ? [null] : [null];
+	auto defaultArray = [default];
+	auto defaults = [default, default];
+	auto defaultSelection = true ? [default] : [default];
 }

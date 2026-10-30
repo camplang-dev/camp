@@ -67,29 +67,6 @@ Semantic analysis reports no accessibility error. Compilation proceeds to native
 Known Impact:
 Invalid access to a non-shadow base's fields is accepted by semantic analysis and reported later as a native compiler error. Use a method of the base class to expose the required operation instead of accessing its field through the shadow class.
 
-## BUG-445: An `auto` local initialized with an array literal of only `default` is accepted with the internal type `#TARGET[]`
-
-Date/Time: 2026-10-30 06:39 EDT
-
-Summary:
-An array literal whose elements are all `default` has no element type, so an `auto` local cannot take a type from it, exactly as `auto values = [];` cannot. The compiler accepts the declaration without a diagnostic and gives the local the internal type `#TARGET[]`. `typenameof` of the local prints `#TARGETArray`, and the program compiles and runs.
-
-Steps to Reproduce:
-
-1. Declare `void show<T>(in T value, sizeof(T), typenameof(T)) { __intrinsic_log_string(typenameof(T)); }`.
-2. In `main`, declare `auto a = [default];` and call `show(a);`.
-3. Also try `auto b = [default, default];`.
-4. Compile and run the program.
-
-Expected:
-Each declaration is reported at its initializer with `The type of this expression cannot be inferred; specify a type.`
-
-Actual:
-No diagnostic is reported. The program prints `#TARGETArray`.
-
-Known Impact:
-A local with a meaningless type is accepted, and any later use of it works with that type. Declare the local with its type, such as `int[] a = [default];`.
-
 ## BUG-446: An `auto` local initialized with `[[]]` fails with an unsupported-emission message instead of reporting that it supplies no type
 
 Date/Time: 2026-10-30 06:39 EDT
