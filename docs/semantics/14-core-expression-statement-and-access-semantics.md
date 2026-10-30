@@ -441,7 +441,10 @@ namespace-qualified globals, supply the same enum context.
 
 In a conditional or array literal that no target types, an enum operand acts as
 the target for the unqualified members beside it, as part of the best common
-type: `auto kind = ready ? Kind.DEVICE : FILE;` is a `Kind`. Without any target
+type: `auto kind = ready ? Kind.DEVICE : FILE;` is a `Kind`. Analyze independently
+typed operands before names that need enum context;
+their order in the source does not affect lookup. Ordinary declarations still
+win over target enum members. Without any target
 or enum operand there is no lookup. `auto x = DEVICE;`, `(Kind)DEVICE`,
 `count == DEVICE` over an integer, and `auto y = ready ? DEVICE : FILE;` are
 errors that ask for a qualified name.

@@ -7,6 +7,33 @@ namespace Camp.Compiler.Tests;
 public sealed class EnumStorageComparisonTests
 {
 	[Theory]
+	[InlineData("ready ? Kind.A : B")]
+	[InlineData("ready ? B : Kind.A")]
+	[InlineData("ready ? (B) : (Kind.A)")]
+	[InlineData("ready ? (ready ? A : B) : Kind.A")]
+	[InlineData("[Kind.A, B]")]
+	[InlineData("[B, Kind.A]")]
+	[InlineData("[A, B, Kind.A]")]
+	[InlineData("[A | B, Kind.A]")]
+	public void Enum_operands_target_unqualified_members_in_untargeted_joins(string expression)
+	{
+		SemanticCompiler.AssertNoDiagnostics(SemanticCompiler.CompileLowered($"enum Kind {{ A = 1, B = 2 }} void test(bool ready) {{ auto value = {expression}; }}"));
+	}
+
+	[Theory]
+	[InlineData("ready ? Kind.A : B", "int B = 3;", "no common type")]
+	[InlineData("[B, Kind.A]", "int B = 3;", "no common type")]
+	[InlineData("ready ? A : B", "", "Symbol")]
+	[InlineData("[A, B]", "", "Symbol")]
+	[InlineData("[Kind.A, MISSING]", "", "Symbol 'MISSING'")]
+	public void Enum_join_context_preserves_ordinary_names_and_missing_name_errors(string expression, string local, string expected)
+	{
+		var compilation = SemanticCompiler.CompileLowered($"enum Kind {{ A, B }} void test(bool ready) {{ {local} auto value = {expression}; }}");
+		Assert.NotEmpty(compilation.AnalysisDiagnostics);
+		Assert.All(compilation.AnalysisDiagnostics, d => Assert.Contains(expected, d.Message));
+	}
+
+	[Theory]
 	[InlineData(true)]
 	[InlineData(false)]
 	public void Configuration_flags_do_not_hide_target_enum_members(bool enabled)

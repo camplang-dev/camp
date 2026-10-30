@@ -44,5 +44,16 @@ export int main()
 		return 6;
 	if (accept((A | B) & ~A) != 2)
 		return 7;
+	for (int i = 0; i < 2; i++) {
+		auto first = i == 0 ? Bits.A : B;
+		auto reversed = i == 0 ? B : Bits.A;
+		auto nestedJoin = i == 0 ? (i == 0 ? A : B) : Bits.C;
+		if (raw(first) != (i == 0 ? 1 : 2) || raw(reversed) != (i == 0 ? 2 : 1)) return 8;
+		if (raw(nestedJoin) != (i == 0 ? 1 : 4)) return 9;
+	}
+	auto values = [A, B, Bits.C];
+	auto combined = [A | B, Bits.C];
+	if (values.length != 3 || raw(values[0]) != 1 || raw(values[1]) != 2 || raw(values[2]) != 4) return 10;
+	if (raw(combined[0]) != 3 || raw(combined[1]) != 4) return 11;
 	return 0;
 }

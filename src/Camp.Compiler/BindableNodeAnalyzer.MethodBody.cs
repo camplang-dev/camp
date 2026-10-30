@@ -2486,10 +2486,23 @@ public sealed partial class BindableNodeAnalyzer
 		}
 		if (elementTarget is null && array.Elements.Count == 0)
 			return TargetType;
-		List<string> elementTypes = [];
-		foreach (Expression element in array.Elements)
+		List<string> elementTypes = Enumerable.Repeat(TargetType, array.Elements.Count).ToList();
+		List<int> deferredEnumElements = [];
+		for (int i = 0; i < array.Elements.Count; i++)
 		{
-			string actual = BodyAnalyzeExpression(element, scope, typeScope, CarrierLiteralTarget(elementTarget));
+			if (elementTarget is null && NeedsEnumJoinTarget(array.Elements[i], scope))
+				deferredEnumElements.Add(i);
+			else
+				elementTypes[i] = AnalyzeElement(array.Elements[i], elementTarget);
+		}
+		List<string> enumTargets = elementTypes.Select(GetEnumTargetTypeName).OfType<string>().Distinct(StringComparer.Ordinal).ToList();
+		string? inferredEnumTarget = enumTargets.Count == 1 ? enumTargets[0] : null;
+		foreach (int i in deferredEnumElements)
+			elementTypes[i] = AnalyzeElement(array.Elements[i], inferredEnumTarget);
+
+		string AnalyzeElement(Expression element, string? target)
+		{
+			string actual = BodyAnalyzeExpression(element, scope, typeScope, CarrierLiteralTarget(target));
 			if (elementTarget is null && element is ArrayExpression && TryGetArrayElementType(actual) is string nestedElement)
 			{
 				actual = $"{nestedElement}*";
@@ -2500,7 +2513,7 @@ public sealed partial class BindableNodeAnalyzer
 				Report(GetRange(element.SourceSyntax ?? array.SourceSyntax), "Array values may not be used as array literal elements; use '.elements' to make the pointer conversion explicit.");
 				actual = ErrorType;
 			}
-			elementTypes.Add(actual);
+			return actual;
 		}
 
 		int incompatibleIndex = -1;
@@ -7729,15 +7742,28 @@ public sealed partial class BindableNodeAnalyzer
 		string conditionType = BodyAnalyzeExpression(conditional.Condition, scope, typeScope);
 		RequireExpressionType("bool", conditionType, conditional.Condition?.SourceSyntax, "Conditional expression condition");
 		string trueType = "";
-		WithRequirementProof(GetPositiveRequirementProof(conditional.Condition), () =>
-		{
-			trueType = BodyAnalyzeExpression(conditional.WhenTrue, scope, typeScope, targetType);
-		});
 		string falseType = "";
-		WithRequirementProof(GetNegativeDirectRequirementProof(conditional.Condition), () =>
+		void AnalyzeTrue() => WithRequirementProof(GetPositiveRequirementProof(conditional.Condition), () =>
 		{
-			falseType = BodyAnalyzeExpression(conditional.WhenFalse, scope, typeScope, targetType);
+			string? target = targetType is null or TargetType ? GetEnumTargetTypeName(falseType) ?? targetType : targetType;
+			trueType = BodyAnalyzeExpression(conditional.WhenTrue, scope, typeScope, target);
 		});
+		void AnalyzeFalse() => WithRequirementProof(GetNegativeDirectRequirementProof(conditional.Condition), () =>
+		{
+			string? target = targetType is null or TargetType ? GetEnumTargetTypeName(trueType) ?? targetType : targetType;
+			falseType = BodyAnalyzeExpression(conditional.WhenFalse, scope, typeScope, target);
+		});
+		if (targetType is null or TargetType && NeedsEnumJoinTarget(conditional.WhenTrue, scope)
+			&& !NeedsEnumJoinTarget(conditional.WhenFalse, scope))
+		{
+			AnalyzeFalse();
+			AnalyzeTrue();
+		}
+		else
+		{
+			AnalyzeTrue();
+			AnalyzeFalse();
+		}
 		expressionConstants[conditional] = IsConstant(conditional.Condition) && IsConstant(conditional.WhenTrue) && IsConstant(conditional.WhenFalse);
 		// Cloning expanded expressions replaces configured calls with literals. Keep
 		// the source decision so lowering can still omit the unavailable arm.
@@ -7766,6 +7792,17 @@ public sealed partial class BindableNodeAnalyzer
 			BodyAnalyzeExpression(conditional.WhenFalse, scope, typeScope, commonType);
 		return commonType;
 	}
+
+	bool NeedsEnumJoinTarget(Expression? expression, BodyScope scope) => expression switch
+	{
+		ParenthesizedExpression parenthesized => NeedsEnumJoinTarget(parenthesized.Expression, scope),
+		NamedExpression { Qualifiers.Count: 0 } named => !CanResolveStorageNamedExpression(named, scope),
+		UnaryExpression { Operator: UnaryOperator.Plus or UnaryOperator.Minus or UnaryOperator.BitwiseNot } unary => NeedsEnumJoinTarget(unary.Operand, scope),
+		BinaryExpression { Operator: BinaryOperator.BitwiseAnd or BinaryOperator.BitwiseOr or BinaryOperator.BitwiseXor } binary =>
+			NeedsEnumJoinTarget(binary.Left, scope) && NeedsEnumJoinTarget(binary.Right, scope),
+		ConditionalExpression conditional => NeedsEnumJoinTarget(conditional.WhenTrue, scope) && NeedsEnumJoinTarget(conditional.WhenFalse, scope),
+		_ => false
+	};
 
 	string BodyAnalyzeRangeExpression(RangeExpression range, BodyScope scope, AnalysisScope typeScope)
 	{
