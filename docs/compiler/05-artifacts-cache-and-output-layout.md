@@ -95,6 +95,8 @@ and input contents using the native artifact cache. Touching an unchanged
 source, including setting a future timestamp, does not require a child rebuild.
 Changing source contents invalidates the reference even if its timestamp stays
 the same. Required API files and static archive membership are still checked.
+Cached archive membership is tied to the archive's content hash, so external
+changes invalidate it even when the archive timestamp is preserved.
 Cache identity uses the resolved artifact directory, so an output prefix and a
 direct-directory spelling that reach the same location share the cache.
 Changing the resolved output location still requires its own artifacts.

@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -220,13 +221,14 @@ public static class NativeBuildDriver
 		{
 			if (!File.Exists(manifestPath))
 				return false;
-			if (File.GetLastWriteTimeUtc(manifestPath) < File.GetLastWriteTimeUtc(archivePath))
-				return false;
 			string[] lines = File.ReadAllLines(manifestPath);
-			if (lines.Length == 0 || lines[0] != "camp-static-archive-objects-v1")
+			if (lines.Length < 2 || lines[0] != "camp-static-archive-objects-v2")
+				return false;
+			// External archivers can preserve or move timestamps backwards.
+			if (lines[1] != GetStaticArchiveFingerprint(archivePath))
 				return false;
 			Dictionary<string, int> expected = CountObjectBasenames(objects);
-			Dictionary<string, int> actual = CountObjectBasenames(lines.Skip(1));
+			Dictionary<string, int> actual = CountObjectBasenames(lines.Skip(2));
 			if (expected.Count != actual.Count)
 				return false;
 			foreach ((string name, int count) in expected)
@@ -245,14 +247,22 @@ public static class NativeBuildDriver
 		string manifestPath = GetStaticArchiveObjectManifestPath(archivePath);
 		try
 		{
+			string fingerprint = GetStaticArchiveFingerprint(archivePath);
 			using StreamWriter writer = new(manifestPath, append: false, Encoding.UTF8);
-			writer.WriteLine("camp-static-archive-objects-v1");
+			writer.WriteLine("camp-static-archive-objects-v2");
+			writer.WriteLine(fingerprint);
 			foreach (string objectPath in objects.Select(static path => Path.GetFileName(path)).OrderBy(static path => path, StringComparer.OrdinalIgnoreCase))
 				writer.WriteLine(objectPath);
 		}
 		catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
 		{
 		}
+	}
+
+	static string GetStaticArchiveFingerprint(string archivePath)
+	{
+		using FileStream stream = File.OpenRead(archivePath);
+		return Convert.ToHexString(SHA256.HashData(stream));
 	}
 
 	static Dictionary<string, int> CountObjectBasenames(IEnumerable<string> paths)

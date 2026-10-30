@@ -2732,13 +2732,25 @@ public sealed class CommandLineTests
 		string objectExtension = OperatingSystem.IsWindows() ? ".obj" : ".o";
 		string aObject = Path.Combine(aRoot, "bin", staticArtifactDirectory, "build", "a" + objectExtension);
 		string bObject = Path.Combine(bRoot, "bin", staticArtifactDirectory, "build", "b" + objectExtension);
+		Assert.True(TargetCatalog.TryLoadCached(Path.Combine(FindRepositoryRoot(), "targets"), out TargetCatalog? catalog, out string? error), error);
+		Assert.True(catalog!.TryGetTarget(target, out TargetDefinition? targetDefinition));
+		NativeBuildOptions bOptions = new()
+		{
+			Target = targetDefinition!, ProfileName = "DEBUG", Kind = NativeBuildKind.Static,
+			BuildDirectory = Path.GetDirectoryName(bObject)!, OutputDirectory = Path.GetDirectoryName(bArchive)!,
+			ProjectName = "dirty_static_b", SourceFiles = [bSource]
+		};
+		Assert.True(NativeBuildDriver.StaticArchiveContainsOnlyObjects(bOptions, bArchive, [bObject]));
+		DateTime oldBArchiveTime = File.GetLastWriteTimeUtc(bArchive);
 		ProcessResult dirtyArchive = OperatingSystem.IsWindows()
 			? RunProcess("lib", ["/nologo", "/OUT:" + bArchive, bObject, aObject], FindRepositoryRoot())
 			: RunProcess("ar", ["r", bArchive, aObject], FindRepositoryRoot());
 		AssertCommandSucceeded(dirtyArchive);
 		Assert.Contains("a" + objectExtension, GetArchiveMembers(bArchive).Select(Path.GetFileName));
+		// External changes must invalidate cached membership even with a preserved timestamp.
+		File.SetLastWriteTimeUtc(bArchive, oldBArchiveTime);
+		Assert.False(NativeBuildDriver.StaticArchiveContainsOnlyObjects(bOptions, bArchive, [bObject]));
 
-		DateTime oldBArchiveTime = File.GetLastWriteTimeUtc(bArchive);
 		Thread.Sleep(1200);
 		File.WriteAllText(aSource, """
 			namespace DirtyStaticA;
