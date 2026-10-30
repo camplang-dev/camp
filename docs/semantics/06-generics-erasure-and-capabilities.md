@@ -66,6 +66,12 @@ disagrees does not change the type; it fails the conversion to the substituted
 parameter and is reported at that argument. With `exact<T>(T* a, T* b)`,
 `exact(p, lp)` over an `int*` and a `long*` is an error at `lp`.
 
+An `out T` slot also gives an exact bound, taken from the argument's type, and
+the top-level `in` arguments of the same parameter must convert to it. With
+`exchange<T>(in T source, out T destination)`, `exchange(small, out wide)` over
+an `int` and a `long` infers `long`, and `exchange(wide, out small)` is an error
+because the `long` does not convert to `int`.
+
 After inference, substitute the arguments, convert every argument to its
 substituted parameter type and check applicability as for a call with explicit
 type arguments. The pointer arguments that one top-level parameter joins follow
