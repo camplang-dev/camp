@@ -1009,7 +1009,9 @@ switch (level)
 ```
 
 Use qualification only when it is needed to disambiguate an otherwise ambiguous
-name or when the surrounding expression has no target enum type.
+name or when the surrounding expression has no target enum type. An untargeted
+conditional or array literal needs it on only one operand: with `auto`,
+`ready ? Kind.A : B` is a `Kind`.
 
 Use value newtypes for domain-specific values with the same representation as an
 underlying type:
@@ -1100,8 +1102,10 @@ common type in either order and each converts to it: for
 `T chooseFirst<T>(in T a, in T b, sizeof(T))`, `chooseFirst(count, 5000000000L)`
 is `long` and `chooseFirst(small, 2)` is `uint`, while `int` with `uint` fails at
 the name. `T*` and `T[]` positions match the argument's type, the first argument
-fixes `T`, and `const T*` accepts `int*` and `const int*`. `null` takes the
-sibling pointer's type; `null`, `default` and `[]` alone infer nothing, so write
+fixes `T`, and `const T*` accepts `int*` and `const int*`. An `out T` slot is an
+exact bound: its storage type fixes `T` and the `in` arguments must convert to it
+(`exchange(small, out wide)` is `long`; `exchange(wide, out small)` fails at
+`wide`). `null` takes the sibling pointer's type; `null`, `default` and `[]` alone infer nothing, so write
 the type argument (`describe<int>(default)`).
 
 Generic Camp code must declare what it does with `T`. Do not assume every generic

@@ -178,6 +178,24 @@ the argument's type. The first argument that supplies it fixes it, and a later
 one must convert to that type. A qualifier the parameter adds does not take part,
 so `const T*` accepts both `int*` and `const int*` and gives `T` as `int`.
 
+An `out T` slot is an exact bound. The type of the storage you pass fixes `T`,
+wherever the `out` argument is written, and each `in` argument must convert to
+it. A typed declaration such as `out long result` gives its declared type, while
+`out _` gives none:
+
+```camp
+void exchange<T>(in T source, out T destination, sizeof(T)) { destination = source; }
+
+int small = 1;
+long wide = 2;
+exchange(small, out wide);     // T is long, small converts
+// exchange(wide, out small);  // ERROR at wide: a long does not convert to int
+```
+
+Two `out T` arguments must have the same type, and so must the storage of an
+`out` argument when the type argument is written (`exchange<int>(small, out wide)`
+is an error at `wide`).
+
 `null` takes its type from a sibling pointer in either order, so
 `chooseFirst(buffer, null)` is a pointer to what `buffer` points to. `null`,
 `default`, `[]` and brace lists supply no type on their own. When nothing else

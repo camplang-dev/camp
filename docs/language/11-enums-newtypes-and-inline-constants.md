@@ -105,6 +105,16 @@ A local variable, parameter, or field that has the same name wins, so
 a known target type there is nothing to look in, and `auto kind = DEVICE;` is an
 error that asks for `FileKind.DEVICE`.
 
+A conditional or array literal that nothing else types can borrow the type from
+a neighbour. One operand that is already a `FileKind` is enough, in either order:
+
+```camp
+auto kind = ready ? FileKind.REGULAR : DEVICE;       // FileKind
+auto kinds = [DEVICE, FileKind.REGULAR, DIRECTORY];  // FileKind[]
+```
+
+Without such an operand, `ready ? REGULAR : DEVICE` is still an error.
+
 ## Underlying Types And Numbering
 
 If you do not choose an underlying type, an enum uses `uint`. When ABI width
