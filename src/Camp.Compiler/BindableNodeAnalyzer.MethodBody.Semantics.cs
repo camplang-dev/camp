@@ -4171,6 +4171,8 @@ public sealed partial class BindableNodeAnalyzer
 
 	string UsualArithmeticConversion(string left, string right)
 	{
+		left = StripTopLevelValueQualifiers(left);
+		right = StripTopLevelValueQualifiers(right);
 		// Prefer a common operand type before promoting narrow integers: byte can
 		// widen to uint, whereas promoting it to int first loses that conversion.
 		if (CanImplicitlyConvert(left, right))

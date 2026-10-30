@@ -41,6 +41,27 @@ public sealed class InScalarConversionTests
 	}
 
 	[Theory]
+	[InlineData("const byte", "uint")]
+	[InlineData("const ushort", "uint")]
+	[InlineData("const byte", "nuint")]
+	[InlineData("volatile byte", "uint")]
+	[InlineData("const int", "long")]
+	public void Numeric_operand_value_qualifiers_do_not_change_the_common_type(string narrow, string wide)
+	{
+		var compilation = SemanticCompiler.CompileLowered($$"""
+			void test({{narrow}}[] values, {{narrow}} local, {{wide}} other) {
+				auto first = other | values[0];
+				auto second = values[0] | other;
+				auto third = other + local;
+				auto fourth = local + other;
+			}
+			""");
+		SemanticCompiler.AssertNoDiagnostics(compilation);
+		Assert.All(SemanticCompiler.Descendants<DeclarationStatement>(SemanticCompiler.Function(compilation, "test")),
+			local => Assert.Equal(wide, local.Target.ResolvedType));
+	}
+
+	[Theory]
 	[InlineData("short", "left + right")]
 	[InlineData("short", "right + left")]
 	[InlineData("sbyte", "left * right")]

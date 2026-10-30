@@ -67,29 +67,6 @@ Semantic analysis reports no accessibility error. Compilation proceeds to native
 Known Impact:
 Invalid access to a non-shadow base's fields is accepted by semantic analysis and reported later as a native compiler error. Use a method of the base class to expose the required operation instead of accessing its field through the shadow class.
 
-## BUG-438: An unsigned operand that is `const` and narrower than the other operand gives no common type
-
-Date/Time: 2026-10-29 15:40 EDT
-
-Summary:
-In an arithmetic or bitwise expression, an unsigned operand whose type is `const`-qualified and narrower than the other unsigned operand is reported as having no common type, although the same expression with an unqualified operand is accepted and typed as the wider type. A `const` qualifier does not change the numeric type, so the result should be the same. The signed case (`long` with `const int`) is accepted.
-
-Steps to Reproduce:
-
-1. Declare `uint probe(const byte[] bytes, byte plain, uint u)`.
-2. In it, write `uint a = u | plain;`, then `uint b = u | bytes[0];` and `uint c = bytes[0] | u;`.
-3. Also try `uint + const ushort` (from a `const ushort[]` element) and `nuint + const byte`, and a local `const byte cb = 1; uint m = u + cb;`.
-4. Compile the program.
-
-Expected:
-All of these are accepted and typed `uint` (or `nuint`), as `u | plain` is, because `byte` and `ushort` convert implicitly to the wider unsigned type.
-
-Actual:
-The unqualified case compiles. The `const` cases report `Numeric operands 'uint' and 'const byte' have no common type; use an explicit conversion.` (and the same for `const ushort` and for `nuint` with `const byte`), in either operand order.
-
-Known Impact:
-Reading a byte from a `const byte[]` and combining it with a `uint` without a cast is rejected, for example `((uint)b[i] << 8) | b[i + 1]`. Cast the `const` operand to the wider type until this is fixed.
-
 ## BUG-439: A conditional that joins a payload and an optional, or an optional and `default`, is always specified
 
 Date/Time: 2026-10-29 23:09 EDT

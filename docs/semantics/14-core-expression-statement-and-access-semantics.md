@@ -127,6 +127,9 @@ promotion. This preserves `byte`/`ushort` with `uint` as `uint`. If the original
 types have no common candidate, try their promoted types; reject pairs such as
 `short` with `uint` when neither converts to the other even after promotion.
 Shift result types come from the promoted left operand alone.
+Top-level value qualifiers such as `const` and `volatile` do not affect this
+numeric common-type calculation; reading qualified storage produces the same
+numeric result type as reading unqualified storage.
 
 An untargeted conditional or array literal chooses a common type from its
 operand types. A candidate qualifies only if every operand converts implicitly
