@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-447.
+Next bug number: BUG-448.
 
 ## Bug Template
 
@@ -66,3 +66,26 @@ Semantic analysis reports no accessibility error. Compilation proceeds to native
 
 Known Impact:
 Invalid access to a non-shadow base's fields is accepted by semantic analysis and reported later as a native compiler error. Use a method of the base class to expose the required operation instead of accessing its field through the shadow class.
+
+## BUG-447: An unqualified enum member beside a qualified one in an untargeted conditional or array literal is not found
+
+Date/Time: 2026-10-30 EDT
+
+Summary:
+In a conditional or array literal that no target type reaches, such as the initializer of an `auto` local, an enum-typed operand is meant to act as the target for the unqualified enum members beside it, as part of the best common type (semantics 14, Enum Member Target Typing). The compiler instead looks the unqualified name up on its own, finds nothing, and reports that the symbol could not be found. With a target type, for example `Kind[] kinds = [A, B];`, the same members resolve.
+
+Steps to Reproduce:
+
+1. Declare `enum Kind { A, B }`.
+2. In a function with a `bool ready` parameter, write `auto kind = ready ? Kind.A : B;`.
+3. Also write `auto kinds = [Kind.A, B];`.
+4. Compile the program.
+
+Expected:
+Both initializers compile. `B` names `Kind.B` because the other operand has the enum type `Kind`, and each local has type `Kind` (`Kind[]` for the array literal).
+
+Actual:
+The compiler reports `Symbol 'B' could not be found.` at `B` in each initializer.
+
+Known Impact:
+Unqualified enum members cannot be mixed with a qualified one in an untargeted join. Qualify every member (`ready ? Kind.A : Kind.B`) or give the declaration a type (`Kind kind = ready ? A : B;`).
