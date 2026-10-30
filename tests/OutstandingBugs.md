@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-449.
+Next bug number: BUG-450.
 
 ## Bug Template
 
@@ -43,3 +43,34 @@ Actual:
 Known Impact:
 <Who or what is affected, and any known workaround if one exists.>
 ```
+
+## BUG-449: Static archive membership cache can accept externally changed archives
+
+Date/Time: 2026-10-30 11:00 EDT
+
+Summary:
+Static archive membership manifests are accepted based on their timestamp and
+expected object names without checking the archive contents. An external archive
+change can therefore leave an obsolete membership manifest trusted when the
+archive timestamp does not advance past the manifest timestamp.
+
+Steps to Reproduce:
+
+1. Build a static project reference B that depends on static reference A.
+2. Insert A's object into B's archive with the native archiver, retaining B's
+   original archive timestamp.
+3. Change A's source and rebuild the application that references A and B.
+
+Expected:
+Static archive membership validation detects the foreign object and rebuilds B
+with only its own objects, as documented in the compiler artifact cache rules.
+
+Actual:
+B can reuse the corrupted archive because its object manifest is newer. The WSL
+full suite failed `Static_project_reference_rebuilds_dirty_transitive_archive`
+with B's archive containing both `b.o` and `a.o` despite a manifest listing `b.o`.
+
+Known Impact:
+Incremental builds can retain stale transitive objects after an archive is
+externally replaced or modified. Removing the archive or its `.objects` manifest
+forces membership validation or rebuilding.
