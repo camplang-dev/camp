@@ -3871,7 +3871,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	bool ReportUnresolvedGenericCall(FunctionDefinition function, Dictionary<string, string> substitutions, SyntaxNode? syntax)
 	{
-		List<GenericParameter> missing = [.. function.GenericParameters.Where(parameter => !substitutions.TryGetValue(parameter.Name, out string? type) || type is ErrorType or TargetType)];
+		List<GenericParameter> missing = [.. function.GenericParameters.Where(parameter => !substitutions.TryGetValue(parameter.Name, out string? type) || type is ErrorType or TargetType or "#NULL")];
 		if (missing.Count == 0)
 			return false;
 
@@ -5353,6 +5353,9 @@ public sealed partial class BindableNodeAnalyzer
 			&& genericParameterNames is { Count: > 0 }
 			&& ContainsUnboundGenericParameter(expected, substitutions ?? [], genericParameterNames))
 		{
+			// A null-only source leaves inference unresolved; the call reports it once at the method name.
+			if (actual == "#NULL")
+				return;
 			Report(GetRange(syntax), $"{context} cannot convert '{actual}' to '{expected}' because type arguments for '{function.Name}' cannot be inferred; specify them explicitly.");
 			return;
 		}
@@ -5460,7 +5463,7 @@ public sealed partial class BindableNodeAnalyzer
 
 	void InferGenericSubstitutions(string pattern, string actual, Dictionary<string, string> substitutions, HashSet<string> genericParameterNames)
 	{
-		if (string.IsNullOrWhiteSpace(pattern) || actual is ErrorType or TargetType)
+		if (string.IsNullOrWhiteSpace(pattern) || actual is ErrorType or TargetType or "#NULL")
 			return;
 
 		if (TryGetCallableShape(pattern, out CallableShape patternCallable)

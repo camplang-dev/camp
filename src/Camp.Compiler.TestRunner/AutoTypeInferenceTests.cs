@@ -10,11 +10,17 @@ public sealed class AutoTypeInferenceTests
 	[InlineData("tn(default)", "tn<T>", "tn")]
 	[InlineData("tn((default))", "tn<T>", "tn")]
 	[InlineData("two(default, default)", "two<T>", "two")]
-	public void Default_without_a_concrete_inference_source_fails_at_the_called_name(string invocation, string method, string name)
+	[InlineData("tn(null)", "tn<T>", "tn")]
+	[InlineData("tn((null))", "tn<T>", "tn")]
+	[InlineData("two(null, null)", "two<T>", "two")]
+	[InlineData("two(null, default)", "two<T>", "two")]
+	[InlineData("pair(1, null)", "pair<A, B>", "pair")]
+	public void Untyped_values_without_a_concrete_inference_source_fail_at_the_called_name(string invocation, string method, string name)
 	{
 		var compilation = SemanticCompiler.CompileLowered($$"""
 			void tn<T>(in T value, sizeof(T), typenameof(T)) { }
 			void two<T>(in T a, in T b, sizeof(T)) { }
+			void pair<A, B>(in A a, in B b, sizeof(A), sizeof(B), typenameof(A), typenameof(B)) { }
 			void test() { {{invocation}}; }
 			""");
 		var diagnostic = Assert.Single(compilation.AnalysisDiagnostics.Distinct());
@@ -27,12 +33,16 @@ public sealed class AutoTypeInferenceTests
 	[InlineData("two(5, default)")]
 	[InlineData("two(default, 5)")]
 	[InlineData("two<int>(default, default)")]
-	public void Default_uses_an_explicit_or_independently_inferred_type(string invocation)
+	[InlineData("tn<int*>(null)")]
+	[InlineData("tn((int*)null)")]
+	[InlineData("two(null, pointer)")]
+	[InlineData("two(pointer, null)")]
+	public void Untyped_values_use_an_explicit_or_independently_inferred_type(string invocation)
 	{
 		SemanticCompiler.AssertNoDiagnostics(SemanticCompiler.CompileLowered($$"""
 			void tn<T>(in T value, sizeof(T), typenameof(T)) { }
 			void two<T>(in T a, in T b, sizeof(T)) { }
-			void test() { {{invocation}}; }
+			void test() { int value = 1; int* pointer = &value; {{invocation}}; }
 			"""));
 	}
 

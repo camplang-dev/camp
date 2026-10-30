@@ -33,16 +33,18 @@ literals. Argument order cannot fix the type parameter prematurely. If no
 candidate accepts every argument, report failed type argument inference at the
 called name. Explicit type arguments and receiver-supplied owner arguments stay
 fixed; this common-value rule does not widen invariant nested storage slots.
+
 Preserve the analyzed substitutions through lowering and emission. An `in T`
 argument that converts to the inferred type needs storage of that type before
 its address is passed; the original argument's narrower storage cannot be read
 as the inferred wider type.
+
 A bare `null` argument can use a pointer type independently inferred from a
 sibling argument, in either order. Its temporary storage then has that pointer
 type, rather than the internal null-literal placeholder type.
 
-An untyped `default` contributes no type argument. With no independent source,
-inference fails at the called name; internal target placeholders are never valid
+An untyped `default` or bare `null` contributes no type argument. With no
+independent source, inference fails at the called name; internal target placeholders are never valid
 inferred arguments. An explicit specialization such as `tn<int>(default)` or a
 concrete sibling argument such as `two(5, default)` supplies the required type.
 
