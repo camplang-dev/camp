@@ -180,3 +180,26 @@ Actual:
 
 Known Impact:
 A generic call cannot write `null` before the pointer that fixes the type. Write the pointer first, or pass the type argument explicitly.
+
+## BUG-443: A generic parameter that only `null` supplies is inferred as `#NULL` instead of failing inference
+
+Date/Time: 2026-10-29 23:46 EDT
+
+Summary:
+When the only argument for a generic parameter is `null`, inference gives the parameter the internal type `#NULL` instead of reporting that the type arguments cannot be inferred. The program then fails in the native compiler with an undeclared `_NULL` type, and no source diagnostic is reported. `default` and a brace list in the same position are reported correctly at the called name.
+
+Steps to Reproduce:
+
+1. Declare `void one<T>(in T a, sizeof(T), typenameof(T)) { __intrinsic_log_string(typenameof(T)); }` and `void two<T>(in T a, in T b, sizeof(T), typenameof(T)) { __intrinsic_log_string(typenameof(T)); }`.
+2. Declare `void pair<A, B>(in A a, in B b, sizeof(A), sizeof(B), typenameof(A), typenameof(B)) { }`.
+3. In `main`, call `one(null);`, `two(null, null);` and `pair(1, null);`. Also call `one(default);`.
+4. Compile the program.
+
+Expected:
+Each of the three `null` calls is reported at the called name with `The type arguments for method '...' cannot be inferred from the usage. Try specifying the type arguments explicitly.`, as `one(default)` is.
+
+Actual:
+`one(default)` is reported. The three `null` calls compile to C such as `one(&(_NULL){NULL}, sizeof(_NULL), "#NULL");` and the build fails with `error: use of undeclared identifier '_NULL'`.
+
+Known Impact:
+A generic call whose parameter is supplied only by `null` fails in the native compiler with no source location. Pass the type argument explicitly (`one<int*>(null)`).
