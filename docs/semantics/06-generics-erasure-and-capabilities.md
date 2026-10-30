@@ -37,6 +37,9 @@ Preserve the analyzed substitutions through lowering and emission. An `in T`
 argument that converts to the inferred type needs storage of that type before
 its address is passed; the original argument's narrower storage cannot be read
 as the inferred wider type.
+A bare `null` argument can use a pointer type independently inferred from a
+sibling argument, in either order. Its temporary storage then has that pointer
+type, rather than the internal null-literal placeholder type.
 
 An untyped `default` contributes no type argument. With no independent source,
 inference fails at the called name; internal target placeholders are never valid

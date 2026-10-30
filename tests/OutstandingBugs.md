@@ -67,29 +67,6 @@ Semantic analysis reports no accessibility error. Compilation proceeds to native
 Known Impact:
 Invalid access to a non-shadow base's fields is accepted by semantic analysis and reported later as a native compiler error. Use a method of the base class to expose the required operation instead of accessing its field through the shadow class.
 
-## BUG-442: `null` as the first of two arguments for one generic parameter emits an undeclared type
-
-Date/Time: 2026-10-29 23:46 EDT
-
-Summary:
-When a generic call passes `null` first and a pointer second for the same top-level parameter, the parameter is inferred correctly from the pointer, but the `null` argument is emitted as a temporary of a type named `_NULL`, which the C output never declares, so the build fails with a native compiler error and no source diagnostic. With the arguments the other way round, the `null` is emitted as a temporary of the inferred pointer type and the call works.
-
-Steps to Reproduce:
-
-1. Declare `void two<T>(in T a, in T b, sizeof(T), typenameof(T)) { __intrinsic_log_string(typenameof(T)); }`.
-2. In `main`, declare `int v = 1;` and `int* p = &v;`, then call `two(null, p);`.
-3. Also call `two(p, null);`.
-4. Compile and run the program.
-
-Expected:
-Both calls infer `T` as `int*` and pass a null pointer for the `null` argument.
-
-Actual:
-`two(p, null)` compiles and logs `Int`. `two(null, p)` fails to build with `error: use of undeclared identifier '_NULL'` at the generated `two(&(_NULL){NULL}, &p, sizeof(int *), "Int");`.
-
-Known Impact:
-A generic call cannot write `null` before the pointer that fixes the type. Write the pointer first, or pass the type argument explicitly.
-
 ## BUG-443: A generic parameter that only `null` supplies is inferred as `#NULL` instead of failing inference
 
 Date/Time: 2026-10-29 23:46 EDT

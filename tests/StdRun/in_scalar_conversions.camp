@@ -43,5 +43,9 @@ export int main()
 	double precise = 2.25;
 	if (first(single, precise) != 1.5 || second(single, precise) != 2.25) return 16;
 	if (second(b: large, a: small) != large || second<long>(small, large) != large) return 17;
+	int* pointer = &small;
+	if (first(null, pointer) != null || second(null, pointer) != pointer) return 18;
+	if (first(pointer, null) != pointer || second(pointer, null) != null) return 19;
+	if (second<int*>(null, pointer) != pointer || first((int*)null, pointer) != null) return 20;
 	return 0;
 }

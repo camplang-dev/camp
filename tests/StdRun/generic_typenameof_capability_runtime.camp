@@ -3,6 +3,8 @@ int firstIsI<T>(typenameof(T), sizeof(T))
 	return typenameof(T)[0] == 'I' ? 1 : 0;
 }
 
+int inferredName<T>(in T a, in T b, sizeof(T), typenameof(T)) => typenameof(T)[0];
+
 int secondIsN<T>(typenameof(T), sizeof(T))
 {
 	string name = typenameof(T);
@@ -49,6 +51,8 @@ export int main()
 		return 3;
 	int small = 0;
 	long wide = 0;
+	int* pointer = &small;
+	if (inferredName(null, pointer) != 'I' || inferredName(pointer, null) != 'I') return 7;
 	if (swappedWidths<int, long>(&small, &wide) != 804 || swappedWidths<long, int>(&wide, &small) != 408)
 		return 4;
 	Labeled<int>* labeled = new Labeled<int>();
