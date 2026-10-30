@@ -15,7 +15,7 @@ bug number in the commit message. The final commit that fixes a bug, or the only
 commit if there is just one, should delete the bug from this file and include
 that `OutstandingBugs.md` change in the same commit.
 
-Next bug number: BUG-444.
+Next bug number: BUG-445.
 
 ## Bug Template
 
@@ -66,3 +66,25 @@ Semantic analysis reports no accessibility error. Compilation proceeds to native
 
 Known Impact:
 Invalid access to a non-shadow base's fields is accepted by semantic analysis and reported later as a native compiler error. Use a method of the base class to expose the required operation instead of accessing its field through the shadow class.
+
+## BUG-444: An `auto` local initialized with an array literal of only `null` emits invalid C instead of reporting that it supplies no type
+
+Date/Time: 2026-10-30 06:39 EDT
+
+Summary:
+An array literal whose elements are all `null` has no element type, so an `auto` local cannot take a type from it. `auto values = [];` is reported at the initializer for the same reason. The compiler instead gives the local the internal type `#NULL`, reports no source diagnostic, and the program fails in the native compiler with an undeclared `_NULL` type. The same happens when the elements are `null` and `default`, and when a conditional's arms are such array literals.
+
+Steps to Reproduce:
+
+1. In `main`, declare `auto a = [null];`.
+2. Also try `auto b = [null, null];`, `auto c = [null, default];` and, with a `bool` named `flag`, `auto d = flag ? [null] : [null];`.
+3. Compile the program.
+
+Expected:
+Each declaration is reported at its initializer with `The type of this expression cannot be inferred; specify a type.`, as `auto a = [];` is.
+
+Actual:
+No source diagnostic is reported. The generated C declares `_NULL *a = (_NULL []){NULL};` and the native build fails with `error: use of undeclared identifier '_NULL'`.
+
+Known Impact:
+An untyped array literal under `auto` is reported late as a native compiler error. Declare the local with its type, such as `int*[] a = [null];`, which compiles.
