@@ -2,6 +2,21 @@ alias Count = int;
 Count? copy(Count? value) => value;
 int read(in Count? value) => value.specified ? value.value : -1;
 struct Holder { Count? value; }
+int conditional(bool c, Count? value)
+{
+	auto a = c ? value : default;
+	auto b = c ? 5 : value;
+	Count? e = c ? 5 : value;
+	Count? d = c ? value : default;
+	Count? reversed = c ? value : 5;
+	if (a.specified != (c && value.specified)) return 1;
+	if (b.specified != (c || value.specified)) return 2;
+	if (e.specified != (c || value.specified)) return 3;
+	if (d.specified != (c && value.specified)) return 4;
+	if (reversed.specified != (!c || value.specified)) return 5;
+	if (b.specified && b.value != (c ? 5 : value.value)) return 6;
+	return 0;
+}
 export int main()
 {
 	Count? present = 7;
@@ -10,5 +25,7 @@ export int main()
 	holder.value = copy(present);
 	if (read(holder.value) != 7) return 1;
 	if (read(copy(empty)) != -1) return 2;
+	if (conditional(false, empty) != 0 || conditional(true, empty) != 0) return 3;
+	if (conditional(false, present) != 0 || conditional(true, present) != 0) return 4;
 	return 0;
 }

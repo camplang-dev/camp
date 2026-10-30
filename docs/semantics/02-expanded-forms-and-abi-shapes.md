@@ -210,6 +210,10 @@ one invocation. Arrays and fixed-size arrays cannot directly contain expanded
 values, including distributive pointers to expanded values; use `void<V>[]`
 storage instead.
 
+Conditional arms are converted separately to the optional result shape. A plain
+payload arm contributes a true presence flag; an optional arm carries its flag,
+and a `default` arm contributes a false flag, including in an inferred result.
+
 Optional conversion must preserve optional shape. A conversion that reinterprets
 the payload without respecting the optional's specified bit is invalid. The
 specified component is part of the value contract, not a spare implementation

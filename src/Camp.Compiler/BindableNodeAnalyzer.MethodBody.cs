@@ -7738,9 +7738,9 @@ public sealed partial class BindableNodeAnalyzer
 					$"Conditional operands '{trueType}' and '{falseType}' have no common type; use an explicit conversion.");
 			return ErrorType;
 		}
-		if (CanTargetIntegerLiteral(conditional.WhenTrue, commonType))
+		if (trueType == TargetType || CanTargetIntegerLiteral(conditional.WhenTrue, commonType))
 			BodyAnalyzeExpression(conditional.WhenTrue, scope, typeScope, commonType);
-		if (CanTargetIntegerLiteral(conditional.WhenFalse, commonType))
+		if (falseType == TargetType || CanTargetIntegerLiteral(conditional.WhenFalse, commonType))
 			BodyAnalyzeExpression(conditional.WhenFalse, scope, typeScope, commonType);
 		return commonType;
 	}

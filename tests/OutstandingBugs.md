@@ -67,29 +67,6 @@ Semantic analysis reports no accessibility error. Compilation proceeds to native
 Known Impact:
 Invalid access to a non-shadow base's fields is accepted by semantic analysis and reported later as a native compiler error. Use a method of the base class to expose the required operation instead of accessing its field through the shadow class.
 
-## BUG-439: A conditional that joins a payload and an optional, or an optional and `default`, is always specified
-
-Date/Time: 2026-10-29 23:09 EDT
-
-Summary:
-When the arms of a conditional are an optional and either a plain value or `default`, and the conditional is not given an optional target by a matching arm pair, the generated code marks the result as specified on both paths. The false path should be unspecified when it selects an unspecified optional.
-
-Steps to Reproduce:
-
-1. Write `void t(bool c, int i, int? o)` containing `auto a = c ? o : default;`, `auto b = c ? i : o;` and `int? e = c ? i : o;`, and log `a.specified`, `b.specified` and `e.specified` as 1 or 0.
-2. For comparison add `int? d = c ? o : default;` and log `d.specified`.
-3. Call `t(false, 5, none)` where `int? none = default;`.
-4. Compile and run the program.
-
-Expected:
-Every value is 0: `c` is false, so each conditional selects `o` or `default`, and `o` is unspecified.
-
-Actual:
-`a`, `b` and `e` report 1. The generated C initializes the specified flag to `true` (for example `bool e_specified = true;`). Only `d` reports 0, and its generated flag is `(c ? o_specified : 0)`.
-
-Known Impact:
-An optional produced by a conditional that mixes a payload with an optional, or an optional with `default`, reads as specified when it is not. Give the conditional an optional target with an optional arm on each side, or use an `if` statement, until this is fixed.
-
 ## BUG-440: An argument of a generic call is not converted to the common type inferred for its parameter
 
 Date/Time: 2026-10-30 00:05 EDT

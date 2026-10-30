@@ -1691,8 +1691,10 @@ public sealed partial class BindableNodeAnalyzer
 			return MaterializeConditionalExpandedCallResults(conditional, resultShape, out components);
 		List<Statement>? truePrefix = currentStatementPrefix is null ? null : [];
 		List<Statement>? falsePrefix = currentStatementPrefix is null ? null : [];
-		if (!TryCreateConditionalArmComponents(conditional.WhenTrue, truePrefix, out List<Expression> trueComponents)
-			|| !TryCreateConditionalArmComponents(conditional.WhenFalse, falsePrefix, out List<Expression> falseComponents)
+		ParamsComponentShape? optionalShape = TryGetParamsComponentShape(null, conditional.ResolvedType, "value", out ParamsComponentShape shape)
+			&& shape.Kind == ParamsComponentShapeKind.Optional ? shape : null;
+		if (!TryCreateConditionalArmComponents(conditional.WhenTrue, truePrefix, optionalShape, out List<Expression> trueComponents)
+			|| !TryCreateConditionalArmComponents(conditional.WhenFalse, falsePrefix, optionalShape, out List<Expression> falseComponents)
 			|| trueComponents.Count == 0
 			|| trueComponents.Count != falseComponents.Count)
 		{
@@ -1727,13 +1729,15 @@ public sealed partial class BindableNodeAnalyzer
 		return true;
 	}
 
-	bool TryCreateConditionalArmComponents(Expression arm, List<Statement>? armPrefix, out List<Expression> armComponents)
+	bool TryCreateConditionalArmComponents(Expression arm, List<Statement>? armPrefix, ParamsComponentShape? optionalShape, out List<Expression> armComponents)
 	{
 		List<Statement>? previousPrefix = currentStatementPrefix;
 		if (armPrefix is not null)
 			currentStatementPrefix = armPrefix;
 		try
 		{
+			if (optionalShape is not null)
+				return TryCreateValueParamsComponents(arm, optionalShape, out armComponents);
 			return TryCreateParamsComponentExpressions(arm, out armComponents)
 				|| TryCreatePrimitiveStringParamsComponentExpressions(arm, out armComponents);
 		}
